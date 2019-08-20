@@ -23,10 +23,17 @@ def main(argv: Sequence[str]) -> int:
     try:
         args.func(args)
     except Exception as e:
-        print(e, file=sys.stderr)
+        print(repr(e), file=sys.stderr)
         return 1
 
     return 0
+
+
+def _init(args):
+    """Initialize a spenv workspace."""
+
+    wksp = spenv.create_workspace(args.path)
+    print(f"initialized: {wksp.rootdir}")
 
 
 def _commit(args):
@@ -92,10 +99,47 @@ def _layers(args):
         print(f"{layer.ref}")
 
 
+def _status(args):
+    """Inspect the status of the current workspace"""
+
+    wksp = spenv.discover_workspace(".")
+
+    print(f"root: {wksp.rootdir}")
+    print(f"data: {wksp.dotspenvdir}")
+
+
+def _checkout(args):
+    """Configure the current workspace to use a specific environment.
+
+    TODO: think of a better docstring
+    """
+    wksp = spenv.discover_workspace(".")
+    wksp.checkout(args.tag)
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
     sub_parsers = parser.add_subparsers(dest="command", required=True)
+
+    init_cmd = sub_parsers.add_parser("init", help=_init.__doc__)
+    init_cmd.add_argument(
+        "path",
+        metavar="PATH",
+        nargs="?",
+        default=".",
+        help="the location of the new work space",
+    )
+    init_cmd.set_defaults(func=_init)
+
+    status_cmd = sub_parsers.add_parser("status", help=_status.__doc__)
+    status_cmd.set_defaults(func=_status)
+
+    checkout_cmd = sub_parsers.add_parser("checkout", help=_checkout.__doc__)
+    checkout_cmd.add_argument("tag", metavar="TAG")
+    checkout_cmd.set_defaults(func=_checkout)
+
+    # ---- TODO: reevaluate semantics below
 
     enter_cmd = sub_parsers.add_parser("enter", help="enter an environment")
     enter_cmd.add_argument("ref", metavar="REF")

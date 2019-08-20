@@ -137,7 +137,7 @@ def _fuse_overlayfs(*args) -> None:
     _exec_fuse_command("fuse-overlayfs", *args)
 
 
-def _exec_fuse_command(*cmd) -> None:
+def _exec_fuse_command(*cmd) -> str:
 
     proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     out, err = proc.communicate()

@@ -30,60 +30,7 @@ class Layer:
 
     def compute_digest(self):
 
-        return _compute_tree(self.diffdir).digest
-
-
-class EntryKind(enum.Enum):
-
-    TREE = "tree"
-    BLOB = "file"
-
-
-class Entry(NamedTuple):
-
-    digest: str
-    kind: EntryKind
-    mode: int
-    name: str
-
-
-class Tree(NamedTuple):
-
-    digest: str
-    entries: Tuple[Entry]
-
-
-def _compute_tree(dirname) -> Tree:
-    # TODO: CLEAN ME
-
-    names = os.listdir(dirname)
-    entries = []
-    for name in sorted(names):
-        abspath = os.path.join(dirname, name)
-        stat_result = os.lstat(abspath)
-        kind = EntryKind.BLOB
-        if stat.S_ISLNK(stat_result.st_mode):
-            digest = hashlib.sha256(os.readlink(abspath)).hexdigest
-        elif stat.S_ISDIR(stat_result.st_mode):
-            kind = EntryKind.TREE
-            digest = _compute_tree(abspath).digest
-        elif not stat.S_ISREG(stat_result.st_mode):
-            raise ValueError("unsupported file mode" + str(stat_result.st_mode))
-        else:
-            with open(abspath, "rb") as f:
-                hasher = hashlib.sha256()
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    hasher.update(byte_block)
-                digest = hasher.hexdigest()
-
-        entries.append(
-            Entry(kind=kind, name=name, mode=stat_result.st_mode, digest=digest)
-        )
-
-    hasher = hashlib.sha256()
-    for entry in entries:
-        hasher.update(entry.digest.encode("ascii"))
-    return Tree(digest=hasher.hexdigest(), entries=tuple(entries))
+        return tracking.compute_tree(self.diffdir).digest
 
 
 def _ensure_layer(path: str):

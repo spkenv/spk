@@ -12,12 +12,12 @@ class Mount(NamedTuple):
     workdir: str
 
     @property
-    def command(self) -> Tuple[str]:
+    def command(self) -> Tuple[str, str, str, str]:
 
         return (
             "fuse-overlayfs",
             "-o",
-            f"lowerdir={':'.join(self.lowedirs)},upperdir={self.upperdir},workdir={self.workdir}",
+            f"lowerdir={':'.join(self.lowerdirs)},upperdir={self.upperdir},workdir={self.workdir}",
             self.target,
         )
 

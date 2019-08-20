@@ -1,11 +1,4 @@
-from ._layer import _compute_tree, Layer, LayerStorage, _ensure_layer
-
-
-def test_compute_tree():
-
-    first = _compute_tree(".")
-    second = _compute_tree(".")
-    assert first == second
+from ._layer import Layer, LayerStorage, _ensure_layer
 
 
 def test_list_no_layers(tmpdir):

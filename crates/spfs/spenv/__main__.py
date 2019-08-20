@@ -1,3 +1,4 @@
+"""Command-line entrypoint for spenv."""
 import sys
 import spenv.cli
 

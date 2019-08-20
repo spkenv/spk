@@ -1,4 +1,4 @@
-"""Create and manage file system layers."""
+"""Runtime environment management."""
 from typing import List
 import os
 import sys
@@ -7,9 +7,15 @@ import subprocess
 
 from . import storage
 from ._runtime import mount, unmount
+from ._workspace import (
+    create_workspace,
+    discover_workspace,
+    Workspace,
+    NoWorkspaceError,
+    read_workspace,
+)
 
 
-def commit(ref) -> storage.Layer:
+def pull(tag: str):
 
-    repo = storage.configured_repository()
-    return repo.commit(ref)
+    target = tracking.Tag.parse(tag)
