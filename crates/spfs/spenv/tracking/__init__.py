@@ -1,2 +1,11 @@
 from ._tag import Tag
-from ._database import Tree, Entry, EntryKind, compute_tree, compute_db, compute_entry
+from ._manifest import (
+    Manifest,
+    Tree,
+    Entry,
+    EntryKind,
+    compute_tree,
+    compute_manifest,
+    compute_entry,
+)
+from ._io import MetadataWriter, MetadataReader

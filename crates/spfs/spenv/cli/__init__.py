@@ -3,6 +3,10 @@ import os
 import sys
 import subprocess
 import argparse
+import colorama
+from colorama import Fore, Back, Style
+
+colorama.init()
 
 import spenv
 
@@ -37,66 +41,15 @@ def _init(args):
 
 
 def _commit(args):
+    """Commit the current runtime fileset into a layer."""
 
-    layer = spenv.commit(args.ref)
-    print(f"created: {layer.ref}")
+    wksp = spenv.discover_workspace(".")
+    runtime = spenv.active_runtime()
+    if runtime is None:
+        raise RuntimeError("No active runtime to commit")
 
-
-def _enter(args):
-
-    repo = spenv.storage.configured_repository()
-
-    if args.ref == REF_EMPTY:
-        ref = repo.runtimes.create_runtime()
-    else:
-        ref = repo.read_ref(args.ref)
-    if isinstance(ref, spenv.storage.Runtime):
-        runtime = ref
-    elif isinstance(ref, spenv.storage.Layer):
-        runtime = repo.runtimes.create_runtime(args.ref)
-    else:
-        raise TypeError(ref)
-
-    print(f"runtime: {runtime.ref}")
-
-    mount_point = os.path.abspath(".spenv")
-    os.makedirs(mount_point, exist_ok=True)
-
-    print(f"mount: {mount_point}")
-    spenv.mount(runtime.ref, mount_point)
-
-    env = os.environ.copy()
-    env["SPENV_BASE"] = args.ref
-    env[SPENV_RUNTIME] = runtime.ref
-    env["SPENV_MOUNT"] = mount_point
-    print(f"ENTERING SUBSHELL for {args.ref}")
-    proc = subprocess.Popen(
-        [os.getenv("SHELL", "/bin/bash")], env=env  # FIXME: linux-only default
-    )
-    proc.wait()
-    print(f"unmount: {mount_point}")
-    spenv.unmount(mount_point)
-    if args.rm:
-        print(f"remove: {runtime.ref}")
-        repo.runtimes.remove_runtime(runtime.ref)
-    print(f"EXITING SUBSHELL for {args.ref}")
-    sys.exit(proc.returncode)
-
-
-def _runtimes(args):
-
-    repo = spenv.storage.configured_repository()
-    runtimes = repo.runtimes.list_runtimes()
-    for runtime in runtimes:
-        print(f"{runtime.ref}")
-
-
-def _layers(args):
-
-    repo = spenv.storage.configured_repository()
-    layers = repo.layers.list_layers()
-    for layer in layers:
-        print(f"{layer.ref}")
+    layer = wksp.commit(args.message)
+    print(layer.ref)
 
 
 def _status(args):
@@ -104,8 +57,39 @@ def _status(args):
 
     wksp = spenv.discover_workspace(".")
 
-    print(f"root: {wksp.rootdir}")
-    print(f"data: {wksp.dotspenvdir}")
+    print(f"{Fore.GREEN}Active Workspace{Fore.RESET}")
+    print(f" root: {wksp.rootdir}")
+    print(f" data: {wksp.dotspenvdir}")
+    print()
+
+    runtime = spenv.active_runtime()
+    if runtime is None:
+        print(f"{Fore.RED}No Active Runtime{Fore.RESET}")
+    else:
+        print(f"{Fore.GREEN}Active Runtime{Fore.RESET}")
+        print(f" run: {runtime.rootdir}")
+        print(f" mnt: {runtime.get_mount_path()}")
+        print(f" env: {runtime.get_env_root()}")
+        print()
+
+    repo = wksp.read_meta_repo()
+    if not repo:
+        print(f"{Fore.RED}No Active Tracking{Fore.RESET}")
+    else:
+        print(f"{Fore.GREEN}Active Tracking{Fore.RESET}")
+        print(f" head: {repo.git_dir}")
+
+
+def _diff(args):
+
+    wksp = spenv.discover_workspace(".")
+    wksp.diff()  # TODO: something more clearly updating the index...
+    repo = wksp.read_meta_repo()
+    if not repo:
+        raise RuntimeError("TODO: better error, no tracking")
+    proc = subprocess.Popen(["git", "diff", "HEAD"], cwd=repo.working_tree_dir)
+    proc.wait()
+    sys.exit(proc.returncode)
 
 
 def _checkout(args):
@@ -115,6 +99,40 @@ def _checkout(args):
     """
     wksp = spenv.discover_workspace(".")
     wksp.checkout(args.tag)
+
+
+def _track(args):
+
+    tag = spenv.tracking.Tag.parse(args.tag)
+    try:
+        wksp = spenv.discover_workspace(".")
+        config = wksp.config
+    except spenv.NoWorkspaceError:
+        config = spenv.Config()
+
+    repos = config.repository_storage()
+    if args.local:
+        repo = repos.create_local_repository(tag.path)
+    else:
+        repo = repos.clone_repository(tag.path)
+
+    print(repo)
+
+
+def _shell(args):
+    """Enter a workspace-configured shell environment."""
+
+    wksp = spenv.discover_workspace(".")
+    runtime = wksp.setup_runtime()
+    env = runtime.compile_environment()
+
+    print(f"{Fore.YELLOW}ENTERING SPENV SUBSHELL...{Style.RESET_ALL}")
+
+    proc = subprocess.Popen(["/bin/bash", "--norc"], env=env)  # FIXME: other shells...
+    proc.wait()
+
+    print(f"{Fore.YELLOW}EXITING SPENV SUBSHELL...{Style.RESET_ALL}")
+    sys.exit(proc.returncode)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -128,36 +146,30 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         metavar="PATH",
         nargs="?",
         default=".",
-        help="the location of the new work space",
+        help="the location of the new workspace",
     )
     init_cmd.set_defaults(func=_init)
 
+    track_cmd = sub_parsers.add_parser("track", help=_track.__doc__)
+    track_cmd.add_argument("--local", action="store_true", help="TODO: betterify")
+    track_cmd.add_argument("tag", metavar="TAG", help="tracking tag")
+    track_cmd.set_defaults(func=_track)
+
     status_cmd = sub_parsers.add_parser("status", help=_status.__doc__)
     status_cmd.set_defaults(func=_status)
+
+    status_cmd = sub_parsers.add_parser("diff", help=_diff.__doc__)
+    status_cmd.set_defaults(func=_diff)
 
     checkout_cmd = sub_parsers.add_parser("checkout", help=_checkout.__doc__)
     checkout_cmd.add_argument("tag", metavar="TAG")
     checkout_cmd.set_defaults(func=_checkout)
 
-    # ---- TODO: reevaluate semantics below
+    shell_cmd = sub_parsers.add_parser("shell", help=_shell.__doc__)
+    shell_cmd.set_defaults(func=_shell)
 
-    enter_cmd = sub_parsers.add_parser("enter", help="enter an environment")
-    enter_cmd.add_argument("ref", metavar="REF")
-    enter_cmd.add_argument(
-        "--rm", action="store_true", help="remove the runtime and any changes upon exit"
-    )
-    enter_cmd.set_defaults(func=_enter)
-
-    runtimes_cmd = sub_parsers.add_parser("runtimes", help="manage stored runtimes")
-    runtimes_cmd.set_defaults(func=_runtimes)
-
-    layers_cmd = sub_parsers.add_parser("layers", help="manage stored layers")
-    layers_cmd.set_defaults(func=_layers)
-
-    commit_cmd = sub_parsers.add_parser("commit", help="commit a runtime into a layer")
-    commit_cmd.add_argument(
-        "ref", metavar="REF", nargs="?", type=str, default=ACTIVE_RUNTIME
-    )
+    commit_cmd = sub_parsers.add_parser("commit", help=_commit.__doc__)
+    commit_cmd.add_argument("--message", "-m", type=str)
     commit_cmd.set_defaults(func=_commit)
 
     return parser.parse_args(argv)

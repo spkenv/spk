@@ -1,4 +1,7 @@
+import os
+
 import pytest
+import py.path
 import git
 
 from . import storage
@@ -75,7 +78,7 @@ def test_workspace_checkout_no_repo(tmpwksp: Workspace):
 def test_workspace_checkout_no_version(tmpwksp: Workspace):
 
     repos = tmpwksp.config.repository_storage()
-    repo = repos.create_repository("localhost.test/spi/base")
+    repo = repos.create_local_repository("localhost.test/spi/base")
     with pytest.raises(storage.UnknownVersionError):
         tmpwksp.checkout("localhost.test/spi/base:25")
 
@@ -83,20 +86,35 @@ def test_workspace_checkout_no_version(tmpwksp: Workspace):
 def test_workspace_checkout(tmpwksp: Workspace):
 
     repos = tmpwksp.config.repository_storage()
-    repo = repos.create_repository("localhost.test/spi/base")
-    repo._repo.index.commit("initial commit")
+    repo = repos.create_local_repository("localhost.test/spi/base")
 
     tmpwksp.checkout("localhost.test/spi/base:master")
 
 
+def test_workspace_setup_runtime(tmpwksp: Workspace):
+
+    runtime = tmpwksp.setup_runtime()
+    assert runtime.get_env_root(), "env root should be set"
+    assert os.path.isdir(runtime.get_env_root()), "env root shold exist"
+
+
+@pytest.mark.skip
 def test_workspace_sync_meta(tmpwksp: Workspace):
 
     repos = tmpwksp.config.repository_storage()
-    repo = repos.create_repository("localhost.test/spi/base")
+    repo = repos.create_local_repository("localhost.test/spi/base")
     repo._repo.index.commit("initial commit")
 
     tmpwksp.checkout("localhost.test/spi/base:master")
 
+    root = py.path.local(
+        tmpwksp.rootdir
+    )  # FIXME: this should be the mount, not workspace
+    root.join("some/dir/file.txt").ensure()
+    root.join("some/dir/other.txt").ensure()
+    root.join("some/message.txt").ensure()
+    root.join("root.txt").ensure()
+
     tmpwksp._sync_meta()
-    assert repo._repo.is_dirty()
+    assert tmpwksp.metarepo.is_dirty()
     assert git.Diff(repo._repo)  # THIS MIGHT NOT BE RIGHT

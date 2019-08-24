@@ -27,9 +27,9 @@ def test_repository_add_worktree(tmpdir):
 def test_repository_add_worktree_noref(tmpdir):
 
     repos = RepositoryStorage(tmpdir.strpath)
-    repo = repos.create_repository("repo")
+    repo = repos.create_local_repository("repo")
     with pytest.raises(UnknownVersionError):
-        repo.add_worktree(tmpdir.join("work").strpath, "HEAD")
+        repo.add_worktree(tmpdir.join("work").strpath, "other")
 
 
 def test_storage_read_repository_not_exist(tmpdir):

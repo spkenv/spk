@@ -1,73 +1,69 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 import os
 import uuid
 import errno
 import shutil
 import hashlib
 
+from ._variables import Variables
+
 
 class Runtime:
-
-    _upper = "upper"
-    _work = "work"
-    _lower = "lower"
-    _merged = "merged"
-    dirs = (_upper, _work, _lower, _merged)
-
     def __init__(self, root: str):
 
         self._root = os.path.abspath(root)
 
     @property
-    def ref(self):
-        return os.path.basename(self._root)
+    def rootdir(self) -> str:
+        return self._root
 
     @property
-    def lowerdir(self):
-        return os.path.join(self._root, self._lower)
+    def parent_file(self):
+        return os.path.join(self._root, "parent")
 
     @property
-    def upperdir(self):
-        return os.path.join(self._root, self._upper)
+    def env_root_file(self):
+        return os.path.join(self._root, "env_root")
 
     @property
-    def workdir(self):
-        return os.path.join(self._root, self._work)
+    def mount_file(self):
+        return os.path.join(self._root, "mount")
 
-    def _set_parent_ref(self, parent: Optional[str]) -> None:
+    def set_mount_path(self, path: Optional[str]) -> None:
+        _write_data_file(self.mount_file, path)
 
-        parent_file = os.path.join(self._root, "parent")
-        if parent is None:
-            try:
-                return os.remove(parent_file)
-            except OSError as e:
-                if e.errno == errno.ENOENT:
-                    return
-                raise
+    def get_mount_path(self) -> Optional[str]:
+        return _read_data_file(self.mount_file)
 
-        with open(parent_file, "bw+") as f:
-            f.write(parent.encode("ascii"))
+    def set_parent_ref(self, ref: Optional[str]) -> None:
+        _write_data_file(self.parent_file, ref)
 
     def get_parent_ref(self) -> Optional[str]:
+        return _read_data_file(self.parent_file)
 
-        parent_file = os.path.join(self._root, "parent")
-        parent: Optional[str] = None
-        try:
-            with open(parent_file, encoding="ascii") as f:
-                return f.read()
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                pass
-            else:
-                raise
-        return None
+    def set_env_root(self, rootdir: Optional[str]) -> None:
+        _write_data_file(self.env_root_file, rootdir)
+
+    def get_env_root(self) -> Optional[str]:
+        return _read_data_file(self.env_root_file)
+
+    def compile_environment(self, base: Dict[str, str] = None) -> Dict[str, str]:
+
+        if base is None:
+            base = os.environ
+
+        # TODO: calculate environment from parent
+
+        env: Dict[str, str] = base.copy()
+        env["SPENV_PARENT"] = self.get_parent_ref() or ""
+        env["SPENV_RUNTIME"] = self._root
+        env["SPENV_ROOT"] = self.get_env_root() or ""
+        return env
 
 
 def _ensure_runtime(path: str):
 
     os.makedirs(path, exist_ok=True)
-    for subdir in Runtime.dirs:
-        os.makedirs(os.path.join(path, subdir), exist_ok=True)
     return Runtime(path)
 
 
@@ -101,11 +97,38 @@ class RuntimeStorage:
 
         return [Runtime(os.path.join(self._root, d)) for d in dirs]
 
-    def create_runtime(self, parent: str = None) -> Runtime:
+    def create_runtime(self, name: str) -> Runtime:
 
-        ref = hashlib.sha256(uuid.uuid1().bytes).hexdigest()
-        runtime_dir = os.path.join(self._root, ref)
-        runtime = _ensure_runtime(runtime_dir)
-        if parent is not None:
-            runtime._set_parent_ref(parent)
-        return runtime
+        runtime_dir = os.path.join(self._root, name)
+        try:
+            os.makedirs(runtime_dir)
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                raise ValueError("Runtime exists: " + name)
+            raise
+        return _ensure_runtime(runtime_dir)
+
+
+def _write_data_file(filepath: str, value: Optional[str]) -> None:
+
+    if value is None:
+        try:
+            return os.remove(filepath)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                return
+            raise
+
+    with open(filepath, "w+", encoding="utf-8") as f:
+        f.write(value)
+
+
+def _read_data_file(filepath: str) -> Optional[str]:
+
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            return f.read()
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            return None
+        raise

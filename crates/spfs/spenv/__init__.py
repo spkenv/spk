@@ -1,21 +1,25 @@
 """Runtime environment management."""
-from typing import List
+from typing import List, Optional
 import os
 import sys
 import errno
 import subprocess
 
 from . import storage
-from ._runtime import mount, unmount
+from ._config import Config
 from ._workspace import (
     create_workspace,
     discover_workspace,
     Workspace,
     NoWorkspaceError,
     read_workspace,
+    MASTER,
 )
 
 
-def pull(tag: str):
+def active_runtime() -> Optional[storage.Runtime]:
 
-    target = tracking.Tag.parse(tag)
+    path = os.getenv("SPENV_RUNTIME")
+    if not path:
+        return None
+    return storage.Runtime(path)
