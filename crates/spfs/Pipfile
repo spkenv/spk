@@ -11,6 +11,7 @@ pydocstyle = "*"
 rope = "*"
 pylint = "*"
 pex = "*"
+pytest-cov = "*"
 
 [packages]
 pyyaml = "~=5.1"
