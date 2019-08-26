@@ -1,2 +1,0 @@
-class Variables:
-    pass

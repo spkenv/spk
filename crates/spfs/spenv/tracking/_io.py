@@ -1,3 +1,4 @@
+from typing import Dict
 import os
 import errno
 import shutil
@@ -32,7 +33,7 @@ class MetadataWriter:
 
     def write_db(self, manifest: Manifest, prefix: str = "") -> None:
 
-        serialized = {}
+        serialized: Dict = {}
         for path, entry in manifest.walk():
 
             relpath = path[len(prefix) :] or "/"
@@ -49,5 +50,15 @@ class MetadataWriter:
 
 
 class MetadataReader:
+    def __init__(self, target_dir: str) -> None:
+
+        self._dir = os.path.abspath(target_dir)
+
     def read(self) -> Manifest:
-        raise NotImplementedError("MetadataReader.read")
+
+        manifest = Manifest()
+        metapath = os.path.join(self._dir, "entries.yaml")
+        with open(metapath, "w+", encoding="utf-8") as f:
+            serialized = yaml.safe_load(f)
+
+        raise NotImplementedError(serialized)

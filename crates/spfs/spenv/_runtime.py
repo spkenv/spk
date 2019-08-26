@@ -1,21 +1,30 @@
 from typing import NamedTuple, List, Optional
-import re
-import json
+import os
 import subprocess
 
+from ._config import Config
 from . import storage
 
 
-def _resolve_lowerdirs(repo: storage.Repository, ref: str) -> List[str]:
+def active_runtime() -> storage.Runtime:
 
-    target = repo.read_ref(ref)
-    if isinstance(target, storage.Runtime):
-        parent_ref = target.get_parent_ref()
-        if parent_ref is None:
-            return []
-        return _resolve_lowerdirs(repo, parent_ref)
+    path = os.getenv("SPENV_RUNTIME")
+    if path is None:
+        raise RuntimeError("No active runtime")
+    return storage.Runtime(path)
 
-    if isinstance(target, storage.Layer):
-        return [target.diffdir]
 
-    raise NotImplementedError(f"Unhandled ref type: {target}")
+def run(*cmd) -> subprocess.Popen:
+
+    config = Config()
+    repo = config.repository()
+
+    runtime = repo.runtimes.create_runtime()
+
+    env = os.environ.copy()
+    env["SPENV_RUNTIME"] = runtime.rootdir
+
+    cmd = ("spenv-mount", runtime.overlay_args) + cmd
+    print(cmd)
+
+    return subprocess.Popen(cmd, env=env)

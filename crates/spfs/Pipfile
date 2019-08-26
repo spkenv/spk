@@ -1,0 +1,21 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+pytest = "*"
+pytest-bdd = "*"
+pytest-watch = "*"
+pydocstyle = "*"
+rope = "*"
+pylint = "*"
+pex = "*"
+
+[packages]
+pyyaml = "~=5.1"
+colorama = "*"
+typing-extensions = "*"
+
+[requires]
+python_version = "3.7"

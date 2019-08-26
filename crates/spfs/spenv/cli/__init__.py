@@ -10,11 +10,7 @@ colorama.init()
 
 import spenv
 
-REF_EMPTY = "empty"
-
-SPENV_RUNTIME = "SPENV_RUNTIME"
-
-ACTIVE_RUNTIME = os.getenv(SPENV_RUNTIME, None)
+config = spenv.Config()
 
 
 def main(argv: Sequence[str]) -> int:
@@ -27,40 +23,35 @@ def main(argv: Sequence[str]) -> int:
     try:
         args.func(args)
     except Exception as e:
+        if args.debug:
+            raise
         print(repr(e), file=sys.stderr)
         return 1
 
     return 0
 
 
-def _init(args):
-    """Initialize a spenv workspace."""
-
-    wksp = spenv.create_workspace(args.path)
-    print(f"initialized: {wksp.rootdir}")
-
-
 def _commit(args):
-    """Commit the current runtime fileset into a layer."""
+    """TODO: package or platform..."""
 
-    wksp = spenv.discover_workspace(".")
     runtime = spenv.active_runtime()
-    if runtime is None:
-        raise RuntimeError("No active runtime to commit")
+    repo = config.repository()
 
-    layer = wksp.commit(args.message)
-    print(layer.ref)
+    if args.kind == "package":
+        result = repo.commit_runtime(runtime)
+    else:
+        raise NotImplementedError("commit", args.kind)
+
+    print(f"{Fore.GREEN}created: {Fore.RESET}{result.ref}")
+    for tag in args.tags:
+        repo.tag(result.ref, tag)
+        print(f"{Fore.BLUE} tagged: {Fore.RESET}{tag}")
+
+    return
 
 
 def _status(args):
     """Inspect the status of the current workspace"""
-
-    wksp = spenv.discover_workspace(".")
-
-    print(f"{Fore.GREEN}Active Workspace{Fore.RESET}")
-    print(f" root: {wksp.rootdir}")
-    print(f" data: {wksp.dotspenvdir}")
-    print()
 
     runtime = spenv.active_runtime()
     if runtime is None:
@@ -68,108 +59,110 @@ def _status(args):
     else:
         print(f"{Fore.GREEN}Active Runtime{Fore.RESET}")
         print(f" run: {runtime.rootdir}")
-        print(f" mnt: {runtime.get_mount_path()}")
-        print(f" env: {runtime.get_env_root()}")
         print()
 
-    repo = wksp.read_meta_repo()
-    if not repo:
-        print(f"{Fore.RED}No Active Tracking{Fore.RESET}")
-    else:
-        print(f"{Fore.GREEN}Active Tracking{Fore.RESET}")
-        print(f" head: {repo.git_dir}")
+
+def _runtimes(args):
+
+    repo = config.repository()
+    runtimes = repo.runtimes.list_runtimes()
+    for runtime in runtimes:
+        print(runtime.ref)
 
 
-def _diff(args):
+def _enter(args):
+    """Enter a configured shell environment."""
 
-    wksp = spenv.discover_workspace(".")
-    wksp.diff()  # TODO: something more clearly updating the index...
-    repo = wksp.read_meta_repo()
-    if not repo:
-        raise RuntimeError("TODO: better error, no tracking")
-    proc = subprocess.Popen(["git", "diff", "HEAD"], cwd=repo.working_tree_dir)
+    setattr(args, "command", ("/bin/bash", "--norc"))
+    return _run(args)
+
+
+def _run(args):
+    """Run a program in a configured environment."""
+
+    proc = spenv.run(*args.cmd)
     proc.wait()
+
     sys.exit(proc.returncode)
 
 
-def _checkout(args):
-    """Configure the current workspace to use a specific environment.
-
-    TODO: think of a better docstring
-    """
-    wksp = spenv.discover_workspace(".")
-    wksp.checkout(args.tag)
-
-
-def _track(args):
-
-    tag = spenv.tracking.Tag.parse(args.tag)
-    try:
-        wksp = spenv.discover_workspace(".")
-        config = wksp.config
-    except spenv.NoWorkspaceError:
-        config = spenv.Config()
-
-    repos = config.repository_storage()
-    if args.local:
-        repo = repos.create_local_repository(tag.path)
-    else:
-        repo = repos.clone_repository(tag.path)
-
-    print(repo)
-
-
 def _shell(args):
-    """Enter a workspace-configured shell environment."""
 
-    wksp = spenv.discover_workspace(".")
-    runtime = wksp.setup_runtime()
-    env = runtime.compile_environment()
+    args.cmd = ["/bin/bash"] + args.cmd
+    _run(args)
 
-    print(f"{Fore.YELLOW}ENTERING SPENV SUBSHELL...{Style.RESET_ALL}")
 
-    proc = subprocess.Popen(["/bin/bash", "--norc"], env=env)  # FIXME: other shells...
+def _search(args):
+
+    # TODO: more than just exact
+    repo = config.repository()
+    for term in args.terms:
+        layer = repo.read_ref(term)
+        print(repr(layer))
+
+
+def _install(args):
+
+    runtime = spenv.active_runtime()
+    repo = config.repository()
+
+    layers = []
+    for ref in args.refs:
+        layers.append(repo.read_ref(ref))
+
+    for layer in layers:
+        if isinstance(layer, spenv.storage.Package):
+            runtime.append_package(layer)
+        else:
+            raise NotImplementedError("TODO: handle others")
+
+    print(["spenv-remount", runtime.overlay_args])
+    proc = subprocess.Popen(["spenv-remount", runtime.overlay_args])
     proc.wait()
-
-    print(f"{Fore.YELLOW}EXITING SPENV SUBSHELL...{Style.RESET_ALL}")
     sys.exit(proc.returncode)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
+    parser.add_argument("--debug", "-d", action="store_true")
+
     sub_parsers = parser.add_subparsers(dest="command", required=True)
-
-    init_cmd = sub_parsers.add_parser("init", help=_init.__doc__)
-    init_cmd.add_argument(
-        "path",
-        metavar="PATH",
-        nargs="?",
-        default=".",
-        help="the location of the new workspace",
-    )
-    init_cmd.set_defaults(func=_init)
-
-    track_cmd = sub_parsers.add_parser("track", help=_track.__doc__)
-    track_cmd.add_argument("--local", action="store_true", help="TODO: betterify")
-    track_cmd.add_argument("tag", metavar="TAG", help="tracking tag")
-    track_cmd.set_defaults(func=_track)
 
     status_cmd = sub_parsers.add_parser("status", help=_status.__doc__)
     status_cmd.set_defaults(func=_status)
 
-    status_cmd = sub_parsers.add_parser("diff", help=_diff.__doc__)
-    status_cmd.set_defaults(func=_diff)
+    runtimes_cmd = sub_parsers.add_parser("runtimes", help=_runtimes.__doc__)
+    runtimes_cmd.set_defaults(func=_runtimes)
 
-    checkout_cmd = sub_parsers.add_parser("checkout", help=_checkout.__doc__)
-    checkout_cmd.add_argument("tag", metavar="TAG")
-    checkout_cmd.set_defaults(func=_checkout)
+    enter_cmd = sub_parsers.add_parser("enter", help=_enter.__doc__)
+    enter_cmd.add_argument(
+        "refs", metavar="REF", nargs="*", help="TODO: something good"
+    )
+    enter_cmd.set_defaults(func=_enter)
+
+    run_cmd = sub_parsers.add_parser("run", help=_run.__doc__)
+    run_cmd.add_argument("refs", metavar="REF", nargs="*", help="TODO: something good")
+    run_cmd.add_argument("cmd", nargs=argparse.REMAINDER)
+    run_cmd.set_defaults(func=_run)
 
     shell_cmd = sub_parsers.add_parser("shell", help=_shell.__doc__)
+    shell_cmd.add_argument("cmd", nargs=argparse.REMAINDER)
     shell_cmd.set_defaults(func=_shell)
 
     commit_cmd = sub_parsers.add_parser("commit", help=_commit.__doc__)
-    commit_cmd.add_argument("--message", "-m", type=str)
+    commit_cmd.add_argument("kind", choices=["package", "platform"], help="TODO: help")
+    commit_cmd.add_argument(
+        "--tag", "-t", dest="tags", action="append", help="TODO: help"
+    )
     commit_cmd.set_defaults(func=_commit)
+
+    install_cmd = sub_parsers.add_parser("install", help=_install.__doc__)
+    install_cmd.add_argument("refs", metavar="REF", nargs="+", help="TODO: help")
+    install_cmd.set_defaults(func=_install)
+
+    search_cmd = sub_parsers.add_parser("search", help=_search.__doc__)
+    search_cmd.add_argument("terms", metavar="TERM", nargs="+")
+    search_cmd.set_defaults(func=_search)
 
     return parser.parse_args(argv)

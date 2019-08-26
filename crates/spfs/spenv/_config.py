@@ -8,14 +8,6 @@ class Config(NamedTuple):
 
     storage_root: str = os.path.expanduser("~/.local/share/spenv")
 
-    def repository_storage(self) -> storage.RepositoryStorage:
+    def repository(self) -> storage.Repository:
 
-        metadir = os.path.join(self.storage_root, "meta")
-        os.makedirs(metadir, exist_ok=True)
-        return storage.RepositoryStorage(metadir)
-
-    def layer_storage(self) -> storage.LayerStorage:
-
-        layersdir = os.path.join(self.storage_root, "layers")
-        os.makedirs(layersdir, exist_ok=True)
-        return storage.LayerStorage(layersdir)
+        return storage.ensure_repository(self.storage_root)

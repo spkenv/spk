@@ -1,69 +1,108 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, NamedTuple, Tuple, Sequence, IO, ContextManager
 import os
+import re
+import json
 import uuid
 import errno
 import shutil
 import hashlib
+import subprocess
+import contextlib
 
-from ._variables import Variables
+from ._package import Package
+
+
+class MountConfig(NamedTuple):
+
+    lowerdirs: Tuple[str, ...]
+
+    @staticmethod
+    def load(stream: IO[str]) -> "MountConfig":
+
+        json_data = json.load(stream)
+        json_data["lowerdirs"] = tuple(json_data.get("lowerdirs", []))
+        return MountConfig(**json_data)
+
+    def dump(self, stream: IO[str]):
+        json.dump(self._asdict(), stream)
 
 
 class Runtime:
+
+    _upper = "upper"
+    _work = "work"
+    _lower = "lower"
+    dirs = (_upper, _work, _lower)
+
     def __init__(self, root: str):
 
-        self._root = os.path.abspath(root)
+        self._root: str = os.path.abspath(root)
+        self._config: Optional[MountConfig] = None
+
+    @property
+    def ref(self) -> str:
+        return os.path.basename(self._root)
 
     @property
     def rootdir(self) -> str:
         return self._root
 
     @property
-    def parent_file(self):
-        return os.path.join(self._root, "parent")
+    def lowerdir(self):
+        return os.path.join(self._root, self._lower)
 
     @property
-    def env_root_file(self):
-        return os.path.join(self._root, "env_root")
+    def configfile(self):
+        return os.path.join(self._root, "config.json")
 
     @property
-    def mount_file(self):
-        return os.path.join(self._root, "mount")
+    def upperdir(self):
+        return os.path.join(self._root, self._upper)
 
-    def set_mount_path(self, path: Optional[str]) -> None:
-        _write_data_file(self.mount_file, path)
+    @property
+    def workdir(self):
+        return os.path.join(self._root, self._work)
 
-    def get_mount_path(self) -> Optional[str]:
-        return _read_data_file(self.mount_file)
+    @property
+    def config(self):
 
-    def set_parent_ref(self, ref: Optional[str]) -> None:
-        _write_data_file(self.parent_file, ref)
+        if self._config is None:
+            return self._read_config()
+        return self._config
 
-    def get_parent_ref(self) -> Optional[str]:
-        return _read_data_file(self.parent_file)
+    @property
+    def overlay_args(self) -> str:
+        return f"lowerdir={':'.join(self.config.lowerdirs)},upperdir={self.upperdir},workdir={self.workdir}"
 
-    def set_env_root(self, rootdir: Optional[str]) -> None:
-        _write_data_file(self.env_root_file, rootdir)
+    def append_package(self, package: Package) -> None:
 
-    def get_env_root(self) -> Optional[str]:
-        return _read_data_file(self.env_root_file)
+        self._config = MountConfig(self.config.lowerdirs + (package.diffdir,))
+        self._write_config()
 
-    def compile_environment(self, base: Dict[str, str] = None) -> Dict[str, str]:
+    def _write_config(self):
 
-        if base is None:
-            base = os.environ
+        with open(self.configfile, "w+", encoding="utf-8") as f:
+            self.config.dump(f)
 
-        # TODO: calculate environment from parent
+    def _read_config(self) -> MountConfig:
 
-        env: Dict[str, str] = base.copy()
-        env["SPENV_PARENT"] = self.get_parent_ref() or ""
-        env["SPENV_RUNTIME"] = self._root
-        env["SPENV_ROOT"] = self.get_env_root() or ""
-        return env
+        try:
+            with open(self.configfile, "r", encoding="utf-8") as f:
+                self._config = MountConfig.load(f)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                self._config = MountConfig(lowerdirs=(self.lowerdir,))
+                self._write_config()
+            else:
+                raise
+        return self._config
 
 
 def _ensure_runtime(path: str):
 
-    os.makedirs(path, exist_ok=True)
+    os.makedirs(path, exist_ok=True, mode=0o777)
+    for subdir in Runtime.dirs:
+        os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
     return Runtime(path)
 
 
@@ -72,18 +111,34 @@ class RuntimeStorage:
 
         self._root = os.path.abspath(root)
 
-    def read_runtime(self, ref: str) -> Runtime:
+    def remove_runtime(self, name: str) -> None:
 
-        runtime_path = os.path.join(self._root, ref)
-        if not os.path.exists(runtime_path):
-            raise ValueError(f"Unknown runtime: {ref}")
-        return Runtime(runtime_path)
+        runtime = self.read_runtime(name)
+        # TODO: clobber read-only files
+        # ensure unmounted first? by removing upperdir?
+        shutil.rmtree(runtime.rootdir)
 
-    def remove_runtime(self, ref: str) -> None:
+    def read_runtime(self, name: str) -> Runtime:
 
-        runtime_path = os.path.join(self._root, ref)
-        shutil.rmtree(runtime_path)
-        # FIXME: does this error when not exist?
+        runtime_dir = os.path.join(self._root, name)
+        if not os.path.isdir(runtime_dir):
+            raise ValueError("Unknown runtime: " + name)
+
+        return Runtime(runtime_dir)
+
+    def create_runtime(self, name: str = None) -> Runtime:
+
+        if name is None:
+            name = hashlib.sha256(uuid.uuid1().bytes).hexdigest()
+
+        runtime_dir = os.path.join(self._root, name)
+        try:
+            os.makedirs(runtime_dir)
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                raise ValueError("Runtime exists: " + name)
+            raise
+        return _ensure_runtime(runtime_dir)
 
     def list_runtimes(self) -> List[Runtime]:
 
@@ -96,39 +151,3 @@ class RuntimeStorage:
                 raise
 
         return [Runtime(os.path.join(self._root, d)) for d in dirs]
-
-    def create_runtime(self, name: str) -> Runtime:
-
-        runtime_dir = os.path.join(self._root, name)
-        try:
-            os.makedirs(runtime_dir)
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                raise ValueError("Runtime exists: " + name)
-            raise
-        return _ensure_runtime(runtime_dir)
-
-
-def _write_data_file(filepath: str, value: Optional[str]) -> None:
-
-    if value is None:
-        try:
-            return os.remove(filepath)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                return
-            raise
-
-    with open(filepath, "w+", encoding="utf-8") as f:
-        f.write(value)
-
-
-def _read_data_file(filepath: str) -> Optional[str]:
-
-    try:
-        with open(filepath, encoding="utf-8") as f:
-            return f.read()
-    except OSError as e:
-        if e.errno == errno.ENOENT:
-            return None
-        raise
