@@ -53,6 +53,9 @@ class Runtime:
         self._root: str = os.path.abspath(root)
         self._config: Optional[RuntimeConfig] = None
 
+    def __repr__(self) -> str:
+        return f"Runtime('{self._root}')"
+
     @property
     def ref(self) -> str:
         """Return the identifier for this runtime."""

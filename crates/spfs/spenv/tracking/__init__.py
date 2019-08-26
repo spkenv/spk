@@ -8,4 +8,4 @@ from ._manifest import (
     compute_manifest,
     compute_entry,
 )
-from ._io import MetadataWriter, MetadataReader
+from ._io import ManifestWriter, ManifestReader

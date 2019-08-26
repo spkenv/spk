@@ -8,7 +8,7 @@ import yaml
 from ._manifest import Manifest, EntryKind
 
 
-class MetadataWriter:
+class ManifestWriter:
     def __init__(self, target_dir: str) -> None:
 
         self._dir = os.path.abspath(target_dir)
@@ -49,7 +49,7 @@ class MetadataWriter:
                 yaml.safe_dump(serialized, f, sort_keys=True)
 
 
-class MetadataReader:
+class ManifestReader:
     def __init__(self, target_dir: str) -> None:
 
         self._dir = os.path.abspath(target_dir)

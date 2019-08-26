@@ -6,6 +6,15 @@ import py.path
 from ._runtime import RuntimeStorage, Runtime, RuntimeConfig, _ensure_runtime
 
 
+def test_runtime_repr(tmpdir):
+
+    runtime = Runtime(tmpdir.strpath)
+    pkg_repr = repr(runtime)
+    result = eval(pkg_repr)
+    assert isinstance(result, Runtime)
+    assert result.rootdir == runtime.rootdir
+
+
 def test_config_serialization(tmpdir: py.path.local) -> None:
 
     tmpfile = tmpdir.join("config.json")
