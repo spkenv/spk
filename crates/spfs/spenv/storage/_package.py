@@ -68,7 +68,7 @@ class Package(Layer):
         return tracking.compute_manifest(self.diffdir)
 
 
-def _ensure_package(path: str):
+def _ensure_package(path: str) -> Package:
 
     os.makedirs(path, exist_ok=True, mode=0o777)
     for subdir in Package.dirs:

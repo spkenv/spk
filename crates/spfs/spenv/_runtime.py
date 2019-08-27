@@ -19,15 +19,17 @@ def active_runtime() -> storage.Runtime:
     path = os.getenv("SPENV_RUNTIME")
     if path is None:
         raise NoRuntimeError()
-    return storage.Runtime(path)
+    config = Config()
+    return storage.Runtime(path, config.repository())
 
 
 def run(*cmd) -> subprocess.Popen:
 
     config = Config()
     repo = config.repository()
+    runtimes = config.runtimes()
 
-    runtime = repo.runtimes.create_runtime()
+    runtime = runtimes.create_runtime()
 
     env = os.environ.copy()
     env["SPENV_RUNTIME"] = runtime.rootdir

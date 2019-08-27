@@ -1,10 +1,10 @@
-from typing import Any, NamedTuple, Tuple, Dict, Union, Optional, Iterator, OrderedDict
+from typing import Any, NamedTuple, Tuple, Dict, Union, Optional, Iterator
+from collections import OrderedDict
 import os
 import enum
 import stat
 import hashlib
 import operator
-import collections
 
 
 class EntryKind(enum.Enum):
@@ -59,14 +59,14 @@ class Manifest:
     def __init__(self, root: str):
 
         self._root = os.path.abspath(root)
-        self._paths: OrderedDict[str, Entry] = collections.OrderedDict()
+        self._paths: OrderedDict[str, Entry] = OrderedDict()
         self._entries: Dict[str, Entry] = {}
         self._trees: Dict[str, Tree] = {}
 
     def get_path(self, path: str) -> Optional[Entry]:
 
         path = self._clean_path(path)
-        return self._paths.get(path)
+        return self._paths.get(path, None)
 
     def get_entry(self, digest: str) -> Optional[Entry]:
 
@@ -86,7 +86,7 @@ class Manifest:
 
     def walk(self) -> Iterator[Tuple[str, Entry]]:
 
-        return self._paths.items()
+        return iter(self._paths.items())
 
     def _clean_path(self, path: str) -> str:
 

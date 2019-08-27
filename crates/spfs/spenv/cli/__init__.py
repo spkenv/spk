@@ -45,7 +45,7 @@ def _commit(args):
     repo = config.repository()
 
     if args.kind == "package":
-        result = repo.commit_runtime(runtime)
+        result = runtime.commit_package()
     else:
         raise NotImplementedError("commit", args.kind)
 
@@ -86,8 +86,7 @@ def _status(args):
 
 def _runtimes(args):
 
-    repo = config.repository()
-    runtimes = repo.runtimes.list_runtimes()
+    runtimes = config.runtimes().list_runtimes()
     for runtime in runtimes:
         print(runtime.ref)
 

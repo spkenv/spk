@@ -40,8 +40,8 @@ def compute_diff(a: Manifest, b: Manifest) -> List[Diff]:
         changes.append(diff)
 
     for path, a_entry in a.walk():
-        b_entry = b.get_path(path)
-        if b_entry is not None:
+        other = b.get_path(path)
+        if other is not None:
             continue
 
         diff = Diff(mode=DiffMode.removed, path=path)

@@ -48,7 +48,7 @@ class ManifestReader:
 
     def read(self) -> Manifest:
 
-        manifest = Manifest()
+        manifest = Manifest(self._dir)
         metapath = os.path.join(self._dir, "entries.yaml")
         with open(metapath, "w+", encoding="utf-8") as f:
             serialized = yaml.safe_load(f)

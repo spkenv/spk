@@ -10,12 +10,15 @@ import subprocess
 import contextlib
 
 from ._package import Package
+from ._repository import Repository
+
+# TODO: consider not needing to pass the repo around for layer resolution...
 
 
 class RuntimeConfig(NamedTuple):
     """Stores the configuration of a single runtime."""
 
-    lowerdirs: Tuple[str, ...]
+    layers: Tuple[str, ...]
 
     def dump(self, stream: IO[str]):
         """Dump this config as json to the given stream."""
@@ -26,7 +29,7 @@ class RuntimeConfig(NamedTuple):
         """Load a runtime config from the given json stream."""
 
         json_data = json.load(stream)
-        json_data["lowerdirs"] = tuple(json_data.get("lowerdirs", []))
+        json_data["layers"] = tuple(json_data.get("layers", []))
         return RuntimeConfig(**json_data)
 
 
@@ -47,10 +50,11 @@ class Runtime:
     _configfile = "config.json"
     dirs = (_upperdir, _workdir, _lowerdir)
 
-    def __init__(self, root: str) -> None:
+    def __init__(self, root: str, repo: Repository) -> None:
         """Create a runtime to represent the data under 'root'."""
 
-        self._root: str = os.path.abspath(root)
+        self._root = os.path.abspath(root)
+        self._repo = repo
         self._config: Optional[RuntimeConfig] = None
 
     def __repr__(self) -> str:
@@ -73,7 +77,7 @@ class Runtime:
 
     @property
     def configfile(self) -> str:
-        """Return the path to this runtimes config file."""
+        """Return the path to this runtime's config file."""
         return os.path.join(self._root, self._configfile)
 
     @property
@@ -97,7 +101,17 @@ class Runtime:
     @property
     def overlay_args(self) -> str:
         """Return the overlayfs option string needed to mount this runtime."""
-        return f"lowerdir={':'.join(self.config.lowerdirs)},upperdir={self.upperdir},workdir={self.workdir}"
+
+        lowerdirs = [self.lowerdir]
+        for ref in self.config.layers:
+
+            layer = self._repo.read_ref(ref)
+            if isinstance(layer, Package):
+                lowerdirs.append(layer.diffdir)
+            else:
+                raise NotImplementedError("TODO: other types")
+
+        return f"lowerdir={':'.join(lowerdirs)},upperdir={self.upperdir},workdir={self.workdir}"
 
     def append_package(self, package: Package) -> None:
         """Append a package to this runtime's stack.
@@ -110,8 +124,13 @@ class Runtime:
             package (Package): The package to append to the stack
         """
 
-        self._config = RuntimeConfig(self.config.lowerdirs + (package.diffdir,))
+        self._config = RuntimeConfig(self.config.layers + (package.ref,))
         self._write_config()
+
+    def commit_package(self) -> Package:
+        """Commit the file changes of this runtime to a new package."""
+
+        return self._repo.packages.commit_dir(self.upperdir)
 
     def _write_config(self) -> None:
 
@@ -125,28 +144,29 @@ class Runtime:
                 self._config = RuntimeConfig.load(f)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                self._config = RuntimeConfig(lowerdirs=(self.lowerdir,))
+                self._config = RuntimeConfig(layers=tuple())
                 self._write_config()
             else:
                 raise
         return self._config
 
 
-def _ensure_runtime(path: str) -> Runtime:
+def _ensure_runtime(path: str, repo: Repository) -> Runtime:
 
     os.makedirs(path, exist_ok=True, mode=0o777)
     for subdir in Runtime.dirs:
         os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
-    return Runtime(path)
+    return Runtime(path, repo)
 
 
 class RuntimeStorage:
     """Manages the on-disk storage of many runtimes."""
 
-    def __init__(self, root: str) -> None:
+    def __init__(self, root: str, repo: Repository) -> None:
         """Initialize a new storage inside the given root directory."""
 
         self._root = os.path.abspath(root)
+        self._repo = repo
 
     def remove_runtime(self, ref: str) -> None:
         """Remove a runtime forcefully.
@@ -177,7 +197,7 @@ class RuntimeStorage:
         if not os.path.isdir(runtime_dir):
             raise ValueError("Unknown runtime: " + ref)
 
-        return Runtime(runtime_dir)
+        return Runtime(runtime_dir, self._repo)
 
     def create_runtime(self, ref: str = None) -> Runtime:
         """Create a new runtime.
@@ -203,7 +223,7 @@ class RuntimeStorage:
             if e.errno == errno.EEXIST:
                 raise ValueError("Runtime exists: " + ref)
             raise
-        return _ensure_runtime(runtime_dir)
+        return _ensure_runtime(runtime_dir, self._repo)
 
     def list_runtimes(self) -> List[Runtime]:
         """List all stored runtimes.
@@ -220,4 +240,4 @@ class RuntimeStorage:
             else:
                 raise
 
-        return [Runtime(os.path.join(self._root, d)) for d in dirs]
+        return [Runtime(os.path.join(self._root, d), self._repo) for d in dirs]
