@@ -1,7 +1,7 @@
 [[source]]
 name = "pypi"
-url = "https://pypi.org/simple"
-verify_ssl = true
+url = "http://pypi.spimageworks.com/spi/dev/"
+verify_ssl = false
 
 [dev-packages]
 pytest = "*"
@@ -12,6 +12,9 @@ rope = "*"
 pylint = "*"
 pex = "*"
 pytest-cov = "*"
+mypy = "*"
+black = "*"
+pipenv = "*"
 
 [packages]
 pyyaml = "~=5.1"
@@ -20,3 +23,6 @@ typing-extensions = "*"
 
 [requires]
 python_version = "3.7"
+
+[pipenv]
+allow_prereleases = true
