@@ -6,5 +6,5 @@ import errno
 import subprocess
 
 from . import storage
-from ._runtime import active_runtime, run
+from ._runtime import active_runtime, run, NoRuntimeError
 from ._config import Config

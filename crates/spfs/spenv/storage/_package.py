@@ -148,12 +148,12 @@ class PackageStorage:
         os.rmdir(tmp_package.diffdir)
         shutil.copytree(dirname, tmp_package.diffdir, symlinks=True)
 
-        db = tmp_package.compute_manifest()
-        tree = db.get_path(tmp_package.diffdir)
+        manifest = tmp_package.compute_manifest()
+        tree = manifest.get_path(tmp_package.diffdir)
         assert tree is not None, "Manifest must have entry for package diffdir"
 
         writer = tracking.ManifestWriter(tmp_package.metadir)
-        writer.rewrite_db(db, prefix=tmp_package.diffdir)
+        writer.rewrite(manifest)
 
         new_root = os.path.join(self._root, tree.digest)
         try:

@@ -3,6 +3,8 @@ import os
 import sys
 import subprocess
 import argparse
+import traceback
+
 import colorama
 from colorama import Fore, Back, Style
 
@@ -22,17 +24,22 @@ def main(argv: Sequence[str]) -> int:
 
     try:
         args.func(args)
+
+    except spenv.NoRuntimeError as e:
+        print(f"{Fore.RED}{e}{Fore.RESET}")
+        return 1
+
     except Exception as e:
+        print(f"{Fore.RED}{repr(e)}{Fore.RESET}", file=sys.stderr)
         if args.debug:
-            raise
-        print(repr(e), file=sys.stderr)
+            print(f"{Fore.YELLOW}{traceback.format_exc()}{Fore.RESET}")
         return 1
 
     return 0
 
 
 def _commit(args):
-    """TODO: package or platform..."""
+    """Commit the current runtime state to storage."""
 
     runtime = spenv.active_runtime()
     repo = config.repository()
@@ -51,15 +58,22 @@ def _commit(args):
 
 
 def _status(args):
-    """Inspect the status of the current workspace"""
+    """Display the status of the current runtime."""
 
     runtime = spenv.active_runtime()
     if runtime is None:
         print(f"{Fore.RED}No Active Runtime{Fore.RESET}")
-    else:
-        print(f"{Fore.GREEN}Active Runtime{Fore.RESET}")
-        print(f" run: {runtime.rootdir}")
-        print()
+        return
+
+    print(f"{Fore.GREEN}Active Runtime{Fore.RESET}")
+    print(f" run: {runtime.rootdir}")
+    print()
+
+    print(f"{Fore.BLUE}Active Changes:{Fore.RESET}")
+    manifest = spenv.tracking.compute_manifest(runtime.upperdir)
+    for path, entry in manifest.walk():
+        path = os.path.relpath(path, runtime.upperdir)
+        print(path)
 
 
 def _runtimes(args):
@@ -68,6 +82,22 @@ def _runtimes(args):
     runtimes = repo.runtimes.list_runtimes()
     for runtime in runtimes:
         print(runtime.ref)
+
+
+def _packages(args):
+
+    repo = config.repository()
+    packages = repo.packages.list_packages()
+    for package in packages:
+        print(package.ref)
+
+
+def _platforms(args):
+
+    repo = config.repository()
+    platforms = repo.platforms.list_platforms()
+    for platform in platforms:
+        print(platform.ref)
 
 
 def _enter(args):
@@ -92,12 +122,12 @@ def _shell(args):
     _run(args)
 
 
-def _search(args):
+def _show(args):
+    """Display information about one or more items."""
 
-    # TODO: more than just exact
     repo = config.repository()
-    for term in args.terms:
-        layer = repo.read_ref(term)
+    for ref in args.refs:
+        layer = repo.read_ref(ref)
         print(repr(layer))
 
 
@@ -116,7 +146,6 @@ def _install(args):
         else:
             raise NotImplementedError("TODO: handle others")
 
-    print(["spenv-remount", runtime.overlay_args])
     proc = subprocess.Popen(["spenv-remount", runtime.overlay_args])
     proc.wait()
     sys.exit(proc.returncode)
@@ -134,6 +163,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     runtimes_cmd = sub_parsers.add_parser("runtimes", help=_runtimes.__doc__)
     runtimes_cmd.set_defaults(func=_runtimes)
+
+    packages_cmd = sub_parsers.add_parser("packages", help=_packages.__doc__)
+    packages_cmd.set_defaults(func=_packages)
+
+    platforms_cmd = sub_parsers.add_parser("platforms", help=_platforms.__doc__)
+    platforms_cmd.set_defaults(func=_platforms)
 
     enter_cmd = sub_parsers.add_parser("enter", help=_enter.__doc__)
     enter_cmd.add_argument(
@@ -161,8 +196,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     install_cmd.add_argument("refs", metavar="REF", nargs="+", help="TODO: help")
     install_cmd.set_defaults(func=_install)
 
-    search_cmd = sub_parsers.add_parser("search", help=_search.__doc__)
-    search_cmd.add_argument("terms", metavar="TERM", nargs="+")
-    search_cmd.set_defaults(func=_search)
+    show_cmd = sub_parsers.add_parser("show", help=_show.__doc__)
+    show_cmd.add_argument("refs", metavar="REF", nargs="+")
+    show_cmd.set_defaults(func=_show)
 
     return parser.parse_args(argv)

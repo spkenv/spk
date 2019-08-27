@@ -1,8 +1,9 @@
-from typing import NamedTuple, Tuple, Dict, Union, Optional, Iterator
+from typing import Any, NamedTuple, Tuple, Dict, Union, Optional, Iterator, OrderedDict
 import os
 import enum
 import stat
 import hashlib
+import operator
 import collections
 
 
@@ -23,6 +24,30 @@ class Entry(NamedTuple):
 
         return f"{self.mode:03o} {self.kind.value} {self.name} {self.digest}"
 
+    def __lt__(self, other: Any) -> bool:
+
+        if not isinstance(other, Entry):
+            raise TypeError(
+                f"'<' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
+            )
+
+        if self.kind is other.kind:
+            return self.name < other.name
+
+        return other.kind is EntryKind.TREE
+
+    def __gt__(self, other: Any) -> bool:
+
+        if not isinstance(other, Entry):
+            raise TypeError(
+                f"'>' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
+            )
+
+        if self.kind is other.kind:
+            return self.name > other.name
+
+        return self.kind is EntryKind.TREE
+
 
 class Tree(NamedTuple):
 
@@ -31,14 +56,16 @@ class Tree(NamedTuple):
 
 
 class Manifest:
-    def __init__(self):
+    def __init__(self, root: str):
 
+        self._root = os.path.abspath(root)
         self._paths: OrderedDict[str, Entry] = collections.OrderedDict()
         self._entries: Dict[str, Entry] = {}
         self._trees: Dict[str, Tree] = {}
 
     def get_path(self, path: str) -> Optional[Entry]:
 
+        path = self._clean_path(path)
         return self._paths.get(path)
 
     def get_entry(self, digest: str) -> Optional[Entry]:
@@ -61,17 +88,54 @@ class Manifest:
 
         return self._paths.items()
 
+    def _clean_path(self, path: str) -> str:
+
+        if os.path.isabs(path):
+            path = os.path.relpath(path, self._root)
+        path = os.path.normpath(path)
+        if path[0] != ".":
+            path = os.path.join(".", path)
+        return path
+
+    def _add_tree(self, tree: Tree) -> None:
+        self._trees[tree.digest] = tree
+
+    def _add_entry(self, path: str, entry: Entry) -> None:
+
+        path = self._clean_path(path)
+        self._entries[entry.digest] = entry
+        self._paths[path] = entry
+
+    def sort(self) -> None:
+        def key(item: Tuple[str, Entry]) -> Tuple:
+
+            entries = []
+            parts = item[0].split(os.sep)
+            path = ""
+            for part in parts:
+                path = os.path.join(path, part)
+                entry = self.get_path(path)
+                assert entry is not None, "Cannot sort, missing entry for: " + path
+                entries.append(entry)
+
+            return tuple(entries)
+
+        items = self._paths.items()
+        self._paths = OrderedDict(sorted(items, key=key))
+
 
 def compute_manifest(path: str) -> Manifest:
 
-    manifest = Manifest()
-    obj = compute_entry(path, append_to=manifest)
+    manifest = Manifest(path)
+    compute_entry(path, append_to=manifest)
+    manifest.sort()
     return manifest
 
 
 def compute_tree(dirname: str, append_to: Manifest = None) -> Tree:
 
-    manifest = append_to or Manifest()
+    dirname = os.path.abspath(dirname)
+    manifest = append_to or Manifest(dirname)
     names = sorted(os.listdir(dirname))
     paths = [os.path.join(dirname, n) for n in names]
     entries = []
@@ -87,18 +151,15 @@ def compute_tree(dirname: str, append_to: Manifest = None) -> Tree:
         hasher.update(entry.digest.encode("ascii"))
 
     tree = Tree(digest=hasher.hexdigest(), entries=tuple(entries))
-    manifest._trees[tree.digest] = tree
+    manifest._add_tree(tree)
     return tree
 
 
 def compute_entry(path: str, append_to: Manifest = None) -> Entry:
 
-    manifest = append_to or Manifest()
+    path = os.path.abspath(path)
+    manifest = append_to or Manifest(os.path.dirname(path))
     stat_result = os.lstat(path)
-
-    # entry placeholder goes in to ensure appropriate ordering
-    # of the path dictionary in the database
-    manifest._paths[path] = None  # type: ignore
 
     kind = EntryKind.BLOB
     if stat.S_ISLNK(stat_result.st_mode):
@@ -118,7 +179,5 @@ def compute_entry(path: str, append_to: Manifest = None) -> Entry:
     entry = Entry(
         kind=kind, name=os.path.basename(path), mode=stat_result.st_mode, digest=digest
     )
-    manifest._entries[entry.digest] = entry
-    manifest._paths[path] = entry
-
+    manifest._add_entry(path, entry)
     return entry

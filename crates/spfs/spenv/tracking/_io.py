@@ -13,36 +13,28 @@ class ManifestWriter:
 
         self._dir = os.path.abspath(target_dir)
 
-    def rewrite_db(self, manifest: Manifest, prefix: str = "") -> None:
+    def rewrite(self, manifest: Manifest) -> None:
 
-        for name in os.listdir(self._dir):
-            if name == ".git":
-                continue
-            abspath = os.path.join(self._dir, name)
-            try:
-                os.remove(abspath)
-            except OSError as e:
-                if e.errno == errno.EISDIR:
-                    shutil.rmtree(abspath)
-                elif e.errno == errno.ENOENT:
-                    pass
-                else:
-                    raise
+        try:
+            shutil.rmtree(self._dir)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
 
-        self.write_db(manifest, prefix)
+        os.makedirs(self._dir, exist_ok=True)
+        self.write(manifest)
 
-    def write_db(self, manifest: Manifest, prefix: str = "") -> None:
+    def write(self, manifest: Manifest) -> None:
 
         serialized: Dict = {}
         for path, entry in manifest.walk():
 
-            relpath = path[len(prefix) :] or "/"
             if entry.kind is EntryKind.TREE:
-                serialized[relpath] = []
+                serialized[path] = []
                 continue
 
-            relpath = os.path.dirname(relpath)
-            serialized[relpath].append(entry.serialize())
+            path = os.path.dirname(path)
+            serialized[path].append(entry.serialize())
 
             metapath = os.path.join(self._dir, "entries.yaml")
             with open(metapath, "w+", encoding="utf-8") as f:
