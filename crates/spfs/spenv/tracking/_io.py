@@ -38,7 +38,7 @@ class ManifestWriter:
 
             metapath = os.path.join(self._dir, "entries.yaml")
             with open(metapath, "w+", encoding="utf-8") as f:
-                yaml.safe_dump(serialized, f, sort_keys=True)
+                yaml.safe_dump(serialized, f)
 
 
 class ManifestReader:

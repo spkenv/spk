@@ -27,9 +27,6 @@ class Package(Layer):
         """Create a new instance to represent the package data at 'root'."""
         self._root = os.path.abspath(root)
 
-    def __repr__(self) -> str:
-        return f"Package('{self.rootdir}')"
-
     @property
     def ref(self) -> str:
         """Return the identifying reference of this package.

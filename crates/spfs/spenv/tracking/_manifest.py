@@ -1,4 +1,14 @@
-from typing import Any, NamedTuple, Tuple, Dict, Union, Optional, Iterator
+from typing import (
+    Any,
+    NamedTuple,
+    Tuple,
+    Dict,
+    Union,
+    Optional,
+    Iterator,
+    List,
+    OrderedDict as OrderedDict_T,
+)
 from collections import OrderedDict
 import os
 import enum
@@ -55,13 +65,20 @@ class Tree(NamedTuple):
     entries: Tuple[Entry, ...]
 
 
+EntryMap = OrderedDict_T[str, Entry]
+
+
 class Manifest:
     def __init__(self, root: str):
 
         self._root = os.path.abspath(root)
-        self._paths: OrderedDict[str, Entry] = OrderedDict()
+        self._paths: EntryMap = OrderedDict()
         self._entries: Dict[str, Entry] = {}
         self._trees: Dict[str, Tree] = {}
+
+    def list_paths(self) -> List[str]:
+
+        return list(self._paths.keys())
 
     def get_path(self, path: str) -> Optional[Entry]:
 
@@ -107,21 +124,7 @@ class Manifest:
         self._paths[path] = entry
 
     def sort(self) -> None:
-        def key(item: Tuple[str, Entry]) -> Tuple:
-
-            entries = []
-            parts = item[0].split(os.sep)
-            path = ""
-            for part in parts:
-                path = os.path.join(path, part)
-                entry = self.get_path(path)
-                assert entry is not None, "Cannot sort, missing entry for: " + path
-                entries.append(entry)
-
-            return tuple(entries)
-
-        items = self._paths.items()
-        self._paths = OrderedDict(sorted(items, key=key))
+        self._paths = sort_entries(self._paths)
 
 
 def compute_manifest(path: str) -> Manifest:
@@ -181,3 +184,30 @@ def compute_entry(path: str, append_to: Manifest = None) -> Entry:
     )
     manifest._add_entry(path, entry)
     return entry
+
+
+def sort_entries(entries: EntryMap) -> EntryMap:
+    """Sort a set of entries organized by file path.
+
+    The given entry set must be complete, meaning that
+    if an entry is specified at path './dir/file.txt', then
+    an entry must exist for './dir' and '.'
+
+    Raises:
+        KeyError: if a required entry is missing from the map
+    """
+
+    def key(item: Tuple[str, Entry]) -> Tuple:
+
+        split_entries = []
+        parts = item[0].split(os.sep)
+        path = ""
+        for part in parts:
+            path = os.path.join(path, part)
+            entry = entries[path]
+            split_entries.append(entry)
+
+        return tuple(split_entries)
+
+    items = entries.items()
+    return EntryMap(sorted(items, key=key))

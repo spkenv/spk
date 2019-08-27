@@ -8,6 +8,7 @@ import hashlib
 
 from ._platform import PlatformStorage, Platform
 from ._package import PackageStorage, Package
+from ._runtime import RuntimeStorage, Runtime
 from ._layer import Layer
 
 
@@ -16,13 +17,15 @@ class Repository:
     _pack = "pack"
     _plat = "plat"
     _tag = "tags"
-    dirs = (_pack, _plat, _tag)
+    _run = "run"
+    dirs = (_pack, _plat, _tag, _run)
 
     def __init__(self, root: str):
 
         self._root = os.path.abspath(root)
         self.packages = PackageStorage(self._join_path(self._pack))
         self.platforms = PlatformStorage(self._join_path(self._plat))
+        self.runtimes = RuntimeStorage(self._join_path(self._run))
 
     def _join_path(self, *parts: str) -> str:
 
@@ -52,6 +55,11 @@ class Repository:
             pass
 
         raise ValueError("Unknown ref: " + ref)
+
+    def commit_package(self, runtime: Runtime) -> Package:
+        """Commit the working file changes of a runtime to a new package."""
+
+        return self.packages.commit_dir(runtime.upperdir)
 
     def tag(self, ref: str, tag: str) -> None:
 

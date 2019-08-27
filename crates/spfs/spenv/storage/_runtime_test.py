@@ -6,9 +6,9 @@ import py.path
 from ._runtime import RuntimeStorage, Runtime, RuntimeConfig, _ensure_runtime
 
 
-def test_runtime_repr(tmpdir, tmprepo):
+def test_runtime_repr(tmpdir):
 
-    runtime = Runtime(tmpdir.strpath, tmprepo)
+    runtime = Runtime(tmpdir.strpath)
     assert repr(runtime)
 
 
@@ -24,9 +24,9 @@ def test_config_serialization(tmpdir: py.path.local) -> None:
     assert actual == expected
 
 
-def test_runtime_properties(tmpdir, tmprepo):
+def test_runtime_properties(tmpdir):
 
-    runtime = Runtime(tmpdir.strpath, tmprepo)
+    runtime = Runtime(tmpdir.strpath)
     assert tmpdir.bestrelpath(runtime.rootdir) == "."
     assert os.path.basename(runtime.upperdir) == Runtime._upperdir
     assert os.path.basename(runtime.workdir) == Runtime._workdir
@@ -34,35 +34,26 @@ def test_runtime_properties(tmpdir, tmprepo):
     assert os.path.basename(runtime.configfile) == Runtime._configfile
 
 
-def test_runtime_config_notnone(tmpdir, tmprepo) -> None:
+def test_runtime_config_notnone(tmpdir) -> None:
 
-    runtime = Runtime(tmpdir.strpath, tmprepo)
+    runtime = Runtime(tmpdir.strpath)
     assert runtime._config is None
     assert runtime.config is not None
     assert py.path.local(runtime.configfile).exists()
 
 
-def test_runtime_overlay_args_basic_syntax(tmpdir, tmprepo) -> None:
+def test_ensure_runtime(tmpdir):
 
-    runtime = Runtime(tmpdir.strpath, tmprepo)
-    args = runtime.overlay_args
-    parts = args.split(",")
-    for part in parts:
-        _, _ = part.split("=")
-
-
-def test_ensure_runtime(tmpdir, tmprepo):
-
-    runtime = _ensure_runtime(tmpdir.join("root").strpath, tmprepo)
+    runtime = _ensure_runtime(tmpdir.join("root").strpath)
     assert py.path.local(runtime.rootdir).exists()
     assert py.path.local(runtime.upperdir).exists()
 
-    _ensure_runtime(runtime.rootdir, tmprepo)
+    _ensure_runtime(runtime.rootdir)
 
 
-def test_storage_create_runtime(tmpdir, tmprepo):
+def test_storage_create_runtime(tmpdir):
 
-    storage = RuntimeStorage(tmpdir.strpath, tmprepo)
+    storage = RuntimeStorage(tmpdir.strpath)
 
     runtime = storage.create_runtime()
     assert runtime.ref
@@ -72,9 +63,9 @@ def test_storage_create_runtime(tmpdir, tmprepo):
         storage.create_runtime(runtime.ref)
 
 
-def test_storage_remove_runtime(tmpdir, tmprepo):
+def test_storage_remove_runtime(tmpdir):
 
-    storage = RuntimeStorage(tmpdir.strpath, tmprepo)
+    storage = RuntimeStorage(tmpdir.strpath)
 
     with pytest.raises(ValueError):
         storage.remove_runtime("non-existant")
@@ -83,9 +74,9 @@ def test_storage_remove_runtime(tmpdir, tmprepo):
     storage.remove_runtime(runtime.ref)
 
 
-def test_storage_list_runtimes(tmpdir, tmprepo):
+def test_storage_list_runtimes(tmpdir):
 
-    storage = RuntimeStorage(tmpdir.join("root").strpath, tmprepo)
+    storage = RuntimeStorage(tmpdir.join("root").strpath)
 
     assert storage.list_runtimes() == []
 

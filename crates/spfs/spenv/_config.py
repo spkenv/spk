@@ -11,9 +11,3 @@ class Config(NamedTuple):
     def repository(self) -> storage.Repository:
 
         return storage.ensure_repository(self.storage_root)
-
-    def runtimes(self) -> storage.RuntimeStorage:
-
-        repo = self.repository()
-        root = os.path.join(self.storage_root, "run")
-        return storage.RuntimeStorage(root, repo)

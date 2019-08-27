@@ -15,7 +15,12 @@ import spenv
 config = spenv.Config()
 
 
-def main(argv: Sequence[str]) -> int:
+def main():
+    code = spenv.cli.run(sys.argv[1:])
+    sys.exit(code)
+
+
+def run(argv: Sequence[str]) -> int:
 
     try:
         args = parse_args(argv)

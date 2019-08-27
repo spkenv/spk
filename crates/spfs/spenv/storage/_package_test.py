@@ -6,15 +6,6 @@ import pytest
 from ._package import Package, PackageStorage, _ensure_package
 
 
-def test_package_repr(tmpdir):
-
-    package = Package(tmpdir.strpath)
-    pkg_repr = repr(package)
-    result = eval(pkg_repr)
-    assert isinstance(result, Package)
-    assert result.rootdir == package.rootdir
-
-
 def test_package_properties(tmpdir: py.path.local):
 
     package = Package(tmpdir.strpath)
