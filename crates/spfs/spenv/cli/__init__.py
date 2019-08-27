@@ -70,10 +70,18 @@ def _status(args):
     print()
 
     print(f"{Fore.BLUE}Active Changes:{Fore.RESET}")
+    empty_manifest = spenv.tracking.Manifest(runtime.upperdir)
     manifest = spenv.tracking.compute_manifest(runtime.upperdir)
-    for path, entry in manifest.walk():
-        path = os.path.relpath(path, runtime.upperdir)
-        print(path)
+    diffs = spenv.tracking.compute_diff(empty_manifest, manifest)
+    for diff in diffs:
+        color = Fore.RESET
+        if diff.mode == spenv.tracking.DiffMode.added:
+            color = Fore.GREEN
+        elif diff.mode == spenv.tracking.DiffMode.removed:
+            colort = Fore.GREEN
+        elif diff.mode == spenv.tracking.DiffMode.changed:
+            color = Fore.BLUE
+        print(f"{color} {diff}{Fore.RESET}")
 
 
 def _runtimes(args):
@@ -103,7 +111,7 @@ def _platforms(args):
 def _enter(args):
     """Enter a configured shell environment."""
 
-    setattr(args, "command", ("/bin/bash", "--norc"))
+    setattr(args, "cmd", ("/bin/bash", "--norc"))
     return _run(args)
 
 
