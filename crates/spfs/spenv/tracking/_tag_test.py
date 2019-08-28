@@ -16,7 +16,7 @@ from ._tag import Tag
         ),
     ],
 )
-def test_Tag_parse(raw: str, expected: Tag):
+def test_tag_parse(raw: str, expected: Tag) -> None:
 
     actual = Tag.parse(raw)
     assert actual == expected

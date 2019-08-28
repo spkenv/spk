@@ -1,10 +1,13 @@
+from typing import Callable
+import py.path
 import pytest
 
 from ._runtime import _ensure_runtime
+from ._package import Package
 from ._platform import Platform, PlatformStorage, UnknownPlatformError
 
 
-def test_platform_properties(tmpdir):
+def test_platform_properties(tmpdir: py.path.local) -> None:
 
     platform = Platform(tmpdir.strpath)
     assert platform.ref
@@ -12,14 +15,14 @@ def test_platform_properties(tmpdir):
     assert platform.rootdir
 
 
-def test_platform_read_layers_nofile(tmpdir):
+def test_platform_read_layers_nofile(tmpdir: py.path.local) -> None:
 
     platform = Platform(tmpdir.strpath)
     actual = platform.read_layers()
     assert actual == []
 
 
-def test_platform_read_write_layers(tmpdir):
+def test_platform_read_write_layers(tmpdir: py.path.local) -> None:
 
     expected = ["a", "b", "c"]
     platform = Platform(tmpdir.strpath)
@@ -28,7 +31,7 @@ def test_platform_read_write_layers(tmpdir):
     assert actual == expected
 
 
-def test_commit_runtime(tmpdir, mkpkg):
+def test_commit_runtime(tmpdir: py.path.local, mkpkg: Callable[[], Package]) -> None:
 
     runtime = _ensure_runtime(tmpdir.join("runtime").strpath)
     storage = PlatformStorage(tmpdir.join("platforms").strpath)
@@ -49,7 +52,7 @@ def test_commit_runtime(tmpdir, mkpkg):
     assert first.ref != second.ref
 
 
-def test_storage_remove_platform(tmpdir):
+def test_storage_remove_platform(tmpdir: py.path.local) -> None:
 
     storage = PlatformStorage(tmpdir.strpath)
 
@@ -60,7 +63,7 @@ def test_storage_remove_platform(tmpdir):
     storage.remove_platform(platform.ref)
 
 
-def test_storage_list_platforms(tmpdir):
+def test_storage_list_platforms(tmpdir: py.path.local) -> None:
 
     storage = PlatformStorage(tmpdir.join("root").strpath)
 

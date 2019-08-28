@@ -1,4 +1,4 @@
-from typing import NamedTuple, List, Optional, Sequence
+from typing import NamedTuple, List, Optional, Sequence, Any
 import os
 import subprocess
 
@@ -86,12 +86,14 @@ def _resolve_layers_to_packages(layers: Sequence[str]) -> List[storage.Package]:
     return packages
 
 
-def _spenv_remount(overlay_args: str):
+def _spenv_remount(overlay_args: str) -> None:
 
     subprocess.check_call(["spenv-remount", overlay_args])
 
 
-def _spenv_mount(overlay_args: str, *command, **popen_args) -> subprocess.Popen:
+def _spenv_mount(
+    overlay_args: str, *command: str, **popen_args: Any
+) -> subprocess.Popen:
 
     cmd = ("spenv-mount", overlay_args) + command
     _logger.error("execute spenv-mount", opts=overlay_args, cmd=command)

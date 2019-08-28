@@ -1,6 +1,6 @@
 """Command-line entrypoint for spenv."""
 import sys
-import spenv.cli
+from . import cli
 
 if __name__ == "__main__":
-    spenv.cli.main()
+    cli.main()

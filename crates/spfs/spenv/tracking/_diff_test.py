@@ -1,13 +1,15 @@
+import py.path
+
 from ._manifest import Manifest, compute_manifest
 from ._diff import Diff, DiffMode, compute_diff
 
 
-def test_diff_str():
+def test_diff_str() -> None:
 
     assert Diff(DiffMode.added, "some_path")
 
 
-def test_compute_diff_empty():
+def test_compute_diff_empty() -> None:
 
     a = Manifest("")
     b = Manifest("")
@@ -15,7 +17,7 @@ def test_compute_diff_empty():
     assert compute_diff(a, b) == []
 
 
-def test_compute_diff_same(tmpdir):
+def test_compute_diff_same(tmpdir: py.path.local) -> None:
 
     tmpdir.join("dir/dir/file").write("data", ensure=True)
     tmpdir.join("dir/file").write("more", ensure=True)
@@ -27,7 +29,7 @@ def test_compute_diff_same(tmpdir):
         assert diff.mode is DiffMode.unchanged
 
 
-def test_compute_diff_added(tmpdir):
+def test_compute_diff_added(tmpdir: py.path.local) -> None:
 
     a_dir = tmpdir.join("a").ensure(dir=True)
     b_dir = tmpdir.join("b").ensure(dir=True)
@@ -45,7 +47,7 @@ def test_compute_diff_added(tmpdir):
     assert actual == expected
 
 
-def test_compute_diff_removed(tmpdir):
+def test_compute_diff_removed(tmpdir: py.path.local) -> None:
 
     a_dir = tmpdir.join("a").ensure(dir=True)
     b_dir = tmpdir.join("b").ensure(dir=True)

@@ -2,46 +2,47 @@ from collections import OrderedDict
 import os
 import random
 
+import py.path
 import pytest
 
 from ._manifest import Entry, EntryKind, compute_tree, compute_manifest
 
 
-def test_entry_blobs_compare_name():
+def test_entry_blobs_compare_name() -> None:
 
     a = Entry(name="a", kind=EntryKind.BLOB, mode=0, digest="")
     b = Entry(name="b", kind=EntryKind.BLOB, mode=0, digest="")
     assert a < b and b > a
 
 
-def test_entry_trees_compare_name():
+def test_entry_trees_compare_name() -> None:
 
     a = Entry(name="a", kind=EntryKind.TREE, mode=0, digest="")
     b = Entry(name="b", kind=EntryKind.TREE, mode=0, digest="")
     assert a < b and b > a
 
 
-def test_entry_compare_kind():
+def test_entry_compare_kind() -> None:
 
     blob = Entry(name="a", kind=EntryKind.BLOB, mode=0, digest="")
     tree = Entry(name="b", kind=EntryKind.TREE, mode=0, digest="")
     assert tree > blob and blob < tree
 
 
-def test_compute_tree_determinism():
+def test_compute_tree_determinism() -> None:
 
     first = compute_tree("./spenv")
     second = compute_tree("./spenv")
     assert first == second
 
 
-def test_compute_manifest():
+def test_compute_manifest() -> None:
 
     manifest = compute_manifest(os.path.abspath("./spenv"))
     assert manifest.get_path(__file__)
 
 
-def test_manifest_relative_paths(tmpdir) -> None:
+def test_manifest_relative_paths(tmpdir: py.path.local) -> None:
 
     tmpdir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
     tmpdir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
@@ -55,7 +56,7 @@ def test_manifest_relative_paths(tmpdir) -> None:
     assert manifest.get_path(tmpdir.join("dir1.0/dir2.0/file.txt").strpath) is not None
 
 
-def test_manifest_sorting(tmpdir):
+def test_manifest_sorting(tmpdir: py.path.local) -> None:
 
     tmpdir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
     tmpdir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)

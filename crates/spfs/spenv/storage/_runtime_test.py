@@ -6,7 +6,7 @@ import py.path
 from ._runtime import RuntimeStorage, Runtime, RuntimeConfig, _ensure_runtime
 
 
-def test_runtime_repr(tmpdir):
+def test_runtime_repr(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
     assert repr(runtime)
@@ -24,7 +24,7 @@ def test_config_serialization(tmpdir: py.path.local) -> None:
     assert actual == expected
 
 
-def test_runtime_properties(tmpdir):
+def test_runtime_properties(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
     assert tmpdir.bestrelpath(runtime.rootdir) == "."
@@ -34,7 +34,7 @@ def test_runtime_properties(tmpdir):
     assert os.path.basename(runtime.configfile) == Runtime._configfile
 
 
-def test_runtime_config_notnone(tmpdir) -> None:
+def test_runtime_config_notnone(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
     assert runtime._config is None
@@ -42,7 +42,7 @@ def test_runtime_config_notnone(tmpdir) -> None:
     assert py.path.local(runtime.configfile).exists()
 
 
-def test_ensure_runtime(tmpdir):
+def test_ensure_runtime(tmpdir: py.path.local) -> None:
 
     runtime = _ensure_runtime(tmpdir.join("root").strpath)
     assert py.path.local(runtime.rootdir).exists()
@@ -51,7 +51,7 @@ def test_ensure_runtime(tmpdir):
     _ensure_runtime(runtime.rootdir)
 
 
-def test_storage_create_runtime(tmpdir):
+def test_storage_create_runtime(tmpdir: py.path.local) -> None:
 
     storage = RuntimeStorage(tmpdir.strpath)
 
@@ -63,7 +63,7 @@ def test_storage_create_runtime(tmpdir):
         storage.create_runtime(runtime.ref)
 
 
-def test_storage_remove_runtime(tmpdir):
+def test_storage_remove_runtime(tmpdir: py.path.local) -> None:
 
     storage = RuntimeStorage(tmpdir.strpath)
 
@@ -74,7 +74,7 @@ def test_storage_remove_runtime(tmpdir):
     storage.remove_runtime(runtime.ref)
 
 
-def test_storage_list_runtimes(tmpdir):
+def test_storage_list_runtimes(tmpdir: py.path.local) -> None:
 
     storage = RuntimeStorage(tmpdir.join("root").strpath)
 
