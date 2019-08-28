@@ -6,11 +6,6 @@ import errno
 import subprocess
 
 from . import storage
-from ._runtime import (
-    active_runtime,
-    install,
-    exec_in_new_runtime,
-    exec_in_runtime,
-    NoRuntimeError,
-)
+from ._runtime import active_runtime, install, NoRuntimeError
+from ._bootstrap import build_command, build_command_for_runtime
 from ._config import get_config

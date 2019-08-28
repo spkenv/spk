@@ -5,7 +5,7 @@ from colorama import Fore
 import spenv
 
 
-def register(sub_parsers: argparse._Subsub_parserssAction) -> None:
+def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     commit_cmd = sub_parsers.add_parser("commit", help=_commit.__doc__)
     commit_cmd.add_argument("kind", choices=["package", "platform"], help="TODO: help")

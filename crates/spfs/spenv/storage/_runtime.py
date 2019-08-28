@@ -20,7 +20,7 @@ class RuntimeConfig(NamedTuple):
 
     layers: Tuple[str, ...]
 
-    def dump(self, stream: IO[str]):
+    def dump(self, stream: IO[str]) -> None:
         """Dump this config as json to the given stream."""
         simplejson.dump(self, stream)
 

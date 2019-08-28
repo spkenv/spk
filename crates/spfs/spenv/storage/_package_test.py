@@ -6,7 +6,7 @@ import pytest
 from ._package import Package, PackageStorage, _ensure_package
 
 
-def test_package_properties(tmpdir: py.path.local):
+def test_package_properties(tmpdir: py.path.local) -> None:
 
     package = Package(tmpdir.strpath)
     assert tmpdir.bestrelpath(package.rootdir) == "."
@@ -57,7 +57,7 @@ def test_read_package(tmpdir: py.path.local) -> None:
     assert package.ref == "--id--"
 
 
-def test_commit_dir(tmpdir):
+def test_commit_dir(tmpdir: py.path.local) -> None:
 
     storage = PackageStorage(tmpdir.join("storage").strpath)
 

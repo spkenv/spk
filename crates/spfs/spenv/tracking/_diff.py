@@ -18,7 +18,7 @@ class Diff(NamedTuple):
     mode: DiffMode
     path: str
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.mode.value} {self.path}"
 
 

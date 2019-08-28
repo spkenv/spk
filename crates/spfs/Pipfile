@@ -5,7 +5,6 @@ verify_ssl = false
 
 [dev-packages]
 pytest = "*"
-pytest-bdd = "*"
 pytest-watch = "*"
 pydocstyle = "*"
 rope = "*"

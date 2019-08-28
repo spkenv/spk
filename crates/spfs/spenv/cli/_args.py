@@ -3,6 +3,7 @@ import argparse
 import logging
 import sys
 
+import colorama
 import structlog
 
 import spenv
@@ -15,16 +16,20 @@ from . import (
     _cmd_shell,
     _cmd_commit,
     _cmd_install,
+    _cmd_init,
     _cmd_show,
 )
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
+    if not argv:
+        argv = ["shell"]
+
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
     parser.add_argument("--debug", "-d", action="store_true")
 
-    sub_parsers = parser.add_subparsers(dest="command", required=True)
+    sub_parsers = parser.add_subparsers(dest="command")
 
     _cmd_status.register(sub_parsers)
 
@@ -39,11 +44,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_install.register(sub_parsers)
     _cmd_show.register(sub_parsers)
 
+    _cmd_init.register(sub_parsers)
+
     return parser.parse_args(argv)
 
 
 def configure_logging(args: argparse.Namespace) -> None:
 
+    colorama.init()
     level = logging.INFO
     processors = [
         structlog.stdlib.add_log_level,
