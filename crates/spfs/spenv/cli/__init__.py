@@ -5,14 +5,15 @@ import subprocess
 import argparse
 import traceback
 
+import logging
+import structlog
 import colorama
 from colorama import Fore, Back, Style
 
-colorama.init()
-
 import spenv
 
-config = spenv.Config()
+colorama.init()
+config = spenv.get_config()
 
 
 def main():
@@ -26,6 +27,8 @@ def run(argv: Sequence[str]) -> int:
         args = parse_args(argv)
     except SystemExit as e:
         return e.code
+
+    configure_logging(args)
 
     try:
         args.func(args)
@@ -43,14 +46,43 @@ def run(argv: Sequence[str]) -> int:
     return 0
 
 
+def configure_logging(args):
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    processors = [
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+    ]
+
+    if args.debug:
+        root.setLevel(logging.DEBUG)
+        processors.extend(
+            [
+                structlog.processors.StackInfoRenderer(),
+                structlog.processors.format_exc_info,
+            ]
+        )
+
+    processors.append(structlog.dev.ConsoleRenderer())
+
+    structlog.configure(
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+
 def _commit(args):
     """Commit the current runtime state to storage."""
 
     runtime = spenv.active_runtime()
-    repo = config.repository()
+    repo = config.get_repository()
 
     if args.kind == "package":
-        result = runtime.commit_package()
+        result = repo.commit_package(runtime)
     else:
         raise NotImplementedError("commit", args.kind)
 
@@ -91,14 +123,15 @@ def _status(args):
 
 def _runtimes(args):
 
-    runtimes = config.runtimes().list_runtimes()
+    repo = config.get_repository()
+    runtimes = repo.runtimes.list_runtimes()
     for runtime in runtimes:
         print(runtime.ref)
 
 
 def _packages(args):
 
-    repo = config.repository()
+    repo = config.get_repository()
     packages = repo.packages.list_packages()
     for package in packages:
         print(package.ref)
@@ -106,23 +139,16 @@ def _packages(args):
 
 def _platforms(args):
 
-    repo = config.repository()
+    repo = config.get_repository()
     platforms = repo.platforms.list_platforms()
     for platform in platforms:
         print(platform.ref)
 
 
-def _enter(args):
-    """Enter a configured shell environment."""
-
-    setattr(args, "cmd", ("/bin/bash", "--norc"))
-    return _run(args)
-
-
 def _run(args):
     """Run a program in a configured environment."""
 
-    proc = spenv.run(*args.cmd)
+    proc = spenv.exec_in_new_runtime(*args.cmd)
     proc.wait()
 
     sys.exit(proc.returncode)
@@ -137,7 +163,7 @@ def _shell(args):
 def _show(args):
     """Display information about one or more items."""
 
-    repo = config.repository()
+    repo = config.get_repository()
     for ref in args.refs:
         layer = repo.read_ref(ref)
         print(repr(layer))
@@ -145,22 +171,7 @@ def _show(args):
 
 def _install(args):
 
-    runtime = spenv.active_runtime()
-    repo = config.repository()
-
-    layers = []
-    for ref in args.refs:
-        layers.append(repo.read_ref(ref))
-
-    for layer in layers:
-        if isinstance(layer, spenv.storage.Package):
-            runtime.append_package(layer)
-        else:
-            raise NotImplementedError("TODO: handle others")
-
-    proc = subprocess.Popen(["spenv-remount", runtime.overlay_args])
-    proc.wait()
-    sys.exit(proc.returncode)
+    spenv.install(*args.refs)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -181,12 +192,6 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     platforms_cmd = sub_parsers.add_parser("platforms", help=_platforms.__doc__)
     platforms_cmd.set_defaults(func=_platforms)
-
-    enter_cmd = sub_parsers.add_parser("enter", help=_enter.__doc__)
-    enter_cmd.add_argument(
-        "refs", metavar="REF", nargs="*", help="TODO: something good"
-    )
-    enter_cmd.set_defaults(func=_enter)
 
     run_cmd = sub_parsers.add_parser("run", help=_run.__doc__)
     run_cmd.add_argument("refs", metavar="REF", nargs="*", help="TODO: something good")

@@ -20,8 +20,8 @@ pipenv = "*"
 pyyaml = "~=5.1"
 colorama = "*"
 typing-extensions = "*"
-spenv = {path = "."}
 simplejson = "*"
+structlog = "*"
 
 [requires]
 python_version = "3.7"

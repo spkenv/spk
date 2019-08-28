@@ -7,7 +7,7 @@ from typing import (
     Optional,
     Iterator,
     List,
-    OrderedDict as OrderedDict_T,
+    TYPE_CHECKING,
 )
 from collections import OrderedDict
 import os
@@ -65,7 +65,10 @@ class Tree(NamedTuple):
     entries: Tuple[Entry, ...]
 
 
-EntryMap = OrderedDict_T[str, Entry]
+if TYPE_CHECKING:
+    EntryMap = OrderedDict[str, Entry]
+else:
+    EntryMap = OrderedDict
 
 
 class Manifest:

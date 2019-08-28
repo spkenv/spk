@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    result = mount("overlay", MOUNT_TARGET, "overlay", MS_LAZYTIME, argv[1]);
+    result = mount("overlay", MOUNT_TARGET, "overlay", 0, argv[1]);
     if (result != 0)
     {
         perror("Remount failed");

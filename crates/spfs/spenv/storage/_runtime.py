@@ -99,7 +99,9 @@ class Runtime:
             return self._read_config()
         return self._config
 
-    def append_package(self, package: Package) -> None:
+    def append_package(
+        self, package: Package
+    ) -> None:  # TODO: consider this being append_layer
         """Append a package to this runtime's stack.
 
         This will update the configuration of the runtime,
