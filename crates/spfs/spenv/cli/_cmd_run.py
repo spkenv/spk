@@ -15,8 +15,8 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
     run_cmd = sub_parsers.add_parser("run", help=_run.__doc__)
     # TODO: this does not works as it's ambiguous with remainder
     # run_cmd.add_argument("refs", metavar="REF", nargs="*", help="TODO: something good")
-    run_cmd.add_argument("cmd", nargs=1)
-    run_cmd.add_argument("args", nargs=argparse.REMAINDER)
+    run_cmd.add_argument("cmd", metavar="CMD", nargs=1)
+    run_cmd.add_argument("args", metavar="ARGS", nargs=argparse.REMAINDER)
     run_cmd.set_defaults(func=_run)
 
 

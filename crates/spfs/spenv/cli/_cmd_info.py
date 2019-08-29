@@ -7,11 +7,25 @@ import spenv
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
-    status_cmd = sub_parsers.add_parser("status", help=_status.__doc__)
-    status_cmd.set_defaults(func=_status)
+    info_cmd = sub_parsers.add_parser("info", help=_info.__doc__)
+    info_cmd.add_argument("refs", metavar="REF", nargs="*")
+    info_cmd.set_defaults(func=_info)
 
 
-def _status(args: argparse.Namespace) -> None:
+def _info(args: argparse.Namespace) -> None:
+    """Display information about the current environment or specific items."""
+
+    config = spenv.get_config()
+    repo = config.get_repository()
+    if not args.refs:
+        _print_global_info()
+        return
+    for ref in args.refs:
+        layer = repo.read_ref(ref)
+        print(repr(layer))
+
+
+def _print_global_info() -> None:
     """Display the status of the current runtime."""
 
     runtime = spenv.active_runtime()
