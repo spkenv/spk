@@ -13,5 +13,5 @@ sudo setcap cap_sys_admin+ep $(realpath build/bin/spenv-remount)
 
 pipenv lock -r | grep -v -- "--trusted-host" > build/requirements.txt
 python setup.py clean
-rm -r *.egg-info
+rm -r *.egg-info || true
 pex -m spenv -r build/requirements.txt . -o build/bin/spenv --disable-cache

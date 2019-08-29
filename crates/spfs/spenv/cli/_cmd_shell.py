@@ -45,7 +45,6 @@ def _shell(args: argparse.Namespace) -> None:
 
     cmd = spenv.build_command(exe, *cmd_args)
     print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
-
     os.execv(cmd[0], cmd)
 
 

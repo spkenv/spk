@@ -106,24 +106,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int i;
-    int command_len = 0;
-    for (i = 2; i < argc; i++)
-    {
-        command_len += strlen(argv[i] + 1);
-    }
-    char *command = malloc(command_len);
-    strcat(command, argv[2]);
-    for (i = 3; i < argc; i++)
-    {
-        strcat(command, " ");
-        strcat(command, argv[i]);
-    }
-    result = system(command);
-    if (result == -1)
-    {
-        perror("Failed to run command");
-        return 1;
-    }
-    return result;
+    execv(argv[2], argv+2);
+
 }

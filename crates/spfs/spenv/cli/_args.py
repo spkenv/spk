@@ -27,7 +27,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
     parser.add_argument("--debug", "-d", action="store_true")
 
-    sub_parsers = parser.add_subparsers(dest="command")
+    sub_parsers = parser.add_subparsers(dest="command", required=True)
 
     _cmd_status.register(sub_parsers)
 
