@@ -48,8 +48,12 @@ def _shell(args: argparse.Namespace) -> None:
         config = spenv.get_config()
         repo = config.get_repository()
         try:
-            runtime = repo.read_ref(args.target)
-            assert isinstance(runtime, spenv.storage.Runtime)
+            target = repo.read_ref(args.target)
+            if isinstance(target, spenv.storage.Runtime):
+                runtime = target
+            else:
+                runtime = repo.runtimes.create_runtime()
+                spenv.install_to(runtime, args.target)
             cmd = spenv.build_command_for_runtime(runtime, exe, *cmd_args)
         except ValueError:
             cmd_args.append(args.target)

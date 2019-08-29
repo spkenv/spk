@@ -36,6 +36,17 @@ def active_runtime() -> storage.Runtime:
 def install(*refs: str) -> None:
 
     runtime = active_runtime()
+    installed_packages = install_to(runtime, *refs)
+
+    overlay_args = resolve_overlayfs_options(runtime)
+    _spenv_remount(overlay_args)
+
+    env = resolve_packages_to_environment(installed_packages, base=os.environ)
+    os.environ.update(env)
+
+
+def install_to(runtime: storage.Runtime, *refs: str) -> List[storage.Package]:
+
     config = get_config()
     repo = config.get_repository()
 
@@ -44,15 +55,7 @@ def install(*refs: str) -> None:
     packages = resolve_layers_to_packages(refs)
     for package in packages:
         runtime.append_package(package)
-
-    overlay_args = resolve_overlayfs_options(runtime)
-    _spenv_remount(overlay_args)
-
-    # TODO: resolve properly from current env / allow appending
-    # is this even helpful, because it won't update caller...
-    env = resolve_packages_to_environment(packages)
-    for name, value in env:
-        print(f"export {name}={value}")  # TODO: be more shell-aware?
+    return packages
 
 
 def _spenv_remount(overlay_args: str) -> None:

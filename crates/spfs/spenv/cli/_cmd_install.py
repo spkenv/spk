@@ -1,6 +1,10 @@
 import argparse
 
+import structlog
+
 import spenv
+
+_logger = structlog.get_logger()
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
@@ -13,3 +17,5 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 def _install(args: argparse.Namespace) -> None:
 
     spenv.install(*args.refs)
+    # TODO: provide a way to source this, call init again?
+    _logger.warning("environment requires update after install")

@@ -28,6 +28,9 @@ class Platform:
 
         self._root = os.path.abspath(root)
 
+    def __repr__(self) -> str:
+        return f"Platform({self._root})"
+
     @property
     def ref(self) -> str:
         return os.path.basename(self._root)

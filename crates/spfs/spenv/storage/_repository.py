@@ -79,8 +79,12 @@ class Repository:
         tagdir = self._join_path(self._tag)
         linkfile = os.path.join(tagdir, tag)
         os.makedirs(os.path.basename(linkfile), exist_ok=True)
+        try:
+            os.unlink(linkfile)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
         os.symlink(layer.rootdir, linkfile)
-        # TODO: test overwriting
 
 
 def ensure_repository(path: str) -> Repository:

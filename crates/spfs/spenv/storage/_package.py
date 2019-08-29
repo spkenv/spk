@@ -18,6 +18,15 @@ class PackageConfig(NamedTuple):
     manifest: str = ""
     environ: Tuple[str, ...] = tuple()
 
+    @property
+    def digest(self) -> str:
+
+        hasher = hashlib.sha256()
+        hasher.update(self.manifest.encode("utf-8"))
+        for pair in self.environ:
+            hasher.update(pair.encode("utf-8"))
+        return hasher.hexdigest()
+
     def iter_env(self) -> Iterable[Tuple[str, str]]:
 
         for pair in self.environ:
@@ -54,6 +63,9 @@ class Package:
         """Create a new instance to represent the package data at 'root'."""
         self._root = os.path.abspath(root)
         self._config: Optional[PackageConfig] = None
+
+    def __repr__(self) -> str:
+        return f"Package({self._root})"
 
     @property
     def ref(self) -> str:
@@ -219,14 +231,13 @@ class PackageStorage:
         writer.rewrite(manifest)
 
         config = PackageConfig(
-            manifest=tree.digest, environ=tuple(f"{n}={v}" for n, v in env.items())
+            manifest=tree.digest,
+            environ=tuple(sorted(f"{n}={v}" for n, v in env.items())),
         )
         tmp_package._config = config
         tmp_package._write_config()
 
-        # TODO: use the package meta data to create the final hash
-
-        new_root = os.path.join(self._root, tree.digest)
+        new_root = os.path.join(self._root, config.digest)
         try:
             os.rename(tmp_package._root, new_root)
         except OSError as e:
@@ -235,4 +246,4 @@ class PackageStorage:
                 pass
             else:
                 raise
-        return self.read_package(tree.digest)
+        return self.read_package(config.digest)
