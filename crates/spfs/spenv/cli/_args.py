@@ -1,7 +1,8 @@
-from typing import Sequence
-import argparse
-import logging
+from typing import Sequence, Dict
+import os
 import sys
+import logging
+import argparse
 
 import colorama
 import structlog
@@ -22,9 +23,6 @@ from . import (
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-
-    if not argv:
-        argv = ["shell"]
 
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
     parser.add_argument("--debug", "-d", action="store_true")

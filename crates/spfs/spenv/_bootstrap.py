@@ -27,7 +27,7 @@ def build_command_for_runtime(
     if not exe:
         raise RuntimeError("'spenv' not found in PATH")
 
-    args = ("init-runtime", command) + args
+    args = ("init-runtime", runtime.rootdir, command) + args
 
     return _build_spenv_mount_command(overlay_args, exe, *args)
 

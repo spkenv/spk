@@ -13,6 +13,7 @@ _logger = structlog.get_logger()
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     init_cmd = sub_parsers.add_parser("init-runtime", help=argparse.SUPPRESS)
+    init_cmd.add_argument("runtime_root_dir", nargs=1)
     init_cmd.add_argument("cmd", nargs=argparse.REMAINDER)
     init_cmd.set_defaults(func=_init)
 
@@ -28,5 +29,6 @@ def _init(args: argparse.Namespace) -> None:
 
     print(f"Initializing spenv runtime...", end="", file=sys.stderr, flush=True)
     # TODO: setup the environment
+    os.environ["SPENV_RUNTIME"] = args.runtime_root_dir[0]
     print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
     os.execv(args.cmd[0], args.cmd)

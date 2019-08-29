@@ -1,3 +1,4 @@
+from typing import Dict
 import os
 import sys
 import argparse
@@ -13,14 +14,61 @@ _logger = structlog.get_logger()
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     shell_cmd = sub_parsers.add_parser("shell", help=_shell.__doc__)
+    shell_cmd.add_argument("script", metavar="FILE", nargs="?")
     shell_cmd.set_defaults(func=_shell)
+
+    # This custom dict overrides the available subcommand
+    # choices allowing spenv to be used as a shebang interpreter.
+    # It does this by automatically selecting the "shell" subcommand
+    # if given a valid path to a file
+    shell_default_injector = _ShellCommandDefaultDict(sub_parsers.choices.items())
+    sub_parsers.choices = shell_default_injector
+    sub_parsers._name_parser_map = shell_default_injector
 
 
 def _shell(args: argparse.Namespace) -> None:
 
     print(f"Resolving spenv entry process...", end="", file=sys.stderr, flush=True)
+
     # TODO: resolve the shell more smartly
     exe = os.getenv("SHELL", "/bin/bash")
-    cmd = spenv.build_command(exe)
+
+    cmd_args = []
+    if args.command != "shell":
+        # if the default shell command injection took place,
+        # the actual command will be the path to the script
+        # to execute, not 'shell'
+        args.script = args.command
+
+    if args.script:
+        cmd_args.append(args.script)
+
+    cmd = spenv.build_command(exe, *cmd_args)
     print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
+
     os.execv(cmd[0], cmd)
+
+
+class _ShellCommandDefaultDict(Dict[str, argparse.ArgumentParser]):
+    """Automatically selects the shell command when only a script path is given.
+
+    This dict replaces the argparse subcommand parser map, returning
+    the shell command if the command is actually the path to a file
+    on disk
+    """
+
+    def __contains__(self, name: object) -> bool:
+        has_command = super(_ShellCommandDefaultDict, self).__contains__(name)
+        if has_command:
+            return True
+        elif os.path.isfile(str(name)):
+            return True
+        return False
+
+    def __getitem__(self, name: str) -> argparse.ArgumentParser:
+        try:
+            return super(_ShellCommandDefaultDict, self).__getitem__(name)
+        except KeyError as e:
+            if os.path.isfile(name):
+                return self["shell"]
+            raise
