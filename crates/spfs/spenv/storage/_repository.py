@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Dict
 import os
 import uuid
 import errno
@@ -6,7 +6,7 @@ import shutil
 import tarfile
 import hashlib
 
-from ._platform import PlatformStorage, Platform
+from ._platform import PlatformStorage, Platform, UnknownPlatformError
 from ._package import PackageStorage, Package
 from ._runtime import RuntimeStorage, Runtime
 from ._layer import Layer
@@ -31,7 +31,7 @@ class Repository:
 
         return os.path.join(self._root, *parts)
 
-    def read_ref(self, ref: str) -> Layer:
+    def read_ref(self, ref: str) -> Union[Layer, Runtime]:
 
         tag_path = self._join_path(self._tag, ref)
         try:
@@ -51,15 +51,27 @@ class Repository:
 
         try:
             return self.platforms.read_platform(ref)
+        except UnknownPlatformError:
+            pass
+
+        try:
+            return self.runtimes.read_runtime(ref)
         except ValueError:
             pass
 
         raise ValueError("Unknown ref: " + ref)
 
-    def commit_package(self, runtime: Runtime) -> Package:
+    def commit_package(self, runtime: Runtime, env: Dict[str, str] = None) -> Package:
         """Commit the working file changes of a runtime to a new package."""
 
-        return self.packages.commit_dir(runtime.upperdir)
+        return self.packages.commit_dir(runtime.upperdir, env=env)
+
+    def commit_platform(self, runtime: Runtime, env: Dict[str, str] = None) -> Platform:
+        """Commit the full layer stack and working files to a new platform."""
+
+        top = self.packages.commit_dir(runtime.upperdir, env=env)
+        runtime.append_package(top)
+        return self.platforms.commit_runtime(runtime)
 
     def tag(self, ref: str, tag: str) -> None:
 

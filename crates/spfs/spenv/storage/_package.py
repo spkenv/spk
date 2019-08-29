@@ -1,4 +1,4 @@
-from typing import NamedTuple, Tuple, List
+from typing import NamedTuple, Tuple, List, Dict, IO, Optional, Iterable
 import os
 import enum
 import uuid
@@ -7,11 +7,37 @@ import errno
 import shutil
 import hashlib
 
+import simplejson
+
 from .. import tracking
 from ._layer import Layer
 
 
-class Package(Layer):
+class PackageConfig(NamedTuple):
+
+    manifest: str = ""
+    environ: Tuple[str, ...] = tuple()
+
+    def iter_env(self) -> Iterable[Tuple[str, str]]:
+
+        for pair in self.environ:
+            name, value = pair.split("=", 1)
+            yield name, value
+
+    def dump(self, stream: IO[str]) -> None:
+        """Dump this config as json to the given stream."""
+        simplejson.dump(self, stream, indent="\t")
+
+    @staticmethod
+    def load(stream: IO[str]) -> "PackageConfig":
+        """Load a runtime config from the given json stream."""
+
+        json_data = simplejson.load(stream)
+        json_data["environ"] = tuple(json_data.get("environ", []))
+        return PackageConfig(**json_data)
+
+
+class Package:
     """Packages represent a logical collection of software artifacts.
 
     Packages are considered completely immutable, and are
@@ -21,11 +47,13 @@ class Package(Layer):
 
     _diffdir = "diff"
     _metadir = "meta"
+    _configfile = "config.json"
     dirs = (_diffdir, _metadir)
 
     def __init__(self, root: str) -> None:
         """Create a new instance to represent the package data at 'root'."""
         self._root = os.path.abspath(root)
+        self._config: Optional[PackageConfig] = None
 
     @property
     def ref(self) -> str:
@@ -36,9 +64,18 @@ class Package(Layer):
         return os.path.basename(self._root)
 
     @property
+    def layers(self) -> List[str]:
+        return [self.ref]
+
+    @property
     def rootdir(self) -> str:
         """Return the root directory where this package is stored."""
         return self._root
+
+    @property
+    def configfile(self) -> str:
+        """Return the path to this package's config file."""
+        return os.path.join(self._root, self._configfile)
 
     @property
     def diffdir(self) -> str:
@@ -49,6 +86,32 @@ class Package(Layer):
     def metadir(self) -> str:
         """Return the directory in which the metadata is stored."""
         return os.path.join(self._root, self._metadir)
+
+    @property
+    def config(self) -> PackageConfig:
+        """Return this package's configuration data."""
+
+        if self._config is None:
+            return self._read_config()
+        return self._config
+
+    def _write_config(self) -> None:
+
+        with open(self.configfile, "w+", encoding="utf-8") as f:
+            self.config.dump(f)
+
+    def _read_config(self) -> PackageConfig:
+
+        try:
+            with open(self.configfile, "r", encoding="utf-8") as f:
+                self._config = PackageConfig.load(f)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                self._config = PackageConfig()
+                self._write_config()
+            else:
+                raise
+        return self._config
 
     def read_manifest(self) -> tracking.Manifest:
         """Read the cached file manifest of this package."""
@@ -138,8 +201,11 @@ class PackageStorage:
 
         return [Package(os.path.join(self._root, d)) for d in dirs]
 
-    def commit_dir(self, dirname: str) -> Package:
+    def commit_dir(self, dirname: str, env: Dict[str, str] = None) -> Package:
         """Create a package from the contents of a directory."""
+
+        if env is None:
+            env = {}
 
         tmp_package = self._ensure_package("work-" + uuid.uuid1().hex)
         os.rmdir(tmp_package.diffdir)
@@ -151,6 +217,14 @@ class PackageStorage:
 
         writer = tracking.ManifestWriter(tmp_package.metadir)
         writer.rewrite(manifest)
+
+        config = PackageConfig(
+            manifest=tree.digest, environ=tuple(f"{n}={v}" for n, v in env.items())
+        )
+        tmp_package._config = config
+        tmp_package._write_config()
+
+        # TODO: use the package meta data to create the final hash
 
         new_root = os.path.join(self._root, tree.digest)
         try:

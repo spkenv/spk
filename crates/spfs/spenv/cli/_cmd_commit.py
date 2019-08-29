@@ -12,6 +12,9 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
     commit_cmd.add_argument(
         "--tag", "-t", dest="tags", action="append", help="TODO: help"
     )
+    commit_cmd.add_argument(
+        "--env", "-e", dest="envs", action="append", help="TODO: help"
+    )
     commit_cmd.set_defaults(func=_commit)
 
 
@@ -22,8 +25,16 @@ def _commit(args: argparse.Namespace) -> None:
     config = spenv.get_config()
     repo = config.get_repository()
 
+    env = {}
+    for pair in args.envs:
+        name, value = pair.split("=", 1)
+        env[name] = value
+
+    result: spenv.storage.Layer
     if args.kind == "package":
-        result = repo.commit_package(runtime)
+        result = repo.commit_package(runtime, env=env)
+    elif args.kind == "platform":
+        result = repo.commit_platform(runtime, env=env)
     else:
         raise NotImplementedError("commit", args.kind)
 

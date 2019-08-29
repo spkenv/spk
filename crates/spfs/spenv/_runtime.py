@@ -5,7 +5,12 @@ import subprocess
 
 import structlog
 
-from ._resolve import which, resolve_overlayfs_options, resolve_layers_to_packages
+from ._resolve import (
+    which,
+    resolve_overlayfs_options,
+    resolve_layers_to_packages,
+    resolve_packages_to_environment,
+)
 from ._config import get_config
 from . import storage
 
@@ -43,10 +48,16 @@ def install(*refs: str) -> None:
     overlay_args = resolve_overlayfs_options(runtime)
     _spenv_remount(overlay_args)
 
+    # TODO: resolve properly from current env / allow appending
+    # is this even helpful, because it won't update caller...
+    env = resolve_packages_to_environment(packages)
+    for name, value in env:
+        print(f"export {name}={value}")  # TODO: be more shell-aware?
+
 
 def _spenv_remount(overlay_args: str) -> None:
 
-    exe = which("spenv-mount")
+    exe = which("spenv-remount")
     if exe is None:
         raise RuntimeError("'spenv-remount' not found in PATH")
     subprocess.check_call([exe, overlay_args])

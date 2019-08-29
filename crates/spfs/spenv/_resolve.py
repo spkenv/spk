@@ -1,8 +1,27 @@
-from typing import Sequence, List, Optional
+from typing import Sequence, List, Optional, Dict
 import os
 
 from . import storage
 from ._config import get_config
+
+
+def resolve_runtime_envrionment(runtime: storage.Runtime) -> Dict[str, str]:
+
+    packages = resolve_layers_to_packages(runtime.config.layers)
+    env = resolve_packages_to_environment(packages)
+    env["SPENV_RUNTIME"] = runtime.rootdir
+    return env
+
+
+def resolve_packages_to_environment(
+    packages: Sequence[storage.Package]
+) -> Dict[str, str]:
+
+    env: Dict[str, str] = {}
+    for package in packages:
+        # TODO: allow extending base environment (os.expandenv)
+        env.update(package.config.iter_env())
+    return env
 
 
 def resolve_overlayfs_options(runtime: storage.Runtime) -> str:

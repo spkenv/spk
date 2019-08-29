@@ -22,7 +22,7 @@ class RuntimeConfig(NamedTuple):
 
     def dump(self, stream: IO[str]) -> None:
         """Dump this config as json to the given stream."""
-        simplejson.dump(self, stream)
+        simplejson.dump(self, stream, indent="\t")
 
     @staticmethod
     def load(stream: IO[str]) -> "RuntimeConfig":

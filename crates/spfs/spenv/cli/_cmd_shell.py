@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 import os
 import sys
 import argparse
@@ -14,7 +14,7 @@ _logger = structlog.get_logger()
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     shell_cmd = sub_parsers.add_parser("shell", help=_shell.__doc__)
-    shell_cmd.add_argument("script", metavar="FILE", nargs="?")
+    shell_cmd.add_argument("target", metavar="FILE|REF", nargs="?", help="TODO: help")
     shell_cmd.set_defaults(func=_shell)
 
     # This custom dict overrides the available subcommand
@@ -33,17 +33,28 @@ def _shell(args: argparse.Namespace) -> None:
     # TODO: resolve the shell more smartly
     exe = os.getenv("SHELL", "/bin/bash")
 
-    cmd_args = []
+    cmd_args: List[str] = []
     if args.command != "shell":
         # if the default shell command injection took place,
         # the actual command will be the path to the script
         # to execute, not 'shell'
-        args.script = args.command
+        args.target = args.command
 
-    if args.script:
-        cmd_args.append(args.script)
+    if not args.target:
+        cmd = spenv.build_command(exe, *cmd_args)
 
-    cmd = spenv.build_command(exe, *cmd_args)
+    else:
+        # TODO: clean up this logic / break into function
+        config = spenv.get_config()
+        repo = config.get_repository()
+        try:
+            runtime = repo.read_ref(args.target)
+            assert isinstance(runtime, spenv.storage.Runtime)
+            cmd = spenv.build_command_for_runtime(runtime, exe, *cmd_args)
+        except ValueError:
+            cmd_args.append(args.target)
+            cmd = spenv.build_command(exe, *cmd_args)
+
     print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
     os.execv(cmd[0], cmd)
 

@@ -15,7 +15,7 @@ class UnknownPlatformError(ValueError):
         super(UnknownPlatformError, self).__init__(f"Unknown platform: {ref}")
 
 
-class Platform(Layer):
+class Platform:
     """Platforms represent a predetermined collection of packages.
 
     Platforms capture an entire runtime set of packages as a single,
@@ -39,6 +39,10 @@ class Platform(Layer):
     @property
     def rootdir(self) -> str:
         return self._root
+
+    @property
+    def layers(self) -> List[str]:
+        return self.read_layers()
 
     def read_layers(self) -> List[str]:
         try:
