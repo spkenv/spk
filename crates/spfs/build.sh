@@ -5,7 +5,7 @@ set -ex
 rm -r build/* || true
 mkdir -p build/bin
 
-gcc -o build/bin/spenv-mount spenv-mount/main.c
+gcc -lcap -o build/bin/spenv-mount spenv-mount/main.c
 sudo setcap cap_sys_admin+ep $(realpath build/bin/spenv-mount)
 
 gcc -o build/bin/spenv-remount spenv-remount/main.c

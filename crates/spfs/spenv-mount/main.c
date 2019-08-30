@@ -3,8 +3,11 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/prctl.h>
+#include <sys/capability.h>
 #include <unistd.h>
 #include <string.h>
 #include <libgen.h>
@@ -58,6 +61,30 @@ int create_mount_target()
     return 0;
 }
 
+
+int drop_all_caps() {
+
+    cap_t capabilities = cap_get_proc();
+    int result = cap_clear(capabilities);
+    if (result != 0)
+    {
+        return -1;
+    }
+    result = cap_set_proc(capabilities);
+    if (result != 0)
+    {
+        return -1;
+    }
+    result = cap_free(capabilities);
+    if (result != 0)
+    {
+        return -1;
+    }
+    return 0;
+
+}
+
+
 int main(int argc, char *argv[])
 {
     if (argc < 3)
@@ -103,6 +130,12 @@ int main(int argc, char *argv[])
     if (result != 0)
     {
         perror("Mount failed (try: dmesg | tail)");
+        return 1;
+    }
+
+    result = drop_all_caps();
+    if (result -= 0) {
+        perror("Failed to drop capabilities");
         return 1;
     }
 
