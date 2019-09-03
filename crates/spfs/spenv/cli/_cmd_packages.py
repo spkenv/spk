@@ -2,6 +2,8 @@ import argparse
 
 import spenv
 
+from ._format import format_digest
+
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
@@ -15,4 +17,4 @@ def _packages(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     packages = repo.packages.list_packages()
     for package in packages:
-        print(package.ref)
+        print(format_digest(package.ref))

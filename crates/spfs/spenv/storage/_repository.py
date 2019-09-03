@@ -1,4 +1,4 @@
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Iterable, Tuple
 import os
 import uuid
 import errno
@@ -35,9 +35,8 @@ class Repository:
 
         tag_path = self._join_path(self._tag, ref)
         try:
-            target = os.readlink(tag_path)
-            # TODO: this feels janky
-            return self.read_ref(os.path.basename(target))
+            with open(tag_path, "r", encoding="ascii") as f:
+                ref = f.read().strip()
         except OSError as e:
             if e.errno == errno.ENOENT:
                 pass
@@ -61,6 +60,28 @@ class Repository:
 
         raise ValueError("Unknown ref: " + ref)
 
+    def find_aliases(self, ref: str) -> List[str]:
+
+        ref = self.read_ref(ref).ref
+        aliases = set([ref])
+        for tag, target in self.iter_tags():
+            if target == ref:
+                aliases.add(tag)
+        aliases.remove(ref)
+        return list(aliases)
+
+    def iter_tags(self) -> Iterable[Tuple[str, str]]:
+
+        tag_dir = self._join_path(self._tag)
+        for root, _, files in os.walk(tag_dir):
+
+            for filename in files:
+                linkfile = os.path.join(root, filename)
+                with open(linkfile, "r", encoding="ascii") as f:
+                    ref = f.read().strip()
+                tag = os.path.relpath(linkfile, tag_dir)
+                yield (tag, ref)
+
     def commit_package(self, runtime: Runtime, env: Dict[str, str] = None) -> Package:
         """Commit the working file changes of a runtime to a new package."""
 
@@ -79,12 +100,8 @@ class Repository:
         tagdir = self._join_path(self._tag)
         linkfile = os.path.join(tagdir, tag)
         os.makedirs(os.path.basename(linkfile), exist_ok=True)
-        try:
-            os.unlink(linkfile)
-        except OSError as e:
-            if e.errno != errno.ENOENT:
-                raise
-        os.symlink(layer.rootdir, linkfile)
+        with open(linkfile, "w+", encoding="ascii") as f:
+            f.write(layer.ref)
 
 
 def ensure_repository(path: str) -> Repository:

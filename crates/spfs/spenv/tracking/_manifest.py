@@ -146,9 +146,6 @@ def compute_tree(dirname: str, append_to: Manifest = None) -> Tree:
     paths = [os.path.join(dirname, n) for n in names]
     entries = []
     for path in paths:
-
-        if os.path.basename(path) == ".spenv":
-            continue  # TODO: clean this up? at least constant
         entry = compute_entry(path, append_to=manifest)
         entries.append(entry)
 

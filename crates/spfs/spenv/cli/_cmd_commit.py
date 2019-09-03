@@ -26,7 +26,7 @@ def _commit(args: argparse.Namespace) -> None:
     repo = config.get_repository()
 
     env = {}
-    for pair in args.envs:
+    for pair in args.envs or []:
         name, value = pair.split("=", 1)
         env[name] = value
 
@@ -39,7 +39,7 @@ def _commit(args: argparse.Namespace) -> None:
         raise NotImplementedError("commit", args.kind)
 
     print(f"{Fore.GREEN}created: {Fore.RESET}{result.ref}")
-    for tag in args.tags:
+    for tag in args.tags or []:
         repo.tag(result.ref, tag)
         print(f"{Fore.BLUE} tagged: {Fore.RESET}{tag}")
 

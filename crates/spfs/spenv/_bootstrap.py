@@ -21,6 +21,9 @@ def build_command_for_runtime(
     runtime: storage.Runtime, command: str, *args: str
 ) -> Tuple[str, ...]:
 
+    if not os.path.isfile(command):
+        command = which(command) or command
+
     overlay_args = resolve_overlayfs_options(runtime)
 
     exe = which("spenv")

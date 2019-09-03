@@ -2,6 +2,8 @@ import argparse
 
 import spenv
 
+from ._format import format_digest
+
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
@@ -15,4 +17,4 @@ def _runtimes(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     runtimes = repo.runtimes.list_runtimes()
     for runtime in runtimes:
-        print(runtime.ref)
+        print(format_digest(runtime.ref))

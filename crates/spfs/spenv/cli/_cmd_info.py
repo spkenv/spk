@@ -5,6 +5,8 @@ from colorama import Fore
 
 import spenv
 
+from ._format import format_digest
+
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
@@ -30,18 +32,24 @@ def _pretty_print_ref(ref: Union[spenv.storage.Runtime, spenv.storage.Layer]) ->
 
     # TODO: use more format print/formatter types
     if isinstance(ref, spenv.storage.Platform):
-        print(f"{Fore.YELLOW}PLATFORM{Fore.RESET}")
-        print(f"{Fore.BLUE}root:{Fore.RESET} " + ref.rootdir)
-        print(f"{Fore.BLUE}layers:{Fore.RESET}")
+        print(f"{Fore.GREEN}platform:{Fore.RESET}")
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}layers:{Fore.RESET}")
         for layer in ref.layers:
-            print(f" - " + layer)
+            print(f"  - " + format_digest(layer))
     elif isinstance(ref, spenv.storage.Package):
-        print(f"{Fore.YELLOW}PACKAGE{Fore.RESET}")
-        print(f"{Fore.BLUE}root:{Fore.RESET} " + ref.rootdir)
-        print(f"{Fore.BLUE}manifest:{Fore.RESET} " + ref.config.manifest)
-        print(f"{Fore.BLUE}envrion:{Fore.RESET}")
+        print(f"{Fore.GREEN}package:{Fore.RESET}")
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}manifest:{Fore.RESET} " + ref.config.manifest)
+        print(f" {Fore.BLUE}environ:{Fore.RESET}")
         for pair in ref.config.environ:
-            print(" - " + pair)
+            print("  - " + pair)
+    elif isinstance(ref, spenv.storage.Runtime):
+        print(f"{Fore.GREEN}runtime:{Fore.RESET}")
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}layers:{Fore.RESET}")
+        for layer in ref.config.layers:
+            print(f"  - " + format_digest(layer))
     else:
         print(repr(ref))
 

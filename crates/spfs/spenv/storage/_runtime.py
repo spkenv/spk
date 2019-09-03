@@ -12,8 +12,6 @@ import simplejson
 
 from ._package import Package
 
-# TODO: consider not needing to pass the repo around for layer resolution...
-
 
 class RuntimeConfig(NamedTuple):
     """Stores the configuration of a single runtime."""

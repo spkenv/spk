@@ -28,7 +28,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
 def _shell(args: argparse.Namespace) -> None:
 
-    print(f"Resolving spenv entry process...", end="", file=sys.stderr, flush=True)
+    print(f"Resolving entry process...", end="", file=sys.stderr, flush=True)
 
     # TODO: resolve the shell more smartly
     exe = os.getenv("SHELL", "/bin/bash")
