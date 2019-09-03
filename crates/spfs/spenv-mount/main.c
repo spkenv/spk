@@ -3,11 +3,11 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/prctl.h>
 #include <sys/capability.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <string.h>
 #include <libgen.h>
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     int result;
-    result = unshare(CLONE_NEWNS | CLONE_THREAD);
+    result = unshare(CLONE_NEWNS);
     if (result != 0)
     {
         perror("Failed to enter mount namespace");
@@ -126,10 +126,33 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    result = mount("overlay", MOUNT_TARGET, "overlay", 0, argv[1]);
-    if (result != 0)
-    {
-        perror("Mount failed (try: dmesg | tail)");
+    uid_t original_uid = getuid();
+    result = setuid(0);
+    if (result == -1) {
+        perror("Failed to become root user");
+        return 1;
+    }
+
+    // TODO: investigate why the direct mount() call causes permission
+    // issues, when use of the mount command line does not
+    //result = mount("none", MOUNT_TARGET, "overlay", 0, argv[1]);
+    int child_pid = fork();
+    if (child_pid == 0) {
+        execl("/usr/bin/mount", "/usr/bin/mount", "-t", "overlay", "-o", argv[1], "none", MOUNT_TARGET, NULL);
+    }
+    if (child_pid < 0) {
+        perror("Could not execute mount command");
+        return 1;
+    }
+
+    waitpid(child_pid, &result, 0);
+    if (result != 0) {
+        return result;
+    }
+
+    result = setuid(original_uid);
+    if (result == -1) {
+        perror("Failed to become regular user");
         return 1;
     }
 
