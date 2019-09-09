@@ -99,7 +99,7 @@ class Repository:
         layer = self.read_ref(ref)
         tagdir = self._join_path(self._tag)
         linkfile = os.path.join(tagdir, tag)
-        os.makedirs(os.path.basename(linkfile), exist_ok=True)
+        os.makedirs(os.path.dirname(linkfile), exist_ok=True)
         with open(linkfile, "w+", encoding="ascii") as f:
             f.write(layer.ref)
 
