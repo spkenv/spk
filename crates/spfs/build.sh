@@ -1,17 +1,23 @@
 #!/usr/bin/bash
 
-set -ex
+build_dir=${1:-build}
 
-rm -r build/* || true
-mkdir -p build/bin
+set -e
 
-gcc -lcap -o build/bin/spenv-mount spenv-mount/main.c
-sudo setcap cap_setuid,cap_sys_admin+ep $(realpath build/bin/spenv-mount)
+rm -r ${build_dir}/* || true
+mkdir -p ${build_dir}/bin
 
-gcc -o build/bin/spenv-remount spenv-remount/main.c
-sudo setcap cap_setuid,cap_sys_admin+ep $(realpath build/bin/spenv-remount)
+gcc -lcap -o ${build_dir}/bin/spenv-mount spenv-mount/main.c
+gcc -o ${build_dir}/bin/spenv-remount spenv-remount/main.c
 
-pipenv lock -r | grep -v -- "--trusted-host" > build/requirements.txt
+if [ "$(id -u)" == "0" ]; then
+    setcap cap_setuid,cap_sys_admin+ep ${build_dir}/bin/spenv-mount
+    setcap cap_setuid,cap_sys_admin+ep ${build_dir}/bin/spenv-remount
+else
+    echo "WARNING: not running as root, binary capabilities will not be set"
+fi
+
+pipenv lock -r | grep -v -- "--trusted-host" > ${build_dir}/requirements.txt
 python setup.py clean
 rm -r *.egg-info || true
-pex -m spenv -r build/requirements.txt . -o build/bin/spenv --disable-cache
+pex -m spenv -r ${build_dir}/requirements.txt . -o ${build_dir}/bin/spenv --disable-cache
