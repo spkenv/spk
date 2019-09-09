@@ -15,8 +15,9 @@ class ManifestWriter:
 
     def rewrite(self, manifest: Manifest) -> None:
 
+        metapath = os.path.join(self._dir, "entries.yaml")
         try:
-            shutil.rmtree(self._dir)
+            os.remove(metapath)
         except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
@@ -36,9 +37,9 @@ class ManifestWriter:
             path = os.path.dirname(path)
             serialized[path].append(entry.serialize())
 
-            metapath = os.path.join(self._dir, "entries.yaml")
-            with open(metapath, "w+", encoding="utf-8") as f:
-                yaml.safe_dump(serialized, f)
+        metapath = os.path.join(self._dir, "entries.yaml")
+        with open(metapath, "w+", encoding="utf-8") as f:
+            yaml.safe_dump(serialized, f)
 
 
 class ManifestReader:

@@ -14,7 +14,6 @@ import spenv
 
 from ._args import parse_args, configure_logging
 
-colorama.init()
 config = spenv.get_config()
 
 

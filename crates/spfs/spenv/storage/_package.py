@@ -6,11 +6,15 @@ import stat
 import errno
 import shutil
 import hashlib
+import subprocess
 
+import structlog
 import simplejson
 
 from .. import tracking
 from ._layer import Layer
+
+_logger = structlog.get_logger(__name__)
 
 
 class PackageConfig(NamedTuple):
@@ -221,15 +225,23 @@ class PackageStorage:
 
         tmp_package = self._ensure_package("work-" + uuid.uuid1().hex)
         os.rmdir(tmp_package.diffdir)
-        shutil.copytree(dirname, tmp_package.diffdir, symlinks=True)
+        _logger.info("copying file tree")
+        try:
+            subprocess.check_call(["rsync", "-ra", dirname, tmp_package.diffdir])
+        except subprocess.CalledProcessError:
+            _logger.info("rsync failed or is not available, defaulting to shutil")
+            shutil.copytree(dirname, tmp_package.diffdir, symlinks=True)
 
+        _logger.info("computing file manifest")
         manifest = tmp_package.compute_manifest()
         tree = manifest.get_path(tmp_package.diffdir)
         assert tree is not None, "Manifest must have entry for package diffdir"
 
+        _logger.info("writing file manifest")
         writer = tracking.ManifestWriter(tmp_package.metadir)
         writer.rewrite(manifest)
 
+        _logger.info("storing package configuation")
         config = PackageConfig(
             manifest=tree.digest,
             environ=tuple(sorted(f"{n}={v}" for n, v in env.items())),
@@ -237,6 +249,7 @@ class PackageStorage:
         tmp_package._config = config
         tmp_package._write_config()
 
+        _logger.info("finalizing package")
         new_root = os.path.join(self._root, config.digest)
         try:
             os.rename(tmp_package._root, new_root)

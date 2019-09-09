@@ -49,8 +49,8 @@ def configure_logging(args: argparse.Namespace) -> None:
     colorama.init()
     level = logging.INFO
     processors = [
+        structlog.stdlib.filter_by_level,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
     ]
 
@@ -58,6 +58,7 @@ def configure_logging(args: argparse.Namespace) -> None:
         level = logging.DEBUG
         processors.extend(
             [
+                structlog.stdlib.add_logger_name,
                 structlog.processors.StackInfoRenderer(),
                 structlog.processors.format_exc_info,
             ]
@@ -65,13 +66,9 @@ def configure_logging(args: argparse.Namespace) -> None:
 
     processors.append(structlog.dev.ConsoleRenderer())
 
+    logging.basicConfig(stream=sys.stdout, format="%(message)s", level=level)
     structlog.configure(
-        context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
+        processors=processors,
     )
-
-    root = logging.getLogger()
-    root.setLevel(level)
-    root.addHandler(logging.StreamHandler(sys.stderr))
