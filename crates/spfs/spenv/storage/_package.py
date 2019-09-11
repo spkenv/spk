@@ -226,11 +226,7 @@ class PackageStorage:
         tmp_package = self._ensure_package("work-" + uuid.uuid1().hex)
         os.rmdir(tmp_package.diffdir)
         _logger.info("copying file tree")
-        try:
-            subprocess.check_call(["rsync", "-ra", dirname, tmp_package.diffdir])
-        except subprocess.CalledProcessError:
-            _logger.info("rsync failed or is not available, defaulting to shutil")
-            shutil.copytree(dirname, tmp_package.diffdir, symlinks=True)
+        shutil.copytree(dirname, tmp_package.diffdir, symlinks=True)
 
         _logger.info("computing file manifest")
         manifest = tmp_package.compute_manifest()

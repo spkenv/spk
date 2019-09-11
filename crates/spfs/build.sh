@@ -17,6 +17,8 @@ else
     echo "WARNING: not running as root, binary capabilities will not be set"
 fi
 
+source "$(pipenv --venv)/bin/activate"
+pipenv install --dev
 pipenv lock -r | grep -v -- "--trusted-host" > ${build_dir}/requirements.txt
 python setup.py clean
 rm -r *.egg-info || true
