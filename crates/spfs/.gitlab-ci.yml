@@ -1,0 +1,15 @@
+
+build:
+  tags: [rehl7]
+  script:
+    - build_rpm.sh
+  artifacts:
+    - build/rpm/*/*.rpm
+
+deploy:
+  when:
+    - manual
+  script:
+    - tree build/rpm/*
+    - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/rpm/* /net/yum/spi-dev/
+    - createrepo /net/yum/spi-dev

@@ -29,3 +29,7 @@ install -p -m 755 %{_builddir}/build/bin/spenv-remount %{buildroot}/usr/local/bi
 /usr/local/bin/spenv
 %caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spenv-mount
 %caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spenv-remount
+
+%post
+mkdir /env
+chmod 777 /env
