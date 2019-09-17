@@ -1,6 +1,10 @@
 
+stages:
+  - build
+  - deploy
+
 build:
-  tags: [rhel7, docker]
+  tags: [docker]
   only:
     - master
     - merge_requests
