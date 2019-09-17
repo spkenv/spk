@@ -1,6 +1,6 @@
 
 build:
-  tags: [rhel7]
+  tags: [rhel7, docker]
   only:
     - merge_requests
   script:
