@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+set -e -x
 
 rm -r build 2> /dev/null || true
 docker run --rm -v "$(pwd)":/work docker-registry2.spimageworks.com/spi/centos:7 bash -c '
@@ -24,5 +25,5 @@ cd /work
 rpmdev-setuptree
 rpmbuild -ba spenv.spec
 '
-set -e -x
+
 test -d build/rpm/x86_64
