@@ -5,6 +5,7 @@ stages:
 
 build:
   tags: [docker]
+  stage: build
   only:
     - master
     - merge_requests
@@ -17,6 +18,7 @@ build:
 
 deploy:
   tags: [rhel7]
+  stage: deploy
   only:
     - master
   script:
