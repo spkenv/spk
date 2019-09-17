@@ -2,6 +2,7 @@
 build:
   tags: [rhel7, docker]
   only:
+    - master
     - merge_requests
   script:
     - ./build_rpm.sh
