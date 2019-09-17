@@ -2,7 +2,7 @@
 
 build_dir=${1:-build}
 
-set -e
+set -e -x
 
 rm -r ${build_dir}/* || true
 mkdir -p ${build_dir}/bin
@@ -17,8 +17,8 @@ else
     echo "WARNING: not running as root, binary capabilities will not be set"
 fi
 
-source "$(pipenv --venv)/bin/activate"
 pipenv install --dev
+source "$(pipenv --venv)/bin/activate"
 pipenv lock -r | grep -v -- "--trusted-host" > ${build_dir}/requirements.txt
 python setup.py clean
 rm -r *.egg-info || true

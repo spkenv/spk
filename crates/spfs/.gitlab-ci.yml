@@ -1,21 +1,24 @@
 
 build:
-  tags: [rehl7]
+  tags: [rhel7, docker]
+  only:
+    - merge_requests
   script:
-    - build_rpm.sh
+    - ./build_rpm.sh
   artifacts:
     paths:
       - build/rpm/*/*.rpm
     expire_in: 1 week
 
 deploy:
-  when:
-    - manual
+  tags: [rhel7]
+  only:
+    - master
   script:
     - tree build/rpm/*
     - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/rpm/* /net/yum/spi-dev/
     - createrepo /net/yum/spi-dev
   artifacts:
     paths:
-      build/rpm/*/*.rpm
+      - build/rpm/*/*.rpm
     expire_in: 10 yrs
