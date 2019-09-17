@@ -24,6 +24,7 @@ pip install pipenv
 cd /work
 rpmdev-setuptree
 rpmbuild -ba spenv.spec
+chmod 777 -R /work/build
 '
 
 test -d build/rpm/x86_64
