@@ -1,30 +1,13 @@
 #!/usr/bin/bash
 
+set -e -x
+
+image="localhost/spenv-builder:latest"
+container="spenv-builder"
+docker build -t $image .
+docker create --name ${container} ${image}
 rm -r build 2> /dev/null || true
-docker run --rm -v "$(pwd)":/work docker-registry2.spimageworks.com/spi/centos:7 bash -c '
-set -e -x
-yum install -y \
-    libcap-devel \
-    rsync \
-    gcc \
-    rpmdevtools \
-    rpm-build \
-    python-pip \
-    python37
+docker cp ${container}:/root/rpmbuild/RPMS ./build
+docker rm ${container}
 
-cat << EOF > /etc/pip.conf
-[global]
-trusted-host = pypi.spimageworks.com
-index-url = http://pypi.spimageworks.com/spi/dev/
-EOF
-
-pip install pipenv
-
-cd /work
-rpmdev-setuptree
-rpmbuild -ba spenv.spec
-'
-docker run --rm -v "$(pwd)":/work docker-registry2.spimageworks.com/spi/centos:7 chmod 777 -R /work/build
-
-set -e -x
-test -d build/rpm/x86_64
+test -d BUILD/x86_64

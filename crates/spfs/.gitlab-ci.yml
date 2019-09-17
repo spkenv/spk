@@ -13,7 +13,7 @@ build:
     - ./build_rpm.sh
   artifacts:
     paths:
-      - build/rpm/*/*.rpm
+      - build/*/*.rpm
     expire_in: 1 week
 
 deploy:
@@ -23,9 +23,9 @@ deploy:
     - master
   script:
     - tree build/rpm/*
-    - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/rpm/* /net/yum/spi-dev/
+    - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/* /net/yum/spi-dev/
     - createrepo /net/yum/spi-dev
   artifacts:
     paths:
-      - build/rpm/*/*.rpm
+      - build/*/*.rpm
     expire_in: 10 yrs
