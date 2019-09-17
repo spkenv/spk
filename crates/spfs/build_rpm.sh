@@ -10,4 +10,4 @@ rm -r build 2> /dev/null || true
 docker cp ${container}:/root/rpmbuild/RPMS ./build
 docker rm ${container}
 
-test -d BUILD/x86_64
+test -d build/x86_64
