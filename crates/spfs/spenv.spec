@@ -1,5 +1,5 @@
 Name: spenv
-Version: 0.1.0
+Version: %(grep -oP '(?<=_version__ = ").*(?=")' spenv/__init__.py)
 Release: 1
 Summary: Runtime environment management.
 License: NONE

@@ -9,15 +9,16 @@ import structlog
 
 import spenv
 from . import (
-    _cmd_runtimes,
+    _cmd_commit,
+    _cmd_info,
+    _cmd_init,
+    _cmd_install,
     _cmd_packages,
     _cmd_platforms,
     _cmd_run,
+    _cmd_runtimes,
     _cmd_shell,
-    _cmd_commit,
-    _cmd_install,
-    _cmd_init,
-    _cmd_info,
+    _cmd_version,
 )
 
 
@@ -27,6 +28,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--debug", "-d", action="store_true")
 
     sub_parsers = parser.add_subparsers(dest="command", required=True)
+
+    _cmd_version.register(sub_parsers)
 
     _cmd_runtimes.register(sub_parsers)
     _cmd_packages.register(sub_parsers)
