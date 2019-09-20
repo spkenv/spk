@@ -8,8 +8,8 @@ import structlog
 from ._resolve import (
     which,
     resolve_overlayfs_options,
-    resolve_layers_to_packages,
-    resolve_packages_to_environment,
+    resolve_stack_to_layers,
+    resolve_layers_to_environment,
 )
 from ._config import get_config
 from . import storage
@@ -36,26 +36,26 @@ def active_runtime() -> storage.Runtime:
 def install(*refs: str) -> None:
 
     runtime = active_runtime()
-    installed_packages = install_to(runtime, *refs)
+    installed_layers = install_to(runtime, *refs)
 
     overlay_args = resolve_overlayfs_options(runtime)
     _spenv_remount(overlay_args)
 
-    env = resolve_packages_to_environment(installed_packages, base=os.environ)
+    env = resolve_layers_to_environment(installed_layers, base=os.environ)
     os.environ.update(env)
 
 
-def install_to(runtime: storage.Runtime, *refs: str) -> List[storage.Package]:
+def install_to(runtime: storage.Runtime, *refs: str) -> List[storage.Layer]:
 
     config = get_config()
     repo = config.get_repository()
 
-    # TODO: ensure packages can be installed with current stack
+    # TODO: ensure layers can be installed with current stack
 
-    packages = resolve_layers_to_packages(refs)
-    for package in packages:
-        runtime.append_package(package)
-    return packages
+    layers = resolve_stack_to_layers(refs)
+    for layer in layers:
+        runtime.append_layer(layer)
+    return layers
 
 
 def _spenv_remount(overlay_args: str) -> None:

@@ -28,7 +28,7 @@ def _info(args: argparse.Namespace) -> None:
         _pretty_print_ref(item)
 
 
-def _pretty_print_ref(ref: Union[spenv.storage.Runtime, spenv.storage.Layer]) -> None:
+def _pretty_print_ref(ref: spenv.storage.Object) -> None:
 
     # TODO: use more format print/formatter types
     if isinstance(ref, spenv.storage.Platform):

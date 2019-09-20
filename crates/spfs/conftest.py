@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 import spenv
-from spenv.storage._package import _ensure_package
+from spenv.storage._layer import _ensure_layer
 
 
 @pytest.fixture
@@ -13,9 +13,9 @@ def tmprepo(tmpdir):
 
 
 @pytest.fixture
-def mkpkg(tmpdir):
-    def mkpkg() -> spenv.storage.Package:
+def mklayer(tmpdir):
+    def mklayer() -> spenv.storage.Layer:
 
-        return _ensure_package(tmpdir.join(uuid.uuid1().hex).strpath)
+        return _ensure_layer(tmpdir.join(uuid.uuid1().hex).strpath)
 
-    return mkpkg
+    return mklayer

@@ -6,10 +6,10 @@ import shutil
 import tarfile
 import hashlib
 
+from ._object import Object
 from ._platform import PlatformStorage, Platform, UnknownPlatformError
-from ._package import PackageStorage, Package
+from ._layer import LayerStorage, Layer
 from ._runtime import RuntimeStorage, Runtime
-from ._layer import Layer
 
 
 class Repository:
@@ -23,7 +23,7 @@ class Repository:
     def __init__(self, root: str):
 
         self._root = os.path.abspath(root)
-        self.packages = PackageStorage(self._join_path(self._pack))
+        self.layers = LayerStorage(self._join_path(self._pack))
         self.platforms = PlatformStorage(self._join_path(self._plat))
         self.runtimes = RuntimeStorage(self._join_path(self._run))
 
@@ -31,7 +31,7 @@ class Repository:
 
         return os.path.join(self._root, *parts)
 
-    def read_ref(self, ref: str) -> Union[Layer, Runtime]:
+    def read_ref(self, ref: str) -> Object:
 
         tag_path = self._join_path(self._tag, ref)
         try:
@@ -44,7 +44,7 @@ class Repository:
                 raise
 
         try:
-            return self.packages.read_package(ref)
+            return self.layers.read_layer(ref)
         except ValueError:
             pass
 
@@ -82,16 +82,16 @@ class Repository:
                 tag = os.path.relpath(linkfile, tag_dir)
                 yield (tag, ref)
 
-    def commit_package(self, runtime: Runtime, env: Dict[str, str] = None) -> Package:
-        """Commit the working file changes of a runtime to a new package."""
+    def commit_layer(self, runtime: Runtime, env: Dict[str, str] = None) -> Layer:
+        """Commit the working file changes of a runtime to a new layer."""
 
-        return self.packages.commit_dir(runtime.upperdir, env=env)
+        return self.layers.commit_dir(runtime.upperdir, env=env)
 
     def commit_platform(self, runtime: Runtime, env: Dict[str, str] = None) -> Platform:
         """Commit the full layer stack and working files to a new platform."""
 
-        top = self.packages.commit_dir(runtime.upperdir, env=env)
-        runtime.append_package(top)
+        top = self.layers.commit_dir(runtime.upperdir, env=env)
+        runtime.append_layer(top)
         return self.platforms.commit_runtime(runtime)
 
     def tag(self, ref: str, tag: str) -> None:

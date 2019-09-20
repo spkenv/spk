@@ -3,7 +3,7 @@ import py.path
 import pytest
 
 from ._runtime import _ensure_runtime
-from ._package import Package
+from ._layer import Layer
 from ._platform import Platform, PlatformStorage, UnknownPlatformError
 
 
@@ -31,7 +31,7 @@ def test_platform_read_write_layers(tmpdir: py.path.local) -> None:
     assert actual == expected
 
 
-def test_commit_runtime(tmpdir: py.path.local, mkpkg: Callable[[], Package]) -> None:
+def test_commit_runtime(tmpdir: py.path.local, mklayer: Callable[[], Layer]) -> None:
 
     runtime = _ensure_runtime(tmpdir.join("runtime").strpath)
     storage = PlatformStorage(tmpdir.join("platforms").strpath)
@@ -41,13 +41,13 @@ def test_commit_runtime(tmpdir: py.path.local, mkpkg: Callable[[], Package]) -> 
     assert first.ref == second.ref
 
     for _ in range(10):
-        runtime.append_package(mkpkg())
+        runtime.append_layer(mklayer())
 
     first = storage.commit_runtime(runtime)
     second = storage.commit_runtime(runtime)
     assert first.ref == second.ref
 
-    runtime.append_package(mkpkg())
+    runtime.append_layer(mklayer())
     second = storage.commit_runtime(runtime)
     assert first.ref != second.ref
 
