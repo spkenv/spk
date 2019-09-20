@@ -10,7 +10,7 @@ import contextlib
 
 import simplejson
 
-from ._package import Package
+from ._layer import Layer
 
 
 class RuntimeConfig(NamedTuple):
@@ -37,7 +37,7 @@ class Runtime:
     The runtime contains the working files for a spenv
     envrionment, specifically the work and upper directories
     that are used by the overlay filesystem mount. It also
-    retains a list of packages and platforms that have been
+    retains a list of layers and platforms that have been
     install to the runtime, as well as the resulting stack
     of read-only filesystem layers.
     """
@@ -97,20 +97,18 @@ class Runtime:
             return self._read_config()
         return self._config
 
-    def append_package(
-        self, package: Package
-    ) -> None:  # TODO: consider this being append_layer
-        """Append a package to this runtime's stack.
+    def append_layer(self, layer: Layer) -> None:
+        """Append a layer to this runtime's stack.
 
         This will update the configuration of the runtime,
         and change the overlayfs options, but not update
         any currently running environment automatically.
 
         Args:
-            package (Package): The package to append to the stack
+            layer (Layer): The layer to append to the stack
         """
 
-        self._config = RuntimeConfig(self.config.layers + (package.ref,))
+        self._config = RuntimeConfig(self.config.layers + (layer.ref,))
         self._write_config()
 
     def _write_config(self) -> None:

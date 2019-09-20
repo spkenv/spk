@@ -4,7 +4,7 @@ import errno
 import subprocess
 
 from ._config import get_config
-from ._resolve import resolve_layers_to_packages, resolve_overlayfs_options, which
+from ._resolve import resolve_overlayfs_options, which
 from . import storage
 
 

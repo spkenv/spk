@@ -8,26 +8,26 @@ from ._config import get_config
 _var_expansion_regex = None
 
 
-def resolve_runtime_envrionment(
+def resolve_runtime_environment(
     runtime: storage.Runtime, base: Mapping[str, str] = None
 ) -> Dict[str, str]:
 
-    packages = resolve_layers_to_packages(runtime.config.layers)
-    env = resolve_packages_to_environment(packages, base=base)
+    layers = resolve_stack_to_layers(runtime.config.layers)
+    env = resolve_layers_to_environment(layers, base=base)
     env["SPENV_RUNTIME"] = runtime.rootdir
     return env
 
 
-def resolve_packages_to_environment(
-    packages: Sequence[storage.Package], base: Mapping[str, str] = None
+def resolve_layers_to_environment(
+    layers: Sequence[storage.Layer], base: Mapping[str, str] = None
 ) -> Dict[str, str]:
 
     env: Dict[str, str] = {}
     if base:
         env.update(base)
 
-    for package in packages:
-        for name, value in package.config.iter_env():
+    for layer in layers:
+        for name, value in layer.config.iter_env():
             value = _expand_vars(value, env)
             env[name] = value
     return env
@@ -38,31 +38,33 @@ def resolve_overlayfs_options(runtime: storage.Runtime) -> str:
     config = get_config()
     repo = config.get_repository()
     lowerdirs = [runtime.lowerdir]
-    packages = resolve_layers_to_packages(runtime.config.layers)
-    for package in packages:
-        lowerdirs.append(package.diffdir)
+    layers = resolve_stack_to_layers(runtime.config.layers)
+    for layer in layers:
+        lowerdirs.append(layer.diffdir)
 
     return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upperdir},workdir={runtime.workdir}"
 
 
-def resolve_layers_to_packages(layers: Sequence[str]) -> List[storage.Package]:
+def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.Layer]:
 
     config = get_config()
     repo = config.get_repository()
-    packages = []
-    for ref in layers:
+    layers = []
+    for ref in stack:
 
         entry = repo.read_ref(ref)
         if isinstance(entry, storage.Runtime):
             raise RuntimeError(
                 "runtime stack cannot include other runtimes, got:" + ref
             )
-        elif isinstance(entry, storage.Package):
-            packages.append(entry)
+        elif isinstance(entry, storage.Layer):
+            layers.append(entry)
+        elif isinstance(entry, storage.Platform):
+            expanded = resolve_stack_to_layers(entry.layers)
+            layers.extend(expanded)
         else:
-            expanded = resolve_layers_to_packages(entry.layers)
-            packages.extend(expanded)
-    return packages
+            raise NotImplementedError(type(entry))
+    return layers
 
 
 def which(name: str) -> Optional[str]:

@@ -8,7 +8,7 @@ import spenv
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     commit_cmd = sub_parsers.add_parser("commit", help=_commit.__doc__)
-    commit_cmd.add_argument("kind", choices=["package", "platform"], help="TODO: help")
+    commit_cmd.add_argument("kind", choices=["layer", "platform"], help="TODO: help")
     commit_cmd.add_argument(
         "--tag", "-t", dest="tags", action="append", help="TODO: help"
     )
@@ -30,9 +30,9 @@ def _commit(args: argparse.Namespace) -> None:
         name, value = pair.split("=", 1)
         env[name] = value
 
-    result: spenv.storage.Layer
-    if args.kind == "package":
-        result = repo.commit_package(runtime, env=env)
+    result: spenv.storage.Object
+    if args.kind == "layer":
+        result = repo.commit_layer(runtime, env=env)
     elif args.kind == "platform":
         result = repo.commit_platform(runtime, env=env)
     else:
