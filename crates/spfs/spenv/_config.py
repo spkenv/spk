@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, List
 import os
 import errno
 import configparser
@@ -17,9 +17,22 @@ class Config(configparser.ConfigParser):
     def storage_root(self) -> str:
         return str(self["storage"]["root"])
 
+    def list_remote_names(self) -> List[str]:
+
+        names = []
+        for section in self:
+            if section.startswith("remote."):
+                names.append(section.split(".")[1])
+        return names
+
     def get_repository(self) -> storage.Repository:
 
-        return storage.ensure_repository(self.storage_root)
+        return storage.ensure_file_repository(self.storage_root)
+
+    def get_remote(self, name: str) -> storage.Repository:
+
+        addr = self[f"remote.{name}"]["address"]
+        return storage.open_repository(addr)
 
 
 def get_config() -> Config:
