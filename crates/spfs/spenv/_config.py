@@ -25,7 +25,7 @@ class Config(configparser.ConfigParser):
                 names.append(section.split(".")[1])
         return names
 
-    def get_repository(self) -> storage.Repository:
+    def get_repository(self) -> storage.FileRepository:
 
         return storage.ensure_file_repository(self.storage_root)
 
