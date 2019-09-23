@@ -6,13 +6,14 @@ import shutil
 import tarfile
 import hashlib
 
-from ._object import Object
+from .._protocols import Object
+from .._registry import register_scheme
 from ._platform import PlatformStorage, Platform, UnknownPlatformError
 from ._layer import LayerStorage, Layer
 from ._runtime import RuntimeStorage, Runtime
 
 
-class FileRepository:
+class Repository:
 
     _pack = "pack"
     _plat = "plat"
@@ -22,18 +23,14 @@ class FileRepository:
 
     def __init__(self, root: str):
 
-        self._root = os.path.abspath(root)
-        self.layers = LayerStorage(self._join_path(self._pack))
-        self.platforms = PlatformStorage(self._join_path(self._plat))
-        self.runtimes = RuntimeStorage(self._join_path(self._run))
-
-    def _join_path(self, *parts: str) -> str:
-
-        return os.path.join(self._root, *parts)
+        self._root = root
+        self.layers = LayerStorage(os.path.join(root, self._pack))
+        self.platforms = PlatformStorage(os.path.join(root, self._plat))
+        self.runtimes = RuntimeStorage(os.path.join(root, self._run))
 
     def read_ref(self, ref: str) -> Object:
 
-        tag_path = self._join_path(self._tag, ref)
+        tag_path = os.path.join(self._root, self._tag, ref)
         try:
             with open(tag_path, "r", encoding="ascii") as f:
                 ref = f.read().strip()
@@ -72,7 +69,7 @@ class FileRepository:
 
     def iter_tags(self) -> Iterable[Tuple[str, str]]:
 
-        tag_dir = self._join_path(self._tag)
+        tag_dir = os.path.join(self._root, self._tag)
         for root, _, files in os.walk(tag_dir):
 
             for filename in files:
@@ -97,17 +94,40 @@ class FileRepository:
     def tag(self, ref: str, tag: str) -> None:
 
         layer = self.read_ref(ref)
-        tagdir = self._join_path(self._tag)
+        tagdir = os.path.join(self._root, self._tag)
         linkfile = os.path.join(tagdir, tag)
         os.makedirs(os.path.dirname(linkfile), exist_ok=True)
         with open(linkfile, "w+", encoding="ascii") as f:
             f.write(layer.ref)
 
+    def has_layer(self, ref: str) -> bool:
+        """Return true if the identified layer exists in this repository."""
+        try:
+            self.layers.read_layer(ref)
+        except ValueError:
+            return False
+        else:
+            return True
 
-def ensure_file_repository(path: str) -> FileRepository:
+    def has_platform(self, ref: str) -> bool:
+        """Return true if the identified platform exists in this repository."""
+
+        try:
+            self.platforms.read_platform(ref)
+        except ValueError:
+            return False
+        else:
+            return True
+
+
+def ensure_repository(path: str) -> Repository:
 
     os.makedirs(path, exist_ok=True, mode=0o777)
-    for subdir in FileRepository.dirs:
+    for subdir in Repository.dirs:
         os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
 
-    return FileRepository(path)
+    return Repository(path)
+
+
+register_scheme("file", Repository)
+register_scheme("", Repository)

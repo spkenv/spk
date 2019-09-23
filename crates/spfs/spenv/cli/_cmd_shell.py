@@ -49,7 +49,7 @@ def _shell(args: argparse.Namespace) -> None:
         repo = config.get_repository()
         try:
             target = repo.read_ref(args.target)
-            if isinstance(target, spenv.storage.Runtime):
+            if isinstance(target, spenv.storage.fs.Runtime):
                 runtime = target
             else:
                 runtime = repo.runtimes.create_runtime()

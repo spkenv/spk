@@ -29,7 +29,7 @@ def _init(args: argparse.Namespace) -> None:
 
     print(f"Initializing runtime environment...", end="", file=sys.stderr, flush=True)
     runtime_root = args.runtime_root_dir[0]
-    runtime = spenv.storage.Runtime(runtime_root)
+    runtime = spenv.storage.fs.Runtime(runtime_root)
     env = spenv.resolve_runtime_envrionment(runtime, base=os.environ)
     os.environ.update(env)
     print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)

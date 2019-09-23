@@ -9,7 +9,7 @@ _var_expansion_regex = None
 
 
 def resolve_runtime_environment(
-    runtime: storage.Runtime, base: Mapping[str, str] = None
+    runtime: storage.fs.Runtime, base: Mapping[str, str] = None
 ) -> Dict[str, str]:
 
     layers = resolve_stack_to_layers(runtime.config.layers)
@@ -19,7 +19,7 @@ def resolve_runtime_environment(
 
 
 def resolve_layers_to_environment(
-    layers: Sequence[storage.Layer], base: Mapping[str, str] = None
+    layers: Sequence[storage.fs.Layer], base: Mapping[str, str] = None
 ) -> Dict[str, str]:
 
     env: Dict[str, str] = {}
@@ -33,7 +33,7 @@ def resolve_layers_to_environment(
     return env
 
 
-def resolve_overlayfs_options(runtime: storage.Runtime) -> str:
+def resolve_overlayfs_options(runtime: storage.fs.Runtime) -> str:
 
     config = get_config()
     repo = config.get_repository()
@@ -45,7 +45,7 @@ def resolve_overlayfs_options(runtime: storage.Runtime) -> str:
     return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upperdir},workdir={runtime.workdir}"
 
 
-def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.Layer]:
+def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.fs.Layer]:
 
     config = get_config()
     repo = config.get_repository()
@@ -53,13 +53,13 @@ def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.Layer]:
     for ref in stack:
 
         entry = repo.read_ref(ref)
-        if isinstance(entry, storage.Runtime):
+        if isinstance(entry, storage.fs.Runtime):
             raise RuntimeError(
                 "runtime stack cannot include other runtimes, got:" + ref
             )
-        elif isinstance(entry, storage.Layer):
+        elif isinstance(entry, storage.fs.Layer):
             layers.append(entry)
-        elif isinstance(entry, storage.Platform):
+        elif isinstance(entry, storage.fs.Platform):
             expanded = resolve_stack_to_layers(entry.layers)
             layers.extend(expanded)
         else:

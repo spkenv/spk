@@ -31,7 +31,7 @@ def _run(args: argparse.Namespace) -> None:
     config = spenv.get_config()
     repo = config.get_repository()
     target = repo.read_ref(args.target[0])
-    if isinstance(target, spenv.storage.Runtime):
+    if isinstance(target, spenv.storage.fs.Runtime):
         runtime = target
     else:
         print(f"Configuring new runtime...", end="", file=sys.stderr, flush=True)

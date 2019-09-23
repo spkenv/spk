@@ -25,12 +25,12 @@ class NoRuntimeError(EnvironmentError):
         super(NoRuntimeError, self).__init__(msg)
 
 
-def active_runtime() -> storage.Runtime:
+def active_runtime() -> storage.fs.Runtime:
 
     path = os.getenv("SPENV_RUNTIME")
     if path is None:
         raise NoRuntimeError()
-    return storage.Runtime(path)
+    return storage.fs.Runtime(path)
 
 
 def install(*refs: str) -> None:
@@ -45,7 +45,7 @@ def install(*refs: str) -> None:
     os.environ.update(env)
 
 
-def install_to(runtime: storage.Runtime, *refs: str) -> List[storage.Layer]:
+def install_to(runtime: storage.fs.Runtime, *refs: str) -> List[storage.fs.Layer]:
 
     config = get_config()
     repo = config.get_repository()

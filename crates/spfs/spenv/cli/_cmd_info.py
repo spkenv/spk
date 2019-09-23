@@ -31,7 +31,7 @@ def _info(args: argparse.Namespace) -> None:
 def _pretty_print_ref(ref: spenv.storage.Object) -> None:
 
     # TODO: use more format print/formatter types
-    if isinstance(ref, spenv.storage.Platform):
+    if isinstance(ref, spenv.storage.fs.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
         print(f" {Fore.BLUE}layers:{Fore.RESET}")
@@ -44,7 +44,7 @@ def _pretty_print_ref(ref: spenv.storage.Object) -> None:
         print(f" {Fore.BLUE}environ:{Fore.RESET}")
         for pair in ref.config.environ:
             print("  - " + pair)
-    elif isinstance(ref, spenv.storage.Runtime):
+    elif isinstance(ref, spenv.storage.fs.Runtime):
         print(f"{Fore.GREEN}runtime:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
         print(f" {Fore.BLUE}layers:{Fore.RESET}")

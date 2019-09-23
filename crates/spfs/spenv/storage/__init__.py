@@ -1,6 +1,3 @@
-from ._object import Object
-from ._layer import LayerStorage, Layer
-from ._platform import PlatformStorage, Platform
-from ._runtime import RuntimeStorage, Runtime
-from ._repository import Repository, open_repository
-from ._repository_file import FileRepository, ensure_file_repository
+from ._protocols import Repository, LayerStorage, PlatformStorage, Object
+from ._registry import register_scheme, open_repository
+from . import fs

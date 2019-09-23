@@ -25,9 +25,9 @@ class Config(configparser.ConfigParser):
                 names.append(section.split(".")[1])
         return names
 
-    def get_repository(self) -> storage.FileRepository:
+    def get_repository(self) -> storage.fs.Repository:
 
-        return storage.ensure_file_repository(self.storage_root)
+        return storage.fs.ensure_repository(self.storage_root)
 
     def get_remote(self, name: str) -> storage.Repository:
 
@@ -36,6 +36,7 @@ class Config(configparser.ConfigParser):
 
 
 def get_config() -> Config:
+    """Get the current configuration, loading it if necessary."""
 
     global _CONFIG
     if _CONFIG is None:
@@ -44,6 +45,10 @@ def get_config() -> Config:
 
 
 def load_config() -> Config:
+    """Load the spenv configuration from disk.
+
+    This includes the default, user and system configurations, if they exist.
+    """
 
     user_config = os.path.expanduser("~/.config/spenv/spenv.conf")
     system_config = "/etc/spenv.conf"

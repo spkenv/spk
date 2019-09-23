@@ -31,4 +31,5 @@ def test_config_get_remote(tmpdir: py.path.local) -> None:
     config.read_string(f"[remote.origin]\naddress=file://{tmpdir.strpath}")
     repo = config.get_remote("origin")
     assert repo is not None
-    assert isinstance(repo, storage.FileRepository)
+    assert isinstance(repo, storage.Repository)
+    assert isinstance(repo, storage.fs.Repository)

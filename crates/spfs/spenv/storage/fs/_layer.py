@@ -11,7 +11,7 @@ import subprocess
 import structlog
 import simplejson
 
-from .. import tracking
+from ... import tracking
 
 _logger = structlog.get_logger(__name__)
 
