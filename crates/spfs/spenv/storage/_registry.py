@@ -1,7 +1,7 @@
 from typing import Dict, Callable
 import urllib.parse
 
-from ._protocols import Repository
+from ._repository import Repository
 
 RepositoryFactory = Callable[[str], Repository]
 

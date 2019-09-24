@@ -1,4 +1,4 @@
-from typing import List, Union, Dict, Iterable, Tuple, TYPE_CHECKING
+from typing import List, Union, Dict, Iterable, Tuple, IO
 import os
 import uuid
 import errno
@@ -6,9 +6,10 @@ import shutil
 import tarfile
 import hashlib
 
-from .._protocols import Object, Platform, Layer as LayerConfig
+from .. import Object, Platform, Layer as LayerConfig
 from .._registry import register_scheme
 from ._platform import PlatformStorage, UnknownPlatformError
+from ._blob import BlobStorage
 from ._layer import LayerStorage, Layer
 from ._runtime import RuntimeStorage, Runtime
 
@@ -19,7 +20,8 @@ class Repository:
     _plat = "plat"
     _tag = "tags"
     _run = "run"
-    dirs = (_pack, _plat, _tag, _run)
+    _blob = "blob"
+    dirs = (_pack, _plat, _tag, _run, _blob)
 
     def __init__(self, root: str):
 
@@ -27,6 +29,7 @@ class Repository:
         self.layers = LayerStorage(os.path.join(root, self._pack))
         self.platforms = PlatformStorage(os.path.join(root, self._plat))
         self.runtimes = RuntimeStorage(os.path.join(root, self._run))
+        self.blobs = BlobStorage(os.path.join(root, self._blob))
 
     def read_object(self, ref: str) -> Object:
 
@@ -121,6 +124,30 @@ class Repository:
     def read_platform(self, digest: str) -> Platform:
 
         return self.platforms.read_platform(digest)
+
+    def has_blob(self, digest: str) -> bool:
+        """Return true if the identified blob exists in this storage."""
+        try:
+            self.blobs.open_blob(digest).close()
+        except ValueError:
+            return False
+        else:
+            return True
+
+    def open_blob(self, digest: str) -> IO[bytes]:
+        """Return a handle to the blob identified by the given digest.
+
+        Raises:
+            ValueError: if the blob does not exist in this storage
+        """
+        return self.blobs.open_blob(digest)
+
+    def write_blob(self, data: IO[bytes]) -> str:
+        """Read the given data stream to completion, and store as a blob.
+
+        Return the digest of the stored blob.
+        """
+        return self.blobs.write_blob(data)
 
 
 def ensure_repository(path: str) -> Repository:

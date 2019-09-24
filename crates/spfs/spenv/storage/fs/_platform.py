@@ -6,7 +6,7 @@ import errno
 import shutil
 import hashlib
 
-from .._protocols import Platform
+from .. import Platform
 from ._runtime import Runtime
 from ._layer import Layer
 

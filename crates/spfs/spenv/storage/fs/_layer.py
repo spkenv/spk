@@ -12,7 +12,7 @@ import structlog
 import simplejson
 
 from ... import tracking
-from .._protocols import Layer as LayerConfig
+from .. import Layer as LayerConfig
 
 _logger = structlog.get_logger(__name__)
 
