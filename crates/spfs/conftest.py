@@ -1,11 +1,27 @@
 from typing import Callable
 import uuid
+import logging
 
 import pytest
 import py.path
+import structlog
 
 import spenv
 from spenv.storage.fs._layer import _ensure_layer
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
+structlog.configure(
+    processors=[
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.dev.ConsoleRenderer(),
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+)
 
 
 @pytest.fixture

@@ -52,12 +52,8 @@ def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.fs.Layer]:
     layers = []
     for ref in stack:
 
-        entry = repo.read_ref(ref)
-        if isinstance(entry, storage.fs.Runtime):
-            raise RuntimeError(
-                "runtime stack cannot include other runtimes, got:" + ref
-            )
-        elif isinstance(entry, storage.fs.Layer):
+        entry = repo.read_object(ref)
+        if isinstance(entry, storage.fs.Layer):
             layers.append(entry)
         elif isinstance(entry, storage.fs.Platform):
             expanded = resolve_stack_to_layers(entry.layers)

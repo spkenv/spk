@@ -12,41 +12,9 @@ import structlog
 import simplejson
 
 from ... import tracking
+from .._protocols import Layer as LayerConfig
 
 _logger = structlog.get_logger(__name__)
-
-
-class LayerConfig(NamedTuple):
-
-    manifest: str = ""
-    environ: Tuple[str, ...] = tuple()
-
-    @property
-    def digest(self) -> str:
-
-        hasher = hashlib.sha256()
-        hasher.update(self.manifest.encode("utf-8"))
-        for pair in self.environ:
-            hasher.update(pair.encode("utf-8"))
-        return hasher.hexdigest()
-
-    def iter_env(self) -> Iterable[Tuple[str, str]]:
-
-        for pair in self.environ:
-            name, value = pair.split("=", 1)
-            yield name, value
-
-    def dump(self, stream: IO[str]) -> None:
-        """Dump this config as json to the given stream."""
-        simplejson.dump(self, stream, indent="\t")
-
-    @staticmethod
-    def load(stream: IO[str]) -> "LayerConfig":
-        """Load a layer config from the given json stream."""
-
-        json_data = simplejson.load(stream)
-        json_data["environ"] = tuple(json_data.get("environ", []))
-        return LayerConfig(**json_data)
 
 
 class Layer:
@@ -71,16 +39,16 @@ class Layer:
         return f"Layer({self._root})"
 
     @property
-    def ref(self) -> str:
+    def digest(self) -> str:
         """Return the identifying reference of this layer.
 
         This is usually the hash string of all relevant file and metadata.
         """
-        return os.path.basename(self._root)
+        return self.config.digest
 
     @property
     def layers(self) -> List[str]:
-        return [self.ref]
+        return [self.digest]
 
     @property
     def rootdir(self) -> str:
@@ -113,13 +81,13 @@ class Layer:
     def _write_config(self) -> None:
 
         with open(self.configfile, "w+", encoding="utf-8") as f:
-            self.config.dump(f)
+            self.config.dump_json(f)
 
     def _read_config(self) -> LayerConfig:
 
         try:
             with open(self.configfile, "r", encoding="utf-8") as f:
-                self._config = LayerConfig.load(f)
+                self._config = LayerConfig.load_json(f)
         except OSError as e:
             if e.errno == errno.ENOENT:
                 self._config = LayerConfig()
@@ -158,11 +126,11 @@ class LayerStorage:
         """Initialize a new storage inside the given root directory."""
         self._root = os.path.abspath(root)
 
-    def read_layer(self, ref: str) -> Layer:
+    def read_layer(self, digest: str) -> Layer:
         """Read layer information from this storage.
 
         Args:
-            ref (str): The identifier for the layer to read.
+            digest (str): The identifier for the layer to read.
 
         Raises:
             ValueError: If the layer does not exist.
@@ -171,32 +139,32 @@ class LayerStorage:
             Layer: The layer data.
         """
 
-        layer_path = os.path.join(self._root, ref)
+        layer_path = os.path.join(self._root, digest)
         if not os.path.exists(layer_path):
-            raise ValueError(f"Unknown layer: {ref}")
+            raise ValueError(f"Unknown layer: {digest}")
         return Layer(layer_path)
 
-    def _ensure_layer(self, ref: str) -> Layer:
+    def _ensure_layer(self, digest: str) -> Layer:
 
-        layer_dir = os.path.join(self._root, ref)
+        layer_dir = os.path.join(self._root, digest)
         return _ensure_layer(layer_dir)
 
-    def remove_layer(self, ref: str) -> None:
+    def remove_layer(self, digest: str) -> None:
         """Remove a layer from this storage.
 
         Args:
-            ref (str): The identifier for the layer to remove.
+            digest (str): The identifier for the layer to remove.
 
         Raises:
             ValueError: If the layer does not exist.
         """
 
-        dirname = os.path.join(self._root, ref)
+        dirname = os.path.join(self._root, digest)
         try:
             shutil.rmtree(dirname)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                raise ValueError("Unknown layer: " + ref)
+                raise ValueError("Unknown layer: " + digest)
             raise
 
     def list_layers(self) -> List[Layer]:
@@ -248,10 +216,9 @@ class LayerStorage:
         new_root = os.path.join(self._root, config.digest)
         try:
             os.rename(tmp_layer._root, new_root)
-        except OSError as e:
-            self.remove_layer(tmp_layer.ref)
-            if e.errno in (errno.EEXIST, errno.ENOTEMPTY):
-                pass
-            else:
-                raise
+            _logger.debug("layer created", digest=config.digest)
+        except FileExistsError:
+            _logger.debug("layer already exists", digest=config.digest)
+            shutil.rmtree(tmp_layer.rootdir)
+
         return self.read_layer(config.digest)

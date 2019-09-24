@@ -24,34 +24,34 @@ def _info(args: argparse.Namespace) -> None:
         _print_global_info()
         return
     for ref in args.refs:
-        item = repo.read_ref(ref)
+        item = repo.read_object(ref)
         _pretty_print_ref(item)
 
 
-def _pretty_print_ref(ref: spenv.storage.Object) -> None:
+def _pretty_print_ref(obj: spenv.storage.Object) -> None:
 
     # TODO: use more format print/formatter types
-    if isinstance(ref, spenv.storage.fs.Platform):
+    if isinstance(obj, spenv.storage.fs.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
         print(f" {Fore.BLUE}layers:{Fore.RESET}")
-        for layer in ref.layers:
+        for layer in obj.layers:
             print(f"  - " + format_digest(layer))
-    elif isinstance(ref, spenv.storage.Package):
+    elif isinstance(obj, spenv.storage.Package):
         print(f"{Fore.GREEN}package:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
-        print(f" {Fore.BLUE}manifest:{Fore.RESET} " + ref.config.manifest)
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
+        print(f" {Fore.BLUE}manifest:{Fore.RESET} " + obj.config.manifest)
         print(f" {Fore.BLUE}environ:{Fore.RESET}")
-        for pair in ref.config.environ:
+        for pair in obj.config.environ:
             print("  - " + pair)
-    elif isinstance(ref, spenv.storage.fs.Runtime):
+    elif isinstance(obj, spenv.storage.fs.Runtime):
         print(f"{Fore.GREEN}runtime:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
         print(f" {Fore.BLUE}layers:{Fore.RESET}")
-        for layer in ref.config.layers:
+        for layer in obj.config.layers:
             print(f"  - " + format_digest(layer))
     else:
-        print(repr(ref))
+        print(repr(obj))
 
 
 def _print_global_info() -> None:

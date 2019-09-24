@@ -30,7 +30,7 @@ def _run(args: argparse.Namespace) -> None:
     # TODO: clean up this logic / break into function join with shell cmd logic
     config = spenv.get_config()
     repo = config.get_repository()
-    target = repo.read_ref(args.target[0])
+    target = repo.read_object(args.target[0])
     if isinstance(target, spenv.storage.fs.Runtime):
         runtime = target
     else:

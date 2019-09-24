@@ -48,7 +48,7 @@ def _shell(args: argparse.Namespace) -> None:
         config = spenv.get_config()
         repo = config.get_repository()
         try:
-            target = repo.read_ref(args.target)
+            target = repo.read_object(args.target)
             if isinstance(target, spenv.storage.fs.Runtime):
                 runtime = target
             else:

@@ -54,7 +54,7 @@ def test_read_layer(tmpdir: py.path.local) -> None:
     storage._ensure_layer("--id--")
     layer = storage.read_layer("--id--")
     assert isinstance(layer, Layer)
-    assert layer.ref == "--id--"
+    assert layer._root == tmpdir.join("--id--")
 
 
 def test_commit_dir(tmpdir: py.path.local) -> None:
@@ -71,9 +71,9 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     assert py.path.local(layer.rootdir).exists()
 
     layer2 = storage.commit_dir(src_dir.strpath)
-    assert layer.ref == layer2.ref
+    assert layer.digest == layer2.digest
 
     src_dir.join("file.txt").write("newrootdata", ensure=True)
     layer3 = storage.commit_dir(src_dir.strpath)
 
-    assert layer3.ref != layer2.ref
+    assert layer3.digest != layer2.digest

@@ -1,4 +1,4 @@
-from typing import List, Union, Dict, Iterable, Tuple
+from typing import List, Union, Dict, Iterable, Tuple, TYPE_CHECKING
 import os
 import uuid
 import errno
@@ -6,9 +6,9 @@ import shutil
 import tarfile
 import hashlib
 
-from .._protocols import Object
+from .._protocols import Object, Platform, Layer as LayerConfig
 from .._registry import register_scheme
-from ._platform import PlatformStorage, Platform, UnknownPlatformError
+from ._platform import PlatformStorage, UnknownPlatformError
 from ._layer import LayerStorage, Layer
 from ._runtime import RuntimeStorage, Runtime
 
@@ -28,7 +28,7 @@ class Repository:
         self.platforms = PlatformStorage(os.path.join(root, self._plat))
         self.runtimes = RuntimeStorage(os.path.join(root, self._run))
 
-    def read_ref(self, ref: str) -> Object:
+    def read_object(self, ref: str) -> Object:
 
         tag_path = os.path.join(self._root, self._tag, ref)
         try:
@@ -50,21 +50,16 @@ class Repository:
         except UnknownPlatformError:
             pass
 
-        try:
-            return self.runtimes.read_runtime(ref)
-        except ValueError:
-            pass
-
         raise ValueError("Unknown ref: " + ref)
 
     def find_aliases(self, ref: str) -> List[str]:
 
-        ref = self.read_ref(ref).ref
-        aliases = set([ref])
+        digest = self.read_object(ref).digest
+        aliases = set([digest])
         for tag, target in self.iter_tags():
-            if target == ref:
+            if target == digest:
                 aliases.add(tag)
-        aliases.remove(ref)
+        aliases.remove(digest)
         return list(aliases)
 
     def iter_tags(self) -> Iterable[Tuple[str, str]]:
@@ -91,33 +86,41 @@ class Repository:
         runtime.append_layer(top)
         return self.platforms.commit_runtime(runtime)
 
-    def tag(self, ref: str, tag: str) -> None:
+    def tag(self, digest: str, tag: str) -> None:
 
-        layer = self.read_ref(ref)
+        obj = self.read_object(digest)
         tagdir = os.path.join(self._root, self._tag)
         linkfile = os.path.join(tagdir, tag)
         os.makedirs(os.path.dirname(linkfile), exist_ok=True)
         with open(linkfile, "w+", encoding="ascii") as f:
-            f.write(layer.ref)
+            f.write(obj.digest)
 
-    def has_layer(self, ref: str) -> bool:
+    def has_layer(self, digest: str) -> bool:
         """Return true if the identified layer exists in this repository."""
         try:
-            self.layers.read_layer(ref)
+            self.layers.read_layer(digest)
         except ValueError:
             return False
         else:
             return True
 
-    def has_platform(self, ref: str) -> bool:
+    def read_layer(self, digest: str) -> LayerConfig:
+
+        return self.layers.read_layer(digest).config
+
+    def has_platform(self, digest: str) -> bool:
         """Return true if the identified platform exists in this repository."""
 
         try:
-            self.platforms.read_platform(ref)
+            self.platforms.read_platform(digest)
         except ValueError:
             return False
         else:
             return True
+
+    def read_platform(self, digest: str) -> Platform:
+
+        return self.platforms.read_platform(digest)
 
 
 def ensure_repository(path: str) -> Repository:
