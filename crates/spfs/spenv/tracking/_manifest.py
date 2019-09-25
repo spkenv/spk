@@ -74,10 +74,17 @@ else:
 class Manifest:
     def __init__(self, root: str):
 
-        self._root = os.path.abspath(root)
+        self.root = os.path.abspath(root)
         self._paths: EntryMap = OrderedDict()
         self._entries: Dict[str, Entry] = {}
         self._trees: Dict[str, Tree] = {}
+
+    @property
+    def digest(self) -> str:
+
+        tree = self.get_path(".")
+        assert tree is not None, "Manifest is incomplete or corrupted (no root entry)"
+        return tree.digest
 
     def list_paths(self) -> List[str]:
 
@@ -108,10 +115,15 @@ class Manifest:
 
         return iter(self._paths.items())
 
+    def walk_abs(self) -> Iterator[Tuple[str, Entry]]:
+
+        for relpath, entry in self.walk():
+            yield os.path.join(self.root, relpath), entry
+
     def _clean_path(self, path: str) -> str:
 
         if os.path.isabs(path):
-            path = os.path.relpath(path, self._root)
+            path = os.path.relpath(path, self.root)
         path = os.path.normpath(path)
         if path[0] != ".":
             path = os.path.join(".", path)

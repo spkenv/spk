@@ -80,13 +80,14 @@ class Repository:
     def commit_layer(self, runtime: Runtime, env: Dict[str, str] = None) -> Layer:
         """Commit the working file changes of a runtime to a new layer."""
 
-        return self.layers.commit_dir(runtime.upperdir, env=env)
+        manifest = self.blobs.commit_dir(runtime.upperdir)
+        return self.layers.commit_manifest(manifest, env=env)
 
     def commit_platform(self, runtime: Runtime, env: Dict[str, str] = None) -> Platform:
         """Commit the full layer stack and working files to a new platform."""
 
-        top = self.layers.commit_dir(runtime.upperdir, env=env)
-        runtime.append_layer(top)
+        top_layer = self.commit_layer(runtime, env)
+        runtime.append_layer(top_layer)
         return self.platforms.commit_runtime(runtime)
 
     def tag(self, digest: str, tag: str) -> None:

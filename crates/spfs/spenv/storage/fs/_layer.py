@@ -101,15 +101,6 @@ class Layer:
         reader = tracking.ManifestReader(self.diffdir)
         return reader.read()
 
-    def compute_manifest(self) -> tracking.Manifest:
-        """Compute the file manifest of this layer.
-
-        All file data must be hashed, which can be a heavy operation.
-        In most cases, reading the cached manifest is more appropriate,
-        as layer data is considered immutable.
-        """
-        return tracking.compute_manifest(self.diffdir)
-
 
 def _ensure_layer(path: str) -> Layer:
 
@@ -184,21 +175,19 @@ class LayerStorage:
 
         return [Layer(os.path.join(self._root, d)) for d in dirs]
 
-    def commit_dir(self, dirname: str, env: Dict[str, str] = None) -> Layer:
-        """Create a layer from the contents of a directory."""
+    def commit_manifest(
+        self, manifest: tracking.Manifest, env: Dict[str, str] = None
+    ) -> Layer:
+        """Create a layer from the file system manifest."""
 
         if env is None:
             env = {}
 
+        tree = manifest.get_path("./")
+        assert tree is not None, "manifest must have entry for root dir"
+
         tmp_layer = self._ensure_layer("work-" + uuid.uuid1().hex)
         os.rmdir(tmp_layer.diffdir)
-        _logger.info("copying file tree")
-        shutil.copytree(dirname, tmp_layer.diffdir, symlinks=True)
-
-        _logger.info("computing file manifest")
-        manifest = tmp_layer.compute_manifest()
-        tree = manifest.get_path(tmp_layer.diffdir)
-        assert tree is not None, "Manifest must have entry for layer diffdir"
 
         _logger.info("writing file manifest")
         writer = tracking.ManifestWriter(tmp_layer.metadir)

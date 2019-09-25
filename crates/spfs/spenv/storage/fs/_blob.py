@@ -1,9 +1,12 @@
 from typing import IO
 import os
 import uuid
+import shutil
 import hashlib
 
 import structlog
+
+from ... import tracking
 
 _CHUNK_SIZE = 1024
 
@@ -33,6 +36,8 @@ class BlobStorage:
         Return the digest of the stored blob.
         """
 
+        os.makedirs(self._root, exist_ok=True)
+
         hasher = hashlib.sha256()
         working_filename = "work-" + uuid.uuid1().hex
         working_filepath = os.path.join(self._root, working_filename)
@@ -50,3 +55,60 @@ class BlobStorage:
             os.remove(working_filepath)
 
         return digest
+
+    def commit_dir(self, dirname: str) -> tracking.Manifest:
+
+        working_dirname = "work-" + uuid.uuid1().hex
+        working_dirpath = os.path.join(self._root, working_dirname)
+
+        _logger.info("copying file tree")
+        shutil.copytree(dirname, working_dirpath, symlinks=True)
+
+        _logger.info("computing file manifest")
+        manifest = tracking.compute_manifest(working_dirpath)
+
+        _logger.info("comitting file manifest")
+        for rendered_path, entry in manifest.walk_abs():
+
+            if entry.kind is tracking.EntryKind.TREE:
+                continue
+
+            comitted_path = os.path.join(self._root, entry.digest)
+            try:
+                os.link(rendered_path, comitted_path)
+            except FileExistsError:
+                _logger.debug("file exists", digest=entry.digest)
+                os.remove(rendered_path)
+                os.link(comitted_path, rendered_path)
+
+        _logger.info("comitting rendered manifest")
+        rendered_dirpath = os.path.join(self._root, manifest.digest)
+        try:
+            os.rename(working_dirpath, rendered_dirpath)
+        except FileExistsError:
+            shutil.rmtree(working_dirpath)
+        manifest.root = rendered_dirpath
+        return manifest
+
+    def render_manifest(self, manifest: tracking.Manifest) -> str:
+
+        rendered_dirpath = os.path.join(self._root, manifest.digest)
+
+        for relpath, entry in manifest.walk():
+            rendered_path = os.path.join(rendered_dirpath, relpath)
+            if entry.kind is tracking.EntryKind.TREE:
+                os.makedirs(rendered_path, exist_ok=True)
+            elif entry.kind is tracking.EntryKind.BLOB:
+                comitted_path = os.path.join(self._root, entry.digest)
+                try:
+                    os.link(comitted_path, rendered_path)
+                except FileNotFoundError:
+                    raise ValueError("Unknown blob: " + entry.digest)
+            else:
+                raise NotImplementedError(f"Unsupported entry kind: {entry.kind}")
+
+        for relpath, entry in reversed(list(manifest.walk())):
+            rendered_path = os.path.join(rendered_dirpath, relpath)
+            os.chmod(rendered_path, entry.mode)
+
+        return rendered_dirpath

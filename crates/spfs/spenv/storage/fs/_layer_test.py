@@ -3,6 +3,7 @@ import os
 import py.path
 import pytest
 
+from ... import tracking
 from ._layer import Layer, LayerStorage, _ensure_layer
 
 
@@ -57,23 +58,21 @@ def test_read_layer(tmpdir: py.path.local) -> None:
     assert layer._root == tmpdir.join("--id--")
 
 
-def test_commit_dir(tmpdir: py.path.local) -> None:
+def test_commit_manifest(tmpdir: py.path.local) -> None:
 
     storage = LayerStorage(tmpdir.join("storage").strpath)
 
-    src_dir = tmpdir.join("source")
-    src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
-    src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
-    src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
-    src_dir.join("file.txt").write("rootdata", ensure=True)
+    tmpdir.join("file.txt").ensure()
+    manifest = tracking.compute_manifest(tmpdir.strpath)
 
-    layer = storage.commit_dir(src_dir.strpath)
+    layer = storage.commit_manifest(manifest)
     assert py.path.local(layer.rootdir).exists()
 
-    layer2 = storage.commit_dir(src_dir.strpath)
+    layer2 = storage.commit_manifest(manifest)
     assert layer.digest == layer2.digest
 
-    src_dir.join("file.txt").write("newrootdata", ensure=True)
-    layer3 = storage.commit_dir(src_dir.strpath)
+    tmpdir.join("file.txt").write("newrootdata", ensure=True)
+    manifest = tracking.compute_manifest(tmpdir.strpath)
+    layer3 = storage.commit_manifest(manifest)
 
     assert layer3.digest != layer2.digest
