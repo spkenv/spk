@@ -11,7 +11,6 @@ def test_layer_properties(tmpdir: py.path.local) -> None:
 
     layer = Layer(tmpdir.strpath)
     assert tmpdir.bestrelpath(layer.rootdir) == "."
-    assert os.path.basename(layer.diffdir) == Layer._diffdir
     assert os.path.basename(layer.metadir) == Layer._metadir
 
 

@@ -40,7 +40,9 @@ def resolve_overlayfs_options(runtime: storage.fs.Runtime) -> str:
     lowerdirs = [runtime.lowerdir]
     layers = resolve_stack_to_layers(runtime.config.layers)
     for layer in layers:
-        lowerdirs.append(layer.diffdir)
+        manifest = layer.read_manifest()
+        rendered_dir = repo.blobs.render_manifest(manifest)
+        lowerdirs.append(rendered_dir)
 
     return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upperdir},workdir={runtime.workdir}"
 

@@ -25,10 +25,10 @@ class Layer:
     relevant file and metadata.
     """
 
-    _diffdir = "diff"
+    # TODO: does meta need to be a dir?
     _metadir = "meta"
     _configfile = "config.json"
-    dirs = (_diffdir, _metadir)
+    dirs = _metadir
 
     def __init__(self, root: str) -> None:
         """Create a new instance to represent the layer data at 'root'."""
@@ -59,11 +59,6 @@ class Layer:
     def configfile(self) -> str:
         """Return the path to this layer's config file."""
         return os.path.join(self._root, self._configfile)
-
-    @property
-    def diffdir(self) -> str:
-        """Return the directory in which file data is stored."""
-        return os.path.join(self._root, self._diffdir)
 
     @property
     def metadir(self) -> str:
@@ -98,7 +93,7 @@ class Layer:
 
     def read_manifest(self) -> tracking.Manifest:
         """Read the cached file manifest of this layer."""
-        reader = tracking.ManifestReader(self.diffdir)
+        reader = tracking.ManifestReader(self.metadir)
         return reader.read()
 
 
@@ -187,7 +182,6 @@ class LayerStorage:
         assert tree is not None, "manifest must have entry for root dir"
 
         tmp_layer = self._ensure_layer("work-" + uuid.uuid1().hex)
-        os.rmdir(tmp_layer.diffdir)
 
         _logger.info("writing file manifest")
         writer = tracking.ManifestWriter(tmp_layer.metadir)
