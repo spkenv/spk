@@ -100,6 +100,8 @@ class BlobStorage:
                 comitted_path = os.path.join(self._root, entry.digest)
                 try:
                     os.link(comitted_path, rendered_path)
+                except FileExistsError:
+                    pass
                 except FileNotFoundError:
                     raise ValueError("Unknown blob: " + entry.digest)
             else:

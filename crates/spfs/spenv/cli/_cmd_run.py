@@ -17,7 +17,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
         "target",
         metavar="REF",
         nargs=1,
-        help="The runtime, platform or package to define the runtime environment",
+        help="The platform or layer to define the runtime environment",
     )
     run_cmd.add_argument("cmd", metavar="CMD", nargs=1)
     run_cmd.add_argument("args", metavar="ARGS", nargs=argparse.REMAINDER)
@@ -27,10 +27,15 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 def _run(args: argparse.Namespace) -> None:
     """Run a program in a configured environment."""
 
-    # TODO: clean up this logic / break into function join with shell cmd logic
     config = spenv.get_config()
     repo = config.get_repository()
-    target = repo.read_object(args.target[0])
+
+    try:
+        target = repo.read_object(args.target[0])
+    except ValueError:
+        print(f"{args.target[0]} does not exist locally, trying to pull")
+        target = spenv.pull_ref(args.target[0])
+
     if isinstance(target, spenv.storage.fs.Runtime):
         runtime = target
     else:

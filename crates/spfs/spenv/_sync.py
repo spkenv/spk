@@ -8,15 +8,15 @@ from ._config import get_config
 _logger = structlog.get_logger(__name__)
 
 
-def push_ref(ref: str, remote_name: str) -> None:
+def push_ref(ref: str, remote_name: str) -> storage.Object:
 
     config = get_config()
     local = config.get_repository()
     remote = config.get_remote(remote_name)
-    sync_ref(ref, local, remote)
+    return sync_ref(ref, local, remote)
 
 
-def pull_ref(ref: str) -> None:
+def pull_ref(ref: str) -> storage.Object:
     """Pull a reference to the local repository, searching all configured remotes.
 
     Args:
@@ -37,12 +37,15 @@ def pull_ref(ref: str) -> None:
     raise ValueError("Unknown ref: " + ref)
 
 
-def sync_ref(ref: str, src: storage.Repository, dest: storage.Repository) -> None:
+def sync_ref(
+    ref: str, src: storage.Repository, dest: storage.Repository
+) -> storage.Object:
 
     obj = src.read_object(ref)
     sync_object(obj, src, dest)
     if obj.digest != ref:
         dest.write_tag(ref, obj.digest)
+    return obj
 
 
 def sync_object(
