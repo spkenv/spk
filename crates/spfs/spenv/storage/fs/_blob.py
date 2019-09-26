@@ -68,7 +68,7 @@ class BlobStorage:
         manifest = tracking.compute_manifest(working_dirpath)
 
         _logger.info("comitting file manifest")
-        for rendered_path, entry in manifest.walk_abs():
+        for rendered_path, entry in manifest.walk_abs(working_dirpath):
 
             if entry.kind is tracking.EntryKind.TREE:
                 continue
@@ -87,15 +87,13 @@ class BlobStorage:
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
             shutil.rmtree(working_dirpath)
-        manifest.root = rendered_dirpath
         return manifest
 
     def render_manifest(self, manifest: tracking.Manifest) -> str:
 
         rendered_dirpath = os.path.join(self._root, manifest.digest)
 
-        for relpath, entry in manifest.walk():
-            rendered_path = os.path.join(rendered_dirpath, relpath)
+        for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
                 os.makedirs(rendered_path, exist_ok=True)
             elif entry.kind is tracking.EntryKind.BLOB:
@@ -107,8 +105,7 @@ class BlobStorage:
             else:
                 raise NotImplementedError(f"Unsupported entry kind: {entry.kind}")
 
-        for relpath, entry in reversed(list(manifest.walk())):
-            rendered_path = os.path.join(rendered_dirpath, relpath)
+        for rendered_path, entry in reversed(list(manifest.walk_abs(rendered_dirpath))):
             os.chmod(rendered_path, entry.mode)
 
         return rendered_dirpath

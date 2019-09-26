@@ -6,6 +6,10 @@ import errno
 import shutil
 import hashlib
 
+import structlog
+
+_logger = structlog.get_logger(__name__)
+
 from .. import Platform
 from ._runtime import Runtime
 from ._layer import Layer
@@ -31,7 +35,8 @@ class PlatformStorage:
         platform_path = os.path.join(self._root, digest)
         try:
             with open(platform_path, "r", encoding="utf-8") as f:
-                return Platform.load_json(f)
+                data = json.load(f)
+            return Platform.load_dict(data)
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise UnknownPlatformError(digest)
@@ -76,8 +81,10 @@ class PlatformStorage:
         os.makedirs(self._root, exist_ok=True)
         try:
             with open(platform_path, "x", encoding="utf-8") as f:
-                platform.dump_json(f)
+                json.dump(platform.dump_dict(), f)
+            _logger.debug("platform created", digest=digest)
         except FileExistsError:
+            _logger.debug("platform already exists", digest=digest)
             return platform
 
         return platform

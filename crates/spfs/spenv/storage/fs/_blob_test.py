@@ -15,7 +15,7 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     src_dir.join("file.txt").write("rootdata", ensure=True)
 
     manifest = storage.commit_dir(src_dir.strpath)
-    assert py.path.local(manifest.root).exists()
+    assert tmpdir.join("storage", manifest.digest).exists()
 
     manifest2 = storage.commit_dir(src_dir.strpath)
     assert manifest.digest == manifest2.digest
@@ -33,7 +33,7 @@ def test_render_manifest(tmpdir: py.path.local) -> None:
 
     expected = tracking.compute_manifest(src_dir.strpath)
 
-    for path, entry in expected.walk_abs():
+    for path, entry in expected.walk_abs(src_dir.strpath):
         if entry.kind is tracking.EntryKind.BLOB:
             with open(path, "rb") as f:
                 storage.write_blob(f)

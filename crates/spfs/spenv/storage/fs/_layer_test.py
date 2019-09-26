@@ -4,14 +4,7 @@ import py.path
 import pytest
 
 from ... import tracking
-from ._layer import Layer, LayerStorage, _ensure_layer
-
-
-def test_layer_properties(tmpdir: py.path.local) -> None:
-
-    layer = Layer(tmpdir.strpath)
-    assert tmpdir.bestrelpath(layer.rootdir) == "."
-    assert os.path.basename(layer.metadir) == Layer._metadir
+from ._layer import Layer, LayerStorage
 
 
 def test_list_no_layers(tmpdir: py.path.local) -> None:
@@ -36,7 +29,7 @@ def test_remove_no_layer(tmpdir: py.path.local) -> None:
 def test_remove_layer(tmpdir: py.path.local) -> None:
 
     storage = LayerStorage(tmpdir.strpath)
-    _ensure_layer(tmpdir.join("layer").ensure(dir=True))
+    tmpdir.join("layer").ensure()
     storage.remove_layer("layer")
     assert not tmpdir.join("layer").exists()
 
@@ -48,15 +41,6 @@ def test_read_layer_noexist(tmpdir: py.path.local) -> None:
         storage.read_layer("noexist")
 
 
-def test_read_layer(tmpdir: py.path.local) -> None:
-
-    storage = LayerStorage(tmpdir.strpath)
-    storage._ensure_layer("--id--")
-    layer = storage.read_layer("--id--")
-    assert isinstance(layer, Layer)
-    assert layer._root == tmpdir.join("--id--")
-
-
 def test_commit_manifest(tmpdir: py.path.local) -> None:
 
     storage = LayerStorage(tmpdir.join("storage").strpath)
@@ -65,7 +49,7 @@ def test_commit_manifest(tmpdir: py.path.local) -> None:
     manifest = tracking.compute_manifest(tmpdir.strpath)
 
     layer = storage.commit_manifest(manifest)
-    assert py.path.local(layer.rootdir).exists()
+    assert tmpdir.join("storage", layer.digest).exists()
 
     layer2 = storage.commit_manifest(manifest)
     assert layer.digest == layer2.digest

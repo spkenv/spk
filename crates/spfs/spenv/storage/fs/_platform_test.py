@@ -4,23 +4,13 @@ import io
 import py.path
 import pytest
 
+from ... import tracking
 from ._runtime import _ensure_runtime
 from ._layer import Layer
 from ._platform import Platform, PlatformStorage, UnknownPlatformError
 
 
-def test_platform_read_write_layers(tmpdir: py.path.local) -> None:
-
-    expected = ("a", "b", "c")
-    platform = Platform(layers=expected)
-    stream = io.StringIO()
-    platform.dump_json(stream)
-    stream.seek(0, io.SEEK_SET)
-    actual = Platform.load_json(stream)
-    assert actual == platform
-
-
-def test_commit_runtime(tmpdir: py.path.local, mklayer: Callable[[], Layer]) -> None:
+def test_commit_runtime(tmpdir: py.path.local) -> None:
 
     runtime = _ensure_runtime(tmpdir.join("runtime").strpath)
     storage = PlatformStorage(tmpdir.join("platforms").strpath)
@@ -29,14 +19,16 @@ def test_commit_runtime(tmpdir: py.path.local, mklayer: Callable[[], Layer]) -> 
     second = storage.commit_runtime(runtime)
     assert first.digest == second.digest
 
+    manifest = tracking.compute_manifest("./spenv")
+    layer = Layer(manifest=manifest, environ=tuple())
     for _ in range(10):
-        runtime.append_layer(mklayer())
+        runtime.append_layer(layer)
 
     first = storage.commit_runtime(runtime)
     second = storage.commit_runtime(runtime)
     assert first.digest == second.digest
 
-    runtime.append_layer(mklayer())
+    runtime.append_layer(layer)
     second = storage.commit_runtime(runtime)
     assert first.digest != second.digest
 

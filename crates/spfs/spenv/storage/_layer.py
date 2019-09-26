@@ -1,8 +1,10 @@
-from typing import NamedTuple, Tuple, IO, Iterable
+from typing import NamedTuple, Tuple, Iterable, Dict
 from typing_extensions import Protocol, runtime_checkable
 import hashlib
 
-import simplejson
+import json
+
+from .. import tracking
 
 
 class Layer(NamedTuple):
@@ -13,14 +15,14 @@ class Layer(NamedTuple):
     relevant file and metadata.
     """
 
-    manifest: str = ""
+    manifest: tracking.Manifest
     environ: Tuple[str, ...] = tuple()
 
     @property
     def digest(self) -> str:
 
         hasher = hashlib.sha256()
-        hasher.update(self.manifest.encode("utf-8"))
+        hasher.update(self.manifest.digest.encode("utf-8"))
         for pair in self.environ:
             hasher.update(pair.encode("utf-8"))
         return hasher.hexdigest()
@@ -31,17 +33,19 @@ class Layer(NamedTuple):
             name, value = pair.split("=", 1)
             yield name, value
 
-    def dump_json(self, stream: IO[str]) -> None:
-        """Dump this config as json to the given stream."""
-        simplejson.dump(self, stream)
+    def dump_dict(self) -> Dict:
+        """Dump this layer data into a dictionary of python basic types."""
+
+        return {"manifest": self.manifest.dump_dict(), "environ": dict(self.iter_env())}
 
     @staticmethod
-    def load_json(stream: IO[str]) -> "Layer":
-        """Load a layer data from the given json stream."""
+    def load_dict(data: Dict) -> "Layer":
+        """Load a layer data from the given dictionary data."""
 
-        json_data = simplejson.load(stream)
-        json_data["environ"] = tuple(json_data.get("environ", []))
-        return Layer(**json_data)
+        return Layer(
+            manifest=tracking.Manifest.load_dict(data.get("manifest", {})),
+            environ=tuple(data.get("environ", {}).items()),
+        )
 
 
 @runtime_checkable
@@ -56,4 +60,8 @@ class LayerStorage(Protocol):
         Raises:
             ValueError: if the layer does not exist in this storage
         """
+        ...
+
+    def write_layer(self, layer: Layer) -> None:
+        """Write the given layer into this repository."""
         ...

@@ -6,11 +6,11 @@ import shutil
 import tarfile
 import hashlib
 
-from .. import Object, Platform, Layer as LayerConfig
+from .. import Object, Platform, Layer
 from .._registry import register_scheme
 from ._platform import PlatformStorage, UnknownPlatformError
 from ._blob import BlobStorage
-from ._layer import LayerStorage, Layer
+from ._layer import LayerStorage
 from ._runtime import RuntimeStorage, Runtime
 
 
@@ -25,11 +25,18 @@ class Repository:
 
     def __init__(self, root: str):
 
+        if root.startswith("file:"):
+            root = root[len("file:") :]
+
         self._root = root
         self.layers = LayerStorage(os.path.join(root, self._pack))
         self.platforms = PlatformStorage(os.path.join(root, self._plat))
         self.runtimes = RuntimeStorage(os.path.join(root, self._run))
         self.blobs = BlobStorage(os.path.join(root, self._blob))
+
+    @property
+    def root(self) -> str:
+        return self._root
 
     def read_object(self, ref: str) -> Object:
 
@@ -108,9 +115,13 @@ class Repository:
         else:
             return True
 
-    def read_layer(self, digest: str) -> LayerConfig:
+    def read_layer(self, digest: str) -> Layer:
 
-        return self.layers.read_layer(digest).config
+        return self.layers.read_layer(digest)
+
+    def write_layer(self, layer: Layer) -> None:
+
+        self.layers.write_layer(layer)
 
     def has_platform(self, digest: str) -> bool:
         """Return true if the identified platform exists in this repository."""

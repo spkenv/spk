@@ -9,4 +9,3 @@ from ._manifest import (
     compute_entry,
 )
 from ._diff import Diff, DiffMode, compute_diff
-from ._io import ManifestWriter, ManifestReader

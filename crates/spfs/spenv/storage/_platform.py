@@ -1,4 +1,4 @@
-from typing import NamedTuple, Tuple, IO
+from typing import NamedTuple, Tuple, Dict
 from typing_extensions import Protocol, runtime_checkable
 import hashlib
 
@@ -22,17 +22,16 @@ class Platform(NamedTuple):
             hasher.update(layer.encode("utf-8"))
         return hasher.hexdigest()
 
-    def dump_json(self, stream: IO[str]) -> None:
-        """Dump this config as json to the given stream."""
-        simplejson.dump(self, stream)
+    def dump_dict(self) -> Dict:
+        """Dump this platform data into a dictionary of python basic types."""
+
+        return {"layers": list(self.layers)}
 
     @staticmethod
-    def load_json(stream: IO[str]) -> "Platform":
-        """Load a layer data from the given json stream."""
+    def load_dict(data: Dict) -> "Platform":
+        """Load a platform data from the given dictionary data."""
 
-        json_data = simplejson.load(stream)
-        json_data["layers"] = tuple(json_data.get("layers", []))
-        return Platform(**json_data)
+        return Platform(layers=tuple(data.get("layers", [])))
 
 
 @runtime_checkable

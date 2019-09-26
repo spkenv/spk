@@ -37,13 +37,17 @@ def _pretty_print_ref(obj: spenv.storage.Object) -> None:
         print(f" {Fore.BLUE}layers:{Fore.RESET}")
         for layer in obj.layers:
             print(f"  - " + format_digest(layer))
-    elif isinstance(obj, spenv.storage.Package):
-        print(f"{Fore.GREEN}package:{Fore.RESET}")
+
+    elif isinstance(obj, spenv.storage.Layer):
+        print(f"{Fore.GREEN}layer:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
-        print(f" {Fore.BLUE}manifest:{Fore.RESET} " + obj.config.manifest)
         print(f" {Fore.BLUE}environ:{Fore.RESET}")
-        for pair in obj.config.environ:
+        for pair in obj.environ:
             print("  - " + pair)
+        print(f" {Fore.BLUE}manifest:{Fore.RESET}")
+        for _, entry in obj.manifest.walk():
+            print("  " + str(entry))
+
     elif isinstance(obj, spenv.storage.fs.Runtime):
         print(f"{Fore.GREEN}runtime:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
@@ -66,7 +70,7 @@ def _print_global_info() -> None:
     print(f" ref: {runtime.ref}")
     print()
 
-    empty_manifest = spenv.tracking.Manifest(runtime.upperdir)
+    empty_manifest = spenv.tracking.Manifest()  # FIXME: this is a broken manifest
     manifest = spenv.tracking.compute_manifest(runtime.upperdir)
     diffs = spenv.tracking.compute_diff(empty_manifest, manifest)
     if len(diffs) == 1:

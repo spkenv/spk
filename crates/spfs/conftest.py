@@ -7,7 +7,6 @@ import py.path
 import structlog
 
 import spenv
-from spenv.storage.fs._layer import _ensure_layer
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
@@ -27,13 +26,21 @@ structlog.configure(
 @pytest.fixture
 def tmprepo(tmpdir: py.path.local) -> spenv.storage.fs.Repository:
 
-    return spenv.storage.fs.Repository(tmpdir.join("tmprepo").strpath)
+    root = tmpdir.join("tmprepo").ensure(dir=True)
+    return spenv.storage.fs.Repository(root.strpath)
 
 
-@pytest.fixture
-def mklayer(tmpdir: py.path.local) -> Callable[[], spenv.storage.fs.Layer]:
-    def mklayer() -> spenv.storage.fs.Layer:
+@pytest.fixture(autouse=True)
+def config(tmpdir: py.path.local) -> spenv.Config:
 
-        return _ensure_layer(tmpdir.join(uuid.uuid1().hex).strpath)
+    spenv._config._CONFIG = spenv.Config()
+    spenv._config._CONFIG.read_string(
+        f"""
+[storage]
+root = {tmpdir.join('storage_root').strpath}
 
-    return mklayer
+[remote.origin]
+address = file://{tmpdir.join('remote_origin').strpath}
+"""
+    )
+    return spenv.get_config()

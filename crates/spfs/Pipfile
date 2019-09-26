@@ -15,6 +15,7 @@ mypy = "*"
 black = "*"
 pipenv = "*"
 pytest-mypy = "*"
+spenv = {editable = true,path = "."}
 
 [packages]
 pyyaml = "~=5.1"

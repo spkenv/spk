@@ -27,7 +27,7 @@ def resolve_layers_to_environment(
         env.update(base)
 
     for layer in layers:
-        for name, value in layer.config.iter_env():
+        for name, value in layer.iter_env():
             value = _expand_vars(value, env)
             env[name] = value
     return env
@@ -40,8 +40,7 @@ def resolve_overlayfs_options(runtime: storage.fs.Runtime) -> str:
     lowerdirs = [runtime.lowerdir]
     layers = resolve_stack_to_layers(runtime.config.layers)
     for layer in layers:
-        manifest = layer.read_manifest()
-        rendered_dir = repo.blobs.render_manifest(manifest)
+        rendered_dir = repo.blobs.render_manifest(layer.manifest)
         lowerdirs.append(rendered_dir)
 
     return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upperdir},workdir={runtime.workdir}"
