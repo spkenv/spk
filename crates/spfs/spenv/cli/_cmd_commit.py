@@ -38,9 +38,9 @@ def _commit(args: argparse.Namespace) -> None:
     else:
         raise NotImplementedError("commit", args.kind)
 
-    print(f"{Fore.GREEN}created: {Fore.RESET}{result.ref}")
+    print(f"{Fore.GREEN}created: {Fore.RESET}{result.digest}")
     for tag in args.tags or []:
-        repo.tag(result.ref, tag)
+        repo.write_tag(tag, result.digest)
         print(f"{Fore.BLUE} tagged: {Fore.RESET}{tag}")
 
     return

@@ -17,4 +17,4 @@ def _platforms(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     platforms = repo.platforms.list_platforms()
     for platform in platforms:
-        print(format_digest(platform.ref))
+        print(format_digest(platform.digest))

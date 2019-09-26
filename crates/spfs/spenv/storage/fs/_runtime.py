@@ -10,6 +10,7 @@ import contextlib
 
 import simplejson
 
+from ... import storage
 from ._layer import Layer
 
 
@@ -108,7 +109,7 @@ class Runtime:
             layer (Layer): The layer to append to the stack
         """
 
-        self._config = RuntimeConfig(self.config.layers + (layer.ref,))
+        self._config = RuntimeConfig(self.config.layers + (layer.digest,))
         self._write_config()
 
     def _write_config(self) -> None:

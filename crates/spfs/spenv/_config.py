@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, List
 import os
 import errno
 import configparser
@@ -17,12 +17,26 @@ class Config(configparser.ConfigParser):
     def storage_root(self) -> str:
         return str(self["storage"]["root"])
 
-    def get_repository(self) -> storage.Repository:
+    def list_remote_names(self) -> List[str]:
 
-        return storage.ensure_repository(self.storage_root)
+        names = []
+        for section in self:
+            if section.startswith("remote."):
+                names.append(section.split(".")[1])
+        return names
+
+    def get_repository(self) -> storage.fs.Repository:
+
+        return storage.fs.ensure_repository(self.storage_root)
+
+    def get_remote(self, name: str) -> storage.Repository:
+
+        addr = self[f"remote.{name}"]["address"]
+        return storage.open_repository(addr)
 
 
 def get_config() -> Config:
+    """Get the current configuration, loading it if necessary."""
 
     global _CONFIG
     if _CONFIG is None:
@@ -31,6 +45,10 @@ def get_config() -> Config:
 
 
 def load_config() -> Config:
+    """Load the spenv configuration from disk.
+
+    This includes the default, user and system configurations, if they exist.
+    """
 
     user_config = os.path.expanduser("~/.config/spenv/spenv.conf")
     system_config = "/etc/spenv.conf"

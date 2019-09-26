@@ -24,34 +24,38 @@ def _info(args: argparse.Namespace) -> None:
         _print_global_info()
         return
     for ref in args.refs:
-        item = repo.read_ref(ref)
+        item = repo.read_object(ref)
         _pretty_print_ref(item)
 
 
-def _pretty_print_ref(ref: spenv.storage.Object) -> None:
+def _pretty_print_ref(obj: spenv.storage.Object) -> None:
 
     # TODO: use more format print/formatter types
-    if isinstance(ref, spenv.storage.Platform):
+    if isinstance(obj, spenv.storage.fs.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
         print(f" {Fore.BLUE}layers:{Fore.RESET}")
-        for layer in ref.layers:
+        for layer in obj.layers:
             print(f"  - " + format_digest(layer))
-    elif isinstance(ref, spenv.storage.Package):
-        print(f"{Fore.GREEN}package:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
-        print(f" {Fore.BLUE}manifest:{Fore.RESET} " + ref.config.manifest)
+
+    elif isinstance(obj, spenv.storage.Layer):
+        print(f"{Fore.GREEN}layer:{Fore.RESET}")
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
         print(f" {Fore.BLUE}environ:{Fore.RESET}")
-        for pair in ref.config.environ:
+        for pair in obj.environ:
             print("  - " + pair)
-    elif isinstance(ref, spenv.storage.Runtime):
+        print(f" {Fore.BLUE}manifest:{Fore.RESET}")
+        for _, entry in obj.manifest.walk():
+            print("  " + str(entry))
+
+    elif isinstance(obj, spenv.storage.fs.Runtime):
         print(f"{Fore.GREEN}runtime:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(ref.ref))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
         print(f" {Fore.BLUE}layers:{Fore.RESET}")
-        for layer in ref.config.layers:
+        for layer in obj.config.layers:
             print(f"  - " + format_digest(layer))
     else:
-        print(repr(ref))
+        print(repr(obj))
 
 
 def _print_global_info() -> None:
@@ -66,7 +70,7 @@ def _print_global_info() -> None:
     print(f" ref: {runtime.ref}")
     print()
 
-    empty_manifest = spenv.tracking.Manifest(runtime.upperdir)
+    empty_manifest = spenv.tracking.Manifest()  # FIXME: this is a broken manifest
     manifest = spenv.tracking.compute_manifest(runtime.upperdir)
     diffs = spenv.tracking.compute_diff(empty_manifest, manifest)
     if len(diffs) == 1:

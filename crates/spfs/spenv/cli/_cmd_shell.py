@@ -14,51 +14,38 @@ _logger = structlog.get_logger()
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     shell_cmd = sub_parsers.add_parser("shell", help=_shell.__doc__)
-    shell_cmd.add_argument("target", metavar="FILE|REF", nargs="?", help="TODO: help")
+    shell_cmd.add_argument(
+        "target",
+        metavar="REF",
+        nargs="?",
+        help="The platform or layer to define the runtime environment",
+    )
     shell_cmd.set_defaults(func=_shell)
-
-    # This custom dict overrides the available subcommand
-    # choices allowing spenv to be used as a shebang interpreter.
-    # It does this by automatically selecting the "shell" subcommand
-    # if given a valid path to a file
-    shell_default_injector = _ShellCommandDefaultDict(sub_parsers.choices.items())
-    sub_parsers.choices = shell_default_injector
-    sub_parsers._name_parser_map = shell_default_injector
 
 
 def _shell(args: argparse.Namespace) -> None:
 
-    print(f"Resolving entry process...", end="", file=sys.stderr, flush=True)
-
-    # TODO: resolve the shell more smartly
+    # TODO: is there a better way to determine the shell to use?
     exe = os.getenv("SHELL", "/bin/bash")
 
-    cmd_args: List[str] = []
-    if args.command != "shell":
-        # if the default shell command injection took place,
-        # the actual command will be the path to the script
-        # to execute, not 'shell'
-        args.target = args.command
+    config = spenv.get_config()
+    repo = config.get_repository()
 
-    if not args.target:
-        cmd = spenv.build_command(exe, *cmd_args)
-
-    else:
-        # TODO: clean up this logic / break into function
-        config = spenv.get_config()
-        repo = config.get_repository()
+    if args.target:
         try:
-            target = repo.read_ref(args.target)
-            if isinstance(target, spenv.storage.Runtime):
-                runtime = target
-            else:
-                runtime = repo.runtimes.create_runtime()
-                spenv.install_to(runtime, args.target)
-            cmd = spenv.build_command_for_runtime(runtime, exe, *cmd_args)
+            repo.read_object(args.target)
         except ValueError:
-            cmd_args.append(args.target)
-            cmd = spenv.build_command(exe, *cmd_args)
+            print(f"{args.target} does not exist locally, trying to pull")
+            spenv.pull_ref(args.target)
 
+    print(f"Configuring new runtime...", end="", file=sys.stderr, flush=True)
+    runtime = repo.runtimes.create_runtime()
+    if args.target:
+        spenv.install_to(runtime, args.target)
+    print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
+
+    print(f"Resolving entry process...", end="", file=sys.stderr, flush=True)
+    cmd = spenv.build_command_for_runtime(runtime, exe)
     print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
     os.execv(cmd[0], cmd)
 

@@ -1,134 +1,53 @@
-from typing import Optional, List, Dict, NamedTuple, Sequence
-import os
-import json
-import uuid
-import errno
-import shutil
+from typing import NamedTuple, Tuple, Dict
+from typing_extensions import Protocol, runtime_checkable
 import hashlib
 
-from ._runtime import Runtime
-from ._layer import Layer
+import simplejson
 
 
-class UnknownPlatformError(ValueError):
-    def __init__(self, ref: str) -> None:
-        super(UnknownPlatformError, self).__init__(f"Unknown platform: {ref}")
+class Platform(NamedTuple):
+    """Platforms represent a predetermined collection of layers.
 
-
-class Platform:
-    """Platforms represent a predetermined collection of packages.
-
-    Platforms capture an entire runtime set of packages as a single,
-    identifiable layer which can be applies/installed to future runtimes.
+    Platforms capture an entire runtime set of layers as a single,
+    identifiable object which can be applied/installed to future runtimes.
     """
 
-    _configfile = "config.json"  # TODO: is this really a config?
-
-    def __init__(self, root: str):
-
-        self._root = os.path.abspath(root)
-
-    def __repr__(self) -> str:
-        return f"Platform({self._root})"
+    layers: Tuple[str, ...]
 
     @property
-    def ref(self) -> str:
-        return os.path.basename(self._root)
-
-    @property
-    def configfile(self) -> str:
-        return os.path.join(self._root, self._configfile)
-
-    @property
-    def rootdir(self) -> str:
-        return self._root
-
-    @property
-    def layers(self) -> List[str]:
-        return self.read_layers()
-
-    def read_layers(self) -> List[str]:
-        try:
-            with open(self.configfile, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                return []
-            raise
-
-        assert isinstance(data, list), "Invalid configuration data: " + self.configfile
-        return data
-
-    def _write_layers(self, layers: Sequence[str]) -> None:
-
-        with open(self.configfile, "w+", encoding="utf-8") as f:
-            json.dump(layers, f)
-
-
-class PlatformStorage:
-    def __init__(self, root: str) -> None:
-
-        self._root = os.path.abspath(root)
-
-    def read_platform(self, ref: str) -> Platform:
-        """Read a platform's information from this storage.
-
-        Raises:
-            UnknownPlatformError: If the platform does not exist.
-        """
-
-        platform_path = os.path.join(self._root, ref)
-        if not os.path.exists(platform_path):
-            raise UnknownPlatformError(ref)
-        return Platform(platform_path)
-
-    def remove_platform(self, ref: str) -> None:
-        """Remove a platform from this storage.
-
-        Raises:
-            UnknownPlatformError: If the platform does not exist.
-        """
-
-        platform_path = os.path.join(self._root, ref)
-        try:
-            shutil.rmtree(platform_path)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                raise UnknownPlatformError(ref)
-            raise
-
-    def list_platforms(self) -> List[Platform]:
-        """Return a list of the current stored platforms."""
-
-        try:
-            dirs = os.listdir(self._root)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                dirs = []
-            else:
-                raise
-
-        return [Platform(os.path.join(self._root, d)) for d in dirs]
-
-    def commit_runtime(self, runtime: Runtime) -> Platform:
-        """Commit the current layer stack of a runtime as a platform."""
-
-        return self._commit_layers(runtime.config.layers)
-
-    def _commit_layers(self, layers: Sequence[str]) -> Platform:
+    def digest(self) -> str:
 
         hasher = hashlib.sha256()
-        for layer in layers:
-            hasher.update(layer.encode("ascii"))
+        for layer in self.layers:
+            hasher.update(layer.encode("utf-8"))
+        return hasher.hexdigest()
 
-        ref = hasher.hexdigest()
-        platform_dir = os.path.join(self._root, ref)
-        try:
-            os.makedirs(platform_dir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
+    def dump_dict(self) -> Dict:
+        """Dump this platform data into a dictionary of python basic types."""
 
-        platform = Platform(platform_dir)
-        platform._write_layers(layers)
-        return platform
+        return {"layers": list(self.layers)}
+
+    @staticmethod
+    def load_dict(data: Dict) -> "Platform":
+        """Load a platform data from the given dictionary data."""
+
+        return Platform(layers=tuple(data.get("layers", [])))
+
+
+@runtime_checkable
+class PlatformStorage(Protocol):
+    def has_platform(self, ref: str) -> bool:
+        """Return true if the identified platform exists in this storage."""
+        ...
+
+    def read_platform(self, ref: str) -> Platform:
+        """Return the platform identified by the given ref.
+
+        Raises:
+            ValueError: if the platform does not exist in this storage
+        """
+        ...
+
+    def write_platform(self, platform: Platform) -> None:
+        """Write the given platform into this storage."""
+        ...

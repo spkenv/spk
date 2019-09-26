@@ -18,7 +18,7 @@ def build_command(command: str, *args: str) -> Tuple[str, ...]:
 
 
 def build_command_for_runtime(
-    runtime: storage.Runtime, command: str, *args: str
+    runtime: storage.fs.Runtime, command: str, *args: str
 ) -> Tuple[str, ...]:
 
     if not os.path.isfile(command):

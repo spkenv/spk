@@ -1,81 +1,10 @@
-from typing import Callable
-import py.path
-import pytest
-
-from ._runtime import _ensure_runtime
-from ._layer import Layer
-from ._platform import Platform, PlatformStorage, UnknownPlatformError
+from ._platform import Platform
 
 
-def test_platform_properties(tmpdir: py.path.local) -> None:
+def test_platform_dump_load_dict() -> None:
 
-    platform = Platform(tmpdir.strpath)
-    assert platform.ref
-    assert platform.configfile
-    assert platform.rootdir
-
-
-def test_platform_read_layers_nofile(tmpdir: py.path.local) -> None:
-
-    platform = Platform(tmpdir.strpath)
-    actual = platform.read_layers()
-    assert actual == []
-
-
-def test_platform_read_write_layers(tmpdir: py.path.local) -> None:
-
-    expected = ["a", "b", "c"]
-    platform = Platform(tmpdir.strpath)
-    platform._write_layers(expected)
-    actual = platform.read_layers()
+    layers = ("a", "b", "c")
+    expected = Platform(layers=layers)
+    data = expected.dump_dict()
+    actual = Platform.load_dict(data)
     assert actual == expected
-
-
-def test_commit_runtime(tmpdir: py.path.local, mklayer: Callable[[], Layer]) -> None:
-
-    runtime = _ensure_runtime(tmpdir.join("runtime").strpath)
-    storage = PlatformStorage(tmpdir.join("platforms").strpath)
-
-    first = storage.commit_runtime(runtime)
-    second = storage.commit_runtime(runtime)
-    assert first.ref == second.ref
-
-    for _ in range(10):
-        runtime.append_layer(mklayer())
-
-    first = storage.commit_runtime(runtime)
-    second = storage.commit_runtime(runtime)
-    assert first.ref == second.ref
-
-    runtime.append_layer(mklayer())
-    second = storage.commit_runtime(runtime)
-    assert first.ref != second.ref
-
-
-def test_storage_remove_platform(tmpdir: py.path.local) -> None:
-
-    storage = PlatformStorage(tmpdir.strpath)
-
-    with pytest.raises(UnknownPlatformError):
-        storage.remove_platform("non-existant")
-
-    platform = storage._commit_layers([])
-    storage.remove_platform(platform.ref)
-
-
-def test_storage_list_platforms(tmpdir: py.path.local) -> None:
-
-    storage = PlatformStorage(tmpdir.join("root").strpath)
-
-    assert storage.list_platforms() == []
-
-    storage._commit_layers([])
-    assert len(storage.list_platforms()) == 1
-
-    storage._commit_layers([])
-    assert len(storage.list_platforms()) == 1
-
-    storage._commit_layers(["1"])
-    storage._commit_layers(["1", "2"])
-    storage._commit_layers(["1", "2", "3"])
-    assert len(storage.list_platforms()) == 4

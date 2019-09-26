@@ -9,7 +9,7 @@ _var_expansion_regex = None
 
 
 def resolve_runtime_environment(
-    runtime: storage.Runtime, base: Mapping[str, str] = None
+    runtime: storage.fs.Runtime, base: Mapping[str, str] = None
 ) -> Dict[str, str]:
 
     layers = resolve_stack_to_layers(runtime.config.layers)
@@ -19,7 +19,7 @@ def resolve_runtime_environment(
 
 
 def resolve_layers_to_environment(
-    layers: Sequence[storage.Layer], base: Mapping[str, str] = None
+    layers: Sequence[storage.fs.Layer], base: Mapping[str, str] = None
 ) -> Dict[str, str]:
 
     env: Dict[str, str] = {}
@@ -27,39 +27,36 @@ def resolve_layers_to_environment(
         env.update(base)
 
     for layer in layers:
-        for name, value in layer.config.iter_env():
+        for name, value in layer.iter_env():
             value = _expand_vars(value, env)
             env[name] = value
     return env
 
 
-def resolve_overlayfs_options(runtime: storage.Runtime) -> str:
+def resolve_overlayfs_options(runtime: storage.fs.Runtime) -> str:
 
     config = get_config()
     repo = config.get_repository()
     lowerdirs = [runtime.lowerdir]
     layers = resolve_stack_to_layers(runtime.config.layers)
     for layer in layers:
-        lowerdirs.append(layer.diffdir)
+        rendered_dir = repo.blobs.render_manifest(layer.manifest)
+        lowerdirs.append(rendered_dir)
 
     return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upperdir},workdir={runtime.workdir}"
 
 
-def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.Layer]:
+def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.fs.Layer]:
 
     config = get_config()
     repo = config.get_repository()
     layers = []
     for ref in stack:
 
-        entry = repo.read_ref(ref)
-        if isinstance(entry, storage.Runtime):
-            raise RuntimeError(
-                "runtime stack cannot include other runtimes, got:" + ref
-            )
-        elif isinstance(entry, storage.Layer):
+        entry = repo.read_object(ref)
+        if isinstance(entry, storage.fs.Layer):
             layers.append(entry)
-        elif isinstance(entry, storage.Platform):
+        elif isinstance(entry, storage.fs.Platform):
             expanded = resolve_stack_to_layers(entry.layers)
             layers.extend(expanded)
         else:

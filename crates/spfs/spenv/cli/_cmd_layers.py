@@ -17,4 +17,4 @@ def _layers(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     layers = repo.layers.list_layers()
     for layer in layers:
-        print(format_digest(layer.ref))
+        print(format_digest(layer.digest))
