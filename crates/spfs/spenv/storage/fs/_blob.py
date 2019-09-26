@@ -1,5 +1,7 @@
 from typing import IO
 import os
+import io
+import stat
 import uuid
 import shutil
 import hashlib
@@ -50,6 +52,7 @@ class BlobStorage:
         final_filepath = os.path.join(self._root, digest)
         try:
             os.rename(working_filepath, final_filepath)
+            os.chmod(final_filepath, 0o444)
         except FileExistsError:
             _logger.debug("blob already exists", digest=digest)
             os.remove(working_filepath)
@@ -67,26 +70,35 @@ class BlobStorage:
         _logger.info("computing file manifest")
         manifest = tracking.compute_manifest(working_dirpath)
 
-        _logger.info("comitting file manifest")
+        _logger.info("committing file manifest")
         for rendered_path, entry in manifest.walk_abs(working_dirpath):
 
             if entry.kind is tracking.EntryKind.TREE:
                 continue
 
-            comitted_path = os.path.join(self._root, entry.digest)
+            committed_path = os.path.join(self._root, entry.digest)
+            if stat.S_ISLNK(entry.mode):
+                data = os.readlink(rendered_path)
+                stream = io.BytesIO(data.encode("utf-8"))
+                digest = self.write_blob(stream)
+                assert digest == entry.digest, "symlink did not match expected digest"
+                continue
+
             try:
-                os.link(rendered_path, comitted_path)
+                os.rename(rendered_path, committed_path)
+                os.chmod(committed_path, 0o444)
             except FileExistsError:
                 _logger.debug("file exists", digest=entry.digest)
                 os.remove(rendered_path)
-                os.link(comitted_path, rendered_path)
 
-        _logger.info("comitting rendered manifest")
+        _logger.info("committing rendered manifest")
         rendered_dirpath = os.path.join(self._root, manifest.digest)
         try:
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
             shutil.rmtree(working_dirpath)
+        self.render_manifest(manifest)
+
         return manifest
 
     def render_manifest(self, manifest: tracking.Manifest) -> str:
@@ -97,9 +109,23 @@ class BlobStorage:
             if entry.kind is tracking.EntryKind.TREE:
                 os.makedirs(rendered_path, exist_ok=True)
             elif entry.kind is tracking.EntryKind.BLOB:
-                comitted_path = os.path.join(self._root, entry.digest)
+                committed_path = os.path.join(self._root, entry.digest)
+
+                if stat.S_ISLNK(entry.mode):
+
+                    try:
+                        with open(committed_path, "r") as f:
+                            target = f.read()
+                    except FileNotFoundError:
+                        raise ValueError("Unknown blob: " + entry.digest)
+                    try:
+                        os.symlink(target, rendered_path)
+                    except FileExistsError:
+                        pass
+                    continue
+
                 try:
-                    os.link(comitted_path, rendered_path)
+                    os.link(committed_path, rendered_path)
                 except FileExistsError:
                     pass
                 except FileNotFoundError:

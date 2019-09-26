@@ -31,10 +31,12 @@ def pull_ref(ref: str) -> storage.Object:
     for name in config.list_remote_names():
         remote = config.get_remote(name)
         try:
-            return sync_ref(ref, remote, local)
+            remote.read_object(ref)
         except ValueError:
             continue
-    raise ValueError("Unknown ref: " + ref)
+        return sync_ref(ref, remote, local)
+    else:
+        raise ValueError("Unknown ref: " + ref)
 
 
 def sync_ref(
