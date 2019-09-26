@@ -76,6 +76,11 @@ class PlatformStorage:
     def _commit_layers(self, layers: Sequence[str]) -> Platform:
 
         platform = Platform(layers=tuple(layers))
+        self.write_platform(platform)
+        return platform
+
+    def write_platform(self, platform: Platform) -> None:
+
         digest = platform.digest
         platform_path = os.path.join(self._root, digest)
         os.makedirs(self._root, exist_ok=True)
@@ -85,6 +90,3 @@ class PlatformStorage:
             _logger.debug("platform created", digest=digest)
         except FileExistsError:
             _logger.debug("platform already exists", digest=digest)
-            return platform
-
-        return platform

@@ -40,7 +40,7 @@ def _commit(args: argparse.Namespace) -> None:
 
     print(f"{Fore.GREEN}created: {Fore.RESET}{result.digest}")
     for tag in args.tags or []:
-        repo.tag(result.digest, tag)
+        repo.write_tag(tag, result.digest)
         print(f"{Fore.BLUE} tagged: {Fore.RESET}{tag}")
 
     return

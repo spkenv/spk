@@ -8,53 +8,80 @@ from ._config import get_config
 _logger = structlog.get_logger(__name__)
 
 
-def push_ref(ref: str, remote: storage.Repository) -> None:
+def push_ref(ref: str, remote_name: str) -> None:
 
     config = get_config()
-    local_repo = config.get_repository()
-    obj = local_repo.read_object(ref)
-    push_object(obj, remote)
+    local = config.get_repository()
+    remote = config.get_remote(remote_name)
+    sync_ref(ref, local, remote)
+
+
+def pull_ref(ref: str) -> None:
+    """Pull a reference to the local repository, searching all configured remotes.
+
+    Args:
+        ref (str): The reference to localize
+
+    Raises:
+        ValueError: If the remote ref could not be found
+    """
+
+    config = get_config()
+    local = config.get_repository()
+    for name in config.list_remote_names():
+        remote = config.get_remote(name)
+        try:
+            return sync_ref(ref, remote, local)
+        except ValueError:
+            continue
+    raise ValueError("Unknown ref: " + ref)
+
+
+def sync_ref(ref: str, src: storage.Repository, dest: storage.Repository) -> None:
+
+    obj = src.read_object(ref)
+    sync_object(obj, src, dest)
     if obj.digest != ref:
-        push_tag(ref, remote)
+        dest.write_tag(ref, obj.digest)
 
 
-def push_object(obj: storage.Object, remote: storage.Repository) -> None:
+def sync_object(
+    obj: storage.Object, src: storage.Repository, dest: storage.Repository
+) -> None:
 
     if isinstance(obj, storage.Layer):
-        push_layer(obj, remote)
+        sync_layer(obj, src, dest)
     elif isinstance(obj, storage.Platform):
-        push_platform(obj, remote)
+        sync_platform(obj, src, dest)
     else:
         raise NotImplementedError("Push: Unhandled object of type: " + str(type(obj)))
 
 
-def push_platform(platform: storage.Platform, remote: storage.Repository) -> None:
+def sync_platform(
+    platform: storage.Platform, src: storage.Repository, dest: storage.Repository
+) -> None:
 
-    _logger.info("pushing platform", digest=platform.digest)
+    _logger.info("syncing platform", digest=platform.digest)
     for layer in platform.layers:
-        push_ref(layer, remote)
+        sync_ref(layer, src, dest)
+
+    dest.write_platform(platform)
 
 
-def push_layer(layer: storage.Layer, remote: storage.Repository) -> None:
+def sync_layer(
+    layer: storage.Layer, src: storage.Repository, dest: storage.Repository
+) -> None:
 
-    _logger.info("pushing layer", digest=layer.digest)
-
-    config = get_config()
-    local_repo = config.get_repository()
+    _logger.info("syncing layer", digest=layer.digest)
 
     for _, entry in layer.manifest.walk():
         if entry.kind is not tracking.EntryKind.BLOB:
             continue
-        if remote.has_blob(entry.digest):
-            _logger.debug("blob already exists in remote", digest=entry.digest)
+        if dest.has_blob(entry.digest):
+            _logger.debug("blob already exists", digest=entry.digest)
             continue
-        with local_repo.blobs.open_blob(entry.digest) as blob:
-            _logger.debug("pushing blob", digest=entry.digest)
-            remote.write_blob(blob)
+        with src.open_blob(entry.digest) as blob:
+            _logger.debug("syncing blob", digest=entry.digest)
+            dest.write_blob(blob)
 
-    remote.write_layer(layer)
-
-
-def push_tag(tag: str, remote: storage.Repository) -> None:
-
-    raise NotImplementedError("TODO: add remote tagging semantics")
+    dest.write_layer(layer)

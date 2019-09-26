@@ -15,6 +15,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
     )
     push_cmd.add_argument(
         "--remote",
+        "-r",
         default="origin",
         help=f"the name of the remote server to push to, one of: {', '.join(config.list_remote_names())}",
     )
@@ -24,5 +25,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 def _push(args: argparse.Namespace) -> None:
     """Push one or more objects to a remote repository."""
 
+    config = spenv.get_config()
+    remote = config.get_remote(args.remote)
     for ref in args.refs:
         spenv.push_ref(ref, args.remote)

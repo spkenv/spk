@@ -97,7 +97,7 @@ class Repository:
         runtime.append_layer(top_layer)
         return self.platforms.commit_runtime(runtime)
 
-    def tag(self, digest: str, tag: str) -> None:
+    def write_tag(self, tag: str, digest: str) -> None:
 
         obj = self.read_object(digest)
         tagdir = os.path.join(self._root, self._tag)
@@ -136,6 +136,10 @@ class Repository:
     def read_platform(self, digest: str) -> Platform:
 
         return self.platforms.read_platform(digest)
+
+    def write_platform(self, platform: Platform) -> None:
+
+        self.platforms.write_platform(platform)
 
     def has_blob(self, digest: str) -> bool:
         """Return true if the identified blob exists in this storage."""

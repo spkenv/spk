@@ -37,7 +37,7 @@ class Platform(NamedTuple):
 @runtime_checkable
 class PlatformStorage(Protocol):
     def has_platform(self, ref: str) -> bool:
-        """Return true if the identified platform exists in this repository."""
+        """Return true if the identified platform exists in this storage."""
         ...
 
     def read_platform(self, ref: str) -> Platform:
@@ -46,4 +46,8 @@ class PlatformStorage(Protocol):
         Raises:
             ValueError: if the platform does not exist in this storage
         """
+        ...
+
+    def write_platform(self, platform: Platform) -> None:
+        """Write the given platform into this storage."""
         ...

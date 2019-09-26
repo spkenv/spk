@@ -63,5 +63,5 @@ class LayerStorage(Protocol):
         ...
 
     def write_layer(self, layer: Layer) -> None:
-        """Write the given layer into this repository."""
+        """Write the given layer into this storage."""
         ...
