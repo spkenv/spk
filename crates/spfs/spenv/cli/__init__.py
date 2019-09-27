@@ -7,14 +7,12 @@ import traceback
 
 import logging
 import structlog
-import colorama
-from colorama import Fore, Back, Style
 
 import spenv
 
 from ._args import parse_args, configure_logging
 
-config = spenv.get_config()
+_logger = structlog.get_logger("cli")
 
 
 def main() -> None:
@@ -35,13 +33,11 @@ def run(argv: Sequence[str]) -> int:
         args.func(args)
 
     except spenv.NoRuntimeError as e:
-        print(f"{Fore.RED}{e}{Fore.RESET}")
+        _logger.error(str(e))
         return 1
 
     except Exception as e:
-        print(f"{Fore.RED}{repr(e)}{Fore.RESET}", file=sys.stderr)
-        if args.debug:
-            print(f"{Fore.YELLOW}{traceback.format_exc()}{Fore.RESET}")
+        _logger.error(str(e))
         return 1
 
     return 0

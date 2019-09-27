@@ -8,7 +8,7 @@ import structlog
 
 import spenv
 
-_logger = structlog.get_logger()
+_logger = structlog.get_logger("cli")
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
@@ -35,41 +35,14 @@ def _shell(args: argparse.Namespace) -> None:
         try:
             repo.read_object(args.target)
         except ValueError:
-            print(f"{args.target} does not exist locally, trying to pull")
+            _logger.info("target does not exist locally", target=args.target)
             spenv.pull_ref(args.target)
 
-    print(f"Configuring new runtime...", end="", file=sys.stderr, flush=True)
+    _logger.info("configuring new runtime")
     runtime = repo.runtimes.create_runtime()
     if args.target:
         spenv.install_to(runtime, args.target)
-    print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
 
-    print(f"Resolving entry process...", end="", file=sys.stderr, flush=True)
+    _logger.info("resolving entry process")
     cmd = spenv.build_command_for_runtime(runtime, exe)
-    print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
     os.execv(cmd[0], cmd)
-
-
-class _ShellCommandDefaultDict(Dict[str, argparse.ArgumentParser]):
-    """Automatically selects the shell command when only a script path is given.
-
-    This dict replaces the argparse subcommand parser map, returning
-    the shell command if the command is actually the path to a file
-    on disk
-    """
-
-    def __contains__(self, name: object) -> bool:
-        has_command = super(_ShellCommandDefaultDict, self).__contains__(name)
-        if has_command:
-            return True
-        elif os.path.isfile(str(name)):
-            return True
-        return False
-
-    def __getitem__(self, name: str) -> argparse.ArgumentParser:
-        try:
-            return super(_ShellCommandDefaultDict, self).__getitem__(name)
-        except KeyError as e:
-            if os.path.isfile(name):
-                return self["shell"]
-            raise

@@ -7,7 +7,7 @@ from colorama import Fore
 
 import spenv
 
-_logger = structlog.get_logger()
+_logger = structlog.get_logger("cli")
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
@@ -27,10 +27,9 @@ def _init(args: argparse.Namespace) -> None:
     only be done from within the mount namespace.
     """
 
-    print(f"Initializing runtime environment...", end="", file=sys.stderr, flush=True)
+    _logger.info("initializing runtime environment")
     runtime_root = args.runtime_root_dir[0]
     runtime = spenv.storage.fs.Runtime(runtime_root)
     env = spenv.resolve_runtime_environment(runtime, base=os.environ)
     os.environ.update(env)
-    print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
     os.execv(args.cmd[0], args.cmd)

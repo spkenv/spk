@@ -2,12 +2,11 @@ import os
 import sys
 import argparse
 
-from colorama import Fore
 import structlog
 
 import spenv
 
-_logger = structlog.get_logger()
+_logger = structlog.get_logger("cli")
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
@@ -33,18 +32,16 @@ def _run(args: argparse.Namespace) -> None:
     try:
         target = repo.read_object(args.target[0])
     except ValueError:
-        print(f"{args.target[0]} does not exist locally, trying to pull")
+        _logging.info(f"target does not exist locally", target=target[0])
         target = spenv.pull_ref(args.target[0])
 
     if isinstance(target, spenv.storage.fs.Runtime):
         runtime = target
     else:
-        print(f"Configuring new runtime...", end="", file=sys.stderr, flush=True)
+        _logger.info("configuring new runtime")
         runtime = repo.runtimes.create_runtime()
         spenv.install_to(runtime, args.target[0])
-        print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
 
-    print(f"Resolving entry process...", end="", file=sys.stderr, flush=True)
+    _logger.info("resolving entry process")
     cmd = spenv.build_command_for_runtime(runtime, args.cmd[0], *args.args)
-    print(f"{Fore.GREEN}OK{Fore.RESET}", file=sys.stderr)
     os.execv(cmd[0], cmd)

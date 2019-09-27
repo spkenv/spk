@@ -12,4 +12,4 @@ from ._bootstrap import build_command, build_command_for_runtime
 from ._resolve import resolve_runtime_environment
 from ._sync import push_ref, pull_ref
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"

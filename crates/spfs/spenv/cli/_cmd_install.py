@@ -4,7 +4,7 @@ import structlog
 
 import spenv
 
-_logger = structlog.get_logger()
+_logger = structlog.get_logger("cli")
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
