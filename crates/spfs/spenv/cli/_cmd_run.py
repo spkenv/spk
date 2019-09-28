@@ -32,7 +32,7 @@ def _run(args: argparse.Namespace) -> None:
     try:
         target = repo.read_object(args.target[0])
     except ValueError:
-        _logging.info(f"target does not exist locally", target=target[0])
+        _logger.info(f"target does not exist locally", target=args.target[0])
         target = spenv.pull_ref(args.target[0])
 
     if isinstance(target, spenv.storage.fs.Runtime):

@@ -16,36 +16,24 @@ class Layer(NamedTuple):
     """
 
     manifest: tracking.Manifest
-    environ: Tuple[str, ...] = tuple()
 
     @property
     def digest(self) -> str:
 
         hasher = hashlib.sha256()
         hasher.update(self.manifest.digest.encode("utf-8"))
-        for pair in self.environ:
-            hasher.update(pair.encode("utf-8"))
         return hasher.hexdigest()
-
-    def iter_env(self) -> Iterable[Tuple[str, str]]:
-
-        for pair in self.environ:
-            name, value = pair.split("=", 1)
-            yield name, value
 
     def dump_dict(self) -> Dict:
         """Dump this layer data into a dictionary of python basic types."""
 
-        return {"manifest": self.manifest.dump_dict(), "environ": dict(self.iter_env())}
+        return {"manifest": self.manifest.dump_dict()}
 
     @staticmethod
     def load_dict(data: Dict) -> "Layer":
         """Load a layer data from the given dictionary data."""
 
-        return Layer(
-            manifest=tracking.Manifest.load_dict(data.get("manifest", {})),
-            environ=tuple(data.get("environ", {}).items()),
-        )
+        return Layer(manifest=tracking.Manifest.load_dict(data.get("manifest", {})))
 
 
 @runtime_checkable

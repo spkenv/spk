@@ -5,7 +5,7 @@ from colorama import Fore
 
 import spenv
 
-from ._format import format_digest
+from ._format import format_digest, format_diffs
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
@@ -41,9 +41,6 @@ def _pretty_print_ref(obj: spenv.storage.Object) -> None:
     elif isinstance(obj, spenv.storage.Layer):
         print(f"{Fore.GREEN}layer:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
-        print(f" {Fore.BLUE}environ:{Fore.RESET}")
-        for pair in obj.environ:
-            print("  - " + pair)
         print(f" {Fore.BLUE}manifest:{Fore.RESET}")
         for _, entry in obj.manifest.walk():
             print("  " + str(entry))
@@ -70,7 +67,7 @@ def _print_global_info() -> None:
     print(f" ref: {runtime.ref}")
     print()
 
-    empty_manifest = spenv.tracking.Manifest()  # FIXME: this is a broken manifest
+    empty_manifest = spenv.tracking.Manifest()
     manifest = spenv.tracking.compute_manifest(runtime.upperdir)
     diffs = spenv.tracking.compute_diff(empty_manifest, manifest)
     if len(diffs) == 1:
@@ -78,12 +75,4 @@ def _print_global_info() -> None:
         return
 
     print(f"{Fore.BLUE}Active Changes:{Fore.RESET}")
-    for diff in diffs:
-        color = Fore.RESET
-        if diff.mode == spenv.tracking.DiffMode.added:
-            color = Fore.GREEN
-        elif diff.mode == spenv.tracking.DiffMode.removed:
-            color = Fore.RED
-        elif diff.mode == spenv.tracking.DiffMode.changed:
-            color = Fore.BLUE
-        print(f"{color} {diff}{Fore.RESET}")
+    print(format_diffs(diffs))

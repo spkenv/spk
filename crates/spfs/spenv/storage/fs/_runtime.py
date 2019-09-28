@@ -13,6 +13,19 @@ import simplejson
 from ... import storage
 from ._layer import Layer
 
+_SH_STARTUP_SCRIPT = """
+#!/usr/bin/env sh
+startup_dir="/env/etc/spenv/startup.d"
+if [[ -d ${startup_dir} ]]; then
+    for file in $(ls ${startup_dir}); do
+        echo source ${startup_dir}/$file
+        source ${startup_dir}/$file
+    done
+fi
+"$*"
+exit $?
+"""
+
 
 class RuntimeConfig(NamedTuple):
     """Stores the configuration of a single runtime."""
@@ -46,15 +59,14 @@ class Runtime:
     _upperdir = "upper"
     _workdir = "work"
     _lowerdir = "lower"
-    _configfile = "config.json"
+    _config_file = "config.json"
+    _sh_startup_file = "startup.sh"
     dirs = (_upperdir, _workdir, _lowerdir)
 
     def __init__(self, root: str) -> None:
         """Create a runtime to represent the data under 'root'."""
 
         self._root = os.path.abspath(root)
-        # TODO: consider if config really needs to be a separate thing...
-        # environment vars? other options?
         self._config: Optional[RuntimeConfig] = None
 
     def __repr__(self) -> str:
@@ -78,7 +90,12 @@ class Runtime:
     @property
     def configfile(self) -> str:
         """Return the path to this runtime's config file."""
-        return os.path.join(self._root, self._configfile)
+        return os.path.join(self._root, self._config_file)
+
+    @property
+    def sh_startup_file(self) -> str:
+        """Return the path to this runtime's startup file for sh/bash."""
+        return os.path.join(self._root, self._sh_startup_file)
 
     @property
     def upperdir(self) -> str:
@@ -136,7 +153,10 @@ def _ensure_runtime(path: str) -> Runtime:
     os.makedirs(path, exist_ok=True, mode=0o777)
     for subdir in Runtime.dirs:
         os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
-    return Runtime(path)
+    runtime = Runtime(path)
+    with open(runtime.sh_startup_file, "w+", encoding="utf-8") as f:
+        f.write(_SH_STARTUP_SCRIPT)
+    return runtime
 
 
 class RuntimeStorage:

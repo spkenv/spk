@@ -20,7 +20,7 @@ def test_commit_runtime(tmpdir: py.path.local) -> None:
     assert first.digest == second.digest
 
     manifest = tracking.compute_manifest("./spenv")
-    layer = Layer(manifest=manifest, environ=tuple())
+    layer = Layer(manifest=manifest)
     for _ in range(10):
         runtime.append_layer(layer)
 

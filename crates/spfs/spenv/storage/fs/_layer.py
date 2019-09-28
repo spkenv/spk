@@ -67,16 +67,10 @@ class LayerStorage:
 
         return [self.read_layer(d) for d in dirs]
 
-    def commit_manifest(
-        self, manifest: tracking.Manifest, env: Dict[str, str] = None
-    ) -> Layer:
+    def commit_manifest(self, manifest: tracking.Manifest) -> Layer:
         """Create a layer from the file system manifest."""
 
-        if env is None:
-            env = {}
-
-        serialized_env = sorted(f"{n}={v}" for n, v in env.items())
-        layer = Layer(manifest=manifest, environ=tuple(serialized_env))
+        layer = Layer(manifest=manifest)
 
         self.write_layer(layer)
         return layer

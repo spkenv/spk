@@ -84,16 +84,16 @@ class Repository:
                 tag = os.path.relpath(linkfile, tag_dir)
                 yield (tag, ref)
 
-    def commit_layer(self, runtime: Runtime, env: Dict[str, str] = None) -> Layer:
+    def commit_layer(self, runtime: Runtime) -> Layer:
         """Commit the working file changes of a runtime to a new layer."""
 
         manifest = self.blobs.commit_dir(runtime.upperdir)
-        return self.layers.commit_manifest(manifest, env=env)
+        return self.layers.commit_manifest(manifest)
 
-    def commit_platform(self, runtime: Runtime, env: Dict[str, str] = None) -> Platform:
+    def commit_platform(self, runtime: Runtime) -> Platform:
         """Commit the full layer stack and working files to a new platform."""
 
-        top_layer = self.commit_layer(runtime, env)
+        top_layer = self.commit_layer(runtime)
         runtime.append_layer(top_layer)
         return self.platforms.commit_runtime(runtime)
 

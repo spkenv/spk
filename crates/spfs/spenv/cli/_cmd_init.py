@@ -29,7 +29,6 @@ def _init(args: argparse.Namespace) -> None:
 
     _logger.info("initializing runtime environment")
     runtime_root = args.runtime_root_dir[0]
-    runtime = spenv.storage.fs.Runtime(runtime_root)
-    env = spenv.resolve_runtime_environment(runtime, base=os.environ)
-    os.environ.update(env)
-    os.execv(args.cmd[0], args.cmd)
+    os.environ["SPENV_RUNTIME"] = runtime_root
+    cmd = spenv.build_shell_initialized_command(args.cmd[0], *args.cmd[1:])
+    os.execv(cmd[0], cmd)

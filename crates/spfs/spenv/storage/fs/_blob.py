@@ -19,6 +19,7 @@ class BlobStorage:
     def __init__(self, root: str) -> None:
 
         self._root = os.path.abspath(root)
+        self._renders = os.path.join(self._root, "renders")
 
     def open_blob(self, digest: str) -> IO[bytes]:
         """Return a handle to the blob identified by the given digest.
@@ -92,7 +93,8 @@ class BlobStorage:
                 os.remove(rendered_path)
 
         _logger.info("committing rendered manifest")
-        rendered_dirpath = os.path.join(self._root, manifest.digest)
+        os.makedirs(self._renders, exist_ok=True)
+        rendered_dirpath = os.path.join(self._renders, manifest.digest)
         try:
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
@@ -103,7 +105,8 @@ class BlobStorage:
 
     def render_manifest(self, manifest: tracking.Manifest) -> str:
 
-        rendered_dirpath = os.path.join(self._root, manifest.digest)
+        os.makedirs(self._renders, exist_ok=True)
+        rendered_dirpath = os.path.join(self._renders, manifest.digest)
 
         for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:

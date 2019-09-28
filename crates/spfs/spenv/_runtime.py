@@ -1,20 +1,16 @@
-from typing import NamedTuple, List, Optional, Sequence, Any, Tuple
+from typing import NamedTuple, List, Optional, Sequence, Any, Tuple, Dict
 import os
 import errno
 import subprocess
 
 import structlog
 
-from ._resolve import (
-    which,
-    resolve_overlayfs_options,
-    resolve_stack_to_layers,
-    resolve_layers_to_environment,
-)
+from ._resolve import which, resolve_overlayfs_options, resolve_stack_to_layers
 from ._config import get_config
 from . import storage
 
 _logger = structlog.get_logger(__name__)
+
 
 
 class NoRuntimeError(EnvironmentError):
@@ -41,16 +37,11 @@ def install(*refs: str) -> None:
     overlay_args = resolve_overlayfs_options(runtime)
     _spenv_remount(overlay_args)
 
-    env = resolve_layers_to_environment(installed_layers, base=os.environ)
-    os.environ.update(env)
-
 
 def install_to(runtime: storage.fs.Runtime, *refs: str) -> List[storage.fs.Layer]:
 
     config = get_config()
     repo = config.get_repository()
-
-    # TODO: ensure layers can be installed with current stack
 
     layers = resolve_stack_to_layers(refs)
     for layer in layers:
