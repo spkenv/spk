@@ -15,11 +15,11 @@ from ._layer import LayerStorage
 
 class Repository:
 
-    _pack = "pack"
-    _plat = "plat"
+    _layers = "layers"
+    _platforms = "platforms"
     _tag = "tags"
-    _blob = "blob"
-    dirs = (_pack, _plat, _tag, _blob)
+    _blobs = "blobs"
+    dirs = (_layers, _platforms, _tag, _blobs)
 
     def __init__(self, root: str):
 
@@ -27,9 +27,9 @@ class Repository:
             root = root[len("file:") :]
 
         self._root = root
-        self.layers = LayerStorage(os.path.join(root, self._pack))
-        self.platforms = PlatformStorage(os.path.join(root, self._plat))
-        self.blobs = BlobStorage(os.path.join(root, self._blob))
+        self.layers = LayerStorage(os.path.join(root, self._layers))
+        self.platforms = PlatformStorage(os.path.join(root, self._platforms))
+        self.blobs = BlobStorage(os.path.join(root, self._blobs))
 
     @property
     def root(self) -> str:
