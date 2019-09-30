@@ -26,9 +26,9 @@ def _commit(args: argparse.Namespace) -> None:
 
     result: spenv.storage.Object
     if args.kind == "layer":
-        result = repo.commit_layer(runtime)
+        result = spenv.commit_layer(runtime)
     elif args.kind == "platform":
-        result = repo.commit_platform(runtime)
+        result = spenv.commit_platform(runtime)
     else:
         raise NotImplementedError("commit", args.kind)
 

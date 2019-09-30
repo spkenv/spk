@@ -8,10 +8,9 @@ import hashlib
 
 from .. import Object, Platform, Layer
 from .._registry import register_scheme
-from ._platform import PlatformStorage, UnknownPlatformError
+from ._platform import PlatformStorage
 from ._blob import BlobStorage
 from ._layer import LayerStorage
-from ._runtime import RuntimeStorage, Runtime
 
 
 class Repository:
@@ -19,9 +18,8 @@ class Repository:
     _pack = "pack"
     _plat = "plat"
     _tag = "tags"
-    _run = "run"
     _blob = "blob"
-    dirs = (_pack, _plat, _tag, _run, _blob)
+    dirs = (_pack, _plat, _tag, _blob)
 
     def __init__(self, root: str):
 
@@ -31,7 +29,6 @@ class Repository:
         self._root = root
         self.layers = LayerStorage(os.path.join(root, self._pack))
         self.platforms = PlatformStorage(os.path.join(root, self._plat))
-        self.runtimes = RuntimeStorage(os.path.join(root, self._run))
         self.blobs = BlobStorage(os.path.join(root, self._blob))
 
     @property
@@ -57,7 +54,7 @@ class Repository:
 
         try:
             return self.platforms.read_platform(ref)
-        except UnknownPlatformError:
+        except ValueError:
             pass
 
         raise ValueError("Unknown ref: " + ref)
@@ -83,19 +80,6 @@ class Repository:
                     ref = f.read().strip()
                 tag = os.path.relpath(linkfile, tag_dir)
                 yield (tag, ref)
-
-    def commit_layer(self, runtime: Runtime) -> Layer:
-        """Commit the working file changes of a runtime to a new layer."""
-
-        manifest = self.blobs.commit_dir(runtime.upperdir)
-        return self.layers.commit_manifest(manifest)
-
-    def commit_platform(self, runtime: Runtime) -> Platform:
-        """Commit the full layer stack and working files to a new platform."""
-
-        top_layer = self.commit_layer(runtime)
-        runtime.append_layer(top_layer)
-        return self.platforms.commit_runtime(runtime)
 
     def write_tag(self, tag: str, digest: str) -> None:
 

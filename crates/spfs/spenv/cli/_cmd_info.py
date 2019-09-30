@@ -31,12 +31,12 @@ def _info(args: argparse.Namespace) -> None:
 def _pretty_print_ref(obj: spenv.storage.Object) -> None:
 
     # TODO: use more format print/formatter types
-    if isinstance(obj, spenv.storage.fs.Platform):
+    if isinstance(obj, spenv.storage.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
-        print(f" {Fore.BLUE}layers:{Fore.RESET}")
-        for layer in obj.layers:
-            print(f"  - " + format_digest(layer))
+        print(f" {Fore.BLUE}stack:{Fore.RESET}")
+        for ref in obj.stack:
+            print(f"  - " + format_digest(ref))
 
     elif isinstance(obj, spenv.storage.Layer):
         print(f"{Fore.GREEN}layer:{Fore.RESET}")
@@ -45,12 +45,12 @@ def _pretty_print_ref(obj: spenv.storage.Object) -> None:
         for _, entry in obj.manifest.walk():
             print("  " + str(entry))
 
-    elif isinstance(obj, spenv.storage.fs.Runtime):
+    elif isinstance(obj, spenv.Runtime):
         print(f"{Fore.GREEN}runtime:{Fore.RESET}")
         print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
-        print(f" {Fore.BLUE}layers:{Fore.RESET}")
-        for layer in obj.config.layers:
-            print(f"  - " + format_digest(layer))
+        print(f" {Fore.BLUE}stack:{Fore.RESET}")
+        for ref in obj.get_stack():
+            print(f"  - " + format_digest(ref))
     else:
         print(repr(obj))
 
@@ -68,7 +68,7 @@ def _print_global_info() -> None:
     print()
 
     empty_manifest = spenv.tracking.Manifest()
-    manifest = spenv.tracking.compute_manifest(runtime.upperdir)
+    manifest = spenv.tracking.compute_manifest(runtime.upper_dir)
     diffs = spenv.tracking.compute_diff(empty_manifest, manifest)
     if len(diffs) == 1:
         print(f"{Fore.RED}No Active Changes{Fore.RESET}")

@@ -1,6 +1,8 @@
-from typing import Optional, List, NamedTuple, Tuple, Sequence, IO, ContextManager
+"""Local file system storage of runtimes."""
+from typing import Optional, List, NamedTuple, Tuple, Sequence, IO, Dict
 import os
 import re
+import json
 import uuid
 import errno
 import shutil
@@ -10,9 +12,9 @@ import contextlib
 
 import simplejson
 
-from ... import storage
-from ._layer import Layer
+from . import storage, tracking
 
+STARTUP_FILES_LOCATION = "/env/etc/spenv/startup.d"
 _SH_STARTUP_SCRIPT = """
 #!/usr/bin/env sh
 startup_dir="/env/etc/spenv/startup.d"
@@ -30,19 +32,18 @@ exit $?
 class RuntimeConfig(NamedTuple):
     """Stores the configuration of a single runtime."""
 
-    layers: Tuple[str, ...]
+    stack: Tuple[str, ...]
 
-    def dump(self, stream: IO[str]) -> None:
-        """Dump this config as json to the given stream."""
-        simplejson.dump(self, stream, indent="\t")
+    def dump_dict(self) -> Dict:
+        """Dump this runtime data into a dictionary of python basic types."""
+
+        return {"stack": list(self.stack)}
 
     @staticmethod
-    def load(stream: IO[str]) -> "RuntimeConfig":
-        """Load a runtime config from the given json stream."""
+    def load_dict(data: Dict) -> "RuntimeConfig":
+        """Load a runtime data from the given dictionary data."""
 
-        json_data = simplejson.load(stream)
-        json_data["layers"] = tuple(json_data.get("layers", []))
-        return RuntimeConfig(**json_data)
+        return RuntimeConfig(stack=tuple(data.get("stack", [])))
 
 
 class Runtime:
@@ -66,82 +67,70 @@ class Runtime:
     def __init__(self, root: str) -> None:
         """Create a runtime to represent the data under 'root'."""
 
-        self._root = os.path.abspath(root)
+        self.root = os.path.abspath(root)
+        self.lower_dir = os.path.join(self.root, self._lowerdir)
+        self.config_file = os.path.join(self.root, self._config_file)
+        self.sh_startup_file = os.path.join(self.root, self._sh_startup_file)
+        self.upper_dir = os.path.join(self.root, self._upperdir)
+        self.work_dir = os.path.join(self.root, self._workdir)
+
         self._config: Optional[RuntimeConfig] = None
 
     def __repr__(self) -> str:
-        return f"Runtime('{self._root}')"
+        return f"Runtime('{self.root}')"
 
     @property
     def ref(self) -> str:
         """Return the identifier for this runtime."""
-        return os.path.basename(self._root)
+        return os.path.basename(self.root)
 
-    @property
-    def rootdir(self) -> str:
-        """Return the root directory of this runtime."""
-        return self._root
+    def get_stack(self) -> Tuple[str, ...]:
+        """Return this runtime's current object stack."""
+        return self._get_config().stack
 
-    @property
-    def lowerdir(self) -> str:
-        """Return the overlay fs lowerdir of this runtime."""
-        return os.path.join(self._root, self._lowerdir)
-
-    @property
-    def configfile(self) -> str:
-        """Return the path to this runtime's config file."""
-        return os.path.join(self._root, self._config_file)
-
-    @property
-    def sh_startup_file(self) -> str:
-        """Return the path to this runtime's startup file for sh/bash."""
-        return os.path.join(self._root, self._sh_startup_file)
-
-    @property
-    def upperdir(self) -> str:
-        """Return the overlay fs upperdir of this runtime."""
-        return os.path.join(self._root, self._upperdir)
-
-    @property
-    def workdir(self) -> str:
-        """Return the overlay fs workdir of this runtime."""
-        return os.path.join(self._root, self._workdir)
-
-    @property
-    def config(self) -> RuntimeConfig:
-        """Return this runtime's configuration data."""
-
-        if self._config is None:
-            return self._read_config()
-        return self._config
-
-    def append_layer(self, layer: Layer) -> None:
-        """Append a layer to this runtime's stack.
+    def push_digest(self, digest: str) -> None:
+        """Push an object id onto this runtime's stack.
 
         This will update the configuration of the runtime,
         and change the overlayfs options, but not update
         any currently running environment automatically.
 
         Args:
-            layer (Layer): The layer to append to the stack
+            digest (str): The digest of the object to push
         """
 
-        self._config = RuntimeConfig(self.config.layers + (layer.digest,))
+        try:
+            digest_bytes = bytearray.fromhex(digest)
+            assert len(digest_bytes) == hashlib.sha256().digest_size
+        except (ValueError, AssertionError):
+            raise ValueError("Invalid digest: " + digest)
+
+        self._config = RuntimeConfig(self.get_stack() + (digest,))
         self._write_config()
+
+    def _get_config(self) -> RuntimeConfig:
+
+        if self._config is None:
+            return self._read_config()
+        return self._config
 
     def _write_config(self) -> None:
 
-        with open(self.configfile, "w+", encoding="utf-8") as f:
-            self.config.dump(f)
+        if self._config is None:
+            self._config = RuntimeConfig(stack=tuple())
+
+        with open(self.config_file, "w+", encoding="utf-8") as f:
+            json.dump(self._config.dump_dict(), f)
 
     def _read_config(self) -> RuntimeConfig:
 
         try:
-            with open(self.configfile, "r", encoding="utf-8") as f:
-                self._config = RuntimeConfig.load(f)
+            with open(self.config_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self._config = RuntimeConfig.load_dict(data)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                self._config = RuntimeConfig(layers=tuple())
+                self._config = RuntimeConfig(stack=tuple())
                 self._write_config()
             else:
                 raise
@@ -177,7 +166,7 @@ class RuntimeStorage:
         runtime = self.read_runtime(ref)
         # TODO: clobber read-only files
         # ensure unmounted first? by removing upperdir?
-        shutil.rmtree(runtime.rootdir)
+        shutil.rmtree(runtime.root)
 
     def read_runtime(self, ref: str) -> Runtime:
         """Access a runtime in this storage.

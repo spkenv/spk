@@ -67,8 +67,8 @@ def sync_platform(
 ) -> None:
 
     _logger.info("syncing platform", digest=platform.digest)
-    for layer in platform.layers:
-        sync_ref(layer, src, dest)
+    for ref in platform.stack:
+        sync_ref(ref, src, dest)
 
     dest.write_platform(platform)
 

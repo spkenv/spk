@@ -14,7 +14,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 def _runtimes(args: argparse.Namespace) -> None:
 
     config = spenv.get_config()
-    repo = config.get_repository()
-    runtimes = repo.runtimes.list_runtimes()
+    runtime_storage = config.get_runtime_storage()
+    runtimes = runtime_storage.list_runtimes()
     for runtime in runtimes:
         print(format_digest(runtime.ref))

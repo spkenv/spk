@@ -3,7 +3,7 @@ import os
 import pytest
 import py.path
 
-from ._runtime import RuntimeStorage, Runtime, RuntimeConfig, _ensure_runtime
+from ._runtime_storage import Runtime, RuntimeConfig, RuntimeStorage, _ensure_runtime
 
 
 def test_runtime_repr(tmpdir: py.path.local) -> None:
@@ -12,14 +12,11 @@ def test_runtime_repr(tmpdir: py.path.local) -> None:
     assert repr(runtime)
 
 
-def test_config_serialization(tmpdir: py.path.local) -> None:
+def test_config_serialization() -> None:
 
-    tmpfile = tmpdir.join("config.json")
-    expected = RuntimeConfig(layers=("a", "b", "c"))
-    with open(tmpfile.strpath, "w+") as handle:
-        expected.dump(handle)
-    with open(tmpfile.strpath, "r") as handle:
-        actual = RuntimeConfig.load(handle)
+    expected = RuntimeConfig(stack=("a", "b", "c"))
+    data = expected.dump_dict()
+    actual = RuntimeConfig.load_dict(data)
 
     assert actual == expected
 
@@ -27,28 +24,28 @@ def test_config_serialization(tmpdir: py.path.local) -> None:
 def test_runtime_properties(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
-    assert tmpdir.bestrelpath(runtime.rootdir) == "."
-    assert os.path.basename(runtime.upperdir) == Runtime._upperdir
-    assert os.path.basename(runtime.workdir) == Runtime._workdir
-    assert os.path.basename(runtime.lowerdir) == Runtime._lowerdir
-    assert os.path.basename(runtime.configfile) == Runtime._configfile
+    assert tmpdir.bestrelpath(runtime.root) == "."
+    assert os.path.basename(runtime.upper_dir) == Runtime._upperdir
+    assert os.path.basename(runtime.work_dir) == Runtime._workdir
+    assert os.path.basename(runtime.lower_dir) == Runtime._lowerdir
+    assert os.path.basename(runtime.config_file) == Runtime._config_file
 
 
 def test_runtime_config_notnone(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
     assert runtime._config is None
-    assert runtime.config is not None
-    assert py.path.local(runtime.configfile).exists()
+    assert runtime._get_config() is not None
+    assert py.path.local(runtime.config_file).exists()
 
 
 def test_ensure_runtime(tmpdir: py.path.local) -> None:
 
     runtime = _ensure_runtime(tmpdir.join("root").strpath)
-    assert py.path.local(runtime.rootdir).exists()
-    assert py.path.local(runtime.upperdir).exists()
+    assert py.path.local(runtime.root).exists()
+    assert py.path.local(runtime.upper_dir).exists()
 
-    _ensure_runtime(runtime.rootdir)
+    _ensure_runtime(runtime.root)
 
 
 def test_storage_create_runtime(tmpdir: py.path.local) -> None:
@@ -57,7 +54,7 @@ def test_storage_create_runtime(tmpdir: py.path.local) -> None:
 
     runtime = storage.create_runtime()
     assert runtime.ref
-    assert py.path.local(runtime.rootdir).isdir()
+    assert py.path.local(runtime.root).isdir()
 
     with pytest.raises(ValueError):
         storage.create_runtime(runtime.ref)

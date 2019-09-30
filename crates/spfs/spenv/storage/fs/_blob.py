@@ -16,6 +16,12 @@ _logger = structlog.get_logger(__name__)
 
 
 class BlobStorage:
+    """Manages a local file system storage of arbitrary binary data.
+
+    Also provides harlinked renders of file manifests for use
+    in local runtimes.
+    """
+
     def __init__(self, root: str) -> None:
 
         self._root = os.path.abspath(root)
@@ -61,6 +67,11 @@ class BlobStorage:
         return digest
 
     def commit_dir(self, dirname: str) -> tracking.Manifest:
+        """Commit a local file system directory to this storage.
+
+        This collects all files to store as blobs and maintains a
+        render of the manifest for use immediately.
+        """
 
         working_dirname = "work-" + uuid.uuid1().hex
         working_dirpath = os.path.join(self._root, working_dirname)
@@ -104,6 +115,12 @@ class BlobStorage:
         return manifest
 
     def render_manifest(self, manifest: tracking.Manifest) -> str:
+        """Create a hard-linked rendering of the given file manifest.
+
+        Raises:
+            ValueErrors: if any of the blobs in the manifest are
+                not available in this storage.
+        """
 
         os.makedirs(self._renders, exist_ok=True)
         rendered_dirpath = os.path.join(self._renders, manifest.digest)

@@ -8,30 +8,31 @@ import simplejson
 class Platform(NamedTuple):
     """Platforms represent a predetermined collection of layers.
 
-    Platforms capture an entire runtime set of layers as a single,
-    identifiable object which can be applied/installed to future runtimes.
+    Platforms capture an entire runtime stack of layers or other platforms
+    as a single, identifiable object which can be applied/installed to
+    future runtimes.
     """
 
-    layers: Tuple[str, ...]
+    stack: Tuple[str, ...]
 
     @property
     def digest(self) -> str:
 
         hasher = hashlib.sha256()
-        for layer in self.layers:
+        for layer in self.stack:
             hasher.update(layer.encode("utf-8"))
         return hasher.hexdigest()
 
     def dump_dict(self) -> Dict:
         """Dump this platform data into a dictionary of python basic types."""
 
-        return {"layers": list(self.layers)}
+        return {"stack": list(self.stack)}
 
     @staticmethod
     def load_dict(data: Dict) -> "Platform":
         """Load a platform data from the given dictionary data."""
 
-        return Platform(layers=tuple(data.get("layers", [])))
+        return Platform(stack=tuple(data.get("stack", [])))
 
 
 @runtime_checkable

@@ -30,6 +30,7 @@ def _shell(args: argparse.Namespace) -> None:
 
     config = spenv.get_config()
     repo = config.get_repository()
+    runtimes = config.get_runtime_storage()
 
     if args.target:
         try:
@@ -39,7 +40,7 @@ def _shell(args: argparse.Namespace) -> None:
             spenv.pull_ref(args.target)
 
     _logger.info("configuring new runtime")
-    runtime = repo.runtimes.create_runtime()
+    runtime = runtimes.create_runtime()
     if args.target:
         spenv.install_to(runtime, args.target)
 

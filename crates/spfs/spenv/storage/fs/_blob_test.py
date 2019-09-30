@@ -17,7 +17,7 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     src_dir.join("file.txt").write("rootdata", ensure=True)
 
     manifest = storage.commit_dir(src_dir.strpath)
-    assert tmpdir.join("storage", manifest.digest).exists()
+    assert tmpdir.join("storage", "renders", manifest.digest).exists()
 
     manifest2 = storage.commit_dir(src_dir.strpath)
     assert manifest.digest == manifest2.digest
@@ -61,7 +61,7 @@ def test_commit_mode(tmpdir: py.path.local) -> None:
 
     manifest = storage.commit_dir(src_dir.strpath)
 
-    rendered_dir = py.path.local(storage._root).join(manifest.digest)
+    rendered_dir = py.path.local(storage._root).join("renders", manifest.digest)
     rendered_symlink = rendered_dir.join(symlink_path)
     assert stat.S_ISLNK(rendered_symlink.lstat().mode)
 

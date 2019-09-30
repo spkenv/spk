@@ -11,13 +11,7 @@ import structlog
 _logger = structlog.get_logger(__name__)
 
 from .. import Platform
-from ._runtime import Runtime
 from ._layer import Layer
-
-
-class UnknownPlatformError(ValueError):
-    def __init__(self, digest: str) -> None:
-        super(UnknownPlatformError, self).__init__(f"Unknown platform: {digest}")
 
 
 class PlatformStorage:
@@ -29,7 +23,7 @@ class PlatformStorage:
         """Read a platform's information from this storage.
 
         Raises:
-            UnknownPlatformError: If the platform does not exist.
+            ValueError: If the platform does not exist.
         """
 
         platform_path = os.path.join(self._root, digest)
@@ -39,21 +33,21 @@ class PlatformStorage:
             return Platform.load_dict(data)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                raise UnknownPlatformError(digest)
+                raise ValueError(f"Unknown platform: {digest}")
             raise
 
     def remove_platform(self, digest: str) -> None:
         """Remove a platform from this storage.
 
         Raises:
-            UnknownPlatformError: If the platform does not exist.
+            ValueError: If the platform does not exist.
         """
 
         platform_path = os.path.join(self._root, digest)
         try:
             os.remove(platform_path)
         except FileNotFoundError:
-            raise UnknownPlatformError(digest)
+            raise ValueError(f"Unknown platform: {digest}")
 
     def list_platforms(self) -> List[Platform]:
         """Return a list of the current stored platforms."""
@@ -68,18 +62,14 @@ class PlatformStorage:
 
         return [self.read_platform(d) for d in dirs]
 
-    def commit_runtime(self, runtime: Runtime) -> Platform:
-        """Commit the current layer stack of a runtime as a platform."""
+    def commit_stack(self, stack: Sequence[str]) -> Platform:
 
-        return self._commit_layers(runtime.config.layers)
-
-    def _commit_layers(self, layers: Sequence[str]) -> Platform:
-
-        platform = Platform(layers=tuple(layers))
+        platform = Platform(stack=tuple(stack))
         self.write_platform(platform)
         return platform
 
     def write_platform(self, platform: Platform) -> None:
+        """Store the given platform data in this storage."""
 
         digest = platform.digest
         platform_path = os.path.join(self._root, digest)
