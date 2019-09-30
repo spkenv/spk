@@ -21,7 +21,6 @@ def resolve_overlayfs_options(runtime: Runtime) -> str:
     for layer in layers:
         rendered_dir = repo.blobs.render_manifest(layer.manifest)
         lowerdirs.append(rendered_dir)
-    lowerdirs = list(reversed(lowerdirs))
 
     return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upper_dir},workdir={runtime.work_dir}"
 

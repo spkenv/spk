@@ -105,7 +105,7 @@ class Runtime:
         except (ValueError, AssertionError):
             raise ValueError("Invalid digest: " + digest)
 
-        self._config = RuntimeConfig(self.get_stack() + (digest,))
+        self._config = RuntimeConfig((digest,) + self.get_stack())
         self._write_config()
 
     def _get_config(self) -> RuntimeConfig:
