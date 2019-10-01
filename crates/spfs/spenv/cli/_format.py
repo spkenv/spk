@@ -9,7 +9,10 @@ repo = config.get_repository()
 
 def format_digest(ref: str) -> str:
 
-    aliases = repo.find_aliases(ref)
+    try:
+        aliases = repo.find_aliases(ref)
+    except ValueError:
+        aliases = []
     return " -> ".join([ref] + aliases)
 
 
