@@ -1,4 +1,4 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
 import os
 import errno
 import subprocess
@@ -12,20 +12,6 @@ from ._resolve import resolve_overlayfs_options, which
 from . import storage
 
 _logger = structlog.get_logger(__name__)
-
-
-def build_command(command: str, *args: str) -> Tuple[str, ...]:
-    """Construct a bootstrap command.
-
-    The returned command properly calls through the relevant spenv
-    binaries and runs the desired command in a new runtime.
-    """
-
-    config = get_config()
-    runtime_storage = config.get_runtime_storage()
-    runtime = runtime_storage.create_runtime()
-
-    return build_command_for_runtime(runtime, command, *args)
 
 
 def build_command_for_runtime(
@@ -63,7 +49,22 @@ def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]
     if not shell:
         raise RuntimeError("'sh' or 'bash' not found in PATH")
 
-    return (shell, "-i", runtime.sh_startup_file, command) + args
+    return (shell, runtime.sh_startup_file, command) + args
+
+
+def build_interactive_shell_command() -> Tuple[str, ...]:
+    """Construct a boostrapping command for initializing an interactive shell.
+
+    The returned command properly invokes a shell which sets up
+    the current runtime appropriately at startup.
+    """
+
+    runtime = active_runtime()
+    shell = which("bash") or which("sh")
+    if not shell:
+        raise RuntimeError("'sh' or 'bash' not found in PATH")
+
+    return (shell, "--init-file", runtime.sh_startup_file)
 
 
 def _build_spenv_mount_command(overlay_args: str, *command: str) -> Tuple[str, ...]:
