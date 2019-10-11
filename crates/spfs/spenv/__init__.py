@@ -15,11 +15,11 @@ from ._runtime_storage import (
     STARTUP_FILES_LOCATION,
 )
 from ._bootstrap import (
-    build_command,
     build_command_for_runtime,
     build_shell_initialized_command,
+    build_interactive_shell_command,
 )
 from ._sync import push_ref, pull_ref
 from ._commit import commit_layer, commit_platform
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"

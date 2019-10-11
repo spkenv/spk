@@ -13,10 +13,14 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     run_cmd = sub_parsers.add_parser("run", help=_run.__doc__)
     run_cmd.add_argument(
-        "target",
-        metavar="REF",
-        nargs=1,
-        help="The platform or layer to define the runtime environment",
+        "--target",
+        "-t",
+        dest="targets",
+        default=[],
+        action="append",
+        help="The platform or layer ref to define the runtime "
+        "environment, and be specified more than once to "
+        "build up a runtime stack",
     )
     run_cmd.add_argument("cmd", metavar="CMD", nargs=1)
     run_cmd.add_argument("args", metavar="ARGS", nargs=argparse.REMAINDER)
@@ -30,15 +34,17 @@ def _run(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     runtimes = config.get_runtime_storage()
 
-    try:
-        target = repo.read_object(args.target[0])
-    except ValueError:
-        _logger.info(f"target does not exist locally", target=args.target[0])
-        target = spenv.pull_ref(args.target[0])
+    for target in args.targets:
+        try:
+            target = repo.read_object(args.target[0])
+        except ValueError:
+            _logger.info(f"target does not exist locally", target=args.target[0])
+            target = spenv.pull_ref(args.target[0])
 
     _logger.info("configuring new runtime")
     runtime = runtimes.create_runtime()
-    spenv.install_to(runtime, args.target[0])
+    for target in args.targets:
+        spenv.install_to(runtime, target)
 
     _logger.info("resolving entry process")
     cmd = spenv.build_command_for_runtime(runtime, args.cmd[0], *args.args)

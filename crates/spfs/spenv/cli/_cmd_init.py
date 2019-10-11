@@ -30,5 +30,9 @@ def _init(args: argparse.Namespace) -> None:
     _logger.info("initializing runtime environment")
     runtime_root = args.runtime_root_dir[0]
     os.environ["SPENV_RUNTIME"] = runtime_root
-    cmd = spenv.build_shell_initialized_command(args.cmd[0], *args.cmd[1:])
+    if not len(args.cmd) or args.cmd[0] == "":
+        _logger.info("starting interactive shell environment")
+        cmd = spenv.build_interactive_shell_command(*args.cmd[1:])
+    else:
+        cmd = spenv.build_shell_initialized_command(args.cmd[0], *args.cmd[1:])
     os.execv(cmd[0], cmd)

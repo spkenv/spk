@@ -24,8 +24,11 @@ if [[ -d ${startup_dir} ]]; then
         source ${startup_dir}/$file
     done
 fi
-"$*"
-exit $?
+
+if [[ "$#" -ne 0 ]]; then
+    "$@"
+    exit $?
+fi
 """
 
 
