@@ -33,7 +33,7 @@ class BlobStorage:
         Raises:
             ValueError: if the blob does not exist in this storage
         """
-        filepath = os.path.join(self._root, digest)
+        filepath = os.path.join(self._root, digest[:2], digest[2:])
         try:
             return open(filepath, "rb")
         except FileNotFoundError:
@@ -52,12 +52,15 @@ class BlobStorage:
         working_filepath = os.path.join(self._root, working_filename)
         with open(working_filepath, "xb") as working_file:
             chunk = data.read(_CHUNK_SIZE)
-            hasher.update(chunk)
-            working_file.write(chunk)
+            while len(chunk):
+                hasher.update(chunk)
+                working_file.write(chunk)
+                chunk = data.read(_CHUNK_SIZE)
 
         digest = hasher.hexdigest()
-        final_filepath = os.path.join(self._root, digest)
+        final_filepath = os.path.join(self._root, digest[:2], digest[2:])
         try:
+            os.makedirs(os.path.dirname(final_filepath), exist_ok=True)
             os.rename(working_filepath, final_filepath)
             os.chmod(final_filepath, 0o444)
         except FileExistsError:
@@ -88,7 +91,9 @@ class BlobStorage:
             if entry.kind is tracking.EntryKind.TREE:
                 continue
 
-            committed_path = os.path.join(self._root, entry.digest)
+            committed_path = os.path.join(
+                self._root, entry.digest[:2], entry.digest[2:]
+            )
             if stat.S_ISLNK(entry.mode):
                 data = os.readlink(rendered_path)
                 stream = io.BytesIO(data.encode("utf-8"))
@@ -97,6 +102,7 @@ class BlobStorage:
                 continue
 
             try:
+                os.makedirs(os.path.dirname(committed_path), exist_ok=True)
                 os.rename(rendered_path, committed_path)
                 os.chmod(committed_path, 0o444)
             except FileExistsError:
@@ -104,8 +110,10 @@ class BlobStorage:
                 os.remove(rendered_path)
 
         _logger.info("committing rendered manifest")
-        os.makedirs(self._renders, exist_ok=True)
-        rendered_dirpath = os.path.join(self._renders, manifest.digest)
+        rendered_dirpath = os.path.join(
+            self._renders, manifest.digest[:2], manifest.digest[2:]
+        )
+        os.makedirs(os.path.dirname(rendered_dirpath), exist_ok=True)
         try:
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
@@ -122,14 +130,19 @@ class BlobStorage:
                 not available in this storage.
         """
 
-        os.makedirs(self._renders, exist_ok=True)
-        rendered_dirpath = os.path.join(self._renders, manifest.digest)
+        rendered_dirpath = os.path.join(
+            self._renders, manifest.digest[:2], manifest.digest[2:]
+        )
+        os.makedirs(os.path.dirname(rendered_dirpath), exist_ok=True)
 
         for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
                 os.makedirs(rendered_path, exist_ok=True)
             elif entry.kind is tracking.EntryKind.BLOB:
-                committed_path = os.path.join(self._root, entry.digest)
+                committed_path = os.path.join(
+                    self._root, entry.digest[:2], entry.digest[2:]
+                )
+                os.makedirs(os.path.dirname(committed_path), exist_ok=True)
 
                 if stat.S_ISLNK(entry.mode):
 

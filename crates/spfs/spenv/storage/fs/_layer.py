@@ -31,7 +31,7 @@ class LayerStorage:
             ValueErrors: If the layer does not exist.
         """
 
-        layer_path = os.path.join(self._root, digest)
+        layer_path = os.path.join(self._root, digest[:2], digest[2:])
         try:
             with open(layer_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -57,15 +57,21 @@ class LayerStorage:
     def list_layers(self) -> List[Layer]:
         """Return a list of the current stored layers."""
 
+        return list(self.iter_layers())
+
+    def iter_layers(self) -> Iterable[Layer]:
+        """Step through each of the current stored layers."""
+
         try:
             dirs = os.listdir(self._root)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                dirs = []
-            else:
-                raise
+        except FileNotFoundError:
+            dirs = []
 
-        return [self.read_layer(d) for d in dirs]
+        for dirname in dirs:
+            entries = os.listdir(os.path.join(self._root, dirname))
+            for entry in entries:
+                digest = dirname + entry
+                yield self.read_layer(digest)
 
     def commit_manifest(self, manifest: tracking.Manifest) -> Layer:
         """Create a layer from the file system manifest."""
@@ -78,8 +84,8 @@ class LayerStorage:
     def write_layer(self, layer: Layer) -> None:
 
         digest = layer.digest
-        layer_path = os.path.join(self._root, digest)
-        os.makedirs(self._root, exist_ok=True)
+        layer_path = os.path.join(self._root, digest[:2], digest[2:])
+        os.makedirs(os.path.dirname(layer_path), exist_ok=True)
         try:
             with open(layer_path, "x", encoding="utf-8") as f:
                 json.dump(layer.dump_dict(), f)
