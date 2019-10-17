@@ -49,7 +49,7 @@ def test_commit_manifest(tmpdir: py.path.local) -> None:
     manifest = tracking.compute_manifest(tmpdir.strpath)
 
     layer = storage.commit_manifest(manifest)
-    assert tmpdir.join("storage", layer.digest).exists()
+    assert tmpdir.join("storage", layer.digest[:2], layer.digest[2:]).exists()
 
     layer2 = storage.commit_manifest(manifest)
     assert layer.digest == layer2.digest

@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, NamedTuple, Sequence
+from typing import Optional, List, Dict, NamedTuple, Sequence, Iterable
 import os
 import json
 import uuid
@@ -26,7 +26,7 @@ class PlatformStorage:
             ValueError: If the platform does not exist.
         """
 
-        platform_path = os.path.join(self._root, digest)
+        platform_path = os.path.join(self._root, digest[:2], digest[2:])
         try:
             with open(platform_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -43,7 +43,7 @@ class PlatformStorage:
             ValueError: If the platform does not exist.
         """
 
-        platform_path = os.path.join(self._root, digest)
+        platform_path = os.path.join(self._root, digest[:2], digest[2:])
         try:
             os.remove(platform_path)
         except FileNotFoundError:
@@ -52,15 +52,21 @@ class PlatformStorage:
     def list_platforms(self) -> List[Platform]:
         """Return a list of the current stored platforms."""
 
+        return list(self.iter_platforms())
+
+    def iter_platforms(self) -> Iterable[Platform]:
+        """Step through each of the current stored platforms."""
+
         try:
             dirs = os.listdir(self._root)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                dirs = []
-            else:
-                raise
+        except FileNotFoundError:
+            dirs = []
 
-        return [self.read_platform(d) for d in dirs]
+        for dirname in dirs:
+            entries = os.listdir(os.path.join(self._root, dirname))
+            for entry in entries:
+                digest = dirname + entry
+                yield self.read_platform(digest)
 
     def commit_stack(self, stack: Sequence[str]) -> Platform:
 
@@ -72,8 +78,8 @@ class PlatformStorage:
         """Store the given platform data in this storage."""
 
         digest = platform.digest
-        platform_path = os.path.join(self._root, digest)
-        os.makedirs(self._root, exist_ok=True)
+        platform_path = os.path.join(self._root, digest[:2], digest[2:])
+        os.makedirs(os.path.dirname(platform_path), exist_ok=True)
         try:
             with open(platform_path, "x", encoding="utf-8") as f:
                 json.dump(platform.dump_dict(), f)
