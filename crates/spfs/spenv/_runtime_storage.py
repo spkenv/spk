@@ -12,24 +12,10 @@ import contextlib
 
 import simplejson
 
-from . import storage, tracking
+from . import storage, tracking, __file__ as _spenv_root
 
 STARTUP_FILES_LOCATION = "/env/etc/spenv/startup.d"
-_SH_STARTUP_SCRIPT = """
-#!/usr/bin/env sh
-startup_dir="/env/etc/spenv/startup.d"
-if [[ -d ${startup_dir} ]]; then
-    for file in $(ls ${startup_dir}); do
-        echo source ${startup_dir}/$file
-        source ${startup_dir}/$file
-    done
-fi
-
-if [[ "$#" -ne 0 ]]; then
-    "$@"
-    exit $?
-fi
-"""
+_SH_STARTUP_SCRIPT = os.path.join(os.path.dirname(__file__), "_startup.sh")
 
 
 class RuntimeConfig(NamedTuple):
@@ -86,6 +72,15 @@ class Runtime:
     def ref(self) -> str:
         """Return the identifier for this runtime."""
         return os.path.basename(self.root)
+
+    def is_dirty(self) -> bool:
+        """Return true if the upper dir of this runtime has changes."""
+
+        try:
+            return bool(os.listdir(self.upper_dir))
+        except FileNotFoundError:
+            return False
+        return False
 
     def get_stack(self) -> Tuple[str, ...]:
         """Return this runtime's current object stack."""
@@ -146,8 +141,7 @@ def _ensure_runtime(path: str) -> Runtime:
     for subdir in Runtime.dirs:
         os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
     runtime = Runtime(path)
-    with open(runtime.sh_startup_file, "w+", encoding="utf-8") as f:
-        f.write(_SH_STARTUP_SCRIPT)
+    shutil.copyfile(_SH_STARTUP_SCRIPT, runtime.sh_startup_file)
     return runtime
 
 
