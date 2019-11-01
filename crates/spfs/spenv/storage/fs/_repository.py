@@ -1,4 +1,4 @@
-from typing import List, Union, Dict, Iterable, Tuple, IO
+from typing import List, Union, Dict, Iterable, Tuple, IO, Iterator
 import os
 import uuid
 import errno
@@ -6,20 +6,22 @@ import shutil
 import tarfile
 import hashlib
 
+from ... import tracking
 from .. import Object, Platform, Layer
 from .._registry import register_scheme
 from ._platform import PlatformStorage
 from ._blob import BlobStorage
 from ._layer import LayerStorage
+from ._tag import TagStorage
 
 
 class Repository:
 
     _layers = "layers"
     _platforms = "platforms"
-    _tag = "tags"
+    _tags = "tags"
     _blobs = "blobs"
-    dirs = (_layers, _platforms, _tag, _blobs)
+    dirs = (_layers, _platforms, _tags, _blobs)
 
     def __init__(self, root: str):
 
@@ -30,6 +32,7 @@ class Repository:
         self.layers = LayerStorage(os.path.join(root, self._layers))
         self.platforms = PlatformStorage(os.path.join(root, self._platforms))
         self.blobs = BlobStorage(os.path.join(root, self._blobs))
+        self.tags = TagStorage(os.path.join(root, self._tags))
 
     @property
     def root(self) -> str:
@@ -37,15 +40,10 @@ class Repository:
 
     def read_object(self, ref: str) -> Object:
 
-        tag_path = os.path.join(self._root, self._tag, ref)
         try:
-            with open(tag_path, "r", encoding="ascii") as f:
-                ref = f.read().strip()
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                pass
-            else:
-                raise
+            ref = self.tags.resolve_tag(ref).target
+        except ValueError:
+            pass
 
         try:
             return self.layers.read_layer(ref)
@@ -63,32 +61,23 @@ class Repository:
 
         digest = self.read_object(ref).digest
         aliases = set([digest])
-        for tag, target in self.iter_tags():
+        for tag, target in self.tags.iter_tags():
             if target == digest:
                 aliases.add(tag)
         aliases.remove(digest)
         return list(aliases)
 
-    def iter_tags(self) -> Iterable[Tuple[str, str]]:
+    def resolve_tag(self, tag_spec: str) -> tracking.Tag:
 
-        tag_dir = os.path.join(self._root, self._tag)
-        for root, _, files in os.walk(tag_dir):
+        return self.tags.resolve_tag(tag_spec)
 
-            for filename in files:
-                linkfile = os.path.join(root, filename)
-                with open(linkfile, "r", encoding="ascii") as f:
-                    ref = f.read().strip()
-                tag = os.path.relpath(linkfile, tag_dir)
-                yield (tag, ref)
+    def read_tag(self, tag: str) -> Iterator[tracking.Tag]:
 
-    def write_tag(self, tag: str, digest: str) -> None:
+        return self.tags.read_tag(tag)
 
-        obj = self.read_object(digest)
-        tagdir = os.path.join(self._root, self._tag)
-        linkfile = os.path.join(tagdir, tag)
-        os.makedirs(os.path.dirname(linkfile), exist_ok=True)
-        with open(linkfile, "w+", encoding="ascii") as f:
-            f.write(obj.digest)
+    def push_tag(self, tag: str, target: str) -> tracking.Tag:
+
+        return self.tags.push_tag(tag, target)
 
     def has_layer(self, digest: str) -> bool:
         """Return true if the identified layer exists in this repository."""

@@ -46,7 +46,7 @@ def sync_ref(
     obj = src.read_object(ref)
     sync_object(obj, src, dest)
     if obj.digest != ref:
-        dest.write_tag(ref, obj.digest)
+        dest.push_tag(ref, obj.digest)
     return obj
 
 

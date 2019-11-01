@@ -1,4 +1,4 @@
-from ._tag import Tag
+from ._tag import Tag, TagSpec, decode_tag, parse_tag_spec
 from ._manifest import (
     Manifest,
     Tree,

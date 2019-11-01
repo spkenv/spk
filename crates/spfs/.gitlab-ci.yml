@@ -1,13 +1,26 @@
 
 stages:
+  - test
   - build
   - deploy
+
+test:
+  tags: [docker]
+  stage: test
+  only:
+    - merge_requests
+    - master
+    - tags
+  script:
+    - pip3 install --user pipenv
+    - pipenv --three sync --dev
+    - pipenv run pytest
 
 build:
   tags: [docker]
   stage: build
   only:
-    - master
+    - tags
     - merge_requests
   script:
     - ./build_rpm.sh
@@ -20,7 +33,7 @@ deploy:
   tags: [rhel7]
   stage: deploy
   only:
-    - master
+    - tags
   script:
     - tree build/rpm/*
     - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/* /net/yum/spi-dev/

@@ -34,7 +34,8 @@ def _commit(args: argparse.Namespace) -> None:
 
     _logger.info("created", digest=result.digest)
     for tag in args.tags or []:
-        repo.write_tag(tag, result.digest)
+
+        repo.push_tag(tag, result.digest)
         _logger.info("created", tag=tag)
 
     return

@@ -23,7 +23,7 @@ def test_push_ref(config: Config, tmpdir: py.path.local) -> None:
     remote = config.get_remote("origin")
     manifest = local.blobs.commit_dir(src_dir.strpath)
     layer = local.layers.commit_manifest(manifest)
-    local.write_tag("testing", layer.digest)
+    local.push_tag("testing", layer.digest)
 
     push_ref("testing", "origin")
 
@@ -45,7 +45,7 @@ def test_push_pull_ref(tmpdir: py.path.local) -> None:
 
     manifest = repo_a.blobs.commit_dir(src_dir.strpath)
     layer = repo_a.layers.commit_manifest(manifest)
-    repo_a.write_tag("testing", layer.digest)
+    repo_a.push_tag("testing", layer.digest)
 
     sync_ref("testing", repo_a, repo_b)
 
