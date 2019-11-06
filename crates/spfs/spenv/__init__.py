@@ -22,4 +22,4 @@ from ._bootstrap import (
 from ._sync import push_ref, pull_ref
 from ._commit import commit_layer, commit_platform
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
