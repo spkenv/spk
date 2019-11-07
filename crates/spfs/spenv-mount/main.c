@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    result = mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL);
+    result = mount("none", "/", NULL, MS_PRIVATE, NULL);
     if (result != 0)
     {
         perror("Failed to privatize existing mounts");
