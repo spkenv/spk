@@ -60,11 +60,11 @@ class Repository:
     def find_aliases(self, ref: str) -> List[str]:
 
         digest = self.read_object(ref).digest
-        aliases = set([digest])
-        for tag, target in self.tags.iter_tags():
-            if target == digest:
-                aliases.add(tag)
-        aliases.remove(digest)
+        aliases = set([digest, ref])
+        for tag_str, tag in self.tags.iter_tags():
+            if tag.target == digest:
+                aliases.add(tag_str)
+        aliases.remove(ref)
         return list(aliases)
 
     def resolve_tag(self, tag_spec: str) -> tracking.Tag:
