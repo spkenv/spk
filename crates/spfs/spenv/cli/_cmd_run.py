@@ -36,10 +36,10 @@ def _run(args: argparse.Namespace) -> None:
 
     for target in args.targets:
         try:
-            target = repo.read_object(args.target[0])
+            target = repo.read_object(target)
         except ValueError:
-            _logger.info(f"target does not exist locally", target=args.target[0])
-            target = spenv.pull_ref(args.target[0])
+            _logger.info(f"target does not exist locally", target=target)
+            target = spenv.pull_ref(target)
 
     _logger.info("configuring new runtime")
     runtime = runtimes.create_runtime()
