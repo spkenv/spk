@@ -61,7 +61,8 @@ def configure_logging(args: argparse.Namespace) -> None:
         structlog.stdlib.PositionalArgumentsFormatter(),
     ]
 
-    if args.debug:
+    if args.debug or "SPENV_DEBUG" in os.environ:
+        os.environ["SPENV_DEBUG"] = "1"
         level = logging.DEBUG
         processors.extend(
             [

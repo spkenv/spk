@@ -9,4 +9,5 @@ setup(
     package_data={"spenv": ["*.sh"]},
     include_package_data=True,
     entry_points={"console_scripts": ["spenv=spenv.cli:main"]},
+    zip_safe=False,
 )

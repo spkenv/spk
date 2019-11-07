@@ -6,4 +6,5 @@ __pycache__/
 coverage.xml
 .spenv
 /build
+/dist
 *.egg-info

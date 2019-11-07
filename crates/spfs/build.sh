@@ -20,6 +20,8 @@ fi
 pipenv install --dev
 source "$(pipenv --venv)/bin/activate"
 pipenv lock -r | grep -v -- "--trusted-host" > ${build_dir}/requirements.txt
+echo "spenv==$(python setup.py --version)" >> ${build_dir}/requirements.txt
 python setup.py clean
 rm -r *.egg-info || true
-pex -m spenv -r ${build_dir}/requirements.txt . -o ${build_dir}/bin/spenv --disable-cache
+python setup.py bdist_wheel
+pex -c spenv -r ${build_dir}/requirements.txt . -o ${build_dir}/bin/spenv --disable-cache --repo=dist
