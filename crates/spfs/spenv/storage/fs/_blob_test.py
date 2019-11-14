@@ -50,7 +50,6 @@ def test_render_manifest(tmpdir: py.path.local) -> None:
 def test_commit_mode(tmpdir: py.path.local) -> None:
 
     storage = BlobStorage(tmpdir.join("storage").strpath)
-    "dir1.0/dir2.0/file2.txt"
 
     datafile_path = "dir1.0/dir2.0/file.txt"
     symlink_path = "dir1.0/dir2.0/file2.txt"
@@ -75,3 +74,14 @@ def test_commit_mode(tmpdir: py.path.local) -> None:
         symlink_entry.digest[:2], symlink_entry.digest[2:]
     )
     assert not stat.S_ISLNK(symlink_blob.lstat().mode)
+
+
+def test_render_broken_link(tmpdir: py.path.local) -> None:
+
+    storage = BlobStorage(tmpdir.join("storage").strpath)
+
+    src_dir = tmpdir.join("source").ensure(dir=True)
+    src_dir.join("broken-link").mksymlinkto("nonexistant")
+
+    manifest = storage.commit_dir(src_dir.strpath)
+    assert manifest.get_path("broken-link") is not None
