@@ -12,6 +12,7 @@ test:
     - master
     - tags
   script:
+    - unset PYTHONNOUSERSITE
     - pip3 install --user pipenv
     - pipenv --three sync --dev
     - pipenv run pytest
