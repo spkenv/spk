@@ -7,7 +7,7 @@ RUN yum install -y \
     rpmdevtools \
     rpm-build \
     python-pip \
-    python37
+    python37-devel
 
 RUN echo '[global]' > /etc/pip.conf
 RUN echo "trusted-host = pypi.spimageworks.com" >> /etc/pip.conf

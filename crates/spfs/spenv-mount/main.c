@@ -14,6 +14,12 @@
 
 #define MOUNT_TARGET "/env"
 
+int is_debug_mode()
+{
+    char *value = getenv("SPENV_DEBUG");
+    return value != NULL;
+}
+
 int is_mounted(const char *target)
 {
 
@@ -92,6 +98,9 @@ int main(int argc, char *argv[])
         printf("usage: spenv-mount OVERLAY_OPTIONS COMMAND\n");
         return 1;
     }
+
+    int debug = is_debug_mode();
+
     int result;
     result = unshare(CLONE_NEWNS);
     if (result != 0)
@@ -126,16 +135,24 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    uid_t original_euid = geteuid();
+    result = seteuid(0);
+    if (result == -1) {
+        perror("Failed to become root user (effective)");
+        return 1;
+    }
     uid_t original_uid = getuid();
     result = setuid(0);
     if (result == -1) {
-        perror("Failed to become root user");
+        perror("Failed to become root user (actual)");
         return 1;
     }
 
     // TODO: investigate why the direct mount() call causes permission
     // issues, when use of the mount command line does not
-    //result = mount("none", MOUNT_TARGET, "overlay", 0, argv[1]);
+    if (debug) {
+        printf("/usr/bin/mount -t overlay -o %s none " MOUNT_TARGET, argv[1]);
+    }
     int child_pid = fork();
     if (child_pid == 0) {
         execl("/usr/bin/mount", "/usr/bin/mount", "-t", "overlay", "-o", argv[1], "none", MOUNT_TARGET, NULL);
@@ -152,7 +169,12 @@ int main(int argc, char *argv[])
 
     result = setuid(original_uid);
     if (result == -1) {
-        perror("Failed to become regular user");
+        perror("Failed to become regular user (actual)");
+        return 1;
+    }
+    result = seteuid(original_euid);
+    if (result == -1) {
+        perror("Failed to become regular user (effective)");
         return 1;
     }
 

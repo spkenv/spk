@@ -7,5 +7,6 @@ from ._manifest import (
     compute_tree,
     compute_manifest,
     compute_entry,
+    layer_manifests,
 )
 from ._diff import Diff, DiffMode, compute_diff

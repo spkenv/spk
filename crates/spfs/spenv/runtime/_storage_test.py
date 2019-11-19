@@ -3,7 +3,7 @@ import os
 import pytest
 import py.path
 
-from ._runtime_storage import Runtime, RuntimeConfig, RuntimeStorage, _ensure_runtime
+from ._storage import Runtime, Config, Storage, _ensure_runtime
 
 
 def test_runtime_repr(tmpdir: py.path.local) -> None:
@@ -14,9 +14,9 @@ def test_runtime_repr(tmpdir: py.path.local) -> None:
 
 def test_config_serialization() -> None:
 
-    expected = RuntimeConfig(stack=("a", "b", "c"))
+    expected = Config(stack=("a", "b", "c"))
     data = expected.dump_dict()
-    actual = RuntimeConfig.load_dict(data)
+    actual = Config.load_dict(data)
 
     assert actual == expected
 
@@ -50,7 +50,7 @@ def test_ensure_runtime(tmpdir: py.path.local) -> None:
 
 def test_storage_create_runtime(tmpdir: py.path.local) -> None:
 
-    storage = RuntimeStorage(tmpdir.strpath)
+    storage = Storage(tmpdir.strpath)
 
     runtime = storage.create_runtime()
     assert runtime.ref
@@ -62,7 +62,7 @@ def test_storage_create_runtime(tmpdir: py.path.local) -> None:
 
 def test_storage_remove_runtime(tmpdir: py.path.local) -> None:
 
-    storage = RuntimeStorage(tmpdir.strpath)
+    storage = Storage(tmpdir.strpath)
 
     with pytest.raises(ValueError):
         storage.remove_runtime("non-existant")
@@ -73,7 +73,7 @@ def test_storage_remove_runtime(tmpdir: py.path.local) -> None:
 
 def test_storage_list_runtimes(tmpdir: py.path.local) -> None:
 
-    storage = RuntimeStorage(tmpdir.join("root").strpath)
+    storage = Storage(tmpdir.join("root").strpath)
 
     assert storage.list_runtimes() == []
 

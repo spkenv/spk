@@ -3,6 +3,7 @@ Version: %(grep -oP '(?<=_version__ = ").*(?=")' spenv/__init__.py)
 Release: 1
 Summary: Runtime environment management.
 License: NONE
+Requires: python37
 Source0:  %{expand:%%(pwd)}/
 
 %description

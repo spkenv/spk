@@ -2,10 +2,12 @@ from typing import Sequence, Dict
 import os
 import sys
 import logging
+import getpass
 import argparse
 
 import colorama
 import structlog
+import sentry_sdk
 
 import spenv
 from . import (
@@ -29,7 +31,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
     parser.add_argument("--debug", "-d", action="store_true")
 
-    sub_parsers = parser.add_subparsers(dest="command", required=True)
+    sub_parsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     _cmd_version.register(sub_parsers)
 
@@ -48,7 +50,19 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     _cmd_init.register(sub_parsers)
 
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+    return args
+
+
+def configure_sentry() -> None:
+
+    sentry_sdk.init("http://0dbf3ec96df2464ab626a50d0f352d44@sentry.spimageworks.com/5")
+    with sentry_sdk.configure_scope() as scope:
+        username = getpass.getuser()
+        scope.user = {"email": f"{username}@imageworks.com", "username": username}
 
 
 def configure_logging(args: argparse.Namespace) -> None:

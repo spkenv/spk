@@ -71,7 +71,7 @@ def test_commit_mode(tmpdir: py.path.local) -> None:
     symlink_entry = manifest.get_path(symlink_path)
     assert symlink_entry is not None
     symlink_blob = py.path.local(storage._root).join(
-        symlink_entry.digest[:2], symlink_entry.digest[2:]
+        symlink_entry.object[:2], symlink_entry.object[2:]
     )
     assert not stat.S_ISLNK(symlink_blob.lstat().mode)
 

@@ -2,8 +2,6 @@ import argparse
 
 import spenv
 
-from ._format import format_digest
-
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
@@ -17,4 +15,4 @@ def _layers(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     layers = repo.layers.list_layers()
     for layer in layers:
-        print(format_digest(layer.digest))
+        print(spenv.io.format_digest(layer.digest))

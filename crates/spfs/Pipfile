@@ -7,22 +7,21 @@ verify_ssl = false
 pytest = "*"
 pytest-watch = "*"
 pydocstyle = "*"
-rope = "*"
 pylint = "*"
 pex = "*"
 pytest-cov = "*"
 mypy = "*"
-black = "*"
-pipenv = "*"
 pytest-mypy = "*"
 spenv = {editable = true,path = "."}
+black = "*"
 
 [packages]
 pyyaml = "~=5.1"
-colorama = "*"
-typing-extensions = "*"
-simplejson = "*"
-structlog = "*"
+colorama = "~=0.4.1"
+typing-extensions = "~=3.7"
+simplejson = "~=3.17"
+structlog = "~=19.2"
+sentry-sdk = "==0.10.2"
 
 [requires]
 python_version = "3.7"

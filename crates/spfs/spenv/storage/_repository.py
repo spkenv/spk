@@ -1,3 +1,4 @@
+from typing import List
 from typing_extensions import Protocol, runtime_checkable
 
 from ._layer import LayerStorage
@@ -19,4 +20,8 @@ class Repository(TagStorage, PlatformStorage, LayerStorage, BlobStorage, Protoco
 
     def read_object(self, ref: str) -> Object:
         """Read an object of unknown type by tag or digest."""
+        ...
+
+    def find_aliases(self, ref: str) -> List[str]:
+        """Return the other identifiers that can be used for 'ref'."""
         ...

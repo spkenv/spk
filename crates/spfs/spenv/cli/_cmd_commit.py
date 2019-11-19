@@ -10,9 +10,15 @@ _logger = structlog.get_logger("cli")
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     commit_cmd = sub_parsers.add_parser("commit", help=_commit.__doc__)
-    commit_cmd.add_argument("kind", choices=["layer", "platform"], help="TODO: help")
     commit_cmd.add_argument(
-        "--tag", "-t", dest="tags", action="append", help="TODO: help"
+        "kind", choices=["layer", "platform"], help="The desired object type to create"
+    )
+    commit_cmd.add_argument(
+        "--tag",
+        "-t",
+        dest="tags",
+        action="append",
+        help="Can be given many times: human-readable tags to update with the resulting object",
     )
     commit_cmd.set_defaults(func=_commit)
 

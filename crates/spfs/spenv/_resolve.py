@@ -2,12 +2,11 @@ from typing import Sequence, List, Optional, Mapping
 import os
 import re
 
-from . import storage
-from ._runtime_storage import Runtime
+from . import storage, runtime
 from ._config import get_config
 
 
-def resolve_overlayfs_options(runtime: Runtime) -> str:
+def resolve_overlayfs_options(runtime: runtime.Runtime) -> str:
     """Compile the overlayfs options string for the given runtime.
 
     This string is used by the spenv-mount and spenv-remount

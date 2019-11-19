@@ -6,16 +6,15 @@ import subprocess
 import structlog
 
 from ._config import get_config
-from ._runtime_storage import Runtime
 from ._runtime import active_runtime
 from ._resolve import resolve_overlayfs_options, which
-from . import storage
+from . import storage, runtime
 
 _logger = structlog.get_logger(__name__)
 
 
 def build_command_for_runtime(
-    runtime: Runtime, command: str, *args: str
+    runtime: runtime.Runtime, command: str, *args: str
 ) -> Tuple[str, ...]:
     """Construct a bootstrap command.
 

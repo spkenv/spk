@@ -33,7 +33,7 @@ def test_push_ref(config: Config, tmpdir: py.path.local) -> None:
     push_ref("testing", "origin")
 
 
-def test_push_pull_ref(tmpdir: py.path.local) -> None:
+def test_sync_ref(tmpdir: py.path.local) -> None:
 
     src_dir = tmpdir.join("source")
     src_dir.join("dir/file.txt").write("hello", ensure=True)
@@ -45,11 +45,13 @@ def test_push_pull_ref(tmpdir: py.path.local) -> None:
 
     manifest = repo_a.blobs.commit_dir(src_dir.strpath)
     layer = repo_a.layers.commit_manifest(manifest)
-    repo_a.push_tag("testing", layer.digest)
+    platform = repo_a.platforms.commit_stack([layer.digest])
+    repo_a.push_tag("testing", platform.digest)
 
     sync_ref("testing", repo_a, repo_b)
 
     assert repo_b.read_object("testing")
+    assert repo_b.has_platform(platform.digest)
     assert repo_b.has_layer(layer.digest)
 
     tmpdir.join("repo_a").remove()

@@ -1,7 +1,7 @@
 import py.path
 import pytest
 
-from ._runtime_storage import Runtime
+from .runtime import Runtime
 from ._resolve import resolve_overlayfs_options
 
 
