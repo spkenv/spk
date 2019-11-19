@@ -1,9 +1,8 @@
-from . import storage
+from . import storage, runtime
 from ._config import get_config
-from ._runtime import Runtime
 
 
-def commit_layer(runtime: Runtime) -> storage.Layer:
+def commit_layer(runtime: runtime.Runtime) -> storage.Layer:
     """Commit the working file changes of a runtime to a new layer."""
 
     config = get_config()
@@ -12,7 +11,7 @@ def commit_layer(runtime: Runtime) -> storage.Layer:
     return repo.layers.commit_manifest(manifest)
 
 
-def commit_platform(runtime: Runtime) -> storage.Platform:
+def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
     """Commit the full layer stack and working files to a new platform."""
 
     config = get_config()

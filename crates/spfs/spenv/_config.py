@@ -3,8 +3,7 @@ import os
 import errno
 import configparser
 
-from . import storage
-from ._runtime_storage import RuntimeStorage
+from . import storage, runtime
 
 _DEFAULTS = {"storage": {"root": os.path.expanduser("~/.local/share/spenv")}}
 _CONFIG: Optional["Config"] = None
@@ -34,9 +33,9 @@ class Config(configparser.ConfigParser):
 
         return storage.fs.ensure_repository(self.storage_root)
 
-    def get_runtime_storage(self) -> RuntimeStorage:
+    def get_runtime_storage(self) -> runtime.Storage:
 
-        return RuntimeStorage(self.runtime_storage_root)
+        return runtime.Storage(self.runtime_storage_root)
 
     def get_remote(self, name: str) -> storage.Repository:
 

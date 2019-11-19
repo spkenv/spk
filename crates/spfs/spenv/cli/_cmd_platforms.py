@@ -2,8 +2,6 @@ import argparse
 
 import spenv
 
-from ._format import format_digest
-
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
@@ -17,4 +15,4 @@ def _platforms(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     platforms = repo.platforms.list_platforms()
     for platform in platforms:
-        print(format_digest(platform.digest))
+        print(spenv.io.format_digest(platform.digest))

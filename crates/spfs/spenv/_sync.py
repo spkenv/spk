@@ -82,11 +82,11 @@ def sync_layer(
     for _, entry in layer.manifest.walk():
         if entry.kind is not tracking.EntryKind.BLOB:
             continue
-        if dest.has_blob(entry.digest):
-            _logger.debug("blob already exists", digest=entry.digest)
+        if dest.has_blob(entry.object):
+            _logger.debug("blob already exists", digest=entry.object)
             continue
-        with src.open_blob(entry.digest) as blob:
-            _logger.debug("syncing blob", digest=entry.digest)
+        with src.open_blob(entry.object) as blob:
+            _logger.debug("syncing blob", digest=entry.object)
             dest.write_blob(blob)
 
     dest.write_layer(layer)

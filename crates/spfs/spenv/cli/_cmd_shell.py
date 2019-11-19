@@ -47,4 +47,5 @@ def _shell(args: argparse.Namespace) -> None:
 
     _logger.info("resolving entry process")
     cmd = spenv.build_command_for_runtime(runtime, "")
+    _logger.debug(" ".join(cmd))
     os.execv(cmd[0], cmd)

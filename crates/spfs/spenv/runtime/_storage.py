@@ -12,13 +12,11 @@ import contextlib
 
 import simplejson
 
-from . import storage, tracking, __file__ as _spenv_root
-
 STARTUP_FILES_LOCATION = "/env/etc/spenv/startup.d"
 _SH_STARTUP_SCRIPT = os.path.join(os.path.dirname(__file__), "_startup.sh")
 
 
-class RuntimeConfig(NamedTuple):
+class Config(NamedTuple):
     """Stores the configuration of a single runtime."""
 
     stack: Tuple[str, ...]
@@ -29,10 +27,10 @@ class RuntimeConfig(NamedTuple):
         return {"stack": list(self.stack)}
 
     @staticmethod
-    def load_dict(data: Dict) -> "RuntimeConfig":
+    def load_dict(data: Dict) -> "Config":
         """Load a runtime data from the given dictionary data."""
 
-        return RuntimeConfig(stack=tuple(data.get("stack", [])))
+        return Config(stack=tuple(data.get("stack", [])))
 
 
 class Runtime:
@@ -63,7 +61,7 @@ class Runtime:
         self.upper_dir = os.path.join(self.root, self._upperdir)
         self.work_dir = os.path.join(self.root, self._workdir)
 
-        self._config: Optional[RuntimeConfig] = None
+        self._config: Optional[Config] = None
 
     def __repr__(self) -> str:
         return f"Runtime('{self.root}')"
@@ -103,10 +101,10 @@ class Runtime:
         except (ValueError, AssertionError):
             raise ValueError("Invalid digest: " + digest)
 
-        self._config = RuntimeConfig((digest,) + self.get_stack())
+        self._config = Config((digest,) + self.get_stack())
         self._write_config()
 
-    def _get_config(self) -> RuntimeConfig:
+    def _get_config(self) -> Config:
 
         if self._config is None:
             return self._read_config()
@@ -115,20 +113,20 @@ class Runtime:
     def _write_config(self) -> None:
 
         if self._config is None:
-            self._config = RuntimeConfig(stack=tuple())
+            self._config = Config(stack=tuple())
 
         with open(self.config_file, "w+", encoding="utf-8") as f:
             json.dump(self._config.dump_dict(), f)
 
-    def _read_config(self) -> RuntimeConfig:
+    def _read_config(self) -> Config:
 
         try:
             with open(self.config_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            self._config = RuntimeConfig.load_dict(data)
+            self._config = Config.load_dict(data)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                self._config = RuntimeConfig(stack=tuple())
+                self._config = Config(stack=tuple())
                 self._write_config()
             else:
                 raise
@@ -145,7 +143,7 @@ def _ensure_runtime(path: str) -> Runtime:
     return runtime
 
 
-class RuntimeStorage:
+class Storage:
     """Manages the on-disk storage of many runtimes."""
 
     def __init__(self, root: str) -> None:

@@ -5,6 +5,6 @@ __pycache__/
 .vscode/
 coverage.xml
 .spenv
-/build
-/dist
+build/
+dist/
 *.egg-info

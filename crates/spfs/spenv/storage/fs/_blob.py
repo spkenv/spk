@@ -8,7 +8,7 @@ import hashlib
 
 import structlog
 
-from ... import tracking
+from ... import tracking, runtime
 
 _CHUNK_SIZE = 1024
 
@@ -78,27 +78,30 @@ class BlobStorage:
 
         working_dirname = "work-" + uuid.uuid1().hex
         working_dirpath = os.path.join(self._root, working_dirname)
-
-        _logger.info("copying file tree")
-        shutil.copytree(dirname, working_dirpath, symlinks=True)
+        os.makedirs(working_dirpath)
 
         _logger.info("computing file manifest")
-        manifest = tracking.compute_manifest(working_dirpath)
+        manifest = tracking.compute_manifest(dirname)
+
+        _logger.info("copying file tree")
+        _copy_manifest(manifest, dirname, working_dirpath)
 
         _logger.info("committing file manifest")
         for rendered_path, entry in manifest.walk_abs(working_dirpath):
 
             if entry.kind is tracking.EntryKind.TREE:
                 continue
+            if entry.kind is tracking.EntryKind.MASK:
+                continue
 
             committed_path = os.path.join(
-                self._root, entry.digest[:2], entry.digest[2:]
+                self._root, entry.object[:2], entry.object[2:]
             )
             if stat.S_ISLNK(entry.mode):
                 data = os.readlink(rendered_path)
                 stream = io.BytesIO(data.encode("utf-8"))
                 digest = self.write_blob(stream)
-                assert digest == entry.digest, "symlink did not match expected digest"
+                assert digest == entry.object, "symlink did not match expected digest"
                 continue
 
             try:
@@ -106,7 +109,7 @@ class BlobStorage:
                 os.rename(rendered_path, committed_path)
                 os.chmod(committed_path, 0o444)
             except FileExistsError:
-                _logger.debug("file exists", digest=entry.digest)
+                _logger.debug("file exists", digest=entry.object)
                 os.remove(rendered_path)
 
         _logger.info("committing rendered manifest")
@@ -133,14 +136,19 @@ class BlobStorage:
         rendered_dirpath = os.path.join(
             self._renders, manifest.digest[:2], manifest.digest[2:]
         )
-        os.makedirs(os.path.dirname(rendered_dirpath), exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(rendered_dirpath))
+        except FileExistsError:
+            return rendered_dirpath
 
         for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
                 os.makedirs(rendered_path, exist_ok=True)
+            elif entry.kind is tracking.EntryKind.MASK:
+                continue
             elif entry.kind is tracking.EntryKind.BLOB:
                 committed_path = os.path.join(
-                    self._root, entry.digest[:2], entry.digest[2:]
+                    self._root, entry.object[:2], entry.object[2:]
                 )
                 os.makedirs(os.path.dirname(committed_path), exist_ok=True)
 
@@ -150,7 +158,7 @@ class BlobStorage:
                         with open(committed_path, "r") as f:
                             target = f.read()
                     except FileNotFoundError:
-                        raise ValueError("Unknown blob: " + entry.digest)
+                        raise ValueError("Unknown blob: " + entry.object)
                     try:
                         os.symlink(target, rendered_path)
                     except FileExistsError:
@@ -162,7 +170,7 @@ class BlobStorage:
                 except FileExistsError:
                     pass
                 except FileNotFoundError:
-                    raise ValueError("Unknown blob: " + entry.digest)
+                    raise ValueError("Unknown blob: " + entry.object)
             else:
                 raise NotImplementedError(f"Unsupported entry kind: {entry.kind}")
 
@@ -172,3 +180,34 @@ class BlobStorage:
             os.chmod(rendered_path, entry.mode)
 
         return rendered_dirpath
+
+
+def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
+    """Copy manifest contents from one directory to another.
+
+    src_root and dst_root should both exist
+    """
+
+    for path, entry in manifest.walk():
+
+        if path == "/":
+            continue
+        if entry.kind == tracking.EntryKind.MASK:
+            continue
+
+        src_path = os.path.normpath(src_root + path)
+        dst_path = os.path.normpath(dst_root + path)
+        _logger.debug("committing entry...", path=path)
+
+        if stat.S_ISLNK(entry.mode):
+            content = os.readlink(src_path)
+            os.symlink(content, dst_path)
+
+        elif stat.S_ISDIR(entry.mode):
+            os.mkdir(dst_path)
+
+        elif stat.S_ISREG(entry.mode):
+            shutil.copy2(src_path, dst_path, follow_symlinks=False)
+
+        else:
+            raise ValueError("Unsupported non-regular file: " + path)

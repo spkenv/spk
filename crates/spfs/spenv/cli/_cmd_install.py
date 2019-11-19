@@ -4,8 +4,6 @@ import structlog
 
 import spenv
 
-from ._format import format_diffs
-
 _logger = structlog.get_logger("cli")
 
 
@@ -27,13 +25,13 @@ def _install(args: argparse.Namespace) -> None:
         _logger.warning("this means the current environment may need re-initializing")
         _logger.info("try 'source spenv startup'")
     if args.debug:
-        _logger.debug(spenv.STARTUP_FILES_LOCATION)
-        print(format_diffs(diffs))
+        _logger.debug(spenv.runtime.STARTUP_FILES_LOCATION)
+        print(spenv.io.format_diffs(diffs))
 
 
 def _get_startup_manifest() -> spenv.tracking.Manifest:
 
     try:
-        return spenv.tracking.compute_manifest(spenv.STARTUP_FILES_LOCATION)
+        return spenv.tracking.compute_manifest(spenv.runtime.STARTUP_FILES_LOCATION)
     except FileNotFoundError:
         return spenv.tracking.Manifest()

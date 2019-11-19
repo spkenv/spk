@@ -1,11 +1,10 @@
 from typing import Union
+import os
 import argparse
 
 from colorama import Fore
 
 import spenv
-
-from ._format import format_digest, format_diffs
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
@@ -30,27 +29,26 @@ def _info(args: argparse.Namespace) -> None:
 
 def _pretty_print_ref(obj: spenv.storage.Object) -> None:
 
-    # TODO: use more format print/formatter types
     if isinstance(obj, spenv.storage.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spenv.io.format_digest(obj.digest))
         print(f" {Fore.BLUE}stack:{Fore.RESET}")
         for ref in obj.stack:
-            print(f"  - " + format_digest(ref))
+            print(f"  - " + spenv.io.format_digest(ref))
 
     elif isinstance(obj, spenv.storage.Layer):
         print(f"{Fore.GREEN}layer:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spenv.io.format_digest(obj.digest))
         print(f" {Fore.BLUE}manifest:{Fore.RESET}")
-        for _, entry in obj.manifest.walk():
-            print("  " + str(entry))
+        for path, entry in obj.manifest.walk():
+            print(f"  {entry.mode:06o} {entry.kind.value} {path}")
 
-    elif isinstance(obj, spenv.Runtime):
+    elif isinstance(obj, spenv.runtime.Runtime):
         print(f"{Fore.GREEN}runtime:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + format_digest(obj.digest))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spenv.io.format_digest(obj.digest))
         print(f" {Fore.BLUE}stack:{Fore.RESET}")
         for ref in obj.get_stack():
-            print(f"  - " + format_digest(ref))
+            print(f"  - " + spenv.io.format_digest(ref))
     else:
         print(repr(obj))
 
@@ -75,4 +73,4 @@ def _print_global_info() -> None:
         return
 
     print(f"{Fore.BLUE}Active Changes:{Fore.RESET}")
-    print(format_diffs(diffs))
+    print(spenv.io.format_diffs(diffs))
