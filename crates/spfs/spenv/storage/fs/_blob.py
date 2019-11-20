@@ -9,6 +9,7 @@ import hashlib
 import structlog
 
 from ... import tracking, runtime
+from .. import UnknownObjectError
 
 _CHUNK_SIZE = 1024
 
@@ -37,7 +38,7 @@ class BlobStorage:
         try:
             return open(filepath, "rb")
         except FileNotFoundError:
-            raise ValueError("Unknown blob: " + digest)
+            raise UnknownObjectError("Unknown blob: " + digest)
 
     def write_blob(self, data: IO[bytes]) -> str:
         """Read the given data stream to completion, and store as a blob.
@@ -158,7 +159,7 @@ class BlobStorage:
                         with open(committed_path, "r") as f:
                             target = f.read()
                     except FileNotFoundError:
-                        raise ValueError("Unknown blob: " + entry.object)
+                        raise UnknownObjectError("Unknown blob: " + entry.object)
                     try:
                         os.symlink(target, rendered_path)
                     except FileExistsError:
@@ -170,7 +171,7 @@ class BlobStorage:
                 except FileExistsError:
                     pass
                 except FileNotFoundError:
-                    raise ValueError("Unknown blob: " + entry.object)
+                    raise UnknownObjectError("Unknown blob: " + entry.object)
             else:
                 raise NotImplementedError(f"Unsupported entry kind: {entry.kind}")
 
@@ -210,4 +211,4 @@ def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) ->
             shutil.copy2(src_path, dst_path, follow_symlinks=False)
 
         else:
-            raise ValueError("Unsupported non-regular file: " + path)
+            raise UnknownObjectError("Unsupported non-regular file: " + path)

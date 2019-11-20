@@ -13,7 +13,7 @@ test:
     - tags
   script:
     - unset PYTHONNOUSERSITE
-    - pip3 install --user pipenv
+    - pip3 install --force-reinstall --user pipenv
     - pipenv --three sync --dev
     - pipenv run pytest
 

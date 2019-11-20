@@ -12,7 +12,7 @@ import subprocess
 import structlog
 
 from ... import tracking
-from .. import Layer
+from .. import Layer, UnknownObjectError
 
 _logger = structlog.get_logger(__name__)
 
@@ -38,7 +38,7 @@ class LayerStorage:
             return Layer.load_dict(data)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                raise ValueError("Unknown layer: " + digest)
+                raise UnknownObjectError("Unknown layer: " + digest)
             raise
 
     def remove_layer(self, digest: str) -> None:
@@ -52,7 +52,7 @@ class LayerStorage:
         try:
             os.remove(layer_path)
         except FileNotFoundError:
-            raise ValueError("Unknown layer: " + digest)
+            raise UnknownObjectError("Unknown layer: " + digest)
 
     def list_layers(self) -> List[Layer]:
         """Return a list of the current stored layers."""

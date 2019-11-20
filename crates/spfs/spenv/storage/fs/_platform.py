@@ -10,7 +10,7 @@ import structlog
 
 _logger = structlog.get_logger(__name__)
 
-from .. import Platform
+from .. import Platform, UnknownObjectError
 from ._layer import Layer
 
 
@@ -33,7 +33,7 @@ class PlatformStorage:
             return Platform.load_dict(data)
         except OSError as e:
             if e.errno == errno.ENOENT:
-                raise ValueError(f"Unknown platform: {digest}")
+                raise UnknownObjectError(f"Unknown platform: {digest}")
             raise
 
     def remove_platform(self, digest: str) -> None:
@@ -47,7 +47,7 @@ class PlatformStorage:
         try:
             os.remove(platform_path)
         except FileNotFoundError:
-            raise ValueError(f"Unknown platform: {digest}")
+            raise UnknownObjectError(f"Unknown platform: {digest}")
 
     def list_platforms(self) -> List[Platform]:
         """Return a list of the current stored platforms."""

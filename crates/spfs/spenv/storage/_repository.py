@@ -7,6 +7,11 @@ from ._blob import BlobStorage
 from ._tag import TagStorage
 
 
+class UnknownObjectError(ValueError):
+    """Denotes a missing or object that is not present in a repository."""
+    pass
+
+
 @runtime_checkable
 class Object(Protocol):
     @property

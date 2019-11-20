@@ -7,7 +7,7 @@ import tarfile
 import hashlib
 
 from ... import tracking
-from .. import Object, Platform, Layer
+from .. import Object, Platform, Layer, UnknownObjectError
 from .._registry import register_scheme
 from ._platform import PlatformStorage
 from ._blob import BlobStorage
@@ -55,7 +55,7 @@ class Repository:
         except ValueError:
             pass
 
-        raise ValueError("Unknown ref: " + ref)
+        raise UnknownObjectError("Unknown ref: " + ref)
 
     def find_aliases(self, ref: str) -> List[str]:
 
