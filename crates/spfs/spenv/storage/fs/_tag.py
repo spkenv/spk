@@ -2,6 +2,7 @@ from typing import List, Iterator, Tuple
 import os
 
 from ... import tracking
+from .. import UnknownObjectError
 
 
 class TagStorage:
@@ -38,7 +39,7 @@ class TagStorage:
                     yield tracking.decode_tag(line)
 
         except FileNotFoundError:
-            raise ValueError(f"Unknown tag: {tag}")
+            raise UnknownObjectError(f"Unknown tag: {tag}")
 
     def resolve_tag(self, tag: str) -> tracking.Tag:
 
@@ -49,7 +50,7 @@ class TagStorage:
                 next(stream)
             return next(stream)
         except StopIteration:
-            raise ValueError(f"tag or tag version does not exist {tag}")
+            raise UnknownObjectError(f"tag or tag version does not exist {tag}")
 
     def push_tag(self, tag: str, target: str) -> tracking.Tag:
         """Push the given tag onto the tag stream."""

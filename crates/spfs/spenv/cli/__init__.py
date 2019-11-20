@@ -43,6 +43,10 @@ def run(argv: Sequence[str]) -> int:
         _logger.error(str(e))
         return 1
 
+    except spenv.storage.UnknownObjectError as e:
+        _logger.error(str(e))
+        return 1
+
     except Exception as e:
         sentry_sdk.capture_exception(e)
         _logger.error(str(e))
