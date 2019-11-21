@@ -12,6 +12,7 @@ def test_push_ref_unknown() -> None:
         push_ref("--test-unknown--", "origin")
 
 
+@pytest.mark.timeout(5)
 def test_push_ref(config: Config, tmpdir: py.path.local) -> None:
 
     src_dir = tmpdir.join("source")
@@ -33,6 +34,7 @@ def test_push_ref(config: Config, tmpdir: py.path.local) -> None:
     push_ref("testing", "origin")
 
 
+@pytest.mark.timeout(5)
 def test_sync_ref(tmpdir: py.path.local) -> None:
 
     src_dir = tmpdir.join("source")
