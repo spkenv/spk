@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1d81acae754e4033e810176d846326dbb2afdb0c10d2db4a022374aa7923ea96"
+            "sha256": "0e3d354745a3bf865fc4b6e808e38cd0042cf5b8f3e1a20eda3d22d835b0bd1d"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -133,13 +133,6 @@
                 "sha256:840947ebfa8b58f318d42301cf8c0a20fd794a33b61cc4638e28e9e61ba32f42"
             ],
             "version": "==2.3.3"
-        },
-        "atomicwrites": {
-            "hashes": [
-                "sha256:03472c30eb2c5d1ba9227e4c2ca66ab8287fbfbbda3888aa93dc2e28fc6811b4",
-                "sha256:75a9445bac02d8d058d5e1fe689654ba5a6556a1dfd8ce6ec55a0ed79866cfa6"
-            ],
-            "version": "==1.3.0"
         },
         "attrs": {
             "hashes": [
@@ -314,11 +307,11 @@
         },
         "pex": {
             "hashes": [
-                "sha256:003467e5aac1f2f49e7552a2a1170b17101a2b7036a87befed38ed96b2ba16e1",
-                "sha256:4797aa4cb6ce1a6c6ce2bb64c07e6b7819d09851faf123779e29c5294a7f30a7"
+                "sha256:746a23392b10b5d1b0ab62dc760a35994dbd6c8b2cd6879a77d2c25a6262f838",
+                "sha256:edb17216a8938eaff6e282997e24c7b70b80d39e2d8f6db0db4a48be393cba15"
             ],
             "index": "pypi",
-            "version": "==2.0.0"
+            "version": "==2.0.1"
         },
         "pluggy": {
             "hashes": [
@@ -359,11 +352,11 @@
         },
         "pytest": {
             "hashes": [
-                "sha256:8e256fe71eb74e14a4d20a5987bb5e1488f0511ee800680aaedc62b9358714e8",
-                "sha256:ff0090819f669aaa0284d0f4aad1a6d9d67a6efdc6dd4eb4ac56b704f890a0d6"
+                "sha256:1897d74f60a5d8be02e06d708b41bf2445da2ee777066bd68edf14474fc201eb",
+                "sha256:f6a567e20c04259d41adce9a360bd8991e6aa29dd9695c5e6bd25a9779272673"
             ],
             "index": "pypi",
-            "version": "==5.2.4"
+            "version": "==5.3.0"
         },
         "pytest-cov": {
             "hashes": [
@@ -380,6 +373,14 @@
             ],
             "index": "pypi",
             "version": "==0.4.2"
+        },
+        "pytest-timeout": {
+            "hashes": [
+                "sha256:4a30ba76837a32c7b7cd5c84ee9933fde4b9022b0cd20ea7d4a577c2a1649fb1",
+                "sha256:d49f618c6448c14168773b6cdda022764c63ea80d42274e3156787e8088d04c6"
+            ],
+            "index": "pypi",
+            "version": "==1.3.3"
         },
         "pytest-watch": {
             "hashes": [

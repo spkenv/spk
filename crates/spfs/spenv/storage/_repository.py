@@ -9,6 +9,7 @@ from ._tag import TagStorage
 
 class UnknownObjectError(ValueError):
     """Denotes a missing or object that is not present in a repository."""
+
     pass
 
 
@@ -22,6 +23,10 @@ class Object(Protocol):
 @runtime_checkable
 class Repository(TagStorage, PlatformStorage, LayerStorage, BlobStorage, Protocol):
     """Repostory represents a storage location for spenv data."""
+
+    def address(self) -> str:
+        """Return the address of this repository."""
+        ...
 
     def read_object(self, ref: str) -> Object:
         """Read an object of unknown type by tag or digest."""

@@ -25,10 +25,12 @@ class Repository:
 
     def __init__(self, root: str):
 
-        if root.startswith("file:"):
+        if root.startswith("file:///"):
+            root = root[len("file://") :]
+        elif root.startswith("file:"):
             root = root[len("file:") :]
 
-        self._root = root
+        self._root = os.path.abspath(root)
         self.layers = LayerStorage(os.path.join(root, self._layers))
         self.platforms = PlatformStorage(os.path.join(root, self._platforms))
         self.blobs = BlobStorage(os.path.join(root, self._blobs))
@@ -37,6 +39,9 @@ class Repository:
     @property
     def root(self) -> str:
         return self._root
+
+    def address(self) -> str:
+        return f"file://{self.root}"
 
     def read_object(self, ref: str) -> Object:
 

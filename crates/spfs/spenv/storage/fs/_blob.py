@@ -49,7 +49,10 @@ class BlobStorage:
         os.makedirs(self._root, exist_ok=True)
 
         hasher = hashlib.sha256()
-        working_filename = "work-" + uuid.uuid1().hex
+        # uuid4 is used to get around issues where a high amount of
+        # multiprocessing could cause the same machine to generate
+        # the same uuid because of a duplicate read of the current time
+        working_filename = "work-" + uuid.uuid4().hex
         working_filepath = os.path.join(self._root, working_filename)
         with open(working_filepath, "xb") as working_file:
             chunk = data.read(_CHUNK_SIZE)
@@ -77,7 +80,10 @@ class BlobStorage:
         render of the manifest for use immediately.
         """
 
-        working_dirname = "work-" + uuid.uuid1().hex
+        # uuid4 is used to get around issues where a high amount of
+        # multiprocessing could cause the same machine to generate
+        # the same uuid because of a duplicate read of the current time
+        working_dirname = "work-" + uuid.uuid4().hex
         working_dirpath = os.path.join(self._root, working_dirname)
         os.makedirs(working_dirpath)
 
