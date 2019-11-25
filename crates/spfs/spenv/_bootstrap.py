@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, List
 import os
 import errno
 import subprocess
@@ -7,7 +7,7 @@ import structlog
 
 from ._config import get_config
 from ._runtime import active_runtime
-from ._resolve import resolve_overlayfs_options, which
+from ._resolve import resolve_overlay_dirs, which
 from . import storage, runtime
 
 _logger = structlog.get_logger(__name__)
@@ -25,7 +25,7 @@ def build_command_for_runtime(
     if not os.path.isfile(command):
         command = which(command) or command
 
-    overlay_args = resolve_overlayfs_options(runtime)
+    overlay_dirs = resolve_overlay_dirs(runtime)
 
     spenv_exe = which("spenv")
     if not spenv_exe:
@@ -33,7 +33,7 @@ def build_command_for_runtime(
 
     args = ("init-runtime", runtime.root, command) + args
 
-    return _build_spenv_mount_command(overlay_args, spenv_exe, *args)
+    return _build_spenv_enter_command(overlay_dirs, spenv_exe, *args)
 
 
 def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]:
@@ -66,9 +66,11 @@ def build_interactive_shell_command() -> Tuple[str, ...]:
     return (shell, "--init-file", runtime.sh_startup_file)
 
 
-def _build_spenv_mount_command(overlay_args: str, *command: str) -> Tuple[str, ...]:
+def _build_spenv_enter_command(
+    overlay_dirs: List[str], *command: str
+) -> Tuple[str, ...]:
 
-    exe = which("spenv-mount")
+    exe = which("spenv-enter")
     if exe is None:
-        raise RuntimeError("'spenv-mount' not found in PATH")
-    return (exe, overlay_args) + command
+        raise RuntimeError("'spenv-enter' not found in PATH")
+    return (exe, ":".join(overlay_dirs)) + command

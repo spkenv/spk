@@ -14,7 +14,6 @@ from . import (
     _cmd_commit,
     _cmd_info,
     _cmd_init,
-    _cmd_install,
     _cmd_layers,
     _cmd_platforms,
     _cmd_push,
@@ -43,7 +42,6 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_shell.register(sub_parsers)
 
     _cmd_commit.register(sub_parsers)
-    _cmd_install.register(sub_parsers)
     _cmd_push.register(sub_parsers)
     _cmd_pull.register(sub_parsers)
     _cmd_info.register(sub_parsers)

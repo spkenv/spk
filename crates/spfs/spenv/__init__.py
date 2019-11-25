@@ -9,9 +9,8 @@ from . import storage, tracking, runtime, io
 from ._config import get_config, load_config, Config
 from ._runtime import (
     active_runtime,
-    install,
-    install_to,
     initialize_runtime,
+    deinitialize_runtime,
     NoRuntimeError,
 )
 from ._bootstrap import (
@@ -22,4 +21,4 @@ from ._bootstrap import (
 from ._sync import push_ref, pull_ref
 from ._commit import commit_layer, commit_platform
 
-__version__ = "0.9.2"
+__version__ = "0.10.0"

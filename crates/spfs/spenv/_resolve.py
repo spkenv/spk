@@ -6,22 +6,21 @@ from . import storage, runtime
 from ._config import get_config
 
 
-def resolve_overlayfs_options(runtime: runtime.Runtime) -> str:
-    """Compile the overlayfs options string for the given runtime.
+def resolve_overlay_dirs(runtime: runtime.Runtime) -> List[str]:
+    """Compile the set of directories to be overlayed for a runtime.
 
-    This string is used by the spenv-mount and spenv-remount
-    commands to appropriately render the runtimes file system under /env.
+    These are returned as a list, from bottom to top.
     """
 
     config = get_config()
     repo = config.get_repository()
-    lowerdirs = [runtime.lower_dir]
+    overlay_dirs = []
     layers = resolve_stack_to_layers(runtime.get_stack())
     for layer in layers:
         rendered_dir = repo.blobs.render_manifest(layer.manifest)
-        lowerdirs.append(rendered_dir)
+        overlay_dirs.append(rendered_dir)
 
-    return f"lowerdir={':'.join(lowerdirs)},upperdir={runtime.upper_dir},workdir={runtime.work_dir}"
+    return overlay_dirs
 
 
 def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.fs.Layer]:

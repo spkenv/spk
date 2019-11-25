@@ -7,7 +7,7 @@ import subprocess
 
 import structlog
 
-from ._resolve import which, resolve_overlayfs_options, resolve_stack_to_layers
+from ._resolve import which, resolve_stack_to_layers
 from ._config import get_config
 from . import storage, runtime, tracking
 
@@ -31,28 +31,6 @@ def active_runtime() -> runtime.Runtime:
     return runtime.Runtime(path)
 
 
-def install(*refs: str) -> None:
-
-    runtime = active_runtime()
-    install_to(runtime, *refs)
-
-    overlay_args = resolve_overlayfs_options(runtime)
-    _spenv_remount(overlay_args)
-
-
-def install_to(runtime: runtime.Runtime, *refs: str) -> Tuple[str, ...]:
-
-    config = get_config()
-    repo = config.get_repository()
-
-    digests = []
-    for ref in refs:
-        digests.append(repo.read_object(ref).digest)
-    for digest in digests:
-        runtime.push_digest(digest)
-    return runtime.get_stack()
-
-
 def initialize_runtime() -> None:
 
     runtime = active_runtime()
@@ -71,6 +49,13 @@ def initialize_runtime() -> None:
             os.remove(path)
         except IsADirectoryError:
             shutil.rmtree(path)
+
+
+def deinitialize_runtime() -> None:
+
+    runtime = active_runtime()
+    runtime.delete()
+    del os.environ["SPENV_RUNTIME"]
 
 
 def _spenv_remount(overlay_args: str) -> None:

@@ -24,13 +24,11 @@ cd %{_sourcedir}
 %install
 mkdir -p %{buildroot}/usr/local/bin
 install -p -m 755 %{_builddir}/bin/spenv %{buildroot}/usr/local/bin/
-install -p -m 755 %{_builddir}/bin/spenv-mount %{buildroot}/usr/local/bin/
-install -p -m 755 %{_builddir}/bin/spenv-remount %{buildroot}/usr/local/bin/
+install -p -m 755 %{_builddir}/bin/spenv-enter %{buildroot}/usr/local/bin/
 
 %files
 /usr/local/bin/spenv
-%caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spenv-mount
-%caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spenv-remount
+%caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spenv-enter
 
 %post
 mkdir -p /env
