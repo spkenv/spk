@@ -39,19 +39,22 @@ def run(argv: Sequence[str]) -> int:
     try:
         args.func(args)
 
-    except spenv.NoRuntimeError as e:
-        _logger.error(str(e))
-        return 1
-
-    except spenv.storage.UnknownObjectError as e:
-        _logger.error(str(e))
-        return 1
-
     except Exception as e:
-        sentry_sdk.capture_exception(e)
+        _caputure_if_relevant(e)
         _logger.error(str(e))
         if args.debug:
             traceback.print_exc(file=sys.stderr)
         return 1
 
     return 0
+
+
+def _capture_if_relevant(e: Exception) -> None:
+
+    if isinstance(e, spenv.NoRuntimeError):
+        return
+    if isinstance(e, spenv.storage.UnknownObjectError):
+        return
+    if isinstance(e, KeyboardInterrupt):
+        return
+    sentry_sdk.capture_exception(e)
