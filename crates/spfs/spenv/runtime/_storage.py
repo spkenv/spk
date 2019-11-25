@@ -37,29 +37,20 @@ class Runtime:
     """Represents an active spenv session.
 
     The runtime contains the working files for a spenv
-    envrionment, specifically the work and upper directories
-    that are used by the overlay filesystem mount. It also
-    retains a list of layers and platforms that have been
-    install to the runtime, as well as the resulting stack
-    of read-only filesystem layers.
+    envrionment, the contained stack of read-only filesystem layers.
     """
 
-    _upperdir = "upper"
-    _workdir = "work"
-    _lowerdir = "lower"
+    upper_dir = "/tmp/spenv-runtime/upper"
+
     _config_file = "config.json"
     _sh_startup_file = "startup.sh"
-    dirs = (_upperdir, _workdir, _lowerdir)
 
     def __init__(self, root: str) -> None:
         """Create a runtime to represent the data under 'root'."""
 
         self.root = os.path.abspath(root)
-        self.lower_dir = os.path.join(self.root, self._lowerdir)
         self.config_file = os.path.join(self.root, self._config_file)
         self.sh_startup_file = os.path.join(self.root, self._sh_startup_file)
-        self.upper_dir = os.path.join(self.root, self._upperdir)
-        self.work_dir = os.path.join(self.root, self._workdir)
 
         self._config: Optional[Config] = None
 
@@ -79,6 +70,11 @@ class Runtime:
         except FileNotFoundError:
             return False
         return False
+
+    def delete(self) -> None:
+        """Remove all data pertaining to this runtime."""
+
+        shutil.rmtree(self.root)
 
     def get_stack(self) -> Tuple[str, ...]:
         """Return this runtime's current object stack."""
@@ -136,9 +132,8 @@ class Runtime:
 def _ensure_runtime(path: str) -> Runtime:
 
     os.makedirs(path, exist_ok=True, mode=0o777)
-    for subdir in Runtime.dirs:
-        os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
     runtime = Runtime(path)
+    os.makedirs(runtime.upper_dir, exist_ok=True, mode=0o777)
     shutil.copyfile(_SH_STARTUP_SCRIPT, runtime.sh_startup_file)
     return runtime
 
@@ -159,9 +154,7 @@ class Storage:
         """
 
         runtime = self.read_runtime(ref)
-        # TODO: clobber read-only files
-        # ensure unmounted first? by removing upperdir?
-        shutil.rmtree(runtime.root)
+        runtime.delete()
 
     def read_runtime(self, ref: str) -> Runtime:
         """Access a runtime in this storage.

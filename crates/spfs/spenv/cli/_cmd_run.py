@@ -33,18 +33,14 @@ def _run(args: argparse.Namespace) -> None:
     config = spenv.get_config()
     repo = config.get_repository()
     runtimes = config.get_runtime_storage()
-
-    for target in args.targets:
-        try:
-            target = repo.read_object(target)
-        except ValueError:
-            _logger.info(f"target does not exist locally", target=target)
-            target = spenv.pull_ref(target)
-
-    _logger.info("configuring new runtime")
     runtime = runtimes.create_runtime()
     for target in args.targets:
-        spenv.install_to(runtime, target)
+        try:
+            obj = repo.read_object(target)
+        except ValueError:
+            _logger.info(f"target does not exist locally", target=target)
+            spenv.pull_ref(target)
+        runtime.push_digest(obj.digest)
 
     _logger.info("resolving entry process")
     cmd = spenv.build_command_for_runtime(runtime, args.cmd[0], *args.args)

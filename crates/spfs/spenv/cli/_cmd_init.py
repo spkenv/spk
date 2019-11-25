@@ -1,7 +1,9 @@
 import os
 import sys
 import argparse
+import subprocess
 
+import sentry_sdk
 import structlog
 from colorama import Fore
 
@@ -38,4 +40,11 @@ def _init(args: argparse.Namespace) -> None:
         _logger.info("executing runtime command")
         cmd = spenv.build_shell_initialized_command(args.cmd[0], *args.cmd[1:])
     _logger.debug(" ".join(cmd))
-    os.execv(cmd[0], cmd)
+    proc = subprocess.Popen(cmd)
+    proc.wait()
+    try:
+        spenv.deinitialize_runtime()
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        _logger.debug(f"Failed to clean up runtime: {e}")
+    sys.exit(proc.returncode)

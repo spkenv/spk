@@ -7,12 +7,10 @@ set -e -x
 rm -r ${build_dir}/* || true
 mkdir -p ${build_dir}/bin
 
-gcc -lcap -o ${build_dir}/bin/spenv-mount spenv-mount/main.c
-gcc -o ${build_dir}/bin/spenv-remount spenv-remount/main.c
+gcc -lcap -o ${build_dir}/bin/spenv-enter spenv-enter/main.c
 
 if [ "$(id -u)" == "0" ]; then
-    setcap cap_setuid,cap_sys_admin+ep ${build_dir}/bin/spenv-mount
-    setcap cap_setuid,cap_sys_admin+ep ${build_dir}/bin/spenv-remount
+    setcap cap_setuid,cap_sys_admin+ep ${build_dir}/bin/spenv-enter
 else
     echo "WARNING: not running as root, binary capabilities will not be set"
 fi

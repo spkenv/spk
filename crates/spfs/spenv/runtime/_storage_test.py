@@ -25,9 +25,6 @@ def test_runtime_properties(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
     assert tmpdir.bestrelpath(runtime.root) == "."
-    assert os.path.basename(runtime.upper_dir) == Runtime._upperdir
-    assert os.path.basename(runtime.work_dir) == Runtime._workdir
-    assert os.path.basename(runtime.lower_dir) == Runtime._lowerdir
     assert os.path.basename(runtime.config_file) == Runtime._config_file
 
 
