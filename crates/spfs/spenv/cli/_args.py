@@ -57,7 +57,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def configure_sentry() -> None:
 
-    sentry_sdk.init("http://0dbf3ec96df2464ab626a50d0f352d44@sentry.spimageworks.com/5")
+    sentry_sdk.init(
+        "http://0dbf3ec96df2464ab626a50d0f352d44@sentry.spimageworks.com/5",
+        release=spenv.__version__,
+    )
     with sentry_sdk.configure_scope() as scope:
         username = getpass.getuser()
         scope.user = {"email": f"{username}@imageworks.com", "username": username}
