@@ -39,7 +39,7 @@ def _run(args: argparse.Namespace) -> None:
             obj = repo.read_object(target)
         except ValueError:
             _logger.info(f"target does not exist locally", target=target)
-            spenv.pull_ref(target)
+            obj = spenv.pull_ref(target)
         runtime.push_digest(obj.digest)
 
     _logger.info("resolving entry process")
