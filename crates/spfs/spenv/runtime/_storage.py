@@ -14,6 +14,7 @@ import simplejson
 
 STARTUP_FILES_LOCATION = "/env/etc/spenv/startup.d"
 _SH_STARTUP_SCRIPT = os.path.join(os.path.dirname(__file__), "_startup.sh")
+_CSH_STARTUP_SCRIPT = os.path.join(os.path.dirname(__file__), "_startup.csh")
 
 
 class Config(NamedTuple):
@@ -44,6 +45,7 @@ class Runtime:
 
     _config_file = "config.json"
     _sh_startup_file = "startup.sh"
+    _csh_startup_file = "startup.csh"
 
     def __init__(self, root: str) -> None:
         """Create a runtime to represent the data under 'root'."""
@@ -51,6 +53,7 @@ class Runtime:
         self.root = os.path.abspath(root)
         self.config_file = os.path.join(self.root, self._config_file)
         self.sh_startup_file = os.path.join(self.root, self._sh_startup_file)
+        self.csh_startup_file = os.path.join(self.root, self._csh_startup_file)
 
         self._config: Optional[Config] = None
 
@@ -135,6 +138,7 @@ def _ensure_runtime(path: str) -> Runtime:
     runtime = Runtime(path)
     os.makedirs(runtime.upper_dir, exist_ok=True, mode=0o777)
     shutil.copyfile(_SH_STARTUP_SCRIPT, runtime.sh_startup_file)
+    shutil.copyfile(_CSH_STARTUP_SCRIPT, runtime.csh_startup_file)
     return runtime
 
 
