@@ -52,7 +52,7 @@ def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]
     if shell_name in ("csh", "tcsh"):
         startup_file = runtime.csh_startup_file
     if not desired_shell:
-        raise RuntimeError("No support shell found")
+        raise RuntimeError("No supported shell found")
 
     return (desired_shell, startup_file, command) + args
 
