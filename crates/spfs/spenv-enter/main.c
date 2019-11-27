@@ -15,12 +15,12 @@ step_t parse_args(int argc, char *argv[])
     }
     SPENV_LOWERDIRS = argv[1];
     SPENV_COMMAND = argv + 2;
-    char *value = getenv("SPENV_DEBUG");
-    SPENV_DEBUG = (value != NULL);
+    SPENV_DEBUG = (getenv("SPENV_DEBUG") != NULL);
+    SPENV_VIRTUALIZE_SHOTS = (getenv("SPENV_VIRTUALIZE_SHOTS") != NULL);
     return step_pass;
 }
 
-#define STEP_COUNT 11
+#define STEP_COUNT 12
 int main(int argc, char *argv[])
 {
     step_t steps[STEP_COUNT] = {
@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
         become_root,
         setup_runtime,
         mount_env,
+        mount_shots_if_necessary,
         become_original_user,
         drop_all_capabilities,
         run_command,

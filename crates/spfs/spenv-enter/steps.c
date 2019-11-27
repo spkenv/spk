@@ -13,6 +13,7 @@
 #include <libgen.h>
 
 #define ENV_DIR "/env"
+#define SHOTS_DIR "/shots"
 #define RUNTIME_DIR "/tmp/spenv-runtime"
 #define RUNTIME_UPPER_DIR "/tmp/spenv-runtime/upper"
 #define RUNTIME_LOWER_DIR "/tmp/spenv-runtime/lower"
@@ -21,6 +22,7 @@
 char *SPENV_LOWERDIRS = NULL;
 char **SPENV_COMMAND = NULL;
 int SPENV_DEBUG = 0;
+int SPENV_VIRTUALIZE_SHOTS = 0;
 uid_t original_euid = -1;
 uid_t original_uid = -1;
 
@@ -49,6 +51,16 @@ int privatize_existing_mounts()
     }
 
     result = mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
+    if (result != 0)
+    {
+        perror("Failed to privatize existing mounts");
+        return 1;
+    }
+    if (!SPENV_VIRTUALIZE_SHOTS) {
+        return 0;
+    }
+
+    result = mount("none", SHOTS_DIR, NULL, MS_PRIVATE, NULL);
     if (result != 0)
     {
         perror("Failed to privatize existing mounts");
@@ -169,6 +181,22 @@ int mount_env()
 
 }
 
+int mount_shots_if_necessary()
+{
+
+    if (!SPENV_VIRTUALIZE_SHOTS) {
+        return 0;
+    }
+
+    int result;
+    result = mount("none", SHOTS_DIR, "tmpfs", 0, 0);
+    if (result != 0) {
+        perror("Failed to mount "RUNTIME_DIR);
+    }
+    return result;
+
+}
+
 int become_original_user()
 {
     int result = setuid(original_uid);
@@ -210,7 +238,6 @@ int run_command()
 {
     return execv(SPENV_COMMAND[0], SPENV_COMMAND);
 }
-
 
 int is_mounted(const char *target)
 {
