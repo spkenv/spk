@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 startup_dir="/env/etc/spenv/startup.d"
 if [[ -d ${startup_dir} ]]; then
-    for file in $(ls ${startup_dir}); do
-        echo source ${startup_dir}/$file
-        source ${startup_dir}/$file
+    for file in ${startup_dir}/*.sh; do
+        echo source $file
+        source $file
     done
 fi
 

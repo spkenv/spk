@@ -13,9 +13,9 @@ test:
     - tags
   script:
     - unset PYTHONNOUSERSITE
-    - python37 -m pip install --force-reinstall --user pipenv
-    - pipenv --three sync --dev
-    - pipenv run pytest
+    - python37 -m pip install --user pipenv
+    - ~/.local/bin/pipenv --three sync --dev
+    - ~/.local/bin/pipenv run pytest
 
 build:
   tags: [docker]
