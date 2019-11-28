@@ -17,4 +17,4 @@ from ._bootstrap import build_command_for_runtime, build_shell_initialized_comma
 from ._sync import push_ref, pull_ref
 from ._commit import commit_layer, commit_platform
 
-__version__ = "0.11.1"
+__version__ = "0.12.0"

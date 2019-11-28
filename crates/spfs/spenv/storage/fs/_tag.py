@@ -1,8 +1,10 @@
-from typing import List, Iterator, Tuple
+from typing import Iterator, Tuple
 import os
 
 from ... import tracking
 from .. import UnknownObjectError
+
+_TAG_EXT = ".tag"
 
 
 class TagStorage:
@@ -11,12 +13,15 @@ class TagStorage:
         self._root = os.path.abspath(root)
 
     def iter_tags(self) -> Iterator[Tuple[str, tracking.Tag]]:
+        """Iterate through the available tags in this storage."""
 
         for root, _, files in os.walk(self._root):
 
             for filename in files:
+                if not filename.endswith(_TAG_EXT):
+                    continue
                 filepath = os.path.join(root, filename)
-                tag = os.path.relpath(filepath, self._root)
+                tag = os.path.relpath(filepath[: -len(_TAG_EXT)], self._root)
                 digest = self.resolve_tag(tag)
                 yield (tag, digest)
 
@@ -27,8 +32,8 @@ class TagStorage:
             ValueError: if the tag does not exist in the storage
         """
 
-        spec = tracking.parse_tag_spec(tag)
-        filepath = os.path.join(self._root, spec.path)
+        spec = tracking.TagSpec(tag)
+        filepath = os.path.join(self._root, spec.path + _TAG_EXT)
         try:
             with open(filepath, "rb") as f:
                 # TODO: this should be more efficient and not
@@ -43,10 +48,10 @@ class TagStorage:
 
     def resolve_tag(self, tag: str) -> tracking.Tag:
 
-        spec = tracking.parse_tag_spec(tag)
+        spec = tracking.TagSpec(tag)
         try:
             stream = self.read_tag(tag)
-            for i in range(abs(spec.version)):
+            for _ in range(spec.version):
                 next(stream)
             return next(stream)
         except StopIteration:
@@ -55,7 +60,7 @@ class TagStorage:
     def push_tag(self, tag: str, target: str) -> tracking.Tag:
         """Push the given tag onto the tag stream."""
 
-        tag_spec = tracking.parse_tag_spec(tag)
+        tag_spec = tracking.TagSpec(tag)
         try:
             parent = self.resolve_tag(tag).digest
         except ValueError:
@@ -63,7 +68,7 @@ class TagStorage:
         new_tag = tracking.Tag(
             org=tag_spec.org, name=tag_spec.name, target=target, parent=parent
         )
-        filepath = os.path.join(self._root, tag_spec.path)
+        filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "a+b") as f:
             f.write(new_tag.encode() + b"\n")

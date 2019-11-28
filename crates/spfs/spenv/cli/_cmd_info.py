@@ -43,12 +43,6 @@ def _pretty_print_ref(obj: spenv.storage.Object) -> None:
         for path, entry in obj.manifest.walk():
             print(f"  {entry.mode:06o} {entry.kind.value} {path}")
 
-    elif isinstance(obj, spenv.runtime.Runtime):
-        print(f"{Fore.GREEN}runtime:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spenv.io.format_digest(obj.digest))
-        print(f" {Fore.BLUE}stack:{Fore.RESET}")
-        for ref in obj.get_stack():
-            print(f"  - " + spenv.io.format_digest(ref))
     else:
         print(repr(obj))
 

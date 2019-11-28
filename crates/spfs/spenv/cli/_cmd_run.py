@@ -1,5 +1,4 @@
 import os
-import sys
 import argparse
 
 import structlog
@@ -13,14 +12,16 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     run_cmd = sub_parsers.add_parser("run", help=_run.__doc__)
     run_cmd.add_argument(
-        "--target",
-        "-t",
-        dest="targets",
-        default=[],
-        action="append",
-        help="The platform or layer ref to define the runtime "
-        "environment, and be specified more than once to "
-        "build up a runtime stack",
+        "--pull",
+        "-p",
+        action="store_true",
+        help="try to pull the latest iteration of each tag even if it exists locally",
+    )
+    run_cmd.add_argument(
+        "ref",
+        metavar="ENV",
+        nargs=1,
+        help="The environment spec of the desired runtime",
     )
     run_cmd.add_argument("cmd", metavar="CMD", nargs=1)
     run_cmd.add_argument("args", metavar="ARGS", nargs=argparse.REMAINDER)
@@ -34,13 +35,17 @@ def _run(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     runtimes = config.get_runtime_storage()
     runtime = runtimes.create_runtime()
-    for target in args.targets:
-        try:
-            obj = repo.read_object(target)
-        except ValueError:
-            _logger.info(f"target does not exist locally", target=target)
-            obj = spenv.pull_ref(target)
-        runtime.push_digest(obj.digest)
+    env_spec = spenv.tracking.EnvSpec(args.ref)
+    if args.ref is not None:
+        env_spec = spenv.tracking.EnvSpec(args.ref)
+        for target in env_spec.tags:
+            if args.pull or not repo.has_object(target):
+                _logger.info("pulling target ref", ref=target)
+                obj = spenv.pull_ref(target)
+            else:
+                obj = repo.read_object(target)
+
+            runtime.push_digest(obj.digest)
 
     _logger.info("resolving entry process")
     cmd = spenv.build_command_for_runtime(runtime, args.cmd[0], *args.args)

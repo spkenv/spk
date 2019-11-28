@@ -1,8 +1,9 @@
-from typing import NamedTuple, Dict, Optional, Union, Iterable
-from datetime import datetime, timezone
+from typing import NamedTuple, Dict, Optional, Union, Tuple
+from datetime import datetime
 import hashlib
 import socket
 import getpass
+import unicodedata
 
 
 _tag_str_template = """\
@@ -79,54 +80,125 @@ def decode_tag(encoded: bytes) -> Tag:
     return Tag(org=org, name=name, target=target, user=user, time=time, parent=parent)
 
 
-class TagSpec(NamedTuple):
+class TagSpec(str):
     """TagSpec identifies a tag within a tag stream.
 
     The tag spec represents a string specifier or the form:
-        tag[version]
-    where tag is a tag string, and version is an integer version number
-    specifying a position in the tag stream. The integer '0' always refers to
-    the latest tag in the stream. All other version numbers must be negative,
-    referring to the number of steps back in the version stream to go.
-        eg: spi/main[0]   # latest tag in the spi/main stream
-            spi/main[-4]  # the tag 4 versions behind the latest in the stream
+        [org /] name [~ version]
+    where org is a slash-separated path denoting a group-like organization for the tag
+    where name is the tag identifier, can only include alphanumeric, '-', ':', '.', and '_'
+    where version is an integer version number specifying a position in the tag
+    stream. The integer '0' always refers to the latest tag in the stream. All other
+    version numbers must be negative, referring to the number of steps back in
+    the version stream to go.
+        eg: spi/main   # latest tag in the spi/main stream
+            spi/main~0 # latest tag in the spi/main stream
+            spi/main~4 # the tag 4 versions behind the latest in the stream
     """
 
-    name: str
-    org: str = ""
-    version: int = 0
+    def __init__(self, spec: str) -> None:
+
+        split_tag_spec(spec)
+
+    @property
+    def org(self) -> str:
+        return split_tag_spec(self)[0]
+
+    @property
+    def name(self) -> str:
+        return split_tag_spec(self)[1]
+
+    @property
+    def version(self) -> int:
+        return split_tag_spec(self)[2]
 
     @property
     def path(self) -> str:
         """Return this tag with no version number."""
-        if self.org:
-            return f"{self.org}/{self.name}"
+        org = self.org
+        if org:
+            return f"{org}/{self.name}"
         return self.name
 
 
-def parse_tag_spec(spec: str) -> TagSpec:
-    """Parse a tag string into its parts."""
-    return TagSpec(**_parse_spec_dict(spec))  # type: ignore
+def split_tag_spec(spec: str) -> Tuple[str, str, int]:
+
+    parts = spec.rsplit("/", 1)
+    if len(parts) == 1:
+        parts = [""] + parts
+
+    org, name_version = parts
+
+    parts = name_version.split("~", 1)
+    if len(parts) == 1:
+        parts += ["0"]
+
+    name, version = parts
+
+    if not name:
+        raise ValueError("tag name cannot be empty: " + spec)
+
+    index = _find_org_error(org)
+    if index >= 0:
+        err_str = f"{org[:index]} > {org[index]} < {org[index:]}"
+        raise ValueError(f"invalid tag org at pos {index}: {err_str}")
+    index = _find_name_error(name)
+    if index >= 0:
+        err_str = f"{name[:index]} > {name[index]} < {name[index:]}"
+        raise ValueError(f"invalid tag name at pos {index}: {err_str}")
+    index = _find_version_error(version)
+    if index >= 0:
+        err_str = f"{version[:index]} > {version[index]} < {version[index:]}"
+        raise ValueError(f"invalid tag version at pos {index}: {err_str}")
+
+    return org, name, int(version)
 
 
-def _parse_spec_dict(spec: str) -> Dict[str, Union[str, int]]:
+_NAME_UTF_CATEGORIES = (
+    "Ll",  # letter lower
+    "Lu",  # letter upper
+    "Pd",  # punctuation dash
+    "Nd",  # number digit
+)
+_NAME_UTF_NAMES = (unicodedata.name("_"), unicodedata.name("."))
 
-    try:
-        return _parse_spec_dict_unsafe(spec)
-    except Exception:
-        raise ValueError(
-            f'invalid tag "{spec}", must be in the form <org>/<name>[<version>]'
-        )
+
+def _find_name_error(org: str) -> int:
+
+    return _validate_source_str(org, _NAME_UTF_CATEGORIES, _NAME_UTF_NAMES)
 
 
-def _parse_spec_dict_unsafe(spec: str) -> Dict[str, Union[str, int]]:
-    if "[" not in spec:
-        spec += "[0]"
-    name, version = spec.split("[", 1)
-    version = version.rstrip("]")
+_ORG_UTF_CATEGORIES = _NAME_UTF_CATEGORIES
+_ORG_UTF_NAMES = _NAME_UTF_NAMES + (unicodedata.name("/"),)
 
-    if "/" not in name:
-        name = "/" + name
-    org, name = name.rsplit("/", 1)
 
-    return {"name": name, "org": org, "version": int(version)}
+def _find_org_error(org: str) -> int:
+
+    return _validate_source_str(org, _ORG_UTF_CATEGORIES, _ORG_UTF_NAMES)
+
+
+_VERSION_UTF_CATEGORIES = ("Nd",)  # digits only
+_VERSION_UTF_NAMES: Tuple[str, ...] = tuple()
+
+
+def _find_version_error(version: str) -> int:
+
+    return _validate_source_str(version, _VERSION_UTF_CATEGORIES, _VERSION_UTF_NAMES)
+
+
+def _validate_source_str(
+    source: str, valid_categories: Tuple[str, ...], valid_names: Tuple[str, ...]
+) -> int:
+
+    i = -1
+    while i < len(source) - 1:
+        i += 1
+        char = source[i]
+        category = unicodedata.category(char)
+        if category in valid_categories:
+            continue
+        name = unicodedata.name(char)
+        if name in valid_names:
+            continue
+        return i
+    return -1
