@@ -72,10 +72,10 @@ def _build_interactive_shell_cmd(runtime: spenv.runtime.Runtime) -> Tuple[str, .
     shell_path = os.environ.get("SHELL", "<not-set>")
     shell_name = os.path.basename(shell_path)
 
-    if shell_name in ("csh", "tcsh"):
+    if shell_name in ("tcsh",):
         return ("expect", runtime.csh_expect_file, shell_path, runtime.csh_startup_file)
 
-    if shell_name not in ("bash", "sh"):
+    if shell_name not in ("bash",):
         _logger.warning(f"current shell not supported ({shell_path}) - using bash")
         shell_path = "/usr/bin/bash"
         shell_name = "bash"

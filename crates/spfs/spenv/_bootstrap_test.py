@@ -14,9 +14,7 @@ from ._bootstrap import build_shell_initialized_command
     "shell,startup_cmd",
     (
         ("bash", "export TEST_VALUE='spenv-test-value'"),
-        ("sh", "export TEST_VALUE='spenv-test-value'"),
         ("tcsh", "setenv TEST_VALUE 'spenv-test-value'"),
-        ("csh", "setenv TEST_VALUE 'spenv-test-value'"),
     ),
 )
 def test_shell_initialization_startup_scripts(
@@ -54,7 +52,7 @@ def test_shell_initialization_startup_scripts(
     assert out.decode("utf-8").endswith("\nspenv-test-value\n")
 
 
-@pytest.mark.parametrize("shell", ("bash", "sh", "tcsh", "csh"))
+@pytest.mark.parametrize("shell", ("bash", "tcsh"))
 def test_shell_initialization_no_startup_scripts(
     shell: str, tmpdir: py.path.local, monkeypatch: Any
 ) -> None:
