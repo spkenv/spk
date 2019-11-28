@@ -2,8 +2,12 @@
 
 void print_usage()
 {
-    printf("run a command in a configured spenv namespace\n");
-    printf("usage: spenv-enter LOWERDIR[:LOWERDIR...] COMMAND [ARGS...]\n");
+    printf("run a command in a configured spenv namespace\n\n");
+    printf("usage: spenv-enter LOWERDIR[:LOWERDIR...] COMMAND [ARGS...]\n\n");
+    printf("Use the following environment variables for additional configuration:\n");
+    printf("  SPENV_DEBUG: if set, print debugging output\n");
+    printf("  SPENV_VIRTUALIZE_SHOTS: if set, mount a temporary file system over /shots\n");
+    printf("                          (/shots must be a directory, not a symlink)\n");
 }
 
 step_t parse_args(int argc, char *argv[])
