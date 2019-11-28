@@ -145,7 +145,14 @@ class BlobStorage:
         try:
             os.makedirs(rendered_dirpath)
         except FileExistsError:
-            return rendered_dirpath
+            # return rendered_dirpath
+            # TODO: we should be able to bail out here,
+            # but there seems to be issues where some
+            # renfered mnifests are not complete after being
+            # comitted - so we revalidate it just in case
+            # rbottriell: I suspect it's something related
+            # to renaming and not linking during the commit
+            pass
 
         for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
@@ -156,7 +163,6 @@ class BlobStorage:
                 committed_path = os.path.join(
                     self._root, entry.object[:2], entry.object[2:]
                 )
-                os.makedirs(os.path.dirname(committed_path), exist_ok=True)
 
                 if stat.S_ISLNK(entry.mode):
 

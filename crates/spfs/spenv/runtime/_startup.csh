@@ -7,7 +7,7 @@ endif
 
 set startup_dir="/env/etc/spenv/startup.d"
 if ( -d "${startup_dir}" != 0 ) then
-    set filenames=`ls $startup_dir | grep '\.csh$'`
+    set filenames=`ls $startup_dir | grep '\.csh\s*$'`
     if ( "$filenames" != "" ) then
         foreach file ($filenames)
             echo source ${startup_dir}/$file

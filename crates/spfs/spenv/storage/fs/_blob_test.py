@@ -17,9 +17,10 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     src_dir.join("file.txt").write("rootdata", ensure=True)
 
     manifest = storage.commit_dir(src_dir.strpath)
-    assert tmpdir.join(
-        "storage", "renders", manifest.digest[:2], manifest.digest[2:]
-    ).exists()
+    render = tmpdir.join("storage", "renders", manifest.digest[:2], manifest.digest[2:])
+    assert render.exists()
+    rendered_manifest = tracking.compute_manifest(render.strpath)
+    assert rendered_manifest.digest == manifest.digest
 
     manifest2 = storage.commit_dir(src_dir.strpath)
     assert manifest.digest == manifest2.digest
