@@ -8,6 +8,7 @@ import argparse
 import colorama
 import structlog
 import sentry_sdk
+from sentry_sdk.integrations.logging import ignore_logger
 
 import spenv
 from . import (
@@ -61,6 +62,9 @@ def configure_sentry() -> None:
         "http://0dbf3ec96df2464ab626a50d0f352d44@sentry.spimageworks.com/5",
         release=spenv.__version__,
     )
+    # the cli uses the logger after capturing errors explicitly,
+    # so in this case we'll ask sentry to ignore all logging errors
+    ignore_logger("")
     with sentry_sdk.configure_scope() as scope:
         username = getpass.getuser()
         scope.user = {"email": f"{username}@imageworks.com", "username": username}
