@@ -3,7 +3,7 @@ import stat
 import py.path
 
 from ... import tracking
-from ._blob import BlobStorage
+from ._blob import BlobStorage, _copy_manifest
 
 
 def test_commit_dir(tmpdir: py.path.local) -> None:
@@ -85,3 +85,25 @@ def test_render_broken_link(tmpdir: py.path.local) -> None:
 
     manifest = storage.commit_dir(src_dir.strpath)
     assert manifest.get_path("broken-link") is not None
+
+
+def test_copy_manfest(tmpdir: py.path.local) -> None:
+
+    src_dir = tmpdir.join("source")
+    src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
+    src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
+    src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
+    src_dir.join("dir2.0/file2.txt").mksymlinkto("file.txt")
+    src_dir.join("dir2.0/abssrc").mksymlinkto(src_dir.strpath)
+    src_dir.join("dir2.0").chmod(0o555)
+    src_dir.join("file.txt").write("rootdata", ensure=True)
+    src_dir.join("file.txt").chmod(0o400)
+
+    expected = tracking.compute_manifest(src_dir.strpath)
+
+    dst_dir = tmpdir.join("dest")
+    _copy_manifest(expected, src_dir.strpath, dst_dir.strpath)
+
+    actual = tracking.compute_manifest(dst_dir.strpath)
+
+    assert actual.digest == expected.digest

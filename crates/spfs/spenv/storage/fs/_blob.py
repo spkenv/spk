@@ -85,7 +85,6 @@ class BlobStorage:
         # the same uuid because of a duplicate read of the current time
         working_dirname = "work-" + uuid.uuid4().hex
         working_dirpath = os.path.join(self._root, working_dirname)
-        os.makedirs(working_dirpath)
 
         _logger.info("computing file manifest")
         manifest = tracking.compute_manifest(dirname)
@@ -144,7 +143,7 @@ class BlobStorage:
             self._renders, manifest.digest[:2], manifest.digest[2:]
         )
         try:
-            os.makedirs(os.path.dirname(rendered_dirpath))
+            os.makedirs(rendered_dirpath)
         except FileExistsError:
             return rendered_dirpath
 
@@ -191,30 +190,5 @@ class BlobStorage:
 
 def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
     """Copy manifest contents from one directory to another.
-
-    src_root and dst_root should both exist
     """
-
-    for path, entry in manifest.walk():
-
-        if path == "/":
-            continue
-        if entry.kind == tracking.EntryKind.MASK:
-            continue
-
-        src_path = os.path.normpath(src_root + path)
-        dst_path = os.path.normpath(dst_root + path)
-        _logger.debug("committing entry...", path=path)
-
-        if stat.S_ISLNK(entry.mode):
-            content = os.readlink(src_path)
-            os.symlink(content, dst_path)
-
-        elif stat.S_ISDIR(entry.mode):
-            os.mkdir(dst_path)
-
-        elif stat.S_ISREG(entry.mode):
-            shutil.copy2(src_path, dst_path, follow_symlinks=False)
-
-        else:
-            raise UnknownObjectError("Unsupported non-regular file: " + path)
+    shutil.copytree(src_root, dst_root, symlinks=True)
