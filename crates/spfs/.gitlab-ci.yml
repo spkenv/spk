@@ -35,10 +35,16 @@ deploy:
   stage: deploy
   only:
     - tags
+  variables:
+    SENTRY_RELEASE_HOOK: http://sentry.spimageworks.com/api/hooks/release/builtin/5/43c925ac42211367d4fd9e6d0e80065482477c412d12963e1829c7b673ab2f06/
   script:
     - tree build/rpm/*
     - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/* /net/yum/spi-dev/
     - createrepo /net/yum/spi-dev
+    - version=$(/net/libs/conda/app/bin spdev query '{{project.version}}')
+    - >
+      curl $SENTRY_RELEASE_HOOK -X POST -H 'Content-Type: application/json' -d
+      '{"version": "$version", "refs": [{"repository": "dev-group/dev-ops/spenv", "commit": "$CI_COMMIT_SHA" }]}'
   artifacts:
     paths:
       - build/*/*.rpm

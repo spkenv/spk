@@ -46,25 +46,29 @@ int privatize_existing_mounts()
     int result = mount("none", "/", NULL, MS_PRIVATE, NULL);
     if (result != 0)
     {
-        perror("Failed to privatize existing mounts");
+        perror("Failed to privatize existing mounts: /");
         return 1;
     }
 
-    result = mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
-    if (result != 0)
-    {
-        perror("Failed to privatize existing mounts");
-        return 1;
-    }
-    if (!SPENV_VIRTUALIZE_SHOTS) {
-        return 0;
+    if (is_mounted("tmp")) {
+        result = mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
+        if (result != 0)
+        {
+            perror("Failed to privatize existing mount: /tmp");
+            return 1;
+        }
+        if (!SPENV_VIRTUALIZE_SHOTS) {
+            return 0;
+        }
     }
 
-    result = mount("none", SHOTS_DIR, NULL, MS_PRIVATE, NULL);
-    if (result != 0)
-    {
-        perror("Failed to privatize existing mounts");
-        return 1;
+    if (is_mounted(SHOTS_DIR)) {
+        result = mount("none", SHOTS_DIR, NULL, MS_PRIVATE, NULL);
+        if (result != 0)
+        {
+            perror("Failed to privatize existing mount: "SHOTS_DIR);
+            return 1;
+        }
     }
     return 0;
 
@@ -242,16 +246,16 @@ int run_command()
 int is_mounted(const char *target)
 {
 
-    char *parent = malloc(strlen(target) + 1);
-    strcpy(parent, target);
-    parent = dirname(parent);
+    char *t = malloc(strlen(target) * sizeof(char) + sizeof(char));
+    strcpy(t, target);
+    char *parent = dirname(t);
 
     struct stat st_parent;
     if (stat(parent, &st_parent) == -1)
     {
         return -1;
     }
-    free(parent);
+    free(t);
 
     struct stat st_target;
     if (stat(target, &st_target) == -1)
