@@ -25,6 +25,11 @@ build:
     - merge_requests
   script:
     - ./build_rpm.sh
+    - version=$(/net/libs/conda/app/bin/spdev query '{{project.version}}')
+    - >
+      curl $SENTRY_RELEASE_HOOK -X POST -H 'Content-Type: application/json' -d
+      '{"version": "$version", "refs": [{"repository": "dev-group/dev-ops/spenv", "commit": "$CI_COMMIT_SHA" }]}'
+
   artifacts:
     paths:
       - build/*/*.rpm
@@ -41,10 +46,6 @@ deploy:
     - tree build/rpm/*
     - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/* /net/yum/spi-dev/
     - createrepo /net/yum/spi-dev
-    - version=$(/net/libs/conda/app/bin/spdev query '{{project.version}}')
-    - >
-      curl $SENTRY_RELEASE_HOOK -X POST -H 'Content-Type: application/json' -d
-      '{"version": "$version", "refs": [{"repository": "dev-group/dev-ops/spenv", "commit": "$CI_COMMIT_SHA" }]}'
   artifacts:
     paths:
       - build/*/*.rpm
