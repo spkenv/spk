@@ -44,7 +44,7 @@ deploy:
     - version=$(echo "$CI_COMMIT_REF_NAME" | sed 's|v||')
     - >
       curl $SENTRY_RELEASE_HOOK -X POST -H 'Content-Type: application/json' -d
-      '{"version": "$version", "refs": [{"repository": "dev-group/dev-ops/spenv", "commit": "$CI_COMMIT_SHA" }]}'
+      '{"version": "'$version'", "refs": [{"repository": "dev-group/dev-ops/spenv", "commit": "'$CI_COMMIT_SHA'" }]}'
   artifacts:
     paths:
       - build/*/*.rpm
