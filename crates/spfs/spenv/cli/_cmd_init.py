@@ -73,7 +73,7 @@ def _build_interactive_shell_cmd(runtime: spenv.runtime.Runtime) -> Tuple[str, .
     shell_name = os.path.basename(shell_path)
 
     if shell_name in ("csh", "tcsh"):
-        return spenv.build_shell_initialized_command(shell_path, "-f")
+        return ("expect", runtime.csh_expect_file, shell_path, runtime.csh_startup_file)
 
     if shell_name not in ("bash", "sh"):
         _logger.warning(f"current shell not supported ({shell_path}) - using bash")

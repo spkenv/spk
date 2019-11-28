@@ -1,2 +1,3 @@
 include spenv/runtime/_startup.sh
 include spenv/runtime/_startup.csh
+include spenv/runtime/_csh.exp
