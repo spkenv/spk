@@ -41,7 +41,7 @@ deploy:
     - tree build/rpm/*
     - rsync -rvm --include="*/" --include="*.rpm" --exclude="*" build/* /net/yum/spi-dev/
     - createrepo /net/yum/spi-dev
-    - version=$(python setup.py --version | tr -d '[:space:]')
+    - version=$(echo "$CI_COMMIT_REF_NAME" | sed 's|v||')
     - >
       curl $SENTRY_RELEASE_HOOK -X POST -H 'Content-Type: application/json' -d
       '{"version": "$version", "refs": [{"repository": "dev-group/dev-ops/spenv", "commit": "$CI_COMMIT_SHA" }]}'
