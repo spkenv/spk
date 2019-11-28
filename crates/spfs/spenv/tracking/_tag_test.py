@@ -1,6 +1,6 @@
 import pytest
 
-from ._tag import TagSpec, Tag, decode_tag, parse_tag_spec
+from ._tag import TagSpec, Tag, decode_tag, split_tag_spec
 
 
 @pytest.mark.parametrize(
@@ -16,25 +16,48 @@ def test_tag_encoding(tag: Tag) -> None:
 @pytest.mark.parametrize(
     "raw,expected",
     [
-        ("vfx2019", TagSpec(name="vfx2019")),
-        ("spi/base", TagSpec(org="spi", name="base")),
-        ("spi/base[-4]", TagSpec(org="spi", name="base", version=-4)),
+        ("vfx2019", ("", "vfx2019", 0)),
+        ("spi/base", ("spi", "base", 0)),
+        ("spi/base~4", ("spi", "base", 4)),
         (
             "gitlab.spimageworks.com/spenv/spi/base",
-            TagSpec(org="gitlab.spimageworks.com/spenv/spi", name="base"),
+            ("gitlab.spimageworks.com/spenv/spi", "base", 0),
         ),
     ],
 )
-def test_tag_spec_parse(raw: str, expected: TagSpec) -> None:
+def test_tag_spec_split(raw: str, expected: tuple) -> None:
 
-    actual = parse_tag_spec(raw)
+    actual = split_tag_spec(raw)
     assert actual == expected
+
+
+def test_tag_spec_class() -> None:
+
+    src = "org/name~1"
+    spec = TagSpec(src)
+    assert isinstance(spec, str)
+    assert f"{spec}" == src
+    assert spec.org == "org"
+    assert spec.name == "name"
+    assert spec.version == 1
 
 
 def test_tag_spec_path() -> None:
 
-    spec = parse_tag_spec("one_part")
+    spec = TagSpec("one_part")
     assert spec.path == "one_part"
 
-    spec = parse_tag_spec("two/parts")
+    spec = TagSpec("two/parts")
     assert spec.path == "two/parts"
+
+
+def test_tag_spec_validation() -> None:
+
+    with pytest.raises(ValueError):
+        TagSpec("")
+
+    with pytest.raises(ValueError):
+        TagSpec("name~-1")
+
+    with pytest.raises(ValueError):
+        TagSpec("name~1.23")

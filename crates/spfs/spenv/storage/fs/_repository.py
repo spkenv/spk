@@ -43,6 +43,14 @@ class Repository:
     def address(self) -> str:
         return f"file://{self.root}"
 
+    def has_object(self, ref: str) -> bool:
+
+        try:
+            self.read_object(ref)
+        except ValueError:
+            return False
+        return True
+
     def read_object(self, ref: str) -> Object:
 
         try:

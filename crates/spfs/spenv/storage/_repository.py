@@ -28,6 +28,10 @@ class Repository(TagStorage, PlatformStorage, LayerStorage, BlobStorage, Protoco
         """Return the address of this repository."""
         ...
 
+    def has_object(self, ref: str) -> bool:
+        """Return true if the given ref is a defined object in this repo."""
+        ...
+
     def read_object(self, ref: str) -> Object:
         """Read an object of unknown type by tag or digest."""
         ...
