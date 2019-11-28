@@ -1,5 +1,5 @@
 [MASTER]
-ignore-patterns=*_test.py
+ignore-patterns=.*_test.py
 
 [TYPECHECK]
 ignored-modules=py

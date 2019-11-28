@@ -42,8 +42,7 @@ def run(argv: Sequence[str]) -> int:
     except Exception as e:
         _capture_if_relevant(e)
         _logger.error(str(e))
-        if args.debug:
-            traceback.print_exc(file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         return 1
 
     return 0

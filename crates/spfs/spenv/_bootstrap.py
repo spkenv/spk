@@ -57,21 +57,6 @@ def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]
     return (desired_shell, startup_file, command) + args
 
 
-def build_interactive_shell_command() -> Tuple[str, ...]:
-    """Construct a boostrapping command for initializing an interactive shell.
-
-    The returned command properly invokes a shell which sets up
-    the current runtime appropriately at startup.
-    """
-
-    runtime = active_runtime()
-    shell = which("bash") or which("sh")
-    if not shell:
-        raise RuntimeError("'sh' or 'bash' not found in PATH")
-
-    return (shell, "--init-file", runtime.sh_startup_file)
-
-
 def _build_spenv_enter_command(
     overlay_dirs: List[str], *command: str
 ) -> Tuple[str, ...]:

@@ -31,7 +31,7 @@ def active_runtime() -> runtime.Runtime:
     return runtime.Runtime(path)
 
 
-def initialize_runtime() -> None:
+def initialize_runtime() -> runtime.Runtime:
 
     runtime = active_runtime()
     stack = runtime.get_stack()
@@ -49,6 +49,7 @@ def initialize_runtime() -> None:
             os.remove(path)
         except IsADirectoryError:
             shutil.rmtree(path)
+    return runtime
 
 
 def deinitialize_runtime() -> None:
