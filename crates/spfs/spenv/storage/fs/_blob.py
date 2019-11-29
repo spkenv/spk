@@ -1,4 +1,4 @@
-from typing import IO
+from typing import IO, List
 import os
 import io
 import stat
@@ -197,4 +197,26 @@ class BlobStorage:
 def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
     """Copy manifest contents from one directory to another.
     """
-    shutil.copytree(src_root, dst_root, symlinks=True)
+
+    src_root = src_root.rstrip("/")
+    dst_root = dst_root.rstrip("/")
+
+    def get_masked_entries(dirname: str, entry_names: List[str]) -> List[str]:
+
+        ignored = []
+        manifest_path = dirname[len(src_root) :] or "/"
+        for name in entry_names:
+            entry_path = os.path.join(manifest_path, name)
+            entry = manifest.get_path(entry_path)
+            assert entry is not None, "Detected changes during commit, aborting"
+            if entry.kind is tracking.EntryKind.MASK:
+                ignored.append(name)
+        return ignored
+
+    shutil.copytree(
+        src_root,
+        dst_root,
+        symlinks=True,
+        ignore_dangling_symlinks=True,
+        ignore=get_masked_entries,
+    )
