@@ -35,9 +35,8 @@ def _run(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     runtimes = config.get_runtime_storage()
     runtime = runtimes.create_runtime()
-    env_spec = spenv.tracking.EnvSpec(args.ref)
     if args.ref is not None:
-        env_spec = spenv.tracking.EnvSpec(args.ref)
+        env_spec = spenv.tracking.EnvSpec(args.ref[0])
         for target in env_spec.tags:
             if args.pull or not repo.has_object(target):
                 _logger.info("pulling target ref", ref=target)
