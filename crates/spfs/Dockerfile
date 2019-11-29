@@ -4,6 +4,8 @@ RUN yum install -y \
     libcap-devel \
     rsync \
     gcc \
+    gcc-c++ \
+    chrpath \
     rpmdevtools \
     rpm-build \
     python-pip \

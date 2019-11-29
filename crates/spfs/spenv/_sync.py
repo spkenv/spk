@@ -46,7 +46,7 @@ def pull_ref(ref: str) -> storage.Object:
             continue
         return sync_ref(ref, remote, local)
     else:
-        raise ValueError("Unknown ref: " + ref)
+        raise storage.UnknownObjectError("Unknown ref: " + ref)
 
 
 def sync_ref(

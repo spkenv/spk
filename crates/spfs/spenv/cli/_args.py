@@ -64,7 +64,7 @@ def configure_sentry() -> None:
     )
     # the cli uses the logger after capturing errors explicitly,
     # so in this case we'll ask sentry to ignore all logging errors
-    ignore_logger("")
+    ignore_logger("cli")
     with sentry_sdk.configure_scope() as scope:
         username = getpass.getuser()
         scope.user = {"email": f"{username}@imageworks.com", "username": username}

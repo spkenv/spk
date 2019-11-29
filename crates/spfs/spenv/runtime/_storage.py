@@ -12,10 +12,9 @@ import contextlib
 
 import simplejson
 
+from . import _startup_csh, _startup_sh, _csh_exp
+
 STARTUP_FILES_LOCATION = "/env/etc/spenv/startup.d"
-_SH_STARTUP_SCRIPT = os.path.join(os.path.dirname(__file__), "_startup.sh")
-_CSH_STARTUP_SCRIPT = os.path.join(os.path.dirname(__file__), "_startup.csh")
-_CSH_EXPECT_SCRIPT = os.path.join(os.path.dirname(__file__), "_csh.exp")
 
 
 class Config(NamedTuple):
@@ -140,9 +139,12 @@ def _ensure_runtime(path: str) -> Runtime:
     os.makedirs(path, exist_ok=True, mode=0o777)
     runtime = Runtime(path)
     os.makedirs(runtime.upper_dir, exist_ok=True, mode=0o777)
-    shutil.copyfile(_SH_STARTUP_SCRIPT, runtime.sh_startup_file)
-    shutil.copyfile(_CSH_STARTUP_SCRIPT, runtime.csh_startup_file)
-    shutil.copyfile(_CSH_EXPECT_SCRIPT, runtime.csh_expect_file)
+    with open(runtime.sh_startup_file, "w+") as f:
+        f.write(_startup_sh.source)
+    with open(runtime.csh_startup_file, "w+") as f:
+        f.write(_startup_csh.source)
+    with open(runtime.csh_expect_file, "w+") as f:
+        f.write(_csh_exp.source)
     return runtime
 
 

@@ -9,3 +9,5 @@ build/
 build
 dist/
 *.egg-info
+spenv.build/
+spenv.dist/
