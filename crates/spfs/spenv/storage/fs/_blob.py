@@ -187,6 +187,8 @@ class BlobStorage:
                 raise NotImplementedError(f"Unsupported entry kind: {entry.kind}")
 
         for rendered_path, entry in reversed(list(manifest.walk_abs(rendered_dirpath))):
+            if entry.kind is tracking.EntryKind.MASK:
+                continue
             if stat.S_ISLNK(entry.mode):
                 continue
             os.chmod(rendered_path, entry.mode)
