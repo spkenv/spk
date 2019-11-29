@@ -18,6 +18,7 @@ _logger = structlog.get_logger("cli")
 
 def main() -> None:
     code = spenv.cli.run(sys.argv[1:])
+    sentry_sdk.flush()
     sys.exit(code)
 
 
@@ -42,7 +43,8 @@ def run(argv: Sequence[str]) -> int:
     except Exception as e:
         _capture_if_relevant(e)
         _logger.error(str(e))
-        traceback.print_exc(file=sys.stderr)
+        if args.debug:
+            traceback.print_exc(file=sys.stderr)
         return 1
 
     return 0
