@@ -22,9 +22,6 @@ def build_command_for_runtime(
     binaries and runs the desired command in an existing runtime.
     """
 
-    if not os.path.isfile(command):
-        command = which(command) or command
-
     overlay_dirs = resolve_overlay_dirs(runtime)
 
     spenv_exe = which("spenv")

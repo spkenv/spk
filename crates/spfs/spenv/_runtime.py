@@ -59,14 +59,6 @@ def deinitialize_runtime() -> None:
     del os.environ["SPENV_RUNTIME"]
 
 
-def _spenv_remount(overlay_args: str) -> None:
-
-    exe = _which("spenv-remount")
-    if exe is None:
-        raise RuntimeError("'spenv-remount' not found in PATH")
-    subprocess.check_call([exe, overlay_args])
-
-
 def _which(name: str) -> Optional[str]:
 
     search_paths = os.getenv("PATH", "").split(os.pathsep)
