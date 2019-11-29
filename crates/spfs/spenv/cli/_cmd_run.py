@@ -20,7 +20,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
     run_cmd.add_argument(
         "ref",
         metavar="ENV",
-        nargs=1,
+        nargs="?",
         help="The environment spec of the desired runtime",
     )
     run_cmd.add_argument("cmd", metavar="CMD", nargs=1)
@@ -36,7 +36,7 @@ def _run(args: argparse.Namespace) -> None:
     runtimes = config.get_runtime_storage()
     runtime = runtimes.create_runtime()
     if args.ref is not None:
-        env_spec = spenv.tracking.EnvSpec(args.ref[0])
+        env_spec = spenv.tracking.EnvSpec(args.ref)
         for target in env_spec.tags:
             if args.pull or not repo.has_object(target):
                 _logger.info("pulling target ref", ref=target)

@@ -1,4 +1,4 @@
-#!/usr/bin/env csh
+source = """#!/usr/bin/env csh
 if ( -f ~/.tcshrc ) then
     source ~/.tcshrc
 else if ( -f ~/.cshrc ) then
@@ -22,3 +22,4 @@ if ( "$#argv" != 0 ) then
 endif
 
 echo "* You are now in an spenv-configured shell *"
+"""
