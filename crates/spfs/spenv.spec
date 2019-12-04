@@ -35,5 +35,5 @@ ln -sf /opt/spenv.dist/spenv /usr/local/bin/spenv
 mkdir -p /env
 chmod 777 /env
 
-%postun
+%preun
 unlink /usr/local/bin/spenv
