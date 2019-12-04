@@ -31,9 +31,13 @@ install -p -m 755 %{_builddir}/bin/spenv-enter %{buildroot}/usr/local/bin/
 %caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spenv-enter
 
 %post
-ln -sf /opt/spenv.dist/spenv /usr/local/bin/spenv
 mkdir -p /env
 chmod 777 /env
 
 %preun
 unlink /usr/local/bin/spenv
+
+%posttrans
+# must run at the absolute end in case we are updating
+# and the uninstallation of the old version removes the symlink
+ln -sf /opt/spenv.dist/spenv /usr/local/bin/spenv
