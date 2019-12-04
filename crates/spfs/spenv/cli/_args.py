@@ -22,6 +22,7 @@ from . import (
     _cmd_run,
     _cmd_runtimes,
     _cmd_shell,
+    _cmd_tag,
     _cmd_version,
 )
 
@@ -48,6 +49,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_info.register(sub_parsers)
 
     _cmd_init.register(sub_parsers)
+    _cmd_tag.register(sub_parsers)
 
     args = parser.parse_args(argv)
     if args.command is None:
