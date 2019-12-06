@@ -40,6 +40,9 @@ def run(argv: Sequence[str]) -> int:
     try:
         args.func(args)
 
+    except KeyboardInterrupt:
+        pass
+
     except Exception as e:
         _capture_if_relevant(e)
         _logger.error(str(e))
@@ -55,7 +58,5 @@ def _capture_if_relevant(e: Exception) -> None:
     if isinstance(e, spenv.NoRuntimeError):
         return
     if isinstance(e, spenv.storage.UnknownObjectError):
-        return
-    if isinstance(e, KeyboardInterrupt):
         return
     sentry_sdk.capture_exception(e)
