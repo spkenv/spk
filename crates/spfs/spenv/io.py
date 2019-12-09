@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Iterable
 from colorama import Fore
 
 from ._config import get_config
@@ -6,6 +6,7 @@ from . import storage, tracking
 
 
 def format_digest(ref: str, repo: storage.Repository = None) -> str:
+    """Return a nicely formatted string representation of the given reference."""
 
     if repo is None:
         config = get_config()
@@ -18,7 +19,8 @@ def format_digest(ref: str, repo: storage.Repository = None) -> str:
     return " -> ".join([ref] + aliases)
 
 
-def format_diffs(diffs: Sequence[tracking.Diff]) -> str:
+def format_diffs(diffs: Iterable[tracking.Diff]) -> str:
+    """Return a human readable string rendering of the given diffs."""
 
     outputs = []
     for diff in diffs:
@@ -32,3 +34,10 @@ def format_diffs(diffs: Sequence[tracking.Diff]) -> str:
         outputs.append(f"{color} {diff}{Fore.RESET}")
 
     return "\n".join(outputs)
+
+
+def format_changes(diffs: Iterable[tracking.Diff]) -> str:
+    """Return a string rendering of any given diffs which represent change."""
+
+    diffs = filter(lambda x: x.mode is not tracking.DiffMode.unchanged, diffs)
+    return format_diffs(diffs)
