@@ -23,6 +23,16 @@ class NoRuntimeError(EnvironmentError):
         super(NoRuntimeError, self).__init__(msg)
 
 
+def compute_runtime_manifest(rt: runtime.Runtime) -> tracking.Manifest:
+
+    stack = rt.get_stack()
+    layers = resolve_stack_to_layers(stack)
+    manifest = tracking.Manifest()
+    for layer in reversed(layers):
+        manifest = tracking.layer_manifests(manifest, layer.manifest)
+    return manifest
+
+
 def active_runtime() -> runtime.Runtime:
 
     path = os.getenv("SPENV_RUNTIME")
@@ -33,12 +43,8 @@ def active_runtime() -> runtime.Runtime:
 
 def initialize_runtime() -> runtime.Runtime:
 
-    runtime = active_runtime()
-    stack = runtime.get_stack()
-    layers = resolve_stack_to_layers(stack)
-    manifest = tracking.Manifest()
-    for layer in reversed(layers):
-        manifest = tracking.layer_manifests(manifest, layer.manifest)
+    rt = active_runtime()
+    manifest = compute_runtime_manifest(rt)
 
     for path, entry in manifest.walk_abs("/env"):
         if entry.kind != tracking.EntryKind.MASK:
@@ -49,13 +55,13 @@ def initialize_runtime() -> runtime.Runtime:
             os.remove(path)
         except IsADirectoryError:
             shutil.rmtree(path)
-    return runtime
+    return rt
 
 
 def deinitialize_runtime() -> None:
 
-    runtime = active_runtime()
-    runtime.delete()
+    rt = active_runtime()
+    rt.delete()
     del os.environ["SPENV_RUNTIME"]
 
 

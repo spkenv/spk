@@ -11,6 +11,7 @@ from ._runtime import (
     active_runtime,
     initialize_runtime,
     deinitialize_runtime,
+    compute_runtime_manifest,
     NoRuntimeError,
 )
 from ._bootstrap import build_command_for_runtime, build_shell_initialized_command
