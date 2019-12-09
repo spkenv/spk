@@ -13,16 +13,18 @@ import structlog
 
 from ... import tracking
 from .. import Layer, UnknownObjectError
+from ._digest_store import DigestStorage
 
 _logger = structlog.get_logger(__name__)
 
 
-class LayerStorage:
+class LayerStorage(DigestStorage):
     """Manages the on-disk storage of layers."""
 
     def __init__(self, root: str) -> None:
         """Initialize a new storage inside the given root directory."""
-        self._root = os.path.abspath(root)
+
+        super(LayerStorage, self).__init__(root)
 
     def read_layer(self, digest: str) -> Layer:
         """Read a layer's information from this storage.
@@ -31,11 +33,13 @@ class LayerStorage:
             ValueErrors: If the layer does not exist.
         """
 
-        layer_path = os.path.join(self._root, digest[:2], digest[2:])
         try:
+            layer_path = self.resolve_full_digest_path(digest)
             with open(layer_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return Layer.load_dict(data)
+        except UnknownObjectError:
+            raise UnknownObjectError("Unknown layer: " + digest)
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise UnknownObjectError("Unknown layer: " + digest)
@@ -48,10 +52,10 @@ class LayerStorage:
             ValueError: If the layer does not exist.
         """
 
-        layer_path = os.path.join(self._root, digest)
         try:
+            layer_path = self.resolve_full_digest_path(digest)
             os.remove(layer_path)
-        except FileNotFoundError:
+        except (FileNotFoundError, UnknownObjectError):
             raise UnknownObjectError("Unknown layer: " + digest)
 
     def list_layers(self) -> List[Layer]:
@@ -62,16 +66,8 @@ class LayerStorage:
     def iter_layers(self) -> Iterable[Layer]:
         """Step through each of the current stored layers."""
 
-        try:
-            dirs = os.listdir(self._root)
-        except FileNotFoundError:
-            dirs = []
-
-        for dirname in dirs:
-            entries = os.listdir(os.path.join(self._root, dirname))
-            for entry in entries:
-                digest = dirname + entry
-                yield self.read_layer(digest)
+        for digest in self.iter_digests():
+            yield self.read_layer(digest)
 
     def commit_manifest(self, manifest: tracking.Manifest) -> Layer:
         """Create a layer from the file system manifest."""
@@ -84,7 +80,7 @@ class LayerStorage:
     def write_layer(self, layer: Layer) -> None:
 
         digest = layer.digest
-        layer_path = os.path.join(self._root, digest[:2], digest[2:])
+        layer_path = self.build_digest_path(digest)
         os.makedirs(os.path.dirname(layer_path), exist_ok=True)
         try:
             with open(layer_path, "x", encoding="utf-8") as f:

@@ -16,6 +16,8 @@ def format_digest(ref: str, repo: storage.Repository = None) -> str:
         aliases = repo.find_aliases(ref)
     except ValueError:
         aliases = []
+
+    ref = repo.get_shortened_digest(ref)
     return " -> ".join([ref] + aliases)
 
 

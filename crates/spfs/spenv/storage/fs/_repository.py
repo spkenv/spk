@@ -13,6 +13,7 @@ from ._platform import PlatformStorage
 from ._blob import BlobStorage
 from ._layer import LayerStorage
 from ._tag import TagStorage
+from ._digest_store import DigestStorage
 
 
 class Repository:
@@ -51,20 +52,31 @@ class Repository:
             return False
         return True
 
+    def get_shortened_digest(self, ref: str) -> str:
+
+        store, obj = self._find_object(ref)
+        return store.get_shortened_digest(obj.digest)
+
     def read_object(self, ref: str) -> Object:
 
+        _, obj = self._find_object(ref)
+        return obj
+
+    def _find_object(self, ref: str) -> Tuple[DigestStorage, Object]:
         try:
             ref = self.tags.resolve_tag(ref).target
         except ValueError:
             pass
 
         try:
-            return self.layers.read_layer(ref)
+            lay = self.layers.read_layer(ref)
+            return self.layers, lay
         except ValueError:
             pass
 
         try:
-            return self.platforms.read_platform(ref)
+            plat = self.platforms.read_platform(ref)
+            return self.platforms, plat
         except ValueError:
             pass
 

@@ -29,9 +29,9 @@ def test_remove_no_layer(tmpdir: py.path.local) -> None:
 def test_remove_layer(tmpdir: py.path.local) -> None:
 
     storage = LayerStorage(tmpdir.strpath)
-    tmpdir.join("layer").ensure()
+    tmpdir.join("la/yer").ensure()
     storage.remove_layer("layer")
-    assert not tmpdir.join("layer").exists()
+    assert not tmpdir.join("la/yer").exists()
 
 
 def test_read_layer_noexist(tmpdir: py.path.local) -> None:

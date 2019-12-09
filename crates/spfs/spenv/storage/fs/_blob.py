@@ -10,13 +10,14 @@ import structlog
 
 from ... import tracking, runtime
 from .. import UnknownObjectError
+from ._digest_store import DigestStorage
 
 _CHUNK_SIZE = 1024
 
 _logger = structlog.get_logger(__name__)
 
 
-class BlobStorage:
+class BlobStorage(DigestStorage):
     """Manages a local file system storage of arbitrary binary data.
 
     Also provides harlinked renders of file manifests for use
@@ -25,8 +26,8 @@ class BlobStorage:
 
     def __init__(self, root: str) -> None:
 
-        self._root = os.path.abspath(root)
-        self._renders = os.path.join(self._root, "renders")
+        super(BlobStorage, self).__init__(root)
+        self._renders = DigestStorage(os.path.join(self._root, "renders"))
 
     def open_blob(self, digest: str) -> IO[bytes]:
         """Return a handle to the blob identified by the given digest.
@@ -34,10 +35,10 @@ class BlobStorage:
         Raises:
             ValueError: if the blob does not exist in this storage
         """
-        filepath = os.path.join(self._root, digest[:2], digest[2:])
         try:
+            filepath = self.resolve_full_digest_path(digest)
             return open(filepath, "rb")
-        except FileNotFoundError:
+        except (FileNotFoundError, UnknownObjectError):
             raise UnknownObjectError("Unknown blob: " + digest)
 
     def write_blob(self, data: IO[bytes]) -> str:
@@ -62,7 +63,7 @@ class BlobStorage:
                 chunk = data.read(_CHUNK_SIZE)
 
         digest = hasher.hexdigest()
-        final_filepath = os.path.join(self._root, digest[:2], digest[2:])
+        final_filepath = self.build_digest_path(digest)
         try:
             os.makedirs(os.path.dirname(final_filepath), exist_ok=True)
             os.rename(working_filepath, final_filepath)
@@ -100,9 +101,7 @@ class BlobStorage:
             if entry.kind is tracking.EntryKind.MASK:
                 continue
 
-            committed_path = os.path.join(
-                self._root, entry.object[:2], entry.object[2:]
-            )
+            committed_path = self.build_digest_path(entry.object)
             if stat.S_ISLNK(entry.mode):
                 data = os.readlink(rendered_path)
                 stream = io.BytesIO(data.encode("utf-8"))
@@ -119,9 +118,7 @@ class BlobStorage:
                 os.remove(rendered_path)
 
         _logger.info("committing rendered manifest")
-        rendered_dirpath = os.path.join(
-            self._renders, manifest.digest[:2], manifest.digest[2:]
-        )
+        rendered_dirpath = self._renders.build_digest_path(manifest.digest)
         os.makedirs(os.path.dirname(rendered_dirpath), exist_ok=True)
         try:
             os.rename(working_dirpath, rendered_dirpath)
@@ -139,9 +136,7 @@ class BlobStorage:
                 not available in this storage.
         """
 
-        rendered_dirpath = os.path.join(
-            self._renders, manifest.digest[:2], manifest.digest[2:]
-        )
+        rendered_dirpath = self._renders.build_digest_path(manifest.digest)
         try:
             os.makedirs(rendered_dirpath)
         except FileExistsError:
@@ -160,9 +155,7 @@ class BlobStorage:
             elif entry.kind is tracking.EntryKind.MASK:
                 continue
             elif entry.kind is tracking.EntryKind.BLOB:
-                committed_path = os.path.join(
-                    self._root, entry.object[:2], entry.object[2:]
-                )
+                committed_path = self.build_digest_path(entry.object)
 
                 if stat.S_ISLNK(entry.mode):
 
