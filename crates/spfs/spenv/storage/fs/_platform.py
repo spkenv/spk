@@ -12,12 +12,13 @@ _logger = structlog.get_logger(__name__)
 
 from .. import Platform, UnknownObjectError
 from ._layer import Layer
+from ._digest_store import DigestStorage
 
 
-class PlatformStorage:
+class PlatformStorage(DigestStorage):
     def __init__(self, root: str) -> None:
 
-        self._root = os.path.abspath(root)
+        super(PlatformStorage, self).__init__(root)
 
     def read_platform(self, digest: str) -> Platform:
         """Read a platform's information from this storage.
@@ -26,7 +27,7 @@ class PlatformStorage:
             ValueError: If the platform does not exist.
         """
 
-        platform_path = os.path.join(self._root, digest[:2], digest[2:])
+        platform_path = self.resolve_full_digest_path(digest)
         try:
             with open(platform_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -43,7 +44,7 @@ class PlatformStorage:
             ValueError: If the platform does not exist.
         """
 
-        platform_path = os.path.join(self._root, digest[:2], digest[2:])
+        platform_path = self.resolve_full_digest_path(digest)
         try:
             os.remove(platform_path)
         except FileNotFoundError:
@@ -57,16 +58,8 @@ class PlatformStorage:
     def iter_platforms(self) -> Iterable[Platform]:
         """Step through each of the current stored platforms."""
 
-        try:
-            dirs = os.listdir(self._root)
-        except FileNotFoundError:
-            dirs = []
-
-        for dirname in dirs:
-            entries = os.listdir(os.path.join(self._root, dirname))
-            for entry in entries:
-                digest = dirname + entry
-                yield self.read_platform(digest)
+        for digest in self.iter_digests():
+            yield self.read_platform(digest)
 
     def commit_stack(self, stack: Sequence[str]) -> Platform:
 
@@ -78,7 +71,7 @@ class PlatformStorage:
         """Store the given platform data in this storage."""
 
         digest = platform.digest
-        platform_path = os.path.join(self._root, digest[:2], digest[2:])
+        platform_path = self.build_digest_path(digest)
         os.makedirs(os.path.dirname(platform_path), exist_ok=True)
         try:
             with open(platform_path, "x", encoding="utf-8") as f:
