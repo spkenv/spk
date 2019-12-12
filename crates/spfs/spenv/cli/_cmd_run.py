@@ -20,8 +20,9 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
     run_cmd.add_argument(
         "ref",
         metavar="ENV",
-        nargs="?",
-        help="The environment spec of the desired runtime",
+        nargs=1,
+        help="The environment spec of the desired runtime, "
+        "use '-' or an empty string to request an empty environment",
     )
     run_cmd.add_argument("cmd", metavar="CMD", nargs=1)
     run_cmd.add_argument("args", metavar="ARGS", nargs=argparse.REMAINDER)
@@ -35,8 +36,8 @@ def _run(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     runtimes = config.get_runtime_storage()
     runtime = runtimes.create_runtime()
-    if args.ref is not None:
-        env_spec = spenv.tracking.EnvSpec(args.ref)
+    if args.ref and args.ref[0] != "-":
+        env_spec = spenv.tracking.EnvSpec(args.ref[0])
         for target in env_spec.tags:
             if args.pull or not repo.has_object(target):
                 _logger.info("pulling target ref", ref=target)
