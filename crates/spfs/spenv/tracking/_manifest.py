@@ -217,7 +217,8 @@ class MutableManifest:
         for dirname, entry in reversed(self._by_path.items()):
             if entry.kind is not EntryKind.TREE:
                 continue
-            entries = sort_entries(self._by_dir[dirname])
+            entries = self._by_dir.get(dirname) or OrderedDict()
+            entries = sort_entries(entries)
             tree_entry = self._by_path[dirname]
             tree = Tree(entries=tuple(entries.values()))
             sorted_trees.append(tree)

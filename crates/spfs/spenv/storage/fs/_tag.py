@@ -4,6 +4,8 @@ import os
 from ... import tracking
 from .. import UnknownObjectError
 
+from ._digest_store import makedirs_with_perms
+
 _TAG_EXT = ".tag"
 
 
@@ -69,7 +71,10 @@ class TagStorage:
             org=tag_spec.org, name=tag_spec.name, target=target, parent=parent
         )
         filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, "a+b") as f:
-            f.write(new_tag.encode() + b"\n")
+        makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
+        tag_file = os.open(filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777)
+        try:
+            os.write(tag_file, new_tag.encode() + b"\n")
+        finally:
+            os.close(tag_file)
         return new_tag

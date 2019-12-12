@@ -29,6 +29,13 @@ class BlobStorage(DigestStorage):
         super(BlobStorage, self).__init__(root)
         self._renders = DigestStorage(os.path.join(self._root, "renders"))
 
+        # this default is appropriate for shared repos, but can be locked further
+        # in cases where the current user will own the files, and other don't need
+        # to modify the storage (0x444)
+        # this is because on filesystems with protected hardlinks enabled I either
+        # need to own the file or have read+write+exec access to it
+        self.blob_permissions = 0o777
+
     def open_blob(self, digest: str) -> IO[bytes]:
         """Return a handle to the blob identified by the given digest.
 
@@ -47,8 +54,6 @@ class BlobStorage(DigestStorage):
         Return the digest of the stored blob.
         """
 
-        os.makedirs(self._root, exist_ok=True)
-
         hasher = hashlib.sha256()
         # uuid4 is used to get around issues where a high amount of
         # multiprocessing could cause the same machine to generate
@@ -63,11 +68,11 @@ class BlobStorage(DigestStorage):
                 chunk = data.read(_CHUNK_SIZE)
 
         digest = hasher.hexdigest()
+        self.ensure_digest_base_dir(digest)
         final_filepath = self.build_digest_path(digest)
         try:
-            os.makedirs(os.path.dirname(final_filepath), exist_ok=True)
             os.rename(working_filepath, final_filepath)
-            os.chmod(final_filepath, 0o444)
+            os.chmod(final_filepath, self.blob_permissions)
         except FileExistsError:
             _logger.debug("blob already exists", digest=digest)
             os.remove(working_filepath)
@@ -101,6 +106,7 @@ class BlobStorage(DigestStorage):
             if entry.kind is tracking.EntryKind.MASK:
                 continue
 
+            self.ensure_digest_base_dir(entry.object)
             committed_path = self.build_digest_path(entry.object)
             if stat.S_ISLNK(entry.mode):
                 data = os.readlink(rendered_path)
@@ -110,16 +116,15 @@ class BlobStorage(DigestStorage):
                 continue
 
             try:
-                os.makedirs(os.path.dirname(committed_path), exist_ok=True)
                 os.rename(rendered_path, committed_path)
-                os.chmod(committed_path, 0o444)
+                os.chmod(committed_path, self.blob_permissions)
             except FileExistsError:
                 _logger.debug("file exists", digest=entry.object)
                 os.remove(rendered_path)
 
         _logger.info("committing rendered manifest")
+        self._renders.ensure_digest_base_dir(manifest.digest)
         rendered_dirpath = self._renders.build_digest_path(manifest.digest)
-        os.makedirs(os.path.dirname(rendered_dirpath), exist_ok=True)
         try:
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
@@ -141,9 +146,14 @@ class BlobStorage(DigestStorage):
         """
 
         rendered_dirpath = self._renders.build_digest_path(manifest.digest)
-        os.makedirs(rendered_dirpath, exist_ok=True)
         if _was_render_completed(rendered_dirpath):
             return rendered_dirpath
+
+        self._renders.ensure_digest_base_dir(manifest.digest)
+        try:
+            os.mkdir(rendered_dirpath)
+        except FileExistsError:
+            pass
 
         for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
