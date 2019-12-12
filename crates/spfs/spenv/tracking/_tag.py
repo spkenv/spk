@@ -140,15 +140,15 @@ def split_tag_spec(spec: str) -> Tuple[str, str, int]:
 
     index = _find_org_error(org)
     if index >= 0:
-        err_str = f"{org[:index]} > {org[index]} < {org[index:]}"
+        err_str = f"{org[:index]} > {org[index]} < {org[index+1:]}"
         raise ValueError(f"invalid tag org at pos {index}: {err_str}")
     index = _find_name_error(name)
     if index >= 0:
-        err_str = f"{name[:index]} > {name[index]} < {name[index:]}"
+        err_str = f"{name[:index]} > {name[index]} < {name[index+1:]}"
         raise ValueError(f"invalid tag name at pos {index}: {err_str}")
     index = _find_version_error(version)
     if index >= 0:
-        err_str = f"{version[:index]} > {version[index]} < {version[index:]}"
+        err_str = f"{version[:index]} > {version[index]} < {version[index+1:]}"
         raise ValueError(f"invalid tag version at pos {index}: {err_str}")
 
     return org, name, int(version)

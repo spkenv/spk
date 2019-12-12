@@ -17,11 +17,19 @@ class DigestStorage:
     def __init__(self, root: str) -> None:
 
         self._root = os.path.abspath(root)
+        self.directory_permissions = 0o777
+        makedirs_with_perms(self._root, self.directory_permissions)
 
     def build_digest_path(self, digest: str) -> str:
         """Build the storage path for the given object digest."""
 
         return os.path.join(self._root, digest[:2], digest[2:])
+
+    def ensure_digest_base_dir(self, digest: str) -> None:
+        """Create all base directories needed to store the given digest file."""
+
+        dirname = os.path.dirname(self.build_digest_path(digest))
+        makedirs_with_perms(dirname, self.directory_permissions)
 
     def get_digest_from_path(self, path: str) -> str:
         """Given a valid storage path, get the object digest.
@@ -90,3 +98,17 @@ class DigestStorage:
 
         path = self.resolve_full_digest_path(short_digest)
         return self.get_digest_from_path(path)
+
+
+def makedirs_with_perms(dirname: str, perms: int = 0o777) -> None:
+    """Recursively create the given directory with the appropriate permissions."""
+
+    dirnames = os.path.normpath(dirname).split(os.sep)
+    for i in range(2, len(dirnames) + 1):
+        dirname = os.path.join("/", *dirnames[0:i])
+        try:
+            os.mkdir(dirname)
+        except FileExistsError:
+            pass
+        else:
+            os.chmod(dirname, perms)

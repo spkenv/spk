@@ -80,8 +80,8 @@ class LayerStorage(DigestStorage):
     def write_layer(self, layer: Layer) -> None:
 
         digest = layer.digest
+        self.ensure_digest_base_dir(digest)
         layer_path = self.build_digest_path(digest)
-        os.makedirs(os.path.dirname(layer_path), exist_ok=True)
         try:
             with open(layer_path, "x", encoding="utf-8") as f:
                 json.dump(layer.dump_dict(), f)

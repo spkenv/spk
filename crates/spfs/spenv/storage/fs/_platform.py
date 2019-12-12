@@ -71,8 +71,8 @@ class PlatformStorage(DigestStorage):
         """Store the given platform data in this storage."""
 
         digest = platform.digest
+        self.ensure_digest_base_dir(digest)
         platform_path = self.build_digest_path(digest)
-        os.makedirs(os.path.dirname(platform_path), exist_ok=True)
         try:
             with open(platform_path, "x", encoding="utf-8") as f:
                 json.dump(platform.dump_dict(), f)

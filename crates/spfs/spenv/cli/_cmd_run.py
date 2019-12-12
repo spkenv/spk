@@ -36,7 +36,7 @@ def _run(args: argparse.Namespace) -> None:
     repo = config.get_repository()
     runtimes = config.get_runtime_storage()
     runtime = runtimes.create_runtime()
-    if args.ref and args.ref[0] != "-":
+    if args.ref and args.ref[0] not in ("-", ""):
         env_spec = spenv.tracking.EnvSpec(args.ref[0])
         for target in env_spec.tags:
             if args.pull or not repo.has_object(target):
