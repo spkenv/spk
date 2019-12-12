@@ -3,7 +3,7 @@ import stat
 import py.path
 
 from ... import tracking
-from ._blob import BlobStorage, _copy_manifest
+from ._blob import BlobStorage, _copy_manifest, _was_render_completed
 
 
 def test_commit_dir(tmpdir: py.path.local) -> None:
@@ -19,6 +19,7 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     manifest = storage.commit_dir(src_dir.strpath)
     render = tmpdir.join("storage", "renders", manifest.digest[:2], manifest.digest[2:])
     assert render.exists()
+    assert _was_render_completed(render.strpath)
     rendered_manifest = tracking.compute_manifest(render.strpath)
     assert rendered_manifest.digest == manifest.digest
 
