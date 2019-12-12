@@ -124,6 +124,10 @@ class BlobStorage(DigestStorage):
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
             shutil.rmtree(working_dirpath)
+
+        # the commit process can leave files missing
+        # or with bad permissions, so it needs to be
+        # traversed and re-validated into completion
         self.render_manifest(manifest)
 
         return manifest
@@ -137,17 +141,9 @@ class BlobStorage(DigestStorage):
         """
 
         rendered_dirpath = self._renders.build_digest_path(manifest.digest)
-        try:
-            os.makedirs(rendered_dirpath)
-        except FileExistsError:
-            # return rendered_dirpath
-            # TODO: we should be able to bail out here,
-            # but there seems to be issues where some
-            # renfered mnifests are not complete after being
-            # comitted - so we revalidate it just in case
-            # rbottriell: I suspect it's something related
-            # to renaming and not linking during the commit
-            pass
+        os.makedirs(rendered_dirpath, exist_ok=True)
+        if _was_render_completed(rendered_dirpath):
+            return rendered_dirpath
 
         for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
@@ -186,7 +182,18 @@ class BlobStorage(DigestStorage):
                 continue
             os.chmod(rendered_path, entry.mode)
 
+        _mark_render_completed(rendered_dirpath)
         return rendered_dirpath
+
+
+def _was_render_completed(render_path: str) -> bool:
+
+    return os.path.exists(render_path + ".completed")
+
+
+def _mark_render_completed(render_path: str) -> None:
+
+    open(render_path + ".completed", "w+").close()
 
 
 def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
