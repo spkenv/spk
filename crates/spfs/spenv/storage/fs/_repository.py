@@ -70,8 +70,10 @@ class Repository:
         # then it predates the creation of this file
         return "0.12.0"
 
-    def mark_migration_version(self, version=spenv.__version__) -> None:
+    def mark_migration_version(self, version: str = None) -> None:
 
+        if version is None:
+            version = spenv.__version__
         version_file = os.path.join(self._root, "VERSION")
         with open(version_file, "w+") as f:
             f.write(version)
