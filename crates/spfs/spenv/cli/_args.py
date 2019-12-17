@@ -1,4 +1,4 @@
-from typing import Sequence, Dict
+from typing import Sequence
 import os
 import sys
 import logging
@@ -30,7 +30,9 @@ from . import (
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(prog=spenv.__name__, description=spenv.__doc__)
-    parser.add_argument("--debug", "-d", action="store_true")
+    parser.add_argument(
+        "--debug", "-d", action="store_true", default=("SPENV_DEBUG" in os.environ)
+    )
 
     sub_parsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
@@ -62,6 +64,7 @@ def configure_sentry() -> None:
 
     sentry_sdk.init(
         "http://0dbf3ec96df2464ab626a50d0f352d44@sentry.spimageworks.com/5",
+        environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
         release=spenv.__version__,
     )
     # the cli uses the logger after capturing errors explicitly,
@@ -82,7 +85,7 @@ def configure_logging(args: argparse.Namespace) -> None:
         structlog.stdlib.PositionalArgumentsFormatter(),
     ]
 
-    if args.debug or "SPENV_DEBUG" in os.environ:
+    if args.debug:
         os.environ["SPENV_DEBUG"] = "1"
         level = logging.DEBUG
         processors.extend(

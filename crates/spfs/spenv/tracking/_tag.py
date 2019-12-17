@@ -121,6 +121,17 @@ class TagSpec(str):
         return self.name
 
 
+def build_tag_spec(name: str, org: str = None, version: int = 0) -> TagSpec:
+
+    path = name
+    if org is not None:
+        path = org + "/" + name
+    spec = path
+    if version != 0:
+        spec = path + "~" + str(version)
+    return TagSpec(spec)
+
+
 def split_tag_spec(spec: str) -> Tuple[str, str, int]:
 
     parts = spec.rsplit("/", 1)

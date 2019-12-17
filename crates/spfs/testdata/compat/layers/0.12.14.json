@@ -1,0 +1,89 @@
+{
+    "manifest": {
+        "paths": [
+            "/",
+            "/etc",
+            "/etc/spenv",
+            "/etc/spenv/startup.d",
+            "/etc/spenv/startup.d/activate-conda-base.csh"
+        ],
+        "entries": [
+            {
+                "object": "670690201afe0e3df2c3a8cd07b5aff92e7b5e2f6447d86f3949d60110539d9f",
+                "kind": "tree",
+                "mode": 16895,
+                "name": "upper"
+            },
+            {
+                "object": "6c692cc75b4ddaf2892a47dec237b1d9171b7db35cfe2d80e207bd0c8679c429",
+                "kind": "tree",
+                "mode": 16877,
+                "name": "etc"
+            },
+            {
+                "object": "59b5062a68101490e10208983f252ffbc2fb612ee5e62ec9400a4a6b87b6d4b6",
+                "kind": "tree",
+                "mode": 16877,
+                "name": "spenv"
+            },
+            {
+                "object": "82cd2e196862c98aa063b494bba84ceda0521ab8f010218442850e53c2f3dadf",
+                "kind": "tree",
+                "mode": 16877,
+                "name": "startup.d"
+            },
+            {
+                "object": "251d9bc7d6d26647c646d3a3d5258ea1b4c377949d8fd3fa3e52ffa02e306725",
+                "kind": "file",
+                "mode": 33188,
+                "name": "activate-conda-base.csh"
+            }
+        ],
+        "trees": [
+            {
+                "digest": "82cd2e196862c98aa063b494bba84ceda0521ab8f010218442850e53c2f3dadf",
+                "entries": [
+                    {
+                        "object": "251d9bc7d6d26647c646d3a3d5258ea1b4c377949d8fd3fa3e52ffa02e306725",
+                        "kind": "file",
+                        "mode": 33188,
+                        "name": "activate-conda-base.csh"
+                    }
+                ]
+            },
+            {
+                "digest": "59b5062a68101490e10208983f252ffbc2fb612ee5e62ec9400a4a6b87b6d4b6",
+                "entries": [
+                    {
+                        "object": "82cd2e196862c98aa063b494bba84ceda0521ab8f010218442850e53c2f3dadf",
+                        "kind": "tree",
+                        "mode": 16877,
+                        "name": "startup.d"
+                    }
+                ]
+            },
+            {
+                "digest": "6c692cc75b4ddaf2892a47dec237b1d9171b7db35cfe2d80e207bd0c8679c429",
+                "entries": [
+                    {
+                        "object": "59b5062a68101490e10208983f252ffbc2fb612ee5e62ec9400a4a6b87b6d4b6",
+                        "kind": "tree",
+                        "mode": 16877,
+                        "name": "spenv"
+                    }
+                ]
+            },
+            {
+                "digest": "670690201afe0e3df2c3a8cd07b5aff92e7b5e2f6447d86f3949d60110539d9f",
+                "entries": [
+                    {
+                        "object": "6c692cc75b4ddaf2892a47dec237b1d9171b7db35cfe2d80e207bd0c8679c429",
+                        "kind": "tree",
+                        "mode": 16877,
+                        "name": "etc"
+                    }
+                ]
+            }
+        ]
+    }
+}

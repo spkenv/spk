@@ -30,20 +30,25 @@ def compute_diff(a: Manifest, b: Manifest) -> List[Diff]:
 
     for path in all_entries.keys():
 
-        a_entry = a.get_path(path)
-        b_entry = b.get_path(path)
-        if a_entry is None:
-            diff = Diff(mode=DiffMode.added, path=path)
-
-        elif b_entry is None:
-            diff = Diff(mode=DiffMode.removed, path=path)
-
-        elif a_entry.digest == b_entry.digest:
-            diff = Diff(mode=DiffMode.unchanged, path=path)
-
-        else:
-            diff = Diff(mode=DiffMode.changed, path=path)
-
+        diff = _diff_path(a, b, path)
         changes.append(diff)
 
     return changes
+
+
+def _diff_path(a: Manifest, b: Manifest, path: str) -> Diff:
+
+    try:
+        a_entry = a.get_path(path)
+    except FileNotFoundError:
+        return Diff(mode=DiffMode.added, path=path)
+
+    try:
+        b_entry = b.get_path(path)
+    except FileNotFoundError:
+        return Diff(mode=DiffMode.removed, path=path)
+
+    if a_entry.digest == b_entry.digest:
+        return Diff(mode=DiffMode.unchanged, path=path)
+
+    return Diff(mode=DiffMode.changed, path=path)

@@ -1,5 +1,4 @@
-from typing import Callable
-import uuid
+import os
 import logging
 
 import pytest
@@ -28,6 +27,13 @@ def tmprepo(tmpdir: py.path.local) -> spenv.storage.fs.Repository:
 
     root = tmpdir.join("tmprepo").ensure(dir=True)
     return spenv.storage.fs.Repository(root.strpath)
+
+
+@pytest.fixture(scope="session")
+def testdata() -> py.path.local:
+
+    here = os.path.dirname(__file__)
+    return py.path.local(here).join("testdata")
 
 
 @pytest.fixture(autouse=True)

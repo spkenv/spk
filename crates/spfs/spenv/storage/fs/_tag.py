@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Optional
 import os
 
 from ... import tracking
@@ -14,7 +14,29 @@ class TagStorage:
 
         self._root = os.path.abspath(root)
 
-    def iter_tags(self) -> Iterator[Tuple[str, tracking.Tag]]:
+    def find_tags(self, digest: str) -> Iterator[tracking.TagSpec]:
+        """Find tags that point to the given digest.
+
+        This is an O(n) operation based on the number of all
+        tag versions in each tag stream.
+        """
+        for spec, stream in self.iter_tag_streams():
+            i = -1
+            for tag in stream:
+                i += 1
+                if tag.target != digest:
+                    continue
+                yield tracking.build_tag_spec(name=spec.path, version=i)
+
+    def iter_tags(self) -> Iterator[Tuple[tracking.TagSpec, tracking.Tag]]:
+        """Iterate through the available tags in this storage."""
+
+        for spec, stream in self.iter_tag_streams():
+            yield spec, next(stream)
+
+    def iter_tag_streams(
+        self
+    ) -> Iterator[Tuple[tracking.TagSpec, Iterator[tracking.Tag]]]:
         """Iterate through the available tags in this storage."""
 
         for root, _, files in os.walk(self._root):
@@ -24,8 +46,8 @@ class TagStorage:
                     continue
                 filepath = os.path.join(root, filename)
                 tag = os.path.relpath(filepath[: -len(_TAG_EXT)], self._root)
-                digest = self.resolve_tag(tag)
-                yield (tag, digest)
+                spec = tracking.TagSpec(tag)
+                yield (spec, self.read_tag(tag))
 
     def read_tag(self, tag: str) -> Iterator[tracking.Tag]:
         """Read the entire tag stream for the given tag.
@@ -63,12 +85,20 @@ class TagStorage:
         """Push the given tag onto the tag stream."""
 
         tag_spec = tracking.TagSpec(tag)
+        parent: Optional[tracking.Tag] = None
         try:
-            parent = self.resolve_tag(tag).digest
+            parent = self.resolve_tag(tag)
         except ValueError:
-            parent = ""
+            pass
+
+        parent_ref = ""
+        if parent is not None:
+            if parent.target == target:
+                return parent
+            parent_ref = parent.digest
+
         new_tag = tracking.Tag(
-            org=tag_spec.org, name=tag_spec.name, target=target, parent=parent
+            org=tag_spec.org, name=tag_spec.name, target=target, parent=parent_ref
         )
         filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
         makedirs_with_perms(os.path.dirname(filepath), perms=0o777)

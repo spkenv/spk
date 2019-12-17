@@ -1,6 +1,6 @@
 import py.path
 
-from ._manifest import Manifest, MutableManifest, compute_manifest
+from ._manifest import Manifest, ManifestBuilder, compute_manifest
 from ._diff import Diff, DiffMode, compute_diff
 
 
@@ -11,8 +11,8 @@ def test_diff_str() -> None:
 
 def test_compute_diff_empty() -> None:
 
-    a = MutableManifest("").finalize()
-    b = MutableManifest("").finalize()
+    a = ManifestBuilder("").finalize()
+    b = ManifestBuilder("").finalize()
 
     assert compute_diff(a, b) == []
 
@@ -39,7 +39,6 @@ def test_compute_diff_added(tmpdir: py.path.local) -> None:
     b = compute_manifest(b_dir.strpath)
     actual = compute_diff(a, b)
     expected = [
-        Diff(mode=DiffMode.changed, path="/"),
         Diff(mode=DiffMode.added, path="/dir"),
         Diff(mode=DiffMode.added, path="/dir/dir"),
         Diff(mode=DiffMode.added, path="/dir/dir/file"),
@@ -57,7 +56,6 @@ def test_compute_diff_removed(tmpdir: py.path.local) -> None:
     b = compute_manifest(b_dir.strpath)
     actual = compute_diff(a, b)
     expected = [
-        Diff(mode=DiffMode.changed, path="/"),
         Diff(mode=DiffMode.removed, path="/dir"),
         Diff(mode=DiffMode.removed, path="/dir/dir"),
         Diff(mode=DiffMode.removed, path="/dir/dir/file"),
