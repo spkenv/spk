@@ -24,6 +24,7 @@ typing-extensions = "~=3.7"
 simplejson = "~=3.17"
 structlog = "~=19.2"
 sentry-sdk = "==0.10.2"
+semver = "*"
 
 [requires]
 python_version = "3.7"
