@@ -35,7 +35,7 @@ class Repository:
         self.blobs = BlobStorage(os.path.join(root, self._blobs))
         self.tags = TagStorage(os.path.join(root, self._tags))
 
-        required_version = self.min_required_version()
+        required_version = self.last_migration()
         if semver.compare(spenv.__version__, required_version) < 0:
             raise RuntimeError(
                 f"Repository requires a newer version of spenv [{required_version}]: {self.address}"
@@ -56,7 +56,7 @@ class Repository:
             return False
         return True
 
-    def min_required_version(self) -> str:
+    def last_migration(self) -> str:
 
         version_file = os.path.join(self._root, "VERSION")
         try:
@@ -65,14 +65,16 @@ class Repository:
         except FileNotFoundError:
             pass
 
-        try:
-            with open(version_file, "w+") as f:
-                # versioned fs repo was introduced in v0.13.0
-                f.write("0.12.0")
-        except (PermissionError, FileNotFoundError):
-            pass
-
+        # versioned repo introduced in 0.13.0
+        # best guess if the repo exists and it's missing
+        # then it predates the creation of this file
         return "0.12.0"
+
+    def mark_migration_version(self, version=spenv.__version__) -> None:
+
+        version_file = os.path.join(self._root, "VERSION")
+        with open(version_file, "w+") as f:
+            f.write(version)
 
     def get_shortened_digest(self, ref: str) -> str:
 
@@ -190,11 +192,18 @@ class Repository:
 
 def ensure_repository(path: str) -> Repository:
 
-    os.makedirs(path, exist_ok=True, mode=0o777)
+    repo = Repository(path)
+    try:
+        os.makedirs(repo.root, mode=0o777)
+    except FileExistsError:
+        pass
+    else:
+        repo.mark_migration_version(spenv.__version__)
+
     for subdir in Repository.dirs:
         os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
 
-    return Repository(path)
+    return repo
 
 
 register_scheme("file", Repository)
