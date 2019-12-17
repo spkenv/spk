@@ -1,180 +1,68 @@
-from typing import (
-    Any,
-    NamedTuple,
-    Tuple,
-    Dict,
-    Union,
-    Optional,
-    Iterator,
-    List,
-    TYPE_CHECKING,
-)
+from typing import Tuple, Dict, Optional, Iterator, TYPE_CHECKING, DefaultDict
 from collections import OrderedDict
 import os
-import enum
 import stat
 import hashlib
-import operator
 
 from .. import runtime
 
-
-class EntryKind(enum.Enum):
-
-    TREE = "tree"  # directory / node
-    BLOB = "file"  # file / leaf
-    MASK = "mask"  # removed entry / node or leaf
-
-
-class Entry(NamedTuple):
-
-    object: str
-    kind: EntryKind
-    mode: int
-    name: str
-
-    @property
-    def digest(self) -> str:
-        hasher = hashlib.sha256()
-        hasher.update(f"{self.mode:06o}".encode("ascii"))
-        hasher.update(self.kind.value.encode("utf-8"))
-        hasher.update(self.name.encode("utf-8"))
-        hasher.update(self.object.encode("ascii"))
-        return hasher.hexdigest()
-
-    def __str__(self) -> str:
-
-        return f"{self.mode:06o} {self.kind.value} {self.name} {self.object}"
-
-    def __lt__(self, other: Any) -> bool:
-
-        if not isinstance(other, Entry):
-            raise TypeError(
-                f"'<' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
-            )
-
-        if self.kind is other.kind:
-            return self.name < other.name
-
-        return other.kind is EntryKind.TREE
-
-    def __gt__(self, other: Any) -> bool:
-
-        if not isinstance(other, Entry):
-            raise TypeError(
-                f"'>' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
-            )
-
-        if self.kind is other.kind:
-            return self.name > other.name
-
-        return self.kind is EntryKind.TREE
-
-    def dump_dict(self) -> Dict:
-        """Dump this entry data into a dictionary of python basic types."""
-
-        return {
-            "object": self.object,
-            "kind": self.kind.value,
-            "mode": self.mode,
-            "name": self.name,
-        }
-
-    @staticmethod
-    def load_dict(data: Dict) -> "Entry":
-        """Load entry data from the given dictionary dump."""
-
-        if "object" not in data:
-            # support for spenv version < 0.9
-            # - the entry type used to store 'digest' as
-            #   hash of whatever it pointed at, not it's
-            #   own unique hash - but this was confusing
-            #   in the API and had already been reponsible
-            #   for an internal bug... :/
-            data["object"] = data["digest"]
-
-        return Entry(
-            object=data["object"],
-            kind=EntryKind(data["kind"]),
-            mode=data["mode"],
-            name=data["name"],
-        )
-
-
-class Tree(NamedTuple):
-
-    entries: Tuple[Entry, ...]
-
-    @property
-    def digest(self) -> str:
-        hasher = hashlib.sha256()
-        for entry in self.entries:
-            hasher.update(str(entry).encode("ascii"))
-        return hasher.hexdigest()
-
-    def dump_dict(self) -> Dict:
-        """Dump this tree data into a dictionary of python basic types."""
-
-        # TODO: entry data is getting duplicated here when dumping a manifest...
-        return {
-            "digest": self.digest,
-            "entries": list(e.dump_dict() for e in self.entries),
-        }
-
-    @staticmethod
-    def load_dict(data: Dict) -> "Tree":
-        """Load tree data from the given dictionary dump."""
-
-        return Tree(entries=tuple(Entry.load_dict(e) for e in data.get("entries", [])))
+from ._entry import EntryKind, Entry
+from ._tree import Tree
 
 
 if TYPE_CHECKING:
-    EntryMap = OrderedDict[str, Entry]
+    EntryMap = OrderedDict[str, Entry]  # pylint: disable=unsubscriptable-object
 else:
     EntryMap = OrderedDict
 
 
-class Manifest(NamedTuple):
+class Manifest:
+    def __init__(self) -> None:
 
-    paths: Tuple[str, ...] = tuple()
-    entries: Tuple[Entry, ...] = tuple()
-    trees: Tuple[Tree, ...] = tuple()
+        self._root: Tree = Tree()
+        self._trees: Dict[str, Tree] = {}
 
     @property
     def digest(self) -> str:
 
-        tree = self.get_path("/")
-        assert tree is not None, "Manifest is incomplete or corrupted (no root entry)"
-        return tree.object
+        return self._root.digest
 
-    def get_path(self, path: str) -> Optional[Entry]:
+    def get_path(self, path: str) -> Entry:
 
-        path = os.path.join("/", path)
-        for i in range(len(self.paths)):
-            if self.paths[i] == path:
-                return self.entries[i]
-        else:
-            return None
+        path = os.path.normpath(path).lstrip("/")
+        steps = path.split("/")
+        entry: Optional[Entry] = None
+        tree: Optional[Tree] = self._root
+        while steps:
+            if tree is None:
+                break
+            step = steps.pop(0)
+            entry = tree.get(step)
+            if entry is None:
+                break
+            elif entry.kind is EntryKind.TREE:
+                tree = self._trees[entry.object]
+            elif entry.kind is EntryKind.BLOB:
+                break
 
-    def get_entry(self, digest: str) -> Optional[Entry]:
-
-        for entry in self.entries:
-            if entry.digest == digest:
-                return entry
-        else:
-            return None
-
-    def get_tree(self, digest: str) -> Optional[Tree]:
-
-        for tree in self.trees:
-            if tree.digest == digest:
-                return tree
-        else:
-            return None
+        if len(steps) or entry is None:
+            raise FileNotFoundError(path)
+        return entry
 
     def walk(self) -> Iterator[Tuple[str, Entry]]:
+        def iter_tree(root: str, tree: Tree) -> Iterator[Tuple[str, Entry]]:
 
-        return zip(self.paths, self.entries)
+            for entry in tree:
+
+                entry_path = os.path.join(root, entry.name)
+                yield entry_path, entry
+
+                if entry.kind is EntryKind.TREE:
+                    sub_tree = self._trees[entry.object]
+                    for item in iter_tree(entry_path, sub_tree):
+                        yield item
+
+        return iter_tree("/", self._root)
 
     def walk_abs(self, root: str) -> Iterator[Tuple[str, Entry]]:
 
@@ -185,79 +73,108 @@ class Manifest(NamedTuple):
         """Dump this manifest data into a dictionary of python basic types."""
 
         return {
-            "paths": list(self.paths),
-            "entries": list(e.dump_dict() for e in self.entries),
-            "trees": list(t.dump_dict() for t in self.trees),
+            "digest": self.digest,
+            "root": self._root.dump_dict(),
+            "trees": list(t.dump_dict() for t in self._trees.values()),
         }
 
     @staticmethod
     def load_dict(data: Dict) -> "Manifest":
         """Load manifest data from the given dictionary dump."""
 
-        return Manifest(
-            paths=tuple(data.get("paths", [])),
-            entries=tuple(Entry.load_dict(e) for e in data.get("entries", [])),
-            trees=tuple(Tree.load_dict(t) for t in data.get("trees", [])),
-        )
+        if "root" not in data:
+            # support for spenv < 0.12.15: less efficient manifest storage
+            # had path-based data duplication. These versions also had a
+            # bug where the stored trees were not actually valid, but were
+            # not used at runtime because of the spare data. We can only
+            # rebuild the manifest to ensure data integrity
+            builder = ManifestBuilder("/")
+            for path, entry_data in zip(data["paths"], data["entries"]):
+                entry = Entry.load_dict(entry_data)
+                builder.add_entry(path, entry)
+            return builder.finalize()
+
+        manifest = Manifest()
+        manifest._root = Tree.load_dict(data["root"])
+        for tree_data in data.get("trees", []):
+            tree = Tree.load_dict(tree_data)
+            assert tree.digest == tree_data["digest"], "Corrupt Manifest"
+            manifest._trees[tree.digest] = tree
+        return manifest
 
 
-class MutableManifest:
+class ManifestBuilder:
     def __init__(self, root: str):
 
         self.root = os.path.abspath(root)
-        self._by_path: EntryMap = OrderedDict()
-        self._by_dir: Dict[str, EntryMap] = {}
+        self._tree_entries: Dict[str, Entry] = {}
+        self._trees: Dict[str, Tree] = DefaultDict(Tree)
+        self._makedirs("/")
 
     def finalize(self) -> Manifest:
 
-        self.sort()
-        sorted_trees = []
+        manifest = Manifest()
         # walk backwards to ensure that the finalization
         # of trees properly propagates up the structure
-        for dirname, entry in reversed(self._by_path.items()):
-            if entry.kind is not EntryKind.TREE:
-                continue
-            entries = self._by_dir.get(dirname) or OrderedDict()
-            entries = sort_entries(entries)
-            tree_entry = self._by_path[dirname]
-            tree = Tree(entries=tuple(entries.values()))
-            sorted_trees.append(tree)
-            self._by_path[dirname] = Entry(
+        for tree_path in reversed(sorted(self._trees)):
+            tree = self._trees[tree_path]
+            if tree_path == "/":
+                manifest._root = tree
+                manifest._trees["/"] = tree
+                break
+
+            parent = self._trees[os.path.dirname(tree_path)]
+            tree_entry = self._tree_entries[tree_path]
+            tree_entry = Entry(
                 name=tree_entry.name,
                 mode=tree_entry.mode,
                 kind=tree_entry.kind,
                 object=tree.digest,
             )
+            parent.update(tree_entry)
+            manifest._trees[tree.digest] = tree
+        else:
+            raise RuntimeError("Logic Error: root tree was never visited")
 
-        self.sort()
-        return Manifest(
-            paths=tuple(self._by_path.keys()),
-            entries=tuple(self._by_path.values()),
-            trees=tuple(sorted_trees),
-        )
+        return manifest
 
     def add_entry(self, path: str, entry: Entry) -> None:
 
         path = self._internal_path(path)
-        self._by_path[path] = entry
-        dirname, basename = os.path.split(path)
-        dirmap = self._by_dir.get(dirname, EntryMap())
+        if entry.kind is EntryKind.TREE:
+            self._tree_entries[path] = entry
+            assert self._trees[path] is not None, "Default dict failed to create tree"
         if path != "/":
+            dirname = os.path.dirname(path)
             self._makedirs(dirname)
-            # the entrymap is expected to hold absolute paths, same as the manifest
-            dirmap["/" + basename] = entry
-        self._by_dir[dirname] = dirmap
+            self._trees[dirname].add(entry)
+
+    def update_entry(self, path: str, entry: Entry) -> None:
+
+        path = self._internal_path(path)
+        if entry.kind is EntryKind.TREE:
+            # only the mode bits are relevant in a dir update
+            if path not in self._tree_entries:
+                raise FileNotFoundError(path)
+            self._tree_entries[path] = entry
+        else:
+            self.remove_entry(path)
+            self.add_entry(path, entry)
 
     def remove_entry(self, path: str) -> None:
 
         path = self._internal_path(path)
 
-        for name in list(self._by_path.keys()):
-            if name.startswith(path):
-                del self._by_path[name]
-        for name in list(self._by_dir.keys()):
-            if name.startswith(path):
-                del self._by_dir[name]
+        if path is "/":
+            self._trees.clear()
+            self._tree_entries.clear()
+
+        dirname, basename = os.path.split(path)
+        self._trees[dirname].remove(basename)
+        for dirpath in self._tree_entries:
+            if dirpath == path or dirpath.startswith(path + "/"):
+                del self._tree_entries[dirpath]
+                del self._trees[dirpath]
 
     def _internal_path(self, path: str) -> str:
 
@@ -277,27 +194,27 @@ class MutableManifest:
 
         abspath = os.path.join(self.root, path.lstrip("/"))
         name = os.path.basename(abspath)
-        if path not in self._by_path:
-            self.add_entry(
-                abspath, Entry(kind=EntryKind.TREE, mode=0o775, object="", name=name)
-            )
-
-    def sort(self) -> None:
-        self._by_path = sort_entries(self._by_path)
+        if path not in self._trees:
+            try:
+                self.add_entry(
+                    abspath,
+                    Entry(kind=EntryKind.TREE, mode=0o775, object="", name=name),
+                )
+            except FileExistsError:
+                pass
 
 
 def compute_manifest(path: str) -> Manifest:
 
-    manifest = MutableManifest(path)
+    manifest = ManifestBuilder(path)
     compute_entry(path, append_to=manifest)
-    manifest.sort()
     return manifest.finalize()
 
 
-def compute_tree(dirname: str, append_to: MutableManifest = None) -> Tree:
+def compute_tree(dirname: str, append_to: ManifestBuilder = None) -> Tree:
 
     dirname = os.path.abspath(dirname)
-    manifest = append_to or MutableManifest(dirname)
+    manifest = append_to or ManifestBuilder(dirname)
     names = sorted(os.listdir(dirname))
     paths = [os.path.join(dirname, n) for n in names]
     entries = []
@@ -308,10 +225,10 @@ def compute_tree(dirname: str, append_to: MutableManifest = None) -> Tree:
     return Tree(entries=tuple(entries))
 
 
-def compute_entry(path: str, append_to: MutableManifest = None) -> Entry:
+def compute_entry(path: str, append_to: ManifestBuilder = None) -> Entry:
 
     path = os.path.abspath(path)
-    manifest = append_to or MutableManifest(os.path.dirname(path))
+    manifest = append_to or ManifestBuilder(os.path.dirname(path))
     stat_result = os.lstat(path)
 
     kind = EntryKind.BLOB
@@ -335,20 +252,28 @@ def compute_entry(path: str, append_to: MutableManifest = None) -> Entry:
     entry = Entry(
         kind=kind, name=os.path.basename(path), mode=stat_result.st_mode, object=digest
     )
-    manifest.add_entry(path, entry)
+    try:
+        manifest.add_entry(path, entry)
+    except FileExistsError:
+        # trees are automatically created in a makedirs fasion, so
+        # it's entirely expected to hit entries that already exist
+        manifest.update_entry(path, entry)
     return entry
 
 
 def layer_manifests(*manifests: Manifest) -> Manifest:
 
-    result = MutableManifest("/")
+    result = ManifestBuilder("/")
     for manifest in manifests:
         for path, entry in manifest.walk():
 
             if entry.kind == EntryKind.MASK:
                 result.remove_entry(path)  # manages recursive removal
 
-            result.add_entry(path, entry)
+            try:
+                result.add_entry(path, entry)
+            except FileExistsError:
+                result.update_entry(path, entry)
 
     return result.finalize()
 

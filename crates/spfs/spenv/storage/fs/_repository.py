@@ -1,10 +1,5 @@
-from typing import List, Union, Dict, Iterable, Tuple, IO, Iterator
+from typing import List, Tuple, IO, Iterator
 import os
-import uuid
-import errno
-import shutil
-import tarfile
-import hashlib
 
 from ... import tracking
 from .. import Object, Platform, Layer, UnknownObjectError
@@ -84,13 +79,15 @@ class Repository:
 
     def find_aliases(self, ref: str) -> List[str]:
 
+        aliases: List[str] = []
         digest = self.read_object(ref).digest
-        aliases = set([digest, ref])
-        for tag_str, tag in self.tags.iter_tags():
-            if tag.target == digest:
-                aliases.add(tag_str)
-        aliases.remove(ref)
-        return list(aliases)
+        for spec in self.tags.find_tags(digest):
+            if spec not in aliases:
+                aliases.append(spec)
+        if ref != digest:
+            aliases.append(digest)
+            aliases.remove(ref)
+        return aliases
 
     def resolve_tag(self, tag_spec: str) -> tracking.Tag:
 

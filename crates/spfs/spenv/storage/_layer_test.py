@@ -8,4 +8,4 @@ def test_read_layer() -> None:
     data = expected.dump_dict()
     actual = Layer.load_dict(data)
     assert isinstance(actual, Layer)
-    assert actual == expected
+    assert actual.digest == expected.digest

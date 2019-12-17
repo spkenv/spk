@@ -8,7 +8,7 @@ import hashlib
 
 import structlog
 
-from ... import tracking, runtime
+from ... import tracking
 from .. import UnknownObjectError
 from ._digest_store import DigestStorage
 
@@ -220,7 +220,6 @@ def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) ->
         for name in entry_names:
             entry_path = os.path.join(manifest_path, name)
             entry = manifest.get_path(entry_path)
-            assert entry is not None, "Detected changes during commit, aborting"
             if entry.kind is tracking.EntryKind.MASK:
                 ignored.append(name)
         return ignored

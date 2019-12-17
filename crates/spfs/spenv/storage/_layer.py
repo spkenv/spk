@@ -1,8 +1,7 @@
-from typing import NamedTuple, Tuple, Iterable, Dict
+from typing import NamedTuple, Dict
 from typing_extensions import Protocol, runtime_checkable
 import hashlib
 
-import json
 
 from .. import tracking
 
