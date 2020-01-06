@@ -268,7 +268,13 @@ def layer_manifests(*manifests: Manifest) -> Manifest:
         for path, entry in manifest.walk():
 
             if entry.kind == EntryKind.MASK:
-                result.remove_entry(path)  # manages recursive removal
+                try:
+                    result.remove_entry(path)  # manages recursive removal
+                except FileNotFoundError:
+                    # sometimes the parent may not have the file due to
+                    # the specifics of how the stack was created. At the end
+                    # of the day nonexistance is all that we care about
+                    pass
 
             try:
                 result.add_entry(path, entry)

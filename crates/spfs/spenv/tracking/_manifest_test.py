@@ -114,7 +114,7 @@ def test_layer_manifests_removal() -> None:
         "/a_only", Entry(kind=EntryKind.MASK, mode=0o020000, name="a_only", object="")
     )
 
-    actual = layer_manifests(a.finalize(), b.finalize())
+    actual = layer_manifests(b.finalize(), a.finalize(), b.finalize())
     entry = actual.get_path("/a_only")
     assert entry is not None
     assert entry.kind is EntryKind.MASK
