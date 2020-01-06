@@ -35,7 +35,7 @@ mkdir -p /env
 chmod 777 /env
 
 %preun
-unlink /usr/local/bin/spenv
+[ -e /usr/local/bin/spenv ] && unlink /usr/local/bin/spenv
 
 %posttrans
 # must run at the absolute end in case we are updating
