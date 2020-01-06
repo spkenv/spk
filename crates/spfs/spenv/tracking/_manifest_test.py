@@ -79,7 +79,7 @@ def test_manifest_sorting(tmpdir: py.path.local) -> None:
     assert actual == expected
 
 
-def test_later_manifests(tmpdir: py.path.local) -> None:
+def test_layer_manifests(tmpdir: py.path.local) -> None:
 
     a_dir = tmpdir.join("a").ensure(dir=True)
     a_dir.join("a.txt").write("a", ensure=True)
@@ -118,6 +118,36 @@ def test_layer_manifests_removal() -> None:
     entry = actual.get_path("/a_only")
     assert entry is not None
     assert entry.kind is EntryKind.MASK
+
+
+def test_manifest_builder_remove_file() -> None:
+
+    builder = ManifestBuilder("/")
+    builder.add_entry(
+        "/entry", Entry(kind=EntryKind.BLOB, mode=0o000777, name="entry", object="")
+    )
+    builder.remove_entry("/entry")
+
+    manifest = builder.finalize()
+    with pytest.raises(FileNotFoundError):
+        manifest.get_path("/entry")
+    with pytest.raises(FileNotFoundError):
+        manifest.get_path("entry")
+
+
+def test_manifest_builder_remove_dir() -> None:
+
+    builder = ManifestBuilder("/")
+    builder.add_entry(
+        "/entry", Entry(kind=EntryKind.TREE, mode=0o000777, name="entry", object="")
+    )
+    builder.remove_entry("/entry")
+
+    manifest = builder.finalize()
+    with pytest.raises(FileNotFoundError):
+        manifest.get_path("/entry")
+    with pytest.raises(FileNotFoundError):
+        manifest.get_path("entry")
 
 
 def test_compatibility_0_12(testdata: py.path.local) -> None:

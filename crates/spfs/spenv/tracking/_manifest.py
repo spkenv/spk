@@ -171,7 +171,7 @@ class ManifestBuilder:
 
         dirname, basename = os.path.split(path)
         self._trees[dirname].remove(basename)
-        for dirpath in self._tree_entries:
+        for dirpath in list(self._tree_entries.keys()):
             if dirpath == path or dirpath.startswith(path + "/"):
                 del self._tree_entries[dirpath]
                 del self._trees[dirpath]
