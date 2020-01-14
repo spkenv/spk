@@ -5,7 +5,7 @@ import pytest
 import py.path
 import structlog
 
-import spenv
+import spfs
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
@@ -23,10 +23,10 @@ structlog.configure(
 
 
 @pytest.fixture
-def tmprepo(tmpdir: py.path.local) -> spenv.storage.fs.Repository:
+def tmprepo(tmpdir: py.path.local) -> spfs.storage.fs.Repository:
 
     root = tmpdir.join("tmprepo").ensure(dir=True)
-    return spenv.storage.fs.Repository(root.strpath)
+    return spfs.storage.fs.Repository(root.strpath)
 
 
 @pytest.fixture(scope="session")
@@ -37,10 +37,10 @@ def testdata() -> py.path.local:
 
 
 @pytest.fixture(autouse=True)
-def config(tmpdir: py.path.local) -> spenv.Config:
+def config(tmpdir: py.path.local) -> spfs.Config:
 
-    spenv._config._CONFIG = spenv.Config()
-    spenv._config._CONFIG.read_string(
+    spfs._config._CONFIG = spfs.Config()
+    spfs._config._CONFIG.read_string(
         f"""
 [storage]
 root = {tmpdir.join('storage_root').strpath}
@@ -49,4 +49,4 @@ root = {tmpdir.join('storage_root').strpath}
 address = file://{tmpdir.join('remote_origin').strpath}
 """
     )
-    return spenv.get_config()
+    return spfs.get_config()

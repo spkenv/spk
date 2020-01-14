@@ -4,10 +4,9 @@ __pycache__/
 .pytest_cache/
 .vscode/
 coverage.xml
-.spenv
 build/
 build
 dist/
 *.egg-info
-spenv.build/
-spenv.dist/
+spfs.build/
+spfs.dist/
