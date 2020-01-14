@@ -1,0 +1,12 @@
+version: 0.14.0
+
+environment:
+  kind: PipEnv
+
+components:
+  - name: spenv
+    kind: PythonPackage
+    lint_py3k: False # no 2.7 support at all
+  - name: rpm
+    kind: RPMPackage
+    spec_file: spfs.spec

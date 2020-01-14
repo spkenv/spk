@@ -12,7 +12,6 @@ pex = "*"
 pytest-cov = "*"
 mypy = "*"
 pytest-mypy = "*"
-spenv = {editable = true,path = "."}
 black = "*"
 pytest-timeout = "*"
 nuitka = "*"
