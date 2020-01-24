@@ -57,11 +57,11 @@ int privatize_existing_mounts()
             perror("Failed to privatize existing mount: /tmp");
             return 1;
         }
-        if (!SPFS_VIRTUALIZE_SHOTS) {
-            return 0;
-        }
     }
 
+    if (!SPFS_VIRTUALIZE_SHOTS) {
+        return 0;
+    }
     if (is_mounted(SHOTS_DIR)) {
         result = mount("none", SHOTS_DIR, NULL, MS_PRIVATE, NULL);
         if (result != 0)
