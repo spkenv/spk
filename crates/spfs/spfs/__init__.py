@@ -1,6 +1,6 @@
 """Filesystem isolation, capture and distribution."""
 
-__version__ = "0.14.0"
+__version__ = "0.14.2"
 
 from . import storage, tracking, runtime, io
 from ._config import get_config, load_config, Config
