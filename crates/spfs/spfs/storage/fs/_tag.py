@@ -35,7 +35,7 @@ class TagStorage:
             yield spec, next(stream)
 
     def iter_tag_streams(
-        self
+        self,
     ) -> Iterator[Tuple[tracking.TagSpec, Iterator[tracking.Tag]]]:
         """Iterate through the available tags in this storage."""
 
@@ -53,18 +53,28 @@ class TagStorage:
         """Read the entire tag stream for the given tag.
 
         Raises:
-            ValueError: if the tag does not exist in the storage
+            UnknownObjectError: if the tag does not exist in the storage
         """
 
         spec = tracking.TagSpec(tag)
         filepath = os.path.join(self._root, spec.path + _TAG_EXT)
         try:
             with open(filepath, "rb") as f:
-                # TODO: this should be more efficient and not
-                # need to read the whole file to reverse it -
-                # but not worth the complexity of implementation yet
-                for line in reversed(f.readlines()):
-                    line = line.rstrip(b"\n")
+                f.seek(0, os.SEEK_END)
+                position = f.tell()
+                line = b""
+                while position >= 0:
+                    f.seek(position, os.SEEK_SET)
+                    char = f.read(1)
+                    position -= 1
+                    if char != b"\n":
+                        line = char + line
+                        continue
+                    if line == b"":
+                        continue
+                    yield tracking.decode_tag(line)
+                    line = b""
+                if line != b"\n":
                     yield tracking.decode_tag(line)
 
         except FileNotFoundError:
