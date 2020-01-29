@@ -59,4 +59,6 @@ def _capture_if_relevant(e: Exception) -> None:
         return
     if isinstance(e, spfs.storage.UnknownObjectError):
         return
+    if isinstance(e, spfs.NothingToCommitError):
+        return
     sentry_sdk.capture_exception(e)

@@ -27,7 +27,17 @@ class Manifest:
 
         return self._root.digest
 
+    def is_empty(self) -> bool:
+        """Return true if this manifest has no contents."""
+
+        return len(self._root) == 0
+
     def get_path(self, path: str) -> Entry:
+        """Get an entry in this manifest given it's filepath.
+
+        Raises:
+            FileNotFoundError: if the entry does not exist
+        """
 
         path = os.path.normpath(path).lstrip("/")
         steps = path.split("/")
@@ -50,6 +60,8 @@ class Manifest:
         return entry
 
     def walk(self) -> Iterator[Tuple[str, Entry]]:
+        """Walk the contents of this manifest depth-first."""
+
         def iter_tree(root: str, tree: Tree) -> Iterator[Tuple[str, Entry]]:
 
             for entry in tree:
@@ -65,6 +77,7 @@ class Manifest:
         return iter_tree("/", self._root)
 
     def walk_abs(self, root: str) -> Iterator[Tuple[str, Entry]]:
+        """Same as walk(), but joins all entry paths to the given root."""
 
         for relpath, entry in self.walk():
             yield os.path.join(root, relpath.lstrip("/")), entry

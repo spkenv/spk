@@ -94,6 +94,8 @@ class BlobStorage(DigestStorage):
 
         _logger.info("computing file manifest")
         manifest = tracking.compute_manifest(dirname)
+        if manifest.is_empty():
+            return manifest
 
         _logger.info("copying file tree")
         _copy_manifest(manifest, dirname, working_dirpath)
