@@ -12,5 +12,5 @@ components:
     linting:
       python3_compatibility: False
   - name: rpm
-    kind: RPMPackagei
+    kind: RPMPackage
     spec_file: spfs.spec
