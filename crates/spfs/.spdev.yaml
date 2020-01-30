@@ -1,4 +1,7 @@
-version: 0.14.2
+version: 0.15.0
+release_notes: |
+  * No longer commits empty layers on top of platforms
+  * Will no longer commit an empty layer from the command line
 
 environment:
   kind: PipEnv
@@ -9,5 +12,5 @@ components:
     linting:
       python3_compatibility: False
   - name: rpm
-    kind: RPMPackage
+    kind: RPMPackagei
     spec_file: spfs.spec
