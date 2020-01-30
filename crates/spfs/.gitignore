@@ -10,3 +10,4 @@ dist/
 *.egg-info
 spfs.build/
 spfs.dist/
+.venv/
