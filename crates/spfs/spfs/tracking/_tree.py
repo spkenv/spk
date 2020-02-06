@@ -1,6 +1,8 @@
 from typing import TypeVar, List, Dict, Iterable, Union, Any, Iterator
 import hashlib
 
+from sortedcontainers import SortedDict
+
 from ._entry import Entry
 
 T = TypeVar("T")
@@ -14,15 +16,14 @@ class Tree:
 
     def __init__(self, entries: Iterable[Entry] = []) -> None:
 
-        self._entries: List[Entry] = []
-        self._entries_by_name: Dict[str, Entry] = {}
+        self._entries: Dict[str, Entry] = SortedDict()
         for entry in entries:
             self.add(entry)
 
     @property
     def digest(self) -> str:
         hasher = hashlib.sha256()
-        for entry in self._entries:
+        for entry in self._entries.values():
             hasher.update(str(entry).encode("ascii"))
         return hasher.hexdigest()
 
@@ -33,8 +34,8 @@ class Tree:
     def __getitem__(self, key: Union[int, str]) -> Entry:
 
         if isinstance(key, int):
-            return self._entries[key]
-        return self._entries_by_name[key]
+            return self._entries.values()[key]  # type: ignore
+        return self._entries[key]
 
     def __eq__(self, other: Any) -> bool:
 
@@ -51,7 +52,7 @@ class Tree:
 
     def __iter__(self) -> Iterator[Entry]:
 
-        for entry in self._entries:
+        for _, entry in self._entries.items():
             yield entry
 
     def __len__(self) -> int:
@@ -63,17 +64,9 @@ class Tree:
         Raises:
             ValueError: if an entry with the same name exists
         """
-
-        i = 0
-        while i < len(self._entries):
-            current = self._entries[i]
-            if current.name == entry.name:
-                raise FileExistsError(entry.name)
-            if current.name > entry.name:
-                break
-            i += 1
-        self._entries.insert(i, entry)
-        self._entries_by_name[entry.name] = entry
+        if entry.name in self._entries:
+            raise FileExistsError(entry.name)
+        self._entries[entry.name] = entry
 
     def update(self, entry: Entry) -> None:
         self.remove(entry.name)
@@ -81,19 +74,17 @@ class Tree:
 
     def remove(self, name: str) -> Entry:
 
-        if name not in self._entries_by_name:
+        try:
+            return self._entries.pop(name)
+        except KeyError:
             raise FileNotFoundError(name)
-        entry = self._entries_by_name[name]
-        del self._entries_by_name[name]
-        index = self._entries.index(entry)
-        return self._entries.pop(index)
 
     def dump_dict(self) -> Dict:
         """Dump this tree data into a dictionary of python basic types."""
 
         return {
             "digest": self.digest,
-            "entries": list(e.dump_dict() for e in self._entries),
+            "entries": list(e.dump_dict() for e in self._entries.values()),
         }
 
     @staticmethod

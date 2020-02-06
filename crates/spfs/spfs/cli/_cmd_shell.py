@@ -19,9 +19,9 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
     )
     shell_cmd.add_argument(
         "ref",
-        metavar="ENV",
+        metavar="REF",
         nargs="?",
-        help="The environment spec of the desired runtime, "
+        help="The tag or id of the desired runtime, "
         "use '-' or nothing to request an empty environment",
     )
     shell_cmd.set_defaults(func=_shell)

@@ -2,8 +2,45 @@ from typing import Sequence, List, Optional, Mapping
 import os
 import re
 
-from . import storage, runtime
+from . import storage, runtime, tracking
 from ._config import get_config
+
+
+def compute_manifest(ref: str) -> tracking.Manifest:
+
+    config = get_config()
+    repos: List[storage.Repository] = [config.get_repository()]
+    for name in config.list_remote_names():
+        repos.append(config.get_remote(name))
+
+    spec = tracking.TagSpec(ref)
+    for repo in repos:
+        try:
+            obj = repo.read_object(spec)
+        except storage.UnknownObjectError:
+            continue
+        else:
+            return compute_object_manifest(obj, repo)
+    else:
+        raise storage.UnknownObjectError(spec)
+
+
+def compute_object_manifest(
+    obj: storage.Object, repo: storage.Repository = None
+) -> tracking.Manifest:
+
+    if isinstance(obj, storage.Layer):
+        return obj.manifest
+    elif isinstance(obj, storage.Platform):
+        layers = resolve_stack_to_layers(obj.stack, repo)
+        manifest = tracking.Manifest()
+        for layer in reversed(layers):
+            manifest = tracking.layer_manifests(manifest, layer.manifest)
+        return manifest
+    else:
+        raise NotImplementedError(
+            "Resolve: Unhandled object of type: " + str(type(obj))
+        )
 
 
 def resolve_overlay_dirs(runtime: runtime.Runtime) -> List[str]:
@@ -23,11 +60,15 @@ def resolve_overlay_dirs(runtime: runtime.Runtime) -> List[str]:
     return overlay_dirs
 
 
-def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.fs.Layer]:
+def resolve_stack_to_layers(
+    stack: Sequence[str], repo: storage.Repository = None
+) -> List[storage.fs.Layer]:
     """Given a sequence of tags and digests, resolve to the set of underlying layers."""
 
-    config = get_config()
-    repo = config.get_repository()
+    if repo is None:
+        config = get_config()
+        repo = config.get_repository()
+
     layers = []
     for ref in stack:
 
@@ -35,7 +76,7 @@ def resolve_stack_to_layers(stack: Sequence[str]) -> List[storage.fs.Layer]:
         if isinstance(entry, storage.fs.Layer):
             layers.append(entry)
         elif isinstance(entry, storage.fs.Platform):
-            expanded = resolve_stack_to_layers(entry.stack)
+            expanded = resolve_stack_to_layers(entry.stack, repo)
             layers.extend(expanded)
         else:
             raise NotImplementedError(type(entry))

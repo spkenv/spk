@@ -1,7 +1,7 @@
-version: 0.15.0
+version: 0.15.1
 release_notes: |
-  * No longer commits empty layers on top of platforms
-  * Will no longer commit an empty layer from the command line
+  * Add diff command for comparing refs on the command line
+  * Improve manifest performance for overall gains
 
 environment:
   kind: PipEnv
@@ -9,8 +9,13 @@ environment:
 components:
   - name: lib
     kind: PythonPackage
-    linting:
-      python3_compatibility: False
+    lint:
+      python3: false
+      black: true
+    test:
+      command: pytest
+    install:
+      enabled: true
   - name: rpm
     kind: RPMPackage
     spec_file: spfs.spec
