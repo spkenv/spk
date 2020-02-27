@@ -1,3 +1,13 @@
 include:
   - project: dev-group/dev-ops/spdev
     file: pipelines/default.yaml
+
+test rpm install:
+  tags: [docker]
+  stage: test
+  except:
+    - tags
+  dependencies:
+    - "build and package" # for artifacts
+  script:
+    - docker run --rm -v $PWD/dist/rpm/RPMS/x86_64:/tmp/rpms docker-registry2.spimageworks.com/spi/centos:7 bash -c "yum install -y /tmp/rpms/*.rpm  && chmod 0777 -R /tmp/rpms && spfs version"
