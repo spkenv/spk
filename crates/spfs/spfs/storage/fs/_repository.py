@@ -196,7 +196,11 @@ def ensure_repository(path: str) -> Repository:
 
     repo = Repository(path)
     try:
-        os.makedirs(repo.root, mode=0o777)
+        # even though checking existance first is not
+        # needed, it is required to trigger the automounter
+        # in cases when the desired path is in that location
+        if not os.path.exists(path):
+            os.makedirs(repo.root, mode=0o777)
     except FileExistsError:
         pass
     else:

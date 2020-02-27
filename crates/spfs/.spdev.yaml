@@ -1,7 +1,6 @@
-version: 0.15.2
+version: 0.15.3
 release_notes: |
-  * Add getting started documentation
-  * Update pipeline for changes to spdev component specs
+  * Fix permission denied error for /net/libs repos
 
 environment:
   kind: PipEnv
