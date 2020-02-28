@@ -106,9 +106,19 @@ def makedirs_with_perms(dirname: str, perms: int = 0o777) -> None:
     dirnames = os.path.normpath(dirname).split(os.sep)
     for i in range(2, len(dirnames) + 1):
         dirname = os.path.join("/", *dirnames[0:i])
+
         try:
-            os.mkdir(dirname)
+            # even though checking existance first is not
+            # needed, it is required to trigger the automounter
+            # in cases when the desired path is in that location
+            if not os.path.exists(dirname):
+                os.mkdir(dirname, mode=0o777)
         except FileExistsError:
-            pass
-        else:
+            continue
+
+        try:
             os.chmod(dirname, perms)
+        except PermissionError:
+            # not fatal, so it's worth allowing things to continue
+            # even though it could cause permission issues later on
+            pass
