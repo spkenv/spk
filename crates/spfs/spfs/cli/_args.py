@@ -19,6 +19,7 @@ from . import (
     _cmd_info,
     _cmd_init,
     _cmd_layers,
+    _cmd_log,
     _cmd_platforms,
     _cmd_push,
     _cmd_pull,
@@ -46,6 +47,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_layers.register(sub_parsers)
     _cmd_platforms.register(sub_parsers)
     _cmd_tags.register(sub_parsers)
+    _cmd_log.register(sub_parsers)
 
     _cmd_run.register(sub_parsers)
     _cmd_shell.register(sub_parsers)
