@@ -26,7 +26,7 @@ class TagStorage:
                 i += 1
                 if tag.target != digest:
                     continue
-                yield tracking.build_tag_spec(name=spec.path, org=spec.org, version=i)
+                yield tracking.build_tag_spec(name=spec.name, org=spec.org, version=i)
 
     def iter_tags(self) -> Iterator[Tuple[tracking.TagSpec, tracking.Tag]]:
         """Iterate through the available tags in this storage."""

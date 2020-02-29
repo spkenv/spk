@@ -121,10 +121,10 @@ class TagSpec(str):
         return self.name
 
 
-def build_tag_spec(name: str, org: str = None, version: int = 0) -> TagSpec:
+def build_tag_spec(name: str, org: str = "", version: int = 0) -> TagSpec:
 
     path = name
-    if org is not None:
+    if org:
         path = org + "/" + name
     spec = path
     if version != 0:
