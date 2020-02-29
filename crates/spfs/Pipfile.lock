@@ -1,7 +1,11 @@
 {
     "_meta": {
         "hash": {
+<<<<<<< HEAD
             "sha256": "5b696ea0b4d432d948f0ff7ea3f97902a9a3213c5564b88f5e510ddf9339997e"
+=======
+            "sha256": "9f0c786df2d860e53fb97c57aec70b6d7fe41508ce5ed507db4f3ab0627ff3da"
+>>>>>>> Add initial functions to identify object for cleaning
         },
         "pipfile-spec": 6,
         "requires": {
@@ -543,6 +547,7 @@
             "index": "pypi",
             "version": "==2.8.1"
         },
+<<<<<<< HEAD
         "pytest-mypy": {
             "hashes": [
                 "sha256:14c746bd0db5e36618f2fda0ba61ddeb5dc52129ab3923a70f592f934c8887db",
@@ -551,6 +556,8 @@
             "index": "pypi",
             "version": "==0.5.0"
         },
+=======
+>>>>>>> Add initial functions to identify object for cleaning
         "pytest-timeout": {
             "hashes": [
                 "sha256:80faa19cd245a42b87a51699d640c00d937c02b749052bfca6bae8bdbe12c48e",
@@ -728,10 +735,17 @@
         },
         "zipp": {
             "hashes": [
+<<<<<<< HEAD
                 "sha256:aa36550ff0c0b7ef7fa639055d797116ee891440eac1a56f378e2d3179e0320b",
                 "sha256:c599e4d75c98f6798c509911d08a22e6c021d074469042177c8c86fb92eefd96"
             ],
             "version": "==3.1.0"
+=======
+                "sha256:12248a63bbdf7548f89cb4c7cda4681e537031eda29c02ea29674bc6854460c2",
+                "sha256:7c0f8e91abc0dc07a5068f315c52cb30c66bfbc581e5b50704c8a2f6ebae794a"
+            ],
+            "version": "==3.0.0"
+>>>>>>> Add initial functions to identify object for cleaning
         }
     }
 }

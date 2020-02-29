@@ -1,6 +1,6 @@
-version: 0.15.5
+version: 0.16.0
 release_notes: |
-  * Collect basic spops metrics
+  * Ensure tag data is unaltered during sync process
 
 environment:
   kind: PipEnv
@@ -11,6 +11,7 @@ components:
   lint:
     python3: false
     black: true
+    mypy: true
   test:
     command: pytest
   install:
