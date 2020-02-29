@@ -6,7 +6,7 @@ environment:
   kind: PipEnv
 
 components:
-- name: lib
+- name: python
   kind: PythonPackage
   lint:
     python3: false

@@ -21,14 +21,14 @@ _logger = structlog.get_logger("cli")
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:
 
-    init_cmd = sub_parsers.add_parser("init-runtime", help=argparse.SUPPRESS)
+    init_cmd = sub_parsers.add_parser("init-runtime")
     init_cmd.add_argument("runtime_root_dir", nargs=1)
     init_cmd.add_argument("cmd", nargs=argparse.REMAINDER)
     init_cmd.set_defaults(func=_init)
 
 
 def _init(args: argparse.Namespace) -> None:
-    """This is a hidden command.
+    """This is a 'hidden' command.
 
     This command is the entry point to new environments, and
     is executed ahead of any desired process to setup the

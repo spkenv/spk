@@ -38,7 +38,7 @@ class Repository:
         required_version = self.last_migration()
         if semver.compare(spfs.__version__, required_version) < 0:
             raise RuntimeError(
-                f"Repository requires a newer version of spfs [{required_version}]: {self.address}"
+                f"Repository requires a newer version of spfs [{required_version}]: {self.address()}"
             )
 
     @property
