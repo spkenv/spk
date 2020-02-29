@@ -132,6 +132,11 @@ class Repository:
 
         return self.tags.push_tag(tag, target)
 
+    def push_raw_tag(self, tag: tracking.Tag) -> None:
+        """Push the given tag data to the tag stream, regardless of if it's valid."""
+
+        return self.tags.push_raw_tag(tag)
+
     def has_layer(self, digest: str) -> bool:
         """Return true if the identified layer exists in this repository."""
         try:

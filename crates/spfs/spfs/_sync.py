@@ -53,10 +53,15 @@ def sync_ref(
     ref: str, src: storage.Repository, dest: storage.Repository
 ) -> storage.Object:
 
+    try:
+        tag: Optional[tracking.Tag] = src.resolve_tag(ref)
+    except storage.UnknownObjectError:
+        tag = None
+
     obj = src.read_object(ref)
     sync_object(obj, src, dest)
-    if obj.digest != ref:
-        dest.push_tag(ref, obj.digest)
+    if tag is not None:
+        dest.push_raw_tag(tag)
     return obj
 
 

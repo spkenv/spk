@@ -13,8 +13,6 @@ target: {target}
 parent: {parent}
   user: {user}
   time: {time}
-
-{message}
 """
 
 
@@ -42,7 +40,9 @@ class Tag(NamedTuple):
     @property
     def path(self) -> str:
         """Return this tag with no version number."""
-        return f"{self.org}/{self.name}"
+        if self.org:
+            return f"{self.org}/{self.name}"
+        return self.name
 
     @property
     def digest(self) -> str:

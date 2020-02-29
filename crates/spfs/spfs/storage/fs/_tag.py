@@ -26,7 +26,7 @@ class TagStorage:
                 i += 1
                 if tag.target != digest:
                     continue
-                yield tracking.build_tag_spec(name=spec.path, version=i)
+                yield tracking.build_tag_spec(name=spec.path, org=spec.org, version=i)
 
     def iter_tags(self) -> Iterator[Tuple[tracking.TagSpec, tracking.Tag]]:
         """Iterate through the available tags in this storage."""
@@ -110,11 +110,16 @@ class TagStorage:
         new_tag = tracking.Tag(
             org=tag_spec.org, name=tag_spec.name, target=target, parent=parent_ref
         )
-        filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
+        self.push_raw_tag(new_tag)
+        return new_tag
+
+    def push_raw_tag(self, tag: tracking.Tag) -> None:
+        """Push the given tag data to the tag stream, regardless of if it's valid."""
+
+        filepath = os.path.join(self._root, tag.path + _TAG_EXT)
         makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
         tag_file = os.open(filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777)
         try:
-            os.write(tag_file, new_tag.encode() + b"\n")
+            os.write(tag_file, tag.encode() + b"\n")
         finally:
             os.close(tag_file)
-        return new_tag

@@ -28,3 +28,7 @@ class TagStorage(Protocol):
     def push_tag(self, tag: str, target: str) -> tracking.Tag:
         """Push the given tag onto the tag stream."""
         ...
+
+    def push_raw_tag(self, tag: tracking.Tag) -> None:
+        """Push the given tag data to the tag stream, regardless of if it's valid."""
+        ...
