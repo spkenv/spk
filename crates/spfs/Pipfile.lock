@@ -1,11 +1,7 @@
 {
     "_meta": {
         "hash": {
-<<<<<<< HEAD
-            "sha256": "5b696ea0b4d432d948f0ff7ea3f97902a9a3213c5564b88f5e510ddf9339997e"
-=======
-            "sha256": "9f0c786df2d860e53fb97c57aec70b6d7fe41508ce5ed507db4f3ab0627ff3da"
->>>>>>> Add initial functions to identify object for cleaning
+            "sha256": "68d4b35743d008c7f15720f3030e64dd4325aed841335e7af5a49d5bfa5a52a6"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -327,13 +323,6 @@
             ],
             "version": "==0.16"
         },
-        "filelock": {
-            "hashes": [
-                "sha256:18d82244ee114f543149c66a6e0c14e9c4f8a1044b5cdaadd0f82159d6a6ff59",
-                "sha256:929b7d63ec5b7d6b71b0fa5ac14e030b3f70b75747cef1b10da9b879fef15836"
-            ],
-            "version": "==3.0.12"
-        },
         "idna": {
             "hashes": [
                 "sha256:7588d1c14ae4c77d74036e8c22ff447b26d0fde8f007354fd48a7814db15b7cb",
@@ -547,17 +536,6 @@
             "index": "pypi",
             "version": "==2.8.1"
         },
-<<<<<<< HEAD
-        "pytest-mypy": {
-            "hashes": [
-                "sha256:14c746bd0db5e36618f2fda0ba61ddeb5dc52129ab3923a70f592f934c8887db",
-                "sha256:6d47b786e460c5101423fec8462e17ac1b6e9c497b1052e790b2e4850a8b3796"
-            ],
-            "index": "pypi",
-            "version": "==0.5.0"
-        },
-=======
->>>>>>> Add initial functions to identify object for cleaning
         "pytest-timeout": {
             "hashes": [
                 "sha256:80faa19cd245a42b87a51699d640c00d937c02b749052bfca6bae8bdbe12c48e",
@@ -735,17 +713,10 @@
         },
         "zipp": {
             "hashes": [
-<<<<<<< HEAD
                 "sha256:aa36550ff0c0b7ef7fa639055d797116ee891440eac1a56f378e2d3179e0320b",
                 "sha256:c599e4d75c98f6798c509911d08a22e6c021d074469042177c8c86fb92eefd96"
             ],
             "version": "==3.1.0"
-=======
-                "sha256:12248a63bbdf7548f89cb4c7cda4681e537031eda29c02ea29674bc6854460c2",
-                "sha256:7c0f8e91abc0dc07a5068f315c52cb30c66bfbc581e5b50704c8a2f6ebae794a"
-            ],
-            "version": "==3.0.0"
->>>>>>> Add initial functions to identify object for cleaning
         }
     }
 }

@@ -1,11 +1,34 @@
 from typing import Set
 
+import structlog
+
 from . import tracking, storage
+
+_logger = structlog.get_logger("spfs.clean")
 
 
 def clean_untagged_objects(repo: storage.fs.Repository) -> None:
 
-    pass
+    unattached = get_all_unattached_objects(repo)
+    for digest in unattached:
+        try:
+            repo.blobs.remove_blob(digest)
+            _logger.debug("removed blob", digest=digest)
+            continue
+        except storage.UnknownObjectError:
+            pass
+        try:
+            repo.platforms.remove_platform(digest)
+            _logger.info("removed platform", digest=digest)
+            continue
+        except storage.UnknownObjectError:
+            pass
+        try:
+            repo.layers.remove_layer(digest)
+            _logger.info("removed layer", digest=digest)
+            continue
+        except storage.UnknownObjectError:
+            pass
 
 
 def get_all_unattached_objects(repo: storage.fs.Repository) -> Set[str]:
