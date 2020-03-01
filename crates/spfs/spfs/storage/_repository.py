@@ -30,8 +30,24 @@ class Object(Protocol):
 
 
 @runtime_checkable
-class Repository(TagStorage, PlatformStorage, LayerStorage, BlobStorage, Protocol):
+class Repository(Protocol):
     """Repostory represents a storage location for spfs data."""
+
+    @property
+    def tags(self) -> TagStorage:
+        ...
+
+    @property
+    def platforms(self) -> PlatformStorage:
+        ...
+
+    @property
+    def layers(self) -> LayerStorage:
+        ...
+
+    @property
+    def blobs(self) -> BlobStorage:
+        ...
 
     def address(self) -> str:
         """Return the address of this repository."""

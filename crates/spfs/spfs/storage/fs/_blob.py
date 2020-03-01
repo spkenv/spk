@@ -1,4 +1,4 @@
-from typing import IO, List
+from typing import IO, List, TYPE_CHECKING
 import os
 import io
 import stat
@@ -35,6 +35,15 @@ class BlobStorage(DigestStorage):
         # this is because on filesystems with protected hardlinks enabled I either
         # need to own the file or have read+write+exec access to it
         self.blob_permissions = 0o777
+
+    def has_blob(self, digest: str) -> bool:
+        """Return true if the identified blob exists in this storage."""
+        try:
+            self.open_blob(digest).close()
+        except UnknownObjectError:
+            return False
+        else:
+            return True
 
     def open_blob(self, digest: str) -> IO[bytes]:
         """Return a handle to the blob identified by the given digest.
@@ -78,6 +87,15 @@ class BlobStorage(DigestStorage):
             os.remove(working_filepath)
 
         return digest
+
+    def remove_blob(self, digest: str) -> None:
+        """Remove a blob from this storage."""
+
+        path = self.resolve_full_digest_path(digest)
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            raise UnknownObjectError("Unknown Blob: " + digest)
 
     def commit_dir(self, dirname: str) -> tracking.Manifest:
         """Commit a local file system directory to this storage.
@@ -233,3 +251,9 @@ def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) ->
         ignore_dangling_symlinks=True,
         ignore=get_masked_entries,
     )
+
+
+if TYPE_CHECKING:
+    from .. import BlobStorage as BS
+
+    _: BS = BlobStorage("")

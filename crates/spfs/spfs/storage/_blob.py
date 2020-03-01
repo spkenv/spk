@@ -22,3 +22,7 @@ class BlobStorage(Protocol):
         Return the digest of the stored blob.
         """
         ...
+
+    def remove_blob(self, digest: str) -> None:
+        """Remote the given blob data from this storage."""
+        ...

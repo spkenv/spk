@@ -20,6 +20,17 @@ class PlatformStorage(DigestStorage):
 
         super(PlatformStorage, self).__init__(root)
 
+    def has_platform(self, digest: str) -> bool:
+        """Return true if the idetified platform exists in this storage."""
+
+        try:
+            path = self.resolve_full_digest_path(digest)
+            return os.path.exists(path)
+        except UnknownObjectError:
+            return False
+        else:
+            return True
+
     def read_platform(self, digest: str) -> Platform:
         """Read a platform's information from this storage.
 

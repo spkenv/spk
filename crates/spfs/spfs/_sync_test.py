@@ -24,12 +24,12 @@ def test_push_ref(config: Config, tmpdir: py.path.local) -> None:
     remote = config.get_remote("origin")
     manifest = local.blobs.commit_dir(src_dir.strpath)
     layer = local.layers.commit_manifest(manifest)
-    local.push_tag("testing", layer.digest)
+    local.tags.push_tag("testing", layer.digest)
 
     push_ref("testing", "origin")
 
     assert remote.read_object("testing")
-    assert remote.has_layer(layer.digest)
+    assert remote.layers.has_layer(layer.digest)
 
     push_ref("testing", "origin")
 
@@ -48,16 +48,16 @@ def test_sync_ref(tmpdir: py.path.local) -> None:
     manifest = repo_a.blobs.commit_dir(src_dir.strpath)
     layer = repo_a.layers.commit_manifest(manifest)
     platform = repo_a.platforms.commit_stack([layer.digest])
-    repo_a.push_tag("testing", platform.digest)
+    repo_a.tags.push_tag("testing", platform.digest)
 
     sync_ref("testing", repo_a, repo_b)
 
     assert repo_b.read_object("testing")
-    assert repo_b.has_platform(platform.digest)
-    assert repo_b.has_layer(layer.digest)
+    assert repo_b.platforms.has_platform(platform.digest)
+    assert repo_b.layers.has_layer(layer.digest)
 
     tmpdir.join("repo_a").remove()
     sync_ref("testing", repo_b, repo_a)
 
     assert repo_a.read_object("testing")
-    assert repo_a.has_layer(layer.digest)
+    assert repo_a.layers.has_layer(layer.digest)

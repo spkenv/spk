@@ -29,7 +29,7 @@ def _log(args: argparse.Namespace) -> None:
     else:
         repo = config.get_repository()
 
-    tag_stream = repo.read_tag(args.tag)
+    tag_stream = repo.tags.read_tag(args.tag)
     i = -1
     for tag in tag_stream:
         i += 1

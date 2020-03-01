@@ -54,14 +54,14 @@ def sync_ref(
 ) -> storage.Object:
 
     try:
-        tag: Optional[tracking.Tag] = src.resolve_tag(ref)
+        tag: Optional[tracking.Tag] = src.tags.resolve_tag(ref)
     except storage.UnknownObjectError:
         tag = None
 
     obj = src.read_object(ref)
     sync_object(obj, src, dest)
     if tag is not None:
-        dest.push_raw_tag(tag)
+        dest.tags.push_raw_tag(tag)
     return obj
 
 
@@ -81,14 +81,14 @@ def sync_platform(
     platform: storage.Platform, src: storage.Repository, dest: storage.Repository
 ) -> None:
 
-    if dest.has_platform(platform.digest):
+    if dest.platforms.has_platform(platform.digest):
         _logger.info("platform already synced", digest=platform.digest)
         return
     _logger.info("syncing platform", digest=platform.digest)
     for ref in platform.stack:
         sync_ref(ref, src, dest)
 
-    dest.write_platform(platform)
+    dest.platforms.write_platform(platform)
 
 
 def sync_layer(
@@ -96,7 +96,7 @@ def sync_layer(
 ) -> None:
 
     worker_pool = _get_worker_pool()
-    if dest.has_layer(layer.digest):
+    if dest.layers.has_layer(layer.digest):
         _logger.info("layer already synced", digest=layer.digest)
         return
 
@@ -135,7 +135,7 @@ def sync_layer(
     if len(errors) > 0:
         raise RuntimeError(f"{errors[0]}, and {len(errors)-1} more errors during sync")
 
-    dest.write_layer(layer)
+    dest.layers.write_layer(layer)
 
 
 def _sync_entry(entry: tracking.Entry, src_address: str, dest_address: str) -> None:
@@ -146,12 +146,12 @@ def _sync_entry(entry: tracking.Entry, src_address: str, dest_address: str) -> N
 
         if entry.kind is not tracking.EntryKind.BLOB:
             pass
-        elif dest.has_blob(entry.object):
+        elif dest.blobs.has_blob(entry.object):
             _logger.debug("blob already synced", digest=entry.object)
         else:
-            with src.open_blob(entry.object) as blob:
+            with src.blobs.open_blob(entry.object) as blob:
                 _logger.debug("syncing blob", digest=entry.object)
-                dest.write_blob(blob)
+                dest.blobs.write_blob(blob)
     except Exception as e:
         _sync_error_queue.put(e)
     with _sync_done_counter.get_lock():

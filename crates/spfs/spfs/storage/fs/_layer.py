@@ -1,4 +1,4 @@
-from typing import NamedTuple, Tuple, List, Dict, IO, Optional, Iterable
+from typing import NamedTuple, Tuple, List, Dict, IO, Optional, Iterable, TYPE_CHECKING
 import os
 import enum
 import uuid
@@ -25,6 +25,16 @@ class LayerStorage(DigestStorage):
         """Initialize a new storage inside the given root directory."""
 
         super(LayerStorage, self).__init__(root)
+
+    def has_layer(self, digest: str) -> bool:
+        """Return true if the identified layer exists in this storage."""
+        try:
+            path = self.resolve_full_digest_path(digest)
+            return os.path.exists(path)
+        except UnknownObjectError:
+            return False
+        else:
+            return True
 
     def read_layer(self, digest: str) -> Layer:
         """Read a layer's information from this storage.
@@ -88,3 +98,9 @@ class LayerStorage(DigestStorage):
             _logger.debug("layer created", digest=digest)
         except FileExistsError:
             _logger.debug("layer already exists", digest=digest)
+
+
+if TYPE_CHECKING:
+    from .. import LayerStorage as LS
+
+    _: LS = LayerStorage("")

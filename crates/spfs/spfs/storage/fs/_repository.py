@@ -1,4 +1,4 @@
-from typing import List, Tuple, IO, Iterator
+from typing import List, Tuple, IO, Iterator, TYPE_CHECKING
 import os
 
 import semver
@@ -120,82 +120,6 @@ class Repository:
             aliases.remove(ref)
         return aliases
 
-    def resolve_tag(self, tag_spec: str) -> tracking.Tag:
-
-        return self.tags.resolve_tag(tag_spec)
-
-    def read_tag(self, tag: str) -> Iterator[tracking.Tag]:
-
-        return self.tags.read_tag(tag)
-
-    def push_tag(self, tag: str, target: str) -> tracking.Tag:
-
-        return self.tags.push_tag(tag, target)
-
-    def push_raw_tag(self, tag: tracking.Tag) -> None:
-        """Push the given tag data to the tag stream, regardless of if it's valid."""
-
-        return self.tags.push_raw_tag(tag)
-
-    def has_layer(self, digest: str) -> bool:
-        """Return true if the identified layer exists in this repository."""
-        try:
-            self.layers.read_layer(digest)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    def read_layer(self, digest: str) -> Layer:
-
-        return self.layers.read_layer(digest)
-
-    def write_layer(self, layer: Layer) -> None:
-
-        self.layers.write_layer(layer)
-
-    def has_platform(self, digest: str) -> bool:
-        """Return true if the identified platform exists in this repository."""
-
-        try:
-            self.platforms.read_platform(digest)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    def read_platform(self, digest: str) -> Platform:
-
-        return self.platforms.read_platform(digest)
-
-    def write_platform(self, platform: Platform) -> None:
-
-        self.platforms.write_platform(platform)
-
-    def has_blob(self, digest: str) -> bool:
-        """Return true if the identified blob exists in this storage."""
-        try:
-            self.blobs.open_blob(digest).close()
-        except ValueError:
-            return False
-        else:
-            return True
-
-    def open_blob(self, digest: str) -> IO[bytes]:
-        """Return a handle to the blob identified by the given digest.
-
-        Raises:
-            ValueError: if the blob does not exist in this storage
-        """
-        return self.blobs.open_blob(digest)
-
-    def write_blob(self, data: IO[bytes]) -> str:
-        """Read the given data stream to completion, and store as a blob.
-
-        Return the digest of the stored blob.
-        """
-        return self.blobs.write_blob(data)
-
 
 def ensure_repository(path: str) -> Repository:
 
@@ -216,6 +140,11 @@ def ensure_repository(path: str) -> Repository:
 
     return repo
 
+
+if TYPE_CHECKING:
+    from .. import Repository as R
+
+    _: R = Repository("")
 
 register_scheme("file", Repository)
 register_scheme("", Repository)
