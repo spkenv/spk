@@ -41,7 +41,7 @@ def run(argv: Sequence[str]) -> int:
 
     try:
         spops.count("spfs.run_count")
-        with spops.timed("spfs.run_time"):
+        with spops.timer("spfs.run_time"):
             args.func(args)
 
     except KeyboardInterrupt:
