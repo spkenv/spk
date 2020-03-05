@@ -1,7 +1,6 @@
-version: 0.15.4
+version: 0.15.5
 release_notes: |
-  * Fix permission denied error for /net/libs repos
-    * The last fix was one place the error could happen, this is the next
+  * Collect basic spops metrics
 
 environment:
   kind: PipEnv

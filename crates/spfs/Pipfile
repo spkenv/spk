@@ -1,6 +1,6 @@
 [[source]]
 name = "pypi"
-url = "http://pypi.spimageworks.com/spi/dev/"
+url = "http://artifactory.spimageworks.com/api/pypi/pypi/simple"
 verify_ssl = false
 
 [dev-packages]
@@ -23,9 +23,10 @@ colorama = "~=0.4.1"
 typing-extensions = "~=3.7"
 simplejson = "~=3.17"
 structlog = "~=19.2"
-sentry-sdk = "==0.10.2"
-semver = "*"
-sortedcontainers = "*"
+sentry-sdk = "~=0.14.0"
+semver = "~=2.9"
+sortedcontainers = "~=2.1"
+spops = "~=0.1.6"
 
 [requires]
 python_version = "3.7"

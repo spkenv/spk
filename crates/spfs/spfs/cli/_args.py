@@ -1,10 +1,12 @@
 from typing import Sequence
 import os
 import sys
+import socket
 import logging
 import getpass
 import argparse
 
+import spops
 import colorama
 import structlog
 import sentry_sdk
@@ -75,6 +77,23 @@ def configure_sentry() -> None:
     with sentry_sdk.configure_scope() as scope:
         username = getpass.getuser()
         scope.user = {"email": f"{username}@imageworks.com", "username": username}
+
+
+def configure_spops() -> None:
+
+    try:
+        spops.configure(
+            {
+                "statsd": {"host": "statsd.k8s.spimageworks.com", "port": 30111},
+                "labels": {
+                    "environment": os.getenv("SENTRY_ENVIRONMENT", "production"),
+                    "user": getpass.getuser(),
+                    "host": socket.gethostname(),
+                },
+            },
+        )
+    except Exception as e:
+        print(f"failed to initialize spops: {e}", file=sys.stderr)
 
 
 def configure_logging(args: argparse.Namespace) -> None:

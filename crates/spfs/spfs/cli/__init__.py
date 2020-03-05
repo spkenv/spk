@@ -8,10 +8,11 @@ import traceback
 import logging
 import structlog
 import sentry_sdk
+import spops
 
 import spfs
 
-from ._args import parse_args, configure_logging, configure_sentry
+from ._args import parse_args, configure_logging, configure_sentry, configure_spops
 
 _logger = structlog.get_logger("cli")
 
@@ -32,13 +33,16 @@ def run(argv: Sequence[str]) -> int:
         return e.code
 
     configure_logging(args)
+    configure_spops()
 
     with sentry_sdk.configure_scope() as scope:
         scope.set_extra("command", args.command)
         scope.set_extra("argv", sys.argv)
 
     try:
-        args.func(args)
+        spops.count("spfs.run_count")
+        with spops.timed("spfs.run_time"):
+            args.func(args)
 
     except KeyboardInterrupt:
         pass
@@ -46,6 +50,7 @@ def run(argv: Sequence[str]) -> int:
     except Exception as e:
         _capture_if_relevant(e)
         _logger.error(str(e))
+        spops.count("spfs.error_count")
         if args.debug:
             traceback.print_exc(file=sys.stderr)
         return 1
