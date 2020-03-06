@@ -154,9 +154,10 @@ def _sync_entry(entry: tracking.Entry, src_address: str, dest_address: str) -> N
                 dest.blobs.write_blob(blob)
     except Exception as e:
         _sync_error_queue.put(e)
-    with _sync_done_counter.get_lock():
-        # read and subsequent write are not atomic unless lock is held throughout
-        _sync_done_counter.value += 1
+    finally:
+        with _sync_done_counter.get_lock():
+            # read and subsequent write are not atomic unless lock is held throughout
+            _sync_done_counter.value += 1
 
 
 def _get_worker_pool() -> "multiprocessing.pool.Pool":
