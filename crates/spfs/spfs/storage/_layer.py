@@ -1,4 +1,4 @@
-from typing import NamedTuple, Dict
+from typing import NamedTuple, Dict, Tuple
 from typing_extensions import Protocol, runtime_checkable
 import hashlib
 
@@ -22,6 +22,10 @@ class Layer(NamedTuple):
         hasher = hashlib.sha256()
         hasher.update(self.manifest.digest.encode("utf-8"))
         return hasher.hexdigest()
+
+    def children(self) -> Tuple[str, ...]:
+        """Return the child object of this one in the object DG."""
+        return (self.manifest.digest,)
 
     def dump_dict(self) -> Dict:
         """Dump this layer data into a dictionary of python basic types."""

@@ -107,6 +107,12 @@ class Repository:
         except ValueError:
             pass
 
+        try:
+            manifest = self.manifests.read_manifest(ref)
+            return self.manifests, manifest
+        except ValueError:
+            pass
+
         raise UnknownObjectError("Unknown ref: " + ref)
 
     def find_aliases(self, ref: str) -> List[str]:

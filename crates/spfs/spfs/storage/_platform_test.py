@@ -1,3 +1,4 @@
+from ._repository import Object
 from ._platform import Platform
 
 

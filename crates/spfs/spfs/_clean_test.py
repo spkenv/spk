@@ -12,7 +12,7 @@ from ._clean import (
 )
 
 
-def test_get_attached_unattached_objects(tmprepo: storage.fs.Repository) -> None:
+def test_get_attached_unattached_objects_blob(tmprepo: storage.fs.Repository) -> None:
 
     blob_digest = tmprepo.blobs.write_blob(io.BytesIO(b"hello, world"))
 
@@ -23,10 +23,18 @@ def test_get_attached_unattached_objects(tmprepo: storage.fs.Repository) -> None
         blob_digest
     }, "single blob should be unattached"
 
-    manifest = tracking.compute_manifest(tmprepo.root)
-    layer = storage.Layer(manifest)
-    tmprepo.layers.write_layer(layer)
+
+def test_get_attached_unattached_objects_blob(
+    tmpdir: py.path.local, tmprepo: storage.fs.Repository
+) -> None:
+
+    data_dir = tmpdir.join("data")
+    data_dir.join("file.txt").write("hello, world", ensure=True)
+
+    manifest = tmprepo.blobs.commit_dir(data_dir.strpath)
+    layer = tmprepo.layers.commit_manifest(manifest)
     tmprepo.tags.push_tag("my_tag", layer.digest)
+    blob_digest = manifest.children()[0]
 
     assert blob_digest in get_all_attached_objects(
         tmprepo

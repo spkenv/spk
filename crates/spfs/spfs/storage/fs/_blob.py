@@ -265,9 +265,7 @@ class ManifestStorage(DigestStorage):
                 data = json.load(f)
         except FileNotFoundError:
             raise UnknownObjectError("Unknown manifest: " + digest)
-        manifest = tracking.Manifest()
-        manifest.load_dict(data)
-        return manifest
+        return tracking.Manifest.load_dict(data)
 
     def write_manifest(self, manifest: tracking.Manifest) -> None:
         """Write the given manifest into this storage."""

@@ -27,6 +27,15 @@ class Manifest:
 
         return self._root.digest
 
+    def children(self) -> Tuple[str, ...]:
+        """Return the digests of objects that this manifest refers to."""
+
+        children = []
+        for _, entry in self.walk():
+            if entry.kind is EntryKind.BLOB:
+                children.append(entry.object)
+        return tuple(children)
+
     def is_empty(self) -> bool:
         """Return true if this manifest has no contents."""
 

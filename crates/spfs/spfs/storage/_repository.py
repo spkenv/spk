@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from typing_extensions import Protocol, runtime_checkable
 
 from ._layer import LayerStorage
@@ -27,6 +27,9 @@ class AmbiguousReferenceError(ValueError):
 class Object(Protocol):
     @property
     def digest(self) -> str:
+        ...
+
+    def children(self) -> Tuple[str, ...]:
         ...
 
 

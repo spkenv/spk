@@ -64,17 +64,13 @@ def get_all_attached_objects(repo: storage.fs.Repository) -> Set[str]:
             return
 
         reachable_objects.add(digest)
-        obj = repo.read_object(digest)
-        if isinstance(obj, storage.Platform):
-            for child in obj.stack:
-                follow_obj(child)
-        elif isinstance(obj, storage.Layer):
-            reachable_objects.add(obj.manifest.digest)
-            for _, child_obj in obj.manifest.walk():
-                reachable_objects.add(child_obj.digest)
-                reachable_objects.add(child_obj.object)
-        else:
-            raise NotImplementedError(f"Unhandled object {type(obj)}")
+        try:
+            obj = repo.read_object(digest)
+        except storage.UnknownObjectError:
+            return
+
+        for child in obj.children():
+            follow_obj(child)
 
     for _, stream in repo.tags.iter_tag_streams():
         for tag in stream:

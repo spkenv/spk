@@ -17,11 +17,15 @@ class Platform(NamedTuple):
 
     @property
     def digest(self) -> str:
-
+        """Return the identifying digest hash of this object."""
         hasher = hashlib.sha256()
         for layer in self.stack:
             hasher.update(layer.encode("utf-8"))
         return hasher.hexdigest()
+
+    def children(self) -> Tuple[str, ...]:
+        """Return the child object of this one in the object DG."""
+        return self.stack
 
     def dump_dict(self) -> Dict:
         """Dump this platform data into a dictionary of python basic types."""
