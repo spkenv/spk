@@ -1,4 +1,5 @@
 import io
+import os
 
 import pytest
 import py.path
@@ -70,3 +71,31 @@ def test_clean_untagged_objects_layers_platforms(
 
     with pytest.raises(storage.UnknownObjectError):
         tmprepo.platforms.read_platform(platform.digest)
+
+
+def test_clean_manifest_renders(
+    tmpdir: py.path.local, tmprepo: storage.fs.Repository
+) -> None:
+
+    data_dir = tmpdir.join("data")
+    data_dir.join("dir/dir/file.txt").write("hello", ensure=True)
+    data_dir.join("dir/name.txt").write("john doe", ensure=True)
+
+    manifest = tmprepo.blobs.commit_dir(data_dir.strpath)
+    layer = tmprepo.layers.commit_manifest(manifest)
+    platform = tmprepo.platforms.commit_stack([layer.digest])
+
+    file_count = _count_files(tmprepo.root)
+    assert file_count != 0, "should have stored data"
+
+    clean_untagged_objects(tmprepo)
+
+    assert _count_files(tmprepo.root) == 0, "should remove all created data files"
+
+
+def _count_files(dirname: str) -> int:
+
+    file_count = 0
+    for _, _, files in os.walk(dirname):
+        file_count += len(files)
+    return file_count

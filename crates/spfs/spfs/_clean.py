@@ -18,6 +18,15 @@ def clean_untagged_objects(repo: storage.fs.Repository) -> None:
         except storage.UnknownObjectError:
             pass
         try:
+            repo.manifests.remove_manifest(digest)
+            _logger.debug("removed manifest", digest=digest)
+            if isinstance(repo.blobs, storage.ManifestViewer):
+                # TODO: this should be more predictable/reliable
+                repo.blobs.remove_rendered_manifest(digest)
+            continue
+        except storage.UnknownObjectError:
+            pass
+        try:
             repo.platforms.remove_platform(digest)
             _logger.info("removed platform", digest=digest)
             continue
@@ -34,6 +43,8 @@ def clean_untagged_objects(repo: storage.fs.Repository) -> None:
 def get_all_unattached_objects(repo: storage.fs.Repository) -> Set[str]:
 
     digests: Set[str] = set()
+    for digest in repo.manifests.iter_digests():
+        digests.add(digest)
     for digest in repo.layers.iter_digests():
         digests.add(digest)
     for digest in repo.platforms.iter_digests():
@@ -58,6 +69,7 @@ def get_all_attached_objects(repo: storage.fs.Repository) -> Set[str]:
             for child in obj.stack:
                 follow_obj(child)
         elif isinstance(obj, storage.Layer):
+            reachable_objects.add(obj.manifest.digest)
             for _, child_obj in obj.manifest.walk():
                 reachable_objects.add(child_obj.digest)
                 reachable_objects.add(child_obj.object)

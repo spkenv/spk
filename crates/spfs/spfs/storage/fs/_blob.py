@@ -28,7 +28,7 @@ class BlobStorage(DigestStorage):
     def __init__(self, root: str) -> None:
 
         super(BlobStorage, self).__init__(root)
-        self._renders = DigestStorage(os.path.join(self._root, "renders"))
+        self.renders = ManifestStorage(os.path.join(self._root, "renders"))
 
         # this default is appropriate for shared repos, but can be locked further
         # in cases where the current user will own the files, and other don't need
@@ -144,8 +144,8 @@ class BlobStorage(DigestStorage):
                 os.remove(rendered_path)
 
         _logger.info("committing rendered manifest")
-        self._renders.ensure_digest_base_dir(manifest.digest)
-        rendered_dirpath = self._renders.build_digest_path(manifest.digest)
+        self.renders.ensure_digest_base_dir(manifest.digest)
+        rendered_dirpath = self.renders.build_digest_path(manifest.digest)
         try:
             os.rename(working_dirpath, rendered_dirpath)
         except FileExistsError:
@@ -158,54 +158,6 @@ class BlobStorage(DigestStorage):
 
         return manifest
 
-    def has_manifest(self, digest: str) -> bool:
-        """Return true if the identified manifest exists in this storage."""
-
-        path = self._renders.build_digest_path(digest)
-        return os.path.exists(path + ".manifest")
-
-    def read_manifest(self, digest: str) -> tracking.Manifest:
-        """Return the manifest identified by the given digest.
-
-        Raises:
-            UnknownObjectError: if the manifest does not exist in this storage
-        """
-        path = self._renders.build_digest_path(digest)
-        try:
-            with open(path + ".manifest") as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            raise UnknownObjectError("Unknown manifest: " + digest)
-        manifest = tracking.Manifest()
-        manifest.load_dict(data)
-        return manifest
-
-    def write_manifest(self, manifest: tracking.Manifest) -> None:
-        """Write the given manifest into this storage."""
-        path = self._renders.build_digest_path(manifest.digest)
-        self._renders.ensure_digest_base_dir(manifest.digest)
-        try:
-            with open(path + ".manifest", "w+") as f:
-                json.dump(manifest.dump_dict(), f)
-        except FileExistsError:
-            pass
-
-    def remove_manifest(self, digest: str) -> None:
-        """Remove a manifest from this storage.
-
-        Raises:
-            UnknownObjectError: if the manifest does not exist in this storage
-        """
-        path = self._renders.build_digest_path(digest)
-        try:
-            os.remove(path + ".manifest")
-        except FileNotFoundError:
-            raise UnknownObjectError("Unknown manifest: " + digest)
-        try:
-            self.remove_rendered_manifest(digest)
-        except UnknownObjectError:
-            pass
-
     def render_manifest(self, manifest: tracking.Manifest) -> str:
         """Create a hard-linked rendering of the given file manifest.
 
@@ -217,12 +169,12 @@ class BlobStorage(DigestStorage):
             str: the path to the root of the rendered manifest
         """
 
-        rendered_dirpath = self._renders.build_digest_path(manifest.digest)
+        rendered_dirpath = self.renders.build_digest_path(manifest.digest)
         if _was_render_completed(rendered_dirpath):
             return rendered_dirpath
 
-        self._renders.ensure_digest_base_dir(manifest.digest)
-        self.write_manifest(manifest)
+        self.renders.ensure_digest_base_dir(manifest.digest)
+        self.renders.write_manifest(manifest)
         try:
             os.mkdir(rendered_dirpath)
         except FileExistsError:
@@ -271,22 +223,73 @@ class BlobStorage(DigestStorage):
     def remove_rendered_manifest(self, digest: str) -> None:
         """Remove the identified render from this storage."""
 
-        rendered_dirpath = self._renders.build_digest_path(digest)
+        rendered_dirpath = self.renders.build_digest_path(digest)
         working_dirname = "work-" + uuid.uuid4().hex
-        working_dirpath = os.path.join(self._renders.root, working_dirname)
+        working_dirpath = os.path.join(self.renders.root, working_dirname)
         try:
             os.rename(rendered_dirpath, working_dirpath)
         except FileNotFoundError:
             return
 
+        _unmark_render_completed(rendered_dirpath)
         for root, dirs, files in os.walk(working_dirpath, topdown=False):
 
-            for name in files + dirs:
+            for name in files:
                 path = os.path.join(root, name)
                 os.chmod(path, 0o0777)
                 os.remove(path)
+            for name in dirs:
+                path = os.path.join(root, name)
+                os.chmod(path, 0o0777)
+                os.rmdir(path)
 
-        os.remove(working_dirpath)
+        os.rmdir(working_dirpath)
+
+
+class ManifestStorage(DigestStorage):
+    def has_manifest(self, digest: str) -> bool:
+        """Return true if the identified manifest exists in this storage."""
+
+        path = self.build_digest_path(digest)
+        return os.path.exists(path + ".manifest")
+
+    def read_manifest(self, digest: str) -> tracking.Manifest:
+        """Return the manifest identified by the given digest.
+
+        Raises:
+            UnknownObjectError: if the manifest does not exist in this storage
+        """
+        path = self.build_digest_path(digest)
+        try:
+            with open(path + ".manifest") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            raise UnknownObjectError("Unknown manifest: " + digest)
+        manifest = tracking.Manifest()
+        manifest.load_dict(data)
+        return manifest
+
+    def write_manifest(self, manifest: tracking.Manifest) -> None:
+        """Write the given manifest into this storage."""
+        path = self.build_digest_path(manifest.digest)
+        self.ensure_digest_base_dir(manifest.digest)
+        try:
+            with open(path + ".manifest", "w+") as f:
+                json.dump(manifest.dump_dict(), f)
+        except FileExistsError:
+            pass
+
+    def remove_manifest(self, digest: str) -> None:
+        """Remove a manifest from this storage.
+
+        Raises:
+            UnknownObjectError: if the manifest does not exist in this storage
+        """
+        path = self.build_digest_path(digest)
+        try:
+            os.remove(path + ".manifest")
+        except FileNotFoundError:
+            raise UnknownObjectError("Unknown manifest: " + digest)
 
 
 def _was_render_completed(render_path: str) -> bool:
@@ -297,6 +300,14 @@ def _was_render_completed(render_path: str) -> bool:
 def _mark_render_completed(render_path: str) -> None:
 
     open(render_path + ".completed", "w+").close()
+
+
+def _unmark_render_completed(render_path: str) -> None:
+
+    try:
+        os.remove(render_path + ".completed")
+    except FileNotFoundError:
+        pass
 
 
 def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
@@ -330,5 +341,5 @@ if TYPE_CHECKING:
     from .. import BlobStorage as BS, ManifestStorage as MS, ManifestViewer as MV
 
     bs: BS = BlobStorage("")
-    ms: MS = BlobStorage("")
     mv: MV = BlobStorage("")
+    ms: MS = ManifestStorage("")
