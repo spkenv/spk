@@ -20,6 +20,11 @@ class DigestStorage:
         self.directory_permissions = 0o777
         makedirs_with_perms(self._root, self.directory_permissions)
 
+    @property
+    def root(self) -> str:
+        """Return the root directory of this storage."""
+        return self._root
+
     def build_digest_path(self, digest: str) -> str:
         """Build the storage path for the given object digest."""
 

@@ -33,6 +33,7 @@ class Repository:
         self.layers = LayerStorage(os.path.join(root, self._layers))
         self.platforms = PlatformStorage(os.path.join(root, self._platforms))
         self.blobs = BlobStorage(os.path.join(root, self._blobs))
+        self.manifests = self.blobs
         self.tags = TagStorage(os.path.join(root, self._tags))
 
         required_version = self.last_migration()

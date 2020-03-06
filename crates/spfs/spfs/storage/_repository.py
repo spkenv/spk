@@ -4,6 +4,7 @@ from typing_extensions import Protocol, runtime_checkable
 from ._layer import LayerStorage
 from ._platform import PlatformStorage
 from ._blob import BlobStorage
+from ._manifest import ManifestStorage
 from ._tag import TagStorage
 
 
@@ -43,6 +44,10 @@ class Repository(Protocol):
 
     @property
     def layers(self) -> LayerStorage:
+        ...
+
+    @property
+    def manifests(self) -> ManifestStorage:
         ...
 
     @property

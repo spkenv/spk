@@ -52,3 +52,7 @@ class LayerStorage(Protocol):
     def write_layer(self, layer: Layer) -> None:
         """Write the given layer into this storage."""
         ...
+
+    def remove_layer(self, digest: str) -> None:
+        """Remove a layer from this storage."""
+        ...

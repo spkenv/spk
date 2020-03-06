@@ -1,4 +1,5 @@
 from ._blob import BlobStorage
+from ._manifest import ManifestStorage, ManifestViewer
 from ._layer import Layer, LayerStorage
 from ._platform import Platform, PlatformStorage
 from ._repository import Repository, Object, UnknownObjectError, AmbiguousReferenceError

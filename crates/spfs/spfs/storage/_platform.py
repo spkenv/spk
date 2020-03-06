@@ -52,3 +52,7 @@ class PlatformStorage(Protocol):
     def write_platform(self, platform: Platform) -> None:
         """Write the given platform into this storage."""
         ...
+
+    def remove_platform(self, ref: str) -> None:
+        """Remove a platform from this storage."""
+        ...
