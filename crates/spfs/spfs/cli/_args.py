@@ -15,6 +15,7 @@ from sentry_sdk.integrations.logging import ignore_logger
 import spfs
 from . import (
     _cmd_commit,
+    _cmd_clean,
     _cmd_diff,
     _cmd_info,
     _cmd_init,
@@ -53,6 +54,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_shell.register(sub_parsers)
 
     _cmd_commit.register(sub_parsers)
+    _cmd_clean.register(sub_parsers)
     _cmd_push.register(sub_parsers)
     _cmd_pull.register(sub_parsers)
     _cmd_info.register(sub_parsers)
