@@ -1,14 +1,14 @@
-from typing import TypeVar, List, Dict, Iterable, Union, Any, Iterator
-import hashlib
+from typing import TypeVar, List, Dict, Iterable, Union, Any, Iterator, BinaryIO
 
 from sortedcontainers import SortedDict
 
+from .. import encoding
 from ._entry import Entry
 
 T = TypeVar("T")
 
 
-class Tree:
+class Tree(encoding.Encodable):
     """Tree is an ordered collection of entries.
 
     Only one entry of a given name is allowed at a time.
@@ -20,16 +20,9 @@ class Tree:
         for entry in entries:
             self.add(entry)
 
-    @property
-    def digest(self) -> str:
-        hasher = hashlib.sha256()
-        for entry in self._entries.values():
-            hasher.update(str(entry).encode("ascii"))
-        return hasher.hexdigest()
-
     def __repr__(self) -> str:
 
-        return f"<{self.__class__.__name__} '{self.digest}'>"
+        return f"<{self.__class__.__name__} '{self.digest().str()}'>"
 
     def __getitem__(self, key: Union[int, str]) -> Entry:
 
@@ -40,7 +33,7 @@ class Tree:
     def __eq__(self, other: Any) -> bool:
 
         if isinstance(other, Tree):
-            return self.digest == other.digest
+            return self.digest() == other.digest()
         return super(Tree, self).__eq__(other)
 
     def get(self, key: Union[int, str], default: T = None) -> Union[Entry, T, None]:
@@ -79,19 +72,17 @@ class Tree:
         except KeyError:
             raise FileNotFoundError(name)
 
-    def dump_dict(self) -> Dict:
-        """Dump this tree data into a dictionary of python basic types."""
+    def encode(self, writer: BinaryIO) -> None:
 
-        return {
-            "digest": self.digest,
-            "entries": list(e.dump_dict() for e in self._entries.values()),
-        }
+        encoding.write_int(writer, len(self._entries))
+        for entry in self._entries.values():
+            entry.encode(writer)
 
-    @staticmethod
-    def load_dict(data: Dict) -> "Tree":
-        """Load tree data from the given dictionary dump."""
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Tree":
 
         tree = Tree()
-        for entry_data in data.get("entries", []):
-            tree.add(Entry.load_dict(entry_data))
+        entry_count = encoding.read_int(reader)
+        for _ in range(entry_count):
+            tree.add(Entry.decode(reader))
         return tree

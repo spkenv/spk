@@ -1,10 +1,10 @@
-from typing import Tuple, Dict, Optional, Iterator, TYPE_CHECKING, DefaultDict
+from typing import Tuple, Dict, Optional, Iterable, TYPE_CHECKING, DefaultDict, BinaryIO
 from collections import OrderedDict
 import os
 import stat
 import hashlib
 
-from .. import runtime
+from .. import runtime, graph, encoding
 
 from ._entry import EntryKind, Entry
 from ._tree import Tree
@@ -16,18 +16,17 @@ else:
     EntryMap = OrderedDict
 
 
-class Manifest:
+class Manifest(graph.Object):
     def __init__(self) -> None:
 
         self._root: Tree = Tree()
-        self._trees: Dict[str, Tree] = {}
+        self._trees: Dict[encoding.Digest, Tree] = {}
 
-    @property
-    def digest(self) -> str:
+    def digest(self) -> encoding.Digest:
 
-        return self._root.digest
+        return self._root.digest()
 
-    def children(self) -> Tuple[str, ...]:
+    def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Return the digests of objects that this manifest refers to."""
 
         children = []
@@ -68,10 +67,10 @@ class Manifest:
             raise FileNotFoundError(path)
         return entry
 
-    def walk(self) -> Iterator[Tuple[str, Entry]]:
+    def walk(self) -> Iterable[Tuple[str, Entry]]:
         """Walk the contents of this manifest depth-first."""
 
-        def iter_tree(root: str, tree: Tree) -> Iterator[Tuple[str, Entry]]:
+        def iter_tree(root: str, tree: Tree) -> Iterable[Tuple[str, Entry]]:
 
             for entry in tree:
 
@@ -85,43 +84,28 @@ class Manifest:
 
         return iter_tree("/", self._root)
 
-    def walk_abs(self, root: str) -> Iterator[Tuple[str, Entry]]:
+    def walk_abs(self, root: str) -> Iterable[Tuple[str, Entry]]:
         """Same as walk(), but joins all entry paths to the given root."""
 
         for relpath, entry in self.walk():
             yield os.path.join(root, relpath.lstrip("/")), entry
 
-    def dump_dict(self) -> Dict:
-        """Dump this manifest data into a dictionary of python basic types."""
+    def encode(self, writer: BinaryIO) -> None:
 
-        return {
-            "digest": self.digest,
-            "root": self._root.dump_dict(),
-            "trees": list(t.dump_dict() for t in self._trees.values()),
-        }
+        self._root.encode(writer)
+        encoding.write_int(writer, len(self._trees))
+        for tree in self._trees.values():
+            tree.encode(writer)
 
-    @staticmethod
-    def load_dict(data: Dict) -> "Manifest":
-        """Load manifest data from the given dictionary dump."""
-
-        if "root" not in data:
-            # support for version < 0.12.15: less efficient manifest storage
-            # had path-based data duplication. These versions also had a
-            # bug where the stored trees were not actually valid, but were
-            # not used at runtime because of the spare data. We can only
-            # rebuild the manifest to ensure data integrity
-            builder = ManifestBuilder("/")
-            for path, entry_data in zip(data["paths"], data["entries"]):
-                entry = Entry.load_dict(entry_data)
-                builder.add_entry(path, entry)
-            return builder.finalize()
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Manifest":
 
         manifest = Manifest()
-        manifest._root = Tree.load_dict(data["root"])
-        for tree_data in data.get("trees", []):
-            tree = Tree.load_dict(tree_data)
-            assert tree.digest == tree_data["digest"], "Corrupt Manifest"
-            manifest._trees[tree.digest] = tree
+        manifest._root = Tree.decode(reader)
+        num_trees = encoding.read_int(reader)
+        for _ in range(num_trees):
+            tree = Tree.decode(reader)
+            manifest._trees[tree.digest()] = tree
         return manifest
 
 
@@ -142,7 +126,7 @@ class ManifestBuilder:
             tree = self._trees[tree_path]
             if tree_path == "/":
                 manifest._root = tree
-                manifest._trees["/"] = tree
+                manifest._trees[tree.digest()] = tree
                 break
 
             parent = self._trees[os.path.dirname(tree_path)]
@@ -151,10 +135,10 @@ class ManifestBuilder:
                 name=tree_entry.name,
                 mode=tree_entry.mode,
                 kind=tree_entry.kind,
-                object=tree.digest,
+                object=tree.digest(),
             )
             parent.update(tree_entry)
-            manifest._trees[tree.digest] = tree
+            manifest._trees[tree.digest()] = tree
         else:
             raise RuntimeError("Logic Error: root tree was never visited")
 
@@ -220,7 +204,12 @@ class ManifestBuilder:
             try:
                 self.add_entry(
                     abspath,
-                    Entry(kind=EntryKind.TREE, mode=0o775, object="", name=name),
+                    Entry(
+                        kind=EntryKind.TREE,
+                        mode=0o775,
+                        object=encoding.NULL_DIGEST,
+                        name=name,
+                    ),
                 )
             except FileExistsError:
                 pass
@@ -255,21 +244,21 @@ def compute_entry(path: str, append_to: ManifestBuilder = None) -> Entry:
 
     kind = EntryKind.BLOB
     if stat.S_ISLNK(stat_result.st_mode):
-        digest = hashlib.sha256(os.readlink(path).encode("utf-8")).hexdigest()
+        digest = encoding.Hasher(os.readlink(path).encode("utf-8")).digest()
     elif stat.S_ISDIR(stat_result.st_mode):
         kind = EntryKind.TREE
-        digest = compute_tree(path, append_to=manifest).digest
+        digest = compute_tree(path, append_to=manifest).digest()
     elif runtime.is_removed_entry(stat_result):
         kind = EntryKind.MASK
-        digest = hashlib.sha256().hexdigest()  # emtpy/default digest
+        digest = encoding.Hasher().digest()  # emtpy/default digest
     elif not stat.S_ISREG(stat_result.st_mode):
         raise ValueError("unsupported special file: " + path)
     else:
         with open(path, "rb") as f:
-            hasher = hashlib.sha256()
+            hasher = encoding.Hasher()
             for byte_block in iter(lambda: f.read(4096), b""):
                 hasher.update(byte_block)
-            digest = hasher.hexdigest()
+            digest = hasher.digest()
 
     entry = Entry(
         kind=kind, name=os.path.basename(path), mode=stat_result.st_mode, object=digest

@@ -1,16 +1,21 @@
+import io
+
 import pytest
 
-from ._tag import TagSpec, Tag, decode_tag, split_tag_spec
+from .. import encoding
+from ._tag import TagSpec, Tag, split_tag_spec
 
 
 @pytest.mark.parametrize(
-    "tag", [Tag(org="vfx", name="2019", target="------digest------")]
+    "tag", [Tag(org="vfx", name="2019", target=encoding.EMPTY_DIGEST)]
 )
 def test_tag_encoding(tag: Tag) -> None:
 
-    encoded = tag.encode()
-    decoded = decode_tag(encoded)
-    assert tag.digest == decoded.digest
+    stream = io.BytesIO()
+    tag.encode(stream)
+    stream.seek(0)
+    decoded = Tag.decode(stream)
+    assert tag == decoded
 
 
 @pytest.mark.parametrize(

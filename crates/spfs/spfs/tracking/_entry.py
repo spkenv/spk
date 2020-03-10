@@ -1,6 +1,8 @@
-from typing import NamedTuple, Any, Dict
+from typing import NamedTuple, Any, Dict, BinaryIO
 import enum
 import hashlib
+
+from .. import encoding
 
 
 class EntryKind(enum.Enum):
@@ -10,25 +12,20 @@ class EntryKind(enum.Enum):
     MASK = "mask"  # removed entry / node or leaf
 
 
-class Entry(NamedTuple):
+class Entry(encoding.Encodable):
+    def __init__(
+        self, object: encoding.Digest, kind: EntryKind, mode: int, name: str,
+    ) -> None:
 
-    object: str
-    kind: EntryKind
-    mode: int
-    name: str
-
-    @property
-    def digest(self) -> str:
-        hasher = hashlib.sha256()
-        hasher.update(f"{self.mode:06o}".encode("ascii"))
-        hasher.update(self.kind.value.encode("utf-8"))
-        hasher.update(self.name.encode("utf-8"))
-        hasher.update(self.object.encode("ascii"))
-        return hasher.hexdigest()
+        self.object = object
+        self.kind = kind
+        self.mode = mode
+        self.name = name
+        super(Entry, self).__init__()
 
     def __str__(self) -> str:
 
-        return f"{self.mode:06o} {self.kind.value} {self.name} {self.object}"
+        return f"{self.mode:06o} {self.kind.value} {self.name} {self.object.str()}"
 
     def __lt__(self, other: Any) -> bool:
 
@@ -54,32 +51,19 @@ class Entry(NamedTuple):
 
         return self.kind is EntryKind.TREE
 
-    def dump_dict(self) -> Dict:
-        """Dump this entry data into a dictionary of python basic types."""
+    def encode(self, writer: BinaryIO) -> None:
 
-        return {
-            "object": self.object,
-            "kind": self.kind.value,
-            "mode": self.mode,
-            "name": self.name,
-        }
+        encoding.write_digest(writer, self.object)
+        encoding.write_string(writer, self.kind.value)
+        encoding.write_int(writer, self.mode)
+        encoding.write_string(writer, self.name)
 
-    @staticmethod
-    def load_dict(data: Dict) -> "Entry":
-        """Load entry data from the given dictionary dump."""
-
-        if "object" not in data:
-            # support for version < 0.9
-            # - the entry type used to store 'digest' as
-            #   hash of whatever it pointed at, not it's
-            #   own unique hash - but this was confusing
-            #   in the API and had already been reponsible
-            #   for an internal bug... :/
-            data["object"] = data["digest"]
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Entry":
 
         return Entry(
-            object=data["object"],
-            kind=EntryKind(data["kind"]),
-            mode=data["mode"],
-            name=data["name"],
+            object=encoding.read_digest(reader),
+            kind=EntryKind(encoding.read_string(reader)),
+            mode=encoding.read_int(reader),
+            name=encoding.read_string(reader),
         )

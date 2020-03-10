@@ -6,6 +6,7 @@ import random
 import py.path
 import pytest
 
+from .. import encoding
 from ._manifest import (
     ManifestBuilder,
     Manifest,
@@ -99,19 +100,31 @@ def test_layer_manifests(tmpdir: py.path.local) -> None:
 
     actual = layer_manifests(a, b)
 
-    assert actual.digest == both.digest
+    assert actual.digest() == both.digest()
 
 
 def test_layer_manifests_removal() -> None:
 
     a = ManifestBuilder("/")
     a.add_entry(
-        "/a_only", Entry(kind=EntryKind.BLOB, mode=0o000777, name="a_only", object="")
+        "/a_only",
+        Entry(
+            kind=EntryKind.BLOB,
+            mode=0o000777,
+            name="a_only",
+            object=encoding.EMPTY_DIGEST,
+        ),
     )
 
     b = ManifestBuilder("/")
     b.add_entry(
-        "/a_only", Entry(kind=EntryKind.MASK, mode=0o020000, name="a_only", object="")
+        "/a_only",
+        Entry(
+            kind=EntryKind.MASK,
+            mode=0o020000,
+            name="a_only",
+            object=encoding.EMPTY_DIGEST,
+        ),
     )
 
     actual = layer_manifests(b.finalize(), a.finalize(), b.finalize())
@@ -124,7 +137,13 @@ def test_manifest_builder_remove_file() -> None:
 
     builder = ManifestBuilder("/")
     builder.add_entry(
-        "/entry", Entry(kind=EntryKind.BLOB, mode=0o000777, name="entry", object="")
+        "/entry",
+        Entry(
+            kind=EntryKind.BLOB,
+            mode=0o000777,
+            name="entry",
+            object=encoding.EMPTY_DIGEST,
+        ),
     )
     builder.remove_entry("/entry")
 
@@ -139,7 +158,13 @@ def test_manifest_builder_remove_dir() -> None:
 
     builder = ManifestBuilder("/")
     builder.add_entry(
-        "/entry", Entry(kind=EntryKind.TREE, mode=0o000777, name="entry", object="")
+        "/entry",
+        Entry(
+            kind=EntryKind.TREE,
+            mode=0o000777,
+            name="entry",
+            object=encoding.EMPTY_DIGEST,
+        ),
     )
     builder.remove_entry("/entry")
 
@@ -148,24 +173,3 @@ def test_manifest_builder_remove_dir() -> None:
         manifest.get_path("/entry")
     with pytest.raises(FileNotFoundError):
         manifest.get_path("entry")
-
-
-def test_compatibility_0_12(testdata: py.path.local) -> None:
-    """Ensure compatbility with pre 0.13 layer manifests.
-
-    Older manifests can have corrupt tree information which
-    was not an issue due to the use of duplicated data at runtime.
-    """
-
-    layer_file = testdata.join("compat", "layers", "0.12.14.json")
-    with layer_file.open("r") as f:
-        layer_data = json.load(f)
-
-    manifest = Manifest.load_dict(layer_data["manifest"])
-
-    for path, entry in manifest.walk():
-        # the biggest issue that arises is with the internal
-        # data being inconsistent and not being able to walk
-        # the structure because of invalid digests being used
-        assert path, "should be internally consistent"
-        assert entry, "should be internally consistent"

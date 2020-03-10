@@ -1,13 +1,14 @@
-from typing import NamedTuple, Dict, Optional, Union, Tuple
+from typing import Tuple, BinaryIO, Any
 from datetime import datetime
-import hashlib
 import socket
 import getpass
 import unicodedata
 
+from .. import encoding
+
 
 _tag_str_template = """\
-   tag: {org}/{name}
+   tag: {tag}
 digest: {digest}
 target: {target}
 parent: {parent}
@@ -16,26 +17,56 @@ parent: {parent}
 """
 
 
-class Tag(NamedTuple):
+class Tag(encoding.Encodable):
     """Tag links a human name to a storage object at some point in time.
 
     Much like a commit, tags form a linked-list of entries to track history.
     Time should always be in UTC.
     """
 
-    org: str
-    name: str
-    target: str
-    parent: Optional[str] = None
-    user: str = f"{getpass.getuser()}@{socket.gethostname()}"
-    time: datetime = datetime.now().replace(microsecond=0).astimezone()
+    __fields__ = [
+        "org",
+        "name",
+        "target",
+        "parent",
+        "user",
+        "time",
+    ]
+
+    def __init__(
+        self,
+        org: str,
+        name: str,
+        target: encoding.Digest,
+        parent: encoding.Digest = encoding.NULL_DIGEST,
+        user: str = f"{getpass.getuser()}@{socket.gethostname()}",
+        time: datetime = None,
+    ):
+
+        self.org = org
+        self.name = name
+        self.target = target
+        self.parent = parent
+        self.user = user
+        if time is None:
+            self.time = datetime.now().replace(microsecond=0).astimezone()
+        else:
+            self.time = time
 
     def __str__(self) -> str:
 
-        dict_values = self._asdict()
-        dict_values["digest"] = self.digest
-        dict_values["time"] = dict_values["time"].strftime("%A, %B %d, %Y - %I:%M%p")
+        dict_values = {
+            "tag": f"{self.org}/{self.name}",
+            "digest": self.digest().str(),
+            "target": self.target.str(),
+            "parent": self.parent.str(),
+            "user": self.user,
+            "time": self.time.strftime("%A, %B %d, %Y - %I:%M%p"),
+        }
+
         return _tag_str_template.format(**dict_values)
+
+    __repr__ = __str__
 
     @property
     def path(self) -> str:
@@ -44,40 +75,29 @@ class Tag(NamedTuple):
             return f"{self.org}/{self.name}"
         return self.name
 
-    @property
-    def digest(self) -> str:
+    def encode(self, writer: BinaryIO) -> None:
 
-        hasher = hashlib.sha256(self.encode())
-        return hasher.hexdigest()
-
-    def encode(self) -> bytes:
-
-        encoded = b""
-        encoded += self.org.encode("utf-8") + b"\t"
-        encoded += self.name.encode("utf-8") + b"\t"
-        encoded += self.target.encode("utf-8") + b"\t"
-        encoded += self.user.encode("utf-8") + b"\t"
+        encoding.write_string(writer, self.org)
+        encoding.write_string(writer, self.name)
+        encoding.write_digest(writer, self.target)
+        encoding.write_string(writer, self.user)
         time = self.time
         if not time.tzinfo:
             time = time.astimezone()
-        encoded += time.isoformat().encode("utf-8") + b"\t"
-        if self.parent is not None:
-            encoded += self.parent.encode("utf-8")
-        return encoded
+        encoding.write_string(writer, time.isoformat())
+        encoding.write_digest(writer, self.parent)
 
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Tag":
 
-def decode_tag(encoded: bytes) -> Tag:
-    """Decode a previously encoded tag value."""
-
-    fields = encoded.split(b"\t")
-    org = fields.pop(0).decode("utf-8")
-    name = fields.pop(0).decode("utf-8")
-    target = fields.pop(0).decode("utf-8")
-    user = fields.pop(0).decode("utf-8")
-    time = datetime.fromisoformat(fields.pop(0).decode("utf-8")).astimezone()
-    if fields:
-        parent = fields.pop(0).decode("utf-8")
-    return Tag(org=org, name=name, target=target, user=user, time=time, parent=parent)
+        return Tag(
+            org=encoding.read_string(reader),
+            name=encoding.read_string(reader),
+            target=encoding.read_digest(reader),
+            user=encoding.read_string(reader),
+            time=datetime.fromisoformat(encoding.read_string(reader)),
+            parent=encoding.read_digest(reader),
+        )
 
 
 class TagSpec(str):

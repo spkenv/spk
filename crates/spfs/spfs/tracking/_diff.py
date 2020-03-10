@@ -48,7 +48,7 @@ def _diff_path(a: Manifest, b: Manifest, path: str) -> Diff:
     except FileNotFoundError:
         return Diff(mode=DiffMode.removed, path=path)
 
-    if a_entry.digest == b_entry.digest:
+    if a_entry.digest() == b_entry.digest():
         return Diff(mode=DiffMode.unchanged, path=path)
 
     return Diff(mode=DiffMode.changed, path=path)
