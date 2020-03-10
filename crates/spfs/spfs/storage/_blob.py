@@ -1,28 +1,55 @@
-from typing import IO
-from typing_extensions import Protocol, runtime_checkable
+from typing import Tuple, BinaryIO
+
+from .. import graph, encoding
 
 
-@runtime_checkable
-class BlobStorage(Protocol):
-    def has_blob(self, digest: str) -> bool:
+class Blob(graph.Object):
+    """Blobs represent an arbitrary chunk of binary data, usually a file."""
+
+    __fields__ = ["size"]
+
+    def __init__(self, size: int) -> None:
+
+        self.size = size
+        super(Blob, self).__init__()
+
+    def child_objects(self) -> Tuple[encoding.Digest, ...]:
+        """Return the child object of this one in the object DG."""
+        return tuple()
+
+    def encode(self, writer: BinaryIO) -> None:
+
+        encoding.write_int(writer, self.size)
+
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Blob":
+
+        return Blob(encoding.read_int(reader))
+
+
+class BlobStorage:
+    def __init__(self, db: graph.Database) -> None:
+
+        self._db = db
+
+    def has_blob(self, digest: encoding.Digest) -> bool:
         """Return true if the identified blob exists in this storage."""
-        ...
 
-    def open_blob(self, digest: str) -> IO[bytes]:
-        """Return a handle to the blob identified by the given digest.
+        try:
+            self.read_blob(digest)
+        except graph.UnknownObjectError:
+            return False
+        except AssertionError:
+            return False
+        return True
+
+    def read_blob(self, digest: encoding.Digest) -> Blob:
+        """Return the blob identified by the given digest.
 
         Raises:
-            ValueError: if the blob does not exist in this storage
+            AssertionError: if the identified object is not a blob
         """
-        ...
 
-    def write_blob(self, data: IO[bytes]) -> str:
-        """Read the given data stream to completion, and store as a blob.
-
-        Return the digest of the stored blob.
-        """
-        ...
-
-    def remove_blob(self, digest: str) -> None:
-        """Remote the given blob data from this storage."""
-        ...
+        obj = self._db.read_object(digest)
+        assert isinstance(obj, Blob), "Loaded object is not a blob"
+        return obj

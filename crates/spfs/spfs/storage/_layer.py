@@ -1,12 +1,9 @@
-from typing import NamedTuple, Dict, Tuple
-from typing_extensions import Protocol, runtime_checkable
-import hashlib
+from typing import Tuple, BinaryIO, Iterable
+
+from .. import graph, encoding, tracking
 
 
-from .. import tracking
-
-
-class Layer(NamedTuple):
+class Layer(graph.Object):
     """Layers represent a logical collection of software artifacts.
 
     Layers are considered completely immutable, and are
@@ -14,49 +11,64 @@ class Layer(NamedTuple):
     relevant file and metadata.
     """
 
-    manifest: tracking.Manifest
+    __fields__ = ["manifest"]
 
-    @property
-    def digest(self) -> str:
+    def __init__(self, manifest: encoding.Digest) -> None:
 
-        hasher = hashlib.sha256()
-        hasher.update(self.manifest.digest.encode("utf-8"))
-        return hasher.hexdigest()
+        self.manifest = manifest
+        super(Layer, self).__init__()
 
-    def children(self) -> Tuple[str, ...]:
+    def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Return the child object of this one in the object DG."""
-        return (self.manifest.digest,)
+        return (self.manifest,)
 
-    def dump_dict(self) -> Dict:
-        """Dump this layer data into a dictionary of python basic types."""
+    def encode(self, writer: BinaryIO) -> None:
 
-        return {"manifest": self.manifest.dump_dict()}
+        encoding.write_digest(writer, self.manifest)
 
-    @staticmethod
-    def load_dict(data: Dict) -> "Layer":
-        """Load a layer data from the given dictionary data."""
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Layer":
 
-        return Layer(manifest=tracking.Manifest.load_dict(data.get("manifest", {})))
+        return Layer(manifest=encoding.read_digest(reader))
 
 
-@runtime_checkable
-class LayerStorage(Protocol):
-    def has_layer(self, digest: str) -> bool:
+class LayerStorage:
+    def __init__(self, db: graph.Database) -> None:
+
+        self._db = db
+
+    def iter_layers(self) -> Iterable[Layer]:
+        """Iterate the objects in this storage which are layers."""
+
+        for obj in self._db.iter_objects():
+            if isinstance(obj, Layer):
+                yield obj
+
+    def has_layer(self, digest: encoding.Digest) -> bool:
         """Return true if the identified layer exists in this storage."""
-        ...
 
-    def read_layer(self, digest: str) -> Layer:
+        try:
+            self.read_layer(digest)
+        except graph.UnknownObjectError:
+            return False
+        except AssertionError:
+            return False
+        return True
+
+    def read_layer(self, digest: encoding.Digest) -> Layer:
         """Return the layer identified by the given digest.
 
         Raises:
-            ValueError: if the layer does not exist in this storage
+            AssertionError: if the identified object is not a layer
         """
-        ...
 
-    def write_layer(self, layer: Layer) -> None:
-        """Write the given layer into this storage."""
-        ...
+        obj = self._db.read_object(digest)
+        assert isinstance(obj, Layer), "Loaded object is not a layer"
+        return obj
 
-    def remove_layer(self, digest: str) -> None:
-        """Remove a layer from this storage."""
-        ...
+    def commit_manifest(self, manifest: tracking.Manifest) -> Layer:
+        """Commit the given manifest to this storage, as a new layer."""
+
+        layer = Layer(manifest=manifest.digest())
+        self._db.write_object(layer)
+        return layer

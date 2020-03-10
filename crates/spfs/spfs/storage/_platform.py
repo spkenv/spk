@@ -1,11 +1,9 @@
-from typing import NamedTuple, Tuple, Dict
-from typing_extensions import Protocol, runtime_checkable
-import hashlib
+from typing import Tuple, BinaryIO, Iterable
 
-import simplejson
+from .. import graph, encoding
 
 
-class Platform(NamedTuple):
+class Platform(graph.Object):
     """Platforms represent a predetermined collection of layers.
 
     Platforms capture an entire runtime stack of layers or other platforms
@@ -13,50 +11,69 @@ class Platform(NamedTuple):
     future runtimes.
     """
 
-    stack: Tuple[str, ...]
+    __fields__ = ["stack"]
 
-    @property
-    def digest(self) -> str:
-        """Return the identifying digest hash of this object."""
-        hasher = hashlib.sha256()
-        for layer in self.stack:
-            hasher.update(layer.encode("utf-8"))
-        return hasher.hexdigest()
+    def __init__(self, stack: Iterable[encoding.Digest]) -> None:
+        self.stack = tuple(stack)
+        super(Platform, self).__init__()
 
-    def children(self) -> Tuple[str, ...]:
+    def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Return the child object of this one in the object DG."""
         return self.stack
 
-    def dump_dict(self) -> Dict:
-        """Dump this platform data into a dictionary of python basic types."""
+    def encode(self, writer: BinaryIO) -> None:
 
-        return {"stack": list(self.stack)}
+        encoding.write_int(writer, len(self.stack))
+        for digest in self.stack:
+            encoding.write_digest(writer, digest)
 
-    @staticmethod
-    def load_dict(data: Dict) -> "Platform":
-        """Load a platform data from the given dictionary data."""
+    @classmethod
+    def decode(cls, reader: BinaryIO) -> "Platform":
 
-        return Platform(stack=tuple(data.get("stack", [])))
+        stack = []
+        num_layers = encoding.read_int(reader)
+        for _ in range(num_layers):
+            stack.append(encoding.read_digest(reader))
+        return Platform(tuple(stack))
 
 
-@runtime_checkable
-class PlatformStorage(Protocol):
-    def has_platform(self, ref: str) -> bool:
+class PlatformStorage:
+    def __init__(self, db: graph.Database) -> None:
+
+        self._db = db
+
+    def iter_platforms(self) -> Iterable[Platform]:
+        """Iterate the objects in this storage which are platforms."""
+
+        for obj in self._db.iter_objects():
+            if isinstance(obj, Platform):
+                yield obj
+
+    def has_platform(self, digest: encoding.Digest) -> bool:
         """Return true if the identified platform exists in this storage."""
-        ...
 
-    def read_platform(self, ref: str) -> Platform:
-        """Return the platform identified by the given ref.
+        try:
+            self.read_platform(digest)
+        except graph.UnknownObjectError:
+            return False
+        except AssertionError:
+            return False
+        return True
+
+    def read_platform(self, digest: encoding.Digest) -> Platform:
+        """Return the platform identified by the given digest.
 
         Raises:
-            ValueError: if the platform does not exist in this storage
+            AssertionError: if the identified object is not a platform
         """
-        ...
 
-    def write_platform(self, platform: Platform) -> None:
-        """Write the given platform into this storage."""
-        ...
+        obj = self._db.read_object(digest)
+        assert isinstance(obj, Platform), "Loaded object is not a platform"
+        return obj
 
-    def remove_platform(self, ref: str) -> None:
-        """Remove a platform from this storage."""
-        ...
+    def commit_stack(self, stack: Iterable[encoding.Digest]) -> Platform:
+        """Commit the given set of layers to storage, creating a platform."""
+
+        platform = Platform(stack=stack)
+        self._db.write_object(platform)
+        return platform

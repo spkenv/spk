@@ -4,7 +4,7 @@ import hashlib
 
 import json
 
-from .. import tracking
+from .. import tracking, encoding
 
 
 @runtime_checkable
@@ -17,6 +17,20 @@ class TagStorage(Protocol):
         """
         ...
 
+    def find_tags(self, digest: encoding.Digest) -> Iterable[tracking.TagSpec]:
+        """Find tags that point to the given digest."""
+        ...
+
+    def iter_tags(self) -> Iterable[Tuple[tracking.TagSpec, tracking.Tag]]:
+        """Iterate through the available tags in this storage."""
+        ...
+
+    def iter_tag_streams(
+        self,
+    ) -> Iterable[Tuple[tracking.TagSpec, Iterable[tracking.Tag]]]:
+        """Iterate through the available tags in this storage."""
+        ...
+
     def read_tag(self, tag: str) -> Iterable[tracking.Tag]:
         """Read the entire tag stream for the given tag.
 
@@ -25,7 +39,7 @@ class TagStorage(Protocol):
         """
         ...
 
-    def push_tag(self, tag: str, target: str) -> tracking.Tag:
+    def push_tag(self, tag: str, target: encoding.Digest) -> tracking.Tag:
         """Push the given tag onto the tag stream."""
         ...
 

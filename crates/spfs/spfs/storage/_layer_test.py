@@ -1,11 +1,16 @@
-from .. import tracking
+import io
+
+from .. import encoding
 from ._layer import Layer
 
 
-def test_read_layer() -> None:
+def test_layer_encoding() -> None:
 
-    expected = Layer(manifest=tracking.Manifest())
-    data = expected.dump_dict()
-    actual = Layer.load_dict(data)
+    expected = Layer(manifest=encoding.EMPTY_DIGEST)
+
+    stream = io.BytesIO()
+    expected.encode(stream)
+    stream.seek(0)
+    actual = Layer.decode(stream)
     assert isinstance(actual, Layer)
-    assert actual.digest == expected.digest
+    assert actual.digest() == expected.digest()

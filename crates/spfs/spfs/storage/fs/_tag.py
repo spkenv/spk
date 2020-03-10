@@ -1,10 +1,11 @@
 from typing import Iterator, Tuple, Optional
 import os
+import io
 
-from ... import tracking
-from .. import UnknownObjectError
+from ... import tracking, graph, encoding
+from .. import UnknownReferenceError
 
-from ._digest_store import makedirs_with_perms
+from ._database import makedirs_with_perms
 
 _TAG_EXT = ".tag"
 
@@ -14,7 +15,7 @@ class TagStorage:
 
         self._root = os.path.abspath(root)
 
-    def find_tags(self, digest: str) -> Iterator[tracking.TagSpec]:
+    def find_tags(self, digest: encoding.Digest) -> Iterator[tracking.TagSpec]:
         """Find tags that point to the given digest.
 
         This is an O(n) operation based on the number of all
@@ -53,32 +54,29 @@ class TagStorage:
         """Read the entire tag stream for the given tag.
 
         Raises:
-            UnknownObjectError: if the tag does not exist in the storage
+            graph.UnknownObjectError: if the tag does not exist in the storage
         """
 
         spec = tracking.TagSpec(tag)
         filepath = os.path.join(self._root, spec.path + _TAG_EXT)
         try:
+            blocks = []
             with open(filepath, "rb") as f:
-                f.seek(0, os.SEEK_END)
-                position = f.tell()
-                line = b""
-                while position >= 0:
-                    f.seek(position, os.SEEK_SET)
-                    char = f.read(1)
-                    position -= 1
-                    if char != b"\n":
-                        line = char + line
-                        continue
-                    if line == b"":
-                        continue
-                    yield tracking.decode_tag(line)
-                    line = b""
-                if line != b"\n":
-                    yield tracking.decode_tag(line)
+                while True:
+                    try:
+                        size = encoding.read_int(f)
+                    except EOFError:
+                        break
+                    blocks.append(size)
+                    f.seek(size, os.SEEK_CUR)
+
+                for size in reversed(blocks):
+                    f.seek(-size, os.SEEK_CUR)
+                    yield tracking.Tag.decode(f)
+                    f.seek(-size - encoding.INT_SIZE, os.SEEK_CUR)
 
         except FileNotFoundError:
-            raise UnknownObjectError(f"Unknown tag: {tag}")
+            raise UnknownReferenceError(f"Unknown tag: {tag}")
 
     def resolve_tag(self, tag: str) -> tracking.Tag:
 
@@ -89,9 +87,9 @@ class TagStorage:
                 next(stream)
             return next(stream)
         except StopIteration:
-            raise UnknownObjectError(f"tag or tag version does not exist {tag}")
+            raise UnknownReferenceError(f"tag or tag version does not exist {tag}")
 
-    def push_tag(self, tag: str, target: str) -> tracking.Tag:
+    def push_tag(self, tag: str, target: encoding.Digest) -> tracking.Tag:
         """Push the given tag onto the tag stream."""
 
         tag_spec = tracking.TagSpec(tag)
@@ -101,11 +99,11 @@ class TagStorage:
         except ValueError:
             pass
 
-        parent_ref = ""
+        parent_ref = encoding.NULL_DIGEST
         if parent is not None:
             if parent.target == target:
                 return parent
-            parent_ref = parent.digest
+            parent_ref = parent.digest()
 
         new_tag = tracking.Tag(
             org=tag_spec.org, name=tag_spec.name, target=target, parent=parent_ref
@@ -118,8 +116,14 @@ class TagStorage:
 
         filepath = os.path.join(self._root, tag.path + _TAG_EXT)
         makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
-        tag_file = os.open(filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777)
-        try:
-            os.write(tag_file, tag.encode() + b"\n")
-        finally:
-            os.close(tag_file)
+        tag_file_fd = os.open(
+            filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777
+        )
+
+        stream = io.BytesIO()
+        tag.encode(stream)
+        encoded_tag = stream.getvalue()
+        size = len(encoded_tag)
+        with os.fdopen(tag_file_fd, "ab") as tag_file:
+            encoding.write_int(tag_file, size)
+            tag_file.write(encoded_tag)

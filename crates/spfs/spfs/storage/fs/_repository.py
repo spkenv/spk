@@ -4,24 +4,16 @@ import os
 import semver
 
 import spfs
-from ... import tracking
-from .. import Object, Platform, Layer, UnknownObjectError
-from .._registry import register_scheme
-from ._platform import PlatformStorage
-from ._blob import BlobStorage
-from ._layer import LayerStorage
+from ... import tracking, graph, encoding
+from .. import Platform, PlatformStorage, Layer, LayerStorage
+
+from .. import register_scheme, Repository as BaseRepository
 from ._tag import TagStorage
-from ._digest_store import DigestStorage
+from ._database import FileDB, FSPayloadStorage
+from ._blob import FSManifestViewer
 
 
-class Repository:
-
-    _layers = "layers"
-    _platforms = "platforms"
-    _tags = "tags"
-    _blobs = "blobs"
-    dirs = (_layers, _platforms, _tags, _blobs)
-
+class Repository(BaseRepository, FSManifestViewer):
     def __init__(self, root: str):
 
         if root.startswith("file:///"):
@@ -29,14 +21,20 @@ class Repository:
         elif root.startswith("file:"):
             root = root[len("file:") :]
 
-        self._root = os.path.abspath(root)
-        self.layers = LayerStorage(os.path.join(root, self._layers))
-        self.platforms = PlatformStorage(os.path.join(root, self._platforms))
-        self.blobs = BlobStorage(os.path.join(root, self._blobs))
-        self.manifests = self.blobs.renders
-        self.tags = TagStorage(os.path.join(root, self._tags))
+        self.__root = os.path.abspath(root)
+        self.objects = FileDB(os.path.join(self.__root, "objects"))
+        self.blobs = FSPayloadStorage(os.path.join(self.__root, "blobs"))
+        FSManifestViewer.__init__(
+            self, root=os.path.join(self.__root, "renders"), payloads=self.blobs,
+        )
+        BaseRepository.__init__(
+            self,
+            tags=TagStorage(os.path.join(self.__root, "tags")),
+            object_database=self.objects,
+            payload_storage=self.blobs,
+        )
 
-        self.minimum_compatible_version = "0.17.0"
+        self.minimum_compatible_version = "0.12.0"
         repo_version = self.last_migration()
         if semver.compare(spfs.__version__, repo_version) < 0:
             raise RuntimeError(
@@ -49,22 +47,14 @@ class Repository:
 
     @property
     def root(self) -> str:
-        return self._root
+        return self.__root
 
     def address(self) -> str:
         return f"file://{self.root}"
 
-    def has_object(self, ref: str) -> bool:
-
-        try:
-            self.read_object(ref)
-        except ValueError:
-            return False
-        return True
-
     def last_migration(self) -> str:
 
-        version_file = os.path.join(self._root, "VERSION")
+        version_file = os.path.join(self.__root, "VERSION")
         try:
             with open(version_file, "r") as f:
                 return f.read().strip()
@@ -80,57 +70,36 @@ class Repository:
 
         if version is None:
             version = spfs.__version__
-        version_file = os.path.join(self._root, "VERSION")
+        version_file = os.path.join(self.__root, "VERSION")
         with open(version_file, "w+") as f:
             f.write(version)
 
-    def get_shortened_digest(self, ref: str) -> str:
+    # def get_shortened_digest(self, ref: str) -> str:
 
-        store, obj = self._find_object(ref)
-        return store.get_shortened_digest(obj.digest)
+    #     obj = self.read_ref(ref)
+    #     return self.database.get_shortened_digest(obj.digest())
 
-    def read_object(self, ref: str) -> Object:
+    # def read_ref(self, ref: str) -> graph.Object:
 
-        _, obj = self._find_object(ref)
-        return obj
+    #     try:
+    #         digest = encoding.parse_digest(ref)
+    #     except ValueError:
+    #         digest = self.tags.resolve_tag(ref)
 
-    def _find_object(self, ref: str) -> Tuple[DigestStorage, Object]:
-        try:
-            ref = self.tags.resolve_tag(ref).target
-        except ValueError:
-            pass
+    #     return self.read_object(digest)
+    #     pass
 
-        try:
-            lay = self.layers.read_layer(ref)
-            return self.layers, lay
-        except ValueError:
-            pass
+    # def find_aliases(self, ref: Union[str, encoding.Digest]) -> List[str]:
 
-        try:
-            plat = self.platforms.read_platform(ref)
-            return self.platforms, plat
-        except ValueError:
-            pass
-
-        try:
-            manifest = self.manifests.read_manifest(ref)
-            return self.manifests, manifest
-        except ValueError:
-            pass
-
-        raise UnknownObjectError("Unknown ref: " + ref)
-
-    def find_aliases(self, ref: str) -> List[str]:
-
-        aliases: List[str] = []
-        digest = self.read_object(ref).digest
-        for spec in self.tags.find_tags(digest):
-            if spec not in aliases:
-                aliases.append(spec)
-        if ref != digest:
-            aliases.append(digest)
-            aliases.remove(ref)
-        return aliases
+    #     aliases: List[str] = []
+    #     digest = self.read_ref(ref).digest()
+    #     for spec in self.tags.find_tags(digest):
+    #         if spec not in aliases:
+    #             aliases.append(spec)
+    #     if ref != digest:
+    #         aliases.append(digest.str())
+    #         aliases.remove(ref)
+    #     return aliases
 
 
 def ensure_repository(path: str) -> Repository:
@@ -147,8 +116,8 @@ def ensure_repository(path: str) -> Repository:
     else:
         repo.mark_migration_version(spfs.__version__)
 
-    for subdir in Repository.dirs:
-        os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
+    # for subdir in Repository.dirs:
+    #     os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
 
     return repo
 

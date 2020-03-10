@@ -1,11 +1,17 @@
-from ._repository import Object
+import io
+
+from .. import graph, encoding
 from ._platform import Platform
 
 
-def test_platform_dump_load_dict() -> None:
+def test_platform_encoding() -> None:
 
-    layers = ("a", "b", "c")
+    layers = (encoding.EMPTY_DIGEST, encoding.NULL_DIGEST)
     expected = Platform(stack=layers)
-    data = expected.dump_dict()
-    actual = Platform.load_dict(data)
+
+    stream = io.BytesIO()
+    expected.encode(stream)
+    print(stream.getvalue())
+    stream.seek(0, io.SEEK_SET)
+    actual = Platform.decode(stream)
     assert actual == expected
