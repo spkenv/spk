@@ -7,9 +7,9 @@ import stat
 import structlog
 
 from .. import graph, encoding, tracking
-from ._layer import LayerStorage
+from ._layer import Layer, LayerStorage
 from ._platform import PlatformStorage
-from ._blob import BlobStorage
+from ._blob import Blob, BlobStorage
 from ._manifest import ManifestStorage
 from ._tag import TagStorage
 from ._payload import PayloadStorage
@@ -117,6 +117,7 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
                         kind=tracking.EntryKind.BLOB,
                         mode=st.st_mode,
                         name=filename,
+                        size=st.st_size,
                     ),
                 )
 
@@ -130,11 +131,17 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
                         kind=tracking.EntryKind.TREE,
                         mode=st.st_mode,
                         name=dirname,
+                        size=st.st_size,
                     ),
                 )
 
         _logger.info("finalizing manifest")
         manifest = builder.finalize()
         self.objects.write_object(manifest)
+        for _, entry in manifest.walk():
+            if entry.kind is not tracking.EntryKind.BLOB:
+                continue
+            blob = Blob(entry.object, entry.size)
+            self._db.write_object(blob)
 
         return manifest

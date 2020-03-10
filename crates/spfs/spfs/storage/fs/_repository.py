@@ -7,13 +7,13 @@ import spfs
 from ... import tracking, graph, encoding
 from .. import Platform, PlatformStorage, Layer, LayerStorage
 
-from .. import register_scheme, Repository as BaseRepository
+from .. import register_scheme, Repository
 from ._tag import TagStorage
-from ._database import FileDB, FSPayloadStorage
-from ._blob import FSManifestViewer
+from ._database import FSDatabase, FSPayloadStorage
+from ._renderer import FSManifestViewer
 
 
-class Repository(BaseRepository, FSManifestViewer):
+class FSRepository(Repository, FSManifestViewer):
     def __init__(self, root: str):
 
         if root.startswith("file:///"):
@@ -22,16 +22,16 @@ class Repository(BaseRepository, FSManifestViewer):
             root = root[len("file:") :]
 
         self.__root = os.path.abspath(root)
-        self.objects = FileDB(os.path.join(self.__root, "objects"))
-        self.blobs = FSPayloadStorage(os.path.join(self.__root, "blobs"))
+        self.objects = FSDatabase(os.path.join(self.__root, "objects"))
+        self.payloads = FSPayloadStorage(os.path.join(self.__root, "payloads"))
         FSManifestViewer.__init__(
-            self, root=os.path.join(self.__root, "renders"), payloads=self.blobs,
+            self, root=os.path.join(self.__root, "renders"), payloads=self.payloads,
         )
-        BaseRepository.__init__(
+        Repository.__init__(
             self,
             tags=TagStorage(os.path.join(self.__root, "tags")),
             object_database=self.objects,
-            payload_storage=self.blobs,
+            payload_storage=self.payloads,
         )
 
         self.minimum_compatible_version = "0.12.0"
@@ -102,9 +102,9 @@ class Repository(BaseRepository, FSManifestViewer):
     #     return aliases
 
 
-def ensure_repository(path: str) -> Repository:
+def ensure_repository(path: str) -> FSRepository:
 
-    repo = Repository(path)
+    repo = FSRepository(path)
     try:
         # even though checking existance first is not
         # needed, it is required to trigger the automounter
@@ -116,16 +116,8 @@ def ensure_repository(path: str) -> Repository:
     else:
         repo.mark_migration_version(spfs.__version__)
 
-    # for subdir in Repository.dirs:
-    #     os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
-
     return repo
 
 
-if TYPE_CHECKING:
-    from .. import Repository as R
-
-    _: R = Repository("")
-
-register_scheme("file", Repository)
-register_scheme("", Repository)
+register_scheme("file", FSRepository)
+register_scheme("", FSRepository)

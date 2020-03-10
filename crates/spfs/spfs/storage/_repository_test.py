@@ -3,21 +3,20 @@ import pytest
 import py.path
 
 from .. import tracking
-from .fs import FileDB, TagStorage, Repository, FSPayloadStorage
+from .fs import FSDatabase, TagStorage, FSRepository, FSPayloadStorage
 from ._layer import Layer
 from ._manifest import ManifestViewer
 
 
 def test_find_aliases(tmpdir: py.path.local) -> None:
 
-    repo = Repository(tmpdir.strpath)
+    repo = FSRepository(tmpdir.strpath)
     with pytest.raises(ValueError):
         repo.find_aliases("not-existant")
 
     tmpdir.join("data", "file.txt").ensure()
     manifest = repo.commit_dir(tmpdir.join("data").strpath)
-    repo.objects.write_object(manifest)
-    layer = repo.commit_manifest(manifest)
+    layer = repo.create_layer(manifest)
     repo.tags.push_tag("test-tag", layer.digest())
 
     assert repo.find_aliases(layer.digest().str()) == ["test-tag"]
@@ -26,7 +25,7 @@ def test_find_aliases(tmpdir: py.path.local) -> None:
 
 def test_commit_mode(tmpdir: py.path.local) -> None:
 
-    repo = Repository(tmpdir.join("repo").strpath)
+    repo = FSRepository(tmpdir.join("repo").strpath)
 
     datafile_path = "dir1.0/dir2.0/file.txt"
     symlink_path = "dir1.0/dir2.0/file2.txt"
@@ -54,7 +53,7 @@ def test_commit_mode(tmpdir: py.path.local) -> None:
 
 def test_commit_broken_link(tmpdir: py.path.local) -> None:
 
-    repo = Repository(tmpdir.join("repo").strpath)
+    repo = FSRepository(tmpdir.join("repo").strpath)
 
     src_dir = tmpdir.join("source").ensure(dir=True)
     src_dir.join("broken-link").mksymlinkto("nonexistant")
@@ -65,7 +64,7 @@ def test_commit_broken_link(tmpdir: py.path.local) -> None:
 
 def test_commit_dir(tmpdir: py.path.local) -> None:
 
-    repo = Repository(tmpdir.join("repo").strpath)
+    repo = FSRepository(tmpdir.join("repo").strpath)
 
     src_dir = tmpdir.join("source")
     src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
@@ -76,19 +75,3 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     manifest = repo.commit_dir(src_dir.strpath)
     manifest2 = repo.commit_dir(src_dir.strpath)
     assert manifest.digest() == manifest2.digest()
-
-
-@pytest.mark.skip("not implemented")
-def test_render_manifest() -> None:
-
-    pass
-    # view = repo.payloads
-    # assert isinstance(view, ManifestViewer)
-    # render_path
-    # render = tmpdir.join(
-    #     "repo", "renders", manifest.digest().str()[:2], manifest.digest().str()[2:]
-    # )
-    # assert render.exists()
-    # assert _was_render_completed(render.strpath)
-    # rendered_manifest = tracking.compute_manifest(render.strpath)
-    # assert rendered_manifest.digest() == manifest.digest()

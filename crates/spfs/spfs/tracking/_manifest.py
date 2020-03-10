@@ -136,6 +136,7 @@ class ManifestBuilder:
                 mode=tree_entry.mode,
                 kind=tree_entry.kind,
                 object=tree.digest(),
+                size=len(tree),
             )
             parent.update(tree_entry)
             manifest._trees[tree.digest()] = tree
@@ -209,6 +210,7 @@ class ManifestBuilder:
                         mode=0o775,
                         object=encoding.NULL_DIGEST,
                         name=name,
+                        size=0,
                     ),
                 )
             except FileExistsError:
@@ -261,7 +263,11 @@ def compute_entry(path: str, append_to: ManifestBuilder = None) -> Entry:
             digest = hasher.digest()
 
     entry = Entry(
-        kind=kind, name=os.path.basename(path), mode=stat_result.st_mode, object=digest
+        kind=kind,
+        name=os.path.basename(path),
+        mode=stat_result.st_mode,
+        object=digest,
+        size=stat_result.st_size,
     )
     try:
         manifest.add_entry(path, entry)

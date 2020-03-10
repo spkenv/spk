@@ -17,7 +17,7 @@ def commit_layer(runtime: runtime.Runtime) -> storage.Layer:
     manifest = repo.commit_dir(runtime.upper_dir)
     if manifest.is_empty():
         raise NothingToCommitError("layer would be empty")
-    return repo.commit_manifest(manifest)
+    return repo.create_layer(manifest)
 
 
 def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
@@ -37,4 +37,4 @@ def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
     if len(stack) == 0:
         raise NothingToCommitError("platform would be empty")
 
-    return repo.commit_stack(stack)
+    return repo.create_platform(stack)

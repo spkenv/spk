@@ -11,101 +11,19 @@ import structlog
 
 from ... import tracking, graph, encoding
 from .. import ManifestViewer, PayloadStorage
-from ._database import FileDB, FSPayloadStorage
+from ._database import FSDatabase, FSPayloadStorage
 
 _CHUNK_SIZE = 1024
 
 _LOGGER = structlog.get_logger(__name__)
 
 
-# TODO: class BlobStorage(FileDB):
-#     """Manages a local file system storage of arbitrary binary data.
-
-#     Also provides harlinked renders of file manifests for use
-#     in local runtimes.
-#     """
-
-#     def __init__(self, root: str) -> None:
-
-#         super(BlobStorage, self).__init__(root)
-#         # self.renders = ManifestStorage(os.path.join(self.__root, "renders"))
-
-#         # this default is appropriate for shared repos, but can be locked further
-#         # in cases where the current user will own the files, and other don't need
-#         # to modify the storage (0x444)
-#         # this is because on filesystems with protected hardlinks enabled I either
-#         # need to own the file or have read+write+exec access to it
-#         self.blob_permissions = 0o777
-
-#     def has_object(self, digest: encoding.Digest) -> bool:
-#         """Return true if the identified blob exists in this storage."""
-#         try:
-#             self.open_blob(digest).close()
-#         except graph.UnknownObjectError:
-#             return False
-#         else:
-#             return True
-
-#     def open_blob(self, digest: encoding.Digest) -> IO[bytes]:
-#         """Return a handle to the blob identified by the given digest.
-
-#         Raises:
-#             ValueError: if the blob does not exist in this storage
-#         """
-#         try:
-#             filepath = self._build_digest_path(digest)
-#             return open(filepath, "rb")
-#         except FileNotFoundError:
-#             raise graph.UnknownObjectError(digest)
-
-#     def write_blob(self, data: IO[bytes]) -> encoding.Digest:
-#         """Read the given data stream to completion, and store as a blob.
-
-#         Return the digest of the stored blob.
-#         """
-
-#         hasher = encoding.Hasher()
-#         # uuid4 is used to get around issues where a high amount of
-#         # multiprocessing could cause the same machine to generate
-#         # the same uuid because of a duplicate read of the current time
-#         working_filename = "work-" + uuid.uuid4().hex
-#         working_filepath = os.path.join(self.root, working_filename)
-#         self._ensure_base_dir(working_filepath)
-#         with open(working_filepath, "xb") as working_file:
-#             chunk = data.read(_CHUNK_SIZE)
-#             while len(chunk) > 0:
-#                 hasher.update(chunk)
-#                 working_file.write(chunk)
-#                 chunk = data.read(_CHUNK_SIZE)
-
-#         digest = hasher.digest()
-#         final_filepath = self._build_digest_path(digest)
-#         self._ensure_base_dir(final_filepath)
-#         try:
-#             os.rename(working_filepath, final_filepath)
-#             os.chmod(final_filepath, self.blob_permissions)
-#         except FileExistsError:
-#             _LOGGER.debug("blob already exists", digest=digest)
-#             os.remove(working_filepath)
-
-#         return digest
-
-#     def remove_blob(self, digest: encoding.Digest) -> None:
-#         """Remove a blob from this storage."""
-
-#         path = self._build_digest_path(digest)
-#         try:
-#             os.remove(path)
-#         except FileNotFoundError:
-#             raise graph.UnknownObjectError(digest)
-
-
-class FSManifestViewer(ManifestViewer, FileDB):
+class FSManifestViewer(ManifestViewer, FSDatabase):
     def __init__(self, root: str, payloads: PayloadStorage) -> None:
 
         self._storage = payloads
         ManifestViewer.__init__(self)
-        FileDB.__init__(self, root)
+        FSDatabase.__init__(self, root)
 
     def render_manifest(self, manifest: tracking.Manifest) -> str:
         """Create a hard-linked rendering of the given file manifest.
@@ -185,7 +103,7 @@ class FSManifestViewer(ManifestViewer, FileDB):
 
         rendered_dirpath = self._build_digest_path(digest)
         working_dirname = "work-" + uuid.uuid4().hex
-        working_dirpath = os.path.join(self.__root, working_dirname)
+        working_dirpath = os.path.join(self.root, working_dirname)
         try:
             os.rename(rendered_dirpath, working_dirpath)
         except FileNotFoundError:
@@ -204,49 +122,6 @@ class FSManifestViewer(ManifestViewer, FileDB):
                 os.rmdir(path)
 
         os.rmdir(working_dirpath)
-
-
-class ManifestStorage(FileDB):
-    def has_manifest(self, digest: encoding.Digest) -> bool:
-        """Return true if the identified manifest exists in this storage."""
-
-        path = self._build_digest_path(digest)
-        return os.path.exists(path + ".manifest")
-
-    def read_manifest(self, digest: encoding.Digest) -> tracking.Manifest:
-        """Return the manifest identified by the given digest.
-
-        Raises:
-            graph.UnknownObjectError: if the manifest does not exist in this storage
-        """
-        path = self._build_digest_path(digest)
-        try:
-            with open(path + ".manifest", "rb") as f:
-                return tracking.Manifest.decode(f)
-        except FileNotFoundError:
-            raise graph.UnknownObjectError(digest)
-
-    def write_manifest(self, manifest: tracking.Manifest) -> None:
-        """Write the given manifest into this storage."""
-        path = self._build_digest_path(manifest.digest())
-        self._ensure_base_dir(path)
-        try:
-            with open(path + ".manifest", "xb") as f:
-                manifest.encode(f)
-        except FileExistsError:
-            pass
-
-    def remove_manifest(self, digest: encoding.Digest) -> None:
-        """Remove a manifest from this storage.
-
-        Raises:
-            graph.UnknownObjectError: if the manifest does not exist in this storage
-        """
-        path = self._build_digest_path(digest)
-        try:
-            os.remove(path + ".manifest")
-        except FileNotFoundError:
-            raise graph.UnknownObjectError(digest)
 
 
 def _was_render_completed(render_path: str) -> bool:

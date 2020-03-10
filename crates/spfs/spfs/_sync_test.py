@@ -23,7 +23,7 @@ def test_push_ref(config: Config, tmpdir: py.path.local) -> None:
     local = config.get_repository()
     remote = config.get_remote("origin")
     manifest = local.commit_dir(src_dir.strpath)
-    layer = local.commit_manifest(manifest)
+    layer = local.create_layer(manifest)
     local.tags.push_tag("testing", layer.digest())
 
     push_ref("testing", "origin")
@@ -42,12 +42,12 @@ def test_sync_ref(tmpdir: py.path.local) -> None:
     src_dir.join("dir2/otherfile.txt").write("hello2", ensure=True)
     src_dir.join("dir//dir/dir/file.txt").write("hello, world", ensure=True)
 
-    repo_a = storage.fs.Repository(tmpdir.join("repo_a").strpath)
-    repo_b = storage.fs.Repository(tmpdir.join("repo_b").strpath)
+    repo_a = storage.fs.FSRepository(tmpdir.join("repo_a").strpath)
+    repo_b = storage.fs.FSRepository(tmpdir.join("repo_b").strpath)
 
     manifest = repo_a.commit_dir(src_dir.strpath)
-    layer = repo_a.commit_manifest(manifest)
-    platform = repo_a.commit_stack([layer.digest()])
+    layer = repo_a.create_layer(manifest)
+    platform = repo_a.create_platform([layer.digest()])
     repo_a.tags.push_tag("testing", platform.digest())
 
     sync_ref("testing", repo_a, repo_b)

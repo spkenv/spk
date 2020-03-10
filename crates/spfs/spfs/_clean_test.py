@@ -1,3 +1,4 @@
+from typing import List
 import io
 import os
 
@@ -8,31 +9,50 @@ from . import storage, tracking, graph
 from ._clean import (
     get_all_attached_objects,
     get_all_unattached_objects,
+    get_all_unattached_payloads,
     clean_untagged_objects,
 )
 
 
-def test_get_attached_objects_blob(tmprepo: storage.fs.Repository) -> None:
+def test_get_attached_objects(tmprepo: storage.fs.FSRepository) -> None:
 
-    blob_digest = tmprepo.payloads.write_payload(io.BytesIO(b"hello, world"))
+    payload_digest = tmprepo.payloads.write_payload(io.BytesIO(b"hello, world"))
+    blob = storage.Blob(payload=payload_digest, size=0)
+    tmprepo.objects.write_object(blob)
 
     assert (
         get_all_attached_objects(tmprepo) == set()
     ), "single blob should not be attached"
     assert get_all_unattached_objects(tmprepo) == {
-        blob_digest
+        blob.digest()
     }, "single blob should be unattached"
 
 
+def test_get_attached_payloads(tmprepo: storage.fs.FSRepository) -> None:
+
+    payload_digest = tmprepo.payloads.write_payload(io.BytesIO(b"hello, world"))
+
+    assert get_all_unattached_payloads(tmprepo) == {
+        payload_digest
+    }, "single payload should be attached when no blob"
+
+    blob = storage.Blob(payload=payload_digest, size=0)
+    tmprepo.objects.write_object(blob)
+
+    assert (
+        get_all_unattached_payloads(tmprepo) == set()
+    ), "single payload should be attached to blob"
+
+
 def test_get_attached_unattached_objects_blob(
-    tmpdir: py.path.local, tmprepo: storage.fs.Repository
+    tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
 ) -> None:
 
     data_dir = tmpdir.join("data")
     data_dir.join("file.txt").write("hello, world", ensure=True)
 
     manifest = tmprepo.commit_dir(data_dir.strpath)
-    layer = tmprepo.commit_manifest(manifest)
+    layer = tmprepo.create_layer(manifest)
     tmprepo.tags.push_tag("my_tag", layer.digest())
     blob_digest = manifest.child_objects()[0]
 
@@ -46,7 +66,7 @@ def test_get_attached_unattached_objects_blob(
 
 @pytest.mark.timeout(3)
 def test_clean_untagged_objects_blobs(
-    tmpdir: py.path.local, tmprepo: storage.fs.Repository
+    tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
 ) -> None:
 
     data_dir = tmpdir.join("data")
@@ -67,12 +87,12 @@ def test_clean_untagged_objects_blobs(
 
 
 def test_clean_untagged_objects_layers_platforms(
-    tmprepo: storage.fs.Repository,
+    tmprepo: storage.fs.FSRepository,
 ) -> None:
 
     manifest = tracking.Manifest()
-    layer = tmprepo.commit_manifest(manifest)
-    platform = tmprepo.commit_stack([layer.digest()])
+    layer = tmprepo.create_layer(manifest)
+    platform = tmprepo.create_platform([layer.digest()])
 
     clean_untagged_objects(tmprepo)
 
@@ -84,7 +104,7 @@ def test_clean_untagged_objects_layers_platforms(
 
 
 def test_clean_manifest_renders(
-    tmpdir: py.path.local, tmprepo: storage.fs.Repository
+    tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
 ) -> None:
 
     data_dir = tmpdir.join("data")
@@ -92,20 +112,29 @@ def test_clean_manifest_renders(
     data_dir.join("dir/name.txt").write("john doe", ensure=True)
 
     manifest = tmprepo.commit_dir(data_dir.strpath)
-    layer = tmprepo.commit_manifest(manifest)
-    platform = tmprepo.commit_stack([layer.digest()])
+    layer = tmprepo.create_layer(manifest)
+    platform = tmprepo.create_platform([layer.digest()])
 
-    file_count = _count_files(tmprepo.root)
-    assert file_count != 0, "should have stored data"
+    files = _list_files(tmprepo.root)
+    assert len(files) != 0, "should have stored data"
 
     clean_untagged_objects(tmprepo)
 
-    assert _count_files(tmprepo.root) == 0, "should remove all created data files"
+    files = _list_files(tmprepo.root)
+    for filepath in files:
+        digest = tmprepo.objects.get_digest_from_path(filepath)  # type: ignore
+        try:
+            obj = tmprepo.objects.read_object(digest)
+            print(obj)
+        except:
+            pass
+        print(tmprepo.payloads.has_payload(digest), digest)
+    assert len(files) == 0, "should remove all created data files"
 
 
-def _count_files(dirname: str) -> int:
+def _list_files(dirname: str) -> List[str]:
 
-    file_count = 0
-    for _, _, files in os.walk(dirname):
-        file_count += len(files)
-    return file_count
+    all_files: List[str] = []
+    for root, _, files in os.walk(dirname):
+        all_files += [os.path.join(root, f) for f in files]
+    return all_files

@@ -29,7 +29,7 @@ class Config(configparser.ConfigParser):
                 names.append(section.split(".")[1])
         return names
 
-    def get_repository(self) -> storage.fs.Repository:
+    def get_repository(self) -> storage.fs.FSRepository:
 
         return storage.fs.ensure_repository(self.storage_root)
 

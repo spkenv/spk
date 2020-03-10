@@ -32,4 +32,4 @@ def test_config_get_remote(tmpdir: py.path.local) -> None:
     repo = config.get_remote("origin")
     assert repo is not None
     assert isinstance(repo, storage.Repository)
-    assert isinstance(repo, storage.fs.Repository)
+    assert isinstance(repo, storage.fs.FSRepository)

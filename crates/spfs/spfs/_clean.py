@@ -21,7 +21,7 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
 
     _LOGGER.info("evaluating repository digraph")
     unattached = get_all_unattached_objects(repo)
-    _LOGGER.info("removing orphaned objects")
+    _LOGGER.info("removing orphaned data")
 
     worker_pool = _get_worker_pool()
     spawn_count = 0
@@ -31,7 +31,11 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
 
         result = worker_pool.apply_async(_clean_object, (repo.address(), digest))
         results.append(result)
-        spawn_count += 1
+        result = worker_pool.apply_async(_clean_payload, (repo.address(), digest))
+        results.append(result)
+        result = worker_pool.apply_async(_clean_render, (repo.address(), digest))
+        results.append(result)
+        spawn_count += 3
 
     last_report = datetime.now().timestamp()
     current_count = _CLEAN_DONE_COUNTER.value
@@ -44,7 +48,7 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
         if now - last_report > _CLEAN_LOG_UPDATE_INTERVAL_SECONDS:
             percent_done = (current_count / spawn_count) * 100
             progress_message = f"{percent_done:.02f}% ({current_count}/{spawn_count})"
-            _LOGGER.info(f"cleaning objects...", progress=progress_message)
+            _LOGGER.info(f"cleaning orhpaned data...", progress=progress_message)
             last_report = now
 
         try:
@@ -66,8 +70,39 @@ def _clean_object(repo_addr: str, digest: encoding.Digest) -> None:
             return
         except graph.UnknownObjectError:
             pass
+    except Exception as e:
+        _CLEAN_ERROR_QUEUE.put(e)
+    finally:
+        with _CLEAN_DONE_COUNTER.get_lock():
+            # read and subsequent write are not atomic unless lock is held throughout
+            _CLEAN_DONE_COUNTER.value += 1
+
+
+def _clean_payload(repo_addr: str, digest: encoding.Digest) -> None:
+
+    try:
+        repo = storage.open_repository(repo_addr)
         try:
             repo.payloads.remove_payload(digest)
+            return
+        except graph.UnknownObjectError:
+            pass
+    except Exception as e:
+        _CLEAN_ERROR_QUEUE.put(e)
+    finally:
+        with _CLEAN_DONE_COUNTER.get_lock():
+            # read and subsequent write are not atomic unless lock is held throughout
+            _CLEAN_DONE_COUNTER.value += 1
+
+
+def _clean_render(repo_addr: str, digest: encoding.Digest) -> None:
+
+    try:
+        repo = storage.open_repository(repo_addr)
+        assert isinstance(repo, storage.ManifestViewer)
+        try:
+            repo.remove_rendered_manifest(digest)
+            return
         except graph.UnknownObjectError:
             pass
     except Exception as e:
@@ -83,17 +118,30 @@ def get_all_unattached_objects(repo: storage.Repository) -> Set[encoding.Digest]
     digests: Set[encoding.Digest] = set()
     for digest in repo.objects.iter_digests():
         digests.add(digest)
-    for digest in repo.payloads.iter_digests():
-        digests.add(digest)
     return digests ^ get_all_attached_objects(repo)
+
+
+def get_all_unattached_payloads(repo: storage.Repository) -> Set[encoding.Digest]:
+
+    orphaned_payloads: Set[encoding.Digest] = set()
+    for digest in repo.payloads.iter_digests():
+        try:
+            repo.read_blob(digest)
+        except graph.UnknownObjectError:
+            orphaned_payloads.add(digest)
+    return orphaned_payloads
 
 
 def get_all_attached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
 
-    reachable_objects: Set[encoding.Digest] = set()
+    tag_targets: Set[encoding.Digest] = set()
     for _, stream in repo.tags.iter_tag_streams():
         for tag in stream:
-            reachable_objects |= repo.objects.get_descendants(tag.target)
+            tag_targets.add(tag.target)
+
+    reachable_objects: Set[encoding.Digest] = set()
+    for target in tag_targets:
+        reachable_objects |= repo.objects.get_descendants(target)
 
     return reachable_objects
 

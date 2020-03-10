@@ -71,8 +71,11 @@ class PlatformStorage:
         assert isinstance(obj, Platform), "Loaded object is not a platform"
         return obj
 
-    def commit_stack(self, stack: Iterable[encoding.Digest]) -> Platform:
-        """Commit the given set of layers to storage, creating a platform."""
+    def create_platform(self, stack: Iterable[encoding.Digest]) -> Platform:
+        """Create and store a platform containing the given layers.
+
+        The layers are given bottom to top order.
+        """
 
         platform = Platform(stack=stack)
         self._db.write_object(platform)

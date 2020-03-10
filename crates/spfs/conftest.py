@@ -23,10 +23,10 @@ structlog.configure(
 
 
 @pytest.fixture
-def tmprepo(tmpdir: py.path.local) -> spfs.storage.fs.Repository:
+def tmprepo(tmpdir: py.path.local) -> spfs.storage.fs.FSRepository:
 
     root = tmpdir.join("tmprepo").ensure(dir=True)
-    return spfs.storage.fs.Repository(root.strpath)
+    return spfs.storage.fs.FSRepository(root.strpath)
 
 
 @pytest.fixture(scope="session")

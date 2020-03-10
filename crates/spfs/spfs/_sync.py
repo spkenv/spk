@@ -144,17 +144,23 @@ def sync_layer(
 def _SYNC_ENTRY(entry: tracking.Entry, src_address: str, dest_address: str) -> None:
 
     try:
+
+        if entry.kind is not tracking.EntryKind.BLOB:
+            return
+
         src = storage.open_repository(src_address)
         dest = storage.open_repository(dest_address)
 
-        if entry.kind is not tracking.EntryKind.BLOB:
-            pass
-        elif dest.payloads.has_payload(entry.object):
-            _LOGGER.debug("blob already synced", digest=entry.object)
+        if not dest.objects.has_object(entry.object):
+            blob = src.objects.read_object(entry.object)
+            dest.objects.write_object(blob)
+
+        if dest.payloads.has_payload(entry.object):
+            _LOGGER.debug("blob payload already synced", digest=entry.object)
         else:
-            with src.payloads.open_payload(entry.object) as blob:
-                _LOGGER.debug("syncing blob", digest=entry.object)
-                dest.payloads.write_payload(blob)
+            with src.payloads.open_payload(entry.object) as payload:
+                _LOGGER.debug("syncing payload", digest=entry.object)
+                dest.payloads.write_payload(payload)
     except Exception as e:
         _SYNC_ERROR_QUEUE.put(e)
     finally:

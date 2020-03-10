@@ -1,13 +1,13 @@
 import py.path
 
 from .. import tracking
-from .fs import FileDB
+from .fs import FSDatabase
 from ._manifest import ManifestStorage
 
 
 def test_read_write_manifest(tmpdir: py.path.local) -> None:
 
-    storage = ManifestStorage(FileDB(tmpdir.join("storage").strpath))
+    storage = ManifestStorage(FSDatabase(tmpdir.join("storage").strpath))
 
     tmpdir.join("file.txt").ensure()
     manifest = tracking.compute_manifest(tmpdir.strpath)

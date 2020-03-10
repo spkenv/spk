@@ -14,12 +14,13 @@ class EntryKind(enum.Enum):
 
 class Entry(encoding.Encodable):
     def __init__(
-        self, object: encoding.Digest, kind: EntryKind, mode: int, name: str,
+        self, object: encoding.Digest, kind: EntryKind, mode: int, size: int, name: str
     ) -> None:
 
         self.object = object
         self.kind = kind
         self.mode = mode
+        self.size = size
         self.name = name
         super(Entry, self).__init__()
 
@@ -56,6 +57,7 @@ class Entry(encoding.Encodable):
         encoding.write_digest(writer, self.object)
         encoding.write_string(writer, self.kind.value)
         encoding.write_int(writer, self.mode)
+        encoding.write_int(writer, self.size)
         encoding.write_string(writer, self.name)
 
     @classmethod
@@ -65,5 +67,6 @@ class Entry(encoding.Encodable):
             object=encoding.read_digest(reader),
             kind=EntryKind(encoding.read_string(reader)),
             mode=encoding.read_int(reader),
+            size=encoding.read_int(reader),
             name=encoding.read_string(reader),
         )

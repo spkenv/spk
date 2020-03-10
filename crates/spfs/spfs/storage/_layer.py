@@ -66,8 +66,8 @@ class LayerStorage:
         assert isinstance(obj, Layer), "Loaded object is not a layer"
         return obj
 
-    def commit_manifest(self, manifest: tracking.Manifest) -> Layer:
-        """Commit the given manifest to this storage, as a new layer."""
+    def create_layer(self, manifest: tracking.Manifest) -> Layer:
+        """Create and storage a new layer for the given manifest."""
 
         layer = Layer(manifest=manifest.digest())
         self._db.write_object(layer)

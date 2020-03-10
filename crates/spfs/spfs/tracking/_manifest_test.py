@@ -113,6 +113,7 @@ def test_layer_manifests_removal() -> None:
             mode=0o000777,
             name="a_only",
             object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
 
@@ -124,6 +125,7 @@ def test_layer_manifests_removal() -> None:
             mode=0o020000,
             name="a_only",
             object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
 
@@ -143,6 +145,7 @@ def test_manifest_builder_remove_file() -> None:
             mode=0o000777,
             name="entry",
             object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     builder.remove_entry("/entry")
@@ -164,6 +167,7 @@ def test_manifest_builder_remove_dir() -> None:
             mode=0o000777,
             name="entry",
             object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     builder.remove_entry("/entry")

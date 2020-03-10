@@ -8,10 +8,14 @@ class Blob(graph.Object):
 
     __fields__ = ["size"]
 
-    def __init__(self, size: int) -> None:
+    def __init__(self, payload: encoding.Digest, size: int) -> None:
 
+        self.payload = payload
         self.size = size
         super(Blob, self).__init__()
+
+    def digest(self) -> encoding.Digest:
+        return self.payload
 
     def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Return the child object of this one in the object DG."""
@@ -19,12 +23,13 @@ class Blob(graph.Object):
 
     def encode(self, writer: BinaryIO) -> None:
 
+        encoding.write_digest(writer, self.payload)
         encoding.write_int(writer, self.size)
 
     @classmethod
     def decode(cls, reader: BinaryIO) -> "Blob":
 
-        return Blob(encoding.read_int(reader))
+        return Blob(encoding.read_digest(reader), encoding.read_int(reader))
 
 
 class BlobStorage:
