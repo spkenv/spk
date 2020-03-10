@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Set
 import abc
 import collections
 
@@ -57,6 +57,27 @@ class DatabaseView(metaclass=abc.ABCMeta):
 
             for digest in obj.child_objects():
                 objs.append(self.read_object(digest))
+
+    def get_descendants(self, root: encoding.Digest) -> Set[encoding.Digest]:
+        """Return the set of all objects under the given object, recursively."""
+
+        visited: Set[encoding.Digest] = set()
+
+        def follow(digest: encoding.Digest) -> None:
+            if digest in visited:
+                return
+
+            visited.add(digest)
+            try:
+                obj = self.read_object(digest)
+            except UnknownObjectError:
+                return
+
+            for child in obj.child_objects():
+                follow(child)
+
+        follow(root)
+        return visited
 
 
 class Database(DatabaseView):

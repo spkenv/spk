@@ -91,24 +91,9 @@ def get_all_unattached_objects(repo: storage.Repository) -> Set[encoding.Digest]
 def get_all_attached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
 
     reachable_objects: Set[encoding.Digest] = set()
-
-    def follow_obj(digest: encoding.Digest) -> None:
-
-        if digest in reachable_objects:
-            return
-
-        reachable_objects.add(digest)
-        try:
-            obj = repo.objects.read_object(digest)
-        except graph.UnknownObjectError:
-            return
-
-        for child in obj.child_objects():
-            follow_obj(child)
-
     for _, stream in repo.tags.iter_tag_streams():
         for tag in stream:
-            follow_obj(tag.target)
+            reachable_objects |= repo.objects.get_descendants(tag.target)
 
     return reachable_objects
 
