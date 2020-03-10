@@ -35,7 +35,7 @@ def _log(args: argparse.Namespace) -> None:
         i += 1
         spec = spfs.tracking.build_tag_spec(tag.name, tag.org, i)
         spec_str = str(spec).ljust(len(tag.path) + 4)
-        info = f"{Fore.YELLOW}{tag.digest[:10]}{Fore.RESET}"
+        info = f"{Fore.YELLOW}{tag.digest().str()[:10]}{Fore.RESET}"
         info += f" {Style.BRIGHT}{spec_str}{Style.RESET_ALL}"
         info += f" {Fore.BLUE}{tag.user}"
         info += f' {Fore.GREEN}{tag.time.strftime("%F-%R")}{Fore.RESET}'

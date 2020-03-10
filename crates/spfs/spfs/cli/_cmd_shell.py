@@ -36,13 +36,13 @@ def _shell(args: argparse.Namespace) -> None:
     if args.ref and args.ref != "-":
         env_spec = spfs.tracking.EnvSpec(args.ref)
         for target in env_spec.tags:
-            if args.pull or not repo.has_object(target):
+            if args.pull or not repo.has_ref(target):
                 _logger.info("pulling target ref", ref=target)
                 obj = spfs.pull_ref(target)
             else:
-                obj = repo.read_object(target)
+                obj = repo.read_ref(target)
 
-            runtime.push_digest(obj.digest)
+            runtime.push_digest(obj.digest())
 
     _logger.info("resolving entry process")
     cmd = spfs.build_command_for_runtime(runtime, "")

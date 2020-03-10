@@ -2,7 +2,7 @@ from typing import Sequence, List, Optional, Mapping
 import os
 import re
 
-from . import storage, runtime, tracking
+from . import storage, runtime, tracking, graph, encoding
 from ._config import get_config
 
 
@@ -16,26 +16,31 @@ def compute_manifest(ref: str) -> tracking.Manifest:
     spec = tracking.TagSpec(ref)
     for repo in repos:
         try:
-            obj = repo.read_object(spec)
-        except storage.UnknownObjectError:
+            obj = repo.read_ref(spec)
+        except graph.UnknownObjectError:
             continue
         else:
             return compute_object_manifest(obj, repo)
     else:
-        raise storage.UnknownObjectError(spec)
+        raise storage.UnknownReferenceError(spec)
 
 
 def compute_object_manifest(
-    obj: storage.Object, repo: storage.Repository = None
+    obj: graph.Object, repo: storage.Repository = None
 ) -> tracking.Manifest:
 
+    if repo is None:
+        config = get_config()
+        repo = config.get_repository()
+
     if isinstance(obj, storage.Layer):
-        return obj.manifest
+        return repo.read_manifest(obj.manifest)
     elif isinstance(obj, storage.Platform):
         layers = resolve_stack_to_layers(obj.stack, repo)
         manifest = tracking.Manifest()
         for layer in reversed(layers):
-            manifest = tracking.layer_manifests(manifest, layer.manifest)
+            layer_manifest = repo.read_manifest(layer.manifest)
+            manifest = tracking.layer_manifests(manifest, layer_manifest)
         return manifest
     else:
         raise NotImplementedError(
@@ -54,15 +59,16 @@ def resolve_overlay_dirs(runtime: runtime.Runtime) -> List[str]:
     overlay_dirs = []
     layers = resolve_stack_to_layers(runtime.get_stack())
     for layer in layers:
-        rendered_dir = repo.blobs.render_manifest(layer.manifest)
+        manifest = repo.read_manifest(layer.manifest)
+        rendered_dir = repo.render_manifest(manifest)
         overlay_dirs.append(rendered_dir)
 
     return overlay_dirs
 
 
 def resolve_stack_to_layers(
-    stack: Sequence[str], repo: storage.Repository = None
-) -> List[storage.fs.Layer]:
+    stack: Sequence[encoding.Digest], repo: storage.Repository = None
+) -> List[storage.Layer]:
     """Given a sequence of tags and digests, resolve to the set of underlying layers."""
 
     if repo is None:
@@ -72,10 +78,10 @@ def resolve_stack_to_layers(
     layers = []
     for ref in stack:
 
-        entry = repo.read_object(ref)
-        if isinstance(entry, storage.fs.Layer):
+        entry = repo.read_ref(ref)
+        if isinstance(entry, storage.Layer):
             layers.append(entry)
-        elif isinstance(entry, storage.fs.Platform):
+        elif isinstance(entry, storage.Platform):
             expanded = resolve_stack_to_layers(entry.stack, repo)
             layers.extend(expanded)
         else:

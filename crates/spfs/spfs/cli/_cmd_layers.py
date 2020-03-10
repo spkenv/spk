@@ -13,6 +13,5 @@ def _layers(args: argparse.Namespace) -> None:
 
     config = spfs.get_config()
     repo = config.get_repository()
-    layers = repo.layers.list_layers()
-    for layer in layers:
-        print(spfs.io.format_digest(layer.digest))
+    for layer in repo.iter_layers():
+        print(spfs.io.format_digest(layer.digest()))

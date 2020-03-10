@@ -25,8 +25,4 @@ def _clean(args: argparse.Namespace) -> None:
     else:
         repo = config.get_repository()
 
-    assert isinstance(
-        repo, spfs.storage.fs.Repository
-    ), f"Can only clean filesystem repositories, got: {repo.__class__.__name}"
-
     spfs.clean_untagged_objects(repo)

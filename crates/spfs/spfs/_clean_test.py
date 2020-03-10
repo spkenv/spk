@@ -4,7 +4,7 @@ import os
 import pytest
 import py.path
 
-from . import storage, tracking
+from . import storage, tracking, graph
 from ._clean import (
     get_all_attached_objects,
     get_all_unattached_objects,
@@ -12,9 +12,9 @@ from ._clean import (
 )
 
 
-def test_get_attached_unattached_objects_blob(tmprepo: storage.fs.Repository) -> None:
+def test_get_attached_objects_blob(tmprepo: storage.fs.Repository) -> None:
 
-    blob_digest = tmprepo.blobs.write_blob(io.BytesIO(b"hello, world"))
+    blob_digest = tmprepo.payloads.write_payload(io.BytesIO(b"hello, world"))
 
     assert (
         get_all_attached_objects(tmprepo) == set()
@@ -31,10 +31,10 @@ def test_get_attached_unattached_objects_blob(
     data_dir = tmpdir.join("data")
     data_dir.join("file.txt").write("hello, world", ensure=True)
 
-    manifest = tmprepo.blobs.commit_dir(data_dir.strpath)
-    layer = tmprepo.layers.commit_manifest(manifest)
-    tmprepo.tags.push_tag("my_tag", layer.digest)
-    blob_digest = manifest.children()[0]
+    manifest = tmprepo.commit_dir(data_dir.strpath)
+    layer = tmprepo.commit_manifest(manifest)
+    tmprepo.tags.push_tag("my_tag", layer.digest())
+    blob_digest = manifest.child_objects()[0]
 
     assert blob_digest in get_all_attached_objects(
         tmprepo
@@ -44,6 +44,7 @@ def test_get_attached_unattached_objects_blob(
     ), "blob in manifest in tag should be attached"
 
 
+@pytest.mark.timeout(3)
 def test_clean_untagged_objects_blobs(
     tmpdir: py.path.local, tmprepo: storage.fs.Repository
 ) -> None:
@@ -51,7 +52,7 @@ def test_clean_untagged_objects_blobs(
     data_dir = tmpdir.join("data")
     data_dir.join("dir/dir/test.file").write("hello", ensure=True)
 
-    manifest = tmprepo.blobs.commit_dir(data_dir.strpath)
+    manifest = tmprepo.commit_dir(data_dir.strpath)
 
     # shouldn't fail on empty repo
     clean_untagged_objects(tmprepo)
@@ -61,24 +62,25 @@ def test_clean_untagged_objects_blobs(
         if entry.kind is not tracking.EntryKind.BLOB:
             continue
 
-        with pytest.raises(storage.UnknownObjectError):
-            tmprepo.blobs.open_blob(entry.object).close()
+        with pytest.raises(graph.UnknownObjectError):
+            tmprepo.payloads.open_payload(entry.object).close()
 
 
 def test_clean_untagged_objects_layers_platforms(
     tmprepo: storage.fs.Repository,
 ) -> None:
 
-    layer = tmprepo.layers.commit_manifest(tracking.Manifest())
-    platform = tmprepo.platforms.commit_stack([layer.digest])
+    manifest = tracking.Manifest()
+    layer = tmprepo.commit_manifest(manifest)
+    platform = tmprepo.commit_stack([layer.digest()])
 
     clean_untagged_objects(tmprepo)
 
-    with pytest.raises(storage.UnknownObjectError):
-        tmprepo.layers.read_layer(layer.digest)
+    with pytest.raises(graph.UnknownObjectError):
+        tmprepo.read_layer(layer.digest())
 
-    with pytest.raises(storage.UnknownObjectError):
-        tmprepo.platforms.read_platform(platform.digest)
+    with pytest.raises(graph.UnknownObjectError):
+        tmprepo.read_platform(platform.digest())
 
 
 def test_clean_manifest_renders(
@@ -89,9 +91,9 @@ def test_clean_manifest_renders(
     data_dir.join("dir/dir/file.txt").write("hello", ensure=True)
     data_dir.join("dir/name.txt").write("john doe", ensure=True)
 
-    manifest = tmprepo.blobs.commit_dir(data_dir.strpath)
-    layer = tmprepo.layers.commit_manifest(manifest)
-    platform = tmprepo.platforms.commit_stack([layer.digest])
+    manifest = tmprepo.commit_dir(data_dir.strpath)
+    layer = tmprepo.commit_manifest(manifest)
+    platform = tmprepo.commit_stack([layer.digest()])
 
     file_count = _count_files(tmprepo.root)
     assert file_count != 0, "should have stored data"

@@ -1,6 +1,7 @@
-version: 0.17.0
+version: 0.16.0
 release_notes: |
   * Ensure tag data is unaltered during sync process
+  * Add clean command to remove orphaned object from storage
 
 environment:
   kind: PipEnv

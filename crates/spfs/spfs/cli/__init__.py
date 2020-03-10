@@ -62,7 +62,7 @@ def _capture_if_relevant(e: Exception) -> None:
 
     if isinstance(e, spfs.NoRuntimeError):
         return
-    if isinstance(e, spfs.storage.UnknownObjectError):
+    if isinstance(e, spfs.graph.UnknownObjectError):
         return
     if isinstance(e, spfs.NothingToCommitError):
         return

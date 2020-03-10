@@ -25,11 +25,15 @@ class NoRuntimeError(EnvironmentError):
 
 def compute_runtime_manifest(rt: runtime.Runtime) -> tracking.Manifest:
 
+    config = get_config()
+    repo = config.get_repository()
+
     stack = rt.get_stack()
     layers = resolve_stack_to_layers(stack)
     manifest = tracking.Manifest()
     for layer in reversed(layers):
-        manifest = tracking.layer_manifests(manifest, layer.manifest)
+        layer_manifest = repo.read_manifest(layer.manifest)
+        manifest = tracking.layer_manifests(manifest, layer_manifest)
     return manifest
 
 

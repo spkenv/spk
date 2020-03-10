@@ -1,11 +1,13 @@
-from typing import Iterable
+from typing import Iterable, Union
 from colorama import Fore
 
 from ._config import get_config
-from . import storage, tracking
+from . import storage, tracking, encoding
 
 
-def format_digest(ref: str, repo: storage.Repository = None) -> str:
+def format_digest(
+    ref: Union[str, encoding.Digest], repo: storage.Repository = None
+) -> str:
     """Return a nicely formatted string representation of the given reference."""
 
     if repo is None:
@@ -17,7 +19,8 @@ def format_digest(ref: str, repo: storage.Repository = None) -> str:
     except ValueError:
         aliases = []
 
-    ref = repo.get_shortened_digest(ref)
+    if isinstance(ref, encoding.Digest):
+        ref = repo.get_shortened_digest(ref)
     return " -> ".join([ref] + aliases)
 
 

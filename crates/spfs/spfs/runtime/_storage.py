@@ -12,6 +12,7 @@ import contextlib
 
 import simplejson
 
+from .. import encoding
 from . import _startup_csh, _startup_sh, _csh_exp
 
 STARTUP_FILES_LOCATION = "/spfs/etc/spfs/startup.d"
@@ -20,18 +21,20 @@ STARTUP_FILES_LOCATION = "/spfs/etc/spfs/startup.d"
 class Config(NamedTuple):
     """Stores the configuration of a single runtime."""
 
-    stack: Tuple[str, ...]
+    stack: Tuple[encoding.Digest, ...]
 
     def dump_dict(self) -> Dict:
         """Dump this runtime data into a dictionary of python basic types."""
 
-        return {"stack": list(self.stack)}
+        return {"stack": list(s.str() for s in self.stack)}
 
     @staticmethod
     def load_dict(data: Dict) -> "Config":
         """Load a runtime data from the given dictionary data."""
 
-        return Config(stack=tuple(data.get("stack", [])))
+        return Config(
+            stack=tuple(encoding.parse_digest(d) for d in data.get("stack", []))
+        )
 
 
 class Runtime:
@@ -81,11 +84,11 @@ class Runtime:
 
         shutil.rmtree(self.root)
 
-    def get_stack(self) -> Tuple[str, ...]:
+    def get_stack(self) -> Tuple[encoding.Digest, ...]:
         """Return this runtime's current object stack."""
         return self._get_config().stack
 
-    def push_digest(self, digest: str) -> None:
+    def push_digest(self, digest: encoding.Digest) -> None:
         """Push an object id onto this runtime's stack.
 
         This will update the configuration of the runtime,
@@ -97,10 +100,9 @@ class Runtime:
         """
 
         try:
-            digest_bytes = bytearray.fromhex(digest)
-            assert len(digest_bytes) == hashlib.sha256().digest_size
+            assert len(digest) == encoding.DIGEST_SIZE
         except (ValueError, AssertionError):
-            raise ValueError("Invalid digest: " + digest)
+            raise ValueError("Invalid digest: " + digest.str())
 
         self._config = Config((digest,) + self.get_stack())
         self._write_config()

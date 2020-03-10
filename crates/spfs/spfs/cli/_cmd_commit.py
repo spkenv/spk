@@ -30,7 +30,7 @@ def _commit(args: argparse.Namespace) -> None:
     config = spfs.get_config()
     repo = config.get_repository()
 
-    result: spfs.storage.Object
+    result: spfs.graph.Object
     if args.kind == "layer":
         result = spfs.commit_layer(runtime)
     elif args.kind == "platform":
@@ -38,10 +38,10 @@ def _commit(args: argparse.Namespace) -> None:
     else:
         raise NotImplementedError("commit", args.kind)
 
-    _logger.info("created", digest=result.digest)
+    _logger.info("created", digest=result.digest())
     for tag in args.tags or []:
 
-        repo.tags.push_tag(tag, result.digest)
+        repo.tags.push_tag(tag, result.digest())
         _logger.info("created", tag=tag)
 
     return

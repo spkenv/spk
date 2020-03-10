@@ -3,6 +3,7 @@ import os
 import pytest
 import py.path
 
+from .. import encoding
 from ._storage import Runtime, Config, Storage, _ensure_runtime
 
 
@@ -14,7 +15,7 @@ def test_runtime_repr(tmpdir: py.path.local) -> None:
 
 def test_config_serialization() -> None:
 
-    expected = Config(stack=("a", "b", "c"))
+    expected = Config(stack=(encoding.NULL_DIGEST, encoding.EMPTY_DIGEST))
     data = expected.dump_dict()
     actual = Config.load_dict(data)
 

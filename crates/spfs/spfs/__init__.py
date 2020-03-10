@@ -2,7 +2,7 @@
 
 __version__ = "0.15.4"
 
-from . import storage, tracking, runtime, io
+from . import storage, tracking, runtime, io, graph, encoding
 from ._config import get_config, load_config, Config
 from ._resolve import compute_manifest, compute_object_manifest
 from ._runtime import (

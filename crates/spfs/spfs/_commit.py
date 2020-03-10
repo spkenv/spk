@@ -14,10 +14,10 @@ def commit_layer(runtime: runtime.Runtime) -> storage.Layer:
 
     config = get_config()
     repo = config.get_repository()
-    manifest = repo.blobs.commit_dir(runtime.upper_dir)
+    manifest = repo.commit_dir(runtime.upper_dir)
     if manifest.is_empty():
         raise NothingToCommitError("layer would be empty")
-    return repo.layers.commit_manifest(manifest)
+    return repo.commit_manifest(manifest)
 
 
 def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
@@ -31,10 +31,10 @@ def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
     except NothingToCommitError:
         pass
     else:
-        runtime.push_digest(top_layer.digest)
+        runtime.push_digest(top_layer.digest())
 
     stack = runtime.get_stack()
     if len(stack) == 0:
         raise NothingToCommitError("platform would be empty")
 
-    return repo.platforms.commit_stack(stack)
+    return repo.commit_stack(stack)

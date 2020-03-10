@@ -6,26 +6,26 @@ import multiprocessing
 
 import structlog
 
-from . import tracking, storage
+from . import tracking, storage, graph, encoding
 
-_logger = structlog.get_logger("spfs.clean")
+_LOGGER = structlog.get_logger("spfs.clean")
 
-_clean_log_update_interval_seconds = 2
-_clean_worker_count = max((1, multiprocessing.cpu_count() - 1))
-_clean_done_counter = multiprocessing.Value("i", 0)
-_clean_error_queue: "multiprocessing.Queue[Exception]" = multiprocessing.Queue(10)
-_clean_worker_pool: Optional["multiprocessing.pool.Pool"] = None
+_CLEAN_LOG_UPDATE_INTERVAL_SECONDS = 2
+_CLEAN_WORKER_COUNT = max((1, multiprocessing.cpu_count() - 1))
+_CLEAN_DONE_COUNTER = multiprocessing.Value("i", 0)
+_CLEAN_ERROR_QUEUE: "multiprocessing.Queue[Exception]" = multiprocessing.Queue(10)
+_CLEAN_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
 
 
-def clean_untagged_objects(repo: storage.fs.Repository) -> None:
+def clean_untagged_objects(repo: storage.Repository) -> None:
 
-    _logger.info("evaluating repository digraph")
+    _LOGGER.info("evaluating repository digraph")
     unattached = get_all_unattached_objects(repo)
-    _logger.info("removing orphaned objects")
+    _LOGGER.info("removing orphaned objects")
 
     worker_pool = _get_worker_pool()
     spawn_count = 0
-    _clean_done_counter.value = 0
+    _CLEAN_DONE_COUNTER.value = 0
     results = []
     for digest in unattached:
 
@@ -34,22 +34,22 @@ def clean_untagged_objects(repo: storage.fs.Repository) -> None:
         spawn_count += 1
 
     last_report = datetime.now().timestamp()
-    current_count = _clean_done_counter.value
+    current_count = _CLEAN_DONE_COUNTER.value
     errors: List[Exception] = []
     while current_count < spawn_count:
         time.sleep(0.1)
-        current_count = _clean_done_counter.value
+        current_count = _CLEAN_DONE_COUNTER.value
         now = datetime.now().timestamp()
 
-        if now - last_report > _clean_log_update_interval_seconds:
+        if now - last_report > _CLEAN_LOG_UPDATE_INTERVAL_SECONDS:
             percent_done = (current_count / spawn_count) * 100
             progress_message = f"{percent_done:.02f}% ({current_count}/{spawn_count})"
-            _logger.info(f"cleaning objects...", progress=progress_message)
+            _LOGGER.info(f"cleaning objects...", progress=progress_message)
             last_report = now
 
         try:
             while True:
-                errors.append(_clean_error_queue.get_nowait())
+                errors.append(_CLEAN_ERROR_QUEUE.get_nowait())
         except queue.Empty:
             pass
 
@@ -57,71 +57,53 @@ def clean_untagged_objects(repo: storage.fs.Repository) -> None:
         raise RuntimeError(f"{errors[0]}, and {len(errors)-1} more errors during clean")
 
 
-def _clean_object(repo_addr: str, digest: str) -> None:
+def _clean_object(repo_addr: str, digest: encoding.Digest) -> None:
 
-    repo = storage.open_repository(repo_addr)
     try:
+        repo = storage.open_repository(repo_addr)
         try:
-            repo.blobs.remove_blob(digest)
+            repo.objects.remove_object(digest)
             return
-        except storage.UnknownObjectError:
+        except graph.UnknownObjectError:
             pass
         try:
-            repo.manifests.remove_manifest(digest)
-            if isinstance(repo.blobs, storage.ManifestViewer):
-                # TODO: this should be more predictable/reliable
-                repo.blobs.remove_rendered_manifest(digest)
-            return
-        except storage.UnknownObjectError:
-            pass
-        try:
-            repo.platforms.remove_platform(digest)
-            return
-        except storage.UnknownObjectError:
-            pass
-        try:
-            repo.layers.remove_layer(digest)
-            return
-        except storage.UnknownObjectError:
+            repo.payloads.remove_payload(digest)
+        except graph.UnknownObjectError:
             pass
     except Exception as e:
-        _clean_error_queue.put(e)
+        _CLEAN_ERROR_QUEUE.put(e)
     finally:
-        with _clean_done_counter.get_lock():
+        with _CLEAN_DONE_COUNTER.get_lock():
             # read and subsequent write are not atomic unless lock is held throughout
-            _clean_done_counter.value += 1
+            _CLEAN_DONE_COUNTER.value += 1
 
 
-def get_all_unattached_objects(repo: storage.fs.Repository) -> Set[str]:
+def get_all_unattached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
 
-    digests: Set[str] = set()
-    for digest in repo.manifests.iter_digests():
+    digests: Set[encoding.Digest] = set()
+    for digest in repo.objects.iter_digests():
         digests.add(digest)
-    for digest in repo.layers.iter_digests():
-        digests.add(digest)
-    for digest in repo.platforms.iter_digests():
-        digests.add(digest)
-    for digest in repo.blobs.iter_digests():
+    for digest in repo.payloads.iter_digests():
         digests.add(digest)
     return digests ^ get_all_attached_objects(repo)
 
 
-def get_all_attached_objects(repo: storage.fs.Repository) -> Set[str]:
+def get_all_attached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
 
-    reachable_objects: Set[str] = set()
+    reachable_objects: Set[encoding.Digest] = set()
 
-    def follow_obj(digest: str) -> None:
+    def follow_obj(digest: encoding.Digest) -> None:
 
         if digest in reachable_objects:
             return
 
         reachable_objects.add(digest)
         try:
-            obj = repo.read_object(digest)
-        except storage.UnknownObjectError:
+            obj = repo.objects.read_object(digest)
+        except graph.UnknownObjectError:
             return
 
-        for child in obj.children():
+        for child in obj.child_objects():
             follow_obj(child)
 
     for _, stream in repo.tags.iter_tag_streams():
@@ -133,7 +115,7 @@ def get_all_attached_objects(repo: storage.fs.Repository) -> Set[str]:
 
 def _get_worker_pool() -> "multiprocessing.pool.Pool":
 
-    global _clean_worker_pool
-    if _clean_worker_pool is None:
-        _clean_worker_pool = multiprocessing.Pool(_clean_worker_count)
-    return _clean_worker_pool
+    global _CLEAN_WORKER_POOL
+    if _CLEAN_WORKER_POOL is None:
+        _CLEAN_WORKER_POOL = multiprocessing.Pool(_CLEAN_WORKER_COUNT)
+    return _CLEAN_WORKER_POOL

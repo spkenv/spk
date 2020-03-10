@@ -26,32 +26,37 @@ def _info(args: argparse.Namespace) -> None:
         _print_global_info()
         return
     for ref in args.refs:
-        item = repo.read_object(ref)
+        item = repo.read_ref(ref)
         _pretty_print_ref(item, args.verbose)
 
 
-def _pretty_print_ref(obj: spfs.storage.Object, verbosity: int = 0) -> None:
+def _pretty_print_ref(obj: spfs.graph.Object, verbosity: int = 0) -> None:
 
     if isinstance(obj, spfs.storage.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spfs.io.format_digest(obj.digest))
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spfs.io.format_digest(obj.digest()))
         print(f" {Fore.BLUE}stack:{Fore.RESET}")
         for ref in obj.stack:
             print(f"  - " + spfs.io.format_digest(ref))
 
     elif isinstance(obj, spfs.storage.Layer):
         print(f"{Fore.GREEN}layer:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spfs.io.format_digest(obj.digest))
-        print(f" {Fore.BLUE}manifest:{Fore.RESET}")
+        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spfs.io.format_digest(obj.digest()))
+        print(
+            f" {Fore.BLUE}manifest:{Fore.RESET}" + spfs.io.format_digest(obj.manifest)
+        )
+
+    elif isinstance(obj, spfs.tracking.Manifest):
+
+        print(f"{Fore.GREEN}manifest:{Fore.RESET}")
         if verbosity == 0:
             max_entries = 10
         if verbosity == 1:
             max_entries = 50
         else:
             max_entries = 0
-
         count = 0
-        for path, entry in obj.manifest.walk():
+        for path, entry in obj.walk():
             print(f"  {entry.mode:06o} {entry.kind.value} {path}")
             count += 1
             if max_entries and count == max_entries:

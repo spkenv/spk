@@ -13,6 +13,6 @@ def _platforms(args: argparse.Namespace) -> None:
 
     config = spfs.get_config()
     repo = config.get_repository()
-    platforms = repo.platforms.list_platforms()
+    platforms = repo.iter_platforms()
     for platform in platforms:
-        print(spfs.io.format_digest(platform.digest))
+        print(spfs.io.format_digest(platform.digest()))
