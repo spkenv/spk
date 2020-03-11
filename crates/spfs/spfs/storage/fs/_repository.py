@@ -54,52 +54,15 @@ class FSRepository(Repository, FSManifestViewer):
 
     def last_migration(self) -> str:
 
-        version_file = os.path.join(self.__root, "VERSION")
-        try:
-            with open(version_file, "r") as f:
-                return f.read().strip()
-        except FileNotFoundError:
-            pass
+        return read_last_migration_version(self.__root)
 
-        # versioned repo introduced in 0.13.0
-        # best guess if the repo exists and it's missing
-        # then it predates the creation of this file
-        return "0.12.0"
-
-    def mark_migration_version(self, version: str = None) -> None:
+    def set_last_migration(self, version: str = None) -> None:
 
         if version is None:
             version = spfs.__version__
         version_file = os.path.join(self.__root, "VERSION")
         with open(version_file, "w+") as f:
             f.write(version)
-
-    # def get_shortened_digest(self, ref: str) -> str:
-
-    #     obj = self.read_ref(ref)
-    #     return self.database.get_shortened_digest(obj.digest())
-
-    # def read_ref(self, ref: str) -> graph.Object:
-
-    #     try:
-    #         digest = encoding.parse_digest(ref)
-    #     except ValueError:
-    #         digest = self.tags.resolve_tag(ref)
-
-    #     return self.read_object(digest)
-    #     pass
-
-    # def find_aliases(self, ref: Union[str, encoding.Digest]) -> List[str]:
-
-    #     aliases: List[str] = []
-    #     digest = self.read_ref(ref).digest()
-    #     for spec in self.tags.find_tags(digest):
-    #         if spec not in aliases:
-    #             aliases.append(spec)
-    #     if ref != digest:
-    #         aliases.append(digest.str())
-    #         aliases.remove(ref)
-    #     return aliases
 
 
 def ensure_repository(path: str) -> FSRepository:
@@ -114,9 +77,25 @@ def ensure_repository(path: str) -> FSRepository:
     except FileExistsError:
         pass
     else:
-        repo.mark_migration_version(spfs.__version__)
+        repo.set_last_migration(spfs.__version__)
 
     return repo
+
+
+def read_last_migration_version(root: str) -> str:
+    """Read the last marked migration version for a repository root path."""
+
+    version_file = os.path.join(root, "VERSION")
+    try:
+        with open(version_file, "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        pass
+
+    # versioned repo introduced in 0.13.0
+    # best guess if the repo exists and it's missing
+    # then it predates the creation of this file
+    return "0.12.0"
 
 
 register_scheme("file", FSRepository)
