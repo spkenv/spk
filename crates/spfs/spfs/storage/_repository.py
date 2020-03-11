@@ -1,19 +1,19 @@
-from typing import List, Tuple, Union, BinaryIO
-from typing_extensions import Protocol, runtime_checkable
+from typing import List, Union
 import os
-import io
 import stat
+import io
+import abc
 
 import structlog
 
 from .. import graph, encoding, tracking
-from ._layer import Layer, LayerStorage
+from ._layer import LayerStorage
 from ._platform import PlatformStorage
 from ._blob import Blob, BlobStorage
 from ._manifest import ManifestStorage
 from ._tag import TagStorage
 from ._payload import PayloadStorage
-from ._errors import AmbiguousReferenceError, UnknownReferenceError
+from ._errors import UnknownReferenceError
 
 _CHUNK_SIZE = 1024
 _logger = structlog.get_logger("spfs.storage")
@@ -34,10 +34,10 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
         self.payloads = payload_storage
         super(Repository, self).__init__(object_database)
 
+    @abc.abstractmethod
     def address(self) -> str:
         """Return the address of this repository."""
         ...
-        # TODO: fill this in?
 
     def get_shortened_digest(self, digest: encoding.Digest) -> str:
         """Return the shortened version of the given digest."""
@@ -109,7 +109,6 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
                 else:
                     raise ValueError("Unsupported non-regular file:" + filepath)
 
-                # TODO: store the blob entry with the size
                 builder.add_entry(
                     os.path.join(root, filepath),
                     tracking.Entry(

@@ -22,7 +22,7 @@ class FSPayloadStorage(PayloadStorage):
 
         self.__root = os.path.abspath(root)
         self.directory_permissions = 0o777
-        self.file_permissions = 0o666
+        self.file_permissions = 0o444
 
     @property
     def root(self) -> str:

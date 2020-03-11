@@ -19,9 +19,13 @@ _CLEAN_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
 
 def clean_untagged_objects(repo: storage.Repository) -> None:
 
-    _LOGGER.info("evaluating repository digraph")
+    _LOGGER.info("evaluating repository digraph...")
     unattached = get_all_unattached_objects(repo)
-    _LOGGER.info("removing orphaned data")
+    if len(unattached) == 0:
+        _LOGGER.info("nothing to clean!")
+        return
+
+    _LOGGER.info("removing orphaned data...")
 
     worker_pool = _get_worker_pool()
     spawn_count = 0
@@ -31,6 +35,8 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
 
         result = worker_pool.apply_async(_clean_object, (repo.address(), digest))
         results.append(result)
+        # TODO: this stuff below is not technically objects, and maybe belongs
+        # in a higher level function
         result = worker_pool.apply_async(_clean_payload, (repo.address(), digest))
         results.append(result)
         result = worker_pool.apply_async(_clean_render, (repo.address(), digest))
@@ -48,7 +54,7 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
         if now - last_report > _CLEAN_LOG_UPDATE_INTERVAL_SECONDS:
             percent_done = (current_count / spawn_count) * 100
             progress_message = f"{percent_done:.02f}% ({current_count}/{spawn_count})"
-            _LOGGER.info(f"cleaning orhpaned data...", progress=progress_message)
+            _LOGGER.info(f"cleaning orphaned data...", progress=progress_message)
             last_report = now
 
         try:
@@ -59,6 +65,8 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
 
     if len(errors) > 0:
         raise RuntimeError(f"{errors[0]}, and {len(errors)-1} more errors during clean")
+
+    _LOGGER.info(f"cleaned {len(unattached)} objects")
 
 
 def _clean_object(repo_addr: str, digest: encoding.Digest) -> None:

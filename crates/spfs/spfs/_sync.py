@@ -39,7 +39,13 @@ def pull_ref(ref: str) -> graph.Object:
     config = get_config()
     local = config.get_repository()
     for name in config.list_remote_names():
-        remote = config.get_remote(name)
+        _LOGGER.debug("looking for ref", ref=ref, remote=name)
+        try:
+            remote = config.get_remote(name)
+        except Exception as e:
+            _LOGGER.warning("failed to load remote repository", remote=name)
+            _LOGGER.warning(" > " + str(e))
+            continue
         try:
             remote.read_ref(ref)
         except ValueError:

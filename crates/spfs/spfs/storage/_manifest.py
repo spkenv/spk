@@ -37,7 +37,9 @@ class ManifestStorage:
         """
 
         obj = self._db.read_object(digest)
-        assert isinstance(obj, tracking.Manifest), "Loaded object is not a manifest"
+        assert isinstance(
+            obj, tracking.Manifest
+        ), f"Loaded object is not a manifest, got: {type(obj).__name__}"
         return obj
 
 

@@ -65,25 +65,38 @@ def test_get_attached_unattached_objects_blob(
 
 
 @pytest.mark.timeout(3)
-def test_clean_untagged_objects_blobs(
+def test_clean_untagged_objects(
     tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
 ) -> None:
 
-    data_dir = tmpdir.join("data")
-    data_dir.join("dir/dir/test.file").write("hello", ensure=True)
+    data_dir_1 = tmpdir.join("data")
+    data_dir_1.join("dir/dir/test.file").write("1 hello", ensure=True)
+    data_dir_1.join("dir/dir/test.file2").write("1 hello, world", ensure=True)
+    data_dir_1.join("dir/dir/test.file4").write("1 hello, world", ensure=True)
+    data_dir_1.join("dir/dir/test.file4").write("1 hello, other", ensure=True)
+    data_dir_1.join("dir/dir/test.file4").write("1 cleanme", ensure=True)
+    data_dir_2 = tmpdir.join("data2")
+    data_dir_2.join("dir/dir/test.file").write("2 hello", ensure=True)
+    data_dir_2.join("dir/dir/test.file2").write("2 hello, world", ensure=True)
 
-    manifest = tmprepo.commit_dir(data_dir.strpath)
+    manifest1 = tmprepo.commit_dir(data_dir_1.strpath)
 
-    # shouldn't fail on empty repo
+    manifest2 = tmprepo.commit_dir(data_dir_2.strpath)
+    layer = tmprepo.create_layer(manifest2)
+    tmprepo.tags.push_tag("tagged_manifest", layer.digest())
+
     clean_untagged_objects(tmprepo)
 
-    for _, entry in manifest.walk():
-
+    for _, entry in manifest1.walk():
         if entry.kind is not tracking.EntryKind.BLOB:
             continue
-
         with pytest.raises(graph.UnknownObjectError):
             tmprepo.payloads.open_payload(entry.object).close()
+
+    for _, entry in manifest2.walk():
+        if entry.kind is not tracking.EntryKind.BLOB:
+            continue
+        tmprepo.payloads.open_payload(entry.object).close()
 
 
 def test_clean_untagged_objects_layers_platforms(
@@ -114,6 +127,7 @@ def test_clean_manifest_renders(
     manifest = tmprepo.commit_dir(data_dir.strpath)
     layer = tmprepo.create_layer(manifest)
     platform = tmprepo.create_platform([layer.digest()])
+    tmprepo.render_manifest(manifest)
 
     files = _list_files(tmprepo.root)
     assert len(files) != 0, "should have stored data"
@@ -122,14 +136,14 @@ def test_clean_manifest_renders(
 
     files = _list_files(tmprepo.root)
     for filepath in files:
-        digest = tmprepo.objects.get_digest_from_path(filepath)  # type: ignore
         try:
+            digest = tmprepo.objects.get_digest_from_path(filepath)  # type: ignore
             obj = tmprepo.objects.read_object(digest)
-            print(obj)
         except:
             pass
-        print(tmprepo.payloads.has_payload(digest), digest)
-    assert len(files) == 0, "should remove all created data files"
+    assert files == [
+        os.path.join(tmprepo.root, "VERSION")
+    ], "should remove all created data files"
 
 
 def _list_files(dirname: str) -> List[str]:

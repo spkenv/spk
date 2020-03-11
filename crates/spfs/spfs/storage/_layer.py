@@ -63,7 +63,9 @@ class LayerStorage:
         """
 
         obj = self._db.read_object(digest)
-        assert isinstance(obj, Layer), "Loaded object is not a layer"
+        assert isinstance(
+            obj, Layer
+        ), f"Loaded object is not a layer, got: {type(obj).__name__}"
         return obj
 
     def create_layer(self, manifest: tracking.Manifest) -> Layer:

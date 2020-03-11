@@ -1,11 +1,8 @@
-from typing import List, Tuple, IO, Iterator, TYPE_CHECKING
 import os
 
 import semver
 
 import spfs
-from ... import tracking, graph, encoding
-from .. import Platform, PlatformStorage, Layer, LayerStorage
 
 from .. import register_scheme, Repository
 from ._tag import TagStorage
@@ -13,7 +10,19 @@ from ._database import FSDatabase, FSPayloadStorage
 from ._renderer import FSManifestViewer
 
 
+class MigrationRequiredError(RuntimeError):
+    """Denotes a repository that must be upgraded before use with this spfs version."""
+
+    def __init__(self, current_version: str, required_version: str) -> None:
+        super(MigrationRequiredError, self).__init__(
+            "Repository is not compatible with this version"
+            f" of spfs [{current_version} < {required_version}]"
+        )
+
+
 class FSRepository(Repository, FSManifestViewer):
+    """A pure filesystem-based repository of spfs data."""
+
     def __init__(self, root: str):
 
         if root.startswith("file:///"):
@@ -22,6 +31,19 @@ class FSRepository(Repository, FSManifestViewer):
             root = root[len("file:") :]
 
         self.__root = os.path.abspath(root)
+
+        try:
+            # even though checking existance first is not
+            # needed, it is required to trigger the automounter
+            # in cases when the desired path is in that location
+            if not os.path.exists(self.__root):
+                os.makedirs(self.__root, mode=0o777)
+        except FileExistsError:
+            pass
+
+        if len(os.listdir(self.__root)) == 0:
+            set_last_migration(self.__root, spfs.__version__)
+
         self.objects = FSDatabase(os.path.join(self.__root, "objects"))
         self.payloads = FSPayloadStorage(os.path.join(self.__root, "payloads"))
         FSManifestViewer.__init__(
@@ -34,16 +56,14 @@ class FSRepository(Repository, FSManifestViewer):
             payload_storage=self.payloads,
         )
 
-        self.minimum_compatible_version = "0.12.0"
+        self.minimum_compatible_version = "0.16.0"
         repo_version = self.last_migration()
         if semver.compare(spfs.__version__, repo_version) < 0:
             raise RuntimeError(
                 f"Repository requires a newer version of spfs [{repo_version}]: {self.address()}"
             )
         if semver.compare(repo_version, self.minimum_compatible_version) < 0:
-            raise RuntimeError(
-                f"Repository is not compatible with this version of spfs, it needs to be migrated"
-            )
+            raise MigrationRequiredError(repo_version, self.minimum_compatible_version)
 
     @property
     def root(self) -> str:
@@ -58,28 +78,7 @@ class FSRepository(Repository, FSManifestViewer):
 
     def set_last_migration(self, version: str = None) -> None:
 
-        if version is None:
-            version = spfs.__version__
-        version_file = os.path.join(self.__root, "VERSION")
-        with open(version_file, "w+") as f:
-            f.write(version)
-
-
-def ensure_repository(path: str) -> FSRepository:
-
-    repo = FSRepository(path)
-    try:
-        # even though checking existance first is not
-        # needed, it is required to trigger the automounter
-        # in cases when the desired path is in that location
-        if not os.path.exists(path):
-            os.makedirs(repo.root, mode=0o777)
-    except FileExistsError:
-        pass
-    else:
-        repo.set_last_migration(spfs.__version__)
-
-    return repo
+        set_last_migration(self.__root, version)
 
 
 def read_last_migration_version(root: str) -> str:
@@ -96,6 +95,16 @@ def read_last_migration_version(root: str) -> str:
     # best guess if the repo exists and it's missing
     # then it predates the creation of this file
     return "0.12.0"
+
+
+def set_last_migration(root: str, version: str = None) -> None:
+    """Set the last migration version of the repo with the given root directory."""
+
+    if version is None:
+        version = spfs.__version__
+    version_file = os.path.join(root, "VERSION")
+    with open(version_file, "w+") as f:
+        f.write(version)
 
 
 register_scheme("file", FSRepository)

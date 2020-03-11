@@ -2,6 +2,9 @@ version: 0.16.0
 release_notes: |
   * Ensure tag data is unaltered during sync process
   * Add clean command to remove orphaned object from storage
+  * Refactor storage api to streamline operations over the entire repository (eg clean)
+  * Move to binary storage format for objects to reduce size and improve io
+  * Add migration command and logic for this upgrade in formats
 
 environment:
   kind: PipEnv

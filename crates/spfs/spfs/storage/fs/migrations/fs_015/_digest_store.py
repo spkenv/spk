@@ -50,9 +50,6 @@ class DigestStorage:
     def get_shortened_digest(self, digest: str) -> str:
         """Return the shortened version of the given digest."""
 
-        # TODO: it's possible for this size to become ambiguous
-        # and we should be ensuring that this is the shortest
-        # non-ambiguous reference that is available.
         return digest[:10]
 
     def iter_digests(self) -> Iterator[str]:
@@ -67,6 +64,13 @@ class DigestStorage:
             entries = os.listdir(os.path.join(self._root, dirname))
             for entry in entries:
                 digest = dirname + entry
+                try:
+                    digest_bytes = bytes.fromhex(digest)
+                except ValueError:
+                    continue
+                if len(digest_bytes) != _FULL_DIGEST_SIZE:
+                    print("skip " + digest)
+                    continue
                 yield digest
 
     def resolve_full_digest_path(self, short_digest: str) -> str:
@@ -79,9 +83,8 @@ class DigestStorage:
 
         dirname, file_prefix = short_digest[:2], short_digest[2:]
         dirpath = os.path.join(self._root, dirname)
-        # no short circuits in migration
-        # if len(short_digest) == _FULL_DIGEST_SIZE:
-        #     return os.path.join(dirpath, file_prefix)
+        if len(short_digest) == _FULL_DIGEST_SIZE:
+            return os.path.join(dirpath, file_prefix)
         try:
             entries = os.listdir(dirpath)
         except FileNotFoundError:

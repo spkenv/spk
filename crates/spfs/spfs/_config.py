@@ -1,12 +1,15 @@
-from typing import NamedTuple, Optional, List
+from typing import Optional, List
 import os
 import errno
 import configparser
+
+import structlog
 
 from . import storage, runtime
 
 _DEFAULTS = {"storage": {"root": os.path.expanduser("~/.local/share/spfs")}}
 _CONFIG: Optional["Config"] = None
+_LOGGER = structlog.get_logger("spfs.config")
 
 
 class Config(configparser.ConfigParser):
@@ -31,7 +34,16 @@ class Config(configparser.ConfigParser):
 
     def get_repository(self) -> storage.fs.FSRepository:
 
-        return storage.fs.ensure_repository(self.storage_root)
+        try:
+            return storage.fs.FSRepository(self.storage_root)
+        except storage.fs.MigrationRequiredError:
+            _LOGGER.warning(
+                "Your local data is out of date! it will now be migrated..."
+            )
+            from .storage.fs import migrations
+
+            migrations.migrate_repo(self.storage_root)
+        return storage.fs.FSRepository(self.storage_root)
 
     def get_runtime_storage(self) -> runtime.Storage:
 

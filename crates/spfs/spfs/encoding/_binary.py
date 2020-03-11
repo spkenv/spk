@@ -51,6 +51,8 @@ def read_digest(reader: BinaryIO) -> Digest:
     """Read a digest from the given binary stream."""
 
     data = reader.read(DIGEST_SIZE)
+    if len(data) < DIGEST_SIZE:
+        raise EOFError("not enough bytes for digest")
     assert len(data) == DIGEST_SIZE, "Failed to read complete digest"
     return Digest(data)
 
@@ -74,6 +76,8 @@ def read_string(reader: BinaryIO) -> str:
         c = unicode_reader.read(1)
         if c == chr(0):
             break
+        if len(c) == 0:
+            raise EOFError("EOF reached before termination of string")
         text += c
 
     return text

@@ -68,7 +68,9 @@ class PlatformStorage:
         """
 
         obj = self._db.read_object(digest)
-        assert isinstance(obj, Platform), "Loaded object is not a platform"
+        assert isinstance(
+            obj, Platform
+        ), f"Loaded object is not a platform, got: {type(obj).__name__}"
         return obj
 
     def create_platform(self, stack: Iterable[encoding.Digest]) -> Platform:

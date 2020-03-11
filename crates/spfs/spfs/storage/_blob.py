@@ -56,5 +56,7 @@ class BlobStorage:
         """
 
         obj = self._db.read_object(digest)
-        assert isinstance(obj, Blob), "Loaded object is not a blob"
+        assert isinstance(
+            obj, Blob
+        ), f"Loaded object is not a blob, got: {type(obj).__name__}"
         return obj

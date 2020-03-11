@@ -150,9 +150,3 @@ def ensure_repository(path: str) -> Repository:
         os.makedirs(os.path.join(path, subdir), exist_ok=True, mode=0o777)
 
     return repo
-
-
-if TYPE_CHECKING:
-    from .storage import Repository as R
-
-    _: R = Repository("")

@@ -22,10 +22,6 @@ class Manifest(graph.Object):
         self._root: Tree = Tree()
         self._trees: Dict[encoding.Digest, Tree] = {}
 
-    def digest(self) -> encoding.Digest:
-
-        return self._root.digest()
-
     def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Return the digests of objects that this manifest refers to."""
 
