@@ -22,4 +22,4 @@ def test_migration(testdata: py.path.local, tmpdir: py.path.local) -> None:
         actual = tracking.compute_manifest(path)
         assert actual.digest() == manifest.digest()
 
-    assert repo.last_migration() == __version__, "should update last migration marker"
+    assert repo.last_migration() == "0.16.0", "should update last migration marker"

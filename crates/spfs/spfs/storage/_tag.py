@@ -46,3 +46,11 @@ class TagStorage(Protocol):
     def push_raw_tag(self, tag: tracking.Tag) -> None:
         """Push the given tag data to the tag stream, regardless of if it's valid."""
         ...
+
+    def remove_tag_stream(self, tag: str) -> None:
+        """Remove an entire tag and all related tag history."""
+        ...
+
+    def remove_tag(self, tag: tracking.Tag) -> None:
+        """Remove the oldest stored instance of the given tag."""
+        ...

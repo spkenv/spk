@@ -4,6 +4,8 @@ import socket
 import getpass
 import unicodedata
 
+import pytz.reference
+
 from .. import encoding
 
 
@@ -43,8 +45,11 @@ class Tag(encoding.Encodable):
         time: datetime = None,
     ):
 
-        self.org = org
-        self.name = name
+        # we want to ensure these components
+        # can build a valid tag spec
+        spec = build_tag_spec(name=name, org=org)
+        self.org = spec.org
+        self.name = spec.name
         self.target = target
         self.parent = parent
         self.user = user
@@ -83,7 +88,7 @@ class Tag(encoding.Encodable):
         encoding.write_string(writer, self.user)
         time = self.time
         if not time.tzinfo:
-            time = time.astimezone()
+            time = time.astimezone(pytz.reference.LocalTimezone())
         encoding.write_string(writer, time.isoformat())
         encoding.write_digest(writer, self.parent)
 

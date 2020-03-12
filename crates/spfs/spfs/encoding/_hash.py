@@ -13,6 +13,9 @@ class Encodable(metaclass=abc.ABCMeta):
     def digest(self) -> "Digest":
         return Digest.from_encodable(self)
 
+    def __hash__(self) -> int:
+        return hash(self.digest())
+
     def __eq__(self, other: Any) -> bool:
 
         if isinstance(other, Encodable):

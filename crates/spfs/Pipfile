@@ -26,6 +26,7 @@ sentry-sdk = "~=0.14.0"
 semver = "~=2.9"
 sortedcontainers = "~=2.1"
 spops = "~=0.1.6"
+pytz = "*"
 
 [requires]
 python_version = "3.7"

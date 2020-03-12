@@ -1,6 +1,7 @@
 from typing import Iterator, Tuple, Optional
 import os
 import io
+import contextlib
 
 from ... import tracking, graph, encoding
 from .. import UnknownReferenceError
@@ -116,14 +117,78 @@ class TagStorage:
 
         filepath = os.path.join(self._root, tag.path + _TAG_EXT)
         makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
-        tag_file_fd = os.open(
-            filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777
-        )
 
         stream = io.BytesIO()
         tag.encode(stream)
         encoded_tag = stream.getvalue()
         size = len(encoded_tag)
-        with os.fdopen(tag_file_fd, "ab") as tag_file:
-            encoding.write_int(tag_file, size)
-            tag_file.write(encoded_tag)
+
+        with _tag_lock(filepath):
+            tag_file_fd = os.open(
+                filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777
+            )
+            with os.fdopen(tag_file_fd, "ab") as tag_file:
+                encoding.write_int(tag_file, size)
+                tag_file.write(encoded_tag)
+
+    def remove_tag_stream(self, tag: str) -> None:
+        """Remove an entire tag and all related tag history."""
+
+        tag_spec = tracking.TagSpec(tag)
+        filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
+        makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
+        try:
+            with _tag_lock(filepath):
+                os.remove(filepath)
+        except FileNotFoundError:
+            raise UnknownReferenceError("Unknown tag: " + tag)
+
+    def remove_tag(self, tag: tracking.Tag) -> None:
+        """Remove the oldest stored instance of the given tag."""
+
+        tag_spec = tracking.TagSpec(tag.path)
+        filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
+        with _tag_lock(filepath):
+
+            all_versions = reversed(list(self.read_tag(tag_spec)))
+            backup_path = filepath + ".backup"
+            os.rename(filepath, backup_path)
+            try:
+                for version in all_versions:
+                    if version == tag:
+                        continue
+                    self.push_raw_tag(version)
+            except Exception as e:
+                try:
+                    os.remove(filepath)
+                except:
+                    pass
+                os.rename(backup_path, filepath)
+                raise
+            else:
+                os.remove(backup_path)
+
+
+_HAVE_LOCK = False
+
+
+@contextlib.contextmanager
+def _tag_lock(filepath: str) -> Iterator[None]:
+
+    global _HAVE_LOCK
+    if _HAVE_LOCK:
+        yield
+        return
+
+    try:
+        open(filepath + ".lock", "xb").close()
+    except FileExistsError:
+        raise RuntimeError(f"Tag already locked [{filepath}]")
+    except Exception as e:
+        raise RuntimeError(f"Cannot lock tag: {str(e)} [{filepath}]")
+    try:
+        _HAVE_LOCK = True
+        yield
+    finally:
+        _HAVE_LOCK = False
+        os.remove(filepath + ".lock")
