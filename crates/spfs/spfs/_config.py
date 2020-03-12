@@ -18,13 +18,16 @@ class Config(configparser.ConfigParser):
 
     @property
     def storage_root(self) -> str:
+        """Return the root path of the local repository storage."""
         return str(self["storage"]["root"])
 
     @property
     def runtime_storage_root(self) -> str:
+        """Return the path to the local runtime storage."""
         return os.path.join(self.storage_root, "runtimes")
 
     def list_remote_names(self) -> List[str]:
+        """List the names of all configured remote repositories."""
 
         names = []
         for section in self:
@@ -33,23 +36,26 @@ class Config(configparser.ConfigParser):
         return names
 
     def get_repository(self) -> storage.fs.FSRepository:
+        """Get the local repository instance as configured."""
 
         try:
             return storage.fs.FSRepository(self.storage_root)
         except storage.fs.MigrationRequiredError:
             _LOGGER.warning(
-                "Your local data is out of date! it will now be migrated..."
+                "Your local data is out of date! it will now be upgraded..."
             )
             from .storage.fs import migrations
 
-            migrations.migrate_repo(self.storage_root)
+            migrations.upgrade_repo(self.storage_root)
         return storage.fs.FSRepository(self.storage_root)
 
     def get_runtime_storage(self) -> runtime.Storage:
+        """Get the local runtime storage, as configured."""
 
         return runtime.Storage(self.runtime_storage_root)
 
     def get_remote(self, name: str) -> storage.Repository:
+        """Get a remote repostory by name."""
 
         addr = self[f"remote.{name}"]["address"]
         return storage.open_repository(addr)

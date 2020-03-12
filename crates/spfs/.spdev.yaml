@@ -5,6 +5,7 @@ release_notes: |
   * Refactor storage api to streamline operations over the entire repository (eg clean)
   * Move to binary storage format for objects to reduce size and improve io
   * Add migration command and logic for this upgrade in formats
+  * Add simple search command for finding tags by substring
 
 environment:
   kind: PipEnv
