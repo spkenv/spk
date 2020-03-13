@@ -28,6 +28,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
 
 def _shell(args: argparse.Namespace) -> None:
+    """Enter a subshell in a configured spfs environment."""
 
     config = spfs.get_config()
     repo = config.get_repository()

@@ -15,6 +15,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
 
 def _layers(args: argparse.Namespace) -> None:
+    """List all layers in an spfs repository."""
 
     config = spfs.get_config()
     if args.remote is not None:

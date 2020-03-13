@@ -1,9 +1,7 @@
-version: 0.16.1
+version: 0.16.2
 release_notes: |
-  * Allow listing of remote data from command line
-  * Provide basic pruning behaviour for old tag data
-  * Resolve issue where digest shortening was dangerous
-    * Update to calucluate shortes unambigous properly, not assume
+  * Add simple command for checking repository integrity
+  * Reorganize cli for hopefully better grouped help string
 
 environment:
   kind: PipEnv

@@ -15,6 +15,7 @@ from sentry_sdk.integrations.logging import ignore_logger
 import spfs
 from . import (
     _cmd_commit,
+    _cmd_check,
     _cmd_clean,
     _cmd_diff,
     _cmd_info,
@@ -45,27 +46,29 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     sub_parsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     _cmd_version.register(sub_parsers)
-    _cmd_migrate.register(sub_parsers)
-
-    _cmd_runtimes.register(sub_parsers)
-    _cmd_layers.register(sub_parsers)
-    _cmd_platforms.register(sub_parsers)
-    _cmd_tags.register(sub_parsers)
-    _cmd_log.register(sub_parsers)
 
     _cmd_run.register(sub_parsers)
     _cmd_shell.register(sub_parsers)
 
     _cmd_commit.register(sub_parsers)
-    _cmd_clean.register(sub_parsers)
+    _cmd_tag.register(sub_parsers)
     _cmd_push.register(sub_parsers)
     _cmd_pull.register(sub_parsers)
+
+    _cmd_runtimes.register(sub_parsers)
+    _cmd_layers.register(sub_parsers)
+    _cmd_platforms.register(sub_parsers)
+    _cmd_tags.register(sub_parsers)
+
     _cmd_info.register(sub_parsers)
+    _cmd_log.register(sub_parsers)
+    _cmd_search.register(sub_parsers)
     _cmd_diff.register(sub_parsers)
 
+    _cmd_migrate.register(sub_parsers)
+    _cmd_check.register(sub_parsers)
+    _cmd_clean.register(sub_parsers)
     _cmd_init.register(sub_parsers)
-    _cmd_tag.register(sub_parsers)
-    _cmd_search.register(sub_parsers)
 
     args = parser.parse_args(argv)
     if args.command is None:

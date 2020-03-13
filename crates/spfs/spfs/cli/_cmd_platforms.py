@@ -15,6 +15,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
 
 def _platforms(args: argparse.Namespace) -> None:
+    """List all platforms in an spfs repository."""
 
     config = spfs.get_config()
     if args.remote is not None:

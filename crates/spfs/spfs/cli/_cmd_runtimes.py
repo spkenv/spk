@@ -10,6 +10,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
 
 def _runtimes(args: argparse.Namespace) -> None:
+    """List the active set of spfs runtimes."""
 
     config = spfs.get_config()
     runtime_storage = config.get_runtime_storage()
