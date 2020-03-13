@@ -1,10 +1,9 @@
+import sys
 import argparse
-from datetime import datetime, timedelta
 
 import structlog
 import spfs
 
-from colorama import Fore, Style
 
 _LOGGER = structlog.get_logger("cli")
 
