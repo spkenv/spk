@@ -19,7 +19,6 @@ _CLEAN_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
 
 def clean_untagged_objects(repo: storage.Repository) -> None:
 
-    _LOGGER.info("evaluating repository digraph...")
     unattached = get_all_unattached_objects(repo)
     if len(unattached) == 0:
         _LOGGER.info("nothing to clean!")
