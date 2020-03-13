@@ -64,6 +64,10 @@ def _capture_if_relevant(e: Exception) -> None:
         return
     if isinstance(e, spfs.graph.UnknownObjectError):
         return
+    if isinstance(e, spfs.graph.UnknownReferenceError):
+        return
+    if isinstance(e, spfs.graph.AmbiguousReferenceError):
+        return
     if isinstance(e, spfs.NothingToCommitError):
         return
     sentry_sdk.capture_exception(e)
