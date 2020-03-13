@@ -1,6 +1,9 @@
 version: 0.16.1
 release_notes: |
   * Allow listing of remote data from command line
+  * Provide basic pruning behaviour for old tag data
+  * Resolve issue where digest shortening was dangerous
+    * Update to calucluate shortes unambigous properly, not assume
 
 environment:
   kind: PipEnv

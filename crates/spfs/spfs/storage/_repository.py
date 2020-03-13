@@ -13,7 +13,6 @@ from ._blob import Blob, BlobStorage
 from ._manifest import ManifestStorage
 from ._tag import TagStorage
 from ._payload import PayloadStorage
-from ._errors import UnknownReferenceError
 
 _CHUNK_SIZE = 1024
 _logger = structlog.get_logger("spfs.storage")
@@ -39,19 +38,11 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
         """Return the address of this repository."""
         ...
 
-    def get_shortened_digest(self, digest: encoding.Digest) -> str:
-        """Return the shortened version of the given digest."""
-
-        # TODO: it's possible for this size to become ambiguous
-        # and we should be ensuring that this is the shortest
-        # non-ambiguous reference that is available.
-        return digest.str()[:10]
-
     def has_ref(self, ref: Union[str, encoding.Digest]) -> bool:
 
         try:
             self.read_ref(ref)
-        except (graph.UnknownObjectError, UnknownReferenceError):
+        except (graph.UnknownObjectError, graph.UnknownReferenceError):
             return False
         return True
 
@@ -61,7 +52,7 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
             digest = ref
         else:
             try:
-                digest = encoding.parse_digest(ref)
+                digest = self.objects.resolve_full_digest(ref)
             except ValueError:
                 digest = self.tags.resolve_tag(ref).target
 

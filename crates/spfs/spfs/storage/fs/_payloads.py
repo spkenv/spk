@@ -7,11 +7,7 @@ import sentry_sdk
 import structlog
 
 from ... import graph, encoding
-from .. import (
-    PayloadStorage,
-    AmbiguousReferenceError,
-    UnknownReferenceError,
-)
+from .. import PayloadStorage
 
 _logger = structlog.get_logger("spfs.storage.fs")
 _CHUNK_SIZE = 1024
@@ -115,7 +111,7 @@ class FSPayloadStorage(PayloadStorage):
 
         Raises:
             UnknownObjectError: if the digest cannot be resolved
-            AmbiguousReferenceError: if the digest resolves to more than one path
+            graph.AmbiguousReferenceError: if the digest resolves to more than one path
         """
 
         dirname, file_prefix = short_digest[:2], short_digest[2:]
@@ -125,21 +121,47 @@ class FSPayloadStorage(PayloadStorage):
         try:
             entries = os.listdir(dirpath)
         except FileNotFoundError:
-            raise UnknownReferenceError(f"Unknown ref: {short_digest}")
+            raise graph.UnknownReferenceError(f"Unknown ref: {short_digest}")
 
         options = list(filter(lambda x: x.startswith(file_prefix), entries))
         if len(options) == 0:
-            raise UnknownReferenceError(f"Unknown ref: {short_digest}")
+            raise graph.UnknownReferenceError(f"Unknown ref: {short_digest}")
         if len(options) > 1:
-            raise AmbiguousReferenceError(short_digest)
+            raise graph.AmbiguousReferenceError(short_digest)
         return os.path.join(dirpath, options[0])
+
+    def get_shortened_digest(self, digest: encoding.Digest) -> str:
+        """Return the shortened version of the given digest.
+
+        This implementation improves greatly on the base one by limiting
+        the possible conflicts to a subdirectory (and subset of all digests)
+        """
+
+        filepath = self._build_digest_path(digest)
+        try:
+            entries = os.listdir(os.path.dirname(filepath))
+        except FileNotFoundError:
+            raise graph.UnknownObjectError(digest)
+
+        digest_str = digest.str()
+        shortest_size = 8
+        shortest = digest_str[2:shortest_size]
+        for other in entries:
+            if other[:shortest_size] != shortest:
+                continue
+            if other == digest_str[2:]:
+                continue
+            while other[:shortest_size] == shortest:
+                shortest_size += 8
+                shortest = digest_str[2:shortest_size]
+        return digest_str[:shortest_size]
 
     def resolve_full_digest(self, short_digest: str) -> encoding.Digest:
         """Resolve the complete object digest from a shortened one.
 
         Raises:
             graph.UnknownObjectError: if the digest cannot be resolved
-            AmbiguousReferenceError: if the digest resolves to more than one path
+            graph.AmbiguousReferenceError: if the digest resolves to more than one path
         """
 
         path = self.resolve_full_digest_path(short_digest)

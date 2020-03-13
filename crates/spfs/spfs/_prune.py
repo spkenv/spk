@@ -60,7 +60,6 @@ def get_prunable_tags(
 
     to_prune = set()
     for spec, stream in tags.iter_tag_streams():
-        _LOGGER.info(f"processing tag: {spec}")
         version = -1
         for tag in stream:
             version += 1

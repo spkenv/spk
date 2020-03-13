@@ -1,7 +1,3 @@
-from ._errors import (
-    AmbiguousReferenceError,
-    UnknownReferenceError,
-)
 from ._payload import PayloadStorage
 from ._blob import Blob, BlobStorage
 from ._manifest import ManifestStorage, ManifestViewer

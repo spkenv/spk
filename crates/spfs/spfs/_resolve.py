@@ -22,7 +22,7 @@ def compute_manifest(ref: str) -> tracking.Manifest:
         else:
             return compute_object_manifest(obj, repo)
     else:
-        raise storage.UnknownReferenceError(spec)
+        raise graph.UnknownReferenceError(spec)
 
 
 def compute_object_manifest(

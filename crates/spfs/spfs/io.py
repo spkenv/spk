@@ -20,7 +20,7 @@ def format_digest(
         aliases = []
 
     if isinstance(ref, encoding.Digest):
-        ref = repo.get_shortened_digest(ref)
+        ref = repo.objects.get_shortened_digest(ref)
     return " -> ".join([ref] + aliases)
 
 
@@ -46,3 +46,12 @@ def format_changes(diffs: Iterable[tracking.Diff]) -> str:
 
     diffs = filter(lambda x: x.mode is not tracking.DiffMode.unchanged, diffs)
     return format_diffs(diffs)
+
+
+def format_size(size: float) -> str:
+    """Return a human-readable file size in bytes."""
+    for unit in ["B", "Ki", "Mi", "Gi", "Ti"]:
+        if abs(size) < 1024.0:
+            return f"{size:3.1f} {unit}"
+        size /= 1024.0
+    return f"{size:3.1f} Pi"

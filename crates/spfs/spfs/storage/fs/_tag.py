@@ -4,7 +4,6 @@ import io
 import contextlib
 
 from ... import tracking, graph, encoding
-from .. import UnknownReferenceError
 
 from ._database import makedirs_with_perms
 
@@ -77,7 +76,7 @@ class TagStorage:
                     f.seek(-size - encoding.INT_SIZE, os.SEEK_CUR)
 
         except FileNotFoundError:
-            raise UnknownReferenceError(f"Unknown tag: {tag}")
+            raise graph.UnknownReferenceError(f"Unknown tag: {tag}")
 
     def resolve_tag(self, tag: str) -> tracking.Tag:
 
@@ -88,7 +87,9 @@ class TagStorage:
                 next(stream)
             return next(stream)
         except StopIteration:
-            raise UnknownReferenceError(f"tag or tag version does not exist {tag}")
+            raise graph.UnknownReferenceError(
+                f"tag or tag version does not exist {tag}"
+            )
 
     def push_tag(self, tag: str, target: encoding.Digest) -> tracking.Tag:
         """Push the given tag onto the tag stream."""
@@ -141,7 +142,7 @@ class TagStorage:
             with _tag_lock(filepath):
                 os.remove(filepath)
         except FileNotFoundError:
-            raise UnknownReferenceError("Unknown tag: " + tag)
+            raise graph.UnknownReferenceError("Unknown tag: " + tag)
 
     def remove_tag(self, tag: tracking.Tag) -> None:
         """Remove the oldest stored instance of the given tag."""

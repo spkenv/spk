@@ -62,6 +62,12 @@ def _pretty_print_ref(obj: spfs.graph.Object, verbosity: int = 0) -> None:
             if max_entries and count == max_entries:
                 print(f" {Style.DIM}  ...[truncated] use -vv for more{Style.RESET_ALL}")
 
+    elif isinstance(obj, spfs.storage.Blob):
+
+        print(f"{Fore.GREEN}blob:{Fore.RESET}")
+        print(f" {Fore.BLUE}digest:{Fore.RESET} " + spfs.io.format_digest(obj.digest()))
+        print(f" {Fore.BLUE}size:{Fore.RESET} " + spfs.io.format_size(obj.size))
+
     else:
         print(repr(obj))
 

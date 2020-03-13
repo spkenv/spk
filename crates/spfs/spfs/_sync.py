@@ -52,7 +52,7 @@ def pull_ref(ref: str) -> graph.Object:
             continue
         return sync_ref(ref, remote, local)
     else:
-        raise storage.UnknownReferenceError("Unknown ref: " + ref)
+        raise graph.UnknownReferenceError("Unknown ref: " + ref)
 
 
 def sync_ref(

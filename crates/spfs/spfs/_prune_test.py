@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from . import storage, tracking, encoding
+from . import storage, tracking, encoding, graph
 from ._prune import prune_tags, get_prunable_tags, PruneParameters
 
 
@@ -84,7 +84,7 @@ def test_prune_tags(tmprepo: storage.fs.FSRepository) -> None:
     def reset() -> None:
         try:
             tmprepo.tags.remove_tag_stream("test/prune")
-        except storage.UnknownReferenceError:
+        except graph.UnknownReferenceError:
             pass
         for year in (2020, 2021, 2022, 2023, 2024, 2025):
             time = datetime(year=year, month=1, day=1)
@@ -114,7 +114,7 @@ def test_prune_tags(tmprepo: storage.fs.FSRepository) -> None:
     prune_tags(
         tmprepo.tags, PruneParameters(prune_if_version_more_than=-1),
     )
-    with pytest.raises(storage.UnknownReferenceError):
+    with pytest.raises(graph.UnknownReferenceError):
         for tag in tmprepo.tags.read_tag("test/prune"):
             print(tag)
 

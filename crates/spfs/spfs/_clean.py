@@ -123,6 +123,7 @@ def _clean_render(repo_addr: str, digest: encoding.Digest) -> None:
 
 def get_all_unattached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
 
+    _LOGGER.info("evaluating repository digraph...")
     digests: Set[encoding.Digest] = set()
     for digest in repo.objects.iter_digests():
         digests.add(digest)
