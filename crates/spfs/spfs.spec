@@ -1,5 +1,5 @@
 Name: spfs
-Version: 0.16.1
+Version: 0.17.0
 Release: 1
 Summary: Filesystem isolation, capture, and distribution.
 License: NONE
@@ -47,7 +47,7 @@ install -p -m 755 %{_builddir}/%{name}-v%{version}/build/bin/spfs-enter %{buildr
 
 %files
 /opt/spfs.dist/
-%caps(cap_setuid,cap_sys_admin+ep) /usr/local/bin/spfs-enter
+%caps(cap_setuid,cap_chown,cap_sys_admin+ep) /usr/local/bin/spfs-enter
 
 %post
 mkdir -p /spfs

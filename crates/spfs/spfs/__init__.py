@@ -1,6 +1,6 @@
 """Filesystem isolation, capture and distribution."""
 
-__version__ = "0.16.1"
+__version__ = "0.17.0"
 
 from . import storage, tracking, runtime, io, graph, encoding
 from ._config import get_config, load_config, Config
@@ -10,6 +10,8 @@ from ._runtime import (
     initialize_runtime,
     deinitialize_runtime,
     compute_runtime_manifest,
+    make_active_runtime_editable,
+    remount_runtime,
     NoRuntimeError,
 )
 from ._bootstrap import build_command_for_runtime, build_shell_initialized_command

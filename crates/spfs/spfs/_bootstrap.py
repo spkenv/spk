@@ -22,15 +22,13 @@ def build_command_for_runtime(
     binaries and runs the desired command in an existing runtime.
     """
 
-    overlay_dirs = resolve_overlay_dirs(runtime)
-
     spfs_exe = which("spfs")
     if not spfs_exe:
         raise RuntimeError("'spfs' not found in PATH")
 
     args = ("init-runtime", runtime.root, command) + args
 
-    return _build_spfs_enter_command(overlay_dirs, spfs_exe, *args)
+    return _build_spfs_enter_command(runtime, spfs_exe, *args)
 
 
 def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]:
@@ -54,11 +52,19 @@ def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]
     return (desired_shell, startup_file, command) + args
 
 
-def _build_spfs_enter_command(
-    overlay_dirs: List[str], *command: str
-) -> Tuple[str, ...]:
+def _build_spfs_enter_command(rt: runtime.Runtime, *command: str) -> Tuple[str, ...]:
 
     exe = which("spfs-enter")
     if exe is None:
         raise RuntimeError("'spfs-enter' not found in PATH")
-    return (exe, ":".join(overlay_dirs)) + command
+
+    args = [exe]
+
+    overlay_dirs = resolve_overlay_dirs(rt)
+    for dirpath in overlay_dirs:
+        args.extend(["-d", dirpath])
+
+    if rt.is_editable():
+        args.append("-e")
+
+    return tuple(args) + command

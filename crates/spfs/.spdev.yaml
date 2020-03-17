@@ -1,7 +1,11 @@
-version: 0.16.2
+version: 0.17.0
 release_notes: |
-  * Add simple command for checking repository integrity
-  * Reorganize cli for hopefully better grouped help string
+  * Allow spfs runtimes to be mounted in read-only mode
+  * Add command line subcommand and flag to enable editing
+    * Use read-only mount by default for exiting environments
+  * Update the spfs-enter command with actual option parsing
+  * Update the spfs-enter command to allow remounting
+  * Remount as read-only whenever a layer is created in the edit mode
 
 environment:
   kind: PipEnv

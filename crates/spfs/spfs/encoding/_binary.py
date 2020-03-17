@@ -1,4 +1,5 @@
 from typing import BinaryIO, List
+import io
 import codecs
 
 from ._hash import DIGEST_SIZE, Digest
@@ -66,17 +67,20 @@ def write_string(writer: BinaryIO, string: str) -> None:
     writer.write("\x00".encode("utf-8"))
 
 
+_STREAM_READER = codecs.getreader("utf-8")
+null = chr(0)
+
+
 def read_string(reader: BinaryIO) -> str:
     """Read a string from the given binary stream."""
 
-    StreamReader = codecs.getreader("utf-8")
-    unicode_reader = StreamReader(reader)
+    unicode_reader = _STREAM_READER(reader)
     text = ""
     while True:
         c = unicode_reader.read(1)
-        if c == chr(0):
+        if c == null:
             break
-        if len(c) == 0:
+        if not c:
             raise EOFError("EOF reached before termination of string")
         text += c
 

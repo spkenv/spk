@@ -1,15 +1,13 @@
-from typing import NamedTuple, List, Optional, Sequence, Any, Tuple, Dict, IO
+from typing import Tuple
 import os
-import json
 import shutil
-import errno
 import subprocess
 
 import structlog
 
-from ._resolve import which, resolve_stack_to_layers
+from ._resolve import which, resolve_stack_to_layers, resolve_overlay_dirs
 from ._config import get_config
-from . import storage, runtime, tracking
+from . import runtime, tracking
 
 
 _logger = structlog.get_logger(__name__)
@@ -21,6 +19,38 @@ class NoRuntimeError(EnvironmentError):
         if details:
             msg += f": {details}"
         super(NoRuntimeError, self).__init__(msg)
+
+
+def make_active_runtime_editable() -> None:
+    """Unlock the current runtime file system so that it can be modified.
+
+    Once modified, active changes can be committed
+
+    Raises:
+        NoRuntimeError: if there is no active runtime
+        ValueError: if the active runtime is already editable
+    """
+
+    rt = active_runtime()
+    if rt.is_editable():
+        raise ValueError("Active runtime is already editable")
+
+    rt.set_editable(True)
+    try:
+        remount_runtime(rt)
+    except:
+        rt.set_editable(False)
+        raise
+
+
+def remount_runtime(rt: runtime.Runtime) -> None:
+    """Remount the given runtime as configured."""
+
+    cmd = _build_spfs_remount_command(rt)
+    proc = subprocess.Popen(cmd)
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError("Failed to re-mount runtime filesystem")
 
 
 def compute_runtime_manifest(rt: runtime.Runtime) -> tracking.Manifest:
@@ -69,17 +99,19 @@ def deinitialize_runtime() -> None:
     del os.environ["SPFS_RUNTIME"]
 
 
-def _which(name: str) -> Optional[str]:
+def _build_spfs_remount_command(rt: runtime.Runtime) -> Tuple[str, ...]:
 
-    search_paths = os.getenv("PATH", "").split(os.pathsep)
-    for path in search_paths:
-        filepath = os.path.join(path, name)
-        if _is_exe(filepath):
-            return filepath
-    else:
-        return None
+    exe = which("spfs-enter")
+    if exe is None:
+        raise RuntimeError("'spfs-enter' not found in PATH")
 
+    args = [exe, "-r"]
 
-def _is_exe(filepath: str) -> bool:
+    overlay_dirs = resolve_overlay_dirs(rt)
+    for dirpath in overlay_dirs:
+        args.extend(["-d", dirpath])
 
-    return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
+    if rt.is_editable():
+        args.append("-e")
+
+    return tuple(args)
