@@ -85,6 +85,7 @@ def _print_global_info() -> None:
 
     print(f"{Fore.GREEN}Active Runtime:{Fore.RESET}")
     print(f" {Fore.BLUE}id:{Fore.RESET} {runtime.ref}")
+    print(f" {Fore.BLUE}editable:{Fore.RESET} {runtime.is_editable()}")
     print(f" {Fore.BLUE}stack:{Fore.RESET}")
     stack = runtime.get_stack()
     for ref in stack:

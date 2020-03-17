@@ -21,6 +21,8 @@
 
 char *SPFS_LOWERDIRS = NULL;
 char **SPFS_COMMAND = NULL;
+int SPFS_REMOUNT_ONLY = 0;
+int SPFS_EDITABLE = 0;
 int SPFS_DEBUG = 0;
 int SPFS_VIRTUALIZE_SHOTS = 0;
 uid_t original_euid = -1;
@@ -33,6 +35,9 @@ int step_fail() { return 1; }
 
 int enter_mount_namespace()
 {
+    if (SPFS_DEBUG) {
+        printf("--> entering mount namespace...\n");
+    }
     if (unshare(CLONE_NEWNS) != 0)
     {
         perror("Failed to enter mount namespace");
@@ -43,6 +48,9 @@ int enter_mount_namespace()
 
 int privatize_existing_mounts()
 {
+    if (SPFS_DEBUG) {
+        printf("--> privatizing existing mounts...\n");
+    }
     int result = mount("none", "/", NULL, MS_PRIVATE, NULL);
     if (result != 0)
     {
@@ -76,6 +84,9 @@ int privatize_existing_mounts()
 
 int ensure_mount_targets_exist()
 {
+    if (SPFS_DEBUG) {
+        printf("--> ensuring mount targets exist...\n");
+    }
     int result;
     result = mkdir_permissive(SPFS_DIR);
     if (result != 0) {
@@ -88,10 +99,14 @@ int ensure_mount_targets_exist()
         return 1;
     }
 
+
 }
 
 int ensure_mounts_do_not_exist()
 {
+    if (SPFS_DEBUG) {
+        printf("--> ensuring mounts do not already exist...\n");
+    }
     int result = is_mounted(SPFS_DIR);
     if (result == -1)
     {
@@ -105,9 +120,30 @@ int ensure_mounts_do_not_exist()
     }
 }
 
+int ensure_mounts_already_exist()
+{
+    if (SPFS_DEBUG) {
+        printf("--> ensuring mounts already exist...\n");
+    }
+    int result = is_mounted(SPFS_DIR);
+    if (result == -1)
+    {
+        perror("Failed to check for existing mount");
+        return 1;
+    }
+    if (result)
+    {
+        return 0;
+    }
+    printf("'%s' is not mounted, will not remount\n", SPFS_DIR);
+    return 1;
+}
+
 int become_root()
 {
-
+    if (SPFS_DEBUG) {
+        printf("--> becoming root...\n");
+    }
     original_euid = geteuid();
     int result = seteuid(0);
     if (result == -1) {
@@ -124,20 +160,30 @@ int become_root()
 
 int setup_runtime()
 {
-    int result;
-    result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, 0);
-    if (result != 0) {
-        perror("Failed to mount "RUNTIME_DIR);
-        return 1;
+    if (SPFS_DEBUG) {
+        printf("--> setting up runtime...\n");
     }
-    result = mkdir_permissive(RUNTIME_UPPER_DIR);
-    if (result != 0) {
-        perror("Failed to create "RUNTIME_UPPER_DIR);
-        return 1;
+    int result;
+    if (SPFS_EDITABLE) {
+        result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, 0);
+        if (result != 0) {
+            perror("Failed to mount "RUNTIME_DIR);
+            return 1;
+        }
     }
     result = mkdir_permissive(RUNTIME_LOWER_DIR);
     if (result != 0) {
         perror("Failed to create "RUNTIME_LOWER_DIR);
+        return 1;
+    }
+    if (!SPFS_EDITABLE) {
+        // no need to create additional dirs that won't
+        // be used in non-editable mode
+        return 0;
+    }
+    result = mkdir_permissive(RUNTIME_UPPER_DIR);
+    if (result != 0) {
+        perror("Failed to create "RUNTIME_UPPER_DIR);
         return 1;
     }
     result = mkdir_permissive(RUNTIME_WORK_DIR);
@@ -149,27 +195,42 @@ int setup_runtime()
 
 char *get_overlay_args()
 {
-    char *overlay_args = NULL;
-    char *format_str =
-        "lowerdir="RUNTIME_LOWER_DIR"%s%s"
-        ",upperdir="RUNTIME_UPPER_DIR
-        ",workdir="RUNTIME_WORK_DIR;
-    char *separator = ":";
-    size_t required_size = strlen(SPFS_LOWERDIRS);
-    if (required_size == 0) separator = "";
+
+    char *lowerdir_args = NULL;
+    char *format_str = "lowerdir="RUNTIME_LOWER_DIR"%s%s";
+    size_t required_size = strlen(format_str);
+    if (SPFS_LOWERDIRS == NULL) {
+        lowerdir_args = malloc(required_size);
+        sprintf(lowerdir_args, format_str, "", "");
+    } else {
+        required_size += strlen(SPFS_LOWERDIRS);
+        lowerdir_args = malloc(required_size);
+        sprintf(lowerdir_args, format_str, ":", SPFS_LOWERDIRS);
+    }
+
+    if (!SPFS_EDITABLE) {
+        return lowerdir_args;
+    }
+
+    char *editable_args = NULL;
+    format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
+    required_size = strlen(lowerdir_args);
     required_size += strlen(format_str);
-    overlay_args = malloc(required_size + 1);
-    sprintf(overlay_args, format_str, separator, SPFS_LOWERDIRS);
-    return overlay_args;
+    editable_args = malloc(required_size + 1);
+    sprintf(editable_args, format_str, lowerdir_args);
+    free(lowerdir_args);
+    return editable_args;
 
 }
 
 int mount_env()
 {
-
+    if (SPFS_DEBUG) {
+        printf("--> mounting the overlay filesystem...\n");
+    }
     char * overlay_args = get_overlay_args();
     if (SPFS_DEBUG) {
-        fprintf(stderr, "/usr/bin/mount -t overlay -o %s none " SPFS_DIR, overlay_args);
+        fprintf(stderr, "/usr/bin/mount -t overlay -o %s none " SPFS_DIR "\n", overlay_args);
     }
     int child_pid = fork();
     if (child_pid == 0) {
@@ -191,6 +252,9 @@ int mount_shots_if_necessary()
     if (!SPFS_VIRTUALIZE_SHOTS) {
         return 0;
     }
+    if (SPFS_DEBUG) {
+        printf("--> virtualizing /shots dir...\n");
+    }
 
     int result;
     result = mount("none", SHOTS_DIR, "tmpfs", 0, 0);
@@ -203,6 +267,9 @@ int mount_shots_if_necessary()
 
 int become_original_user()
 {
+    if (SPFS_DEBUG) {
+        printf("--> dropping root...\n");
+    }
     int result = setuid(original_uid);
     if (result == -1) {
         perror("Failed to become regular user (actual)");
@@ -219,6 +286,9 @@ int become_original_user()
 
 int drop_all_capabilities()
 {
+    if (SPFS_DEBUG) {
+        printf("--> drop all privileges...\n");
+    }
     cap_t capabilities = cap_get_proc();
     int result = cap_clear(capabilities);
     if (result != 0)
@@ -240,6 +310,9 @@ int drop_all_capabilities()
 
 int run_command()
 {
+    if (SPFS_DEBUG) {
+        printf("--> running command...\n");
+    }
     return execv(SPFS_COMMAND[0], SPFS_COMMAND);
 }
 
@@ -271,18 +344,24 @@ int mkdir_permissive(const char *path)
 
     int result;
     result = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
-    if (result == -1)
+    if (result != 0)
     {
-        if (errno == EEXIST)
+        if (errno != EEXIST)
         {
-            return 0;
+            return -1;
         }
+    }
+
+    // the above creation mode is affected by the current umask
+    result = lchown(path, getuid(), -1);
+    if (result != 0)
+    {
         return -1;
     }
 
     // the above creation mode is affected by the current umask
     result = chmod(path, S_IRWXU | S_IRWXG | S_IRWXO);
-    if (result == -1)
+    if (result != 0)
     {
         return -1;
     }

@@ -22,18 +22,20 @@ class Config(NamedTuple):
     """Stores the configuration of a single runtime."""
 
     stack: Tuple[encoding.Digest, ...]
+    editable: bool = False
 
     def dump_dict(self) -> Dict:
         """Dump this runtime data into a dictionary of python basic types."""
 
-        return {"stack": list(s.str() for s in self.stack)}
+        return {"stack": list(s.str() for s in self.stack), "editable": self.editable}
 
     @staticmethod
     def load_dict(data: Dict) -> "Config":
         """Load a runtime data from the given dictionary data."""
 
         return Config(
-            stack=tuple(encoding.parse_digest(d) for d in data.get("stack", []))
+            stack=tuple(encoding.parse_digest(d) for d in data.get("stack", [])),
+            editable=data.get("editable", False),
         )
 
 
@@ -69,6 +71,34 @@ class Runtime:
     def ref(self) -> str:
         """Return the identifier for this runtime."""
         return os.path.basename(self.root)
+
+    def set_editable(self, editable: bool) -> None:
+        """Mark this runtime as editable or not.
+
+        An editable runtime is mounted with working directories
+        that allow changes to be made to the runtime filesystem and
+        committed back as layers.
+        """
+
+        config = self._get_config()
+        self._config = Config(stack=config.stack, editable=editable)
+        self._write_config()
+
+    def is_editable(self) -> bool:
+        """Return true if this runtime is editable.
+
+        An editable runtime is mounted with working directories
+        that allow changes to be made to the runtime filesystem and
+        committed back as layers.
+        """
+        return self._get_config().editable
+
+    def reset(self) -> None:
+        """Reset the config for this runtime to its default state."""
+
+        self._get_config()
+        self._config = Config(stack=tuple(), editable=False)
+        self._write_config()
 
     def is_dirty(self) -> bool:
         """Return true if the upper dir of this runtime has changes."""

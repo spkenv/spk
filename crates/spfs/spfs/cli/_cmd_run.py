@@ -18,6 +18,12 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
         help="try to pull the latest iteration of each tag even if it exists locally",
     )
     run_cmd.add_argument(
+        "--edit",
+        "-e",
+        action="store_true",
+        help="mount the /spfs filesystem in edit mode (true if REF is empty or not given)",
+    )
+    run_cmd.add_argument(
         "ref",
         metavar="REF",
         nargs=1,
@@ -46,7 +52,10 @@ def _run(args: argparse.Namespace) -> None:
                 obj = repo.read_ref(target)
 
             runtime.push_digest(obj.digest())
+    else:
+        args.edit = True
 
+    runtime.set_editable(args.edit)
     _logger.info("resolving entry process")
     cmd = spfs.build_command_for_runtime(runtime, args.cmd[0], *args.args)
     os.execv(cmd[0], cmd)

@@ -1,4 +1,5 @@
 from . import storage, runtime
+from ._runtime import remount_runtime
 from ._config import get_config
 
 
@@ -17,7 +18,11 @@ def commit_layer(runtime: runtime.Runtime) -> storage.Layer:
     manifest = repo.commit_dir(runtime.upper_dir)
     if manifest.is_empty():
         raise NothingToCommitError("layer would be empty")
-    return repo.create_layer(manifest)
+    layer = repo.create_layer(manifest)
+    runtime.push_digest(layer.digest())
+    runtime.set_editable(False)
+    remount_runtime(runtime)
+    return layer
 
 
 def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
@@ -30,8 +35,6 @@ def commit_platform(runtime: runtime.Runtime) -> storage.Platform:
         top_layer = commit_layer(runtime)
     except NothingToCommitError:
         pass
-    else:
-        runtime.push_digest(top_layer.digest())
 
     stack = runtime.get_stack()
     if len(stack) == 0:

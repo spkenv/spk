@@ -1,3 +1,4 @@
+import sys
 import argparse
 
 import structlog
@@ -27,6 +28,11 @@ def _commit(args: argparse.Namespace) -> None:
     """Commit the current runtime state to storage."""
 
     runtime = spfs.active_runtime()
+
+    if not runtime.is_editable():
+        _logger.error("Active runtime is not editable, nothing to commmit")
+        sys.exit(1)
+
     config = spfs.get_config()
     repo = config.get_repository()
 
@@ -44,4 +50,5 @@ def _commit(args: argparse.Namespace) -> None:
         repo.tags.push_tag(tag, result.digest())
         _logger.info("created", tag=tag)
 
+    _logger.info("edit mode disabled")
     return

@@ -6,7 +6,7 @@ import pytest
 import py.path
 
 from . import runtime
-from ._runtime import _which
+from ._resolve import which
 from ._bootstrap import build_shell_initialized_command
 
 
@@ -21,7 +21,7 @@ def test_shell_initialization_startup_scripts(
     shell: str, startup_cmd: str, tmpdir: py.path.local, monkeypatch: Any
 ) -> None:
 
-    shell_path = _which(shell)
+    shell_path = which(shell)
     if not shell_path:
         pytest.skip(f"{shell_path} not available on this system")
 
@@ -57,7 +57,7 @@ def test_shell_initialization_no_startup_scripts(
     shell: str, tmpdir: py.path.local, monkeypatch: Any
 ) -> None:
 
-    shell_path = _which(shell)
+    shell_path = which(shell)
     if not shell_path:
         pytest.skip(f"{shell_path} not available on this system")
 
