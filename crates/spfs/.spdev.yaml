@@ -1,11 +1,12 @@
-version: 0.17.0
+version: 0.18.0
 release_notes: |
-  * Allow spfs runtimes to be mounted in read-only mode
-  * Add command line subcommand and flag to enable editing
-    * Use read-only mount by default for exiting environments
-  * Update the spfs-enter command with actual option parsing
-  * Update the spfs-enter command to allow remounting
-  * Remount as read-only whenever a layer is created in the edit mode
+  * Update clean command to prompt before deletion
+  * Add ls and cat-file commands for introspection
+  * Update info command not to print diffs - returning much faster
+  * Update diff command show current runtime <=> current changes by default
+  * Add more advanced info to documentation
+  * Update tag log to show target, not tag digest
+  * Multiple bug fixes from latest refactoring
 
 environment:
   kind: PipEnv
