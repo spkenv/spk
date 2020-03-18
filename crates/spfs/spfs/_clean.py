@@ -1,4 +1,4 @@
-from typing import Set, Optional, List
+from typing import Set, Optional, List, Iterable
 import time
 import queue
 from datetime import datetime
@@ -18,6 +18,7 @@ _CLEAN_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
 
 
 def clean_untagged_objects(repo: storage.Repository) -> None:
+    """Clean all untagged objects from the given repo."""
 
     unattached = get_all_unattached_objects(repo)
     if len(unattached) == 0:
@@ -25,12 +26,18 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
         return
 
     _LOGGER.info("removing orphaned data...")
+    purge_objects(unattached, repo)
+    _LOGGER.info(f"cleaned {len(unattached)} objects")
+
+
+def purge_objects(objects: Iterable[encoding.Digest], repo: storage.Repository) -> None:
+    """Remove the identified objects from the given repository."""
 
     worker_pool = _get_worker_pool()
     spawn_count = 0
     _CLEAN_DONE_COUNTER.value = 0
     results = []
-    for digest in unattached:
+    for digest in objects:
 
         result = worker_pool.apply_async(_clean_object, (repo.address(), digest))
         results.append(result)
@@ -64,8 +71,6 @@ def clean_untagged_objects(repo: storage.Repository) -> None:
 
     if len(errors) > 0:
         raise RuntimeError(f"{errors[0]}, and {len(errors)-1} more errors during clean")
-
-    _LOGGER.info(f"cleaned {len(unattached)} objects")
 
 
 def _clean_object(repo_addr: str, digest: encoding.Digest) -> None:

@@ -21,5 +21,6 @@ from ._clean import (
     clean_untagged_objects,
     get_all_unattached_objects,
     get_all_attached_objects,
+    purge_objects,
 )
 from ._prune import prune_tags, get_prunable_tags, PruneParameters
