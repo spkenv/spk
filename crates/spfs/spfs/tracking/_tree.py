@@ -1,4 +1,4 @@
-from typing import TypeVar, List, Dict, Iterable, Union, Any, Iterator, BinaryIO
+from typing import TypeVar, Tuple, Dict, Iterable, Union, Any, Iterator, BinaryIO
 
 from sortedcontainers import SortedDict
 
@@ -50,6 +50,10 @@ class Tree(encoding.Encodable):
 
     def __len__(self) -> int:
         return len(self._entries)
+
+    def list(self) -> Tuple[Entry, ...]:
+        """Return the entries in this tree."""
+        return tuple(self._entries.values())
 
     def add(self, entry: Entry) -> None:
         """Add an enry to this tree.

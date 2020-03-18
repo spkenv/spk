@@ -63,6 +63,24 @@ class Manifest(graph.Object):
             raise FileNotFoundError(path)
         return entry
 
+    def list_dir(self, path: str) -> Tuple[Entry, ...]:
+        """List the contents of a directory in this manifest.
+
+        Raises:
+            FileNotFoundError: if the directory does not exist
+            NotADirectoryError: if the entry at the given path is not a tree
+        """
+
+        path = os.path.normpath(path)
+        if path == "/":
+            return self._root.list()
+
+        entry = self.get_path(path)
+        if entry.kind is not EntryKind.TREE:
+            raise NotADirectoryError(path)
+        tree = self._trees[entry.object]
+        return tree.list()
+
     def walk(self) -> Iterable[Tuple[str, Entry]]:
         """Walk the contents of this manifest depth-first."""
 

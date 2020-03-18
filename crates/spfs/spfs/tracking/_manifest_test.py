@@ -47,6 +47,8 @@ def test_manifest_relative_paths(tmpdir: py.path.local) -> None:
         # should be no entry for root - as there is not enough info
         # about the root to form an entry (missing mode and name)
         manifest.get_path("/")
+        # but we should still be able to list the entries of root
+    assert manifest.list_dir("/"), "should be able to list root"
     assert manifest.get_path("/dir1.0/dir2.0/file.txt") is not None
     assert manifest.get_path("dir1.0/dir2.1/file.txt") is not None
 
