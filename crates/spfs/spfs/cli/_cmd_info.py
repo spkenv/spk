@@ -34,16 +34,23 @@ def _pretty_print_ref(obj: spfs.graph.Object, verbosity: int = 0) -> None:
 
     if isinstance(obj, spfs.storage.Platform):
         print(f"{Fore.GREEN}platform:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spfs.io.format_digest(obj.digest()))
-        print(f" {Fore.BLUE}stack:{Fore.RESET}")
+        print(
+            f" {Fore.LIGHTBLUE_EX}refs:{Fore.RESET} "
+            + spfs.io.format_digest(obj.digest())
+        )
+        print(f" {Fore.LIGHTBLUE_EX}stack:{Fore.RESET}")
         for ref in obj.stack:
             print(f"  - " + spfs.io.format_digest(ref))
 
     elif isinstance(obj, spfs.storage.Layer):
         print(f"{Fore.GREEN}layer:{Fore.RESET}")
-        print(f" {Fore.BLUE}refs:{Fore.RESET} " + spfs.io.format_digest(obj.digest()))
         print(
-            f" {Fore.BLUE}manifest:{Fore.RESET}" + spfs.io.format_digest(obj.manifest)
+            f" {Fore.LIGHTBLUE_EX}refs:{Fore.RESET} "
+            + spfs.io.format_digest(obj.digest())
+        )
+        print(
+            f" {Fore.LIGHTBLUE_EX}manifest:{Fore.RESET} "
+            + spfs.io.format_digest(obj.manifest)
         )
 
     elif isinstance(obj, spfs.tracking.Manifest):
@@ -57,7 +64,9 @@ def _pretty_print_ref(obj: spfs.graph.Object, verbosity: int = 0) -> None:
             max_entries = 0
         count = 0
         for path, entry in obj.walk():
-            print(f"  {entry.mode:06o} {entry.kind.value} {path}")
+            print(
+                f" {entry.mode:06o} {entry.kind.value} {path} {spfs.io.format_digest(entry.object)}"
+            )
             count += 1
             if max_entries and count == max_entries:
                 print(f" {Style.DIM}  ...[truncated] use -vv for more{Style.RESET_ALL}")
@@ -65,8 +74,11 @@ def _pretty_print_ref(obj: spfs.graph.Object, verbosity: int = 0) -> None:
     elif isinstance(obj, spfs.storage.Blob):
 
         print(f"{Fore.GREEN}blob:{Fore.RESET}")
-        print(f" {Fore.BLUE}digest:{Fore.RESET} " + spfs.io.format_digest(obj.digest()))
-        print(f" {Fore.BLUE}size:{Fore.RESET} " + spfs.io.format_size(obj.size))
+        print(
+            f" {Fore.LIGHTBLUE_EX}digest:{Fore.RESET} "
+            + spfs.io.format_digest(obj.digest())
+        )
+        print(f" {Fore.LIGHTBLUE_EX}size:{Fore.RESET} " + spfs.io.format_size(obj.size))
 
     else:
         print(repr(obj))
@@ -84,9 +96,9 @@ def _print_global_info() -> None:
         return
 
     print(f"{Fore.GREEN}Active Runtime:{Fore.RESET}")
-    print(f" {Fore.BLUE}id:{Fore.RESET} {runtime.ref}")
-    print(f" {Fore.BLUE}editable:{Fore.RESET} {runtime.is_editable()}")
-    print(f" {Fore.BLUE}stack:{Fore.RESET}")
+    print(f" {Fore.LIGHTBLUE_EX}id:{Fore.RESET} {runtime.ref}")
+    print(f" {Fore.LIGHTBLUE_EX}editable:{Fore.RESET} {runtime.is_editable()}")
+    print(f" {Fore.LIGHTBLUE_EX}stack:{Fore.RESET}")
     stack = runtime.get_stack()
     for ref in stack:
         print(f"  - " + spfs.io.format_digest(ref))
@@ -95,9 +107,5 @@ def _print_global_info() -> None:
     if not runtime.is_dirty():
         print(f"{Fore.RED}No Active Changes{Fore.RESET}")
         return
-
-    print(f"{Fore.BLUE}Active Changes:{Fore.RESET}")
-    base = spfs.compute_runtime_manifest(runtime)
-    current = spfs.tracking.compute_manifest("/spfs")
-    diffs = spfs.tracking.compute_diff(base, current)
-    print(spfs.io.format_changes(diffs))
+    else:
+        print(f"{Fore.LIGHTBLUE_EX}Run 'spfs diff' for active changes{Fore.RESET}")
