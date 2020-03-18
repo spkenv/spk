@@ -37,8 +37,8 @@ def _diff(args: argparse.Namespace) -> None:
         rt = spfs.active_runtime()
         base = spfs.compute_runtime_manifest(rt)
     else:
-        _logger.debug("computing base manifest", ref=args.base[0])
-        base = spfs.compute_manifest(args.base[0])
+        _logger.debug("computing base manifest", ref=args.base)
+        base = spfs.compute_manifest(args.base)
 
     if args.top is None:
         _logger.debug("computing manifest for /spfs")

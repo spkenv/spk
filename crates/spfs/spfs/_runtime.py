@@ -54,6 +54,10 @@ def remount_runtime(rt: runtime.Runtime) -> None:
 
 
 def compute_runtime_manifest(rt: runtime.Runtime) -> tracking.Manifest:
+    """Calculate the file manifest for the layers in the given runtime.
+
+    The returned manifest DOES NOT include any active changes to the runtime.
+    """
 
     config = get_config()
     repo = config.get_repository()
@@ -68,6 +72,7 @@ def compute_runtime_manifest(rt: runtime.Runtime) -> tracking.Manifest:
 
 
 def active_runtime() -> runtime.Runtime:
+    """Return the active runtime, or raise a NoRuntimeError."""
 
     path = os.getenv("SPFS_RUNTIME")
     if path is None:
@@ -76,6 +81,12 @@ def active_runtime() -> runtime.Runtime:
 
 
 def initialize_runtime() -> runtime.Runtime:
+    """Initialize the current spfs runtime.
+
+    This method should only be called once at startup,
+    and ensures that all masked files for this runtime
+    do not show up in the rendered file system.
+    """
 
     rt = active_runtime()
     manifest = compute_runtime_manifest(rt)

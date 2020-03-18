@@ -2,8 +2,12 @@ from typing import Sequence, List, Optional, Mapping
 import os
 import re
 
+import structlog
+
 from . import storage, runtime, tracking, graph, encoding
 from ._config import get_config
+
+_LOGGER = structlog.get_logger("spfs")
 
 
 def compute_manifest(ref: str) -> tracking.Manifest:
@@ -11,7 +15,12 @@ def compute_manifest(ref: str) -> tracking.Manifest:
     config = get_config()
     repos: List[storage.Repository] = [config.get_repository()]
     for name in config.list_remote_names():
-        repos.append(config.get_remote(name))
+        try:
+            repos.append(config.get_remote(name))
+        except Exception as e:
+            _LOGGER.warning("failed to load remote repository", remote=name)
+            _LOGGER.warning(" > " + str(e))
+            continue
 
     spec = tracking.TagSpec(ref)
     for repo in repos:

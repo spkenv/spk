@@ -1,5 +1,5 @@
 from typing import Iterable, Union
-from colorama import Fore
+from colorama import Fore, Style
 
 from ._config import get_config
 from . import storage, tracking, encoding
@@ -35,8 +35,12 @@ def format_diffs(diffs: Iterable[tracking.Diff]) -> str:
         elif diff.mode == tracking.DiffMode.removed:
             color = Fore.RED
         elif diff.mode == tracking.DiffMode.changed:
-            color = Fore.BLUE
-        outputs.append(f"{color} {diff}{Fore.RESET}")
+            color = Fore.LIGHTBLUE_EX
+        else:
+            color = Style.DIM
+        outputs.append(
+            f"{color} {diff.mode.name:>8} {diff.mode.value} /spfs{diff.path}{Style.RESET_ALL}"
+        )
 
     return "\n".join(outputs)
 
