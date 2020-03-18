@@ -27,6 +27,7 @@ from . import (
     _cmd_platforms,
     _cmd_push,
     _cmd_pull,
+    _cmd_read,
     _cmd_reset,
     _cmd_run,
     _cmd_runtimes,
@@ -72,6 +73,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_migrate.register(sub_parsers)
     _cmd_check.register(sub_parsers)
     _cmd_clean.register(sub_parsers)
+    _cmd_read.register(sub_parsers)
     _cmd_init.register(sub_parsers)
 
     args = parser.parse_args(argv)
