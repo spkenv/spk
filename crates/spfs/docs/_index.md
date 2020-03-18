@@ -93,7 +93,8 @@ ls /spfs
 As mentioned above, a platform is simply a stack of layers. During the _commit_ step, we can optionally commit the entire stack of runtime layers instead of just the changeset. Using spenv with a platform tag is most common, because often a layer only represents a set of changes and the files onto which the changes were made are also important to the runtime environment.
 
 ```bash
-spfs shell my-layer
+# enter edit mode so that we can make changes on top of 'my-layer'
+spfs shell my-layer --edit
 
 echo "hello, platform!" > /spfs/platform-message.txt
 
@@ -107,11 +108,21 @@ spfs commit platform --tag my-platform
 spfs info my-platform
 
 # platform:
-#  refs: 9bee57d0e7 -> my-platform
+#  refs: XY64NZFA -> my-platform
 #  stack:
-#   - 9b924ca03f
-#   - cc6e706ae1 -> my-message
+#   - I22PAVLF
+#   - FCQ6LOSW -> my-message
 ```
+
+### Edit Mode
+
+By default, when you run a command or enter into a shell with an existing spfs id or tag, the entire `/spfs` filesytem will be read-only. This means that, regardless of the file permissions, you won't be able to add files, remove files, or modify files in any way. Any active runtime can be made editable using the `spfs edit` command, or by bassing the `--edit` flag to the `spfs run` and `spfs shell` commands.
+
+In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is not way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
+
+{{% notice info %}}
+In edit mode, all changes are stored in memory and are lost when you exit the runtime. The only way to save these changes are to commit them as a layer or platform before exiting.
+{{% /notice %}}
 
 ### Sharing References
 

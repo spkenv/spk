@@ -1,13 +1,101 @@
 ---
 title: Advanced Usage
+summary: Additional command line workflows for more advanced users
+weight: 20
 ---
 
-## Uh Oh!
+## Tag Streams
 
-This page needs a little love, email [devops@imageworks.com](mailto:devops@imageworks.com) if there's something you were hoping to find here...
+When tags are created in SpFS, they are added to what's known as a _tag stream_. Tag streams are simply a historical record of that tag over time, keeping track of each change, when it was made, and by whome. Previous versions of a tag can be referenced using a tilde, where the most recent version of a tag is version `~0`; the previous version is version `~1`; the version before that is version `~2` etc... This notation can be used everywhere that a tag can be used. This means that `spfs run my-tag` is the same as `spfs run my-tag~0`. All the available versions of a tag can be viewed using the `spfs log <tag>` command, where you will see this notation used.
 
-Things to cover:
+```bash
+spfs shell
 
-- tag versioning
-- diff tool
-- runtime startup
+echo 1 > /spfs/message.txt
+spfs commit layer --tag my-layer
+
+spfs edit
+echo 2 > /spfs/message.txt
+spfs commit layer --tag my-layer
+
+spfs edit
+echo 3 > /spfs/message.txt
+spfs commit layer --tag my-layer
+
+spfs log my-layer
+# 6E5CA5XL3L my-layer    rbottriell@wolf0254.spimageworks.com 2020-03-18 10:12
+# 6E5CA5XL3L my-layer~1  rbottriell@wolf0254.spimageworks.com 2020-03-18 10:11
+# XHHVG3NDGE my-layer~2  rbottriell@wolf0254.spimageworks.com 2020-03-18 10:11
+```
+
+### Reverting a Tag
+
+Using a tag stream, we can revert to previous versions of a tag by simply re-tagging the older version as the latest one. To continue from the example above:
+
+```bash
+spfs tag my-layer~2 my-layer
+
+spfs log my-layer
+# XHHVG3NDGE my-layer    rbottriell@wolf0254.spimageworks.com 2020-03-18 10:16
+# 6E5CA5XL3L my-layer~1  rbottriell@wolf0254.spimageworks.com 2020-03-18 10:12
+# JJ3MEJOYQ2 my-layer~2  rbottriell@wolf0254.spimageworks.com 2020-03-18 10:11
+# XHHVG3NDGE my-layer~3  rbottriell@wolf0254.spimageworks.com 2020-03-18 10:11
+```
+
+{{% notice tip %}}
+If you want to see or update shared tags, remember to specify the remote repository to each command (eg: `spfs log my-layer -r origin`)
+{{% /notice %}}
+
+## Diff Tool
+
+Any two spfs file system states can be compared using the `spfs diff` command. With no arguments, this command works much like the `git status` command, showing the current set of active changes that have not been committed (if you are in an spfs runtime).
+
+## Data Introspection
+
+It's easy enough to pull and mount an spfs file tree, but sometimes it's not ideal to have to localize or sync the entire thing just to get a little bit of information or check the contents of a key file. SpFS provides 2 commands which allow for easy introspection of committed data without the need to enter into the environment itself.
+
+- `spfs ls` can be used to list directory contents of a stored file tree
+- `spfs read` can be used to output the contents of a file stored in spfs
+
+```bash
+spfs shell
+mkdir -p /spfs/bin
+echo "I am root" > /spfs/root.txt
+touch /spfs/bin/command
+spfs commit layer --tag simple-fs
+# exit the spfs runtime
+exit
+
+spfs info simple-fs
+# layer:
+#  refs: YJGTUV2Y -> simple-fs
+#  manifest: EDAWAZUS
+
+spfs ls simple-fs
+# bin
+# root.txt
+
+spfs ls simple-fs bin
+# command
+
+spfs cat simple-fs root.txt
+# I am root
+```
+
+## Repository Cleaning
+
+Over time, an spfs repository can get quite large, as it retains data from long ago that may not be used anymore as well as containing data for committed platforms, layers and blobs that are not referenced in any tag. The `spfs clean` command can be used to remove such data, as well as to find and remove old data for past tag history which is no longer desired. By default, the clean command will only find and print information about things that would be removed, and must be explicitly told to delete data.
+
+{{% notice warning %}}
+These commands can and will remove data, and should be used with great caution.
+{{% /notice %}}
+
+```bash
+spfs clean --help
+```
+
+Objects are considered to be attached, and unremovable if they are reachable from any version of any tag in the repository. The `--prune` flag and related options can be used to get rid of older tag versions based on age or number of versions before cleaning the repository. This is a good way to try and disconnect additional objects, create more data that can be cleaned.
+
+{{% notice tip %}}
+The pruning process will always prefer keeping a tag version over removing it when multiple keep/prune conditions apply to it. Check the default values for each setting if you expected more tags than were shown.
+{{% /notice %}}

@@ -1,5 +1,6 @@
 ---
 title: SpFS Runtime Semantics
+weight: 30
 ---
 
 ## Uh Oh!
@@ -10,4 +11,5 @@ Things to cover:
 
 - overlayfs
 - spenv-enter command
+- runtime startup
 - runtime dir, tmpfs

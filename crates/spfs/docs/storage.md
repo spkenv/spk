@@ -1,5 +1,6 @@
 ---
 title: Advanced Storage Concepts
+weight: 40
 ---
 
 ## Uh Oh!

@@ -1,5 +1,6 @@
 ---
 title: Extending SpFS
+weight: 50
 ---
 
 ## Uh Oh!
