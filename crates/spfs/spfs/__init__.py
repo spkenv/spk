@@ -15,7 +15,7 @@ from ._runtime import (
     NoRuntimeError,
 )
 from ._bootstrap import build_command_for_runtime, build_shell_initialized_command
-from ._sync import push_ref, pull_ref
+from ._sync import push_ref, pull_ref, sync_ref
 from ._commit import commit_layer, commit_platform, NothingToCommitError
 from ._clean import (
     clean_untagged_objects,

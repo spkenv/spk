@@ -17,7 +17,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
         "--remote",
         "-r",
         default="origin",
-        help=f"the name of the remote server to push to, one of: {', '.join(config.list_remote_names())}",
+        help=f"the name or address of the remote repository to push to",
     )
     push_cmd.set_defaults(func=_push)
 

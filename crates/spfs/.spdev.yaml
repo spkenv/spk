@@ -2,6 +2,7 @@ version: 0.18.2
 release_notes: |
   * Allow remote addresses to be passed directly on the command line
     * So that the config file does not need to be updated just to sync from a dir
+  * Allow remote to be specified for pull operation as well
 
 environment:
   kind: PipEnv
