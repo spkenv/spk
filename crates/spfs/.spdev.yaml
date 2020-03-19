@@ -1,12 +1,6 @@
-version: 0.18.0
+version: 0.18.1
 release_notes: |
-  * Update clean command to prompt before deletion
-  * Add ls and cat-file commands for introspection
-  * Update info command not to print diffs - returning much faster
-  * Update diff command show current runtime <=> current changes by default
-  * Add more advanced info to documentation
-  * Update tag log to show target, not tag digest
-  * Multiple bug fixes from latest refactoring
+  * Fix bug where command options might be wrongly interpreted by spfs-enter
 
 environment:
   kind: PipEnv

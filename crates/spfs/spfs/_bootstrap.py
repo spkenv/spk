@@ -67,4 +67,6 @@ def _build_spfs_enter_command(rt: runtime.Runtime, *command: str) -> Tuple[str, 
     if rt.is_editable():
         args.append("-e")
 
+    args.append("--")
+
     return tuple(args) + command
