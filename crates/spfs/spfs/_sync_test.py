@@ -42,8 +42,8 @@ def test_sync_ref(tmpdir: py.path.local) -> None:
     src_dir.join("dir2/otherfile.txt").write("hello2", ensure=True)
     src_dir.join("dir//dir/dir/file.txt").write("hello, world", ensure=True)
 
-    repo_a = storage.fs.FSRepository(tmpdir.join("repo_a").strpath)
-    repo_b = storage.fs.FSRepository(tmpdir.join("repo_b").strpath)
+    repo_a = storage.fs.FSRepository(tmpdir.join("repo_a").strpath, create=True)
+    repo_b = storage.fs.FSRepository(tmpdir.join("repo_b").strpath, create=True)
 
     manifest = repo_a.commit_dir(src_dir.strpath)
     layer = repo_a.create_layer(manifest)
@@ -57,6 +57,7 @@ def test_sync_ref(tmpdir: py.path.local) -> None:
     assert repo_b.has_layer(layer.digest())
 
     tmpdir.join("repo_a").remove()
+    tmpdir.join("repo_a").ensure(dir=1)
     sync_ref("testing", repo_b, repo_a)
 
     assert repo_a.read_ref("testing")

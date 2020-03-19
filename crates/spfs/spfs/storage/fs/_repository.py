@@ -23,7 +23,7 @@ class MigrationRequiredError(RuntimeError):
 class FSRepository(Repository, FSManifestViewer):
     """A pure filesystem-based repository of spfs data."""
 
-    def __init__(self, root: str):
+    def __init__(self, root: str, create: bool = False):
 
         if root.startswith("file:///"):
             root = root[len("file://") :]
@@ -32,12 +32,10 @@ class FSRepository(Repository, FSManifestViewer):
 
         self.__root = os.path.abspath(root)
 
+        if not os.path.exists(self.__root) and not create:
+            raise ValueError("Directory does not exist: " + self.__root)
         try:
-            # even though checking existance first is not
-            # needed, it is required to trigger the automounter
-            # in cases when the desired path is in that location
-            if not os.path.exists(self.__root):
-                os.makedirs(self.__root, mode=0o777)
+            os.makedirs(self.__root, mode=0o777)
         except FileExistsError:
             pass
 

@@ -55,6 +55,7 @@ def test_manifest_relative_paths(tmpdir: py.path.local) -> None:
 
 def test_manifest_sorting(tmpdir: py.path.local) -> None:
 
+    tmpdir = tmpdir.join("data")
     tmpdir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
     tmpdir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
     tmpdir.join("dir1.0/file.txt").write("thebestdata", ensure=True)

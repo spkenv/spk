@@ -10,7 +10,8 @@ from ._manifest import ManifestViewer
 
 def test_find_aliases(tmpdir: py.path.local) -> None:
 
-    repo = FSRepository(tmpdir.strpath)
+    tmpdir = tmpdir.join("repo")
+    repo = FSRepository(tmpdir.strpath, create=True)
     with pytest.raises(ValueError):
         repo.find_aliases("not-existant")
 
@@ -25,7 +26,7 @@ def test_find_aliases(tmpdir: py.path.local) -> None:
 
 def test_commit_mode(tmpdir: py.path.local) -> None:
 
-    repo = FSRepository(tmpdir.join("repo").strpath)
+    repo = FSRepository(tmpdir.join("repo").strpath, create=True)
 
     datafile_path = "dir1.0/dir2.0/file.txt"
     symlink_path = "dir1.0/dir2.0/file2.txt"
@@ -53,7 +54,7 @@ def test_commit_mode(tmpdir: py.path.local) -> None:
 
 def test_commit_broken_link(tmpdir: py.path.local) -> None:
 
-    repo = FSRepository(tmpdir.join("repo").strpath)
+    repo = FSRepository(tmpdir.join("repo").strpath, create=True)
 
     src_dir = tmpdir.join("source").ensure(dir=True)
     src_dir.join("broken-link").mksymlinkto("nonexistant")
@@ -64,7 +65,7 @@ def test_commit_broken_link(tmpdir: py.path.local) -> None:
 
 def test_commit_dir(tmpdir: py.path.local) -> None:
 
-    repo = FSRepository(tmpdir.join("repo").strpath)
+    repo = FSRepository(tmpdir.join("repo").strpath, create=True)
 
     src_dir = tmpdir.join("source")
     src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)

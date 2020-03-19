@@ -8,7 +8,7 @@ from ._016 import migrate
 def test_migration(testdata: py.path.local, tmpdir: py.path.local) -> None:
 
     src_repo = testdata.join("repos", "0.15.0").strpath
-    dst_repo = tmpdir.strpath
+    dst_repo = tmpdir.join("migrated_repo").strpath
 
     migrate(src_repo, dst_repo)
 

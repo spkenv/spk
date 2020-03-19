@@ -39,6 +39,7 @@ def testdata() -> py.path.local:
 @pytest.fixture(autouse=True)
 def config(tmpdir: py.path.local) -> spfs.Config:
 
+    tmpdir.join("remote_origin").ensure(dir=1)
     spfs._config._CONFIG = spfs.Config()
     spfs._config._CONFIG.read_string(
         f"""

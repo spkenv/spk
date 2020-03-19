@@ -1,6 +1,7 @@
-version: 0.18.1
+version: 0.18.2
 release_notes: |
-  * Fix bug where command options might be wrongly interpreted by spfs-enter
+  * Allow remote addresses to be passed directly on the command line
+    * So that the config file does not need to be updated just to sync from a dir
 
 environment:
   kind: PipEnv

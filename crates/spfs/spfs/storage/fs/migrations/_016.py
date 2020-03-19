@@ -14,7 +14,7 @@ _LOGGER = structlog.get_logger("spfs.storage.fs.migrations")
 def migrate(src_dir: str, dst_dir: str) -> None:
 
     src = fs_015.Repository(src_dir)
-    dst = fs.FSRepository(dst_dir)
+    dst = fs.FSRepository(dst_dir, create=True)
     Migration(src, dst).run()
 
 

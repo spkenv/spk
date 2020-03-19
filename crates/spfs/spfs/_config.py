@@ -39,7 +39,7 @@ class Config(configparser.ConfigParser):
         """Get the local repository instance as configured."""
 
         try:
-            return storage.fs.FSRepository(self.storage_root)
+            return storage.fs.FSRepository(self.storage_root, create=True)
         except storage.fs.MigrationRequiredError:
             _LOGGER.warning(
                 "Your local data is out of date! it will now be upgraded..."
@@ -54,11 +54,17 @@ class Config(configparser.ConfigParser):
 
         return runtime.Storage(self.runtime_storage_root)
 
-    def get_remote(self, name: str) -> storage.Repository:
-        """Get a remote repostory by name."""
+    def get_remote(self, name_or_address: str) -> storage.Repository:
+        """Get a remote repostory by name or address."""
 
-        addr = self[f"remote.{name}"]["address"]
-        return storage.open_repository(addr)
+        try:
+            addr = self[f"remote.{name_or_address}"]["address"]
+        except KeyError:
+            addr = name_or_address
+        try:
+            return storage.open_repository(addr)
+        except Exception as e:
+            raise ValueError(str(e))
 
 
 def get_config() -> Config:
