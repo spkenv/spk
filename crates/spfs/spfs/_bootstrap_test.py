@@ -49,7 +49,7 @@ def test_shell_initialization_startup_scripts(
 
     command = build_shell_initialized_command("printenv", "TEST_VALUE")
     out = subprocess.check_output(command)
-    assert out.decode("utf-8").endswith("\nspfs-test-value\n")
+    assert out.decode("utf-8").endswith("spfs-test-value\n")
 
 
 @pytest.mark.parametrize("shell", ("bash", "tcsh"))

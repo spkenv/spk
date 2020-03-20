@@ -7,7 +7,7 @@ if [[ -d ${startup_dir} ]]; then
     filenames=$(/bin/ls $startup_dir | grep '\.sh$')
     if [[ ! -z "$filenames" ]]; then
         for file in $filenames; do
-            [[ -z "$SPFS_DEBUG" ]] || echo source $startup_dir/$file 1>&2;
+            [[ -z "$SPFS_DEBUG" ]] || echo source $startup_dir/$file 1>&2
             source $startup_dir/$file
         done
     fi
