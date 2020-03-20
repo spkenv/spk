@@ -36,7 +36,7 @@ def _init(args: argparse.Namespace) -> None:
     only be done from within the mount namespace.
     """
 
-    _logger.info("initializing runtime environment")
+    _logger.debug("initializing runtime environment")
     runtime_root = args.runtime_root_dir[0]
     os.environ["SPFS_RUNTIME"] = runtime_root
     runtime = spfs.initialize_runtime()
@@ -57,10 +57,10 @@ def _exec_runtime_command(runtime: spfs.runtime.Runtime, *cmd: str) -> int:
 
     if not len(cmd) or cmd[0] == "":
         cmd = _build_interactive_shell_cmd(runtime)
-        _logger.info("starting interactive shell environment")
+        _logger.debug("starting interactive shell environment")
     else:
         cmd = spfs.build_shell_initialized_command(cmd[0], *cmd[1:])
-        _logger.info("executing runtime command")
+        _logger.debug("executing runtime command")
     _logger.debug(" ".join(cmd))
     proc = subprocess.Popen(cmd)
     proc.wait()

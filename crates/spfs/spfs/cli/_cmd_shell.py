@@ -55,7 +55,7 @@ def _shell(args: argparse.Namespace) -> None:
 
     runtime.set_editable(args.edit)
 
-    _logger.info("resolving entry process")
+    _logger.debug("resolving entry process")
     cmd = spfs.build_command_for_runtime(runtime, "")
     _logger.debug(" ".join(cmd))
     os.execv(cmd[0], cmd)

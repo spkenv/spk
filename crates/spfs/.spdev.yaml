@@ -1,8 +1,7 @@
-version: 0.18.2
+version: 0.18.3
 release_notes: |
-  * Allow remote addresses to be passed directly on the command line
-    * So that the config file does not need to be updated just to sync from a dir
-  * Allow remote to be specified for pull operation as well
+  * Make spfs commands quieter by default
+    * So that running processes through them act more like the vanilla process
 
 environment:
   kind: PipEnv

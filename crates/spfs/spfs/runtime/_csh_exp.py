@@ -8,4 +8,6 @@ expect {
     }
 }
 interact
+catch wait result
+exit [lindex $result 3]
 """
