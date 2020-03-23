@@ -14,8 +14,8 @@ class DecodeError(ValueError):
 def consume_header(reader: BinaryIO, header: bytes) -> None:
     """Read and validate the given header from a binary stream."""
 
-    actual = reader.readline(len(header) + 1)
-    if actual == header:
+    actual = reader.read(len(header) + 1)
+    if actual != header + b"\n":
         raise DecodeError(f"Invalid header: expected {header!r}, got {actual!r}")
 
 

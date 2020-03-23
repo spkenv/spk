@@ -27,6 +27,7 @@ def test_write_read_header() -> None:
     header = b"HEADER"
     stream = io.BytesIO()
     write_header(stream, header)
+    stream.seek(0)
     consume_header(stream, header)
     assert stream.read() == b""
 

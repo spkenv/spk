@@ -1,7 +1,6 @@
-version: 0.18.3
+version: 0.18.4
 release_notes: |
-  * Make spfs commands quieter by default
-    * So that running processes through them act more like the vanilla process
+  * Improve error collection and reporting for debugging
 
 environment:
   kind: PipEnv
