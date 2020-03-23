@@ -31,7 +31,7 @@ class FSDatabase(FSPayloadStorage, graph.Database):
             encoding.consume_header(reader, _OBJECT_HEADER)
             kind = encoding.read_int(reader)
             if kind not in _OBJECT_KINDS:
-                raise ValueError(f"Object is corrupt: unknown kind {kind}")
+                raise ValueError(f"Object is corrupt: unknown kind {kind} [{digest}]")
             return _OBJECT_KINDS[kind].decode(reader)
         finally:
             reader.close()
