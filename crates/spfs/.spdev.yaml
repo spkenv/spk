@@ -1,6 +1,6 @@
-version: 0.18.4
+version: 0.18.5
 release_notes: |
-  * Improve error collection and reporting for debugging
+  * Fix issue where existing directories could be chmod-ed unreasonably
 
 environment:
   kind: PipEnv

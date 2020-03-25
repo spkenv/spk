@@ -1,5 +1,5 @@
 Name: spfs
-Version: 0.17.0
+Version: 0.18.5
 Release: 1
 Summary: Filesystem isolation, capture, and distribution.
 License: NONE
