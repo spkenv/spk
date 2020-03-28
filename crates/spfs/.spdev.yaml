@@ -1,6 +1,7 @@
-version: 0.18.5
+version: 0.18.6
 release_notes: |
-  * Fix issue where existing directories could be chmod-ed unreasonably
+  * Remove restriction on not creating sub-environments
+    * It's arbitrary and creates more headache down the line
 
 environment:
   kind: PipEnv

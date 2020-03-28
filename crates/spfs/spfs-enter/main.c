@@ -85,7 +85,6 @@ int main(int argc, char *argv[])
         enter_mount_namespace,
         privatize_existing_mounts,
         ensure_mount_targets_exist,
-        ensure_mounts_do_not_exist,
         setup_runtime,
         mount_env,
         mount_shots_if_necessary,

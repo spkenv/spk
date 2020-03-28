@@ -102,24 +102,6 @@ int ensure_mount_targets_exist()
 
 }
 
-int ensure_mounts_do_not_exist()
-{
-    if (SPFS_DEBUG) {
-        printf("--> ensuring mounts do not already exist...\n");
-    }
-    int result = is_mounted(SPFS_DIR);
-    if (result == -1)
-    {
-        perror("Failed to check for existing mount");
-        return 1;
-    }
-    if (result)
-    {
-        printf("'%s' is already mounted, will not remount\n", SPFS_DIR);
-        return 1;
-    }
-}
-
 int ensure_mounts_already_exist()
 {
     if (SPFS_DEBUG) {
