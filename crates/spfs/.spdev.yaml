@@ -1,6 +1,6 @@
-version: 0.18.7
+version: 0.18.9
 release_notes: |
-  * Fix bug in csh startup script that causes "{: Command does not exist."
+  * Fix re-entry with edit mode disabled
 
 environment:
   kind: PipEnv

@@ -338,14 +338,20 @@ int mkdir_permissive(const char *path)
     result = lchown(path, getuid(), -1);
     if (result != 0)
     {
-        return -1;
+        if (errno != EROFS) // read-only filesystem
+        {
+            return -1;
+        }
     }
 
     // the above creation mode is affected by the current umask
     result = chmod(path, S_IRWXU | S_IRWXG | S_IRWXO);
     if (result != 0)
     {
-        return -1;
+        if (errno != EROFS) // read-only filesystem
+        {
+            return -1;
+        }
     }
 
     return 0;
