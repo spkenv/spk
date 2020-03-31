@@ -10,10 +10,10 @@ if ( -d "${startup_dir}" != 0 ) then
     set filenames=`/bin/ls $startup_dir | grep '\.csh\s*$'`
     if ( "$filenames" != "" ) then
         foreach file ($filenames)
-            if ( $?SPFS_DEBUG ) {
+            if ( $?SPFS_DEBUG ) then
                 # csh cannot echo to stderr, only sh can do that :/
                 /bin/sh -c "echo source ${startup_dir}/$file 1>&2"
-            }
+            endif
             source ${startup_dir}/$file
         end
     endif
