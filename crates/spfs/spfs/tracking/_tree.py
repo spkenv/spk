@@ -88,5 +88,6 @@ class Tree(encoding.Encodable):
         tree = Tree()
         entry_count = encoding.read_int(reader)
         for _ in range(entry_count):
-            tree.add(Entry.decode(reader))
+            entry = Entry.decode(reader)
+            tree._entries[entry.name] = entry
         return tree

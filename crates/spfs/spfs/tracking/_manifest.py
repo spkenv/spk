@@ -22,6 +22,11 @@ class Manifest(graph.Object):
         self._root: Tree = Tree()
         self._trees: Dict[encoding.Digest, Tree] = {}
 
+    @property
+    def root() -> Tree:
+        """Return the root tree object of this manifest."""
+        return self._root
+
     def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Return the digests of objects that this manifest refers to."""
 
@@ -126,7 +131,7 @@ class Manifest(graph.Object):
 class ManifestBuilder:
     def __init__(self, root: str):
 
-        self.root = os.path.abspath(root)
+        self.root = os.path.abspath(root).rstrip("/")
         self._tree_entries: Dict[str, Entry] = {}
         self._trees: Dict[str, Tree] = DefaultDict(Tree)
         self._makedirs("/")
@@ -179,7 +184,8 @@ class ManifestBuilder:
                 raise FileNotFoundError(path)
             self._tree_entries[path] = entry
         else:
-            self.remove_entry(path)
+            dirname, basename = os.path.split(path)
+            self._trees[dirname].remove(basename)
             self.add_entry(path, entry)
 
     def remove_entry(self, path: str) -> None:
@@ -203,7 +209,7 @@ class ManifestBuilder:
             self.root
         ), f"Must be a path under: {self.root}, got: {path}"
 
-        return os.path.join("/", path[len(self.root) :])
+        return path[len(self.root) :]
 
     def _makedirs(self, path: str) -> None:
         """Ensure that all levels of the given directory name exist.

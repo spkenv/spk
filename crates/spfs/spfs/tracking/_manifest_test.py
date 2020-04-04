@@ -1,4 +1,6 @@
+from typing import Callable
 from collections import OrderedDict
+import io
 import os
 import json
 import random
@@ -180,3 +182,24 @@ def test_manifest_builder_remove_dir() -> None:
         manifest.get_path("/entry")
     with pytest.raises(FileNotFoundError):
         manifest.get_path("entry")
+
+
+repo_manifest = compute_manifest(".")
+
+
+def test_manifest_layering_speed(benchmark: Callable) -> None:
+
+    benchmark(layer_manifests, repo_manifest, repo_manifest)
+
+
+def test_manifest_encoding_speed(benchmark: Callable) -> None:
+
+    repo_manifest = compute_manifest(".")
+    stream = io.BytesIO()
+
+    @benchmark
+    def encode_decode() -> None:
+        stream.seek(0)
+        repo_manifest.encode(stream)
+        stream.seek(0)
+        Manifest.decode(stream)
