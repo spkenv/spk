@@ -11,3 +11,4 @@ dist/
 spfs.build/
 spfs.dist/
 .venv/
+prof/

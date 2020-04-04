@@ -15,6 +15,8 @@ black = "*"
 pytest-timeout = "*"
 nuitka = "*"
 twine = "*"
+pytest-benchmark = "*"
+pytest-profiling = "*"
 
 [packages]
 pyyaml = "~=5.1"
