@@ -23,7 +23,7 @@ class Manifest(graph.Object):
         self._trees: Dict[encoding.Digest, Tree] = {}
 
     @property
-    def root() -> Tree:
+    def root(self) -> Tree:
         """Return the root tree object of this manifest."""
         return self._root
 

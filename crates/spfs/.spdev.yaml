@@ -1,6 +1,7 @@
-version: 0.18.9
+version: 0.18.10
 release_notes: |
-  * Fix re-entry with edit mode disabled
+  * Fix unbound local error when using csh instead of tcsh
+  * Minor performance improvements to manifest loading process
 
 environment:
   kind: PipEnv
