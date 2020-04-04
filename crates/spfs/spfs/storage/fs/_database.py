@@ -1,4 +1,5 @@
 from typing import Dict, Type
+import io
 import os
 
 import structlog
@@ -26,7 +27,9 @@ class FSDatabase(FSPayloadStorage, graph.Database):
 
     def read_object(self, digest: encoding.Digest) -> graph.Object:
 
-        reader = self.open_payload(digest)
+        with self.open_payload(digest) as payload:
+            reader = io.BytesIO(payload.read())
+
         try:
             encoding.consume_header(reader, _OBJECT_HEADER)
             kind = encoding.read_int(reader)
