@@ -44,7 +44,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(prog=spfs.__name__, description=spfs.__doc__)
     parser.add_argument(
-        "--debug", "-d", action="store_true", default=("SPFS_DEBUG" in os.environ)
+        "--debug",
+        "-d",
+        "--verbose",
+        "-v",
+        action="store_true",
+        default=("SPFS_DEBUG" in os.environ),
     )
 
     sub_parsers = parser.add_subparsers(dest="command", metavar="COMMAND")
