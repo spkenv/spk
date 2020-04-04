@@ -42,12 +42,12 @@ def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]
     default_shell = which("bash") or ""
     desired_shell = os.environ.get("SHELL", default_shell)
     shell_name = os.path.basename(desired_shell)
-    if shell_name in ("bash",):
+    if shell_name in ("bash", "sh"):
         startup_file = runtime.sh_startup_file
-    if shell_name in ("tcsh",):
+    elif shell_name in ("tcsh", "csh"):
         startup_file = runtime.csh_startup_file
-    if not desired_shell:
-        raise RuntimeError("No supported shell found")
+    else:
+        raise RuntimeError("No supported shell found, or no support for current shell")
 
     return (desired_shell, startup_file, command) + args
 
