@@ -66,8 +66,7 @@ def compute_runtime_manifest(rt: runtime.Runtime) -> tracking.Manifest:
     layers = resolve_stack_to_layers(stack)
     manifest = tracking.Manifest()
     for layer in reversed(layers):
-        layer_manifest = repo.read_manifest(layer.manifest)
-        manifest = tracking.layer_manifests(manifest, layer_manifest)
+        manifest.update(repo.read_manifest(layer.manifest).unlock())
     return manifest
 
 
@@ -89,8 +88,11 @@ def initialize_runtime() -> runtime.Runtime:
     """
 
     rt = active_runtime()
+
+    _logger.debug("computing runtime manifest")
     manifest = compute_runtime_manifest(rt)
 
+    _logger.debug("finding files that should be masked")
     for path, entry in manifest.walk_abs("/spfs"):
         if entry.kind != tracking.EntryKind.MASK:
             continue

@@ -1,7 +1,6 @@
-version: 0.18.10
+version: 0.19.0
 release_notes: |
-  * Fix unbound local error when using csh instead of tcsh
-  * Minor performance improvements to manifest loading process
+  * Imrove performance when entering environments with many files
 
 environment:
   kind: PipEnv

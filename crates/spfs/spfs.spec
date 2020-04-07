@@ -1,5 +1,5 @@
 Name: spfs
-Version: 0.18.9
+Version: 0.19.0
 Release: 1
 Summary: Filesystem isolation, capture, and distribution.
 License: NONE
@@ -27,6 +27,7 @@ pipenv sync --dev
 source "$(pipenv --venv)/bin/activate"
 python -m nuitka \
     --standalone \
+    --jobs $(nproc) \
     --follow-imports \
     --output-dir=./build \
     --include-package='sentry_sdk.integrations.stdlib' \

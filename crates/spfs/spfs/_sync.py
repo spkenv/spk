@@ -112,8 +112,10 @@ def sync_layer(
     _SYNC_DONE_COUNTER.value = 0
     results = []
     manifest = src.read_manifest(layer.manifest)
-    for _, entry in manifest.walk():
+    for entry in manifest.iter_entries():
 
+        if entry.kind is not tracking.EntryKind.BLOB:
+            continue
         result = worker_pool.apply_async(
             _SYNC_ENTRY, (entry, src.address(), dest.address())
         )

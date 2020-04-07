@@ -1,6 +1,7 @@
 from typing import Tuple, BinaryIO, Iterable
 
-from .. import graph, encoding, tracking
+from .. import graph, encoding
+from ._manifest import Manifest
 
 
 class Layer(graph.Object):
@@ -68,7 +69,7 @@ class LayerStorage:
         ), f"Loaded object is not a layer, got: {type(obj).__name__}"
         return obj
 
-    def create_layer(self, manifest: tracking.Manifest) -> Layer:
+    def create_layer(self, manifest: Manifest) -> Layer:
         """Create and storage a new layer for the given manifest."""
 
         layer = Layer(manifest=manifest.digest())
