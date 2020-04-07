@@ -1,6 +1,6 @@
 import py.path
 
-from ._manifest import Manifest, ManifestBuilder, compute_manifest
+from ._manifest import Manifest, compute_manifest
 from ._diff import Diff, DiffMode, compute_diff
 
 
@@ -11,8 +11,8 @@ def test_diff_str() -> None:
 
 def test_compute_diff_empty() -> None:
 
-    a = ManifestBuilder("").finalize()
-    b = ManifestBuilder("").finalize()
+    a = Manifest()
+    b = Manifest()
 
     assert compute_diff(a, b) == []
 

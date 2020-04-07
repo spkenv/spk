@@ -10,7 +10,7 @@ from .. import graph, encoding, tracking
 from ._layer import LayerStorage
 from ._platform import PlatformStorage
 from ._blob import Blob, BlobStorage
-from ._manifest import ManifestStorage
+from ._manifest import Manifest, ManifestStorage
 from ._tag import TagStorage
 from ._payload import PayloadStorage
 
@@ -79,11 +79,13 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
         """
 
         path = os.path.abspath(path)
-        builder = tracking.ManifestBuilder(path)
+        manifest = tracking.Manifest()
 
         _logger.info("committing files")
         for root, dirs, files in os.walk(path):
 
+            relroot = os.path.relpath(root, path)
+            manifest.mkdirs(relroot)
             for filename in files:
                 # TODO: multiprocessing
                 filepath = os.path.join(root, filename)
@@ -100,38 +102,27 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
                 else:
                     raise ValueError("Unsupported non-regular file:" + filepath)
 
-                builder.add_entry(
-                    os.path.join(root, filepath),
-                    tracking.Entry(
-                        object=digest,
-                        kind=tracking.EntryKind.BLOB,
-                        mode=st.st_mode,
-                        name=filename,
-                        size=st.st_size,
-                    ),
-                )
+                node = manifest.mkfile(os.path.join(relroot, filename))
+                node.object = digest
+                node.kind = tracking.EntryKind.BLOB
+                node.mode = st.st_mode
+                node.size = st.st_size
 
             for dirname in dirs:
-                dirpath = os.path.join(root, dirname)
-                st = os.stat(dirpath)
-                builder.add_entry(
-                    dirpath,
-                    tracking.Entry(
-                        object=encoding.NULL_DIGEST,
-                        kind=tracking.EntryKind.TREE,
-                        mode=st.st_mode,
-                        name=dirname,
-                        size=st.st_size,
-                    ),
-                )
+                st = os.stat(os.path.join(root, dirname))
+                node = manifest.mkdirs(os.path.join(relroot, dirname))
+                node.object = encoding.NULL_DIGEST
+                node.kind = tracking.EntryKind.TREE
+                node.mode = st.st_mode
+                node.size = st.st_size
 
-        _logger.info("finalizing manifest")
-        manifest = builder.finalize()
-        self.objects.write_object(manifest)
-        for _, entry in manifest.walk():
-            if entry.kind is not tracking.EntryKind.BLOB:
+        _logger.info("writing manifest")
+        storable = Manifest(manifest)
+        self.objects.write_object(storable)
+        for _, node in manifest.walk():
+            if node.kind is not tracking.EntryKind.BLOB:
                 continue
-            blob = Blob(entry.object, entry.size)
+            blob = Blob(node.object, node.size)
             self._db.write_object(blob)
 
         return manifest

@@ -9,6 +9,7 @@ from .. import (
     Blob,
     Layer,
     Platform,
+    Manifest,
 )
 from ._payloads import FSPayloadStorage
 
@@ -16,7 +17,7 @@ _logger = structlog.get_logger("spfs.storage.fs")
 _OBJECT_HEADER = b"--SPFS--"
 _OBJECT_KINDS: Dict[int, Type[graph.Object]] = {
     0: Blob,
-    1: tracking.Manifest,
+    1: Manifest,
     2: Layer,
     3: Platform,
 }

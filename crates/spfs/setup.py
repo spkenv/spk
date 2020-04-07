@@ -4,7 +4,7 @@ import spfs
 
 setup(
     name="spfs",
-    version="0.18.9",
+    version="0.19.0",
     packages=find_packages(),
     package_data={"spfs": ["*.sh"]},
     entry_points={"console_scripts": ["spfs=spfs.cli:main"]},

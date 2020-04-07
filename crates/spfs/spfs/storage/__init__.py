@@ -1,6 +1,6 @@
 from ._payload import PayloadStorage
 from ._blob import Blob, BlobStorage
-from ._manifest import ManifestStorage, ManifestViewer
+from ._manifest import Entry, Tree, Manifest, ManifestStorage, ManifestViewer
 from ._layer import Layer, LayerStorage
 from ._platform import Platform, PlatformStorage
 from ._tag import TagStorage

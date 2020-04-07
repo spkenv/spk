@@ -43,13 +43,13 @@ def compute_object_manifest(
         repo = config.get_repository()
 
     if isinstance(obj, storage.Layer):
-        return repo.read_manifest(obj.manifest)
+        return repo.read_manifest(obj.manifest).unlock()
     elif isinstance(obj, storage.Platform):
         layers = resolve_stack_to_layers(obj.stack, repo)
         manifest = tracking.Manifest()
         for layer in reversed(layers):
             layer_manifest = repo.read_manifest(layer.manifest)
-            manifest = tracking.layer_manifests(manifest, layer_manifest)
+            manifest.update(layer_manifest.unlock())
         return manifest
     else:
         raise NotImplementedError(

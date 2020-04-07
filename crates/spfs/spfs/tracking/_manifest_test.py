@@ -8,25 +8,22 @@ import random
 import py.path
 import pytest
 
-from .. import encoding
+from .. import encoding, storage
 from ._manifest import (
-    ManifestBuilder,
     Manifest,
     Entry,
     EntryKind,
-    compute_tree,
-    compute_entry,
     compute_manifest,
-    layer_manifests,
+    _compute_tree_node,
 )
 from ._diff import compute_diff
 
 
-def test_compute_tree_determinism() -> None:
+def test_compute_manifest_determinism() -> None:
 
-    first = compute_tree("./spfs")
-    second = compute_tree("./spfs")
-    assert first == second
+    first = compute_manifest("./spfs")
+    second = compute_manifest("./spfs")
+    assert storage.Manifest(first) == storage.Manifest(second)
 
 
 def test_compute_manifest() -> None:
@@ -45,11 +42,6 @@ def test_manifest_relative_paths(tmpdir: py.path.local) -> None:
     tmpdir.join("a_file.txt").write("rootdata", ensure=True)
 
     manifest = compute_manifest(tmpdir.strpath)
-    with pytest.raises(FileNotFoundError):
-        # should be no entry for root - as there is not enough info
-        # about the root to form an entry (missing mode and name)
-        manifest.get_path("/")
-        # but we should still be able to list the entries of root
     assert manifest.list_dir("/"), "should be able to list root"
     assert manifest.get_path("/dir1.0/dir2.0/file.txt") is not None
     assert manifest.get_path("dir1.0/dir2.1/file.txt") is not None
@@ -65,13 +57,11 @@ def test_manifest_sorting(tmpdir: py.path.local) -> None:
     tmpdir.join("a_file.txt").write("rootdata", ensure=True)
     tmpdir.join("z_file.txt").write("rootdata", ensure=True)
 
-    manifest = ManifestBuilder(tmpdir.strpath)
-    compute_entry(tmpdir.strpath, append_to=manifest)
+    manifest = Manifest()
+    _compute_tree_node(tmpdir.strpath, manifest.root)
 
-    final = manifest.finalize()
-    actual = list(p for p, _ in final.walk())
+    actual = list(p for p, _ in manifest.walk())
     expected = [
-        "/a_file.txt",
         "/dir1.0",
         "/dir1.0/dir2.0",
         "/dir1.0/dir2.0/file.txt",
@@ -80,6 +70,7 @@ def test_manifest_sorting(tmpdir: py.path.local) -> None:
         "/dir1.0/file.txt",
         "/dir2.0",
         "/dir2.0/file.txt",
+        "/a_file.txt",
         "/z_file.txt",
     ]
     assert actual == expected
@@ -103,85 +94,25 @@ def test_layer_manifests(tmpdir: py.path.local) -> None:
     both_dir.join("both.txt").write("b", ensure=True)
     both = compute_manifest(both_dir.strpath)
 
-    actual = layer_manifests(a, b)
+    a.update(b)
 
-    assert actual.digest() == both.digest()
+    assert storage.Manifest(a) == storage.Manifest(both)
 
 
 def test_layer_manifests_removal() -> None:
 
-    a = ManifestBuilder("/")
-    a.add_entry(
-        "/a_only",
-        Entry(
-            kind=EntryKind.BLOB,
-            mode=0o000777,
-            name="a_only",
-            object=encoding.EMPTY_DIGEST,
-            size=0,
-        ),
-    )
+    a = Manifest()
+    a.mkfile("a_only")
 
-    b = ManifestBuilder("/")
-    b.add_entry(
-        "/a_only",
-        Entry(
-            kind=EntryKind.MASK,
-            mode=0o020000,
-            name="a_only",
-            object=encoding.EMPTY_DIGEST,
-            size=0,
-        ),
-    )
+    b = Manifest()
+    node = b.mkfile("a_only")
+    node.kind = EntryKind.MASK
 
-    actual = layer_manifests(b.finalize(), a.finalize(), b.finalize())
-    entry = actual.get_path("/a_only")
-    assert entry is not None
-    assert entry.kind is EntryKind.MASK
-
-
-def test_manifest_builder_remove_file() -> None:
-
-    builder = ManifestBuilder("/")
-    builder.add_entry(
-        "/entry",
-        Entry(
-            kind=EntryKind.BLOB,
-            mode=0o000777,
-            name="entry",
-            object=encoding.EMPTY_DIGEST,
-            size=0,
-        ),
-    )
-    builder.remove_entry("/entry")
-
-    manifest = builder.finalize()
-    with pytest.raises(FileNotFoundError):
-        manifest.get_path("/entry")
-    with pytest.raises(FileNotFoundError):
-        manifest.get_path("entry")
-
-
-def test_manifest_builder_remove_dir() -> None:
-
-    builder = ManifestBuilder("/")
-    builder.add_entry(
-        "/entry",
-        Entry(
-            kind=EntryKind.TREE,
-            mode=0o000777,
-            name="entry",
-            object=encoding.EMPTY_DIGEST,
-            size=0,
-        ),
-    )
-    builder.remove_entry("/entry")
-
-    manifest = builder.finalize()
-    with pytest.raises(FileNotFoundError):
-        manifest.get_path("/entry")
-    with pytest.raises(FileNotFoundError):
-        manifest.get_path("entry")
+    c = Manifest()
+    c.update(a)
+    assert c.get_path("/a_only").kind is EntryKind.BLOB
+    c.update(b)
+    assert c.get_path("/a_only").kind is EntryKind.MASK
 
 
 repo_manifest = compute_manifest(".")
@@ -189,17 +120,4 @@ repo_manifest = compute_manifest(".")
 
 def test_manifest_layering_speed(benchmark: Callable) -> None:
 
-    benchmark(layer_manifests, repo_manifest, repo_manifest)
-
-
-def test_manifest_encoding_speed(benchmark: Callable) -> None:
-
-    repo_manifest = compute_manifest(".")
-    stream = io.BytesIO()
-
-    @benchmark
-    def encode_decode() -> None:
-        stream.seek(0)
-        repo_manifest.encode(stream)
-        stream.seek(0)
-        Manifest.decode(stream)
+    benchmark(repo_manifest.update, repo_manifest)

@@ -1,6 +1,6 @@
 import py.path
 
-from .... import tracking, __version__
+from .... import tracking, storage, __version__
 from ... import fs
 from ._016 import migrate
 
@@ -19,7 +19,7 @@ def test_migration(testdata: py.path.local, tmpdir: py.path.local) -> None:
 
     for manifest in repo.iter_manifests():
         path = repo.render_manifest(manifest)
-        actual = tracking.compute_manifest(path)
+        actual = storage.Manifest(tracking.compute_manifest(path))
         assert actual.digest() == manifest.digest()
 
     assert repo.last_migration() == "0.16.0", "should update last migration marker"

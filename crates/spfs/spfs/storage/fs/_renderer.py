@@ -10,7 +10,7 @@ import hashlib
 import structlog
 
 from ... import tracking, graph, encoding
-from .. import ManifestViewer, PayloadStorage
+from .. import Manifest, ManifestViewer, PayloadStorage
 from ._database import FSDatabase, FSPayloadStorage
 
 _CHUNK_SIZE = 1024
@@ -25,7 +25,7 @@ class FSManifestViewer(ManifestViewer, FSDatabase):
         ManifestViewer.__init__(self)
         FSDatabase.__init__(self, root)
 
-    def render_manifest(self, manifest: tracking.Manifest) -> str:
+    def render_manifest(self, manifest: Manifest) -> str:
         """Create a hard-linked rendering of the given file manifest.
 
         Raises:
@@ -46,7 +46,8 @@ class FSManifestViewer(ManifestViewer, FSDatabase):
         except FileExistsError:
             pass
 
-        for rendered_path, entry in manifest.walk_abs(rendered_dirpath):
+        walkable = manifest.unlock()
+        for rendered_path, entry in walkable.walk_abs(rendered_dirpath):
             if entry.kind is tracking.EntryKind.TREE:
                 os.makedirs(rendered_path, exist_ok=True)
             elif entry.kind is tracking.EntryKind.MASK:
@@ -56,7 +57,7 @@ class FSManifestViewer(ManifestViewer, FSDatabase):
             else:
                 raise NotImplementedError(f"Unsupported entry kind: {entry.kind}")
 
-        for rendered_path, entry in reversed(list(manifest.walk_abs(rendered_dirpath))):
+        for rendered_path, entry in reversed(list(walkable.walk_abs(rendered_dirpath))):
             if entry.kind is tracking.EntryKind.MASK:
                 continue
             if stat.S_ISLNK(entry.mode):
@@ -142,12 +143,14 @@ def _unmark_render_completed(render_path: str) -> None:
         pass
 
 
-def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
+def _copy_manifest(manifest: Manifest, src_root: str, dst_root: str) -> None:
     """Copy manifest contents from one directory to another.
     """
 
     src_root = src_root.rstrip("/")
     dst_root = dst_root.rstrip("/")
+
+    unlocked = manifest.unlock()
 
     def get_masked_entries(dirname: str, entry_names: List[str]) -> List[str]:
 
@@ -155,7 +158,7 @@ def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) ->
         manifest_path = dirname[len(src_root) :] or "/"
         for name in entry_names:
             entry_path = os.path.join(manifest_path, name)
-            entry = manifest.get_path(entry_path)
+            entry = unlocked.get_path(entry_path)
             if entry.kind is tracking.EntryKind.MASK:
                 ignored.append(name)
         return ignored

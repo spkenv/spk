@@ -1,6 +1,7 @@
 import py.path
 
 from ... import tracking
+from .. import Manifest
 from ._database import FSPayloadStorage
 from ._renderer import FSManifestViewer, _was_render_completed, _copy_manifest
 from ._repository import FSRepository
@@ -17,15 +18,16 @@ def test_render_manifest(tmpdir: py.path.local) -> None:
     src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
     src_dir.join("file.txt").write("rootdata", ensure=True)
 
-    expected = tracking.compute_manifest(src_dir.strpath)
+    manifest = tracking.compute_manifest(src_dir.strpath)
 
-    for path, entry in expected.walk_abs(src_dir.strpath):
+    for path, entry in manifest.walk_abs(src_dir.strpath):
         if entry.kind is tracking.EntryKind.BLOB:
             with open(path, "rb") as f:
                 storage.write_payload(f)
 
+    expected = Manifest(manifest)
     rendered_path = viewer.render_manifest(expected)
-    actual = tracking.compute_manifest(rendered_path)
+    actual = Manifest(tracking.compute_manifest(rendered_path))
     assert actual.digest() == expected.digest()
 
 
@@ -41,12 +43,12 @@ def test_copy_manfest(tmpdir: py.path.local) -> None:
     src_dir.join("file.txt").write("rootdata", ensure=True)
     src_dir.join("file.txt").chmod(0o400)
 
-    expected = tracking.compute_manifest(src_dir.strpath)
+    expected = Manifest(tracking.compute_manifest(src_dir.strpath))
 
     dst_dir = tmpdir.join("dest")
     _copy_manifest(expected, src_dir.strpath, dst_dir.strpath)
 
-    actual = tracking.compute_manifest(dst_dir.strpath)
+    actual = Manifest(tracking.compute_manifest(dst_dir.strpath))
 
     assert actual.digest() == expected.digest()
 
@@ -61,7 +63,7 @@ def test_render_manifest_with_repo(
     src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
     src_dir.join("file.txt").write("rootdata", ensure=True)
 
-    manifest = tmprepo.commit_dir(src_dir.strpath)
+    manifest = Manifest(tmprepo.commit_dir(src_dir.strpath))
 
     assert isinstance(tmprepo, FSManifestViewer)
     render = py.path.local(tmprepo._build_digest_path(manifest.digest()))
@@ -69,5 +71,5 @@ def test_render_manifest_with_repo(
     tmprepo.render_manifest(manifest)
     assert render.exists()
     assert _was_render_completed(render.strpath)
-    rendered_manifest = tracking.compute_manifest(render.strpath)
+    rendered_manifest = Manifest(tracking.compute_manifest(render.strpath))
     assert rendered_manifest.digest() == manifest.digest()

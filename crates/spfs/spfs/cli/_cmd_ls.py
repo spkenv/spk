@@ -41,12 +41,9 @@ def _ls(args: argparse.Namespace) -> None:
     manifest = spfs.compute_object_manifest(item, repo=repo)
     try:
         entries = manifest.list_dir(path)
-    except FileNotFoundError:
-        print(f"Directory does not exist: {args.path}")
-        sys.exit(1)
-    except NotADirectoryError:
-        print(f"Path is not a directory: {args.path}")
+    except (FileNotFoundError, NotADirectoryError) as e:
+        print(e)
         sys.exit(1)
 
-    for entry in entries:
-        print(entry.name)
+    for name in entries:
+        print(name)

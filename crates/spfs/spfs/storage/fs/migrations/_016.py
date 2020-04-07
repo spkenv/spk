@@ -119,9 +119,9 @@ class Migration:
 
     def migrate_manifest(
         self, old_manifest: fs_015.tracking.Manifest
-    ) -> tracking.Manifest:
+    ) -> storage.Manifest:
 
-        new_manifest_builder = tracking.ManifestBuilder("/")
+        new_manifest = tracking.Manifest()
         for path, old_entry in old_manifest.walk():
             if old_entry.kind is fs_015.tracking.EntryKind.BLOB:
                 blob = self.migrate_blob(old_entry.object)
@@ -131,17 +131,15 @@ class Migration:
                 size = len(tree)
             else:
                 size = 0
-            new_entry = tracking.Entry(
-                object=convert_digest(old_entry.object),
-                kind=tracking.EntryKind(old_entry.kind.value),
-                mode=old_entry.mode,
-                size=size,
-                name=old_entry.name,
-            )
-            new_manifest_builder.add_entry(path, new_entry)
-        manifest = new_manifest_builder.finalize()
-        self.dst.objects.write_object(manifest)
-        return manifest
+            entry = new_manifest.mkfile(path)
+            entry.object = convert_digest(old_entry.object)
+            entry.kind = tracking.EntryKind(old_entry.kind.value)
+            entry.mode = old_entry.mode
+            entry.size = size
+
+        final = storage.Manifest(new_manifest)
+        self.dst.objects.write_object(final)
+        return final
 
     def migrate_blob(self, old_digest: str) -> storage.Blob:
 

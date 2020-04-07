@@ -52,9 +52,9 @@ def test_get_attached_unattached_objects_blob(
     data_dir.join("file.txt").write("hello, world", ensure=True)
 
     manifest = tmprepo.commit_dir(data_dir.strpath)
-    layer = tmprepo.create_layer(manifest)
+    layer = tmprepo.create_layer(storage.Manifest(manifest))
     tmprepo.tags.push_tag("my_tag", layer.digest())
-    blob_digest = manifest.child_objects()[0]
+    blob_digest = manifest.root["file.txt"].object
 
     assert blob_digest in get_all_attached_objects(
         tmprepo
@@ -82,7 +82,7 @@ def test_clean_untagged_objects(
     manifest1 = tmprepo.commit_dir(data_dir_1.strpath)
 
     manifest2 = tmprepo.commit_dir(data_dir_2.strpath)
-    layer = tmprepo.create_layer(manifest2)
+    layer = tmprepo.create_layer(storage.Manifest(manifest2))
     tmprepo.tags.push_tag("tagged_manifest", layer.digest())
 
     clean_untagged_objects(tmprepo)
@@ -104,7 +104,7 @@ def test_clean_untagged_objects_layers_platforms(
 ) -> None:
 
     manifest = tracking.Manifest()
-    layer = tmprepo.create_layer(manifest)
+    layer = tmprepo.create_layer(storage.Manifest(manifest))
     platform = tmprepo.create_platform([layer.digest()])
 
     clean_untagged_objects(tmprepo)
@@ -125,9 +125,9 @@ def test_clean_manifest_renders(
     data_dir.join("dir/name.txt").write("john doe", ensure=True)
 
     manifest = tmprepo.commit_dir(data_dir.strpath)
-    layer = tmprepo.create_layer(manifest)
+    layer = tmprepo.create_layer(storage.Manifest(manifest))
     platform = tmprepo.create_platform([layer.digest()])
-    tmprepo.render_manifest(manifest)
+    tmprepo.render_manifest(storage.Manifest(manifest))
 
     files = _list_files(tmprepo.root)
     assert len(files) != 0, "should have stored data"

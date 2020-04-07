@@ -12,21 +12,42 @@ class EntryKind(enum.Enum):
     MASK = "mask"  # removed entry / node or leaf
 
 
-class Entry(encoding.Encodable):
-    def __init__(
-        self, object: encoding.Digest, kind: EntryKind, mode: int, size: int, name: str
-    ) -> None:
+class Entry(dict):
 
-        self.object = object
+    __fields__ = ("kind", "object", "mode", "size")
+
+    def __init__(
+        self,
+        kind: EntryKind = EntryKind.TREE,
+        object: encoding.Digest = encoding.NULL_DIGEST,
+        mode: int = 0o777,
+        size: int = 0,
+    ) -> None:
         self.kind = kind
+        self.object = object
         self.mode = mode
         self.size = size
-        self.name = name
-        super(Entry, self).__init__()
 
     def __str__(self) -> str:
+        return repr(self)
 
-        return f"{self.mode:06o} {self.kind.value} {self.name} {self.object.str()}"
+    def __repr__(self) -> str:
+
+        return f"Entry({repr(self.kind)}, 0o{self.mode:06o}, size={self.size}, object={repr(self.object)})"
+
+    def __eq__(self, other: Any) -> bool:
+
+        if not isinstance(other, Entry):
+            raise TypeError(
+                f"'==' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
+            )
+
+        return (
+            other.kind is self.kind
+            and other.object == self.object
+            and other.mode == self.mode
+            and other.size == self.size
+        )
 
     def __lt__(self, other: Any) -> bool:
 
@@ -35,38 +56,26 @@ class Entry(encoding.Encodable):
                 f"'<' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
             )
 
-        if self.kind is other.kind:
-            return self.name < other.name
-
         return other.kind is EntryKind.TREE
 
-    def __gt__(self, other: Any) -> bool:
+    def update(self, other: "Manifest.Node") -> None:  # type: ignore
 
-        if not isinstance(other, Entry):
-            raise TypeError(
-                f"'>' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
-            )
+        self.kind = other.kind
+        self.object = other.object
+        self.mode = other.mode
+        if not self.kind is EntryKind.TREE:
+            self.size = other.size
+            return
 
-        if self.kind is other.kind:
-            return self.name > other.name
+        for name, node in other.items():
+            if node.kind == EntryKind.MASK:
+                try:
+                    del self[name]
+                except KeyError:
+                    continue
 
-        return self.kind is EntryKind.TREE
-
-    def encode(self, writer: BinaryIO) -> None:
-
-        encoding.write_digest(writer, self.object)
-        encoding.write_string(writer, self.kind.value)
-        encoding.write_int(writer, self.mode)
-        encoding.write_int(writer, self.size)
-        encoding.write_string(writer, self.name)
-
-    @classmethod
-    def decode(cls, reader: BinaryIO) -> "Entry":
-
-        return Entry(
-            object=encoding.read_digest(reader),
-            kind=EntryKind(encoding.read_string(reader)),
-            mode=encoding.read_int(reader),
-            size=encoding.read_int(reader),
-            name=encoding.read_string(reader),
-        )
+            if name not in self:
+                self[name] = node
+            else:
+                self[name].update(node)
+        self.size = len(self)
