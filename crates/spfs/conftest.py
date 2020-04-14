@@ -51,3 +51,12 @@ address = file://{tmpdir.join('remote_origin').strpath}
 """
     )
     return spfs.get_config()
+
+
+@pytest.fixture
+def with_install() -> None:
+    if "CI" in os.environ:
+        pytest.skip("Cannot test against rpm install in CI")
+    print(
+        "This test requires a privileged install of spfs-enter, and may fail otherwise"
+    )

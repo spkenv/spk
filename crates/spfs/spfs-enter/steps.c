@@ -18,8 +18,11 @@
 #define RUNTIME_UPPER_DIR "/tmp/spfs-runtime/upper"
 #define RUNTIME_LOWER_DIR "/tmp/spfs-runtime/lower"
 #define RUNTIME_WORK_DIR "/tmp/spfs-runtime/work"
+#define RUNTIME_OVERLAY_DIR "/tmp/spfs-runtime/overlay"
 
 char *SPFS_LOWERDIRS = NULL;
+char **SPFS_MASKED_PATHS = NULL;
+int SPFS_MASKED_PATHS_COUNT = 0;
 char **SPFS_COMMAND = NULL;
 int SPFS_REMOUNT_ONLY = 0;
 int SPFS_EDITABLE = 0;
@@ -146,22 +149,15 @@ int setup_runtime()
         printf("--> setting up runtime...\n");
     }
     int result;
-    if (SPFS_EDITABLE) {
-        result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, 0);
-        if (result != 0) {
-            perror("Failed to mount "RUNTIME_DIR);
-            return 1;
-        }
+    result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, 0);
+    if (result != 0) {
+        perror("Failed to mount "RUNTIME_DIR);
+        return 1;
     }
     result = mkdir_permissive(RUNTIME_LOWER_DIR);
     if (result != 0) {
         perror("Failed to create "RUNTIME_LOWER_DIR);
         return 1;
-    }
-    if (!SPFS_EDITABLE) {
-        // no need to create additional dirs that won't
-        // be used in non-editable mode
-        return 0;
     }
     result = mkdir_permissive(RUNTIME_UPPER_DIR);
     if (result != 0) {
@@ -173,6 +169,57 @@ int setup_runtime()
         perror("Failed to create "RUNTIME_WORK_DIR);
         return 1;
     }
+    if (SPFS_EDITABLE) {
+        // no need to create additional dirs that won't
+        // be used in non-editable mode
+        return 0;
+    }
+    result = mkdir_permissive(RUNTIME_OVERLAY_DIR);
+    if (result != 0) {
+        perror("Failed to create "RUNTIME_OVERLAY_DIR);
+        return 1;
+    }
+}
+
+int mask_files()
+{
+
+    if (SPFS_DEBUG) {
+        printf("--> masking deleted files...\n");
+    }
+
+    int result, i;
+    for(i = 0; i < SPFS_MASKED_PATHS_COUNT; i++) {
+
+        char* path = SPFS_MASKED_PATHS[i];
+        if (strncmp("/spfs/", path, 6)) {
+            fprintf(stderr, "Cannot mask filepath: Path must start with /spfs/: %s\n", path);
+            return 1;
+        }
+        if (strlen(path) == strlen("/spfs/")) {
+            perror("Masked path cannot be root /spfs folder");
+            return 1;
+        }
+
+        if (SPFS_DEBUG) {
+            printf(" -> rm -r %s\n", path);
+        }
+        int child_pid = fork();
+        if (child_pid == 0) {
+            execl("/bin/rm", "/bin/rm", "-r", path, NULL);
+        }
+        if (child_pid < 0) {
+            perror("Could not execute mount command");
+            return 1;
+        }
+        int result;
+        waitpid(child_pid, &result, 0);
+        if (result != 0) {
+            perror("failed to remove masked file");
+        }
+
+    }
+    return 0;
 }
 
 char *get_overlay_args()
@@ -190,18 +237,14 @@ char *get_overlay_args()
         sprintf(lowerdir_args, format_str, ":", SPFS_LOWERDIRS);
     }
 
-    if (!SPFS_EDITABLE) {
-        return lowerdir_args;
-    }
-
-    char *editable_args = NULL;
+    char *overlay_args = NULL;
     format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
     required_size = strlen(lowerdir_args);
     required_size += strlen(format_str);
-    editable_args = malloc(required_size + 1);
-    sprintf(editable_args, format_str, lowerdir_args);
+    overlay_args = malloc(required_size + 1);
+    sprintf(overlay_args, format_str, lowerdir_args);
     free(lowerdir_args);
-    return editable_args;
+    return overlay_args;
 
 }
 
@@ -212,7 +255,7 @@ int mount_env()
     }
     char * overlay_args = get_overlay_args();
     if (SPFS_DEBUG) {
-        fprintf(stderr, "/usr/bin/mount -t overlay -o %s none " SPFS_DIR "\n", overlay_args);
+        fprintf(stderr, "/usr/bin/mount -t overlay -o "SPFS_DIR" none %s\n", overlay_args);
     }
     int child_pid = fork();
     if (child_pid == 0) {
@@ -224,7 +267,25 @@ int mount_env()
     }
     int result;
     waitpid(child_pid, &result, 0);
-    return result;
+    if (result != 0) {
+        perror("Overlay mount command failed");
+        return 1;
+    }
+
+}
+
+int lock_runtime_if_necessary()
+{
+
+    if (SPFS_EDITABLE) {
+        return 0;
+    }
+    int result = mount("none", RUNTIME_DIR, "tmpfs", MS_REMOUNT | MS_RDONLY, NULL);
+    if (result != 0) {
+        perror("Failed to make runtime read-only");
+        return 1;
+    }
+    return 0;
 
 }
 
