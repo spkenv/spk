@@ -1,6 +1,6 @@
 #include "steps.c"
 
-#define OPT_FLAGS ":vserd:"
+#define OPT_FLAGS ":vserd:m:"
 void print_usage()
 {
     printf("run a command in a configured spfs runtime\n\n");
@@ -11,6 +11,8 @@ void print_usage()
     printf("  -s: Also virtualize the /shots directory by mounting a tempfs over it\n");
     printf("  -r: Remount the overlay filesystem, don't enter a new namepace\n");
     printf("  -d LOWERDIR: Include the given directory in the overlay mount\n");
+    printf("     (can be specified more than once)\n");
+    printf("  -m PATH: mask a filepath so it does not appear in the mounted filesystem\n");
     printf("     (can be specified more than once)\n\n");
     printf("Use the following environment variables for additional configuration:\n");
     printf("  SPFS_DEBUG: if set, print debugging output\n");
@@ -46,6 +48,18 @@ int main(int argc, char *argv[])
                 SPFS_LOWERDIRS = malloc(required_size + 2);
                 sprintf(SPFS_LOWERDIRS, "%s:%s", existing, optarg);
                 break;
+            case 'm':
+                SPFS_MASKED_PATHS_COUNT++;
+                size_t old_size = sizeof(char*) * SPFS_MASKED_PATHS_COUNT-1;
+                size_t new_size = sizeof(char*) * SPFS_MASKED_PATHS_COUNT;
+                char **new_paths = malloc(sizeof(char*) * new_size);
+                if (SPFS_MASKED_PATHS_COUNT > 1) {
+                    memcpy(new_paths, SPFS_MASKED_PATHS, old_size);
+                    free(SPFS_MASKED_PATHS);
+                }
+                SPFS_MASKED_PATHS = new_paths;
+                new_paths[SPFS_MASKED_PATHS_COUNT-1] = optarg;
+                break;
             case ':':
                 printf("value required for option '%c'\n", optopt);
                 print_usage();
@@ -62,10 +76,12 @@ int main(int argc, char *argv[])
 
     if (optind >= argc && !SPFS_REMOUNT_ONLY) {
         print_usage();
+        fprintf(stderr, "COMMAND required, and not given.");
         return 1;
     }
     else if (optind != argc && SPFS_REMOUNT_ONLY) {
         print_usage();
+        fprintf(stderr, "COMMAND cannot be specified with -r flag (remount)");
         return 1;
     }
     SPFS_COMMAND = argv + optind;
@@ -75,6 +91,8 @@ int main(int argc, char *argv[])
         ensure_mounts_already_exist,
         setup_runtime,
         mount_env,
+        mask_files,
+        lock_runtime_if_necessary,
         mount_shots_if_necessary,
         become_original_user,
         drop_all_capabilities,
@@ -87,6 +105,8 @@ int main(int argc, char *argv[])
         ensure_mount_targets_exist,
         setup_runtime,
         mount_env,
+        mask_files,
+        lock_runtime_if_necessary,
         mount_shots_if_necessary,
         become_original_user,
         drop_all_capabilities,

@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, BinaryIO
 import os
 import stat
 import io
@@ -6,7 +6,7 @@ import abc
 
 import structlog
 
-from .. import graph, encoding, tracking
+from .. import graph, encoding, tracking, runtime
 from ._layer import LayerStorage
 from ._platform import PlatformStorage
 from ._blob import Blob, BlobStorage
@@ -71,6 +71,13 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
             aliases.remove(str(ref))
         return aliases
 
+    def commit_blob(self, reader: BinaryIO) -> encoding.Digest:
+
+        digest = self.payloads.write_payload(reader)
+        blob = Blob(digest, reader.tell())
+        self.objects.write_object(blob)
+        return digest
+
     def commit_dir(self, path: str) -> tracking.Manifest:
         """Commit a local file system directory to this storage.
 
@@ -79,42 +86,11 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
         """
 
         path = os.path.abspath(path)
-        manifest = tracking.Manifest()
+        builder = tracking.ManifestBuilder()
+        builder.blob_hasher = self.commit_blob
 
         _logger.info("committing files")
-        for root, dirs, files in os.walk(path):
-
-            relroot = os.path.relpath(root, path)
-            manifest.mkdirs(relroot)
-            for filename in files:
-                # TODO: multiprocessing
-                filepath = os.path.join(root, filename)
-                st = os.lstat(filepath)
-
-                if stat.S_ISLNK(st.st_mode):
-                    data = os.readlink(filepath)
-                    digest = self.payloads.write_payload(
-                        io.BytesIO(data.encode("utf-8"))
-                    )
-                elif stat.S_ISREG(st.st_mode):
-                    with open(filepath, "rb") as f:
-                        digest = self.payloads.write_payload(f)
-                else:
-                    raise ValueError("Unsupported non-regular file:" + filepath)
-
-                node = manifest.mkfile(os.path.join(relroot, filename))
-                node.object = digest
-                node.kind = tracking.EntryKind.BLOB
-                node.mode = st.st_mode
-                node.size = st.st_size
-
-            for dirname in dirs:
-                st = os.stat(os.path.join(root, dirname))
-                node = manifest.mkdirs(os.path.join(relroot, dirname))
-                node.object = encoding.NULL_DIGEST
-                node.kind = tracking.EntryKind.TREE
-                node.mode = st.st_mode
-                node.size = st.st_size
+        manifest = builder.compute_manifest(path)
 
         _logger.info("writing manifest")
         storable = Manifest(manifest)

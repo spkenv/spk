@@ -80,28 +80,9 @@ def active_runtime() -> runtime.Runtime:
 
 
 def initialize_runtime() -> runtime.Runtime:
-    """Initialize the current spfs runtime.
-
-    This method should only be called once at startup,
-    and ensures that all masked files for this runtime
-    do not show up in the rendered file system.
-    """
+    """Initialize the current spfs runtime."""
 
     rt = active_runtime()
-
-    _logger.debug("computing runtime manifest")
-    manifest = compute_runtime_manifest(rt)
-
-    _logger.debug("finding files that should be masked")
-    for path, entry in manifest.walk_abs("/spfs"):
-        if entry.kind != tracking.EntryKind.MASK:
-            continue
-        _logger.debug("masking file: " + path)
-        try:
-            os.chmod(path, 0o777)
-            os.remove(path)
-        except IsADirectoryError:
-            shutil.rmtree(path)
     return rt
 
 

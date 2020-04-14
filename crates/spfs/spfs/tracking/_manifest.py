@@ -1,6 +1,16 @@
-from typing import Tuple, Dict, Optional, Iterable, TYPE_CHECKING, DefaultDict, BinaryIO
+from typing import (
+    Tuple,
+    Dict,
+    Optional,
+    Iterable,
+    TYPE_CHECKING,
+    DefaultDict,
+    BinaryIO,
+    Callable,
+)
 from collections import OrderedDict
 import os
+import io
 import stat
 import hashlib
 import posixpath
@@ -150,46 +160,64 @@ class Manifest:
 
 
 def compute_manifest(path: str) -> Manifest:
+    """Build a manifest that describes a directorie's contents."""
 
-    manifest = Manifest()
-    _compute_tree_node(path, manifest.root)
-    return manifest
-
-
-def _compute_tree_node(dirname: str, tree_node: Entry) -> None:
-
-    for name in os.listdir(dirname):
-        path = posixpath.join(dirname, name)
-        entry = Entry()
-        tree_node[name] = entry
-        _compute_node(path, entry)
+    builder = ManifestBuilder()
+    return builder.compute_manifest(path)
 
 
-def _compute_node(path: str, entry: Entry) -> None:
+class ManifestBuilder:
+    """Builds a manifest by walking a local file path."""
 
-    stat_result = os.lstat(path)
+    def __init__(self) -> None:
 
-    entry.mode = stat_result.st_mode
-    entry.size = stat_result.st_size
+        self.blob_hasher: Callable[[BinaryIO], encoding.Digest] = _hash_file
 
-    if stat.S_ISLNK(stat_result.st_mode):
-        entry.kind = EntryKind.BLOB
-        entry.object = encoding.Hasher(os.readlink(path).encode("utf-8")).digest()
-    elif stat.S_ISDIR(stat_result.st_mode):
-        entry.kind = EntryKind.TREE
-        _compute_tree_node(path, entry)
-    elif runtime.is_removed_entry(stat_result):
-        entry.kind = EntryKind.MASK
-        entry.object = encoding.NULL_DIGEST
-    elif not stat.S_ISREG(stat_result.st_mode):
-        raise ValueError("unsupported special file: " + path)
-    else:
-        entry.kind = EntryKind.BLOB
-        with open(path, "rb") as f:
-            hasher = encoding.Hasher()
-            for byte_block in iter(lambda: f.read(4096), b""):
-                hasher.update(byte_block)
-        entry.object = hasher.digest()
+    def compute_manifest(self, path: str) -> Manifest:
+
+        manifest = Manifest()
+        self._compute_tree_node(path, manifest.root)
+        return manifest
+
+    def _compute_tree_node(self, dirname: str, tree_node: Entry) -> None:
+
+        for name in os.listdir(dirname):
+            path = posixpath.join(dirname, name)
+            entry = Entry()
+            tree_node[name] = entry
+            self._compute_node(path, entry)
+
+    def _compute_node(self, path: str, entry: Entry) -> None:
+
+        stat_result = os.lstat(path)
+
+        entry.mode = stat_result.st_mode
+        entry.size = stat_result.st_size
+
+        if stat.S_ISLNK(stat_result.st_mode):
+            link_target = os.readlink(path)
+            reader: BinaryIO = io.BytesIO(link_target.encode("utf-8"))
+            entry.kind = EntryKind.BLOB
+            entry.object = self.blob_hasher(reader)
+        elif stat.S_ISDIR(stat_result.st_mode):
+            entry.kind = EntryKind.TREE
+            self._compute_tree_node(path, entry)
+        elif runtime.is_removed_entry(stat_result):
+            entry.kind = EntryKind.MASK
+            entry.object = encoding.NULL_DIGEST
+        elif not stat.S_ISREG(stat_result.st_mode):
+            raise ValueError("unsupported special file: " + path)
+        else:
+            entry.kind = EntryKind.BLOB
+            with open(path, "rb") as reader:
+                entry.object = self.blob_hasher(reader)
+
+
+def _hash_file(reader: BinaryIO) -> encoding.Digest:
+    hasher = encoding.Hasher()
+    for byte_block in iter(lambda: reader.read(4096), b""):
+        hasher.update(byte_block)
+    return hasher.digest()
 
 
 def sort_entries(entries: NodeMap) -> NodeMap:

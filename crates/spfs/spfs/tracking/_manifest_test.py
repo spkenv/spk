@@ -9,13 +9,7 @@ import py.path
 import pytest
 
 from .. import encoding, storage
-from ._manifest import (
-    Manifest,
-    Entry,
-    EntryKind,
-    compute_manifest,
-    _compute_tree_node,
-)
+from ._manifest import Manifest, Entry, EntryKind, compute_manifest, ManifestBuilder
 from ._diff import compute_diff
 
 
@@ -58,7 +52,8 @@ def test_manifest_sorting(tmpdir: py.path.local) -> None:
     tmpdir.join("z_file.txt").write("rootdata", ensure=True)
 
     manifest = Manifest()
-    _compute_tree_node(tmpdir.strpath, manifest.root)
+    builder = ManifestBuilder()
+    builder._compute_tree_node(tmpdir.strpath, manifest.root)
 
     actual = list(p for p, _ in manifest.walk())
     expected = [

@@ -6,9 +6,9 @@ import subprocess
 import structlog
 
 from ._config import get_config
-from ._runtime import active_runtime
+from ._runtime import active_runtime, compute_runtime_manifest
 from ._resolve import resolve_overlay_dirs, which
-from . import storage, runtime
+from . import storage, runtime, tracking
 
 _logger = structlog.get_logger(__name__)
 
@@ -66,6 +66,15 @@ def _build_spfs_enter_command(rt: runtime.Runtime, *command: str) -> Tuple[str, 
 
     if rt.is_editable():
         args.append("-e")
+
+    _logger.debug("computing runtime manifest")
+    manifest = compute_runtime_manifest(rt)
+
+    _logger.debug("finding files that should be masked")
+    for path, entry in manifest.walk_abs("/spfs"):
+        if entry.kind != tracking.EntryKind.MASK:
+            continue
+        args.extend(("-m", path))
 
     args.append("--")
 
