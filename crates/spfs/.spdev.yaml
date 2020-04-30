@@ -1,7 +1,6 @@
-version: 0.19.2
+version: 0.19.3
 release_notes: |
-  * Fix bug where startup process could die and exit too early in csh
-  * Fix bug where runtimes storage could get locked with restricted permissions
+  * Fix race condition causing 'invalid header' error during sync
 
 environment:
   kind: PipEnv
