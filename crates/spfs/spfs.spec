@@ -6,6 +6,7 @@ License: NONE
 URL: https://gitlab.spimageworks.com/dev-group/dev-ops/spfs
 Source0: https://gitlab.spimageworks.com/dev-group/dev-ops/spfs/-/archive/v%{version}/%{name}-v%{version}.tar.gz
 
+Requires: >=expect-5.45
 BuildRequires: rsync
 BuildRequires: gcc
 BuildRequires: gcc-c++

@@ -1,6 +1,7 @@
 version: 0.19.3
 release_notes: |
   * Fix race condition causing 'invalid header' error during sync
+  * Add expect as a dependency to rpm (for csh integration)
 
 environment:
   kind: PipEnv
