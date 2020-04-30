@@ -11,7 +11,7 @@ class Object(encoding.Encodable, metaclass=abc.ABCMeta):
     can have any number of immediate children that they reference.
     """
 
-    @abc.abstractmethod
     def child_objects(self) -> Tuple[encoding.Digest, ...]:
         """Identify the set of children to this object in the graph."""
-        ...
+
+        return tuple()
