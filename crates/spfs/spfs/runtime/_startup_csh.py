@@ -1,8 +1,8 @@
 source = """#!/usr/bin/env csh
 if ( -f ~/.tcshrc ) then
-    source ~/.tcshrc
+    source ~/.tcshrc || true
 else if ( -f ~/.cshrc ) then
-    source ~/.cshrc
+    source ~/.cshrc || true
 endif
 
 set startup_dir="/spfs/etc/spfs/startup.d"
@@ -14,7 +14,7 @@ if ( -d "${startup_dir}" != 0 ) then
                 # csh cannot echo to stderr, only sh can do that :/
                 /bin/sh -c "echo source ${startup_dir}/$file 1>&2"
             endif
-            source ${startup_dir}/$file
+            source ${startup_dir}/$file || true
         end
     endif
 endif
