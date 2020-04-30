@@ -21,7 +21,7 @@ class LargeObj(graph.Object):
     def encode(self, writer: BinaryIO) -> None:
 
         # simlulate a long write process
-        time.sleep(10)
+        time.sleep(2)
 
     @classmethod
     def decode(self, reader: BinaryIO) -> "LargeObj":

@@ -1,6 +1,7 @@
 from typing import Dict, Type
 import io
 import os
+import uuid
 
 import structlog
 
@@ -49,14 +50,25 @@ class FSDatabase(FSPayloadStorage, graph.Database):
             raise ValueError(f"Unkown object kind, cannot store: {type(obj)}")
 
         filepath = self._build_digest_path(obj.digest())
-        self._ensure_base_dir(filepath)
-        try:
-            with open(filepath, "xb") as writer:
-                encoding.write_header(writer, _OBJECT_HEADER)
-                encoding.write_int(writer, kind)
-                obj.encode(writer)
-        except FileExistsError:
+        if os.path.exists(filepath):
             return
+
+        # we need to use a temporary file here, so that
+        # other processes don't try to read our incomplete
+        # object from the database
+        working_file = os.path.join(self.root, uuid.uuid4().hex)
+        self._ensure_base_dir(filepath)
+        with open(working_file, "xb") as writer:
+            encoding.write_header(writer, _OBJECT_HEADER)
+            encoding.write_int(writer, kind)
+            obj.encode(writer)
+        try:
+            os.rename(working_file, filepath)
+        except FileExistsError:
+            os.remove(working_file)
+        except Exception:
+            os.remove(working_file)
+            raise
 
     def remove_object(self, digest: encoding.Digest) -> None:
 
