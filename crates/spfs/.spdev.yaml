@@ -1,7 +1,7 @@
-version: 0.19.1
+version: 0.19.2
 release_notes: |
-  * Fix bug where masked files were not properly removed
-  * Improve startup performance by moving file masking into spfs-enter
+  * Fix bug where startup process could die and exit too early in csh
+  * Fix bug where runtimes storage could get locked with restricted permissions
 
 environment:
   kind: PipEnv
