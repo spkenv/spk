@@ -57,6 +57,16 @@ class Runtime:
         """Create a runtime to represent the data under 'root'."""
 
         self.root = os.path.abspath(root)
+        try:
+            os.makedirs(self.root, mode=0o777)
+        except FileExistsError:
+            pass
+        else:
+            # force the permissions on newly created dir,
+            # since the above command passes 777 to the os
+            # but the os may still create based on the current mask
+            os.chmod(self.root, 0o777)
+
         self.config_file = os.path.join(self.root, self._config_file)
         self.sh_startup_file = os.path.join(self.root, self._sh_startup_file)
         self.csh_startup_file = os.path.join(self.root, self._csh_startup_file)
