@@ -1,0 +1,20 @@
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.mypy_cache/
+.coverage
+coverage.xml
+
+# spdev
+build/
+dist/
+.venv/
+
+# spComp2
+.components.*
+
+# editors
+.idea/
+.vscode/

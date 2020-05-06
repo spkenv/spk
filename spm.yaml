@@ -1,0 +1,5 @@
+
+pkg: spm/0.1.0
+
+build:
+  command: go build -o /spfs/bin/spm cli/spm/*.go

@@ -1,0 +1,8 @@
+version: 0.1.0
+release_notes: |
+  * Setup spdev configuration
+
+components:
+- kind: HugoDocs
+  name: docs
+  location: docs
