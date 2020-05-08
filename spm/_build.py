@@ -8,7 +8,7 @@ import spfs
 
 from ._spec import Spec, VarSpec
 from ._version import parse_version
-from ._option_map import OptionMap
+from ._option_map import OptionMap, host_options
 from ._handle import Handle, SpFSHandle
 from ._solver import Solver
 from ._env import expand_vars
@@ -26,7 +26,7 @@ def build_variants(spec: Spec) -> List[Handle]:
 
     handles = []
     for variant_options in variants:
-        build_options = spec.build.options.copy()
+        build_options = host_options()
         build_options.update(variant_options)
         build_options = spec.resolve_all_options(build_options)
 

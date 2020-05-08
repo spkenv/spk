@@ -1,7 +1,9 @@
 from typing import Dict, Any
 import hashlib
 import base64
+import platform
 
+import distro
 from sortedcontainers import SortedDict
 
 # given option digests are namespaced by the package itself,
@@ -31,3 +33,16 @@ class OptionMap(SortedDict):
         for name, value in data.items():
             opts[name] = str(value)
         return opts
+
+
+def host_options() -> OptionMap:
+    """Detect and return the default options for the current host system"""
+
+    opts = OptionMap(arch=platform.machine(), platform=platform.system().lower())
+
+    info = distro.info()
+    distro_name = info["id"]
+    opts["os"] = distro_name
+    opts[distro_name] = info["version"]
+
+    return opts
