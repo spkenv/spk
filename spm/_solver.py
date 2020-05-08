@@ -2,7 +2,6 @@ from typing import List
 
 import spfs
 
-from . import graph
 from ._option_map import OptionMap
 from ._spec import Spec
 from ._handle import Handle, SpFSHandle

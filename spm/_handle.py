@@ -1,5 +1,6 @@
 import abc
 
+from . import graph
 from ._spec import Spec
 
 
@@ -15,7 +16,7 @@ class Handle(metaclass=abc.ABCMeta):
         pass
 
 
-class SpFSHandle(Handle):
+class SpFSHandle(Handle, graph.Node):
     def __init__(self, spec: Spec, ref: str) -> None:
 
         self._spec = spec

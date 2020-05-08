@@ -36,5 +36,7 @@ def _plan(args: argparse.Namespace) -> None:
             planner.add_package(pkg)
 
     plan = planner.plan()
-    for path, node in plan.walk():
-        print(path, node)
+    for output in plan.outputs():
+        print(output)
+        for path, node in spm.graph.walk_up(output):
+            print(path, node)
