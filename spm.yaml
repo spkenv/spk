@@ -2,4 +2,14 @@
 pkg: spm/0.1.0
 
 build:
-  command: go build -o /spfs/bin/spm cli/spm/*.go
+  script:
+    - /spfs/bin
+      python -m nuitka
+        --follow-imports
+        --standalone
+        --output-dir=build
+        --o spm
+        --show-progress
+        --show-scons
+        --show-modules
+        spm

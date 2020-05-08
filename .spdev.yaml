@@ -2,7 +2,24 @@ version: 0.1.0
 release_notes: |
   * Setup spdev configuration
 
+environment:
+  kind: PipEnv
+
 components:
+
+- kind: PythonPackage
+  name: python
+  lint:
+    black: true
+    python3: false
+    mypy: true
+  test:
+    command: pytest
+  install:
+    enabled: true
+  deploy:
+    rez.enabled: false
+
 - kind: HugoDocs
   name: docs
   location: docs
