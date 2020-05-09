@@ -17,11 +17,8 @@ Design Goals:
 ### Usage
 
 ```bash
-# enter a blank spfs environment
-spfs shell
-
-# install python
-spm install python/2.7
+# enter a shell environment for the latest version of python 2
+spm shell python/2
 
 which python
 # /spfs/bin/python
@@ -50,6 +47,11 @@ depends:
 
 ```yaml
 pkg: usd/20.02.4
+
+build:
+  variants:
+   -
+
 depends:
 - pkg: cmake/3.13
 - pkg: open-exr/2.4

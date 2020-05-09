@@ -11,6 +11,12 @@ class BuildSpec:
     script: str = "sh ./build.sh"
     variants: List[OptionMap] = field(default_factory=list)
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "script": self.script.splitlines(),
+            "variants": self.variants,
+        }
+
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "BuildSpec":
 

@@ -1,29 +1,24 @@
-from typing import List
+from typing import List, Iterable
 
-from typing import Iterable
 import spfs
-
 from ruamel import yaml
 
-from . import graph
-from ._spec import Spec
-from ._ident import Ident
-from ._option_map import OptionMap
+from . import graph, api
 from ._handle import SpFSHandle
 
 
 class Planner:
-    def __init__(self, options: OptionMap = None) -> None:
+    def __init__(self, options: api.OptionMap = None) -> None:
 
-        self._specs: List[Spec] = []
-        self._pkgs: List[Ident] = []
-        self._options = options if options else OptionMap()
+        self._specs: List[api.Spec] = []
+        self._pkgs: List[api.Ident] = []
+        self._options = options if options else api.OptionMap()
 
-    def add_spec(self, spec: Spec) -> None:
+    def add_spec(self, api: api.Spec) -> None:
 
-        self._specs.append(spec)
+        self._specs.append(api)
 
-    def add_package(self, pkg: Ident) -> None:
+    def add_package(self, pkg: api.Ident) -> None:
 
         self._pkgs.append(pkg)
 
@@ -46,37 +41,8 @@ class Plan(graph.Node, list):
         return self
 
 
-def resolve_package(pkg: Ident, options: OptionMap) -> graph.Node:
-
-    all_versions = sorted(spfs.ls_tags(f"spm/pkg/{pkg.name}"))
-    versions = list(filter(pkg.version.is_satisfied_by, all_versions))
-    versions.sort()
-
-    if not versions:
-        raise ValueError(
-            f"unsatisfiable request: {pkg} from versions [{', '.join(all_versions)}]"
-        )
-
-    for version in reversed(versions):
-
-        original_spec = f"spm/meta/{pkg.name}/{version}"
-        repo = spfs.get_config().get_repository()
-        blob = repo.tags.resolve_tag(original_spec)
-        with repo.payloads.open_payload(blob) as spec_file:
-            spec_data = yaml.safe_load(spec_file)
-            spec = Spec.from_dict(spec_data)
-
-        options = spec.resolve_all_options(options)
-        tag = f"spm/pkg/{pkg.name}/{version}/{options.digest()}"
-
-        if repo.tags.has_tag(tag):
-            return SpFSHandle(spec, tag)
-        else:
-            return SpecBuilder(spec, options)
-
-
 class SpecBuilder(graph.Operation):
-    def __init__(self, spec: Spec, options: OptionMap) -> None:
+    def __init__(self, spec: api.Spec, options: api.OptionMap) -> None:
 
         self._spec = spec
         self._options = options.copy()
@@ -84,7 +50,7 @@ class SpecBuilder(graph.Operation):
     def inputs(self) -> Iterable[graph.Node]:
 
         # FIXME: this needs to resolve build dependencies...
-        return []
+        return [SourcePackage(self._spec.pkg)]
 
     def outputs(self) -> Iterable[graph.Node]:
 
@@ -94,4 +60,4 @@ class SpecBuilder(graph.Operation):
     def run(self) -> None:
 
         # FIXME: this needs to run the build if needed
-        pass
+        raise NotImplementedError("SpecBuilder.run")

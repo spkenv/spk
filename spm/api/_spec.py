@@ -1,4 +1,4 @@
-from typing import List, Any, Dict, Union
+from typing import List, Any, Dict, Union, IO
 from dataclasses import dataclass, field
 import os
 
@@ -77,14 +77,33 @@ class Spec:
 
         return spec
 
+    def to_dict(self) -> Dict[str, Any]:
+
+        return {
+            "pkg": self.pkg,
+            "build": self.build.to_dict(),
+            "opts": list(o.to_dict() for o in self.opts),
+            "depends": list(d.to_dict() for d in self.depends),
+            "provides": list(p.to_dict() for p in self.provides),
+        }
+
 
 def read_spec_file(filepath: str) -> Spec:
     """ReadSpec loads a package specification from a yaml file."""
 
     with open(filepath, "r") as f:
-        yaml_data = yaml.safe_load(f)
+        return read_spec(f)
 
+
+def read_spec(stream: IO[str]) -> Spec:
+
+    yaml_data = yaml.safe_load(stream)
     return Spec.from_dict(yaml_data)
+
+
+def write_spec(spec: Spec) -> bytes:
+
+    return yaml.dump(spec.to_dict()).encode()
 
 
 def opt_from_dict(data: Dict[str, Any]) -> Union[Spec, "VarSpec"]:

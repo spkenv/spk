@@ -6,9 +6,7 @@ import shlex
 import structlog
 import spfs
 
-from ._spec import Spec, VarSpec
-from ._version import parse_version
-from ._option_map import OptionMap, host_options
+from . import api, graph
 from ._handle import Handle, SpFSHandle
 from ._solver import Solver
 from ._env import expand_vars
@@ -16,17 +14,17 @@ from ._env import expand_vars
 _LOGGER = structlog.get_logger("spm.build")
 
 
-def build_variants(spec: Spec) -> List[Handle]:
+def build_variants(spec: api.Spec) -> List[Handle]:
     """Build all of the default variants defined for the given spec."""
 
     variants = spec.build.variants
     if not variants:
         _LOGGER.debug("generating default variant")
-        variants.append(OptionMap())
+        variants.append(api.OptionMap())
 
     handles = []
     for variant_options in variants:
-        build_options = host_options()
+        build_options = api.host_options()
         build_options.update(variant_options)
         build_options = spec.resolve_all_options(build_options)
 
@@ -36,7 +34,7 @@ def build_variants(spec: Spec) -> List[Handle]:
     return handles
 
 
-def build(spec: Spec, options: OptionMap) -> Handle:
+def build(spec: api.Spec, options: api.OptionMap) -> Handle:
     """Execute the build process for a package spec with the given build options."""
 
     release = options.digest()
@@ -45,10 +43,10 @@ def build(spec: Spec, options: OptionMap) -> Handle:
 
     solver = Solver(options)
     for opt in spec.opts:
-        if not isinstance(opt, Spec):
+        if not isinstance(opt, api.Spec):
             continue
         if opt.pkg.name in options:
-            opt.pkg.version = parse_version(options[opt.pkg.name])
+            opt.pkg.version = api.parse_version(options[opt.pkg.name])
         # TODO: deal with release information??
         solver.add_request(opt)
     for dep in spec.depends:

@@ -39,8 +39,12 @@ def _build(args: argparse.Namespace) -> None:
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
 
-    spec = spm.read_spec_file(args.filename)
-    os.chdir(os.path.dirname(args.filename))
-    handles = spm.build_variants(spec)
-    for handle in handles:
-        _LOGGER.info(f"Created", pkg=str(handle.spec().pkg), url=handle.url())
+    planner = spm.Planner()
+    planner.add_spec(spm.api.read_spec_file(args.filename))
+    plan = planner.plan()
+
+    for output in plan.outputs():
+
+        _LOGGER.info(f"Building {output}")
+        spm.graph.execute_tree(output)
+        _LOGGER.info(f"Created {output}")

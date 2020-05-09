@@ -1,44 +1,106 @@
-from typing import List
+from typing import List, Union
 
+import structlog
 import spfs
 
-from ._option_map import OptionMap
-from ._spec import Spec
+from . import graph, api, storage
+from ._nodes import BinaryPackageNode, SourcePackageNode
 from ._handle import Handle, SpFSHandle
+
+_LOGGER = structlog.get_logger("spm")
+
+
+class UnresolvedPackageError(RuntimeError):
+    def __init__(self, pkg: str, versions: List[str] = None) -> None:
+
+        message = f"{pkg}"
+        if versions:
+            message += " - from versions: " + "\n".join(versions)
+        super(UnresolvedPackageError, self).__init__(message)
 
 
 class Solver:
-    def __init__(self, options: OptionMap) -> None:
+    def __init__(self, options: api.OptionMap) -> None:
 
         self._options = options
-        self._requests: List[Spec] = []
+        self._requests: List[api.Ident] = []
 
-    def add_request(self, spec: Spec) -> None:
+    def add_request(self, pkg: Union[str, api.Ident]) -> None:
 
-        self._requests.append(spec)
+        if not isinstance(pkg, api.Ident):
+            pkg = api.parse_ident(pkg)
 
-    def solve(self) -> List[Handle]:
+        self._requests.append(pkg)
 
-        handles: List[Handle] = []
-        for request in self._requests:
+    def solve(self) -> List[graph.Node]:
 
-            # TODO: what if the request already has a release?
+        # TODO: not this, something more elegant?
+        repo = storage.SpFSRepository(spfs.get_config().get_repository())
 
-            all_versions = sorted(spfs.ls_tags(f"spm/pkg/{request.pkg.name}"))
-            versions = list(filter(request.pkg.version.is_satisfied_by, all_versions))
+        nodes: List[graph.Node] = []
+        for pkg in self._requests:
+
+            all_versions = repo.list_package_versions(pkg.name)
+            all_versions.sort()
+            versions = list(filter(pkg.version.is_satisfied_by, all_versions))
             versions.sort()
 
-            if not versions:
-                raise ValueError(
-                    f"unsatisfiable request: {request.pkg} from versions [{', '.join(all_versions)}]"
-                )
+            for version in reversed(versions):
 
-            tag = f"spm/pkg/{request.pkg.name}/{versions[-1]}"
-            # try:
-            #     tag = expand_vars(tag, self._options)
-            # except KeyError as e:
-            #     raise ValueError(f"Expansion of undefined option '{e}'")
+                spec = repo.read_spec(api.Ident(pkg.name, api.parse_version(version)))
+                options = spec.resolve_all_options(self._options)
 
-            handles.append(SpFSHandle(request, tag))
+                try:
+                    digest = repo.resolve_package(
+                        api.Ident(pkg.name, api.parse_version(version)), options
+                    )
+                except storage.UnknownPackageError:
+                    pass
+                else:
+                    nodes.append(BinaryPackageNode(SpFSHandle(spec, digest.str())))
+                    break
 
-        return handles
+                try:
+                    digest = repo.resolve_source_package(
+                        api.Ident(pkg.name, api.parse_version(version))
+                    )
+                except storage.UnknownPackageError:
+                    pass
+                else:
+                    builder = BuildNode(spec, options, digest)
+                    nodes.append(BinaryPackageNode(builder))
+                    break
+
+                # TODO: try for source package
+                # tag = f"spm/pkg/{pkg.name}/{version}/{options.digest()}"
+
+                # if repo.tags.has_tag(tag):
+                #     nodes.append(BinaryPackageNode(SpFSHandle(spec, tag)))
+                #     break
+                # else:
+                #     nodes.append(SpecBuilder(spec, options))
+                #     break
+            else:
+                raise UnresolvedPackageError(str(pkg), versions=all_versions)
+
+        return nodes
+
+
+class BuildNode(Handle, graph.Operation):
+    def __init__(
+        self, spec: api.Spec, options: api.OptionMap, source: spfs.encoding.Digest
+    ) -> None:
+
+        self._spec = spec
+        super(BuildNode, self).__init__()
+
+    def spec(self) -> api.Spec:
+        return self._spec
+
+    def url(self) -> str:
+
+        return "TODO: what is this? BUILD??? "
+
+    def run(self) -> None:
+
+        raise NotImplementedError("BuildNode.run")

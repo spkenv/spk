@@ -1,7 +1,6 @@
 import abc
 
-from . import graph
-from ._spec import Spec
+from . import graph, api
 
 
 class Handle(metaclass=abc.ABCMeta):
@@ -12,12 +11,12 @@ class Handle(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def spec(self) -> Spec:
+    def spec(self) -> api.Spec:
         pass
 
 
-class SpFSHandle(Handle, graph.Node):
-    def __init__(self, spec: Spec, ref: str) -> None:
+class SpFSHandle(Handle):
+    def __init__(self, spec: api.Spec, ref: str) -> None:
 
         self._spec = spec
         self._ref = ref
@@ -25,7 +24,7 @@ class SpFSHandle(Handle, graph.Node):
     def __str__(self) -> str:
         return f"{self.spec().pkg} | {self.url()}"
 
-    def spec(self) -> Spec:
+    def spec(self) -> api.Spec:
         return self._spec
 
     def url(self) -> str:

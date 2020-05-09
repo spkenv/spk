@@ -49,6 +49,13 @@ def parse_ident(source: str) -> Ident:
     return ident
 
 
+yaml.Dumper.add_representer(
+    Ident,
+    lambda dumper, data: yaml.representer.SafeRepresenter.represent_str(
+        dumper, str(data)
+    ),
+)
+
 yaml.SafeDumper.add_representer(
     Ident,
     lambda dumper, data: yaml.representer.SafeRepresenter.represent_str(
