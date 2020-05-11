@@ -29,14 +29,14 @@ def _plan(args: argparse.Namespace) -> None:
     for package in args.packages:
 
         if os.path.isfile(package):
-            spec = spm.read_spec_file(package)
+            spec = spm.api.read_spec_file(package)
             planner.add_spec(spec)
         else:
-            pkg = spm.parse_ident(package)
+            pkg = spm.api.parse_ident(package)
             planner.add_package(pkg)
 
     plan = planner.plan()
     for output in plan.outputs():
         print(output)
-        for path, node in spm.graph.walk_up(output):
+        for path, node in spm.graph.walk_inputs_out(output):
             print(path, node)

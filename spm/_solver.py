@@ -4,7 +4,7 @@ import structlog
 import spfs
 
 from . import graph, api, storage
-from ._nodes import BinaryPackageNode, SourcePackageNode
+from ._nodes import BinaryPackageNode, SourcePackageNode, BuildNode
 from ._handle import Handle, SpFSHandle
 
 _LOGGER = structlog.get_logger("spm")
@@ -67,7 +67,7 @@ class Solver:
                 except storage.UnknownPackageError:
                     pass
                 else:
-                    builder = BuildNode(spec, options, digest)
+                    builder = BuildNode(spec, options)
                     nodes.append(BinaryPackageNode(builder))
                     break
 
@@ -84,23 +84,3 @@ class Solver:
                 raise UnresolvedPackageError(str(pkg), versions=all_versions)
 
         return nodes
-
-
-class BuildNode(Handle, graph.Operation):
-    def __init__(
-        self, spec: api.Spec, options: api.OptionMap, source: spfs.encoding.Digest
-    ) -> None:
-
-        self._spec = spec
-        super(BuildNode, self).__init__()
-
-    def spec(self) -> api.Spec:
-        return self._spec
-
-    def url(self) -> str:
-
-        return "TODO: what is this? BUILD??? "
-
-    def run(self) -> None:
-
-        raise NotImplementedError("BuildNode.run")
