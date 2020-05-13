@@ -14,6 +14,7 @@ import spm
 from . import (
     _cmd_build,
     _cmd_plan,
+    _cmd_search,
     _cmd_version,
 )
 
@@ -36,6 +37,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     _register_persistent_flags(_cmd_build.register(sub_parsers))
     _register_persistent_flags(_cmd_plan.register(sub_parsers))
+    _register_persistent_flags(_cmd_search.register(sub_parsers))
     _register_persistent_flags(_cmd_version.register(sub_parsers))
 
     args = parser.parse_args(argv)

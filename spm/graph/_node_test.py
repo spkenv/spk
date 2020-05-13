@@ -1,5 +1,5 @@
 from typing import Dict
-from ._node import Port, Node
+from ._node import Node
 
 import pytest
 
@@ -22,7 +22,6 @@ def test_port_connections() -> None:
     assert in_port.owner is si
     assert out_port.owner is so
     assert in_port.connection is out_port
-    assert out_port.connection is in_port
 
 
 def test_port_connections_types() -> None:

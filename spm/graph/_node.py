@@ -5,13 +5,37 @@ import abc
 _T = TypeVar("_T")
 
 
+class PortNotConnectedError(RuntimeError):
+    def __init__(self, name: str = None):
+
+        self.name = name
+        super(PortNotConnectedError, self).__init__()
+
+    def __str__(self) -> str:
+
+        return f"Port not connected: {self.name}"
+
+
 @dataclass
-class Port(Generic[_T]):
+class Output(Generic[_T]):
 
     type: Type[_T]
     owner: "Node"
     value: Optional[_T] = None
-    connection: Optional["Port[_T]"] = None
+
+
+@dataclass
+class Input(Generic[_T]):
+    type: Type[_T]
+    owner: "Node"
+    connection: Optional[Output[_T]] = None
+
+    @property
+    def value(self) -> Optional[_T]:
+
+        if self.connection is None:
+            return None
+        return self.connection.value
 
     def is_connected(self) -> bool:
 
@@ -20,16 +44,15 @@ class Port(Generic[_T]):
     def follow(self) -> "Node":
 
         if self.connection is None:
-            raise RuntimeError(f"Port not connected")
+            raise PortNotConnectedError(f"Port not connected")
 
         return self.connection.owner
 
-    def connect(self, other: "Port[_T]") -> None:
+    def connect(self, other: Output[_T]) -> None:
 
         if self.type is not other.type:
             raise ValueError(f"Incompatible ports: {self.type} != {other.type}")
         self.connection = other
-        other.connection = self
 
 
 class Node(metaclass=abc.ABCMeta):
@@ -37,20 +60,20 @@ class Node(metaclass=abc.ABCMeta):
 
     def __init__(self) -> None:
 
-        self.inputs: Dict[str, Port] = {}
-        self.outputs: Dict[str, Port] = {}
+        self.inputs: Dict[str, Input] = {}
+        self.outputs: Dict[str, Output] = {}
 
-    def add_input_port(self, name: str, type: Type[_T]) -> Port[_T]:
+    def add_input_port(self, name: str, type: Type[_T]) -> Input[_T]:
 
         # TODO: check for squash?
-        port = Port[_T](type=type, owner=self)
+        port = Input[_T](type=type, owner=self)
         self.inputs[name] = port
         return port
 
-    def add_output_port(self, name: str, type: Type[_T]) -> Port[_T]:
+    def add_output_port(self, name: str, type: Type[_T]) -> Output[_T]:
 
         # TODO: check for squash?
-        port = Port[_T](type=type, owner=self)
+        port = Output[_T](type=type, owner=self)
         self.outputs[name] = port
         return port
 
@@ -63,7 +86,7 @@ class Node(metaclass=abc.ABCMeta):
 
         self.connect_port(input, out_port)
 
-    def connect_port(self, input: str, other: Port) -> None:
+    def connect_port(self, input: str, other: Output) -> None:
 
         try:
             in_port = self.inputs[input]

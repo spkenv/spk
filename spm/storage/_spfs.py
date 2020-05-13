@@ -12,6 +12,11 @@ class SpFSRepository(Repository):
 
         self._repo = spfs_repo
 
+    def list_packages(self) -> List[str]:
+
+        path = "spm/spec"
+        return self._repo.tags.ls_tags(path)
+
     def list_package_versions(self, name: str) -> List[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))

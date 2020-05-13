@@ -3,13 +3,12 @@ pkg: spm/0.1.0
 
 build:
   script:
-    - /spfs/bin
-      python -m nuitka
+    - python -m nuitka
         --follow-imports
-        --standalone
         --output-dir=build
-        --o spm
+        --o /spfs/opt
         --show-progress
         --show-scons
         --show-modules
         spm
+    - ln -s /spfs/opt/spm.dist/spm /spfs/bin/spm

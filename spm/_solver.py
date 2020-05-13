@@ -1,11 +1,11 @@
-from typing import List, Union
+from typing import List, Union, Iterable
 
 import structlog
 import spfs
 
 from . import graph, api, storage
-from ._nodes import BinaryPackageNode, SourcePackageNode, BuildNode
-from ._handle import Handle, SpFSHandle
+from ._handle import BinaryPackageHandle, SourcePackageHandle
+from . import _nodes  # FIXME: circular dependency
 
 _LOGGER = structlog.get_logger("spm")
 
@@ -14,9 +14,32 @@ class UnresolvedPackageError(RuntimeError):
     def __init__(self, pkg: str, versions: List[str] = None) -> None:
 
         message = f"{pkg}"
-        if versions:
-            message += " - from versions: " + "\n".join(versions)
+        if versions is not None:
+            version_list = "\n".join(versions)
+            message += f" - from versions: [{version_list}]"
         super(UnresolvedPackageError, self).__init__(message)
+
+
+class Env(graph.Node):
+    def run(self) -> None:
+
+        pass
+
+    def packages(self) -> Iterable[BinaryPackageHandle]:
+
+        for name, port in self.inputs.items():
+
+            if port.value is None:
+                raise RuntimeError(
+                    f"Package has not been built for this environment: {name}"
+                )
+
+            if not isinstance(port.value, _nodes.BinaryPackageHandle):
+                _LOGGER.warning(
+                    f"Unexpected input port on resolved environment: {name} ({port.type})"
+                )
+
+            yield port.value
 
 
 class Solver:
@@ -24,6 +47,7 @@ class Solver:
 
         self._options = options
         self._requests: List[api.Ident] = []
+        self._specs: List[api.Spec] = []
 
     def add_request(self, pkg: Union[str, api.Ident]) -> None:
 
@@ -32,55 +56,80 @@ class Solver:
 
         self._requests.append(pkg)
 
-    def solve(self) -> List[graph.Node]:
+    def add_spec(self, spec: api.Spec) -> None:
+
+        self._specs.append(spec)
+
+    def solve(self) -> Env:
 
         # TODO: not this, something more elegant?
         repo = storage.SpFSRepository(spfs.get_config().get_repository())
 
-        nodes: List[graph.Node] = []
-        for pkg in self._requests:
+        env = Env()
+        for request in self._requests:
 
-            all_versions = repo.list_package_versions(pkg.name)
+            all_versions = repo.list_package_versions(request.name)
             all_versions.sort()
-            versions = list(filter(pkg.version.is_satisfied_by, all_versions))
+            versions = list(filter(request.version.is_satisfied_by, all_versions))
             versions.sort()
 
-            for version in reversed(versions):
+            for version_str in reversed(versions):
 
-                spec = repo.read_spec(api.Ident(pkg.name, api.parse_version(version)))
+                version = api.parse_version(version_str)
+                pkg = api.Ident(request.name, version)
+                spec = repo.read_spec(pkg)
                 options = spec.resolve_all_options(self._options)
 
                 try:
-                    digest = repo.resolve_package(
-                        api.Ident(pkg.name, api.parse_version(version)), options
-                    )
+                    digest = repo.resolve_package(pkg, options)
                 except storage.UnknownPackageError:
+                    _LOGGER.debug(
+                        "package not built with required options:", pkg=pkg, **options
+                    )
                     pass
                 else:
-                    nodes.append(BinaryPackageNode(SpFSHandle(spec, digest.str())))
+                    builder = _nodes.BuildNode(spec, options)
+                    builder.binary_package.value = BinaryPackageHandle(
+                        spec, digest.str()
+                    )
+                    port = env.add_input_port(pkg.name, _nodes.BinaryPackageHandle)
+                    port.connect(builder.binary_package)
                     break
 
                 try:
                     digest = repo.resolve_source_package(
-                        api.Ident(pkg.name, api.parse_version(version))
+                        api.Ident(request.name, version)
                     )
                 except storage.UnknownPackageError:
                     pass
                 else:
-                    builder = BuildNode(spec, options)
-                    nodes.append(BinaryPackageNode(builder))
+                    builder = _nodes.BuildNode(spec, options)
+                    # builder.source_package.value = SourcePackageHandle(
+                    #     spec, digest.str()
+                    # )
+                    port = env.add_input_port(pkg.name, _nodes.BinaryPackageHandle)
+                    port.connect(builder.binary_package)
                     break
 
                 # TODO: try for source package
                 # tag = f"spm/pkg/{pkg.name}/{version}/{options.digest()}"
 
                 # if repo.tags.has_tag(tag):
-                #     nodes.append(BinaryPackageNode(SpFSHandle(spec, tag)))
+                #     nodes.append(BinaryPackageNode(spec, tag)))
                 #     break
                 # else:
                 #     nodes.append(SpecBuilder(spec, options))
                 #     break
             else:
-                raise UnresolvedPackageError(str(pkg), versions=all_versions)
+                raise UnresolvedPackageError(str(request), versions=all_versions)
 
-        return nodes
+        for spec in self._specs:
+            # FIXME: combine with requeests more elegantly
+            options = spec.resolve_all_options(self._options)
+            builder = _nodes.BuildNode(spec, options)
+            fetcher = _nodes.FetchNode(spec)
+            builder.source_package.connect(fetcher.source_package)
+            port = env.add_input_port(spec.pkg.name, _nodes.BinaryPackageHandle)
+            port.connect(builder.binary_package)
+
+        return env

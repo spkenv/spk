@@ -10,7 +10,7 @@ class Version:
 
     def __str__(self) -> str:
 
-        return self.source
+        return str(self.source)
 
     def is_satisfied_by(self, other: Union[str, "Version"]) -> bool:
 

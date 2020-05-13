@@ -9,6 +9,7 @@ from ruamel import yaml
 from ._ident import Ident, parse_ident
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec
+from ._source_spec import SourceSpec, LocalSource
 
 
 _LOGGER = structlog.get_logger("spm")
@@ -19,7 +20,8 @@ class Spec:
     """Spec encompases the complete specification of a package."""
 
     pkg: "Ident"
-    build: BuildSpec = BuildSpec()
+    sources: List[SourceSpec] = field(default_factory=list)
+    build: BuildSpec = field(default_factory=BuildSpec)
     opts: List[Union["Spec", "VarSpec"]] = field(default_factory=list)
     depends: List["Spec"] = field(default_factory=list)
     provides: List["Spec"] = field(default_factory=list)
@@ -65,6 +67,8 @@ class Spec:
         pkg = parse_ident(data.pop("pkg", ""))
         spec = Spec(pkg)
         spec.build = BuildSpec.from_dict(data.pop("build", {}))
+        for src in data.pop("sources", [{"path": "."}]):
+            spec.sources.append(SourceSpec.from_dict(src))
         for opt in data.pop("opts", []):
             spec.opts.append(opt_from_dict(opt))
         for dep in data.pop("depends", []):
@@ -91,8 +95,16 @@ class Spec:
 def read_spec_file(filepath: str) -> Spec:
     """ReadSpec loads a package specification from a yaml file."""
 
+    filepath = os.path.abspath(filepath)
     with open(filepath, "r") as f:
-        return read_spec(f)
+        spec = read_spec(f)
+
+    spec_root = os.path.dirname(filepath)
+    for source in spec.sources:
+        if isinstance(source, LocalSource):
+            source.path = os.path.join(spec_root, source.path)
+
+    return spec
 
 
 def read_spec(stream: IO[str]) -> Spec:
@@ -103,7 +115,7 @@ def read_spec(stream: IO[str]) -> Spec:
 
 def write_spec(spec: Spec) -> bytes:
 
-    return yaml.dump(spec.to_dict()).encode()
+    return yaml.dump(spec.to_dict()).encode()  # type: ignore
 
 
 def opt_from_dict(data: Dict[str, Any]) -> Union[Spec, "VarSpec"]:
@@ -120,6 +132,10 @@ def opt_from_dict(data: Dict[str, Any]) -> Union[Spec, "VarSpec"]:
 class VarSpec:
 
     var: str
+
+    def to_dict(self) -> Dict[str, Any]:
+
+        return {"var": self.var}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "VarSpec":

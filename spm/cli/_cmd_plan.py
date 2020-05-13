@@ -25,18 +25,16 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
 def _plan(args: argparse.Namespace) -> None:
     """Build a package from its spec file."""
 
-    planner = spm.Planner()
+    solver = spm.Solver(spm.api.OptionMap())  # TODO: CLI
     for package in args.packages:
 
         if os.path.isfile(package):
             spec = spm.api.read_spec_file(package)
-            planner.add_spec(spec)
+            solver.add_spec(spec)
         else:
             pkg = spm.api.parse_ident(package)
-            planner.add_package(pkg)
+            solver.add_request(pkg)
 
-    plan = planner.plan()
-    for output in plan.outputs():
-        print(output)
-        for path, node in spm.graph.walk_inputs_out(output):
-            print(path, node)
+    env = solver.solve()
+    for path, node in spm.graph.walk_inputs_out(env):
+        print(path, node)

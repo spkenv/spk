@@ -5,15 +5,18 @@ from ._node import Node
 def walk_inputs_out(node: Node) -> Iterator[Tuple[str, Node]]:
 
     for name, port in node.inputs.items():
-        yield name, port
         if port.is_connected():
-            for p, n in walk_inputs_out(port.follow()):
+            node = port.follow()
+            yield name, node
+            for p, n in walk_inputs_out(node):
                 yield "name/" + p, n
 
 
 def walk_inputs_in(node: Node) -> Iterator[Tuple[str, Node]]:
 
     for name, port in node.inputs.items():
-        for p, n in walk_inputs_in(port):
-            yield "." + p, n
-        yield ".", port
+        if port.is_connected():
+            node = port.follow()
+            for p, n in walk_inputs_out(node):
+                yield "name/" + p, n
+            yield name, node

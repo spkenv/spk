@@ -4,7 +4,7 @@ import spfs
 import pytest
 
 from . import api, storage
-from ._nodes import BinaryPackageNode
+from ._nodes import BuildNode, BinaryPackageHandle
 from ._solver import Solver, UnresolvedPackageError
 
 
@@ -29,17 +29,17 @@ def test_solver_existing_tag(tmprepo: storage.SpFSRepository) -> None:
     options = api.OptionMap()
     spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
 
-    # FIXME: these functions don't read consistently
     tmprepo.publish_spec(spec)
     tmprepo.publish_package(spec.pkg, options, spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
     solver.add_request(api.parse_ident("my_pkg"))
 
-    nodes = solver.solve()
-    assert len(nodes) == 1, "expected one resolved node"
-    assert isinstance(nodes[0], BinaryPackageNode), "expected to resolve binary package"
-    assert len(list(nodes[0].inputs())) == 0, "expected no inputs to need resolving"
+    env = solver.solve()
+    assert len(env.inputs) == 1, "expected one resolved package"
+    source = env.inputs["my_pkg"].follow()
+    assert isinstance(source, BuildNode)
+    # TODO: assert that it does not need building
 
 
 def test_solver_source_only(tmprepo: storage.SpFSRepository) -> None:
@@ -52,9 +52,8 @@ def test_solver_source_only(tmprepo: storage.SpFSRepository) -> None:
     solver = Solver(options)
     solver.add_request(api.parse_ident("my_pkg"))
 
-    nodes = solver.solve()
-    assert len(nodes) == 1, "expected one resolved node"
-    assert isinstance(nodes[0], BinaryPackageNode), "expected to resolve binary package"
-    inputs = list(nodes[0].inputs())
-    assert len(inputs) == 1, "expected binary build inputs to need resolving"
-    # assert isinstance(nodes[0], Spec), "expected to resolve binary package"
+    env = solver.solve()
+    assert len(env.inputs) == 1, "expected one resolved package"
+    port = env.inputs["my_pkg"]
+    assert isinstance(port.follow(), BuildNode), "expected to connect to build node"
+    assert port.type is BinaryPackageHandle, "expected to provide binary package"

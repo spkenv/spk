@@ -22,9 +22,10 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
         help="Do not build in a new spfs runtime",
     )
     build_cmd.add_argument(
-        "filename",
-        metavar="SPEC_FILE",
-        help="The yaml specification file for the package to build",
+        "packages",
+        metavar="PKG|SPEC_FILE",
+        nargs="+",
+        help="The packages or yaml specification files to build",
     )
     build_cmd.set_defaults(func=_build)
     return build_cmd
@@ -39,12 +40,15 @@ def _build(args: argparse.Namespace) -> None:
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
 
-    planner = spm.Planner()
-    planner.add_spec(spm.api.read_spec_file(args.filename))
-    plan = planner.plan()
+    solver = spm.Solver(spm.api.OptionMap())
+    for package in args.packages:
 
-    for output in plan.outputs():
+        if os.path.isfile(package):
+            spec = spm.api.read_spec_file(package)
+            solver.add_spec(spec)
+        else:
+            pkg = spm.api.parse_ident(package)
+            solver.add_request(pkg)
 
-        _LOGGER.info(f"Building {output}")
-        spm.graph.execute_tree(output)
-        _LOGGER.info(f"Created {output}")
+    env = solver.solve()
+    spm.graph.execute_tree(env)

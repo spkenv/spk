@@ -30,9 +30,11 @@ class Ident:
             out += "/" + release
         return out
 
+    __repr__ = __str__
+
     def parse(self, source: str) -> None:
 
-        name, version, release, *other = source.split("/") + ["", ""]
+        name, version, release, *other = str(source).split("/") + ["", ""]
 
         if any(other):
             raise ValueError(f"Too many tokens in identifier: {source}")

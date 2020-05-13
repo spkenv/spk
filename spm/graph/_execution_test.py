@@ -1,5 +1,5 @@
 from ._execution import execute_tree
-from ._node import Node, Port
+from ._node import Node
 
 
 class SimpleOp(Node):
@@ -11,7 +11,7 @@ class SimpleOp(Node):
         self.complete = True
 
 
-def test_execute_tree_single():
+def test_execute_tree_single() -> None:
 
     op = SimpleOp()
     execute_tree(op)
@@ -19,7 +19,7 @@ def test_execute_tree_single():
     assert op.complete
 
 
-def test_execute_tree_simple_inputs():
+def test_execute_tree_simple_inputs() -> None:
 
     leaf = SimpleOp()
     leaf.add_output_port("out", int)
