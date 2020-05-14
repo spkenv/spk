@@ -40,7 +40,7 @@ def _build(args: argparse.Namespace) -> None:
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
 
-    solver = spm.Solver(spm.api.OptionMap())
+    solver = spm.Solver(spm.api.host_options())
     for package in args.packages:
 
         if os.path.isfile(package):

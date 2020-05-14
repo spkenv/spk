@@ -25,7 +25,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
 def _plan(args: argparse.Namespace) -> None:
     """Build a package from its spec file."""
 
-    solver = spm.Solver(spm.api.OptionMap())  # TODO: CLI
+    solver = spm.Solver(spm.api.host_options())  # TODO: CLI
     for package in args.packages:
 
         if os.path.isfile(package):

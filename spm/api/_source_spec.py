@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Optional
 import abc
+import os
 from dataclasses import dataclass, field
 
 from ._option_map import OptionMap
@@ -34,7 +35,12 @@ class LocalSource(SourceSpec):
     def script(self, dirname: str) -> str:
 
         # TODO: work if .gitignore doesn't exist or not git repo
-        return f"rsync -rav --filter=':- .gitignore' --cvs-exclude '{self.path}' '{dirname}'"
+        args = ["--recursive", "--archive"]
+        if "SPM_DEBUG" in os.environ:
+            args.append("--verbose")
+        args += ["--filter=':- .gitignore'", "--cvs-exclude", self.path, dirname]
+        cmd = ["rsync"] + args
+        return " ".join(cmd)
 
     def to_dict(self) -> Dict[str, Any]:
         return {

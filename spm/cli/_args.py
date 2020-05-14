@@ -54,7 +54,7 @@ def _register_persistent_flags(parser: argparse.ArgumentParser) -> None:
         "-v",
         action="count",
         help="Enable verbose output (can be specified more than once)",
-        default=1 if "SPM_DEBUG" in os.environ else 0,
+        default=int(os.getenv("SPM_VERBOSITY", 0)),
     )
 
 
@@ -99,6 +99,7 @@ def configure_logging(args: argparse.Namespace) -> None:
     ]
 
     logging.getLogger("spfs").setLevel(logging.ERROR)
+    os.environ["SPM_VERBOSITY"] = str(args.verbose)
     if args.verbose > 0:
         os.environ["SPM_DEBUG"] = "1"
         level = logging.DEBUG

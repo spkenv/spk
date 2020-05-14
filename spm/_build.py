@@ -88,7 +88,6 @@ def run_and_commit_build(
     runtime = spfs.active_runtime()
     runtime.reset()
     repo = spfs.get_config().get_repository()
-    _LOGGER.info(f"Using:")
     for layer in stack:
         runtime.push_digest(layer)
         # TODO: pull if needed

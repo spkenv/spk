@@ -38,11 +38,11 @@ class OptionMap(SortedDict):
 def host_options() -> OptionMap:
     """Detect and return the default options for the current host system"""
 
-    opts = OptionMap(arch=platform.machine(), platform=platform.system().lower())
+    opts = OptionMap(arch=platform.machine(), os=platform.system().lower())
 
     info = distro.info()
     distro_name = info["id"]
-    opts["os"] = distro_name
+    opts["distro"] = distro_name
     opts[distro_name] = info["version"]
 
     return opts
