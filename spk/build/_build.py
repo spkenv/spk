@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Tuple
 import os
 import subprocess
 import shlex
@@ -6,14 +6,15 @@ import shlex
 import structlog
 import spfs
 
-from . import api, graph, storage
-from ._handle import BinaryPackageHandle
+from .. import api, graph, storage
 from ._env import expand_vars
 
 _LOGGER = structlog.get_logger("spk.build")
 
 
-def build_variants(spec: api.Spec) -> List[BinaryPackageHandle]:
+def build_variants(
+    spec: api.Spec,
+) -> List[Tuple[api.Spec, api.OptionMap, spfs.tracking.Tag]]:
     """Build all of the default variants defined for the given spec."""
 
     variants = spec.build.variants
@@ -21,23 +22,23 @@ def build_variants(spec: api.Spec) -> List[BinaryPackageHandle]:
         _LOGGER.debug("generating default variant")
         variants.append(api.OptionMap())
 
-    handles = []
+    results = []
     for variant_options in variants:
         build_options = api.host_options()
         build_options.update(variant_options)
 
-        handle = build(spec, build_options)
-        handles.append(handle)
+        tag = build(spec, build_options)
+        results.append((spec, build_options, tag))
 
-    return handles
+    return results
 
 
 def build(
     spec: api.Spec, options: api.OptionMap = api.OptionMap()
-) -> BinaryPackageHandle:
+) -> spfs.tracking.Tag:
     """Execute the build process for a package spec with the given build options."""
 
-    from ._solver import Solver  # FIXME: cyclical import
+    from .._solver import Solver  # FIXME: cyclical import
 
     options = spec.resolve_all_options(options)
     release = options.digest()
@@ -76,9 +77,7 @@ def build(
         stack.append(obj.digest())
 
     layer = run_and_commit_build(spec.pkg, spec.build.script, *stack)
-    tag = repo.publish_package(spec.pkg, options, layer.digest())
-
-    return BinaryPackageHandle(spec, tag)
+    return repo.publish_package(spec.pkg, options, layer.digest())
 
 
 def run_and_commit_build(
@@ -99,8 +98,8 @@ def run_and_commit_build(
     os.makedirs(os.path.dirname(build_script), exist_ok=True)
     with open(build_script, "w+") as f:
         f.write(script)
-    cmd = spfs.build_shell_initialized_command("bash", "-ex", build_script)
-    subprocess.check_call(cmd)
+    source_dir = f"/spfs/var/run/spk/src/{pkg}"
+    execute_build(source_dir, build_script)
 
     diffs = spfs.diff()
     for diff in diffs:
@@ -112,3 +111,9 @@ def run_and_commit_build(
     # TODO: check that there are no overwritten files
 
     return spfs.commit_layer(runtime)
+
+
+def execute_build(source_dir: str, build_script: str) -> None:
+
+    cmd = spfs.build_shell_initialized_command("bash", "-ex", build_script)
+    subprocess.check_call(cmd, cwd=source_dir)

@@ -15,12 +15,12 @@ class SpFSRepository(Repository):
     def list_packages(self) -> List[str]:
 
         path = "spk/spec"
-        return self._repo.tags.ls_tags(path)
+        return list(self._repo.tags.ls_tags(path))
 
     def list_package_versions(self, name: str) -> List[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
-        return self._repo.tags.ls_tags(path)
+        return list(self._repo.tags.ls_tags(path))
 
     def publish_spec(self, spec: api.Spec) -> None:
 

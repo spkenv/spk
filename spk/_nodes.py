@@ -4,8 +4,7 @@ import os
 import spfs
 import structlog
 
-from . import graph, api, storage
-from ._build import run_and_commit_build, build
+from . import graph, api, storage, build
 from ._handle import BinaryPackageHandle, SourcePackageHandle
 
 _LOGGER = structlog.get_logger("spk")
@@ -46,7 +45,7 @@ class FetchNode(graph.Node):
             # TODO: possible dependencies on utilities like git...
             script.append(source.script(target_dir))
 
-        layer = run_and_commit_build(self._spec.pkg, "\n".join(script))
+        layer = build.run_and_commit_build(self._spec.pkg, "\n".join(script))
         # TODO: does this belong here, maybe another input node?
         repo.publish_spec(self._spec)
         repo.publish_source_package(self._spec.pkg, layer.digest())
@@ -77,4 +76,4 @@ class BuildNode(graph.Node):
     def run(self) -> None:
 
         _LOGGER.info("BUILDING", pkg=self._spec.pkg)
-        self.binary_package.value = build(self._spec, self._options)
+        self.binary_package.value = build.build(self._spec, self._options)

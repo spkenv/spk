@@ -2,7 +2,6 @@
 
 __version__ = "0.1.0"
 
-from . import api, graph, storage
+from . import api, graph, storage, build
 
 from ._solver import Solver, Env
-from ._build import build, build_variants
