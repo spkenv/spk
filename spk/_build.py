@@ -10,7 +10,7 @@ from . import api, graph, storage
 from ._handle import BinaryPackageHandle
 from ._env import expand_vars
 
-_LOGGER = structlog.get_logger("spm.build")
+_LOGGER = structlog.get_logger("spk.build")
 
 
 def build_variants(spec: api.Spec) -> List[BinaryPackageHandle]:
@@ -95,7 +95,7 @@ def run_and_commit_build(
     runtime.set_editable(True)
     spfs.remount_runtime(runtime)
 
-    build_script = f"/spfs/var/spm/build/{pkg}/build.sh"
+    build_script = f"/spfs/var/spk/build/{pkg}/build.sh"
     os.makedirs(os.path.dirname(build_script), exist_ok=True)
     with open(build_script, "w+") as f:
         f.write(script)

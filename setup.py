@@ -22,12 +22,12 @@ if pipfile.has_section("packages"):
         install_requires.append(name.strip("\"'") + spec.strip("\"'"))
 
 setup(
-    name="spm",
-    description="The 'S' Package Manger: Convenience, clarity and speed.",
+    name="spk",
+    description="The 'S' Package System: Convenience, clarity and speed.",
     version="0.1.0",
     packages=find_packages(),
     install_requires=install_requires,
     package_data={"": ["Pipfile"]},
     include_package_data=True,
-    entry_points={"console_scripts": ["spm=spm.cli:main"]},
+    entry_points={"console_scripts": ["spk=spk.cli:main"]},
 )

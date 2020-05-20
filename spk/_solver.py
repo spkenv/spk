@@ -7,7 +7,7 @@ from . import graph, api, storage
 from ._handle import BinaryPackageHandle, SourcePackageHandle
 from . import _nodes  # FIXME: circular dependency
 
-_LOGGER = structlog.get_logger("spm")
+_LOGGER = structlog.get_logger("spk")
 
 
 class UnresolvedPackageError(RuntimeError):
@@ -112,7 +112,7 @@ class Solver:
                     break
 
                 # TODO: try for source package
-                # tag = f"spm/pkg/{pkg.name}/{version}/{options.digest()}"
+                # tag = f"spk/pkg/{pkg.name}/{version}/{options.digest()}"
 
                 # if repo.tags.has_tag(tag):
                 #     nodes.append(BinaryPackageNode(spec, tag)))

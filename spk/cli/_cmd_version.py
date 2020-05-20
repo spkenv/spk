@@ -1,7 +1,7 @@
 from typing import List
 import argparse
 
-import spm
+import spk
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -12,6 +12,6 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
 
 
 def _version(_: argparse.Namespace) -> None:
-    """Print the spm version number and exit."""
+    """Print the spk version number and exit."""
 
-    print(spm.__version__)
+    print(spk.__version__)

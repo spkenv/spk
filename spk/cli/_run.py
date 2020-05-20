@@ -12,7 +12,7 @@ import sentry_sdk
 from ruamel import yaml
 from colorama import Fore
 
-import spm
+import spk
 
 from ._args import parse_args, configure_logging, configure_sentry, configure_spops
 
@@ -39,7 +39,7 @@ def run(argv: Sequence[str]) -> int:
     configure_logging(args)
     configure_spops()
 
-    spops.count("spm.run_count", command=args.command)
+    spops.count("spk.run_count", command=args.command)
 
     with sentry_sdk.configure_scope() as scope:
         scope.set_extra("command", args.command)
@@ -53,7 +53,7 @@ def run(argv: Sequence[str]) -> int:
 
     try:
 
-        with spops.timer("spm.run_time", command=args.command):
+        with spops.timer("spk.run_time", command=args.command):
             args.func(args)
 
     except KeyboardInterrupt:
@@ -61,7 +61,7 @@ def run(argv: Sequence[str]) -> int:
 
     except Exception as e:
         _capture_if_relevant(e)
-        spops.count("spm.error_count", command=args.command)
+        spops.count("spk.error_count", command=args.command)
         print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
         if args.verbose:
             print(f"{Fore.RED}{traceback.format_exc()}{Fore.RESET}", file=sys.stderr)

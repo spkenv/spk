@@ -1,5 +1,5 @@
 ---
-title: spm
+title: spk
 summary: Package Manager for SPFS
 ---
 
@@ -18,13 +18,13 @@ Design Goals:
 
 ```bash
 # enter a shell environment for the latest version of python 2
-spm shell python/2
+spk shell python/2
 
 which python
 # /spfs/bin/python
 
 # get the latest version of vnp3
-spm install vnp3
+spk install vnp3
 ```
 
 ## Features
@@ -63,9 +63,9 @@ depends:
 ```
 
 ```sh
-spm build maya-2018
-spm build -a
-spm build default
+spk build maya-2018
+spk build -a
+spk build default
 ```
 
 ### Include Multiple Versions of A Package
@@ -95,7 +95,7 @@ depends:
 
 ```sh
 # TODO: some kind of command to show/explain variants based on yaml
-spm build-config
+spk build-config
 # python37:
 #   SPM_OPT_python-abi = cp27
 #   SPM_PKG_python = 2.7

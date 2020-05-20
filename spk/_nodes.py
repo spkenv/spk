@@ -8,7 +8,7 @@ from . import graph, api, storage
 from ._build import run_and_commit_build, build
 from ._handle import BinaryPackageHandle, SourcePackageHandle
 
-_LOGGER = structlog.get_logger("spm")
+_LOGGER = structlog.get_logger("spk")
 
 
 class FetchNode(graph.Node):
@@ -33,7 +33,7 @@ class FetchNode(graph.Node):
         # TODO: better/config/cleaner
         repo = storage.SpFSRepository(spfs.get_config().get_repository())
 
-        source_dir = f"/spfs/var/run/spm/src/{self._spec.pkg}"
+        source_dir = f"/spfs/var/run/spk/src/{self._spec.pkg}"
         script = [f"mkdir -p {source_dir}"]
         for source in self._spec.sources:
 

@@ -7,9 +7,9 @@ import spfs
 import structlog
 from colorama import Fore
 
-import spm
+import spk
 
-_LOGGER = structlog.get_logger("spm.cli")
+_LOGGER = structlog.get_logger("spk.cli")
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -25,16 +25,16 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
 def _plan(args: argparse.Namespace) -> None:
     """Build a package from its spec file."""
 
-    solver = spm.Solver(spm.api.host_options())  # TODO: CLI
+    solver = spk.Solver(spk.api.host_options())  # TODO: CLI
     for package in args.packages:
 
         if os.path.isfile(package):
-            spec = spm.api.read_spec_file(package)
+            spec = spk.api.read_spec_file(package)
             solver.add_spec(spec)
         else:
-            pkg = spm.api.parse_ident(package)
+            pkg = spk.api.parse_ident(package)
             solver.add_request(pkg)
 
     env = solver.solve()
-    for path, node in spm.graph.walk_inputs_out(env):
+    for path, node in spk.graph.walk_inputs_out(env):
         print(path, node)

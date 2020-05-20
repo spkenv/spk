@@ -7,9 +7,9 @@ import spfs
 import structlog
 from colorama import Fore
 
-import spm
+import spk
 
-_LOGGER = structlog.get_logger("spm.cli")
+_LOGGER = structlog.get_logger("spk.cli")
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -40,15 +40,15 @@ def _build(args: argparse.Namespace) -> None:
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
 
-    solver = spm.Solver(spm.api.host_options())
+    solver = spk.Solver(spk.api.host_options())
     for package in args.packages:
 
         if os.path.isfile(package):
-            spec = spm.api.read_spec_file(package)
+            spec = spk.api.read_spec_file(package)
             solver.add_spec(spec)
         else:
-            pkg = spm.api.parse_ident(package)
+            pkg = spk.api.parse_ident(package)
             solver.add_request(pkg)
 
     env = solver.solve()
-    spm.graph.execute_tree(env)
+    spk.graph.execute_tree(env)

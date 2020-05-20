@@ -2,7 +2,7 @@ from ._node import Node, PortNotConnectedError
 
 import structlog
 
-_LOGGER = structlog.get_logger("spm")
+_LOGGER = structlog.get_logger("spk")
 
 
 class NoInputError(PortNotConnectedError):

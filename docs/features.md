@@ -15,3 +15,6 @@ title: Main Features
 - track usage or metrics... what can be pruned - with source packages binaries can age out, even just older minor version numbers that are n ot being pointed too after the new ones become stable (spcomp2)
 - nice to know when you are using older versions - get notifications about newer published versions
 - deprecate packages, be able to warn or track at publish time - time based, build waring becomes build failure
+- track file to package and back - a la rpm
+- idea of development packages, packages with headers vs just library? (automatic, based on option?)
+- sub packages based on file paths, for python2/3/lib separation

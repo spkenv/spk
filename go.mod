@@ -1,4 +1,4 @@
-module gitlab.spimageworks.com/dev-group/dev-ops/spm
+module gitlab.spimageworks.com/dev-group/dev-ops/spk
 
 go 1.13
 

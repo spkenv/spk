@@ -14,7 +14,7 @@ class SpFSRepository(Repository):
 
     def list_packages(self) -> List[str]:
 
-        path = "spm/spec"
+        path = "spk/spec"
         return self._repo.tags.ls_tags(path)
 
     def list_package_versions(self, name: str) -> List[str]:
@@ -85,14 +85,14 @@ class SpFSRepository(Repository):
     def build_binary_tag(self, pkg: api.Ident, options: api.OptionMap) -> str:
         """Construct an spfs tag string to represent a binary package layer."""
 
-        return f"spm/pkg/{pkg}/{options.digest()}"
+        return f"spk/pkg/{pkg}/{options.digest()}"
 
     def build_source_tag(self, pkg: api.Ident) -> str:
         """Construct an spfs tag string to represnet a source package layer."""
 
-        return f"spm/src/{pkg}"
+        return f"spk/src/{pkg}"
 
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spm/spec/{pkg}"
+        return f"spk/spec/{pkg}"

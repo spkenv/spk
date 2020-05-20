@@ -1,8 +1,13 @@
 
-pkg: spm/0.1.0
+pkg: spk/0.1.0
+
+opts:
+- var: arch
+- var: os
 
 build:
   script:
+    - exit 1
     - python -m nuitka
         --follow-imports
         --output-dir=build
@@ -10,5 +15,5 @@ build:
         --show-progress
         --show-scons
         --show-modules
-        spm
-    - ln -s /spfs/opt/spm.dist/spm /spfs/bin/spm
+        spk
+    - ln -s /spfs/opt/spk.dist/spk /spfs/bin/spk

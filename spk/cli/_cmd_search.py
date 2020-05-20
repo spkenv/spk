@@ -3,7 +3,7 @@ import argparse
 import structlog
 
 import spfs
-import spm
+import spk
 
 _LOGGER = structlog.get_logger("cli")
 
@@ -23,11 +23,11 @@ def _search(args: argparse.Namespace) -> None:
     repos = []
     for name in config.list_remote_names():
         try:
-            repos.append(spm.storage.SpFSRepository(config.get_remote(name)))
+            repos.append(spk.storage.SpFSRepository(config.get_remote(name)))
         except Exception as e:
             _LOGGER.warning("failed to open remote repository", remote=name)
             _LOGGER.warning("--> " + str(e))
-    repos.insert(0, spm.storage.SpFSRepository(config.get_repository()))
+    repos.insert(0, spk.storage.SpFSRepository(config.get_repository()))
     for repo in repos:
         for name in repo.list_packages():
             if args.term in name:

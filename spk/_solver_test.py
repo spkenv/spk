@@ -14,7 +14,7 @@ def test_solver_no_spec(tmpspfs: spfs.storage.fs.FSRepository) -> None:
 
     # push just the package tag with no tag for spec/meta
     tmpspfs.tags.push_tag(
-        "spm/pkg/my_pkg/1.0.0/" + options.digest(), spfs.encoding.EMPTY_DIGEST
+        "spk/pkg/my_pkg/1.0.0/" + options.digest(), spfs.encoding.EMPTY_DIGEST
     )
 
     solver = Solver(options)

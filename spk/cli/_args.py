@@ -10,7 +10,7 @@ import sentry_sdk
 import structlog
 import colorama
 
-import spm
+import spk
 from . import (
     _cmd_build,
     _cmd_plan,
@@ -22,7 +22,7 @@ from . import (
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     global_parser = argparse.ArgumentParser(
-        prog=spm.__name__, description=spm.__doc__, add_help=False
+        prog=spk.__name__, description=spk.__doc__, add_help=False
     )
     global_parser.add_argument(
         "--help", "-h", action="store_true", help="Print this message and exit"
@@ -65,7 +65,7 @@ def configure_sentry() -> None:
     sentry_sdk.init(
         # TODO: "http://52de6f488cf14c21b32e25894e77d24a@sentry.k8s.spimageworks.com/3",
         environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
-        release=spm.__version__,
+        release=spk.__version__,
     )
     with sentry_sdk.configure_scope() as scope:
         username = getpass.getuser()

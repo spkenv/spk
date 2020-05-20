@@ -20,7 +20,7 @@ structlog.configure(
 @pytest.fixture
 def tmprepo(tmpspfs: spfs.storage.fs.FSRepository) -> spfs.storage.fs.FSRepository:
 
-    from spm import storage
+    from spk import storage
 
     return storage.SpFSRepository(tmpspfs)
 

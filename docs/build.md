@@ -15,3 +15,6 @@ title: Build Process
 - building a package requires it's source package to be available
 - source packages are automatically generated for local spec files
 - or can be created from external source code if the spec defines
+
+
+## The Build Spec

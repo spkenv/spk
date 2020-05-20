@@ -12,7 +12,7 @@ from ._build_spec import BuildSpec
 from ._source_spec import SourceSpec, LocalSource
 
 
-_LOGGER = structlog.get_logger("spm")
+_LOGGER = structlog.get_logger("spk")
 
 
 @dataclass
