@@ -3,7 +3,7 @@ from typing import List, Union, Iterable
 import structlog
 import spfs
 
-from . import graph, api, storage
+from . import graph, api, storage, compat
 from ._handle import BinaryPackageHandle, SourcePackageHandle
 from . import _nodes  # FIXME: circular dependency
 
@@ -75,7 +75,7 @@ class Solver:
 
             for version_str in reversed(versions):
 
-                version = api.parse_version(version_str)
+                version = compat.parse_version(version_str)
                 pkg = api.Ident(request.name, version)
                 spec = repo.read_spec(pkg)
                 options = spec.resolve_all_options(self._options)

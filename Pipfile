@@ -9,6 +9,7 @@ pytest = "*"
 black = "*"
 nuitka = "*"
 pytest-mypy = "*"
+pytest-cov = "*"
 
 [packages]
 spfs = "~=0.19.3"

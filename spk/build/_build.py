@@ -12,6 +12,10 @@ from ._env import expand_vars
 _LOGGER = structlog.get_logger("spk.build")
 
 
+class BuildError(Exception):
+    pass
+
+
 def build_variants(
     spec: api.Spec,
 ) -> List[Tuple[api.Spec, api.OptionMap, spfs.tracking.Tag]]:
@@ -86,7 +90,6 @@ def run_and_commit_build(
 
     runtime = spfs.active_runtime()
     runtime.reset()
-    repo = spfs.get_config().get_repository()
     for layer in stack:
         runtime.push_digest(layer)
         # TODO: pull if needed
@@ -102,13 +105,7 @@ def run_and_commit_build(
     execute_build(source_dir, build_script)
 
     diffs = spfs.diff()
-    for diff in diffs:
-        _LOGGER.debug(diff)
-        if diff.mode is not spfs.tracking.DiffMode.added:
-            _LOGGER.warning(f"Underlying file was modified: /spfs{diff.path}")
-
-    # TODO: check that there are file changes
-    # TODO: check that there are no overwritten files
+    validate_changeset(diffs)
 
     return spfs.commit_layer(runtime)
 
@@ -117,3 +114,18 @@ def execute_build(source_dir: str, build_script: str) -> None:
 
     cmd = spfs.build_shell_initialized_command("bash", "-ex", build_script)
     subprocess.check_call(cmd, cwd=source_dir)
+
+
+def validate_changeset(diffs: List[spfs.tracking.Diff]) -> None:
+
+    diffs = list(
+        filter(lambda diff: diff.mode is not spfs.tracking.DiffMode.unchanged, diffs)
+    )
+
+    if not diffs:
+        raise BuildError("Build process created no files under /spfs")
+
+    for diff in diffs:
+        _LOGGER.debug(diff)
+        if diff.mode is not spfs.tracking.DiffMode.added:
+            raise BuildError(f"Existing file was modified: /spfs{diff.path}")

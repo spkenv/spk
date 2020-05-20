@@ -1,6 +1,5 @@
 from ._option_map import OptionMap, host_options
 from ._release import Release, parse_release
-from ._version import Version, parse_version
 from ._ident import Ident, parse_ident
 from ._build_spec import BuildSpec
 from ._source_spec import SourceSpec

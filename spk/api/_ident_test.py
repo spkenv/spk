@@ -1,4 +1,4 @@
-from ._version import Version
+from .. import compat
 from ._release import Release
 from ._ident import Ident, parse_ident
 
@@ -18,8 +18,8 @@ def test_ident_to_yaml() -> None:
 @pytest.mark.parametrize(
     "input,expected",
     [
-        ("hello/1.0.0/r2", Ident("hello", Version("1.0.0"), Release("r2"))),
-        ("python/2.7", Ident("python", Version("2.7"))),
+        ("hello/1.0.0/r2", Ident("hello", compat.Version("1.0.0"), Release("r2"))),
+        ("python/2.7", Ident("python", compat.Version("2.7"))),
     ],
 )
 def test_parse_ident(input: str, expected: Ident) -> None:

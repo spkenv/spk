@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from ruamel import yaml
 
-from ._version import Version, parse_version
+from .. import compat
 from ._release import Release, parse_release
 
 
@@ -16,7 +16,7 @@ class Ident:
 	"""
 
     name: str
-    version: Version = field(default_factory=lambda: Version(""))
+    version: compat.Version = field(default_factory=lambda: compat.Version(""))
     release: Release = field(default_factory=lambda: Release(""))
 
     def __str__(self) -> str:
@@ -40,7 +40,7 @@ class Ident:
             raise ValueError(f"Too many tokens in identifier: {source}")
 
         self.name = name
-        self.version = parse_version(version)
+        self.version = compat.parse_version(version)
         self.release = parse_release(release)
 
 
