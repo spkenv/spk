@@ -8,31 +8,35 @@ from ._nodes import BuildNode, BinaryPackageHandle
 from ._solver import Solver, UnresolvedPackageError
 
 
-def test_solver_no_spec(tmpspfs: spfs.storage.fs.FSRepository) -> None:
+def test_solver_no_spec() -> None:
 
+    repo = storage.MemRepository()
+
+    pkg = api.parse_ident("my_pkg/1.0.0")
     options = api.OptionMap()
 
-    # push just the package tag with no tag for spec/meta
-    tmpspfs.tags.push_tag(
-        "spk/pkg/my_pkg/1.0.0/" + options.digest(), spfs.encoding.EMPTY_DIGEST
-    )
+    # publish package without publishing spec
+    repo.publish_package(pkg, options, spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
+    solver.add_repository(repo)
     solver.add_request("my_pkg")
 
     with pytest.raises(UnresolvedPackageError):
-        nodes = solver.solve()
+        solver.solve()
 
 
-def test_solver_existing_tag(tmprepo: storage.SpFSRepository) -> None:
+def test_solver_existing_tag() -> None:
 
+    repo = storage.MemRepository()
     options = api.OptionMap()
     spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
 
-    tmprepo.publish_spec(spec)
-    tmprepo.publish_package(spec.pkg, options, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_spec(spec)
+    repo.publish_package(spec.pkg, options, spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
+    solver.add_repository(repo)
     solver.add_request(api.parse_ident("my_pkg"))
 
     env = solver.solve()
@@ -42,14 +46,17 @@ def test_solver_existing_tag(tmprepo: storage.SpFSRepository) -> None:
     # TODO: assert that it does not need building
 
 
-def test_solver_source_only(tmprepo: storage.SpFSRepository) -> None:
+def test_solver_source_only() -> None:
 
+    repo = storage.MemRepository()
     options = api.OptionMap()
     spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
-    tmprepo.publish_spec(spec)
-    tmprepo.publish_source_package(spec.pkg, spfs.encoding.EMPTY_DIGEST)
+
+    repo.publish_spec(spec)
+    repo.publish_source_package(spec.pkg, spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
+    solver.add_repository(repo)
     solver.add_request(api.parse_ident("my_pkg"))
 
     env = solver.solve()

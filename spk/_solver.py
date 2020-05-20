@@ -45,9 +45,14 @@ class Env(graph.Node):
 class Solver:
     def __init__(self, options: api.OptionMap) -> None:
 
+        self._repos: List[storage.Repository] = []
         self._options = options
         self._requests: List[api.Ident] = []
         self._specs: List[api.Spec] = []
+
+    def add_repository(self, repo: storage.Repository) -> None:
+
+        self._repos.append(repo)
 
     def add_request(self, pkg: Union[str, api.Ident]) -> None:
 
@@ -62,8 +67,9 @@ class Solver:
 
     def solve(self) -> Env:
 
-        # TODO: not this, something more elegant?
-        repo = storage.SpFSRepository(spfs.get_config().get_repository())
+        # TODO: FIXME: support many repos
+        assert len(self._repos) == 1
+        repo = self._repos[0]
 
         env = Env()
         for request in self._requests:
@@ -81,8 +87,8 @@ class Solver:
                 options = spec.resolve_all_options(self._options)
 
                 try:
-                    digest = repo.resolve_package(pkg, options)
-                except storage.UnknownPackageError:
+                    digest = repo.get_package(pkg, options)
+                except storage.PackageNotFoundError:
                     _LOGGER.debug(
                         "package not built with required options:", pkg=pkg, **options
                     )
@@ -97,10 +103,8 @@ class Solver:
                     break
 
                 try:
-                    digest = repo.resolve_source_package(
-                        api.Ident(request.name, version)
-                    )
-                except storage.UnknownPackageError:
+                    digest = repo.get_source_package(api.Ident(request.name, version))
+                except storage.PackageNotFoundError:
                     pass
                 else:
                     builder = _nodes.BuildNode(spec, options)
