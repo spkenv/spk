@@ -27,33 +27,7 @@ class FetchNode(graph.Node):
 
     def run(self) -> None:
 
-        _LOGGER.info("GATHERING SOURCES", pkg=self._spec.pkg)
-
-        # TODO: better/config/cleaner
-        repo = storage.SpFSRepository(spfs.get_config().get_repository())
-
-        sources_dir = build.sources_dir_path(self._spec.pkg)
-        script = [f"mkdir -p {sources_dir}"]
-        for source in self._spec.sources:
-
-            target_dir = sources_dir
-            subdir = source.subdir()
-            if subdir:
-                target_dir = os.path.join(sources_dir, subdir.lstrip("/"))
-                script.append(f"mkdir -p {target_dir}")
-
-            # TODO: possible dependencies on utilities like git...
-            script.append(source.script(target_dir))
-
-        layer = build.run_and_commit_sources(self._spec.pkg, "\n".join(script))
-        # TODO: does this belong here, maybe another input node?
-        repo.publish_spec(self._spec)
-        repo.publish_source_package(self._spec.pkg, layer.digest())
-        _LOGGER.info(
-            "Created source package", pkg=self._spec.pkg, layer=layer.digest().str()
-        )
-
-        self.source_package.value = SourcePackageHandle(self._spec, layer.digest())
+        build.make_source_package(self._spec)
 
 
 class BuildNode(graph.Node):

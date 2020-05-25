@@ -31,7 +31,14 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
     os.makedirs(source_dir)
 
     for source in spec.sources:
-        source.collect(source_dir)
+
+        target_dir = source_dir
+        subdir = source.subdir()
+        if subdir:
+            target_dir = os.path.join(source_dir, subdir.lstrip("/"))
+            os.makedirs(target_dir, exist_ok=True)
+
+        source.collect(target_dir)
 
 
 def data_path(pkg: api.Ident) -> str:

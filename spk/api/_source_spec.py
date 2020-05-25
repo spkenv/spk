@@ -14,7 +14,8 @@ class SourceSpec(metaclass=abc.ABCMeta):
         return None
 
     @abc.abstractmethod
-    def collect(self, dirname: str) -> str:
+    def collect(self, dirname: str) -> None:
+        """Collect the represented sources files into the given directory."""
 
         pass
 
@@ -33,7 +34,7 @@ class LocalSource(SourceSpec):
 
     path: str = "."
 
-    def collect(self, dirname: str) -> str:
+    def collect(self, dirname: str) -> None:
 
         # TODO: work if .gitignore doesn't exist or not git repo
         args = ["--recursive", "--archive"]

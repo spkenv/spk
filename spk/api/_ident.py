@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 from dataclasses import dataclass, field
 
 from ruamel import yaml
@@ -18,7 +18,7 @@ class Ident:
 
     name: str
     version: compat.Version = field(default_factory=lambda: compat.Version(""))
-    build: Build = None
+    build: Optional[Build] = None
 
     def __str__(self) -> str:
 
