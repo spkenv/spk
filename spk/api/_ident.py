@@ -1,3 +1,4 @@
+from typing import Union
 from dataclasses import dataclass, field
 
 from ruamel import yaml
@@ -31,7 +32,19 @@ class Ident:
 
     __repr__ = __str__
 
+    def copy(self) -> "Ident":
+        """Create a copy of this identifier."""
+
+        return parse_ident(str(self))
+
+    def with_build(self, build: Union[Build, str]) -> "Ident":
+        """Return a copy of this identifier with the given build replaced"""
+
+        return parse_ident(f"{self.name}/{self.version}/{build}")
+
     def parse(self, source: str) -> None:
+        """Parse the given didentifier string into this instance.
+        """
 
         name, version, build, *other = str(source).split("/") + ["", ""]
 

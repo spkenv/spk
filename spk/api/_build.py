@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import base64
 import binascii
 
-_SRC = "src"
+SRC = "src"
 
 
 @dataclass
@@ -12,7 +12,7 @@ class Build:
     digest: str
 
     def is_source(self) -> bool:
-        return self.digest == _SRC
+        return self.digest == SRC
 
     def __str__(self) -> str:
         return self.digest
@@ -20,8 +20,8 @@ class Build:
 
 def parse_build(digest: str) -> Build:
 
-    if digest == _SRC:
-        return Build(_SRC)
+    if digest == SRC:
+        return Build(SRC)
 
     try:
         base64.b32decode(digest)

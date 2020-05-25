@@ -1,13 +1,13 @@
 import pytest
 
-from ._build import parse_build, _SRC
+from ._build import parse_build, SRC
 from ._option_map import OptionMap
 
 
 def test_parse_build_src() -> None:
 
     # should allow non-digest if it's the src token
-    parse_build(_SRC)
+    parse_build(SRC)
 
 
 def test_parse_build() -> None:

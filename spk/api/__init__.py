@@ -1,5 +1,5 @@
 from ._option_map import OptionMap, host_options
-from ._build import Build, parse_build
+from ._build import Build, parse_build, SRC
 from ._ident import Ident, parse_ident
 from ._build_spec import BuildSpec
 from ._source_spec import SourceSpec

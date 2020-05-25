@@ -36,5 +36,5 @@ def test_execute_build(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> N
     build_script.write("echo $PWD > /dev/stderr", ensure=True)
     execute_build(tmpdir.strpath, build_script.strpath)
 
-    out, err = capfd.readouterr()
+    _, err = capfd.readouterr()
     assert err.strip() == tmpdir.strpath

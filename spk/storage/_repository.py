@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Any
 import abc
 
 import spfs
@@ -7,11 +7,15 @@ from .. import api
 
 
 class VersionExistsError(FileExistsError):
-    pass
+    def __init__(self, pkg: Any) -> None:
+        super(VersionExistsError, self).__init__(
+            f"Package version already exists: {pkg}"
+        )
 
 
 class PackageNotFoundError(FileNotFoundError):
-    pass
+    def __init__(self, pkg: Any) -> None:
+        super(PackageNotFoundError, self).__init__(f"Package not found: {pkg}")
 
 
 class Repository(metaclass=abc.ABCMeta):
@@ -57,9 +61,22 @@ class Repository(metaclass=abc.ABCMeta):
         The published spec represents all builds of a single version.
         The source package, or at least one binary package should be
         published as well in order to make the spec usable in environments.
+
+        Raises:
+            VersionExistsError: if the spec a this version is already present
         """
         pass
 
+    @abc.abstractmethod
+    def force_publish_spec(self, spec: api.Spec) -> None:
+        """Publish a package spec to this repository.
+
+        Same as 'publish_spec' except that it clobbers any existing
+        spec at this version
+        """
+        pass
+
+    @abc.abstractmethod
     def publish_package(
         self, pkg: api.Ident, options: api.OptionMap, digest: spfs.encoding.Digest
     ) -> None:
@@ -70,6 +87,7 @@ class Repository(metaclass=abc.ABCMeta):
         """
         pass
 
+    @abc.abstractmethod
     def publish_source_package(
         self, pkg: api.Ident, digest: spfs.encoding.Digest
     ) -> None:
