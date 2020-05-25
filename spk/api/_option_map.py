@@ -8,7 +8,9 @@ from sortedcontainers import SortedDict
 
 # given option digests are namespaced by the package itself,
 # there are slim likelyhoods of collision, so we roll the dice
-_DIGEST_SIZE = 7
+# also must be a multiple of 8 to be decodable wich is generally
+# a nice way to handle validation / and 16 is a lot
+_DIGEST_SIZE = 8
 
 
 class OptionMap(SortedDict):
