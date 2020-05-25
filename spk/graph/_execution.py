@@ -15,12 +15,12 @@ class NoInputError(PortNotConnectedError):
         return "Missing Input: " + " -> ".join(self.path)
 
 
-def execute_tree(op: Node) -> None:
+def execute_tree(node: Node) -> None:
 
     path = []
 
-    def _exec(op: Node) -> None:
-        for name, input_port in op.inputs.items():
+    def _exec(node: Node) -> None:
+        for name, input_port in node.inputs.items():
 
             path.append(name)
             try:
@@ -34,6 +34,7 @@ def execute_tree(op: Node) -> None:
                 _exec(input_node)
             path.pop()
 
-        op.run()
+        _LOGGER.debug("executing", node=node)
+        node.run()
 
-    _exec(op)
+    _exec(node)

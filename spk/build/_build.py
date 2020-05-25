@@ -6,7 +6,7 @@ import shlex
 import structlog
 import spfs
 
-from .. import api, graph, storage
+from .. import api, graph, storage, compat
 from ._env import expand_vars
 
 _LOGGER = structlog.get_logger("spk.build")
@@ -58,7 +58,7 @@ def build(
         if not isinstance(opt, api.Spec):
             continue
         if opt.pkg.name in options:
-            opt.pkg.version = api.parse_version(options[opt.pkg.name])
+            opt.pkg.version = compat.parse_version(options[opt.pkg.name])
         # TODO: deal with release information??
         # TODO: what about other spec options that might have been given?
         solver.add_request(opt.pkg)
@@ -84,6 +84,25 @@ def build(
     return repo.publish_package(spec.pkg, options, layer.digest())
 
 
+def run_and_commit_sources(pkg: api.Ident, script: str) -> spfs.storage.Layer:
+
+    runtime = spfs.active_runtime()
+    runtime.reset()
+    runtime.set_editable(True)
+    spfs.remount_runtime(runtime)
+
+    fetch_script = sources_script_path(pkg)
+    os.makedirs(os.path.dirname(fetch_script), exist_ok=True)
+    with open(fetch_script, "w+") as f:
+        f.write(script)
+    execute_build(os.path.dirname(fetch_script), fetch_script)
+
+    diffs = spfs.diff()
+    validate_sources_changeset(diffs)
+
+    return spfs.commit_layer(runtime)
+
+
 def run_and_commit_build(
     pkg: api.Ident, script: str, *stack: spfs.encoding.Digest
 ) -> spfs.storage.Layer:
@@ -97,15 +116,15 @@ def run_and_commit_build(
     runtime.set_editable(True)
     spfs.remount_runtime(runtime)
 
-    build_script = f"/spfs/var/spk/build/{pkg}/build.sh"
+    build_script = build_script_path(pkg)
     os.makedirs(os.path.dirname(build_script), exist_ok=True)
     with open(build_script, "w+") as f:
         f.write(script)
-    source_dir = f"/spfs/var/run/spk/src/{pkg}"
+    source_dir = sources_dir_path(pkg)
     execute_build(source_dir, build_script)
 
     diffs = spfs.diff()
-    validate_changeset(diffs)
+    validate_build_changeset(diffs)
 
     return spfs.commit_layer(runtime)
 
@@ -116,7 +135,7 @@ def execute_build(source_dir: str, build_script: str) -> None:
     subprocess.check_call(cmd, cwd=source_dir)
 
 
-def validate_changeset(diffs: List[spfs.tracking.Diff]) -> None:
+def validate_build_changeset(diffs: List[spfs.tracking.Diff]) -> None:
 
     diffs = list(
         filter(lambda diff: diff.mode is not spfs.tracking.DiffMode.unchanged, diffs)
@@ -129,3 +148,29 @@ def validate_changeset(diffs: List[spfs.tracking.Diff]) -> None:
         _LOGGER.debug(diff)
         if diff.mode is not spfs.tracking.DiffMode.added:
             raise BuildError(f"Existing file was modified: /spfs{diff.path}")
+
+
+def validate_sources_changeset(diffs: List[spfs.tracking.Diff]) -> None:
+
+    diffs = list(
+        filter(lambda diff: diff.mode is not spfs.tracking.DiffMode.unchanged, diffs)
+    )
+
+    # TODO: ensure only files are added under appropirate sources path
+
+
+def build_script_path(pkg: api.Ident) -> str:
+    return build_dir_path(pkg) + "build.sh"
+
+
+def sources_script_path(pkg: api.Ident) -> str:
+    return build_dir_path(pkg) + "fetch_sources.sh"
+
+
+def build_dir_path(pkg: api.Ident) -> str:
+    return f"/spfs/spk/build/{pkg}/"
+
+
+def sources_dir_path(pkg: api.Ident) -> str:
+
+    return f"/spfs/spk/src/{pkg}/"

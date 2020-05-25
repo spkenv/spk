@@ -68,7 +68,7 @@ class Solver:
     def solve(self) -> Env:
 
         # TODO: FIXME: support many repos
-        assert len(self._repos) == 1
+        assert len(self._repos), "No registered package repositories."
         repo = self._repos[0]
 
         env = Env()

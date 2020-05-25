@@ -3,21 +3,21 @@ import pytest
 import py.path
 import spfs
 
-from ._build import validate_changeset, BuildError, execute_build
+from ._build import validate_build_changeset, BuildError, execute_build
 
 
-def test_validate_changeset_nothing() -> None:
-
-    with pytest.raises(BuildError):
-
-        validate_changeset([])
-
-
-def test_validate_changeset_modified() -> None:
+def test_validate_build_changeset_nothing() -> None:
 
     with pytest.raises(BuildError):
 
-        validate_changeset(
+        validate_build_changeset([])
+
+
+def test_validate_build_changeset_modified() -> None:
+
+    with pytest.raises(BuildError):
+
+        validate_build_changeset(
             [
                 spfs.tracking.Diff(
                     path="/spfs/file.txt", mode=spfs.tracking.DiffMode.changed

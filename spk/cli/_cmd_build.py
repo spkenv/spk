@@ -19,7 +19,12 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
         "--no-runtime",
         "-nr",
         action="store_true",
-        help="Do not build in a new spfs runtime",
+        help="Do not build in a new spfs runtime for debugging (will reset the current runtime)",
+    )
+    build_cmd.add_argument(
+        "--here",
+        action="store_true",
+        help="Build from the current directory, instead of a source package",
     )
     build_cmd.add_argument(
         "packages",
@@ -41,6 +46,7 @@ def _build(args: argparse.Namespace) -> None:
         os.execv(cmd[0], cmd)
 
     solver = spk.Solver(spk.api.host_options())
+    solver.add_repository(spfs.get_config().get_repository())
     for package in args.packages:
 
         if os.path.isfile(package):
