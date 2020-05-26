@@ -20,7 +20,7 @@ if ( -d "${startup_dir}" != 0 ) then
 endif
 
 if ( "$#argv" != 0 ) then
-    $*
+    $argv:q
     exit $?
 endif
 

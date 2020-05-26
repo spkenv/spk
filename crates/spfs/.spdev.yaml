@@ -1,7 +1,6 @@
-version: 0.19.3
+version: 0.19.4
 release_notes: |
-  * Fix race condition causing 'invalid header' error during sync
-  * Add expect as a dependency to rpm (for csh integration)
+  * Fix issue in csh where run command did not properly propagate quoted strings
 
 environment:
   kind: PipEnv
@@ -17,6 +16,9 @@ components:
     command: pytest
   install:
     enabled: true
+  deploy:
+    rez:
+      enabled: false
 
 - name: rpm
   kind: RPMPackage

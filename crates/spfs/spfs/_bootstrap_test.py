@@ -80,6 +80,6 @@ def test_shell_initialization_no_startup_scripts(
             )
         )
 
-    command = build_shell_initialized_command("exit")
+    command = build_shell_initialized_command("echo")
     out = subprocess.check_output(command)
-    assert out.decode("utf-8") == ""
+    assert out.decode("utf-8") == "\n"
