@@ -5,3 +5,4 @@ from ._build import (
     sources_dir_path,
     build_dir_path,
 )
+from ._sources import make_source_package

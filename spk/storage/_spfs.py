@@ -22,16 +22,23 @@ class SpFSRepository(Repository):
         path = self.build_spec_tag(api.parse_ident(name))
         return list(self._repo.tags.ls_tags(path))
 
-    def publish_spec(self, spec: api.Spec) -> None:
+    def force_publish_spec(self, spec: api.Spec) -> None:
 
         meta_tag = self.build_spec_tag(spec.pkg)
-        if self._repo.tags.has_tag(meta_tag):
-            raise VersionExistsError(spec.pkg)
         spec_data = api.write_spec(spec)
         digest = self._repo.payloads.write_payload(io.BytesIO(spec_data))
         blob = spfs.storage.Blob(payload=digest, size=len(spec_data))
         self._repo.objects.write_object(blob)
         self._repo.tags.push_tag(meta_tag, digest)
+
+    def publish_spec(self, spec: api.Spec) -> None:
+
+        meta_tag = self.build_spec_tag(spec.pkg)
+        if self._repo.tags.has_tag(meta_tag):
+            # BUG(rbottriell): this creates a race condition but is not super dangerous
+            # because of the non-destructive tag history
+            raise VersionExistsError(spec.pkg)
+        self.force_publish_spec(spec)
 
     def read_spec(self, pkg: api.Ident) -> api.Spec:
 
@@ -84,7 +91,7 @@ class SpFSRepository(Repository):
         return f"spk/pkg/{pkg}/{options.digest()}"
 
     def build_source_tag(self, pkg: api.Ident) -> str:
-        """Construct an spfs tag string to represnet a source package layer."""
+        """Construct an spfs tag string to represent a source package layer."""
 
         return f"spk/src/{pkg}"
 

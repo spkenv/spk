@@ -46,6 +46,14 @@ class MemRepository(Repository):
         except KeyError:
             raise PackageNotFoundError(pkg)
 
+    def force_publish_spec(self, spec: api.Spec) -> None:
+
+        try:
+            del self._specs[spec.pkg.name][str(spec.pkg.version)]
+        except KeyError:
+            pass
+        self.publish_spec(spec)
+
     def publish_spec(self, spec: api.Spec) -> None:
 
         self._specs.setdefault(spec.pkg.name, {})

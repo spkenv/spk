@@ -1,6 +1,7 @@
 from typing import Dict, List, Any, Optional
 import abc
 import os
+import subprocess
 from dataclasses import dataclass, field
 
 from ._option_map import OptionMap
@@ -13,7 +14,8 @@ class SourceSpec(metaclass=abc.ABCMeta):
         return None
 
     @abc.abstractmethod
-    def script(self, dirname: str) -> str:
+    def collect(self, dirname: str) -> None:
+        """Collect the represented sources files into the given directory."""
 
         pass
 
@@ -32,15 +34,15 @@ class LocalSource(SourceSpec):
 
     path: str = "."
 
-    def script(self, dirname: str) -> str:
+    def collect(self, dirname: str) -> None:
 
         # TODO: work if .gitignore doesn't exist or not git repo
         args = ["--recursive", "--archive"]
         if "SPM_DEBUG" in os.environ:
             args.append("--verbose")
-        args += ["--filter=':- .gitignore'", "--cvs-exclude", self.path, dirname]
+        args += ["--filter", ":- .gitignore", "--cvs-exclude", self.path, dirname]
         cmd = ["rsync"] + args
-        return " ".join(cmd)
+        subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
         return {

@@ -1,5 +1,5 @@
 from .. import compat
-from ._release import Release
+from ._build import Build
 from ._ident import Ident, parse_ident
 
 import pytest
@@ -18,7 +18,7 @@ def test_ident_to_yaml() -> None:
 @pytest.mark.parametrize(
     "input,expected",
     [
-        ("hello/1.0.0/r2", Ident("hello", compat.Version("1.0.0"), Release("r2"))),
+        ("hello/1.0.0/src", Ident("hello", compat.Version("1.0.0"), Build("src"))),
         ("python/2.7", Ident("python", compat.Version("2.7"))),
     ],
 )
@@ -41,6 +41,6 @@ def test_parse_ident(input: str, expected: Ident) -> None:
 #     if spec.Version.String() != "1.0.2" {
 #         t.Errorf("expected package version to be separated out: (%s != %s)", spec.Version, "1.0.2")
 #     }
-#     if spec.Release.String() != "r2" {
-#         t.Errorf("expected package release to be separated out: (%s != %s)", spec.Release, "r2")
+#     if spec.Build.String() != "r2" {
+#         t.Errorf("expected package release to be separated out: (%s != %s)", spec.Build, "r2")
 #     }

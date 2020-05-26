@@ -171,6 +171,10 @@ def build_dir_path(pkg: api.Ident) -> str:
     return f"/spfs/spk/build/{pkg}/"
 
 
+def data_path(pkg: api.Ident) -> str:
+    return f"/spfs/spk/pkg/{pkg}/"
+
+
 def sources_dir_path(pkg: api.Ident) -> str:
 
     return f"/spfs/spk/src/{pkg}/"
