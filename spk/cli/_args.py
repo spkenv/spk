@@ -17,6 +17,7 @@ from . import (
     _cmd_search,
     _cmd_version,
     _cmd_make_source,
+    _cmd_make_binary,
 )
 
 
@@ -37,6 +38,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
 
     _register_persistent_flags(_cmd_make_source.register(sub_parsers))
+    _register_persistent_flags(_cmd_make_binary.register(sub_parsers))
     _register_persistent_flags(_cmd_build.register(sub_parsers))
     _register_persistent_flags(_cmd_plan.register(sub_parsers))
     _register_persistent_flags(_cmd_search.register(sub_parsers))

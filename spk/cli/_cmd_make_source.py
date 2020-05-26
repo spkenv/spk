@@ -15,7 +15,7 @@ _LOGGER = structlog.get_logger("spk.cli")
 def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
 
     build_cmd = sub_parsers.add_parser(
-        "make-source", aliases=["mksource", "mksrc", "mks"], help=_build.__doc__
+        "make-source", aliases=["mksource", "mksrc", "mks"], help=_make_source.__doc__
     )
     build_cmd.add_argument(
         "--no-runtime",
@@ -29,11 +29,11 @@ def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser
         nargs="+",
         help="The packages or yaml specification files to build",
     )
-    build_cmd.set_defaults(func=_build)
+    build_cmd.set_defaults(func=_make_source)
     return build_cmd
 
 
-def _build(args: argparse.Namespace) -> None:
+def _make_source(args: argparse.Namespace) -> None:
     """Build a source package from a spec file."""
 
     if not args.no_runtime:

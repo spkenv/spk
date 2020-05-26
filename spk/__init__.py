@@ -9,4 +9,4 @@ from ._global import load_spec, save_spec
 
 # promote useful front line api functions
 from .api import read_spec_file
-from .build import make_source_package
+from .build import make_source_package, make_binary_package

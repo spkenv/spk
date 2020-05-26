@@ -30,12 +30,12 @@ class MemRepository(Repository):
         except KeyError:
             raise PackageNotFoundError(pkg)
 
-    def get_package(
-        self, pkg: api.Ident, options: api.OptionMap
-    ) -> spfs.encoding.Digest:
+    def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
 
+        if pkg.build is None:
+            raise PackageNotFoundError(pkg)
         try:
-            return self._packages[pkg.name][str(pkg.version)][options.digest()]
+            return self._packages[pkg.name][str(pkg.version)][pkg.build.digest]
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -63,20 +63,15 @@ class MemRepository(Repository):
             raise VersionExistsError(version)
         versions[version] = spec
 
-    def publish_package(
-        self, pkg: api.Ident, options: api.OptionMap, digest: spfs.encoding.Digest
-    ) -> None:
+    def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
+
+        if pkg.build is None:
+            raise ValueError(
+                "Package must include a build in order to be published: " + str(pkg)
+            )
 
         self._packages.setdefault(pkg.name, {})
         version = str(pkg.version)
         self._packages[pkg.name].setdefault(version, {})
-        build = options.digest()
+        build = pkg.build.digest
         self._packages[pkg.name][version][build] = digest
-
-    def publish_source_package(
-        self, pkg: api.Ident, digest: spfs.encoding.Digest
-    ) -> None:
-
-        self._sources.setdefault(pkg.name, {})
-        version = str(pkg.version)
-        self._sources[pkg.name][version] = digest

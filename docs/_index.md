@@ -3,9 +3,9 @@ title: spk
 summary: Package Manager for SPFS
 ---
 
-# SPM
+# SPK
 
-The 'S' Package Manager.
+Pronouced like "_s-pack_"
 
 Design Goals:
 

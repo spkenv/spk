@@ -16,7 +16,7 @@ def test_solver_no_spec() -> None:
     options = api.OptionMap()
 
     # publish package without publishing spec
-    repo.publish_package(pkg, options, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(pkg.with_build(options.digest()), spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
     solver.add_repository(repo)
@@ -33,7 +33,9 @@ def test_solver_existing_tag() -> None:
     spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
 
     repo.publish_spec(spec)
-    repo.publish_package(spec.pkg, options, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(
+        spec.pkg.with_build(options.digest()), spfs.encoding.EMPTY_DIGEST
+    )
 
     solver = Solver(options)
     solver.add_repository(repo)
@@ -53,7 +55,7 @@ def test_solver_source_only() -> None:
     spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
 
     repo.publish_spec(spec)
-    repo.publish_source_package(spec.pkg, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(spec.pkg.with_build(api.SRC), spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
     solver.add_repository(repo)
