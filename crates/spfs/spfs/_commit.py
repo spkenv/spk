@@ -19,7 +19,7 @@ def commit_layer(runtime: runtime.Runtime) -> storage.Layer:
     if manifest.is_empty():
         raise NothingToCommitError("layer would be empty")
     else:
-        print(manifest.list_dir("/"))
+        pass
     layer = repo.create_layer(storage.Manifest(manifest))
     runtime.push_digest(layer.digest())
     runtime.set_editable(False)

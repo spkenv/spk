@@ -29,26 +29,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 def _diff(args: argparse.Namespace) -> None:
     """Compare two spfs file system states."""
 
-    config = spfs.get_config()
-    repo = config.get_repository()
-
-    if args.base is None:
-        _logger.debug("computing runtime manifest as base")
-        rt = spfs.active_runtime()
-        base = spfs.compute_runtime_manifest(rt)
-    else:
-        _logger.debug("computing base manifest", ref=args.base)
-        base = spfs.compute_manifest(args.base)
-
-    if args.top is None:
-        _logger.debug("computing manifest for /spfs")
-        top = spfs.tracking.compute_manifest("/spfs")
-    else:
-        _logger.debug("computing top manifest", ref=args.top)
-        top = spfs.compute_manifest(args.top)
-
-    _logger.debug("computing diffs")
-    diffs = spfs.tracking.compute_diff(base, top)
+    diffs = spfs.diff(args.base, args.top)
     out = spfs.io.format_changes(diffs)
     if not out.strip():
         _logger.info("no changes")

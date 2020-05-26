@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple, Optional
+from typing import Iterator, Tuple, Optional, List
 import os
 import io
 import contextlib
@@ -14,6 +14,39 @@ class TagStorage:
     def __init__(self, root: str) -> None:
 
         self._root = os.path.abspath(root)
+
+    def has_tag(self, tag: str) -> bool:
+        """Return true if the given tag exists in this storage."""
+
+        try:
+            self.resolve_tag(tag)
+        except graph.UnknownReferenceError:
+            return False
+        return True
+
+    def ls_tags(self, path: str) -> List[str]:
+        """List tags and tag directories based on a tag path.
+
+        For example, if the repo contains the following tags:
+          spi/stable/my_tag
+          spi/stable/other_tag
+          spi/latest/my_tag
+        Then ls_tags("spi") would return:
+          stable
+          latest
+        """
+
+        filepath = os.path.join(self._root, path.lstrip(os.sep))
+        try:
+            entries = os.listdir(filepath)
+        except (FileNotFoundError, NotADirectoryError):
+            return []
+        return list(
+            map(
+                lambda x: x if not x.endswith(_TAG_EXT) else x[: -len(_TAG_EXT)],
+                entries,
+            )
+        )
 
     def find_tags(self, digest: encoding.Digest) -> Iterator[tracking.TagSpec]:
         """Find tags that point to the given digest.

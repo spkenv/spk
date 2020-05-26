@@ -7,3 +7,5 @@ from ._manifest import (
     compute_manifest,
 )
 from ._diff import Diff, DiffMode, compute_diff
+
+__all__ = list(locals().keys())
