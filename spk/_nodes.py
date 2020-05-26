@@ -50,4 +50,9 @@ class BuildNode(graph.Node):
     def run(self) -> None:
 
         _LOGGER.info("BUILDING", pkg=self._spec.pkg)
-        self.binary_package.value = build.build(self._spec, self._options)
+        source = self.source_package.value
+        # TODO: get location of source package sources/ set it up
+        raise NotImplementedError("build node.run")
+        self.binary_package.value = build.make_binary_package(
+            self._spec, "", self._options
+        )

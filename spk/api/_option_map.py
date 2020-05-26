@@ -28,6 +28,15 @@ class OptionMap(SortedDict):
         digest = hasher.digest()
         return base64.b32encode(digest)[:_DIGEST_SIZE].decode()
 
+    def to_env(self) -> Dict[str, str]:
+        """Return the set of environment variables to be set for these options."""
+
+        env = {}
+        for name, value in self.items():
+            var_name = "SPK_OPT_" + name
+            env[var_name] = value
+        return env
+
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "OptionMap":
 

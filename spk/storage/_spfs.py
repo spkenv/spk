@@ -51,49 +51,24 @@ class SpFSRepository(Repository):
         with self._repo.payloads.open_payload(tag.target) as spec_file:
             return api.read_spec(spec_file)
 
-    def publish_package(
-        self, pkg: api.Ident, options: api.OptionMap, digest: spfs.encoding.Digest
-    ) -> None:
+    def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
 
-        tag_string = self.build_binary_tag(pkg, options)
+        tag_string = self.build_binary_tag(pkg)
         # TODO: sanity check if tag already exists?
         self._repo.tags.push_tag(tag_string, digest)
 
-    def publish_source_package(
-        self, pkg: api.Ident, digest: spfs.encoding.Digest
-    ) -> None:
+    def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
 
-        tag_string = self.build_source_tag(pkg)
-        # TODO: sanity check if tag already exists?
-        self._repo.tags.push_tag(tag_string, digest)
-
-    def get_package(
-        self, pkg: api.Ident, options: api.OptionMap
-    ) -> spfs.encoding.Digest:
-
-        tag_str = self.build_binary_tag(pkg, options)
+        tag_str = self.build_binary_tag(pkg)
         try:
             return self._repo.tags.resolve_tag(tag_str).target
         except spfs.graph.UnknownReferenceError:
             raise PackageNotFoundError(tag_str)
 
-    def get_source_package(self, pkg: api.Ident,) -> spfs.encoding.Digest:
-
-        tag_str = self.build_source_tag(pkg)
-        try:
-            return self._repo.tags.resolve_tag(tag_str).target
-        except spfs.graph.UnknownReferenceError:
-            raise PackageNotFoundError(tag_str)
-
-    def build_binary_tag(self, pkg: api.Ident, options: api.OptionMap) -> str:
+    def build_binary_tag(self, pkg: api.Ident) -> str:
         """Construct an spfs tag string to represent a binary package layer."""
 
-        return f"spk/pkg/{pkg}/{options.digest()}"
-
-    def build_source_tag(self, pkg: api.Ident) -> str:
-        """Construct an spfs tag string to represent a source package layer."""
-
-        return f"spk/src/{pkg}"
+        return f"spk/pkg/{pkg}"
 
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""

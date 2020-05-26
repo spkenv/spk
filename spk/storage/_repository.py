@@ -37,9 +37,7 @@ class Repository(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_package(
-        self, pkg: api.Ident, options: api.OptionMap
-    ) -> spfs.encoding.Digest:
+    def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
         """Identify the payload for the identified binary package and build options.
 
         The given build options should be resolved using the package spec
@@ -47,11 +45,6 @@ class Repository(metaclass=abc.ABCMeta):
         can be known deterministically.
         """
 
-        pass
-
-    @abc.abstractmethod
-    def get_source_package(self, pkg: api.Ident,) -> spfs.encoding.Digest:
-        """Identify the payload of a source package."""
         pass
 
     @abc.abstractmethod
@@ -77,25 +70,10 @@ class Repository(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def publish_package(
-        self, pkg: api.Ident, options: api.OptionMap, digest: spfs.encoding.Digest
-    ) -> None:
+    def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
         """Publish a binary package to this repository.
 
         The published digest is expected to identify an spfs layer which contains
         the propery constructed binary package files and metadata.
         """
-        pass
-
-    @abc.abstractmethod
-    def publish_source_package(
-        self, pkg: api.Ident, digest: spfs.encoding.Digest
-    ) -> None:
-        """Publish a source package to this repository.
-
-        The source package contains all declared source files from the package
-        spec and can be used to build binary packages with any given
-        set of build options.
-        """
-
         pass

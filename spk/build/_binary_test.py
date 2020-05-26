@@ -1,9 +1,11 @@
 from typing import Any
 import pytest
 import py.path
+
 import spfs
 
-from ._build import validate_build_changeset, BuildError, execute_build
+from .. import api
+from ._binary import validate_build_changeset, BuildError, build_artifacts
 
 
 def test_validate_build_changeset_nothing() -> None:
@@ -26,15 +28,13 @@ def test_validate_build_changeset_modified() -> None:
         )
 
 
-def test_execute_build(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
+def test_build_partifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
 
-    fake_runtime = tmpdir.join("runtime")
-    fake_runtime.join("startup.sh").write('"$@"; exit $?', ensure=True)
-    monkeypatch.setenv("SPFS_RUNTIME", fake_runtime.strpath)
+    spec = api.Spec.from_dict(
+        {"pkg": "test/1.0.0", "build": {"script": "echo $PWD > /dev/stderr"}}
+    )
 
-    build_script = tmpdir.join("build.sh")
-    build_script.write("echo $PWD > /dev/stderr", ensure=True)
-    execute_build(tmpdir.strpath, build_script.strpath)
+    build_artifacts(spec, tmpdir.strpath, api.OptionMap(), tmpdir.strpath)
 
     _, err = capfd.readouterr()
     assert err.strip() == tmpdir.strpath

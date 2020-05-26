@@ -87,7 +87,7 @@ class Solver:
                 options = spec.resolve_all_options(self._options)
 
                 try:
-                    digest = repo.get_package(pkg, options)
+                    digest = repo.get_package(pkg.with_build(options.digest()))
                 except storage.PackageNotFoundError:
                     _LOGGER.debug(
                         "package not built with required options:", pkg=pkg, **options
@@ -103,7 +103,9 @@ class Solver:
                     break
 
                 try:
-                    digest = repo.get_source_package(api.Ident(request.name, version))
+                    digest = repo.get_package(
+                        api.Ident(request.name, version).with_build(api.SRC)
+                    )
                 except storage.PackageNotFoundError:
                     pass
                 else:

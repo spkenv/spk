@@ -7,13 +7,14 @@ opts:
 
 build:
   script:
-    - exit 1
     - python -m nuitka
         --follow-imports
-        --output-dir=build
-        --o /spfs/opt
+        --standalone
+        --output-dir=./build
         --show-progress
         --show-scons
         --show-modules
         spk
-    - ln -s /spfs/opt/spk.dist/spk /spfs/bin/spk
+    - mkdir -p $PREFIX/{opt,bin}/
+    - cp -r build/spk.dist $PREFIX/opt
+    - ln -s $PREFIX/opt/spk.dist/spk $PREFIX/bin/spk

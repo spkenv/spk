@@ -1,6 +1,13 @@
 from typing import Optional, Pattern, Mapping
 import re
 
+from .. import api
+
+
+def data_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
+    return f"{prefix}/spk/pkg/{pkg}/"
+
+
 _var_expansion_regex: Optional[Pattern] = None
 
 
