@@ -14,6 +14,7 @@ class CollectionError(BuildError):
 
 
 def make_source_package(spec: api.Spec) -> api.Ident:
+    """Create a local source package for the given spec."""
 
     spfs_repo = spfs.get_config().get_repository()
     repo = storage.SpFSRepository(spfs_repo)
@@ -23,6 +24,7 @@ def make_source_package(spec: api.Spec) -> api.Ident:
 
 
 def collect_and_commit_sources(spec: api.Spec) -> spfs.storage.Layer:
+    """Collect sources for the given spec and commit them into an spfs layer."""
 
     pkg = spec.pkg.with_build(api.SRC)
 
@@ -38,6 +40,7 @@ def collect_and_commit_sources(spec: api.Spec) -> spfs.storage.Layer:
 
 
 def collect_sources(spec: api.Spec, source_dir: str) -> None:
+    """Collect the sources for a spec in the given directory."""
     os.makedirs(source_dir)
 
     for source in spec.sources:
@@ -52,6 +55,11 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
 
 
 def validate_source_changeset(diffs: List[spfs.tracking.Diff], source_dir: str) -> None:
+    """Validate the set of diffs for a source package build.
+
+    Raises:
+      CollectionError: if any issues are identified in the changeset
+    """
 
     if not diffs:
         raise CollectionError(
