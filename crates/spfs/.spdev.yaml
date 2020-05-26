@@ -1,6 +1,10 @@
-version: 0.19.4
+version: 0.19.5
 release_notes: |
-  * Fix issue in csh where run command did not properly propagate quoted strings
+  * Fix bug where has_tag returned true when tag was empty
+  * Update semver and add has_tag to repos
+  * Add functionality to list under tag paths like ls
+  * Remove missed debug print statements
+  * Move cli diff code into top-level api function for easier access
 
 environment:
   kind: PipEnv

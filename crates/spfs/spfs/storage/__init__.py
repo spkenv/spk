@@ -9,3 +9,5 @@ from ._registry import register_scheme, open_repository
 
 # automatically registered implementations
 from . import fs
+
+__all__ = list(locals().keys())

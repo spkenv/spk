@@ -36,12 +36,12 @@ class Repository:
         self.tags = TagStorage(os.path.join(root, self._tags))
 
         self.minimum_compatible_version = "0.12.0"
-        repo_version = self.last_migration()
-        if semver.compare(spfs.__version__, repo_version) < 0:
+        repo_version = semver.VersionInfo.parse(self.last_migration())
+        if repo_version.compare(spfs.__version__) > 0:
             raise RuntimeError(
                 f"Repository requires a newer version of spfs [{repo_version}]: {self.address()}"
             )
-        if semver.compare(repo_version, self.minimum_compatible_version) < 0:
+        if repo_version.compare(self.minimum_compatible_version) < 0:
             raise RuntimeError(
                 f"Repository is not compatible with this version of spfs, it needs to be migrated"
             )

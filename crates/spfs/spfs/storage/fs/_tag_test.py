@@ -36,3 +36,18 @@ def test_tag_no_duplication(tmpdir: py.path.local) -> None:
 
     assert tag1 == tag2
     assert len(list(storage.read_tag("hello"))) == 1
+
+
+def test_ls_tags(tmpdir: py.path.local) -> None:
+
+    storage = TagStorage(tmpdir.join("tags").strpath)
+    for tag in (
+        "spi/stable/my_tag",
+        "spi/stable/other_tag",
+        "spi/latest/my_tag",
+    ):
+        storage.push_tag(tag, encoding.EMPTY_DIGEST)
+
+    assert storage.ls_tags("/") == ["spi"]
+    assert storage.ls_tags("/spi") == ["stable", "latest"]
+    assert storage.ls_tags("spi/stable") == ["my_tag", "other_tag"]

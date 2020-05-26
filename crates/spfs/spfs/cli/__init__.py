@@ -71,3 +71,6 @@ def _capture_if_relevant(e: Exception) -> None:
     if isinstance(e, spfs.NothingToCommitError):
         return
     sentry_sdk.capture_exception(e)
+
+
+__all__ = list(locals().keys())

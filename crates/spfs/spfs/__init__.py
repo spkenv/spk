@@ -1,6 +1,6 @@
 """Filesystem isolation, capture and distribution."""
 
-__version__ = "0.19.4"
+__version__ = "0.19.5"
 
 from . import storage, tracking, runtime, io, graph, encoding
 from ._config import get_config, load_config, Config
@@ -24,3 +24,7 @@ from ._clean import (
     purge_objects,
 )
 from ._prune import prune_tags, get_prunable_tags, PruneParameters
+from ._diff import diff
+from ._ls_tags import ls_tags
+
+__all__ = list(locals().keys())
