@@ -12,10 +12,15 @@ import spk
 _LOGGER = structlog.get_logger("spk.cli")
 
 
-def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
+def register(
+    sub_parsers: argparse._SubParsersAction, **parser_args: Any
+) -> argparse.ArgumentParser:
 
     mkb_cmd = sub_parsers.add_parser(
-        "make-binary", aliases=["mkbinary", "mkbin", "mkb"], help=_make_binary.__doc__
+        "make-binary",
+        aliases=["mkbinary", "mkbin", "mkb"],
+        help=_make_binary.__doc__,
+        **parser_args
     )
     mkb_cmd.add_argument(
         "--no-runtime",
@@ -50,6 +55,8 @@ def _make_binary(args: argparse.Namespace) -> None:
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
 
+    base_options = spk.api.host_options()
+
     source_dir = os.getcwd()
     for package in args.packages:
         if os.path.isfile(package):
@@ -65,5 +72,6 @@ def _make_binary(args: argparse.Namespace) -> None:
                 )
 
         _LOGGER.info("building binary package", pkg=spec.pkg)
-        out = spk.make_binary_package(spec, os.getcwd(), spk.api.OptionMap())
+        options = spec.resolve_all_options(base_options)
+        out = spk.make_binary_package(spec, os.getcwd(), options)
         _LOGGER.info("created", pkg=out)

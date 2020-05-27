@@ -1,3 +1,4 @@
+from typing import Any
 import argparse
 
 import structlog
@@ -8,9 +9,11 @@ import spk
 _LOGGER = structlog.get_logger("cli")
 
 
-def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
+def register(
+    sub_parsers: argparse._SubParsersAction, **parser_args: Any
+) -> argparse.ArgumentParser:
 
-    tags_cmd = sub_parsers.add_parser("search", help=_search.__doc__)
+    tags_cmd = sub_parsers.add_parser("search", help=_search.__doc__, **parser_args)
     tags_cmd.add_argument("term", metavar="TERM", help="The search term / substring")
     tags_cmd.set_defaults(func=_search)
     return tags_cmd

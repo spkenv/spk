@@ -8,7 +8,7 @@ from ._nodes import BuildNode, BinaryPackageHandle
 from ._solver import Solver, UnresolvedPackageError
 
 
-def test_solver_no_spec() -> None:
+def test_solver_package_with_no_spec() -> None:
 
     repo = storage.MemRepository()
 
@@ -26,11 +26,11 @@ def test_solver_no_spec() -> None:
         solver.solve()
 
 
-def test_solver_existing_tag() -> None:
+def test_solver_single_package_no_deps() -> None:
 
     repo = storage.MemRepository()
     options = api.OptionMap()
-    spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
+    spec = api.Spec.from_dict({"pkg": "my_pkg/1.0.0"})
 
     repo.publish_spec(spec)
     repo.publish_package(
@@ -39,30 +39,10 @@ def test_solver_existing_tag() -> None:
 
     solver = Solver(options)
     solver.add_repository(repo)
-    solver.add_request(api.parse_ident("my_pkg"))
+    solver.add_request("my_pkg")
 
-    env = solver.solve()
-    assert len(env.inputs) == 1, "expected one resolved package"
-    source = env.inputs["my_pkg"].follow()
-    assert isinstance(source, BuildNode)
-    # TODO: assert that it does not need building
-
-
-def test_solver_source_only() -> None:
-
-    repo = storage.MemRepository()
-    options = api.OptionMap()
-    spec = api.Spec(api.parse_ident("my_pkg/1.0.0"))
-
-    repo.publish_spec(spec)
-    repo.publish_package(spec.pkg.with_build(api.SRC), spfs.encoding.EMPTY_DIGEST)
-
-    solver = Solver(options)
-    solver.add_repository(repo)
-    solver.add_request(api.parse_ident("my_pkg"))
-
-    env = solver.solve()
-    assert len(env.inputs) == 1, "expected one resolved package"
-    port = env.inputs["my_pkg"]
-    assert isinstance(port.follow(), BuildNode), "expected to connect to build node"
-    assert port.type is BinaryPackageHandle, "expected to provide binary package"
+    packages = solver.solve()
+    assert len(packages) == 1, "expected one resolved package"
+    assert packages["my_pkg"].version == spec.pkg.version
+    assert packages["my_pkg"].build is not None
+    assert packages["my_pkg"].build.digest != api.SRC

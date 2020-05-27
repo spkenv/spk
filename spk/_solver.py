@@ -1,11 +1,11 @@
-from typing import List, Union, Iterable
+from typing import List, Union, Iterable, Dict
 
 import structlog
 import spfs
 
 from . import graph, api, storage, compat
 from ._handle import BinaryPackageHandle, SourcePackageHandle
-from . import _nodes  # FIXME: circular dependency
+from ._nodes import BuildNode, FetchNode
 
 _LOGGER = structlog.get_logger("spk")
 
@@ -20,33 +20,11 @@ class UnresolvedPackageError(RuntimeError):
         super(UnresolvedPackageError, self).__init__(message)
 
 
-class Env(graph.Node):
-    def run(self) -> None:
-
-        pass
-
-    def packages(self) -> Iterable[BinaryPackageHandle]:
-
-        for name, port in self.inputs.items():
-
-            if port.value is None:
-                raise RuntimeError(
-                    f"Package has not been built for this environment: {name}"
-                )
-
-            if not isinstance(port.value, _nodes.BinaryPackageHandle):
-                _LOGGER.warning(
-                    f"Unexpected input port on resolved environment: {name} ({port.type})"
-                )
-
-            yield port.value
-
-
 class Solver:
-    def __init__(self, options: api.OptionMap) -> None:
+    def __init__(self, options: Union[api.OptionMap, Dict[str, str]]) -> None:
 
         self._repos: List[storage.Repository] = []
-        self._options = options
+        self._options = api.OptionMap(options.items())
         self._requests: List[api.Ident] = []
         self._specs: List[api.Spec] = []
 
@@ -65,77 +43,46 @@ class Solver:
 
         self._specs.append(spec)
 
-    def solve(self) -> Env:
+    def solve(self) -> Dict[str, api.Ident]:
 
-        # TODO: FIXME: support many repos
+        # FIXME: support many repos
+        assert len(self._repos) <= 1, "Too many package repositories."
         assert len(self._repos), "No registered package repositories."
         repo = self._repos[0]
 
-        env = Env()
+        packages: Dict[str, api.Ident] = {}
         for request in self._requests:
 
-            all_versions = repo.list_package_versions(request.name)
-            all_versions.sort()
-            versions = list(filter(request.version.is_satisfied_by, all_versions))
-            versions.sort()
+            pkg = find_best_version(repo, request, self._options)
+            packages[pkg.name] = pkg
 
-            for version_str in reversed(versions):
+        return packages
 
-                version = compat.parse_version(version_str)
-                pkg = api.Ident(request.name, version)
-                spec = repo.read_spec(pkg)
-                options = spec.resolve_all_options(self._options)
 
-                try:
-                    digest = repo.get_package(pkg.with_build(options.digest()))
-                except storage.PackageNotFoundError:
-                    _LOGGER.debug(
-                        "package not built with required options:", pkg=pkg, **options
-                    )
-                    pass
-                else:
-                    builder = _nodes.BuildNode(spec, options)
-                    builder.binary_package.value = BinaryPackageHandle(
-                        spec, digest.str()
-                    )
-                    port = env.add_input_port(pkg.name, _nodes.BinaryPackageHandle)
-                    port.connect(builder.binary_package)
-                    break
+def find_best_version(
+    repo: storage.Repository, request: api.Ident, options: api.OptionMap
+) -> api.Ident:
 
-                try:
-                    digest = repo.get_package(
-                        api.Ident(request.name, version).with_build(api.SRC)
-                    )
-                except storage.PackageNotFoundError:
-                    pass
-                else:
-                    builder = _nodes.BuildNode(spec, options)
-                    # builder.source_package.value = SourcePackageHandle(
-                    #     spec, digest.str()
-                    # )
-                    port = env.add_input_port(pkg.name, _nodes.BinaryPackageHandle)
-                    port.connect(builder.binary_package)
-                    break
+    all_versions = repo.list_package_versions(request.name)
+    all_versions.sort()
+    versions = list(filter(request.version.is_satisfied_by, all_versions))
+    versions.sort()
 
-                # TODO: try for source package
-                # tag = f"spk/pkg/{pkg.name}/{version}/{options.digest()}"
+    for version_str in reversed(versions):
 
-                # if repo.tags.has_tag(tag):
-                #     nodes.append(BinaryPackageNode(spec, tag)))
-                #     break
-                # else:
-                #     nodes.append(SpecBuilder(spec, options))
-                #     break
-            else:
-                raise UnresolvedPackageError(str(request), versions=all_versions)
+        version = compat.parse_version(version_str)
+        pkg = api.Ident(request.name, version)
+        spec = repo.read_spec(pkg)
+        options = spec.resolve_all_options(options)
 
-        for spec in self._specs:
-            # FIXME: combine with requeests more elegantly
-            options = spec.resolve_all_options(self._options)
-            builder = _nodes.BuildNode(spec, options)
-            fetcher = _nodes.FetchNode(spec)
-            builder.source_package.connect(fetcher.source_package)
-            port = env.add_input_port(spec.pkg.name, _nodes.BinaryPackageHandle)
-            port.connect(builder.binary_package)
+        candidate = pkg.with_build(options.digest())
+        try:
+            repo.get_package(candidate)
+        except storage.PackageNotFoundError:
+            _LOGGER.debug(f"build does not exist: {candidate}", **options)
+            continue
 
-        return env
+        return candidate
+
+    else:
+        raise UnresolvedPackageError(str(request), versions=all_versions)
