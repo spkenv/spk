@@ -1,4 +1,4 @@
-from typing import List, Union, Iterable, Dict, Optional
+from typing import List, Union, Iterable, Dict, Optional, Tuple
 from collections import defaultdict
 from functools import lru_cache
 
@@ -164,16 +164,20 @@ class Solver:
         request = state.next_request()
         if not request:
             raise RuntimeError("Logic error: nothing to solve in current state")
-        pkg = find_best_version(repo, request, self._options)
+
+        pkg, spec = find_best_version(repo, request, self._options)
 
         decision = Decision(state)
         decision.set_resolved(pkg)
+        for dep in spec.depends:
+            decision.add_request(dep.pkg)
+
         return decision
 
 
 def find_best_version(
     repo: storage.Repository, request: api.Ident, options: api.OptionMap
-) -> api.Ident:
+) -> Tuple[api.Ident, api.Spec]:
 
     all_versions = repo.list_package_versions(request.name)
     all_versions.sort()
@@ -194,7 +198,7 @@ def find_best_version(
             _LOGGER.debug(f"build does not exist: {candidate}", **options)
             continue
 
-        return candidate
+        return (candidate, spec)
 
     else:
         raise UnresolvedPackageError(str(request), versions=all_versions)

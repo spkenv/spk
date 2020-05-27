@@ -1,3 +1,4 @@
+from typing import Dict
 import io
 
 import spfs
@@ -46,6 +47,38 @@ def test_solver_single_package_no_deps() -> None:
     assert packages["my_pkg"].version == spec.pkg.version
     assert packages["my_pkg"].build is not None
     assert packages["my_pkg"].build.digest != api.SRC
+
+
+def test_solver_single_package_simple_deps() -> None:
+
+    repo = storage.MemRepository()
+    options = api.OptionMap()
+
+    def add_pkg(spec_dict: Dict) -> None:
+        spec = api.Spec.from_dict(spec_dict)
+        repo.publish_spec(spec)
+        repo.publish_package(
+            spec.pkg.with_build(spec.resolve_all_options(options).digest()),
+            spfs.encoding.EMPTY_DIGEST,
+        )
+
+    add_pkg({"pkg": "pkg_a/0.9.0"})
+    add_pkg({"pkg": "pkg_a/1.0.0"})
+    add_pkg({"pkg": "pkg_a/1.2.0"})
+    add_pkg({"pkg": "pkg_a/1.2.1"})
+    add_pkg({"pkg": "pkg_a/2.0.0"})
+
+    add_pkg({"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/2"}]})
+    add_pkg({"pkg": "pkg_b/1.1.0", "depends": [{"pkg": "pkg_a/1"}]})
+
+    solver = Solver(options)
+    solver.add_repository(repo)
+    solver.add_request("pkg_b/1.1")
+
+    packages = solver.solve()
+    assert len(packages) == 2, "expected two resolved packages"
+    assert packages["pkg_a"].version == "1.2.1"
+    assert packages["pkg_b"].version == "1.1.0"
 
 
 def test_decision_stack() -> None:
