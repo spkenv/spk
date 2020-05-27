@@ -12,10 +12,9 @@ import colorama
 
 import spk
 from . import (
-    _cmd_build,
-    _cmd_plan,
     _cmd_search,
     _cmd_version,
+    _cmd_install,
     _cmd_make_source,
     _cmd_make_binary,
 )
@@ -23,43 +22,34 @@ from . import (
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
-    global_parser = argparse.ArgumentParser(
-        prog=spk.__name__, description=spk.__doc__, add_help=False
-    )
-    global_parser.add_argument(
-        "--help", "-h", action="store_true", help="Print this message and exit"
-    )
-
-    _register_persistent_flags(global_parser)
-
-    parser = argparse.ArgumentParser(parents=[global_parser], add_help=False)
-    sub_parsers = parser.add_subparsers(
-        dest="command", title="commands", metavar="COMMAND",
-    )
-
-    _register_persistent_flags(_cmd_make_source.register(sub_parsers))
-    _register_persistent_flags(_cmd_make_binary.register(sub_parsers))
-    _register_persistent_flags(_cmd_build.register(sub_parsers))
-    _register_persistent_flags(_cmd_plan.register(sub_parsers))
-    _register_persistent_flags(_cmd_search.register(sub_parsers))
-    _register_persistent_flags(_cmd_version.register(sub_parsers))
-
-    args = parser.parse_args(argv)
-    if args.help or args.command is None:
-        parser.print_help(sys.stderr)
-        sys.exit(1)
-    return args
-
-
-def _register_persistent_flags(parser: argparse.ArgumentParser) -> None:
-
-    parser.add_argument(
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument(
         "--verbose",
         "-v",
         action="count",
         help="Enable verbose output (can be specified more than once)",
         default=int(os.getenv("SPM_VERBOSITY", 0)),
     )
+
+    parser = argparse.ArgumentParser(
+        prog=spk.__name__, description=spk.__doc__, parents=[parent_parser]
+    )
+
+    sub_parsers = parser.add_subparsers(
+        dest="command", title="commands", metavar="COMMAND",
+    )
+
+    _cmd_make_source.register(sub_parsers, parents=[parent_parser])
+    _cmd_make_binary.register(sub_parsers, parents=[parent_parser])
+    _cmd_install.register(sub_parsers, parents=[parent_parser])
+    _cmd_search.register(sub_parsers, parents=[parent_parser])
+    _cmd_version.register(sub_parsers, parents=[parent_parser])
+
+    args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+    return args
 
 
 def configure_sentry() -> None:

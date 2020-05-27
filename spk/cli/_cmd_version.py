@@ -1,12 +1,16 @@
-from typing import List
+from typing import List, Any
 import argparse
 
 import spk
 
 
-def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
+def register(
+    sub_parsers: argparse._SubParsersAction, **parser_args: Any
+) -> argparse.ArgumentParser:
 
-    version_cmd = sub_parsers.add_parser("version", help=_version.__doc__)
+    version_cmd = sub_parsers.add_parser(
+        "version", help=_version.__doc__, **parser_args
+    )
     version_cmd.set_defaults(func=_version)
     return version_cmd
 

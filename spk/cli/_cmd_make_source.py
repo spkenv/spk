@@ -12,25 +12,30 @@ import spk
 _LOGGER = structlog.get_logger("spk.cli")
 
 
-def register(sub_parsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
+def register(
+    sub_parsers: argparse._SubParsersAction, **parser_args: Any
+) -> argparse.ArgumentParser:
 
-    build_cmd = sub_parsers.add_parser(
-        "make-source", aliases=["mksource", "mksrc", "mks"], help=_make_source.__doc__
+    make_source_cmd = sub_parsers.add_parser(
+        "make-source",
+        aliases=["mksource", "mksrc", "mks"],
+        help=_make_source.__doc__,
+        **parser_args,
     )
-    build_cmd.add_argument(
+    make_source_cmd.add_argument(
         "--no-runtime",
         "-nr",
         action="store_true",
         help="Do not build in a new spfs runtime for debugging (will reset the current runtime)",
     )
-    build_cmd.add_argument(
+    make_source_cmd.add_argument(
         "packages",
         metavar="PKG|SPEC_FILE",
         nargs="+",
         help="The packages or yaml specification files to build",
     )
-    build_cmd.set_defaults(func=_make_source)
-    return build_cmd
+    make_source_cmd.set_defaults(func=_make_source)
+    return make_source_cmd
 
 
 def _make_source(args: argparse.Namespace) -> None:

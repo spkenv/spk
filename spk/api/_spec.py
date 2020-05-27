@@ -56,8 +56,6 @@ class Spec:
                 value = ""
 
             resolved[name] = value
-            # TODO: this probably does not belong here
-            _LOGGER.info(f"{env_var}={value}", src=src)
 
         return resolved
 
