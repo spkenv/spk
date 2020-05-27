@@ -108,10 +108,15 @@ class Decision:
         if not requests:
             return None
 
-        if len(requests) > 1:
-            raise NotImplementedError("Cannot merge requests yet")
+        merged = requests[0].copy()
+        for request in requests[1:]:
+            merged.version.restrict(request.version)
+            if merged.build == request.build or merged.build is None:
+                merged.build = request.build
+            else:
+                raise ValueError(f"Incompatible requests: {merged} && {request}")
 
-        return requests[0]
+        return merged
 
 
 class DecisionTree:
