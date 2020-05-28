@@ -5,6 +5,7 @@ import structlog
 
 import spfs
 import spk
+from ._fmt import format_request, format_ident
 
 _LOGGER = structlog.get_logger("cli")
 
@@ -34,4 +35,8 @@ def _search(args: argparse.Namespace) -> None:
     for repo in repos:
         for name in repo.list_packages():
             if args.term in name:
-                print(f"{name} [{', '.join(repo.list_package_versions(name))}]")
+                versions = list(
+                    spk.api.Ident(name, spk.compat.parse_version(v))
+                    for v in repo.list_package_versions(name)
+                )
+                print(format_request(name, versions))
