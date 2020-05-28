@@ -58,12 +58,22 @@ class Entry(dict):
 
         return other.kind is EntryKind.TREE
 
+    def clone(self) -> "Entry":
+        """Return a copy of this entry (does not clone)."""
+
+        other = Entry(
+            kind=self.kind, object=self.object, mode=self.mode, size=self.size,
+        )
+        for name, node in self.items():
+            other[name] = node
+        return other
+
     def update(self, other: "Manifest.Node") -> None:  # type: ignore
 
         self.kind = other.kind
         self.object = other.object
         self.mode = other.mode
-        if not self.kind is EntryKind.TREE:
+        if self.kind is not EntryKind.TREE:
             self.size = other.size
             return
 

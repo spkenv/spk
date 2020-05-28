@@ -23,6 +23,24 @@ def test_read_write_manifest(tmpdir: py.path.local) -> None:
     assert manifest.digest() in list(storage._db.iter_digests())
 
 
+def test_manifest_parity(tmpdir: py._path.local.LocalPath) -> None:
+
+    storage = ManifestStorage(FSDatabase(tmpdir.join("storage").strpath))
+
+    tmpdir.join("dir/file.txt").ensure()
+    expected = tracking.compute_manifest(tmpdir.strpath)
+    storable = Manifest(expected)
+    storage._db.write_object(storable)
+    out = storage.read_manifest(storable.digest())
+    actual = out.unlock()
+    diffs = tracking.compute_diff(expected, actual)
+    diffs = list(filter(lambda d: d.mode is not tracking.DiffMode.unchanged, diffs))
+
+    for diff in diffs:
+        print(diff, diff.entries)
+    assert not diffs, "Should read out the way it went in"
+
+
 def test_manifest_encoding_speed(benchmark: Callable) -> None:
 
     repo_manifest = Manifest(tracking.compute_manifest("."))
