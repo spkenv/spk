@@ -157,11 +157,11 @@
         },
         "spfs": {
             "hashes": [
-                "sha256:3e0b3f1c679258401a645959f124a766657c3cf43626a067a9106b034f516e5c",
-                "sha256:714480dd1beeb9c19d65b12fcf158bbbb46abd2ccf2b76187d1a9e6a7ccb2d3f"
+                "sha256:5abbf2e9caa380a19d31b887fe84da3db6fcf3fe129194ceccab6073c84e3b2f",
+                "sha256:e444f9023bf39ab4df34d2165b8ae28a1bc6f8fa668476104d2945ae6a2c00db"
             ],
             "index": "pypi",
-            "version": "==0.19.5"
+            "version": "==0.19.6"
         },
         "spops": {
             "hashes": [
