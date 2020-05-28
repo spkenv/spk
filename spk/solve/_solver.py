@@ -13,6 +13,8 @@ _LOGGER = structlog.get_logger("spk.solve")
 
 
 class Solver:
+    """Solver is the main entrypoint for resolving a set of packages."""
+
     def __init__(self, options: Union[api.OptionMap, Dict[str, str]]) -> None:
 
         self._repos: List[storage.Repository] = []
@@ -22,14 +24,27 @@ class Solver:
         self._complete = False
 
     def add_repository(self, repo: storage.Repository) -> None:
+        """Add a repository where the solver can get packages."""
 
         self._repos.append(repo)
 
     def add_request(self, pkg: Union[str, api.Ident]) -> None:
+        """Add a package request to this solver.
 
+        Raises:
+            RuntimeError: if the solver has already completed
+        """
+
+        if self._complete:
+            raise RuntimeError("Solver has already been executed")
         self.decision_tree.root.add_request(pkg)
 
     def solve(self) -> Dict[str, api.Ident]:
+        """Solve the current set of package requests into a complete environment.
+
+        Raises:
+            RuntimeError: if the solver has already completed
+        """
 
         if self._complete:
             raise RuntimeError("Solver has already been executed")
@@ -47,7 +62,7 @@ class Solver:
 
         self._running = False
         self._complete = True
-        return state.current_packages()
+        return state.get_current_packages()
 
     def _solve_next_request(self, state: Decision) -> Decision:
 

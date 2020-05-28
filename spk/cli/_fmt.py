@@ -27,6 +27,10 @@ def format_decision(decision: spk.Decision) -> str:
             format_request(n, pkgs) for n, pkgs in decision.get_requests().items()
         )
         out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)} "
+    if decision.get_resolved():
+        out += (
+            f"{Fore.RED}UNRESOLVE{Fore.RESET} {', '.join(decision.get_unresolved())} "
+        )
     return out
 
 
