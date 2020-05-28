@@ -181,7 +181,9 @@ class ManifestBuilder:
 
     def _compute_tree_node(self, dirname: str, tree_node: Entry) -> None:
 
-        for name in os.listdir(dirname):
+        entries = os.listdir(dirname)
+        tree_node.size = len(entries)
+        for name in entries:
             path = posixpath.join(dirname, name)
             entry = Entry()
             tree_node[name] = entry

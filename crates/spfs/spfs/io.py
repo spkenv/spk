@@ -38,8 +38,14 @@ def format_diffs(diffs: Iterable[tracking.Diff]) -> str:
             color = Fore.LIGHTBLUE_EX
         else:
             color = Style.DIM
+        about = []
+        for attr in ("mode", "object", "size"):
+            a = getattr(diff.entries[0], attr)  # type: ignore
+            b = getattr(diff.entries[1], attr)  # type: ignore
+            if a != b:
+                about.append(attr)
         outputs.append(
-            f"{color} {diff.mode.name:>8} {diff.mode.value} /spfs{diff.path}{Style.RESET_ALL}"
+            f"{color} {Style.BRIGHT}{diff.mode.name:>8} {Style.NORMAL}/spfs{diff.path} {Style.DIM}[{','.join(about)}] {Style.RESET_ALL}"
         )
 
     return "\n".join(outputs)

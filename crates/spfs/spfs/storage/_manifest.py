@@ -171,6 +171,7 @@ class Manifest(graph.Object):
             dest_tree = Tree()
             for name, entry in source_node.items():
 
+                entry = entry.clone()
                 if entry.kind is tracking.EntryKind.TREE:
                     tree = _build_tree(entry)
                     self._trees[tree.digest()] = tree
@@ -216,7 +217,8 @@ class Manifest(graph.Object):
                 new_entry = tracking.Entry()
                 new_entry.kind = entry.kind
                 new_entry.mode = entry.mode
-                new_entry.object = entry.object
+                if entry.kind is not tracking.EntryKind.TREE:
+                    new_entry.object = entry.object
                 new_entry.size = entry.size
                 parent[entry.name] = new_entry
                 if entry.kind is tracking.EntryKind.TREE:

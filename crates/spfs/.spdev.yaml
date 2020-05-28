@@ -1,10 +1,6 @@
-version: 0.19.5
+version: 0.19.6
 release_notes: |
-  * Fix bug where has_tag returned true when tag was empty
-  * Update semver and add has_tag to repos
-  * Add functionality to list under tag paths like ls
-  * Remove missed debug print statements
-  * Move cli diff code into top-level api function for easier access
+  * Fix bug where diff command showed changes in clean runtime
 
 environment:
   kind: PipEnv
