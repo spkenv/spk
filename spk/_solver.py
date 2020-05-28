@@ -1,4 +1,4 @@
-from typing import List, Union, Iterable, Dict, Optional, Tuple, Any, Iterator
+from typing import List, Union, Iterable, Dict, Optional, Tuple, Any, Iterator, Set
 from collections import defaultdict
 from functools import lru_cache
 
@@ -93,6 +93,7 @@ class Decision:
         self.branches: List[Decision] = []
         self._requests: Dict[str, List[api.Ident]] = defaultdict(list)
         self._resolved: Dict[str, api.Ident] = {}
+        self._unresolved: Set[str] = set()
         self._error: Optional[SolverError] = None
         self._iterators: Dict[str, PackageIterator] = {}
 
@@ -133,6 +134,14 @@ class Decision:
 
         return dict((n, pkg.clone()) for n, pkg in self._resolved.items())
 
+    def set_unresolved(self, pkg: api.Ident) -> None:
+
+        self._unresolved.add(pkg.name)
+
+    def get_unresolved(self) -> List[str]:
+
+        return list(self._unresolved)
+
     def get_iterator(self, name: str) -> Optional[PackageIterator]:
 
         if name not in self._iterators:
@@ -152,7 +161,10 @@ class Decision:
         if not isinstance(pkg, api.Ident):
             pkg = api.parse_ident(pkg)
 
-        # TODO: reopen request if already complete but not satisfied
+        current = self.current_packages().get(pkg.name)
+        if current is not None:
+            if not pkg.version.is_satisfied_by(current.version):
+                self.set_unresolved(pkg)
 
         self._requests[pkg.name].append(pkg)
 
@@ -175,6 +187,10 @@ class Decision:
         if self.parent is not None:
             packages.update(self.parent.current_packages())
         packages.update(self._resolved)
+
+        for name in self._unresolved:
+            if name in packages:
+                del packages[name]
 
         return packages
 

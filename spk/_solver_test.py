@@ -152,15 +152,89 @@ def test_solver_dependency_incompatible_stepback() -> None:
     assert packages["pkg_a"].version == "1.0.0"
 
 
-def test_solver_dependency_reopen() -> None:
+def test_solver_dependency_already_satisfied() -> None:
 
     # test what happens when a dependency is added which represents
     # a package which has already been resolved
     # - and the resolved version satisfies the request
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "pkg_top/1.0.0",
+                # should resolve dep_1 as 1.0.0
+                "depends": [{"pkg": "dep_1/1.0"}, {"pkg": "dep_2/1"}],
+            },
+            {"pkg": "dep_1/1.1.0"},
+            {"pkg": "dep_1/1.0.0"},
+            # when dep_2 gets resolved, it will re-request this but it has already resolved
+            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/1"}]},
+        ]
+    )
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("pkg_top")
+    packages = solver.solve()
+    assert list(packages.keys()) == ["pkg_top", "dep_1", "dep_2"]
+    assert packages["dep_1"].version == "1.0.0"
+
+
+def test_solver_dependency_reopen_solvable() -> None:
+
+    # test what happens when a dependency is added which represents
+    # a package which has already been resolved
     # - and the resolved version does not satisfy the request
     #   - and a version exists for both (solvable)
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "pkg_top/1.0.0",
+                # should resolve dep_1 as 1.1.0 (favoring latest)
+                "depends": [{"pkg": "dep_1/1"}, {"pkg": "dep_2/1"}],
+            },
+            {"pkg": "dep_1/1.1.0"},
+            {"pkg": "dep_1/1.0.0"},
+            # when dep_2 gets resolved, it will enforce an older version
+            # of the existing resolve, which is still valid for all requests
+            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/1.0.0"}]},
+        ]
+    )
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("pkg_top")
+    packages = solver.solve()
+    assert list(packages.keys()) == ["pkg_top", "dep_2", "dep_1"]
+    assert packages["dep_1"].version == "1.0.0"
+
+
+def test_solver_dependency_reopen_unsolvable() -> None:
+
+    # test what happens when a dependency is added which represents
+    # a package which has already been resolved
+    # - and the resolved version does not satisfy the request
     #   - and a version does not exist for both (unsolvable)
-    pass
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "pkg_top/1.0.0",
+                # must resolve dep_1 as 1.1.0 (favoring latest)
+                "depends": [{"pkg": "dep_1/1.1"}, {"pkg": "dep_2/1"}],
+            },
+            {"pkg": "dep_1/1.1.0"},
+            {"pkg": "dep_1/1.0.0"},
+            # when dep_2 gets resolved, it will enforce an older version
+            # of the existing resolve, which is in conflict with the original
+            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/1.0.0"}]},
+        ]
+    )
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("pkg_top")
+    with pytest.raises(UnresolvedPackageError):
+        packages = solver.solve()
+        print(packages)
 
 
 def test_decision_stack() -> None:

@@ -17,7 +17,7 @@ def format_ident(pkg: spk.api.Ident) -> str:
 def format_decision(decision: spk.Decision) -> str:
 
     if decision.get_error() is not None:
-        return f"{Fore.RED}STOP{Fore.RESET} {decision.get_error()}"
+        return f"{Fore.RED}DEAD{Fore.RESET} {decision.get_error()}"
     out = ""
     if decision.get_resolved():
         values = list(format_ident(pkg) for pkg in decision.get_resolved().values())
