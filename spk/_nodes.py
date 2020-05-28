@@ -36,7 +36,7 @@ class BuildNode(graph.Node):
         super(BuildNode, self).__init__()
 
         self._spec = spec
-        self._options = options.copy()
+        self._options = options.clone()
 
         self.source_package = self.add_input_port("source_package", SourcePackageHandle)
         self.binary_package = self.add_output_port(

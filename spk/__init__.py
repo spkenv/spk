@@ -4,7 +4,14 @@ __version__ = "0.1.0"
 
 from . import api, graph, storage, build
 
-from ._solver import Solver, UnresolvedPackageError
+from ._solver import (
+    Solver,
+    UnresolvedPackageError,
+    ConflictingRequestsError,
+    SolverError,
+    DecisionTree,
+    Decision,
+)
 from ._global import load_spec, save_spec
 
 # promote useful front line api functions

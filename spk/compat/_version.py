@@ -26,9 +26,9 @@ class Version:
             return self.parts == other.parts
         return bool(str(self) == other)
 
-    def copy(self) -> "Version":
+    def clone(self) -> "Version":
 
-        return Version(str(self))
+        return Version(VERSION_SEP.join(self.parts))
 
     def is_satisfied_by(self, other: Union[str, "Version"]) -> bool:
 
@@ -44,7 +44,7 @@ class Version:
             return
 
         if not self.is_satisfied_by(other):
-            raise ValueError(f"Cannot restict: {other} is not a subset of {self}")
+            raise ValueError(f"Version {other} and {self} are mutually exclusive")
 
         print(self.parts, other.parts)
         self.parts = other.parts

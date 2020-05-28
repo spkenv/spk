@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 import io
 
 import spfs
@@ -6,7 +6,34 @@ import pytest
 
 from . import api, storage
 from ._nodes import BuildNode, BinaryPackageHandle
-from ._solver import Solver, UnresolvedPackageError, Decision
+from ._solver import (
+    Solver,
+    UnresolvedPackageError,
+    Decision,
+    SolverError,
+    ConflictingRequestsError,
+)
+
+
+def make_repo(
+    specs: List[Dict], opts: api.OptionMap = api.OptionMap()
+) -> storage.MemRepository:
+
+    repo = storage.MemRepository()
+    options = api.OptionMap()
+
+    def add_pkg(spec_dict: Dict) -> None:
+        spec = api.Spec.from_dict(spec_dict)
+        repo.publish_spec(spec)
+        repo.publish_package(
+            spec.pkg.with_build(spec.resolve_all_options(options).digest()),
+            spfs.encoding.EMPTY_DIGEST,
+        )
+
+    for spec in specs:
+        add_pkg(spec)
+
+    return repo
 
 
 def test_solver_package_with_no_spec() -> None:
@@ -29,14 +56,8 @@ def test_solver_package_with_no_spec() -> None:
 
 def test_solver_single_package_no_deps() -> None:
 
-    repo = storage.MemRepository()
+    repo = make_repo([{"pkg": "my_pkg/1.0.0"}])
     options = api.OptionMap()
-    spec = api.Spec.from_dict({"pkg": "my_pkg/1.0.0"})
-
-    repo.publish_spec(spec)
-    repo.publish_package(
-        spec.pkg.with_build(options.digest()), spfs.encoding.EMPTY_DIGEST
-    )
 
     solver = Solver(options)
     solver.add_repository(repo)
@@ -44,32 +65,25 @@ def test_solver_single_package_no_deps() -> None:
 
     packages = solver.solve()
     assert len(packages) == 1, "expected one resolved package"
-    assert packages["my_pkg"].version == spec.pkg.version
+    assert packages["my_pkg"].version == "1.0.0"
     assert packages["my_pkg"].build is not None
     assert packages["my_pkg"].build.digest != api.SRC
 
 
 def test_solver_single_package_simple_deps() -> None:
 
-    repo = storage.MemRepository()
     options = api.OptionMap()
-
-    def add_pkg(spec_dict: Dict) -> None:
-        spec = api.Spec.from_dict(spec_dict)
-        repo.publish_spec(spec)
-        repo.publish_package(
-            spec.pkg.with_build(spec.resolve_all_options(options).digest()),
-            spfs.encoding.EMPTY_DIGEST,
-        )
-
-    add_pkg({"pkg": "pkg_a/0.9.0"})
-    add_pkg({"pkg": "pkg_a/1.0.0"})
-    add_pkg({"pkg": "pkg_a/1.2.0"})
-    add_pkg({"pkg": "pkg_a/1.2.1"})
-    add_pkg({"pkg": "pkg_a/2.0.0"})
-
-    add_pkg({"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/2"}]})
-    add_pkg({"pkg": "pkg_b/1.1.0", "depends": [{"pkg": "pkg_a/1"}]})
+    repo = make_repo(
+        [
+            {"pkg": "pkg_a/0.9.0"},
+            {"pkg": "pkg_a/1.0.0"},
+            {"pkg": "pkg_a/1.2.0"},
+            {"pkg": "pkg_a/1.2.1"},
+            {"pkg": "pkg_a/2.0.0"},
+            {"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/2"}]},
+            {"pkg": "pkg_b/1.1.0", "depends": [{"pkg": "pkg_a/1"}]},
+        ]
+    )
 
     solver = Solver(options)
     solver.add_repository(repo)
@@ -79,6 +93,74 @@ def test_solver_single_package_simple_deps() -> None:
     assert len(packages) == 2, "expected two resolved packages"
     assert packages["pkg_a"].version == "1.2.1"
     assert packages["pkg_b"].version == "1.1.0"
+
+
+def test_solver_dependency_incompatible() -> None:
+
+    # test what happens when a dependency is added which is incompatible
+    # with an existing request in the stack
+    repo = make_repo(
+        [
+            {"pkg": "pkg_a/1.0.0"},
+            {"pkg": "pkg_a/2.0.0"},
+            {"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/2"}]},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("pkg_b/1")
+    # this one is incompatible with pkg_b.depends but the solver doesn't know it yet
+    solver.add_request("pkg_a/1")
+
+    with pytest.raises(UnresolvedPackageError):
+        solver.solve()
+
+    for decision in solver.decision_tree.walk():
+        print("." * decision.level(), decision)
+        err = decision.get_error()
+        if err is not None:
+            assert isinstance(err, ConflictingRequestsError)
+            break
+    else:
+        pytest.fail("expected to find problem with conflicting requests")
+
+
+def test_solver_dependency_incompatible_stepback() -> None:
+
+    # test what happens when a dependency is added which is incompatible
+    # with an existing request in the stack - in this case we want the solver
+    # to successfully step back into an older package version with
+    # better dependencies
+    repo = make_repo(
+        [
+            {"pkg": "pkg_a/1.0.0"},
+            {"pkg": "pkg_a/2.0.0"},
+            {"pkg": "pkg_b/1.1.0", "depends": [{"pkg": "pkg_a/2"}]},
+            {"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/1"}]},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("pkg_b/1")
+    # this one is incompatible with pkg_b/1.1.depends but not pkg_b/1.0
+    solver.add_request("pkg_a/1")
+
+    packages = solver.solve()
+    assert packages["pkg_b"].version == "1.0.0"
+    assert packages["pkg_a"].version == "1.0.0"
+
+
+def test_solver_dependency_reopen() -> None:
+
+    # test what happens when a dependency is added which represents
+    # a package which has already been resolved
+    # - and the resolved version satisfies the request
+    # - and the resolved version does not satisfy the request
+    #   - and a version exists for both (solvable)
+    #   - and a version does not exist for both (unsolvable)
+    pass
 
 
 def test_decision_stack() -> None:

@@ -1,4 +1,4 @@
-from typing import List, Union, Iterable, Dict, Optional, Tuple
+from typing import List, Union, Iterable, Dict, Optional, Tuple, Any, Iterator
 from collections import defaultdict
 from functools import lru_cache
 
@@ -12,45 +12,162 @@ from ._nodes import BuildNode, FetchNode
 _LOGGER = structlog.get_logger("spk")
 
 
-class UnresolvedPackageError(RuntimeError):
-    def __init__(self, pkg: str, versions: List[str] = None) -> None:
+class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
+    def __init__(
+        self, repo: storage.Repository, request: api.Ident, options: api.OptionMap
+    ) -> None:
+        self._repo = repo
+        self._request = request
+        self._options = options
+        self._versions: Optional[Iterator[str]] = None
+        self.past_versions: List[str] = []
 
-        message = f"{pkg}"
+    def _start(self) -> None:
+        all_versions = self._repo.list_package_versions(self._request.name)
+        versions = list(filter(self._request.version.is_satisfied_by, all_versions))
+        versions.sort()
+        versions.reverse()
+        self._versions = iter(versions)
+
+    def clone(self) -> "PackageIterator":
+
+        if self._versions is None:
+            self._start()
+
+        other = PackageIterator(self._repo, self._request, self._options)
+        remaining = list(self._versions)  # type: ignore
+        other._versions = iter(remaining)
+        self._versions = iter(remaining)
+        return other
+
+    def __next__(self) -> Tuple[api.Ident, api.Spec]:
+
+        if self._versions is None:
+            self._start()
+
+        for version_str in self._versions:  # type: ignore
+            self.past_versions.append(version_str)
+            version = compat.parse_version(version_str)
+            pkg = api.Ident(self._request.name, version)
+            spec = self._repo.read_spec(pkg)
+            options = spec.resolve_all_options(self._options)
+
+            candidate = pkg.with_build(options.digest())
+            try:
+                self._repo.get_package(candidate)
+            except storage.PackageNotFoundError:
+                continue
+
+            return (candidate, spec)
+
+        raise StopIteration
+
+
+class SolverError(Exception):
+    pass
+
+
+class UnresolvedPackageError(SolverError):
+    def __init__(self, pkg: Any, versions: List[str] = None) -> None:
+
+        message = f"Failed to resolve: {pkg}"
         if versions is not None:
-            version_list = "\n".join(versions)
+            version_list = ", ".join(versions)
             message += f" - from versions: [{version_list}]"
         super(UnresolvedPackageError, self).__init__(message)
+
+
+class ConflictingRequestsError(SolverError):
+    def __init__(self, msg: str, requests: List[api.Ident] = None) -> None:
+
+        message = f"Conflicting requests: {msg}"
+        if requests is not None:
+            req_list = ", ".join(str(r) for r in requests)
+            message += f" - from requests: [{req_list}]"
+        super(ConflictingRequestsError, self).__init__(message)
 
 
 class Decision:
     def __init__(self, parent: "Decision" = None) -> None:
         self.parent = parent
+        self.branches: List[Decision] = []
         self._requests: Dict[str, List[api.Ident]] = defaultdict(list)
         self._resolved: Dict[str, api.Ident] = {}
+        self._error: Optional[SolverError] = None
+        self._iterators: Dict[str, PackageIterator] = {}
+
+    def __str__(self) -> str:
+        if self._error is not None:
+            return f"STOP: {self._error}"
+        out = ""
+        if self._resolved:
+            values = list(str(pkg) for pkg in self._resolved.values())
+            out += f"RESOLVE: {', '.join(values)} "
+        if self._requests:
+            values = list(str(pkg) for pkg in self._requests.values())
+            out += f"REQUEST: {', '.join(values)} "
+        return out
 
     @lru_cache()
     def level(self) -> int:
 
-        level = 1
+        level = 0
         parent = self.parent
         while parent is not None:
             level += 1
             parent = parent.parent
         return level
 
+    def set_error(self, error: SolverError) -> None:
+
+        self._error = error
+
+    def get_error(self) -> Optional[SolverError]:
+        return self._error
+
     def set_resolved(self, pkg: api.Ident) -> None:
 
         self._resolved[pkg.name] = pkg
+
+    def get_resolved(self) -> Dict[str, api.Ident]:
+
+        return dict((n, pkg.clone()) for n, pkg in self._resolved.items())
+
+    def get_iterator(self, name: str) -> Optional[PackageIterator]:
+
+        if name not in self._iterators:
+            if self.parent is not None:
+                parent_iter = self.parent.get_iterator(name)
+                if parent_iter is not None:
+                    self._iterators[name] = parent_iter.clone()
+
+        return self._iterators.get(name)
+
+    def set_iterator(self, name: str, iterator: PackageIterator) -> None:
+
+        self._iterators[name] = iterator
 
     def add_request(self, pkg: Union[str, api.Ident]) -> None:
 
         if not isinstance(pkg, api.Ident):
             pkg = api.parse_ident(pkg)
 
-        # TODO: check against existing requests for impossible
         # TODO: reopen request if already complete but not satisfied
 
         self._requests[pkg.name].append(pkg)
+
+    def get_requests(self) -> Dict[str, List[api.Ident]]:
+
+        copy = {}
+        for name, reqs in self._requests.items():
+            copy[name] = list(pkg.clone() for pkg in reqs)
+        return copy
+
+    def add_branch(self) -> "Decision":
+
+        branch = Decision(self)
+        self.branches.append(branch)
+        return branch
 
     def current_packages(self) -> Dict[str, api.Ident]:
 
@@ -108,13 +225,12 @@ class Decision:
         if not requests:
             return None
 
-        merged = requests[0].copy()
+        merged = requests[0].clone()
         for request in requests[1:]:
-            merged.version.restrict(request.version)
-            if merged.build == request.build or merged.build is None:
-                merged.build = request.build
-            else:
-                raise ValueError(f"Incompatible requests: {merged} && {request}")
+            try:
+                merged.restrict(request)
+            except ValueError as e:
+                raise ConflictingRequestsError(str(e), requests)
 
         return merged
 
@@ -124,13 +240,23 @@ class DecisionTree:
 
         self.root = Decision()
 
+    def walk(self) -> Iterable[Decision]:
+
+        to_walk = [self.root]
+        while len(to_walk):
+            here = to_walk.pop()
+            yield here
+            to_walk.extend(reversed(here.branches))
+
 
 class Solver:
     def __init__(self, options: Union[api.OptionMap, Dict[str, str]]) -> None:
 
         self._repos: List[storage.Repository] = []
         self._options = api.OptionMap(options.items())
-        self._decisions = DecisionTree()
+        self.decision_tree = DecisionTree()
+        self._running = False
+        self._complete = False
 
     def add_repository(self, repo: storage.Repository) -> None:
 
@@ -138,67 +264,61 @@ class Solver:
 
     def add_request(self, pkg: Union[str, api.Ident]) -> None:
 
-        self._decisions.root.add_request(pkg)
+        self.decision_tree.root.add_request(pkg)
 
     def solve(self) -> Dict[str, api.Ident]:
 
-        state = self._decisions.root
+        if self._complete:
+            raise RuntimeError("Solver has already been executed")
+        self._running = True
+
+        state = self.decision_tree.root
         while state.has_unresolved_requests():
 
             try:
                 state = self._solve_next_request(state)
-            except UnresolvedPackageError:
+            except SolverError:
                 if state.parent is None:
-                    raise
+                    raise UnresolvedPackageError(state.next_request())  # type: ignore
                 state = state.parent
 
+        self._running = False
+        self._complete = True
         return state.current_packages()
 
     def _solve_next_request(self, state: Decision) -> Decision:
 
+        decision = state.add_branch()
+        try:
+
+            request = state.next_request()
+            if not request:
+                raise RuntimeError("Logic error: nothing to solve in current state")
+
+            iterator = state.get_iterator(request.name)
+            if iterator is None:
+                iterator = self._make_iterator(request)
+                state.set_iterator(request.name, iterator)
+
+            pkg, spec = next(iterator)
+            decision.set_resolved(pkg)
+            for dep in spec.depends:
+                decision.add_request(dep.pkg)
+
+        except StopIteration:
+            err = UnresolvedPackageError(request, versions=iterator.past_versions)  # type: ignore
+            decision.set_error(err)
+            raise err
+        except SolverError as e:
+            decision.set_error(e)
+            raise
+
+        return decision
+
+    def _make_iterator(self, request: api.Ident) -> PackageIterator:
         # FIXME: support many repos
         assert len(self._repos) <= 1, "Too many package repositories."
         assert len(self._repos), "No registered package repositories."
         repo = self._repos[0]
 
-        request = state.next_request()
-        if not request:
-            raise RuntimeError("Logic error: nothing to solve in current state")
-
-        pkg, spec = find_best_version(repo, request, self._options)
-
-        decision = Decision(state)
-        decision.set_resolved(pkg)
-        for dep in spec.depends:
-            decision.add_request(dep.pkg)
-
-        return decision
-
-
-def find_best_version(
-    repo: storage.Repository, request: api.Ident, options: api.OptionMap
-) -> Tuple[api.Ident, api.Spec]:
-
-    all_versions = repo.list_package_versions(request.name)
-    all_versions.sort()
-    versions = list(filter(request.version.is_satisfied_by, all_versions))
-    versions.sort()
-
-    for version_str in reversed(versions):
-
-        version = compat.parse_version(version_str)
-        pkg = api.Ident(request.name, version)
-        spec = repo.read_spec(pkg)
-        options = spec.resolve_all_options(options)
-
-        candidate = pkg.with_build(options.digest())
-        try:
-            repo.get_package(candidate)
-        except storage.PackageNotFoundError:
-            _LOGGER.debug(f"build does not exist: {candidate}", **options)
-            continue
-
-        return (candidate, spec)
-
-    else:
-        raise UnresolvedPackageError(str(request), versions=all_versions)
+        return PackageIterator(repo, request, self._options)
