@@ -2,9 +2,11 @@
 
 __version__ = "0.1.0"
 
-from . import api, graph, storage, build
+from . import api, build, graph, storage, solve
+from ._global import load_spec, save_spec
 
-from ._solver import (
+# promote useful front line api functions
+from .solve import (
     Solver,
     UnresolvedPackageError,
     ConflictingRequestsError,
@@ -12,8 +14,5 @@ from ._solver import (
     DecisionTree,
     Decision,
 )
-from ._global import load_spec, save_spec
-
-# promote useful front line api functions
 from .api import read_spec_file
 from .build import make_source_package, make_binary_package

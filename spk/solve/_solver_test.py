@@ -4,15 +4,9 @@ import io
 import spfs
 import pytest
 
-from . import api, storage
-from ._nodes import BuildNode, BinaryPackageHandle
-from ._solver import (
-    Solver,
-    UnresolvedPackageError,
-    Decision,
-    SolverError,
-    ConflictingRequestsError,
-)
+from .. import api, storage
+from ._errors import UnresolvedPackageError, ConflictingRequestsError, SolverError
+from ._solver import Solver
 
 
 def make_repo(
@@ -235,29 +229,3 @@ def test_solver_dependency_reopen_unsolvable() -> None:
     with pytest.raises(UnresolvedPackageError):
         packages = solver.solve()
         print(packages)
-
-
-def test_decision_stack() -> None:
-
-    base = Decision()
-    top = Decision(base)
-
-    base.add_request(api.parse_ident("my_pkg/1.0.0"))
-    assert len(top.get_package_requests("my_pkg")) == 1
-
-    top.add_request(api.parse_ident("my_pkg/1"))
-    assert len(top.get_package_requests("my_pkg")) == 2
-
-
-def test_request_merging() -> None:
-
-    decision = Decision()
-    decision.add_request(api.parse_ident("my_pkg/1"))
-    decision.add_request(api.parse_ident("my_pkg/1.0.0"))
-    decision.add_request(api.parse_ident("my_pkg/1.0"))
-
-    assert decision.get_merged_request("my_pkg") == api.parse_ident("my_pkg/1.0.0")
-
-    decision.add_request(api.parse_ident("my_pkg/1.0/src"))
-
-    assert decision.get_merged_request("my_pkg") == api.parse_ident("my_pkg/1.0.0/src")
