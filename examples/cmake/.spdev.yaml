@@ -1,0 +1,17 @@
+# the project version is a semantic version for the entire
+# project repo. Unless specified, each component inherits
+# the version of the project
+version: 0.1.0
+
+# release notes are used when creating gitlab tags/releases
+# for this project, and are required to be updated with
+# each change to the version number
+release_notes: |
+  * Setup spdev configuration
+
+environment:
+  kind: RezEnv
+
+components:
+- kind: RezCppPackage
+  name: lib

@@ -59,6 +59,9 @@ def run(argv: Sequence[str]) -> int:
     except KeyboardInterrupt:
         pass
 
+    except SystemExit as e:
+        return e.code
+
     except Exception as e:
         _capture_if_relevant(e)
         spops.count("spk.error_count", command=args.command)

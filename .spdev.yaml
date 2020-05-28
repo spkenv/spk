@@ -14,7 +14,7 @@ components:
     python3: false
     mypy: true
   test:
-    command: pytest
+    command: spfs run - pytest
   install:
     enabled: true
   deploy:

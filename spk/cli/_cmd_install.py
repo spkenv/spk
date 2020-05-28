@@ -31,11 +31,15 @@ def register(
 def _install(args: argparse.Namespace) -> None:
     """install a package into spfs."""
 
+    try:
+        runtime = spfs.active_runtime()
+    except spfs.NoRuntimeError:
+        raise spfs.NoRuntimeError("maybe run 'spfs shell' first?")
+
     options = spk.api.host_options()
     solver = spk.Solver(options)
-    solver.add_repository(
-        spk.storage.SpFSRepository(spfs.get_config().get_repository())  # FIXME: !!
-    )
+    repo = spk.storage.SpFSRepository(spfs.get_config().get_repository())  # FIXME: !!
+    solver.add_repository(repo)
     for package in args.packages:
         solver.add_request(package)
 
@@ -49,4 +53,8 @@ def _install(args: argparse.Namespace) -> None:
         print("Installation cancelled")
         sys.exit(1)
 
-    raise NotImplementedError("TODO: Install process is not implemented")
+    for pkg in packages.values():
+        digest = repo.get_package(pkg)
+        runtime.push_digest(digest)
+
+    spfs.remount_runtime(runtime)

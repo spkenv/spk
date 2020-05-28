@@ -1,0 +1,14 @@
+pkg: cmake-example/0.1.0
+
+opts:
+- var: os
+- var: arch
+
+build:
+  script:
+  - mkdir -p build
+  - cd build
+  - cmake ..
+      -DCMAKE_PREFIX_PATH=/spfs
+      -DCMAKE_INSTALL_PREFIX=/spfs
+  - cmake --build . --target install

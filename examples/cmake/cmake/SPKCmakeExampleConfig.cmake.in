@@ -1,0 +1,10 @@
+set(@PROJECT_NAME@_VERSION 1.0.0)
+
+@PACKAGE_INIT@
+
+set_and_check (@PROJECT_NAME@_INCLUDE_DIRS "include")
+set_and_check (@PROJECT_NAME@_LIBRARY_DIRS "lib")
+
+include ("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+check_required_components(@PROJECT_NAME@)

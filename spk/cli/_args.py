@@ -15,6 +15,7 @@ from . import (
     _cmd_search,
     _cmd_version,
     _cmd_install,
+    _cmd_explain,
     _cmd_make_source,
     _cmd_make_binary,
 )
@@ -42,6 +43,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_make_source.register(sub_parsers, parents=[parent_parser])
     _cmd_make_binary.register(sub_parsers, parents=[parent_parser])
     _cmd_install.register(sub_parsers, parents=[parent_parser])
+    _cmd_explain.register(sub_parsers, parents=[parent_parser])
     _cmd_search.register(sub_parsers, parents=[parent_parser])
     _cmd_version.register(sub_parsers, parents=[parent_parser])
 

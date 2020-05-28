@@ -1,16 +1,34 @@
-from typing import Union
+from typing import Union, Tuple, Any
 from dataclasses import dataclass
 
+VERSION_SEP = "."
 
-@dataclass
+
 class Version:
     """Version specifies a package version number."""
 
-    source: str
+    def __init__(self, spec: str) -> None:
+
+        if spec:
+            self.parts = tuple(spec.split(VERSION_SEP))
+        else:
+            self.parts = tuple()
 
     def __str__(self) -> str:
 
-        return str(self.source)
+        return str(VERSION_SEP.join(self.parts))
+
+    __repr__ = __str__
+
+    def __eq__(self, other: Any) -> bool:
+
+        if isinstance(other, Version):
+            return self.parts == other.parts
+        return bool(str(self) == other)
+
+    def clone(self) -> "Version":
+
+        return Version(VERSION_SEP.join(self.parts))
 
     def is_satisfied_by(self, other: Union[str, "Version"]) -> bool:
 
@@ -18,7 +36,18 @@ class Version:
             other = Version(other)
 
         # TODO: resolve better and handle ranges
-        return other.source.startswith(self.source)
+        return self.parts == other.parts[: len(self.parts)]
+
+    def restrict(self, other: "Version") -> None:
+
+        if other.is_satisfied_by(self):
+            return
+
+        if not self.is_satisfied_by(other):
+            raise ValueError(f"Version {other} and {self} are mutually exclusive")
+
+        print(self.parts, other.parts)
+        self.parts = other.parts
 
 
 def parse_version(version: str) -> Version:

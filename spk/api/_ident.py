@@ -32,10 +32,22 @@ class Ident:
 
     __repr__ = __str__
 
-    def copy(self) -> "Ident":
+    def clone(self) -> "Ident":
         """Create a copy of this identifier."""
 
         return parse_ident(str(self))
+
+    def restrict(self, other: "Ident") -> None:
+        # FIXME: this is starting to become a request... (split out?)
+        try:
+            self.version.restrict(other.version)
+        except ValueError as e:
+            raise ValueError(f"{e} [{self.name}]") from None
+
+        if self.build == other.build or self.build is None:
+            self.build = other.build
+        else:
+            raise ValueError(f"Incompatible builds: {self} && {other}")
 
     def with_build(self, build: Union[Build, str]) -> "Ident":
         """Return a copy of this identifier with the given build replaced"""
