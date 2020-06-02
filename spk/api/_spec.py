@@ -7,6 +7,7 @@ from ruamel import yaml
 
 
 from ._ident import Ident, parse_ident
+from ._request import Request
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec
 from ._source_spec import SourceSpec, LocalSource
@@ -22,8 +23,8 @@ class Spec:
     pkg: "Ident"
     sources: List[SourceSpec] = field(default_factory=list)
     build: BuildSpec = field(default_factory=BuildSpec)
-    opts: List[Union["Spec", "VarSpec"]] = field(default_factory=list)
-    depends: List["Spec"] = field(default_factory=list)
+    opts: List[Union["Request", "VarSpec"]] = field(default_factory=list)
+    depends: List["Request"] = field(default_factory=list)
     provides: List["Spec"] = field(default_factory=list)
 
     def resolve_all_options(self, given: OptionMap) -> OptionMap:
@@ -59,6 +60,11 @@ class Spec:
 
         return resolved
 
+    def sastisfies_request(self, request: Request) -> bool:
+        """Return true if this package spec satisfies the given request."""
+
+        return False
+
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Spec":
 
@@ -70,7 +76,7 @@ class Spec:
         for opt in data.pop("opts", []):
             spec.opts.append(opt_from_dict(opt))
         for dep in data.pop("depends", []):
-            spec.depends.append(Spec.from_dict(dep))
+            spec.depends.append(Request.from_dict(dep))
         for provided in data.pop("provides", []):
             spec.provides.append(Spec.from_dict(provided))
 
@@ -116,10 +122,10 @@ def write_spec(spec: Spec) -> bytes:
     return yaml.dump(spec.to_dict()).encode()  # type: ignore
 
 
-def opt_from_dict(data: Dict[str, Any]) -> Union[Spec, "VarSpec"]:
+def opt_from_dict(data: Dict[str, Any]) -> Union[Request, "VarSpec"]:
 
     if "pkg" in data:
-        return Spec.from_dict(data)
+        return Request.from_dict(data)
     if "var" in data:
         return VarSpec.from_dict(data)
 
