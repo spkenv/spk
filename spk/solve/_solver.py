@@ -5,7 +5,7 @@ from functools import lru_cache
 import structlog
 import spfs
 
-from .. import graph, api, storage, compat
+from .. import graph, api, storage
 from ._decision import Decision, PackageIterator, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
 
@@ -28,7 +28,7 @@ class Solver:
 
         self._repos.append(repo)
 
-    def add_request(self, pkg: Union[str, api.Ident]) -> None:
+    def add_request(self, pkg: Union[str, api.Ident, api.Request]) -> None:
         """Add a package request to this solver.
 
         Raises:
@@ -73,10 +73,10 @@ class Solver:
             if not request:
                 raise RuntimeError("Logic error: nothing to solve in current state")
 
-            iterator = state.get_iterator(request.name)
+            iterator = state.get_iterator(request.pkg.name)
             if iterator is None:
                 iterator = self._make_iterator(request)
-                state.set_iterator(request.name, iterator)
+                state.set_iterator(request.pkg.name, iterator)
 
             pkg, spec = next(iterator)
             decision.set_resolved(pkg)
@@ -93,7 +93,7 @@ class Solver:
 
         return decision
 
-    def _make_iterator(self, request: api.Ident) -> PackageIterator:
+    def _make_iterator(self, request: api.Request) -> PackageIterator:
         # FIXME: support many repos
         assert len(self._repos) <= 1, "Too many package repositories."
         assert len(self._repos), "No registered package repositories."

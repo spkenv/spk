@@ -2,7 +2,7 @@ from typing import List, Dict, Set, Optional, Union, Iterator, Tuple, Iterable
 from collections import defaultdict
 from functools import lru_cache
 
-from .. import api, storage, compat
+from .. import api, storage
 from ._errors import SolverError, ConflictingRequestsError
 
 
@@ -15,7 +15,7 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
     """
 
     def __init__(
-        self, repo: storage.Repository, request: api.Ident, options: api.OptionMap
+        self, repo: storage.Repository, request: api.Request, options: api.OptionMap
     ) -> None:
         self._repo = repo
         self._request = request
@@ -24,8 +24,8 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
         self.past_versions: List[str] = []
 
     def _start(self) -> None:
-        all_versions = self._repo.list_package_versions(self._request.name)
-        versions = list(filter(self._request.version.is_satisfied_by, all_versions))
+        all_versions = self._repo.list_package_versions(self._request.pkg.name)
+        versions = list(filter(self._request.is_version_applicable, all_versions))
         versions.sort()
         versions.reverse()
         self._versions = iter(versions)
@@ -49,8 +49,8 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
 
         for version_str in self._versions:  # type: ignore
             self.past_versions.append(version_str)
-            version = compat.parse_version(version_str)
-            pkg = api.Ident(self._request.name, version)
+            version = api.parse_version(version_str)
+            pkg = api.Ident(self._request.pkg.name, version)
             spec = self._repo.read_spec(pkg)
             options = spec.resolve_all_options(self._options)
 
@@ -90,7 +90,7 @@ class Decision:
     def __init__(self, parent: "Decision" = None) -> None:
         self.parent = parent
         self.branches: List[Decision] = []
-        self._requests: Dict[str, List[api.Ident]] = defaultdict(list)
+        self._requests: Dict[str, List[api.Request]] = defaultdict(list)
         self._resolved: Dict[str, api.Ident] = {}
         self._unresolved: Set[str] = set()
         self._error: Optional[SolverError] = None
@@ -186,7 +186,7 @@ class Decision:
 
         self._iterators[name] = iterator
 
-    def add_request(self, pkg: Union[str, api.Ident]) -> None:
+    def add_request(self, request: Union[str, api.Ident, api.Request]) -> None:
         """Add a package request to this decision
 
         This request may be a new package, or a new constraint on an existing
@@ -194,19 +194,21 @@ class Decision:
         should this decision branch be deemed solvable.
         """
 
-        if not isinstance(pkg, api.Ident):
-            pkg = api.parse_ident(pkg)
+        if isinstance(request, api.Ident):
+            request = str(request)
+        if not isinstance(request, api.Request):
+            request = api.Request.from_dict({"pkg": request})
 
-        current = self.get_current_packages().get(pkg.name)
+        current = self.get_current_packages().get(request.pkg.name)
         if current is not None:
-            if not pkg.version.is_satisfied_by(current.version):
-                self.set_unresolved(pkg)
-        else:
-            self.unresolved_requests.cache_clear()
+            # TODO: account for entire spec to check compat
+            if not request.is_version_applicable(current.version):
+                self.set_unresolved(request.pkg)
 
-        self._requests[pkg.name].append(pkg)
+        self.unresolved_requests.cache_clear()
+        self._requests[request.pkg.name].append(request)
 
-    def get_requests(self) -> Dict[str, List[api.Ident]]:
+    def get_requests(self) -> Dict[str, List[api.Request]]:
         """Get the set of package requests added by this decision."""
 
         copy = {}
@@ -243,7 +245,7 @@ class Decision:
 
         return len(self.unresolved_requests()) != 0
 
-    def next_request(self) -> Optional[api.Ident]:
+    def next_request(self) -> Optional[api.Request]:
         """Return the next package request to be resolved in this state."""
 
         unresolved = self.unresolved_requests()
@@ -253,7 +255,7 @@ class Decision:
         return self.get_merged_request(next(iter(unresolved.keys())))
 
     @lru_cache()
-    def unresolved_requests(self) -> Dict[str, List[api.Ident]]:
+    def unresolved_requests(self) -> Dict[str, List[api.Request]]:
         """Return the complete set of unresolved requests for this solver state."""
 
         resolved = self.get_current_packages()
@@ -262,10 +264,10 @@ class Decision:
         unresolved = dict((n, r) for n, r in requests.items() if n not in resolved)
         return unresolved
 
-    def get_all_package_requests(self) -> Dict[str, List[api.Ident]]:
+    def get_all_package_requests(self) -> Dict[str, List[api.Request]]:
         """Get the set of all package requests at this state, solved or not."""
 
-        base: Dict[str, List[api.Ident]] = defaultdict(list)
+        base: Dict[str, List[api.Request]] = defaultdict(list)
         if self.parent is not None:
             base.update(self.parent.get_all_package_requests())
 
@@ -274,7 +276,7 @@ class Decision:
 
         return base
 
-    def get_package_requests(self, name: str) -> List[api.Ident]:
+    def get_package_requests(self, name: str) -> List[api.Request]:
         """Get the set of requests in this state for the named package."""
 
         requests = []
@@ -283,7 +285,7 @@ class Decision:
         requests.extend(self._requests[name])
         return requests
 
-    def get_merged_request(self, name: str) -> Optional[api.Ident]:
+    def get_merged_request(self, name: str) -> Optional[api.Request]:
         """Get a single request for the named package which satisfies all current requests for that package."""
 
         requests = self.get_package_requests(name)

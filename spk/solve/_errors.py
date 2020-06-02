@@ -18,7 +18,7 @@ class UnresolvedPackageError(SolverError):
 
 
 class ConflictingRequestsError(SolverError):
-    def __init__(self, msg: str, requests: List[api.Ident] = None) -> None:
+    def __init__(self, msg: str, requests: List[api.Request] = None) -> None:
 
         message = f"Conflicting requests: {msg}"
         if requests is not None:

@@ -27,21 +27,21 @@ def format_decision(decision: spk.Decision) -> str:
             format_request(n, pkgs) for n, pkgs in decision.get_requests().items()
         )
         out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)} "
-    if decision.get_resolved():
+    if decision.get_unresolved():
         out += (
             f"{Fore.RED}UNRESOLVE{Fore.RESET} {', '.join(decision.get_unresolved())} "
         )
     return out
 
 
-def format_request(name: str, pkgs: List[spk.api.Ident]) -> str:
+def format_request(name: str, requests: List[spk.api.Request]) -> str:
 
     out = f"{Style.BRIGHT}{name}{Style.RESET_ALL} / ["
     versions = []
-    for pkg in pkgs:
-        ver = f"{Fore.LIGHTBLUE_EX}{str(pkg.version) or '*'}{Fore.RESET}"
-        if pkg.build is not None:
-            ver += f"/{Style.DIM}{pkg.build}{Style.RESET_ALL}"
+    for req in requests:
+        ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
+        if req.pkg.build is not None:
+            ver += f"/{Style.DIM}{req.pkg.build}{Style.RESET_ALL}"
         versions.append(ver)
     out += ",".join(versions) + "]"
     return out

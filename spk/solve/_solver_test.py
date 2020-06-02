@@ -168,7 +168,13 @@ def test_solver_dependency_already_satisfied() -> None:
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
     solver.add_request("pkg_top")
-    packages = solver.solve()
+    try:
+        packages = solver.solve()
+    finally:
+        import spk.cli._fmt
+
+        for decision in solver.decision_tree.walk():
+            print("." * decision.level(), spk.cli._fmt.format_decision(decision))
     assert list(packages.keys()) == ["pkg_top", "dep_1", "dep_2"]
     assert packages["dep_1"].version == "1.0.0"
 
