@@ -62,10 +62,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def configure_sentry() -> None:
 
-    return
-
     sentry_sdk.init(
-        # TODO: "http://52de6f488cf14c21b32e25894e77d24a@sentry.k8s.spimageworks.com/3",
+        "http://4506b47108ac4b648fdf18a8d803f403@sentry.k8s.spimageworks.com/25",
         environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
         release=spk.__version__,
     )
