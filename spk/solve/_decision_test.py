@@ -21,12 +21,8 @@ def test_request_merging() -> None:
     decision.add_request(api.parse_ident("my_pkg/1.0.0"))
     decision.add_request(api.parse_ident("my_pkg/1.0"))
 
-    assert decision.get_merged_request("my_pkg") == api.Request.from_dict(
-        {"pkg": "my_pkg/1.0.0"}
-    )
+    assert str(decision.get_merged_request("my_pkg").pkg) == "my_pkg/1.0.0"  # type: ignore
 
     decision.add_request(api.Request.from_dict({"pkg": "my_pkg/1.0/src"}))
 
-    assert decision.get_merged_request("my_pkg") == api.Request.from_dict(
-        {"pkg": "my_pkg/1.0.0/src"}
-    )
+    assert str(decision.get_merged_request("my_pkg").pkg) == "my_pkg/1.0.0/src"  # type: ignore

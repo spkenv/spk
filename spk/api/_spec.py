@@ -7,6 +7,7 @@ from ruamel import yaml
 
 
 from ._ident import Ident, parse_ident
+from ._compat import Compat, parse_compat
 from ._request import Request
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec
@@ -20,7 +21,8 @@ _LOGGER = structlog.get_logger("spk")
 class Spec:
     """Spec encompases the complete specification of a package."""
 
-    pkg: "Ident"
+    pkg: Ident
+    compat: Compat = field(default_factory=Compat)
     sources: List[SourceSpec] = field(default_factory=list)
     build: BuildSpec = field(default_factory=BuildSpec)
     opts: List[Union["Request", "VarSpec"]] = field(default_factory=list)
@@ -63,13 +65,24 @@ class Spec:
     def sastisfies_request(self, request: Request) -> bool:
         """Return true if this package spec satisfies the given request."""
 
-        return False
+        if request.pkg.name != self.pkg.name:
+            return False
+
+        if not request.is_satisfied_by(self):
+            return False
+
+        if request.pkg.build is None:
+            return True
+
+        return request.pkg.build == self.pkg.build
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Spec":
 
         pkg = parse_ident(data.pop("pkg", ""))
         spec = Spec(pkg)
+        if "compat" in data:
+            spec.compat = parse_compat(data.pop("compat"))
         spec.build = BuildSpec.from_dict(data.pop("build", {}))
         for src in data.pop("sources", [{"path": "."}]):
             spec.sources.append(SourceSpec.from_dict(src))
@@ -88,7 +101,8 @@ class Spec:
     def to_dict(self) -> Dict[str, Any]:
 
         return {
-            "pkg": self.pkg,
+            "pkg": str(self.pkg),
+            "compat": str(self.compat),
             "build": self.build.to_dict(),
             "opts": list(o.to_dict() for o in self.opts),
             "depends": list(d.to_dict() for d in self.depends),

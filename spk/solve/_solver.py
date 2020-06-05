@@ -39,7 +39,7 @@ class Solver:
             raise RuntimeError("Solver has already been executed")
         self.decision_tree.root.add_request(pkg)
 
-    def solve(self) -> Dict[str, api.Ident]:
+    def solve(self) -> Dict[str, api.Spec]:
         """Solve the current set of package requests into a complete environment.
 
         Raises:
@@ -57,7 +57,7 @@ class Solver:
                 state = self._solve_next_request(state)
             except SolverError:
                 if state.parent is None:
-                    raise UnresolvedPackageError(state.next_request())  # type: ignore
+                    raise UnresolvedPackageError(state.next_request().to_dict())  # type: ignore
                 state = state.parent
 
         self._running = False
@@ -79,12 +79,13 @@ class Solver:
                 state.set_iterator(request.pkg.name, iterator)
 
             pkg, spec = next(iterator)
-            decision.set_resolved(pkg)
+            spec.pkg = pkg  # TODO: is this necessary, does it have implications?
+            decision.set_resolved(spec)
             for dep in spec.depends:
-                decision.add_request(dep.pkg)
+                decision.add_request(dep)
 
         except StopIteration:
-            err = UnresolvedPackageError(request, versions=iterator.past_versions)  # type: ignore
+            err = UnresolvedPackageError(request.to_dict(), versions=iterator.past_versions)  # type: ignore
             decision.set_error(err)
             raise err
         except SolverError as e:

@@ -1,10 +1,9 @@
 from typing import Dict, List
-import io
 
 import spfs
 import pytest
 
-from .. import api, storage
+from .. import api, storage, io
 from ._errors import UnresolvedPackageError, ConflictingRequestsError, SolverError
 from ._solver import Solver
 
@@ -57,11 +56,14 @@ def test_solver_single_package_no_deps() -> None:
     solver.add_repository(repo)
     solver.add_request("my_pkg")
 
-    packages = solver.solve()
+    try:
+        packages = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree))
     assert len(packages) == 1, "expected one resolved package"
-    assert packages["my_pkg"].version == "1.0.0"
-    assert packages["my_pkg"].build is not None
-    assert packages["my_pkg"].build.digest != api.SRC
+    assert packages["my_pkg"].pkg.version == "1.0.0"
+    assert packages["my_pkg"].pkg.build is not None
+    assert packages["my_pkg"].pkg.build.digest != api.SRC
 
 
 def test_solver_single_package_simple_deps() -> None:
@@ -83,10 +85,13 @@ def test_solver_single_package_simple_deps() -> None:
     solver.add_repository(repo)
     solver.add_request("pkg_b/1.1")
 
-    packages = solver.solve()
+    try:
+        packages = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree))
     assert len(packages) == 2, "expected two resolved packages"
-    assert packages["pkg_a"].version == "1.2.1"
-    assert packages["pkg_b"].version == "1.1.0"
+    assert packages["pkg_a"].pkg.version == "1.2.1"
+    assert packages["pkg_b"].pkg.version == "1.1.0"
 
 
 def test_solver_dependency_incompatible() -> None:
@@ -110,11 +115,11 @@ def test_solver_dependency_incompatible() -> None:
     with pytest.raises(UnresolvedPackageError):
         solver.solve()
 
+    print(io.format_decision_tree(solver.decision_tree))
     for decision in solver.decision_tree.walk():
-        print("." * decision.level(), decision)
         err = decision.get_error()
         if err is not None:
-            assert isinstance(err, ConflictingRequestsError)
+            assert isinstance(err, UnresolvedPackageError)
             break
     else:
         pytest.fail("expected to find problem with conflicting requests")
@@ -141,9 +146,12 @@ def test_solver_dependency_incompatible_stepback() -> None:
     # this one is incompatible with pkg_b/1.1.depends but not pkg_b/1.0
     solver.add_request("pkg_a/1")
 
-    packages = solver.solve()
-    assert packages["pkg_b"].version == "1.0.0"
-    assert packages["pkg_a"].version == "1.0.0"
+    try:
+        packages = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree))
+    assert packages["pkg_b"].pkg.version == "1.0.0"
+    assert packages["pkg_a"].pkg.version == "1.0.0"
 
 
 def test_solver_dependency_already_satisfied() -> None:
@@ -157,7 +165,7 @@ def test_solver_dependency_already_satisfied() -> None:
             {
                 "pkg": "pkg_top/1.0.0",
                 # should resolve dep_1 as 1.0.0
-                "depends": [{"pkg": "dep_1/1.0"}, {"pkg": "dep_2/1"}],
+                "depends": [{"pkg": "dep_1/~1.0.0"}, {"pkg": "dep_2/1"}],
             },
             {"pkg": "dep_1/1.1.0"},
             {"pkg": "dep_1/1.0.0"},
@@ -171,12 +179,10 @@ def test_solver_dependency_already_satisfied() -> None:
     try:
         packages = solver.solve()
     finally:
-        import spk.cli._fmt
+        print(io.format_decision_tree(solver.decision_tree))
 
-        for decision in solver.decision_tree.walk():
-            print("." * decision.level(), spk.cli._fmt.format_decision(decision))
     assert list(packages.keys()) == ["pkg_top", "dep_1", "dep_2"]
-    assert packages["dep_1"].version == "1.0.0"
+    assert packages["dep_1"].pkg.version == "1.0.0"
 
 
 def test_solver_dependency_reopen_solvable() -> None:
@@ -197,15 +203,18 @@ def test_solver_dependency_reopen_solvable() -> None:
             {"pkg": "dep_1/1.0.0"},
             # when dep_2 gets resolved, it will enforce an older version
             # of the existing resolve, which is still valid for all requests
-            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/1.0.0"}]},
+            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/~1.0.0"}]},
         ]
     )
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
     solver.add_request("pkg_top")
-    packages = solver.solve()
+    try:
+        packages = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree))
     assert list(packages.keys()) == ["pkg_top", "dep_2", "dep_1"]
-    assert packages["dep_1"].version == "1.0.0"
+    assert packages["dep_1"].pkg.version == "1.0.0"
 
 
 def test_solver_dependency_reopen_unsolvable() -> None:
@@ -226,7 +235,7 @@ def test_solver_dependency_reopen_unsolvable() -> None:
             {"pkg": "dep_1/1.0.0"},
             # when dep_2 gets resolved, it will enforce an older version
             # of the existing resolve, which is in conflict with the original
-            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/1.0.0"}]},
+            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/~1.0.0"}]},
         ]
     )
     solver = Solver(api.OptionMap())

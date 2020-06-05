@@ -55,9 +55,13 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
             options = spec.resolve_all_options(self._options)
 
             candidate = pkg.with_build(options.digest())
+
             try:
                 self._repo.get_package(candidate)
             except storage.PackageNotFoundError:
+                continue
+
+            if not self._request.is_satisfied_by(spec):
                 continue
 
             return (candidate, spec)
@@ -91,7 +95,7 @@ class Decision:
         self.parent = parent
         self.branches: List[Decision] = []
         self._requests: Dict[str, List[api.Request]] = defaultdict(list)
-        self._resolved: Dict[str, api.Ident] = {}
+        self._resolved: Dict[str, api.Spec] = {}
         self._unresolved: Set[str] = set()
         self._error: Optional[SolverError] = None
         self._iterators: Dict[str, PackageIterator] = {}
@@ -101,7 +105,7 @@ class Decision:
             return f"STOP: {self._error}"
         out = ""
         if self._resolved:
-            values = list(str(pkg) for pkg in self._resolved.values())
+            values = list(str(spec.pkg) for spec in self._resolved.values())
             out += f"RESOLVE: {', '.join(values)} "
         if self._requests:
             values = list(str(pkg) for pkg in self._requests.values())
@@ -128,21 +132,21 @@ class Decision:
         """Get the error caused by this decision (if any)."""
         return self._error
 
-    def set_resolved(self, pkg: api.Ident) -> None:
+    def set_resolved(self, spec: api.Spec) -> None:
         """Set the given package as resolved by this decision.
 
-        The given identifier is expected to be a fully resolved package with exact build.
+        The given spec is expected to have a fully resolved package with exact build.
         """
 
         self.unresolved_requests.cache_clear()
-        self._resolved[pkg.name] = pkg
+        self._resolved[spec.pkg.name] = spec
 
-    def get_resolved(self) -> Dict[str, api.Ident]:
+    def get_resolved(self) -> Dict[str, api.Spec]:
         """Get the set of packages resolved by this decision."""
 
-        return dict((n, pkg.clone()) for n, pkg in self._resolved.items())
+        return self._resolved.copy()
 
-    def set_unresolved(self, pkg: api.Ident) -> None:
+    def set_unresolved(self, name: str) -> None:
         """Set the given package as unresolved by this decision.
 
         An unresolved package undoes any previous decision that resolves
@@ -154,7 +158,7 @@ class Decision:
         """
 
         self.unresolved_requests.cache_clear()
-        self._unresolved.add(pkg.name)
+        self._unresolved.add(name)
 
     def get_unresolved(self) -> List[str]:
         """Get the set of packages that are unresolved by this decision."""
@@ -201,9 +205,8 @@ class Decision:
 
         current = self.get_current_packages().get(request.pkg.name)
         if current is not None:
-            # TODO: account for entire spec to check compat
-            if not request.is_version_applicable(current.version):
-                self.set_unresolved(request.pkg)
+            if not current.sastisfies_request(request):
+                self.set_unresolved(request.pkg.name)
 
         self.unresolved_requests.cache_clear()
         self._requests[request.pkg.name].append(request)
@@ -223,7 +226,7 @@ class Decision:
         self.branches.append(branch)
         return branch
 
-    def get_current_packages(self) -> Dict[str, api.Ident]:
+    def get_current_packages(self) -> Dict[str, api.Spec]:
         """Get the full set of resolved packages for this decision state
 
         Unlike get_resolved, this includes resolved packages from all parents.

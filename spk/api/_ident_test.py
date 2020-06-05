@@ -6,6 +6,14 @@ import pytest
 from ruamel import yaml
 
 
+@pytest.mark.parametrize("input", ["package", "package/1.1.0", "package/2.0.0.1"])
+def test_ident_to_str(input: str) -> None:
+
+    ident = parse_ident(input)
+    out = str(ident)
+    assert out == input
+
+
 def test_ident_to_yaml() -> None:
 
     ident = Ident(name="package")

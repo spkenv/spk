@@ -1,22 +1,38 @@
+---
+title: Defining Packages
+summary: Write package spec files for creating packages.
+---
 
+### Name and Version
 
-```yaml
-pkg: <SPEC>
-variants: <list.VARIANT>
-depends: <list.PKG>
-provides: <list.PKG>
-```
-
-```yaml
-<PKG>:
-   pkg: <SPEC>
-   compat: <COMPAT_SPEC>
-```
+The only required field in a package spec file is the name and version number of the package. This is specified in the top-level `pkg` field. This field specifies the name and version number of the package being defined.
 
 ```yaml
-<SPEC>: <NAME>/<VERSION>/<RELEASE>
-<NAME>: [a-z][a-z0-9-]+
-<VERSION>: \d+(\.\d)*
-<RELEASE>: [a-z]+[0-9]+(\.[a-z]+[0-9]+)*
-<COMPAT_SPEC>: x(\.x)*
+pkg: my-package/1.0.0
 ```
+
+### Compatibility
+
+The optional `compat` field of a package specifies the compatibility between versions of this package. The compat field takes a version number, with each digit replaced by one or more characters denoting compatibility (`a` for api compatibility, `b` for binary compatbility and `x` for no compatibility). Multiple characters can be put together if necessary: `x.ab`.
+
+If not specified, the default value for this field is: `x.a.b`.
+
+```yaml
+pkg: my-package/1.0.0
+compat: x.a.b
+# where major verions are not compatible
+# minor versions are API-compatbile
+# patch versions are ABI compatible.
+```
+
+The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
+
+### Options
+
+### Dependencies
+
+TODO: fill this in
+
+#### Option-Based Dependencies
+
+TODO: fill this in
