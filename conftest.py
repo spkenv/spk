@@ -1,9 +1,11 @@
 import py.path
 import pytest
 import spfs
+import logging
 
 import structlog
 
+logging.getLogger("").setLevel(logging.DEBUG)
 structlog.configure(
     processors=[
         structlog.stdlib.add_log_level,
@@ -26,7 +28,7 @@ def tmprepo(tmpspfs: spfs.storage.fs.FSRepository) -> spfs.storage.fs.FSReposito
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local) -> spfs.storage.fs.FSRepository:
+def tmpspfs(tmpdir: py._path.local.LocalPath) -> spfs.storage.fs.FSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     config = spfs.get_config()

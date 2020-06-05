@@ -4,8 +4,14 @@ import py.path
 
 import spfs
 
-from .. import api
-from ._binary import validate_build_changeset, BuildError, build_artifacts
+from .. import api, storage
+from ._binary import (
+    validate_build_changeset,
+    BuildError,
+    build_artifacts,
+    build_and_commit_artifacts,
+    make_binary_package,
+)
 
 
 def test_validate_build_changeset_nothing() -> None:
@@ -38,3 +44,21 @@ def test_build_partifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -
 
     _, err = capfd.readouterr()
     assert err.strip() == tmpdir.strpath
+
+
+def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
+
+    dep_spec = api.Spec.from_dict(
+        {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+    )
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "top/1.0.0",
+            "build": {"script": "test -f /spfs/dep-file"},
+            "opts": [{"pkg": "dep/1"}],
+        }
+    )
+
+    tmprepo.publish_spec(dep_spec)
+    make_binary_package(dep_spec, ".", api.OptionMap())
+    make_binary_package(spec, ".", api.OptionMap())

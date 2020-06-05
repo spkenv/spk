@@ -1,11 +1,12 @@
 from typing import List
 import os
+import stat
 import subprocess
 
 import structlog
 import spfs
 
-from .. import api, storage
+from .. import api, storage, solve
 from ._env import data_path
 
 _LOGGER = structlog.get_logger("spk.build")
@@ -26,8 +27,32 @@ def make_binary_package(
     are expected to have been properly resolved with defaults filled in etc.
     """
 
+    runtime = spfs.active_runtime()
     spfs_repo = spfs.get_config().get_repository()
     repo = storage.SpFSRepository(spfs_repo)
+    solver = solve.Solver(options)
+    solver.add_repository(repo)
+    for opt in spec.opts:
+        if not isinstance(opt, api.Request):
+            continue
+        if opt.pkg.name in options:
+            opt = opt.clone()
+            opt.pkg.version = api.parse_version_range(options[opt.pkg.name])
+        solver.add_request(opt)
+
+    try:
+        packages = solver.solve()
+    finally:
+        import spk.io
+
+        print(spk.io.format_decision_tree(solver.decision_tree))
+    for dependency_spec in packages.values():
+        digest = repo.get_package(dependency_spec.pkg)
+        runtime.push_digest(digest)
+    if packages:
+        runtime.set_editable(True)
+        spfs.remount_runtime(runtime)
+
     layer = build_and_commit_artifacts(spec, sources, options)
     pkg = spec.pkg.with_build(options.digest())
     repo.publish_package(pkg, layer.digest())
@@ -38,9 +63,7 @@ def build_and_commit_artifacts(
     spec: api.Spec, sources: str, options: api.OptionMap
 ) -> spfs.storage.Layer:
 
-    pkg = spec.pkg.with_build(options.digest())
-
-    runtime = spfs.active_runtime()
+    spec.pkg.with_build(options.digest())
 
     prefix = "/spfs"
     build_artifacts(spec, sources, options, prefix)
@@ -48,6 +71,7 @@ def build_and_commit_artifacts(
     diffs = spfs.diff()
     validate_build_changeset(diffs, prefix)
 
+    runtime = spfs.active_runtime()
     return spfs.commit_layer(runtime)
 
 
@@ -69,7 +93,7 @@ def build_artifacts(
     env.update(options.to_env())
     env["PREFIX"] = prefix
 
-    proc = subprocess.Popen(["/bin/sh", "-e", build_script], cwd=sources, env=env)
+    proc = subprocess.Popen(["/bin/sh", "-ex", build_script], cwd=sources, env=env)
     proc.wait()
     if proc.returncode != 0:
         raise BuildError(
@@ -90,5 +114,9 @@ def validate_build_changeset(
 
     for diff in diffs:
         _LOGGER.debug(diff)
+        if diff.entries:
+            a, b = diff.entries
+            if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
+                continue
         if diff.mode is not spfs.tracking.DiffMode.added:
             raise BuildError(f"Existing file was modified: {prefix}{diff.path}")
