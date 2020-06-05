@@ -1,9 +1,15 @@
 version: 0.1.0
 release_notes: |
-  * Setup spdev configuration
+  * Initial MVP release
+   * Build package from spec file
+   * Define package with dependencies and string options
+   * Store packages as spfs layers
+   * Resolve and run environments on the command line
 
 environment:
   kind: PipEnv
+  variables:
+    SENTRY_ENVIRONMENT: development
 
 components:
 
@@ -23,3 +29,6 @@ components:
 - kind: HugoDocs
   name: docs
   location: docs
+- kind: RPMPackage
+  name: rpm
+  spec_file: spk.spec

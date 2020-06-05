@@ -3,6 +3,8 @@ title: Defining Packages
 summary: Write package spec files for creating packages.
 ---
 
+The package specification (spec) file is a yaml or json file which follows the structure detailed below.
+
 ### Name and Version
 
 The only required field in a package spec file is the name and version number of the package. This is specified in the top-level `pkg` field. This field specifies the name and version number of the package being defined.
@@ -28,6 +30,15 @@ compat: x.a.b
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
 
 ### Options
+
+Package options are considered inputs to the build process. There are two types of options that can be specified: package options are build dependencies and var options are arbitrary configuration values for the build.
+
+```yaml
+opts:
+  - var: debug
+  - pkg: cmake/3
+```
+
 
 ### Dependencies
 
