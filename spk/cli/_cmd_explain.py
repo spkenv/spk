@@ -6,7 +6,7 @@ import structlog
 import spfs
 import spk
 
-from ._fmt import format_decision
+from spk.io import format_decision
 
 _LOGGER = structlog.get_logger("cli")
 

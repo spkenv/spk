@@ -10,6 +10,8 @@ import spfs
 here = os.path.dirname(__file__)
 examples = os.listdir(here)
 examples.remove("_test.py")
+if "__pycache__" in examples:
+    examples.remove("__pycache__")
 
 
 @pytest.mark.parametrize("name", examples)

@@ -9,7 +9,7 @@ import structlog
 from colorama import Fore
 
 import spk
-from ._fmt import format_ident
+from spk.io import format_ident
 
 _LOGGER = structlog.get_logger("spk.cli")
 
@@ -44,17 +44,17 @@ def _install(args: argparse.Namespace) -> None:
         solver.add_request(package)
 
     packages = solver.solve()
-    print("")
-    for pkg in packages.values():
-        print("\t" + format_ident(pkg))
+    print("The following packages will be modified:\n")
+    for spec in packages.values():
+        print("\t" + format_ident(spec.pkg))
     print("")
 
     if input("Do you want to continue? [y/N]: ") not in ("y", "Y"):
         print("Installation cancelled")
         sys.exit(1)
 
-    for pkg in packages.values():
-        digest = repo.get_package(pkg)
+    for spec in packages.values():
+        digest = repo.get_package(spec.pkg)
         runtime.push_digest(digest)
 
     spfs.remount_runtime(runtime)

@@ -46,7 +46,7 @@ class SpFSRepository(Repository):
         try:
             tag = self._repo.tags.resolve_tag(tag_str)
         except spfs.graph.UnknownReferenceError:
-            raise PackageNotFoundError(pkg)
+            raise PackageNotFoundError(pkg) from None
 
         with self._repo.payloads.open_payload(tag.target) as spec_file:
             return api.read_spec(spec_file)

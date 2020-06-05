@@ -14,13 +14,24 @@ def format_ident(pkg: spk.api.Ident) -> str:
     return out
 
 
+def format_decision_tree(tree: spk.DecisionTree) -> str:
+
+    out = ""
+    for decision in tree.walk():
+        out += ">" * decision.level()
+        out += " " + format_decision(decision) + "\n"
+    return out
+
+
 def format_decision(decision: spk.Decision) -> str:
 
     if decision.get_error() is not None:
         return f"{Fore.RED}DEAD{Fore.RESET} {decision.get_error()}"
     out = ""
     if decision.get_resolved():
-        values = list(format_ident(pkg) for pkg in decision.get_resolved().values())
+        values = list(
+            format_ident(spec.pkg) for spec in decision.get_resolved().values()
+        )
         out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {', '.join(values)} "
     if decision.get_requests():
         values = list(
@@ -36,12 +47,12 @@ def format_decision(decision: spk.Decision) -> str:
 
 def format_request(name: str, requests: List[spk.api.Request]) -> str:
 
-    out = f"{Style.BRIGHT}{name}{Style.RESET_ALL} / ["
+    out = f"{Style.BRIGHT}{name}{Style.RESET_ALL}/"
     versions = []
     for req in requests:
         ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
         if req.pkg.build is not None:
             ver += f"/{Style.DIM}{req.pkg.build}{Style.RESET_ALL}"
         versions.append(ver)
-    out += ",".join(versions) + "]"
+    out += ",".join(versions)
     return out

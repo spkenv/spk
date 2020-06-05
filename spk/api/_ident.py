@@ -17,15 +17,14 @@ class Ident:
 	"""
 
     name: str
-    version: Version = field(default_factory=lambda: Version(""))
+    version: Version = field(default_factory=Version)
     build: Optional[Build] = None
 
     def __str__(self) -> str:
 
-        version = str(self.version)
         out = self.name
-        if version:
-            out += "/" + version
+        if self.version:
+            out += "/" + str(self.version)
         if self.build:
             out += "/" + self.build.digest
         return out
@@ -36,18 +35,6 @@ class Ident:
         """Create a copy of this identifier."""
 
         return parse_ident(str(self))
-
-    def restrict(self, other: "Ident") -> None:
-        # FIXME: this is starting to become a request... (split out?)
-        try:
-            self.version.restrict(other.version)
-        except ValueError as e:
-            raise ValueError(f"{e} [{self.name}]") from None
-
-        if self.build == other.build or self.build is None:
-            self.build = other.build
-        else:
-            raise ValueError(f"Incompatible builds: {self} && {other}")
 
     def with_build(self, build: Union[Build, str]) -> "Ident":
         """Return a copy of this identifier with the given build replaced"""

@@ -7,13 +7,6 @@ summary: Package Manager for SPFS
 
 Pronouced like "_s-pack_"
 
-Design Goals:
-
-- convenience
-- clarity
-- speed
-- automation
-
 ### Usage
 
 ```bash
