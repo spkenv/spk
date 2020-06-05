@@ -33,6 +33,19 @@ def _new(args: argparse.Namespace) -> None:
     spec = f"""\
         pkg: {name}/0.1.0
 
+        build:
+          # variants declares the default set of variants to build and publish
+          # using the spk build and make-* commands
+          variants:
+            - {{maya: 2020}}
+            - {{maya: 2021}}
+          # the build script is arbitrary bash script to be executed for the
+          # build. It should be and install artifacts into /spfs
+          script:
+            # if you remove this it will try to run a build.sh script instead
+            - echo "don't forget to add build logic!"
+            - exit 1
+
         # opts defines the set of build options
         opts:
           # var options define environment/string values that affect the
@@ -46,12 +59,13 @@ def _new(args: argparse.Namespace) -> None:
           # - var: {name}_debug # toggle a debug build of this package
 
           # pkg options request packages that need to be present
-          # in the build environment
-          - pkg: build_requirement/1.0
+          # in the build environment. You can specify a version number
+          # here as the default for when the option is not otherise specified
+          - pkg: maya
 
-        # depends:
+        depends:
           # pkg dependencies request packages that need to be present at runtime
-          # - pkg: dependency/1.0
+          - pkg: maya
         """
     # TODO: talk about pinning build env packages once supported
     spec = textwrap.dedent(spec)

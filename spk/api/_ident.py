@@ -36,8 +36,11 @@ class Ident:
 
         return parse_ident(str(self))
 
-    def with_build(self, build: Union[Build, str]) -> "Ident":
+    def with_build(self, build: Union[Build, str, None]) -> "Ident":
         """Return a copy of this identifier with the given build replaced"""
+
+        if not build:
+            return parse_ident(f"{self.name}/{self.version}")
 
         return parse_ident(f"{self.name}/{self.version}/{build}")
 

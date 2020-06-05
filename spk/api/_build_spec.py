@@ -14,7 +14,7 @@ class BuildSpec:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "script": self.script.splitlines(),
-            "variants": self.variants,
+            "variants": list(dict(v) for v in self.variants),
         }
 
     @staticmethod

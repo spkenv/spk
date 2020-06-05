@@ -72,7 +72,10 @@ def _make_binary(args: argparse.Namespace) -> None:
                 )
 
         _LOGGER.info("building binary package", pkg=spec.pkg)
-        options = spec.resolve_all_options(base_options)
-        _LOGGER.info("building with options", **options)
-        out = spk.make_binary_package(spec, os.getcwd(), options)
-        _LOGGER.info("created", pkg=out)
+        for variant in spec.build.variants:
+            opts = base_options.copy()
+            opts.update(variant)
+            options = spec.resolve_all_options(opts)
+            _LOGGER.info("building with options", **options)
+            out = spk.make_binary_package(spec, os.getcwd(), options)
+            _LOGGER.info("created", pkg=out)

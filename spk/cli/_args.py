@@ -12,13 +12,15 @@ import colorama
 
 import spk
 from . import (
-    _cmd_search,
-    _cmd_version,
-    _cmd_install,
+    _cmd_build,
     _cmd_env,
     _cmd_explain,
-    _cmd_make_source,
+    _cmd_install,
     _cmd_make_binary,
+    _cmd_make_source,
+    _cmd_new,
+    _cmd_search,
+    _cmd_version,
 )
 
 
@@ -41,11 +43,13 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         dest="command", title="commands", metavar="COMMAND",
     )
 
-    _cmd_make_source.register(sub_parsers, parents=[parent_parser])
-    _cmd_make_binary.register(sub_parsers, parents=[parent_parser])
-    _cmd_install.register(sub_parsers, parents=[parent_parser])
+    _cmd_build.register(sub_parsers, parents=[parent_parser])
     _cmd_env.register(sub_parsers, parents=[parent_parser])
     _cmd_explain.register(sub_parsers, parents=[parent_parser])
+    _cmd_install.register(sub_parsers, parents=[parent_parser])
+    _cmd_make_binary.register(sub_parsers, parents=[parent_parser])
+    _cmd_make_source.register(sub_parsers, parents=[parent_parser])
+    _cmd_new.register(sub_parsers, parents=[parent_parser])
     _cmd_search.register(sub_parsers, parents=[parent_parser])
     _cmd_version.register(sub_parsers, parents=[parent_parser])
 
@@ -117,7 +121,7 @@ def configure_logging(args: argparse.Namespace) -> None:
     processors.append(structlog.dev.ConsoleRenderer())
 
     logging.basicConfig(stream=sys.stderr, format="%(message)s", level=level)
-    structlog.configure(
+    structlog.configure_once(
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
         processors=processors,

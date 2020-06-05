@@ -73,4 +73,4 @@ class SpFSRepository(Repository):
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spk/spec/{pkg}"
+        return f"spk/spec/{pkg.with_build(None)}"

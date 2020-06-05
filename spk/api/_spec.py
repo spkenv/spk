@@ -34,7 +34,7 @@ class Spec:
         resolved = OptionMap()
         for opt in self.opts:
 
-            if isinstance(opt, Spec):
+            if isinstance(opt, Request):
                 name = opt.pkg.name
 
             elif isinstance(opt, VarSpec):
