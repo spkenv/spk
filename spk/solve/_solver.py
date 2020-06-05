@@ -5,7 +5,7 @@ from functools import lru_cache
 import structlog
 import spfs
 
-from .. import graph, api, storage
+from .. import api, storage
 from ._decision import Decision, PackageIterator, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
 

@@ -33,12 +33,17 @@ The compat field of the new version is checked before install/update. Because of
 
 Package options are considered inputs to the build process. There are two types of options that can be specified: package options are build dependencies and var options are arbitrary configuration values for the build.
 
+
 ```yaml
 opts:
   - var: debug
+    default: off
   - pkg: cmake/3
 ```
 
+All options that are declared in your package should be used in the build script, otherwise they are not relevant build options and your package may need rebuilding unnecessarily.
+
+When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`.
 
 ### Dependencies
 
