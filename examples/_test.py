@@ -1,5 +1,6 @@
 import os
 import subprocess
+import glob
 
 import py.path
 import pytest
@@ -19,16 +20,18 @@ def test_make_source_package(name: str, tmpdir: py._path.local.LocalPath) -> Non
 
     spfs.get_config().set("storage", "root", tmpdir.strpath)
 
-    subprocess.check_call(["spfs", "reset", "--edit", ""])
     os.chdir(os.path.join(here, name))
-    try:
-        args = spk.cli.parse_args(["make-source", "example.spk.yaml", "--no-runtime"])
-        args.func(args)
-        code = 0
-    except SystemExit as e:
-        code = e.code
 
-    assert code == 0, "Make source failed for example"
+    for filename in glob.glob("*.spk.yaml", recursive=False):
+        subprocess.check_call(["spfs", "reset", "--edit", ""])
+        try:
+            args = spk.cli.parse_args(["make-source", filename, "--no-runtime"])
+            args.func(args)
+            code = 0
+        except SystemExit as e:
+            code = e.code
+
+        assert code == 0, "Make source failed for example"
 
 
 @pytest.mark.parametrize("name", examples)
@@ -36,12 +39,13 @@ def test_make_binary_package(name: str, tmpdir: py._path.local.LocalPath) -> Non
 
     spfs.get_config().set("storage", "root", tmpdir.strpath)
 
-    subprocess.check_call(["spfs", "reset", "--edit", ""])
     os.chdir(os.path.join(here, name))
-    try:
-        args = spk.cli.parse_args(["make-binary", "example.spk.yaml", "--no-runtime"])
-        args.func(args)
-        code = 0
-    except SystemExit as e:
-        code = e.code
-    assert code == 0, "Make binary failed for example"
+    for filename in glob.glob("*.spk.yaml", recursive=False):
+        subprocess.check_call(["spfs", "reset", "--edit", ""])
+        try:
+            args = spk.cli.parse_args(["make-binary", filename, "--no-runtime"])
+            args.func(args)
+            code = 0
+        except SystemExit as e:
+            code = e.code
+        assert code == 0, "Make binary failed for example"

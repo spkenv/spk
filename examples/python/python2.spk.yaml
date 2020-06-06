@@ -1,0 +1,4 @@
+pkg: python/2.7.5
+build:
+  script:
+  - virtualenv -p python2.7 --download --always-copy --prompt "SPK>PY27>"  /spfs

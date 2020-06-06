@@ -1,0 +1,4 @@
+pkg: python/3.7.3
+build:
+  script:
+  - python3.7 -m venv --copies --prompt "SPK>PY37>" /spfs
