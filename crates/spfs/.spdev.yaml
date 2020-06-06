@@ -1,6 +1,6 @@
-version: 0.19.6
+version: 0.19.7
 release_notes: |
-  * Fix bug where diff command showed changes in clean runtime
+  * Fix bug where diff command could error for new files
 
 environment:
   kind: PipEnv
