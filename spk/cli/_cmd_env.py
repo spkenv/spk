@@ -2,6 +2,7 @@ from typing import Any
 import argparse
 import os
 
+from colorama import Fore, Style
 import structlog
 
 import spfs
@@ -45,7 +46,15 @@ def _env(args: argparse.Namespace) -> None:
     for request in requests:
         solver.add_request(request)
 
-    packages = solver.solve()
+    try:
+        packages = solver.solve()
+    except spk.SolverError as e:
+        print(f"{Fore.RED}{e}{Fore.RESET}")
+        if args.verbose:
+            print(spk.io.format_decision_tree(solver.decision_tree))
+        else:
+            print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
+        exit(1)
 
     runtime = config.get_runtime_storage().create_runtime()
     for spec in packages.values():

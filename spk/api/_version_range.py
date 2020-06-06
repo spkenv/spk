@@ -1,5 +1,6 @@
 from typing import Optional, Any, Union, Set, TYPE_CHECKING
 import abc
+from functools import lru_cache
 from dataclasses import dataclass, field
 
 from ._version import Version, parse_version, VERSION_SEP
@@ -64,9 +65,11 @@ class SemverRange(VersionRange):
 
         return f"^{self._base}"
 
+    @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._base.clone()
 
+    @lru_cache()
     def less_than(self) -> Optional[Version]:
 
         return Version(self._base.major + 1)
@@ -87,12 +90,14 @@ class WildcardRange(VersionRange):
 
         return f"{VERSION_SEP.join(str(p) for p in self._parts)}"
 
+    @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
 
         parts = (str(p) if p != "*" else "0" for p in self._parts)
         v = f"{VERSION_SEP.join(parts)}"
         return parse_version(v)
 
+    @lru_cache()
     def less_than(self) -> Optional[Version]:
 
         first_wildcard = self._parts.index("*")
@@ -129,9 +134,11 @@ class LowestSpecifiedRange(VersionRange):
 
         return f"~{VERSION_SEP.join(str(p) for p in parts)}"
 
+    @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._base.clone()
 
+    @lru_cache()
     def less_than(self) -> Optional[Version]:
 
         parts = list(self._base.parts[: self._specified - 1])
@@ -154,9 +161,11 @@ class GreaterThanRange(VersionRange):
 
         return f">{self._bound}"
 
+    @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._bound
 
+    @lru_cache()
     def less_than(self) -> Optional[Version]:
         return None
 
@@ -248,6 +257,34 @@ class LessThanOrEqualToRange(VersionRange):
     def is_applicable(self, version: Version) -> bool:
 
         return version <= self._bound
+
+
+class ExactVersion(VersionRange):
+    def __init__(self, version: Union[str, Version]) -> None:
+
+        if not isinstance(version, Version):
+            version = parse_version(version)
+
+        self._version = version.clone()
+
+    def __str__(self) -> str:
+
+        return f"={self._version}"
+
+    @lru_cache()
+    def greater_or_equal_to(self) -> Optional[Version]:
+        return self._version.clone()
+
+    @lru_cache()
+    def less_than(self) -> Optional[Version]:
+
+        parts = list(self._version.parts)
+        parts[-1] += 1
+        return parse_version(VERSION_SEP.join(str(p) for p in parts))
+
+    def is_satisfied_by(self, spec: "Spec") -> bool:
+
+        return self._version == spec.pkg.version
 
 
 class CompatRange(VersionRange):
@@ -346,6 +383,8 @@ def parse_version_range(range: str) -> VersionFilter:
             rule = GreaterThanRange(rule_str[1:])
         elif rule_str.startswith("<"):
             rule = LessThanRange(rule_str[1:])
+        elif rule_str.startswith("="):
+            rule = ExactVersion(rule_str[1:])
         elif "*" in rule_str:
             rule = WildcardRange(rule_str)
         else:

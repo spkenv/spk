@@ -20,7 +20,7 @@ def format_decision_tree(tree: spk.DecisionTree) -> str:
     for decision in tree.walk():
         out += ">" * decision.level()
         out += " " + format_decision(decision) + "\n"
-    return out
+    return out[:-1]
 
 
 def format_decision(decision: spk.Decision) -> str:

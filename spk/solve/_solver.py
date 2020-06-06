@@ -51,27 +51,27 @@ class Solver:
         self._running = True
 
         state = self.decision_tree.root
-        while state.has_unresolved_requests():
+        request = state.next_request()
+        while request is not None:
 
             try:
-                state = self._solve_next_request(state)
+                state = self._solve_request(state, request)
             except SolverError:
                 if state.parent is None:
-                    raise UnresolvedPackageError(state.next_request().to_dict())  # type: ignore
+                    stack = self.decision_tree.get_error_chain()
+                    raise stack[-1] from None
                 state = state.parent
+
+            request = state.next_request()
 
         self._running = False
         self._complete = True
         return state.get_current_packages()
 
-    def _solve_next_request(self, state: Decision) -> Decision:
+    def _solve_request(self, state: Decision, request: api.Request) -> Decision:
 
         decision = state.add_branch()
         try:
-
-            request = state.next_request()
-            if not request:
-                raise RuntimeError("Logic error: nothing to solve in current state")
 
             iterator = state.get_iterator(request.pkg.name)
             if iterator is None:
@@ -87,7 +87,7 @@ class Solver:
         except StopIteration:
             err = UnresolvedPackageError(request.to_dict(), versions=iterator.past_versions)  # type: ignore
             decision.set_error(err)
-            raise err
+            raise err from None
         except SolverError as e:
             decision.set_error(e)
             raise

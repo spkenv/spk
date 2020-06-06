@@ -1,4 +1,8 @@
 pkg: python/2.7.5
+opts:
+  - var: arch
+  - var: os
+  - var: centos
 build:
   script:
   - virtualenv -p python2.7 --download --always-copy --prompt "SPK>PY27>"  /spfs

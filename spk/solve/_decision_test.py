@@ -26,3 +26,12 @@ def test_request_merging() -> None:
     decision.add_request(api.Request.from_dict({"pkg": "my_pkg/1.0/src"}))
 
     assert str(decision.get_merged_request("my_pkg").pkg) == "my_pkg/1.0.0/src"  # type: ignore
+
+
+def test_decision_unresolved() -> None:
+
+    decision = Decision()
+    decision.add_request("a/1")
+    decision.add_request("b/2")
+    decision.set_resolved(api.Spec.from_dict({"pkg": "a/1"}))
+    assert "b" in decision.unresolved_requests()

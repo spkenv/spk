@@ -43,7 +43,16 @@ def _install(args: argparse.Namespace) -> None:
     for package in args.packages:
         solver.add_request(package)
 
-    packages = solver.solve()
+    try:
+        packages = solver.solve()
+    except spk.SolverError as e:
+        print(f"{Fore.RED}{e}{Fore.RESET}")
+        if args.verbose:
+            print(spk.io.format_decision_tree(solver.decision_tree))
+        else:
+            print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
+        exit(1)
+
     print("The following packages will be modified:\n")
     for spec in packages.values():
         print("\t" + format_ident(spec.pkg))

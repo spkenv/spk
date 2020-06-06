@@ -94,7 +94,7 @@ class Decision:
     def __init__(self, parent: "Decision" = None) -> None:
         self.parent = parent
         self.branches: List[Decision] = []
-        self._requests: Dict[str, List[api.Request]] = defaultdict(list)
+        self._requests: Dict[str, List[api.Request]] = {}
         self._resolved: Dict[str, api.Spec] = {}
         self._unresolved: Set[str] = set()
         self._error: Optional[SolverError] = None
@@ -139,6 +139,7 @@ class Decision:
         """
 
         self.unresolved_requests.cache_clear()
+        self.get_all_unresolved_requests.cache_clear()
         self._resolved[spec.pkg.name] = spec
 
     def get_resolved(self) -> Dict[str, api.Spec]:
@@ -158,6 +159,7 @@ class Decision:
         """
 
         self.unresolved_requests.cache_clear()
+        self.get_all_unresolved_requests.cache_clear()
         self._unresolved.add(name)
 
     def get_unresolved(self) -> List[str]:
@@ -209,6 +211,8 @@ class Decision:
                 self.set_unresolved(request.pkg.name)
 
         self.unresolved_requests.cache_clear()
+        self.get_all_unresolved_requests.cache_clear()
+        self._requests.setdefault(request.pkg.name, [])
         self._requests[request.pkg.name].append(request)
 
     def get_requests(self) -> Dict[str, List[api.Request]]:
@@ -251,7 +255,7 @@ class Decision:
     def next_request(self) -> Optional[api.Request]:
         """Return the next package request to be resolved in this state."""
 
-        unresolved = self.unresolved_requests()
+        unresolved = self.get_all_unresolved_requests()
         if len(unresolved) == 0:
             return None
 
@@ -259,6 +263,16 @@ class Decision:
 
     @lru_cache()
     def unresolved_requests(self) -> Dict[str, List[api.Request]]:
+        """Return the set of unresolved requests for this decision."""
+
+        resolved = self.get_current_packages()
+        requests = self.get_requests()
+
+        unresolved = dict((n, r) for n, r in requests.items() if n not in resolved)
+        return unresolved
+
+    @lru_cache()
+    def get_all_unresolved_requests(self) -> Dict[str, List[api.Request]]:
         """Return the complete set of unresolved requests for this solver state."""
 
         resolved = self.get_current_packages()
@@ -285,7 +299,7 @@ class Decision:
         requests = []
         if self.parent is not None:
             requests.extend(self.parent.get_package_requests(name))
-        requests.extend(self._requests[name])
+        requests.extend(self._requests.get(name, []))
         return requests
 
     def get_merged_request(self, name: str) -> Optional[api.Request]:
@@ -324,3 +338,31 @@ class DecisionTree:
             here = to_walk.pop()
             yield here
             to_walk.extend(reversed(here.branches))
+
+    def get_error_chain(self) -> List[SolverError]:
+        """Compile the last chain of errors that were encountered.
+
+        This is done by walking the root of the tree backwards, and once
+        an decision with an error is found, walk up previous branches
+        of the tree to find any previous errors that were immediately
+        preceding the root one.
+
+        The returned list of errors should provide a picture of the last
+        stack unwind in the case of a failed solve. It starts with the last
+        error seen and ends with it's initial cause
+        """
+
+        chain = []
+        bad_decision = self.root
+        while bad_decision.branches:
+            last = bad_decision.branches[-1]
+            err = last.get_error()
+            if err is None:
+                break
+            chain.append(err)
+            try:
+                bad_decision = bad_decision.branches[-2]
+            except IndexError:
+                break
+
+        return chain

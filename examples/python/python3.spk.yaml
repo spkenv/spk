@@ -1,4 +1,8 @@
 pkg: python/3.7.3
+opts:
+  - var: arch
+  - var: os
+  - var: centos
 build:
   script:
   - python3.7 -m venv --copies --prompt "SPK>PY37>" /spfs
