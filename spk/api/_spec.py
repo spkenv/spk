@@ -45,17 +45,12 @@ class Spec:
 
             env_var = f"SPM_OPT_{name}"
             if env_var in os.environ:
-                src = "environ"
                 value = os.environ[env_var]
 
             elif name in given:
-                src = "given"
                 value = given[name]
 
-            # TODO: get a default value from definition
-
             else:
-                src = "none"
                 value = ""
 
             resolved[name] = value

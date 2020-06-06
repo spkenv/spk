@@ -44,6 +44,4 @@ def _explain(args: argparse.Namespace) -> None:
     except spk.SolverError:
         pass
 
-    for decision in solver.decision_tree.walk():
-
-        print("." * decision.level(), format_decision(decision))
+    print(spk.io.format_decision_tree(solver.decision_tree))

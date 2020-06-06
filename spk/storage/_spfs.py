@@ -53,20 +53,22 @@ class SpFSRepository(Repository):
 
     def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
 
-        tag_string = self.build_binary_tag(pkg)
+        tag_string = self.build_package_tag(pkg)
         # TODO: sanity check if tag already exists?
         self._repo.tags.push_tag(tag_string, digest)
 
     def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
 
-        tag_str = self.build_binary_tag(pkg)
+        tag_str = self.build_package_tag(pkg)
         try:
             return self._repo.tags.resolve_tag(tag_str).target
         except spfs.graph.UnknownReferenceError:
             raise PackageNotFoundError(tag_str)
 
-    def build_binary_tag(self, pkg: api.Ident) -> str:
+    def build_package_tag(self, pkg: api.Ident) -> str:
         """Construct an spfs tag string to represent a binary package layer."""
+
+        assert pkg.build is not None, "Package must have associated build digest"
 
         return f"spk/pkg/{pkg}"
 

@@ -36,11 +36,12 @@ class LocalSource(SourceSpec):
 
     def collect(self, dirname: str) -> None:
 
-        # TODO: work if .gitignore doesn't exist or not git repo
         args = ["--recursive", "--archive"]
         if "SPM_DEBUG" in os.environ:
             args.append("--verbose")
-        args += ["--filter", ":- .gitignore", "--cvs-exclude", self.path, dirname]
+        if os.path.exists(os.path.join(dirname, ".gitignore")):
+            args += ["--filter", ":- .gitignore"]
+        args += ["--cvs-exclude", self.path, dirname]
         cmd = ["rsync"] + args
         subprocess.check_call(cmd, cwd=dirname)
 

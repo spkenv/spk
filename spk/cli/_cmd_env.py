@@ -52,5 +52,13 @@ def _env(args: argparse.Namespace) -> None:
         digest = repo.get_package(spec.pkg)
         runtime.push_digest(digest)
 
+    os.environ["PATH"] = "/spfs/bin" + os.pathsep + os.getenv("PATH", "")
+    os.environ["LD_LIBRARY_PATH"] = (
+        "/spfs/lib" + os.pathsep + os.getenv("LD_LIBRARY_PATH", "")
+    )
+    os.environ["LIBRARY_PATH"] = (
+        "/spfs/lib" + os.pathsep + os.getenv("LIBRARY_PATH", "")
+    )
+
     cmd = spfs.build_command_for_runtime(runtime, *command)
     os.execvp(cmd[0], cmd)

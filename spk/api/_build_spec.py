@@ -9,7 +9,7 @@ class BuildSpec:
     """A set of structured inputs to build a package."""
 
     script: str = "sh ./build.sh"
-    variants: List[OptionMap] = field(default_factory=list)
+    variants: List[OptionMap] = field(default_factory=lambda: [OptionMap()])
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -27,8 +27,9 @@ class BuildSpec:
                 script = "\n".join(script)
             bs.script = script
 
-        for variant in data.pop("variants", []):
-            bs.variants.append(OptionMap.from_dict(variant))
+        variants = data.pop("variants", [])
+        if variants:
+            bs.variants = list(OptionMap.from_dict(v) for v in variants)
 
         if len(data):
             raise ValueError(

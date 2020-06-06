@@ -19,7 +19,7 @@ def register(
 
     build_cmd = sub_parsers.add_parser("build", help=_build.__doc__, **parser_args)
     build_cmd.add_argument(
-        "name", metavar="SPEC_FILE", nargs=1, help="The package spec file to build"
+        "files", metavar="SPEC_FILE", nargs="+", help="The package(s) to build"
     )
     build_cmd.set_defaults(func=_build)
     return build_cmd
@@ -28,18 +28,19 @@ def register(
 def _build(args: argparse.Namespace) -> None:
     """Runs make-source and then make-binary."""
 
-    spec = spk.read_spec_file(args.name[0])
+    for filename in args.files:
+        spec = spk.read_spec_file(filename)
 
-    cmd = ["spk", "make-source", args.name[0]]
-    _LOGGER.info(" ".join(cmd))
-    proc = subprocess.Popen(cmd)
-    proc.wait()
-    if proc.returncode != 0:
-        raise SystemExit(proc.returncode)
-    # FIXME: do not use here argument in the future when src build are setup
-    cmd = ["spk", "make-binary", "--here", str(spec.pkg.with_build(None))]
-    _LOGGER.info(" ".join(cmd))
-    proc = subprocess.Popen(cmd)
-    proc.wait()
-    if proc.returncode != 0:
-        raise SystemExit(proc.returncode)
+        cmd = ["spk", "make-source", filename]
+        _LOGGER.info(" ".join(cmd))
+        proc = subprocess.Popen(cmd)
+        proc.wait()
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)
+        # FIXME: do not use here argument in the future when src build are setup
+        cmd = ["spk", "make-binary", "--here", str(spec.pkg.with_build(None))]
+        _LOGGER.info(" ".join(cmd))
+        proc = subprocess.Popen(cmd)
+        proc.wait()
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)

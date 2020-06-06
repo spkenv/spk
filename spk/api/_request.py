@@ -44,7 +44,10 @@ class RangeIdent:
         if not self.version.is_applicable(pkg.version):
             return False
 
-        # TODO: check build compatibility
+        if self.build is not None:
+            if self.build != pkg.build:
+                return False
+
         return True
 
     def is_satisfied_by(self, spec: "Spec") -> bool:
@@ -56,7 +59,9 @@ class RangeIdent:
         if not self.version.is_satisfied_by(spec):
             return False
 
-        # FIXME: check build compatibility
+        if self.build is not None:
+            if self.build != spec.pkg.build:
+                return False
         return True
 
     def restrict(self, other: "RangeIdent") -> None:

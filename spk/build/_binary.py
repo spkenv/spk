@@ -40,12 +40,7 @@ def make_binary_package(
             opt.pkg.version = api.parse_version_range(options[opt.pkg.name])
         solver.add_request(opt)
 
-    try:
-        packages = solver.solve()
-    finally:
-        import spk.io
-
-        print(spk.io.format_decision_tree(solver.decision_tree))
+    packages = solver.solve()
     for dependency_spec in packages.values():
         digest = repo.get_package(dependency_spec.pkg)
         runtime.push_digest(digest)

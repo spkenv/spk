@@ -79,7 +79,7 @@ class Solver:
                 state.set_iterator(request.pkg.name, iterator)
 
             pkg, spec = next(iterator)
-            spec.pkg = pkg  # TODO: is this necessary, does it have implications?
+            spec.pkg = pkg
             decision.set_resolved(spec)
             for dep in spec.depends:
                 decision.add_request(dep)

@@ -23,7 +23,7 @@ def make_source_package(spec: api.Spec) -> api.Ident:
     spfs_repo = spfs.get_config().get_repository()
     repo = storage.SpFSRepository(spfs_repo)
     layer = collect_and_commit_sources(spec)
-    repo.publish_package(spec.pkg, layer.digest())
+    repo.publish_package(spec.pkg.with_build(api.SRC), layer.digest())
     return spec.pkg.with_build(api.SRC)
 
 
