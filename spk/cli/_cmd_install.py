@@ -6,7 +6,7 @@ import termios
 
 import spfs
 import structlog
-from colorama import Fore
+from colorama import Fore, Style
 
 import spk
 from spk.io import format_ident
