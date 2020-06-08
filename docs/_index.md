@@ -17,7 +17,7 @@ $ which python
 $ spk env python/2 -- python
 ```
 
-Check the [Version Semantics](versioning.md) for help on how to request packages.
+Check the [Version Semantics](versioning) for help on how to request packages.
 
 ### Create a Package
 
@@ -29,4 +29,4 @@ spk new my_pkg
 spk build my_pkg.yaml
 ```
 
-Use the [Package Definition Guide](spec.md) for more details.
+Use the [Package Definition Guide](spec) for more details.
