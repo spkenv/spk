@@ -10,6 +10,7 @@ black = "*"
 nuitka = "==0.6.7"
 pytest-mypy = "*"
 pytest-cov = "*"
+twine = "*"
 
 [packages]
 spfs = "~=0.19.5"
