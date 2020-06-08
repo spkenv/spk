@@ -9,13 +9,10 @@ import spk.cli
 import spfs
 
 here = os.path.dirname(__file__)
-examples = os.listdir(here)
-examples.remove("_test.py")
-if "__pycache__" in examples:
-    examples.remove("__pycache__")
+testable_examples = ("cmake",)
 
 
-@pytest.mark.parametrize("name", examples)
+@pytest.mark.parametrize("name", testable_examples)
 def test_make_source_package(name: str, tmpdir: py._path.local.LocalPath) -> None:
 
     spfs.get_config().set("storage", "root", tmpdir.strpath)
@@ -34,7 +31,7 @@ def test_make_source_package(name: str, tmpdir: py._path.local.LocalPath) -> Non
         assert code == 0, "Make source failed for example"
 
 
-@pytest.mark.parametrize("name", examples)
+@pytest.mark.parametrize("name", testable_examples)
 def test_make_binary_package(name: str, tmpdir: py._path.local.LocalPath) -> None:
 
     spfs.get_config().set("storage", "root", tmpdir.strpath)
