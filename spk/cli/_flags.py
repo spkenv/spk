@@ -1,10 +1,12 @@
-from typing import Dict
+from typing import Dict, List
 import argparse
 
 import spk
 
 
-def add_repo_flags(parser: argparse.ArgumentParser) -> None:
+def add_repo_flags(
+    parser: argparse.ArgumentParser, defaults: List[str] = ["origin"]
+) -> None:
 
     parser.add_argument(
         "--local-repo",
@@ -18,7 +20,7 @@ def add_repo_flags(parser: argparse.ArgumentParser) -> None:
         type=str,
         metavar="NAME",
         action="append",
-        default=["origin"],
+        default=defaults,
         help="Repositories to include in the resolve. Any configured spfs repository can be named here",
     )
 
