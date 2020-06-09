@@ -61,7 +61,7 @@ def sync_ref(
 
     try:
         tag: Optional[tracking.Tag] = src.tags.resolve_tag(ref)
-    except graph.UnknownObjectError:
+    except (graph.UnknownObjectError, ValueError):
         tag = None
 
     obj = src.read_ref(ref)

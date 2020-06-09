@@ -1,15 +1,18 @@
 import pytest
 import py.path
 
-from . import storage, tracking
+from . import storage, tracking, graph, encoding
 from ._config import Config
 from ._sync import sync_layer, push_ref, sync_ref
 
 
 def test_push_ref_unknown() -> None:
 
-    with pytest.raises(ValueError):
+    with pytest.raises(graph.UnknownReferenceError):
         push_ref("--test-unknown--", "origin")
+
+    with pytest.raises(graph.UnknownReferenceError):
+        push_ref(str(encoding.NULL_DIGEST), "origin")
 
 
 @pytest.mark.timeout(5)

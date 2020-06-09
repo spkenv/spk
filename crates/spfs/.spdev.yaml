@@ -1,6 +1,7 @@
 version: 0.19.7
 release_notes: |
   * Fix bug where diff command could error for new files
+  * Fix bug where full digest could not be used in sync api
 
 environment:
   kind: PipEnv

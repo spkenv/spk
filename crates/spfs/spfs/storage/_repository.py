@@ -52,9 +52,9 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
             digest = ref
         else:
             try:
-                digest = self.objects.resolve_full_digest(ref)
-            except ValueError:
                 digest = self.tags.resolve_tag(ref).target
+            except ValueError:
+                digest = self.objects.resolve_full_digest(ref)
 
         return self.objects.read_object(digest)
 

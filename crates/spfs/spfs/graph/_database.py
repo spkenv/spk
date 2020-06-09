@@ -121,7 +121,7 @@ class DatabaseView(metaclass=abc.ABCMeta):
         Other implemntations may provide better results.
 
         Raises:
-            UnknownObjectError: if the digest cannot be resolved
+            UnknownReferenceError: if the digest cannot be resolved
             AmbiguousReferenceError: if the digest could point to multiple objects
         """
 
