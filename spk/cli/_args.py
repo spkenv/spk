@@ -19,6 +19,7 @@ from . import (
     _cmd_make_binary,
     _cmd_make_source,
     _cmd_new,
+    _cmd_publish,
     _cmd_search,
     _cmd_version,
 )
@@ -32,7 +33,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "-v",
         action="count",
         help="Enable verbose output (can be specified more than once)",
-        default=int(os.getenv("SPM_VERBOSITY", 0)),
+        default=int(os.getenv("SPK_VERBOSITY", 0)),
     )
 
     parser = argparse.ArgumentParser(
@@ -50,6 +51,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_make_binary.register(sub_parsers, parents=[parent_parser])
     _cmd_make_source.register(sub_parsers, parents=[parent_parser])
     _cmd_new.register(sub_parsers, parents=[parent_parser])
+    _cmd_publish.register(sub_parsers, parents=[parent_parser])
     _cmd_search.register(sub_parsers, parents=[parent_parser])
     _cmd_version.register(sub_parsers, parents=[parent_parser])
 
@@ -98,10 +100,9 @@ def configure_logging(args: argparse.Namespace) -> None:
         structlog.stdlib.PositionalArgumentsFormatter(),
     ]
 
-    logging.getLogger("spfs").setLevel(logging.ERROR)
-    os.environ["SPM_VERBOSITY"] = str(args.verbose)
+    logging.getLogger("spfs").setLevel(logging.INFO)
+    os.environ["SPK_VERBOSITY"] = str(args.verbose)
     if args.verbose > 0:
-        os.environ["SPM_DEBUG"] = "1"
         level = logging.DEBUG
         processors.extend(
             [
@@ -110,8 +111,6 @@ def configure_logging(args: argparse.Namespace) -> None:
                 structlog.processors.format_exc_info,
             ]
         )
-    if args.verbose > 1:
-        logging.getLogger("spfs").setLevel(logging.INFO)
     if args.verbose > 2:
         os.environ["SPFS_DEBUG"] = "1"
         logging.getLogger("spfs").setLevel(logging.DEBUG)
