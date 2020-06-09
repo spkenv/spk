@@ -23,10 +23,20 @@ Check the [Version Semantics](versioning) for help on how to request packages.
 
 ```bash
 # generate a basic spec file to get started
-spk new my_pkg
+$ spk new my_pkg
 
 # make any necessary changes to the file and then build it
-spk build my_pkg.yaml
+$ spk build my_pkg.yaml
+
+# run environments using locally built packages
+$ spk env --local my_pkg
 ```
 
 Use the [Package Definition Guide](spec) for more details.
+
+### Publish a Package
+
+```bash
+# publish a locally built package for others to use
+$ spk publish my_pkg/0.1.0
+```
