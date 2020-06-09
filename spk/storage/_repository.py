@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Any, Iterable, Union
 import abc
 
 import spfs
@@ -20,11 +20,18 @@ class PackageNotFoundError(FileNotFoundError):
 
 class Repository(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def list_packages(self) -> List[str]:
+    def list_packages(self) -> Iterable[str]:
+        """Return the set of known packages in this repo."""
         pass
 
     @abc.abstractmethod
-    def list_package_versions(self, name: str) -> List[str]:
+    def list_package_versions(self, name: str) -> Iterable[str]:
+        """Return the set of versions available for the named package."""
+        pass
+
+    @abc.abstractmethod
+    def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
+        """Return the set of builds for the given package name and version."""
         pass
 
     @abc.abstractmethod

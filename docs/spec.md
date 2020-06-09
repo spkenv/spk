@@ -47,8 +47,9 @@ When writing your build script, the value of each option is made available in an
 
 ### Dependencies
 
-TODO: fill this in
+Packages often require other packages to be present at runtime, as well. These requirements should be listed in the `depends` section of the spec file, and follow the same semantics as package options above.
 
-#### Option-Based Dependencies
-
-TODO: fill this in
+```yaml
+depends:
+  - pkg: python/2.7
+```

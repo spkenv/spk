@@ -24,7 +24,7 @@ def register(
 
 
 def _search(args: argparse.Namespace) -> None:
-    """Search for packages by substring."""
+    """Search for packages by name/substring."""
 
     repos = {}
     if args.local_repo:

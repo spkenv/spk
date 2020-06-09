@@ -26,6 +26,13 @@ def register(
     install_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to install",
     )
+    install_cmd.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        default=False,
+        help="Do not prompt for confirmation, just continue",
+    )
     _flags.add_repo_flags(install_cmd)
     install_cmd.set_defaults(func=_install)
     return install_cmd
@@ -65,7 +72,9 @@ def _install(args: argparse.Namespace) -> None:
         print("\t" + format_ident(spec.pkg))
     print("")
 
-    if input("Do you want to continue? [y/N]: ") not in ("y", "Y"):
+    if args.yes:
+        pass
+    elif input("Do you want to continue? [y/N]: ").lower() not in ("y", "yes"):
         print("Installation cancelled")
         sys.exit(1)
 
