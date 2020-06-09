@@ -8,6 +8,8 @@ import spk
 
 from spk.io import format_decision
 
+from . import _flags
+
 _LOGGER = structlog.get_logger("cli")
 
 
@@ -18,6 +20,7 @@ def register(
     explain_cmd = sub_parsers.add_parser(
         "explain", help=_explain.__doc__, **parser_args
     )
+    _flags.add_repo_flags(explain_cmd)
     explain_cmd.add_argument(
         "packages",
         metavar="PKG",
@@ -33,9 +36,8 @@ def _explain(args: argparse.Namespace) -> None:
 
     options = spk.api.host_options()
     solver = spk.Solver(options)
-    solver.add_repository(
-        spk.storage.SpFSRepository(spfs.get_config().get_repository())  # FIXME: !!
-    )
+    _flags.configure_solver_with_repo_flags(args, solver)
+
     for package in args.packages:
         solver.add_request(package)
 

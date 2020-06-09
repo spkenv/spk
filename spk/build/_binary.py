@@ -28,8 +28,7 @@ def make_binary_package(
     """
 
     runtime = spfs.active_runtime()
-    spfs_repo = spfs.get_config().get_repository()
-    repo = storage.SpFSRepository(spfs_repo)
+    repo = storage.local_repository()
     solver = solve.Solver(options)
     solver.add_repository(repo)
     for opt in spec.opts:

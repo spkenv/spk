@@ -20,8 +20,7 @@ class CollectionError(BuildError):
 def make_source_package(spec: api.Spec) -> api.Ident:
     """Create a local source package for the given spec."""
 
-    spfs_repo = spfs.get_config().get_repository()
-    repo = storage.SpFSRepository(spfs_repo)
+    repo = storage.local_repository()
     layer = collect_and_commit_sources(spec)
     repo.publish_package(spec.pkg.with_build(api.SRC), layer.digest())
     return spec.pkg.with_build(api.SRC)

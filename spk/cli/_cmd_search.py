@@ -7,6 +7,8 @@ import spfs
 import spk
 from spk.io import format_request, format_ident
 
+from . import _flags
+
 _LOGGER = structlog.get_logger("cli")
 
 
@@ -14,25 +16,24 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    tags_cmd = sub_parsers.add_parser("search", help=_search.__doc__, **parser_args)
-    tags_cmd.add_argument("term", metavar="TERM", help="The search term / substring")
-    tags_cmd.set_defaults(func=_search)
-    return tags_cmd
+    search_cmd = sub_parsers.add_parser("search", help=_search.__doc__, **parser_args)
+    _flags.add_repo_flags(search_cmd)
+    search_cmd.add_argument("term", metavar="TERM", help="The search term / substring")
+    search_cmd.set_defaults(func=_search)
+    return search_cmd
 
 
 def _search(args: argparse.Namespace) -> None:
     """Search for packages by substring."""
 
-    config = spfs.get_config()
-    repos = []
-    for name in config.list_remote_names():
-        try:
-            repos.append(spk.storage.SpFSRepository(config.get_remote(name)))
-        except Exception as e:
-            _LOGGER.warning("failed to open remote repository", remote=name)
-            _LOGGER.warning("--> " + str(e))
-    repos.insert(0, spk.storage.SpFSRepository(config.get_repository()))
-    for repo in repos:
+    repos = {}
+    if args.local_repo:
+        repos["local"] = spk.storage.local_repository()
+    for name in args.enable_repo:
+        repos[name] = spk.storage.remote_repository(name)
+
+    width = max(map(len, repos.keys()))
+    for repo_name, repo in repos.items():
         for name in repo.list_packages():
             if args.term in name:
                 versions = list(
@@ -40,4 +41,6 @@ def _search(args: argparse.Namespace) -> None:
                     for v in repo.list_package_versions(name)
                 )
                 for v in versions:
-                    print(format_ident(v))
+                    print(
+                        ("{: <" + str(width) + "}").format(repo_name), format_ident(v)
+                    )
