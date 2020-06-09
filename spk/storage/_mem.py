@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, Iterable, Union
 import abc
 
 import spfs
@@ -13,13 +13,25 @@ class MemRepository(Repository):
         self._sources: Dict[str, Dict[str, spfs.encoding.Digest]] = {}
         self._packages: Dict[str, Dict[str, Dict[str, spfs.encoding.Digest]]] = {}
 
-    def list_packages(self) -> List[str]:
+    def list_packages(self) -> Iterable[str]:
         return list(self._specs.keys())
 
-    def list_package_versions(self, name: str) -> List[str]:
+    def list_package_versions(self, name: str) -> Iterable[str]:
 
         try:
             return list(self._specs[name].keys())
+        except KeyError:
+            return []
+
+    def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
+
+        if not isinstance(pkg, api.Ident):
+            pkg = api.parse_ident(pkg)
+
+        pkg = pkg.with_build(None)
+        try:
+            for build in self._packages[pkg.name][str(pkg.version)].keys():
+                yield pkg.with_build(build)
         except KeyError:
             return []
 

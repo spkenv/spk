@@ -1,5 +1,6 @@
-from typing import List
+from typing import Iterable, Union
 import io
+import posixpath
 
 import spfs
 
@@ -12,15 +13,31 @@ class SpFSRepository(Repository):
 
         self._repo = spfs_repo
 
-    def list_packages(self) -> List[str]:
+    def as_spfs_repo(self) -> spfs.storage.Repository:
+        return self._repo
+
+    def list_packages(self) -> Iterable[str]:
 
         path = "spk/spec"
         return list(self._repo.tags.ls_tags(path))
 
-    def list_package_versions(self, name: str) -> List[str]:
+    def list_package_versions(self, name: str) -> Iterable[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
         return list(self._repo.tags.ls_tags(path))
+
+    def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
+
+        if not isinstance(pkg, api.Ident):
+            pkg = api.parse_ident(pkg)
+
+        pkg = pkg.with_build(api.SRC)
+        base = posixpath.dirname(self.build_package_tag(pkg))
+        try:
+            for build in self._repo.tags.ls_tags(base):
+                yield pkg.with_build(build)
+        except KeyError:
+            return []
 
     def force_publish_spec(self, spec: api.Spec) -> None:
 
