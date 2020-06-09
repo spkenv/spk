@@ -11,6 +11,8 @@ from colorama import Fore, Style
 import spk
 from spk.io import format_ident
 
+from . import _flags
+
 _LOGGER = structlog.get_logger("spk.cli")
 
 
@@ -24,6 +26,7 @@ def register(
     install_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to install",
     )
+    _flags.add_repo_flags(install_cmd)
     install_cmd.set_defaults(func=_install)
     return install_cmd
 
@@ -38,8 +41,8 @@ def _install(args: argparse.Namespace) -> None:
 
     options = spk.api.host_options()
     solver = spk.Solver(options)
-    repo = spk.storage.SpFSRepository(spfs.get_config().get_repository())  # FIXME: !!
-    solver.add_repository(repo)
+    _flags.configure_solver_with_repo_flags(args, solver)
+
     for package in args.packages:
         solver.add_request(package)
 
@@ -53,6 +56,10 @@ def _install(args: argparse.Namespace) -> None:
             print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
         exit(1)
 
+    if not packages:
+        print(f"Nothing to do.")
+        return
+
     print("The following packages will be modified:\n")
     for spec in packages.values():
         print("\t" + format_ident(spec.pkg))
@@ -62,8 +69,17 @@ def _install(args: argparse.Namespace) -> None:
         print("Installation cancelled")
         sys.exit(1)
 
+    print("")
     for spec in packages.values():
-        digest = repo.get_package(spec.pkg)
-        runtime.push_digest(digest)
+        print("collecting:", format_ident(spec.pkg))
+        for repo in _flags.get_repos_from_repo_flags(args).values():
+            try:
+                digest = repo.get_package(spec.pkg)
+                runtime.push_digest(digest)
+                break
+            except FileNotFoundError:
+                pass
+        else:
+            raise RuntimeError("Resolved package disspeared, please try again")
 
     spfs.remount_runtime(runtime)

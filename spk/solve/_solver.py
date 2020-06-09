@@ -1,6 +1,7 @@
 from typing import List, Union, Iterable, Dict, Optional, Tuple, Any, Iterator, Set
 from collections import defaultdict
 from functools import lru_cache
+from itertools import chain
 
 import structlog
 import spfs
@@ -48,6 +49,8 @@ class Solver:
 
         if self._complete:
             raise RuntimeError("Solver has already been executed")
+
+        assert len(self._repos), "No configured package repositories."
         self._running = True
 
         state = self.decision_tree.root
@@ -95,9 +98,5 @@ class Solver:
         return decision
 
     def _make_iterator(self, request: api.Request) -> PackageIterator:
-        # FIXME: support many repos
-        assert len(self._repos) <= 1, "Too many package repositories."
-        assert len(self._repos), "No registered package repositories."
-        repo = self._repos[0]
 
-        return PackageIterator(repo, request, self._options)
+        return PackageIterator(self._repos, request, self._options)

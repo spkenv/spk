@@ -10,6 +10,8 @@ import spk
 
 from spk.io import format_decision
 
+from . import _flags
+
 _LOGGER = structlog.get_logger("cli")
 
 
@@ -20,10 +22,15 @@ def register(
     env_cmd = sub_parsers.add_parser("env", help=_env.__doc__, **parser_args)
     env_cmd.add_argument(
         "args",
-        metavar="[PKG ...] -- [CMD] [ARGS ...]",
+        metavar="[PKG...] -- [CMD]",
         nargs=argparse.REMAINDER,
-        help="The packages and command to run",
+        help=(
+            "The packages and optional command to run, "
+            "use '--' to separate packages from command or if no command is given "
+            "spawn a new shell"
+        ),
     )
+    _flags.add_repo_flags(env_cmd)
     env_cmd.set_defaults(func=_env)
     return env_cmd
 
@@ -40,9 +47,8 @@ def _env(args: argparse.Namespace) -> None:
 
     options = spk.api.host_options()
     solver = spk.Solver(options)
-    config = spfs.get_config()
-    repo = spk.storage.SpFSRepository(config.get_repository())  # FIXME: !!
-    solver.add_repository(repo)
+    _flags.configure_solver_with_repo_flags(args, solver)
+
     for request in requests:
         solver.add_request(request)
 
@@ -56,10 +62,17 @@ def _env(args: argparse.Namespace) -> None:
             print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
         exit(1)
 
-    runtime = config.get_runtime_storage().create_runtime()
+    runtime = spfs.get_config().get_runtime_storage().create_runtime()
     for spec in packages.values():
-        digest = repo.get_package(spec.pkg)
-        runtime.push_digest(digest)
+        for repo in _flags.get_repos_from_repo_flags(args).values():
+            try:
+                digest = repo.get_package(spec.pkg)
+                runtime.push_digest(digest)
+                break
+            except FileNotFoundError:
+                pass
+        else:
+            raise RuntimeError("Resolved package disspeared, please try again")
 
     os.environ["PATH"] = "/spfs/bin" + os.pathsep + os.getenv("PATH", "")
     os.environ["LD_LIBRARY_PATH"] = (

@@ -76,3 +76,22 @@ class SpFSRepository(Repository):
         """construct an spfs tag string to represent a spec file blob."""
 
         return f"spk/spec/{pkg.with_build(None)}"
+
+
+def local_repository() -> SpFSRepository:
+    """Return the local packages repository used for development."""
+
+    config = spfs.get_config()
+    repo = config.get_repository()
+    return SpFSRepository(repo)
+
+
+def remote_repository(name: str = "origin") -> SpFSRepository:
+    """Return the remote repository of the given name.
+
+    If not name is specified, return the default spfs repository.
+    """
+
+    config = spfs.get_config()
+    repo = config.get_remote(name)
+    return SpFSRepository(repo)

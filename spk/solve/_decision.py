@@ -15,17 +15,27 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
     """
 
     def __init__(
-        self, repo: storage.Repository, request: api.Request, options: api.OptionMap
+        self,
+        repos: List[storage.Repository],
+        request: api.Request,
+        options: api.OptionMap,
     ) -> None:
-        self._repo = repo
+        self._repos = repos
         self._request = request
         self._options = options
         self._versions: Optional[Iterator[str]] = None
+        self._version_map: Dict[str, storage.Repository] = {}
         self.past_versions: List[str] = []
 
     def _start(self) -> None:
-        all_versions = self._repo.list_package_versions(self._request.pkg.name)
-        versions = list(filter(self._request.is_version_applicable, all_versions))
+        self._version_map = {}
+        for repo in reversed(self._repos):
+            versions = repo.list_package_versions(self._request.pkg.name)
+            for version in versions:
+                self._version_map[version] = repo
+        versions = list(
+            filter(self._request.is_version_applicable, self._version_map.keys())
+        )
         versions.sort()
         versions.reverse()
         self._versions = iter(versions)
@@ -36,10 +46,11 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
         if self._versions is None:
             self._start()
 
-        other = PackageIterator(self._repo, self._request, self._options)
+        other = PackageIterator(self._repos, self._request, self._options)
         remaining = list(self._versions)  # type: ignore
         other._versions = iter(remaining)
         self._versions = iter(remaining)
+        other._version_map = self._version_map
         return other
 
     def __next__(self) -> Tuple[api.Ident, api.Spec]:
@@ -51,13 +62,14 @@ class PackageIterator(Iterator[Tuple[api.Ident, api.Spec]]):
             self.past_versions.append(version_str)
             version = api.parse_version(version_str)
             pkg = api.Ident(self._request.pkg.name, version)
-            spec = self._repo.read_spec(pkg)
+            repo = self._version_map[version_str]
+            spec = repo.read_spec(pkg)
             options = spec.resolve_all_options(self._options)
 
             candidate = pkg.with_build(options.digest())
 
             try:
-                self._repo.get_package(candidate)
+                repo.get_package(candidate)
             except storage.PackageNotFoundError:
                 continue
 
