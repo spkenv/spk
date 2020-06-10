@@ -36,20 +36,26 @@ class Compat:
 
         return Compat(VERSION_SEP.join(self.parts))
 
-    def check(self, base: Version, other: Version) -> bool:
-        """Return true if the two version are compatible by this compat rule."""
+    def is_api_compatible(self, base: Version, other: Version) -> bool:
+        """Return true if the two version are api compatible by this compat rule."""
+
+        return self._check_compat(base, other, COMPAT_API)
+
+    def is_binary_compatible(self, base: Version, other: Version) -> bool:
+        """Return true if the two version are binary compatible by this compat rule."""
+
+        return self._check_compat(base, other, COMPAT_ABI)
+
+    def _check_compat(self, base: Version, other: Version, required: str) -> bool:
 
         for rule, a, b in zip(self.parts, base.parts, other.parts):
 
-            if rule == COMPAT_NONE:
-                if a != b:
+            if required in rule:
+                if b < a:
                     return False
-            # FIXME: handle binary compat better
-            elif rule == COMPAT_API or rule == COMPAT_ABI:
-                if a > b:
-                    return False
-            else:
-                raise NotImplementedError("Unhandled compat specifier: " + rule)
+                return True
+            if a != b:
+                return False
 
         return True
 
