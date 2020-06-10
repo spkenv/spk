@@ -1,6 +1,7 @@
 ---
-title: Defining Packages
+title: Creating Packages
 summary: Write package spec files for creating packages.
+weight: 20
 ---
 
 The package specification (spec) file is a yaml or json file which follows the structure detailed below.

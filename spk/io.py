@@ -26,7 +26,7 @@ def format_decision_tree(tree: spk.DecisionTree) -> str:
 def format_decision(decision: spk.Decision) -> str:
 
     if decision.get_error() is not None:
-        return f"{Fore.RED}DEAD{Fore.RESET} {decision.get_error()}"
+        return f"{Fore.RED}BLOCKED{Fore.RESET} {decision.get_error()}"
     out = ""
     if decision.get_resolved():
         values = list(
