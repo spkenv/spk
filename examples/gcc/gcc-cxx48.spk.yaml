@@ -1,15 +1,17 @@
-pkg: gcc/4.8.5
+pkg: gcc-cxx/4.8.5
 
 opts:
 - var: arch
 - var: os
+
+depends:
+- pkg: gcc/4.8.5
 
 build:
   script:
   # this build script relocates files installed by an rpm into spfs
   # - this process will not work for all rpm packages
   #   but can be a great place to bootstrap a required package
-  - rpm -ql gcc-4.8.5 | sed 's|^/usr||' > files_to_copy.txt
-  - rpm -ql gcc-c++-4.8.5 | sed 's|^/usr||' >> files_to_copy.txt
+  - rpm -ql gcc-c++-4.8.5 | sed 's|^/usr||' > files_to_copy.txt
   - rsync -Rdav --files-from=files_to_copy.txt /usr /spfs
   - rm files_to_copy.txt
