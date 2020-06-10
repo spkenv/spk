@@ -3,7 +3,7 @@ from collections import defaultdict
 from functools import lru_cache
 
 from .. import api, storage
-from ._errors import SolverError, ConflictingRequestsError
+from ._errors import SolverError, ConflictingRequestsError, PackageNotFoundError
 from ._solution import Solution
 
 
@@ -29,11 +29,16 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self.past_versions: List[str] = []
 
     def _start(self) -> None:
+
         self._version_map = {}
         for repo in reversed(self._repos):
             versions = repo.list_package_versions(self._request.pkg.name)
             for version in versions:
                 self._version_map[version] = repo
+
+        if not versions:
+            raise PackageNotFoundError(self._request.pkg.name)
+
         versions = list(
             filter(self._request.is_version_applicable, self._version_map.keys())
         )

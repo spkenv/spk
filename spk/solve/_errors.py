@@ -1,9 +1,14 @@
 from typing import List, Any
 
 from .. import api
+from .. import storage
 
 
 class SolverError(Exception):
+    pass
+
+
+class PackageNotFoundError(SolverError, storage.PackageNotFoundError):
     pass
 
 

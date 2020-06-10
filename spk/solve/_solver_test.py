@@ -4,7 +4,12 @@ import spfs
 import pytest
 
 from .. import api, storage, io
-from ._errors import UnresolvedPackageError, ConflictingRequestsError, SolverError
+from ._errors import (
+    UnresolvedPackageError,
+    ConflictingRequestsError,
+    SolverError,
+    PackageNotFoundError,
+)
 from ._solver import Solver
 
 
@@ -43,7 +48,7 @@ def test_solver_package_with_no_spec() -> None:
     solver.add_repository(repo)
     solver.add_request("my_pkg")
 
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(PackageNotFoundError):
         solver.solve()
 
 
