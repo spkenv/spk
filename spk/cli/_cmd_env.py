@@ -31,6 +31,7 @@ def register(
         ),
     )
     _flags.add_repo_flags(env_cmd)
+    _flags.add_option_flags(env_cmd)
     env_cmd.set_defaults(func=_env)
     return env_cmd
 
@@ -45,7 +46,7 @@ def _env(args: argparse.Namespace) -> None:
     requests = args.args[:separator]
     command = args.args[separator + 1 :] or [os.getenv("SHELL", "/bin/bash")]
 
-    options = spk.api.host_options()
+    options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 

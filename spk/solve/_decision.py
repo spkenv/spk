@@ -26,7 +26,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._options = options
         self._versions: Optional[Iterator[str]] = None
         self._version_map: Dict[str, storage.Repository] = {}
-        self.past_versions: List[str] = []
+        self.history: Dict[str, str] = {}
 
     def _start(self) -> None:
 
@@ -65,7 +65,6 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             self._start()
 
         for version_str in self._versions:  # type: ignore
-            self.past_versions.append(version_str)
             version = api.parse_version(version_str)
             pkg = api.Ident(self._request.pkg.name, version)
             repo = self._version_map[version_str]
@@ -77,9 +76,11 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             try:
                 repo.get_package(candidate)
             except storage.PackageNotFoundError:
+                self.history[version_str] = f"no build for {options}"
                 continue
 
             if not self._request.is_satisfied_by(spec):
+                self.history[version_str] = "request not satisfied"
                 continue
 
             spec.pkg = candidate

@@ -21,6 +21,7 @@ def register(
         "explain", help=_explain.__doc__, **parser_args
     )
     _flags.add_repo_flags(explain_cmd)
+    _flags.add_option_flags(explain_cmd)
     explain_cmd.add_argument(
         "packages",
         metavar="PKG",
@@ -34,7 +35,7 @@ def register(
 def _explain(args: argparse.Namespace) -> None:
     """Print the decision tree for the resolve of a set of packages."""
 
-    options = spk.api.host_options()
+    options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 

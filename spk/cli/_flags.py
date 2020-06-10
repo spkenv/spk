@@ -25,6 +25,29 @@ def add_repo_flags(
     )
 
 
+def add_option_flags(parser: argparse.ArgumentParser) -> None:
+
+    parser.add_argument(
+        "--opt",
+        "-o",
+        type=str,
+        default=[],
+        action="append",
+        help="Specify option values for the envrionment",
+    )
+
+
+def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
+
+    opts = spk.api.host_options()
+    for pair in args.opt:
+
+        name, value = pair.split("=")
+        opts[name] = value
+
+    return opts
+
+
 def configure_solver_with_repo_flags(
     args: argparse.Namespace, solver: spk.Solver
 ) -> None:

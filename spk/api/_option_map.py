@@ -17,6 +17,10 @@ _DIGEST_SIZE = 8
 class OptionMap(SortedDict):
     """A set of values for package build options."""
 
+    def __str__(self) -> str:
+
+        return f"{{{', '.join(f'{n}={v}' for n, v in self.items())}}}"
+
     def digest(self) -> str:
 
         hasher = hashlib.sha1()

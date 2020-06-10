@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Dict, Any, List
 
 from .. import api
 from .. import storage
@@ -13,11 +13,11 @@ class PackageNotFoundError(SolverError, storage.PackageNotFoundError):
 
 
 class UnresolvedPackageError(SolverError):
-    def __init__(self, pkg: Any, versions: List[str] = None) -> None:
+    def __init__(self, pkg: Any, history: Dict[str, str] = None) -> None:
 
         message = f"Failed to resolve: {pkg}"
-        if versions is not None:
-            version_list = ", ".join(versions)
+        if history is not None:
+            version_list = ", ".join(f"{v} ({err})" for v, err in history.items())
             message += f" - from versions: [{version_list}]"
         super(UnresolvedPackageError, self).__init__(message)
 

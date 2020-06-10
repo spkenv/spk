@@ -88,7 +88,7 @@ class Solver:
                 decision.add_request(dep)
 
         except StopIteration:
-            err = UnresolvedPackageError(request.to_dict(), versions=iterator.past_versions)  # type: ignore
+            err = UnresolvedPackageError(request.to_dict(), history=iterator.history)
             decision.set_error(err)
             raise err from None
         except SolverError as e:
