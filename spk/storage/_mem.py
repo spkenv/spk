@@ -51,13 +51,6 @@ class MemRepository(Repository):
         except KeyError:
             raise PackageNotFoundError(pkg)
 
-    def get_source_package(self, pkg: api.Ident,) -> spfs.encoding.Digest:
-
-        try:
-            return self._sources[pkg.name][str(pkg.version)]
-        except KeyError:
-            raise PackageNotFoundError(pkg)
-
     def force_publish_spec(self, spec: api.Spec) -> None:
 
         try:
