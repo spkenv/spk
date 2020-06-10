@@ -40,13 +40,14 @@ def make_binary_package(
         solver.add_request(opt)
 
     packages = solver.solve()
-    for dependency_spec in packages.values():
-        digest = repo.get_package(dependency_spec.pkg)
+    for _, dep_spec, dep_repo in packages.items():
+        digest = dep_repo.get_package(dep_spec.pkg)
         runtime.push_digest(digest)
     if packages:
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
+    os.environ.update(packages.to_environment())
     layer = build_and_commit_artifacts(spec, sources, options)
     pkg = spec.pkg.with_build(options.digest())
     repo.publish_package(pkg, layer.digest())
@@ -56,8 +57,6 @@ def make_binary_package(
 def build_and_commit_artifacts(
     spec: api.Spec, sources: str, options: api.OptionMap
 ) -> spfs.storage.Layer:
-
-    spec.pkg.with_build(options.digest())
 
     prefix = "/spfs"
     build_artifacts(spec, sources, options, prefix)
@@ -84,7 +83,7 @@ def build_artifacts(
         f.write(spec.build.script)
 
     env = os.environ.copy()
-    env.update(options.to_env())
+    env.update(options.to_environment())
     env["PREFIX"] = prefix
 
     proc = subprocess.Popen(["/bin/sh", "-ex", build_script], cwd=sources, env=env)

@@ -104,6 +104,16 @@ class Request:
 
     pkg: RangeIdent
 
+    def __hash__(self) -> int:
+
+        return hash(self.pkg.name)
+
+    def __eq__(self, other: Any) -> bool:
+
+        if not isinstance(other, Request):
+            return bool(str(self) == other)
+        return self.__hash__() == other.__hash__()
+
     def clone(self) -> "Request":
 
         return Request.from_dict(self.to_dict())
