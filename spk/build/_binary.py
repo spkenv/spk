@@ -30,6 +30,7 @@ def make_binary_package(
     runtime = spfs.active_runtime()
     repo = storage.local_repository()
     solver = solve.Solver(options)
+    solver.add_repository(storage.remote_repository())
     solver.add_repository(repo)
     for opt in spec.opts:
         if not isinstance(opt, api.Request):
