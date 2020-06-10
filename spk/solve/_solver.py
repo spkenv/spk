@@ -9,6 +9,7 @@ import spfs
 from .. import api, storage
 from ._decision import Decision, PackageIterator, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
+from ._solution import Solution
 
 _LOGGER = structlog.get_logger("spk.solve")
 
@@ -40,7 +41,7 @@ class Solver:
             raise RuntimeError("Solver has already been executed")
         self.decision_tree.root.add_request(pkg)
 
-    def solve(self) -> Dict[str, api.Spec]:
+    def solve(self) -> Solution:
         """Solve the current set of package requests into a complete environment.
 
         Raises:
@@ -69,7 +70,7 @@ class Solver:
 
         self._running = False
         self._complete = True
-        return state.get_current_packages()
+        return state.get_current_solution()
 
     def _solve_request(self, state: Decision, request: api.Request) -> Decision:
 
@@ -81,9 +82,8 @@ class Solver:
                 iterator = self._make_iterator(request)
                 state.set_iterator(request.pkg.name, iterator)
 
-            pkg, spec = next(iterator)
-            spec.pkg = pkg
-            decision.set_resolved(spec)
+            spec, repo = next(iterator)
+            decision.set_resolved(spec, repo)
             for dep in spec.depends:
                 decision.add_request(dep)
 

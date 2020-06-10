@@ -65,6 +65,8 @@ class SemverRange(VersionRange):
 
         return f"^{self._base}"
 
+    __repr__ = __str__
+
     @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._base.clone()
@@ -89,6 +91,8 @@ class WildcardRange(VersionRange):
     def __str__(self) -> str:
 
         return f"{VERSION_SEP.join(str(p) for p in self._parts)}"
+
+    __repr__ = __str__
 
     @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
@@ -134,6 +138,8 @@ class LowestSpecifiedRange(VersionRange):
 
         return f"~{VERSION_SEP.join(str(p) for p in parts)}"
 
+    __repr__ = __str__
+
     @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._base.clone()
@@ -160,6 +166,8 @@ class GreaterThanRange(VersionRange):
     def __str__(self) -> str:
 
         return f">{self._bound}"
+
+    __repr__ = __str__
 
     @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
@@ -190,6 +198,8 @@ class LessThanRange(VersionRange):
 
         return f"<{self._bound}"
 
+    __repr__ = __str__
+
     def greater_or_equal_to(self) -> Optional[Version]:
         return None
 
@@ -216,6 +226,8 @@ class GreaterThanOrEqualToRange(VersionRange):
     def __str__(self) -> str:
 
         return f">={self._bound}"
+
+    __repr__ = __str__
 
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._bound
@@ -244,6 +256,8 @@ class LessThanOrEqualToRange(VersionRange):
 
         return f"<={self._bound}"
 
+    __repr__ = __str__
+
     def greater_or_equal_to(self) -> Optional[Version]:
         return None
 
@@ -270,6 +284,8 @@ class ExactVersion(VersionRange):
     def __str__(self) -> str:
 
         return f"={self._version}"
+
+    __repr__ = __str__
 
     @lru_cache()
     def greater_or_equal_to(self) -> Optional[Version]:
@@ -298,6 +314,8 @@ class CompatRange(VersionRange):
     def __str__(self) -> str:
 
         return str(self._base)
+
+    __repr__ = __str__
 
     def greater_or_equal_to(self) -> Optional[Version]:
         return self._base.clone()

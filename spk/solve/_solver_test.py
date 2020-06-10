@@ -61,9 +61,9 @@ def test_solver_single_package_no_deps() -> None:
     finally:
         print(io.format_decision_tree(solver.decision_tree))
     assert len(packages) == 1, "expected one resolved package"
-    assert packages["my_pkg"].pkg.version == "1.0.0"
-    assert packages["my_pkg"].pkg.build is not None
-    assert packages["my_pkg"].pkg.build.digest != api.SRC
+    assert packages.get("my_pkg").spec.pkg.version == "1.0.0"
+    assert packages.get("my_pkg").spec.pkg.build is not None
+    assert packages.get("my_pkg").spec.pkg.build.digest != api.SRC  # type: ignore
 
 
 def test_solver_single_package_simple_deps() -> None:
@@ -90,8 +90,8 @@ def test_solver_single_package_simple_deps() -> None:
     finally:
         print(io.format_decision_tree(solver.decision_tree))
     assert len(packages) == 2, "expected two resolved packages"
-    assert packages["pkg_a"].pkg.version == "1.2.1"
-    assert packages["pkg_b"].pkg.version == "1.1.0"
+    assert packages.get("pkg_a").spec.pkg.version == "1.2.1"
+    assert packages.get("pkg_b").spec.pkg.version == "1.1.0"
 
 
 def test_solver_dependency_incompatible() -> None:
@@ -150,8 +150,8 @@ def test_solver_dependency_incompatible_stepback() -> None:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
-    assert packages["pkg_b"].pkg.version == "1.0.0"
-    assert packages["pkg_a"].pkg.version == "1.0.0"
+    assert packages.get("pkg_b").spec.pkg.version == "1.0.0"
+    assert packages.get("pkg_a").spec.pkg.version == "1.0.0"
 
 
 def test_solver_dependency_already_satisfied() -> None:
@@ -181,8 +181,12 @@ def test_solver_dependency_already_satisfied() -> None:
     finally:
         print(io.format_decision_tree(solver.decision_tree))
 
-    assert list(packages.keys()) == ["pkg_top", "dep_1", "dep_2"]
-    assert packages["dep_1"].pkg.version == "1.0.0"
+    assert list(s.spec.pkg.name for s in packages.items()) == [
+        "pkg_top",
+        "dep_1",
+        "dep_2",
+    ]
+    assert packages.get("dep_1").spec.pkg.version == "1.0.0"
 
 
 def test_solver_dependency_reopen_solvable() -> None:
@@ -213,8 +217,12 @@ def test_solver_dependency_reopen_solvable() -> None:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
-    assert list(packages.keys()) == ["pkg_top", "dep_2", "dep_1"]
-    assert packages["dep_1"].pkg.version == "1.0.0"
+    assert list(s.spec.pkg.name for s in packages.items()) == [
+        "pkg_top",
+        "dep_2",
+        "dep_1",
+    ]
+    assert packages.get("dep_1").spec.pkg.version == "1.0.0"
 
 
 def test_solver_dependency_reopen_unsolvable() -> None:

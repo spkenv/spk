@@ -2,6 +2,7 @@ from typing import Dict, Any
 import hashlib
 import base64
 import platform
+import os
 
 import distro
 from sortedcontainers import SortedDict
@@ -28,15 +29,6 @@ class OptionMap(SortedDict):
         digest = hasher.digest()
         return base64.b32encode(digest)[:_DIGEST_SIZE].decode()
 
-    def to_env(self) -> Dict[str, str]:
-        """Return the set of environment variables to be set for these options."""
-
-        env = {}
-        for name, value in self.items():
-            var_name = "SPK_OPT_" + name
-            env[var_name] = value
-        return env
-
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "OptionMap":
 
@@ -44,6 +36,22 @@ class OptionMap(SortedDict):
         for name, value in data.items():
             opts[name] = str(value)
         return opts
+
+    def to_environment(self, base: Dict[str, str] = None) -> Dict[str, str]:
+        """Return the data of these options as environment variables.
+
+        If base is not given, use current os environment.
+        """
+
+        if base is None:
+            base = dict(os.environ)
+        else:
+            base = base.copy()
+
+        for name, value in self.items():
+            var_name = f"SPK_OPT_{name}"
+            base[var_name] = value
+        return base
 
 
 def host_options() -> OptionMap:

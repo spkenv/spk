@@ -30,7 +30,7 @@ def format_decision(decision: spk.Decision) -> str:
     out = ""
     if decision.get_resolved():
         values = list(
-            format_ident(spec.pkg) for spec in decision.get_resolved().values()
+            format_ident(spec.pkg) for _, spec, _ in decision.get_resolved().items()
         )
         out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {', '.join(values)} "
     if decision.get_requests():

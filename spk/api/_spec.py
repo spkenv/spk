@@ -36,9 +36,11 @@ class Spec:
 
             if isinstance(opt, Request):
                 name = opt.pkg.name
+                default = str(opt.pkg.version)
 
             elif isinstance(opt, VarSpec):
                 name = opt.var
+                default = ""
 
             else:
                 raise NotImplementedError(f"Unhandled option type: {type(opt)}")
@@ -51,7 +53,7 @@ class Spec:
                 value = given[name]
 
             else:
-                value = ""
+                value = default
 
             resolved[name] = value
 

@@ -54,11 +54,20 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     spec = api.Spec.from_dict(
         {
             "pkg": "top/1.0.0",
-            "build": {"script": "test -f /spfs/dep-file"},
-            "opts": [{"pkg": "dep/1"}],
+            "build": {
+                "script": [
+                    "touch /spfs/top-file",
+                    "test -f /spfs/dep-file",
+                    'test ! -x "$SPK_PKG_dep"',
+                    'test "$SPK_PKG_dep_VERSION" == "1.0.0"',
+                    "env | grep SPK",
+                    'test "$SPK_OPT_dep" == "1.0.0"',
+                ]
+            },
+            "opts": [{"pkg": "dep/1.0.0"}],
         }
     )
 
     tmprepo.publish_spec(dep_spec)
     make_binary_package(dep_spec, ".", api.OptionMap())
-    make_binary_package(spec, ".", api.OptionMap())
+    make_binary_package(spec, ".", spec.resolve_all_options(api.OptionMap()))

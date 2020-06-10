@@ -68,7 +68,7 @@ def _install(args: argparse.Namespace) -> None:
         return
 
     print("The following packages will be modified:\n")
-    for spec in packages.values():
+    for _, spec, _ in packages.items():
         print("\t" + format_ident(spec.pkg))
     print("")
 
@@ -79,16 +79,12 @@ def _install(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     print("")
-    for spec in packages.values():
+    for _, spec, repo in packages.items():
         print("collecting:", format_ident(spec.pkg))
-        for repo in _flags.get_repos_from_repo_flags(args).values():
-            try:
-                digest = repo.get_package(spec.pkg)
-                runtime.push_digest(digest)
-                break
-            except FileNotFoundError:
-                pass
-        else:
+        try:
+            digest = repo.get_package(spec.pkg)
+            runtime.push_digest(digest)
+        except FileNotFoundError:
             raise RuntimeError("Resolved package disspeared, please try again")
 
     spfs.remount_runtime(runtime)
