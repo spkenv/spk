@@ -1,10 +1,12 @@
-version: 0.1.0
+version: 0.2.0
 release_notes: |
-  * Initial MVP release
-   * Build package from spec file
-   * Define package with dependencies and string options
-   * Store packages as spfs layers
-   * Resolve and run environments on the command line
+  * Final MVP Feature Release
+    * Add repository selection and publishing to command line and API
+    * Add simple commands to list packages/versions/builds in a repo
+    * Improve solver and command line error output
+    * Improve documentation around working with the solver
+    * Allow specifying build options on the command line
+
 
 environment:
   kind: PipEnv

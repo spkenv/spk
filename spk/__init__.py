@@ -1,6 +1,6 @@
 """SPack - an SpFS Package Manager"""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from . import api, build, storage, solve
 from ._global import load_spec, save_spec
