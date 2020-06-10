@@ -36,7 +36,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             for version in versions:
                 self._version_map[version] = repo
 
-        if not versions:
+        if not len(self._version_map):
             raise PackageNotFoundError(self._request.pkg.name)
 
         versions = list(

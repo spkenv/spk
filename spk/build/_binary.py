@@ -30,6 +30,7 @@ def make_binary_package(
     runtime = spfs.active_runtime()
     repo = storage.local_repository()
     solver = solve.Solver(options)
+    # FIXME: allow this to be configurable on the command line
     solver.add_repository(storage.remote_repository())
     solver.add_repository(repo)
     for opt in spec.opts:
