@@ -1,6 +1,0 @@
-pkg: gcc/4.8.5
-
-build:
-  script:
-  - rpm -ql gcc | sed 's|^/usr||' > files_to_copy.txt
-  - rsync -Rdav --files-from=files_to_copy.txt /usr /spfs

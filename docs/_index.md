@@ -33,6 +33,7 @@ $ spk env --local my_pkg
 ```
 
 Use the [Package Definition Guide](spec) for more details.
+Check the included [examples](https://gitlab.spimageworks.com/dev-group/dev-ops/spk/-/tree/master/examples) for additional help.
 
 ### Publish a Package
 

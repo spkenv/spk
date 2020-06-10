@@ -3,6 +3,7 @@ pkg: cmake-example/0.1.0
 opts:
 - var: os
 - var: arch
+- pkg: gcc/4.8
 
 build:
   script:
