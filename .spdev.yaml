@@ -1,11 +1,6 @@
-version: 0.2.0
+version: 0.2.1
 release_notes: |
-  * Final MVP Feature Release
-    * Add repository selection and publishing to command line and API
-    * Add simple commands to list packages/versions/builds in a repo
-    * Improve solver and command line error output
-    * Improve documentation around working with the solver
-    * Allow specifying build options on the command line
+  * Fix bug where spfs objects were not automatically synced
 
 
 environment:
