@@ -9,7 +9,7 @@ import spk.cli
 import spfs
 
 here = os.path.dirname(__file__)
-testable_examples = tuple()  # TODO: ("cmake",)
+testable_examples = ("cmake", "gcc")
 
 
 @pytest.mark.parametrize("name", testable_examples)
@@ -36,7 +36,14 @@ def test_make_binary_package(name: str) -> None:
     for filename in glob.glob("*.spk.yaml", recursive=False):
         subprocess.check_call(["spfs", "reset", "--edit", ""])
         try:
-            args = spk.cli.parse_args(["make-binary", filename, "--no-runtime"])
+            args = spk.cli.parse_args(
+                [
+                    "make-binary",
+                    filename,
+                    "--enable-repo=/net/libs/spfs",
+                    "--no-runtime",
+                ]
+            )
             args.func(args)
             code = 0
         except SystemExit as e:
