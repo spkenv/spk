@@ -61,7 +61,7 @@ def _install(args: argparse.Namespace) -> None:
             print(spk.io.format_decision_tree(solver.decision_tree))
         else:
             print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
-        exit(1)
+        sys.exit(1)
 
     if not packages:
         print(f"Nothing to do.")
@@ -84,6 +84,12 @@ def _install(args: argparse.Namespace) -> None:
         try:
             digest = repo.get_package(spec.pkg)
             runtime.push_digest(digest)
+            if isinstance(repo, spk.storage.SpFSRepository):
+                spfs.sync_ref(
+                    str(digest),
+                    repo.as_spfs_repo(),
+                    spk.storage.local_repository().as_spfs_repo(),
+                )
         except FileNotFoundError:
             raise RuntimeError("Resolved package disspeared, please try again")
 

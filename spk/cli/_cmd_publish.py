@@ -63,7 +63,7 @@ def _publish(args: argparse.Namespace) -> None:
             spec = local_repo.read_spec(pkg)
         except FileNotFoundError as e:
             print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
-            exit(1)
+            sys.exit(1)
 
         try:
             _LOGGER.info("publishing spec", pkg=spec.pkg)
@@ -73,7 +73,7 @@ def _publish(args: argparse.Namespace) -> None:
                 remote_repo.publish_spec(spec)
         except spk.storage.VersionExistsError as e:
             print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
-            exit(1)
+            sys.exit(1)
         builds = local_repo.list_package_builds(spec.pkg)
     else:
         builds = [pkg]

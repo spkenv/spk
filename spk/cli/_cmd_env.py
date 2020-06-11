@@ -1,5 +1,6 @@
 from typing import Any
 import argparse
+import sys
 import os
 
 from colorama import Fore, Style
@@ -61,16 +62,22 @@ def _env(args: argparse.Namespace) -> None:
             print(spk.io.format_decision_tree(solver.decision_tree))
         else:
             print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
-        exit(1)
+        sys.exit(1)
 
     runtime = spfs.get_config().get_runtime_storage().create_runtime()
     for _, spec, repo in packages.items():
         try:
             digest = repo.get_package(spec.pkg)
             runtime.push_digest(digest)
+            if isinstance(repo, spk.storage.SpFSRepository):
+                spfs.sync_ref(
+                    str(digest),
+                    repo.as_spfs_repo(),
+                    spk.storage.local_repository().as_spfs_repo(),
+                )
             break
         except FileNotFoundError:
-            raise RuntimeError("Resolved package disspeared, please try again")
+            raise RuntimeError("Resolved package disappeared, please try again")
 
     os.environ.update(packages.to_environment())
     os.environ.update(options.to_environment())

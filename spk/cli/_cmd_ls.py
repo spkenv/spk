@@ -43,7 +43,7 @@ def _ls(args: argparse.Namespace) -> None:
             f"{Fore.YELLOW}No repositories selected, specify --local-repo and/or --enable-repo{Fore.RESET}",
             file=sys.stderr,
         )
-        exit(1)
+        sys.exit(1)
 
     if not args.package:
         for repo in repos.values():
