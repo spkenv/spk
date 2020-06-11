@@ -3,6 +3,7 @@ release_notes: |
   * Allow repos to be specified for make-binary command
   * Update cmake example with variant
   * Add recipe for gcc 63 stub package
+  * Update docs with information on spec build section
 
 environment:
   kind: PipEnv
