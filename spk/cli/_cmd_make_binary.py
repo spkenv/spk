@@ -8,6 +8,7 @@ import structlog
 from colorama import Fore
 
 import spk
+from . import _flags
 
 _LOGGER = structlog.get_logger("spk.cli")
 
@@ -42,6 +43,7 @@ def register(
         nargs="+",
         help="The packages or yaml specification files to build",
     )
+    _flags.add_repo_flags(mkb_cmd)
     mkb_cmd.set_defaults(func=_make_binary)
     return mkb_cmd
 
@@ -54,8 +56,6 @@ def _make_binary(args: argparse.Namespace) -> None:
         runtime.set_editable(True)
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
-
-    base_options = spk.api.host_options()
 
     source_dir = os.getcwd()
     for package in args.packages:
@@ -71,11 +71,19 @@ def _make_binary(args: argparse.Namespace) -> None:
                     "No implementation yet to build from source package"
                 )
 
+        base_options = spk.api.host_options()
+        repos = _flags.get_repos_from_repo_flags(args).values()
         _LOGGER.info("building binary package", pkg=spec.pkg)
         for variant in spec.build.variants:
-            opts = base_options.copy()
-            opts.update(variant)
-            options = spec.resolve_all_options(opts)
-            _LOGGER.info("building with options", **options)
-            out = spk.make_binary_package(spec, os.getcwd(), options)
+
+            _LOGGER.info("building variant", variant=variant)
+            out = (
+                spk.BinaryPackageBuilder.from_spec(spec)
+                .with_options(base_options)
+                .with_options(variant)
+                .with_repositories(repos)
+                .with_source_dir(os.getcwd())
+                .build()
+            )
+
             _LOGGER.info("created", pkg=out)

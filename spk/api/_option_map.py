@@ -21,6 +21,8 @@ class OptionMap(SortedDict):
 
         return f"{{{', '.join(f'{n}={v}' for n, v in self.items())}}}"
 
+    __repr__ = __str__
+
     def digest(self) -> str:
 
         hasher = hashlib.sha1()

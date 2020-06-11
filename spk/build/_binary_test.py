@@ -10,7 +10,7 @@ from ._binary import (
     BuildError,
     build_artifacts,
     build_and_commit_artifacts,
-    make_binary_package,
+    BinaryPackageBuilder,
 )
 
 
@@ -69,5 +69,5 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     )
 
     tmprepo.publish_spec(dep_spec)
-    make_binary_package(dep_spec, ".", api.OptionMap())
-    make_binary_package(spec, ".", spec.resolve_all_options(api.OptionMap()))
+    BinaryPackageBuilder.from_spec(dep_spec).build()
+    BinaryPackageBuilder.from_spec(spec).build()

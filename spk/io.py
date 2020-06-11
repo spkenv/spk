@@ -1,10 +1,10 @@
 from typing import List
 from colorama import Fore, Style
 
-import spk
+from . import api, storage, solve
 
 
-def format_ident(pkg: spk.api.Ident) -> str:
+def format_ident(pkg: api.Ident) -> str:
 
     out = f"{Style.BRIGHT}{pkg.name}{Style.RESET_ALL}"
     if pkg.version.parts or pkg.build is not None:
@@ -14,7 +14,7 @@ def format_ident(pkg: spk.api.Ident) -> str:
     return out
 
 
-def format_decision_tree(tree: spk.DecisionTree) -> str:
+def format_decision_tree(tree: solve.DecisionTree) -> str:
 
     out = ""
     for decision in tree.walk():
@@ -23,7 +23,7 @@ def format_decision_tree(tree: spk.DecisionTree) -> str:
     return out[:-1]
 
 
-def format_decision(decision: spk.Decision) -> str:
+def format_decision(decision: solve.Decision) -> str:
 
     if decision.get_error() is not None:
         return f"{Fore.RED}BLOCKED{Fore.RESET} {decision.get_error()}"
@@ -45,7 +45,7 @@ def format_decision(decision: spk.Decision) -> str:
     return out
 
 
-def format_request(name: str, requests: List[spk.api.Request]) -> str:
+def format_request(name: str, requests: List[api.Request]) -> str:
 
     out = f"{Style.BRIGHT}{name}{Style.RESET_ALL}/"
     versions = []

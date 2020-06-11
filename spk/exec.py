@@ -1,7 +1,7 @@
 import spfs
 import structlog
 
-from . import solve, io, storage
+from . import solve, storage, io
 
 _LOGGER = structlog.get_logger("spk.exec")
 
@@ -34,7 +34,7 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
             raise RuntimeError("Resolved package disappeared, please try again")
 
         if isinstance(repo, storage.SpFSRepository):
-            _LOGGER.info("collecting", pkg=io.format_ident(spec.pkg))
+            _LOGGER.info("collecting " + io.format_ident(spec.pkg))
             spfs.sync_ref(
                 str(digest), repo.as_spfs_repo(), local_repo.as_spfs_repo(),
             )

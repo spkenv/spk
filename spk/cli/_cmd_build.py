@@ -38,7 +38,12 @@ def _build(args: argparse.Namespace) -> None:
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
         # FIXME: do not use here argument in the future when src build are setup
-        cmd = ["spk", "make-binary", "--here", str(spec.pkg.with_build(None))]
+        cmd = [
+            "spk",
+            "make-binary",
+            "--here",
+            filename,
+        ]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)
         proc.wait()

@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Iterable
 import os
 import stat
 import subprocess
+from dataclasses import dataclass, field
 
 import structlog
 import spfs
@@ -18,39 +19,83 @@ class BuildError(RuntimeError):
     pass
 
 
-def make_binary_package(
-    spec: api.Spec, sources: str, options: api.OptionMap
-) -> api.Ident:
-    """Build a local binary package for the given spec, source files, and options.
+@dataclass
+class BinaryPackageBuilder:
+    """Builds a binary package.
 
-    The given options are not checked against the spec, and
-    are expected to have been properly resolved with defaults filled in etc.
+    ... spec = Spec.from_dict({"pkg": "my_pkg"})
+    >>> BinaryPackageBuilder.from_spec(spec).with_option("debug", "true").build()
     """
 
-    runtime = spfs.active_runtime()
-    repo = storage.local_repository()
-    solver = solve.Solver(options)
-    # FIXME: allow this to be configurable on the command line
-    solver.add_repository(storage.remote_repository())
-    solver.add_repository(repo)
-    for opt in spec.opts:
-        if not isinstance(opt, api.Request):
-            continue
-        if opt.pkg.name in options:
-            opt = opt.clone()
-            opt.pkg.version = api.parse_version_range(options[opt.pkg.name])
-        solver.add_request(opt)
+    def __init__(self) -> None:
 
-    solution = solver.solve()
-    exec.configure_runtime(runtime, solution)
-    runtime.set_editable(True)
-    spfs.remount_runtime(runtime)
+        self._spec: api.Spec
+        self._options: api.OptionMap = api.OptionMap()
+        self._source_dir: str = "."
+        self._repos: List[storage.Repository] = []
 
-    os.environ.update(solution.to_environment())
-    layer = build_and_commit_artifacts(spec, sources, options)
-    pkg = spec.pkg.with_build(options.digest())
-    repo.publish_package(pkg, layer.digest())
-    return pkg
+    @staticmethod
+    def from_spec(spec: api.Spec) -> "BinaryPackageBuilder":
+
+        builder = BinaryPackageBuilder()
+        builder._spec = spec
+        return builder
+
+    def with_option(self, name: str, value: str) -> "BinaryPackageBuilder":
+
+        self._options[name] = value
+        return self
+
+    def with_options(self, options: api.OptionMap) -> "BinaryPackageBuilder":
+
+        self._options.update(options)
+        return self
+
+    def with_source_dir(self, dirname: str) -> "BinaryPackageBuilder":
+
+        self._source_dir = os.path.abspath(dirname)
+        return self
+
+    def with_repository(self, repo: storage.Repository) -> "BinaryPackageBuilder":
+
+        self._repos.append(repo)
+        return self
+
+    def with_repositories(
+        self, repos: Iterable[storage.Repository]
+    ) -> "BinaryPackageBuilder":
+
+        self._repos.extend(repos)
+        return self
+
+    def build(self) -> api.Ident:
+        """Build the requested binary package."""
+
+        runtime = spfs.active_runtime()
+        build_options = self._spec.resolve_all_options(self._options)
+
+        build_env_solver = solve.Solver(self._options)
+        for repo in self._repos:
+            build_env_solver.add_repository(repo)
+
+        for opt in self._spec.opts:
+            if not isinstance(opt, api.Request):
+                continue
+            if opt.pkg.name in build_options:
+                opt = opt.clone()
+                opt.pkg.version = api.parse_version_range(build_options[opt.pkg.name])
+            build_env_solver.add_request(opt)
+
+        solution = build_env_solver.solve()
+        exec.configure_runtime(runtime, solution)
+        runtime.set_editable(True)
+        spfs.remount_runtime(runtime)
+
+        os.environ.update(solution.to_environment())
+        layer = build_and_commit_artifacts(self._spec, self._source_dir, build_options)
+        pkg = self._spec.pkg.with_build(build_options.digest())
+        storage.local_repository().publish_package(pkg, layer.digest())
+        return pkg
 
 
 def build_and_commit_artifacts(
