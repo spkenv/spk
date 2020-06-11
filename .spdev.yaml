@@ -1,7 +1,8 @@
-version: 0.2.1
+version: 0.2.2
 release_notes: |
-  * Fix bug where spfs objects were not automatically synced
-
+  * Allow repos to be specified for make-binary command
+  * Update cmake example with variant
+  * Add recipe for gcc 63 stub package
 
 environment:
   kind: PipEnv
