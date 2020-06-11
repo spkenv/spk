@@ -42,9 +42,9 @@ def _install(args: argparse.Namespace) -> None:
     """install a package into spfs."""
 
     try:
-        runtime = spfs.active_runtime()
+        spfs.active_runtime()
     except spfs.NoRuntimeError:
-        raise spfs.NoRuntimeError("maybe run 'spfs shell' first?")
+        raise spfs.NoRuntimeError("maybe use 'spk env' instead?")
 
     options = spk.api.host_options()
     solver = spk.Solver(options)
@@ -78,19 +78,4 @@ def _install(args: argparse.Namespace) -> None:
         print("Installation cancelled")
         sys.exit(1)
 
-    print("")
-    for _, spec, repo in packages.items():
-        print("collecting:", format_ident(spec.pkg))
-        try:
-            digest = repo.get_package(spec.pkg)
-            runtime.push_digest(digest)
-            if isinstance(repo, spk.storage.SpFSRepository):
-                spfs.sync_ref(
-                    str(digest),
-                    repo.as_spfs_repo(),
-                    spk.storage.local_repository().as_spfs_repo(),
-                )
-        except FileNotFoundError:
-            raise RuntimeError("Resolved package disspeared, please try again")
-
-    spfs.remount_runtime(runtime)
+    spk.setup_current_runtime(packages)

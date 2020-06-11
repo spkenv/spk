@@ -6,7 +6,7 @@ import subprocess
 import structlog
 import spfs
 
-from .. import api, storage, solve
+from .. import api, storage, solve, exec
 from ._env import data_path
 
 _LOGGER = structlog.get_logger("spk.build")
@@ -41,15 +41,12 @@ def make_binary_package(
             opt.pkg.version = api.parse_version_range(options[opt.pkg.name])
         solver.add_request(opt)
 
-    packages = solver.solve()
-    for _, dep_spec, dep_repo in packages.items():
-        digest = dep_repo.get_package(dep_spec.pkg)
-        runtime.push_digest(digest)
-    if packages:
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+    solution = solver.solve()
+    exec.configure_runtime(runtime, solution)
+    runtime.set_editable(True)
+    spfs.remount_runtime(runtime)
 
-    os.environ.update(packages.to_environment())
+    os.environ.update(solution.to_environment())
     layer = build_and_commit_artifacts(spec, sources, options)
     pkg = spec.pkg.with_build(options.digest())
     repo.publish_package(pkg, layer.digest())
