@@ -51,7 +51,6 @@ class Solver:
         if self._complete:
             raise RuntimeError("Solver has already been executed")
 
-        assert len(self._repos), "No configured package repositories."
         self._running = True
 
         state = self.decision_tree.root
@@ -100,4 +99,5 @@ class Solver:
 
     def _make_iterator(self, request: api.Request) -> PackageIterator:
 
+        assert len(self._repos), "No configured package repositories."
         return PackageIterator(self._repos, request, self._options)

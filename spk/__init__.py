@@ -15,5 +15,10 @@ from .solve import (
     Decision,
 )
 from .api import read_spec_file
-from .build import make_source_package, BinaryPackageBuilder, BuildError
+from .build import (
+    SourcePackageBuilder,
+    BinaryPackageBuilder,
+    BuildError,
+    CollectionError,
+)
 from .exec import setup_current_runtime, create_runtime

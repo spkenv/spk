@@ -1,8 +1,7 @@
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 import os
 import stat
 import subprocess
-from dataclasses import dataclass, field
 
 import structlog
 import spfs
@@ -19,17 +18,24 @@ class BuildError(RuntimeError):
     pass
 
 
-@dataclass
 class BinaryPackageBuilder:
     """Builds a binary package.
 
-    ... spec = Spec.from_dict({"pkg": "my_pkg"})
-    >>> BinaryPackageBuilder.from_spec(spec).with_option("debug", "true").build()
+    >>> (
+    ...     BinaryPackageBuilder
+    ...     .from_spec(api.Spec.from_dict({
+    ...         "pkg": "my_pkg",
+    ...         "build": {"script": "echo hello, world"},
+    ...      }))
+    ...     .with_option("debug", "true")
+    ...     .build()
+    ... )
+    my_pkg/3I42H3S6
     """
 
     def __init__(self) -> None:
 
-        self._spec: api.Spec
+        self._spec: Optional[api.Spec] = None
         self._options: api.OptionMap = api.OptionMap()
         self._source_dir: str = "."
         self._repos: List[storage.Repository] = []
@@ -70,6 +76,10 @@ class BinaryPackageBuilder:
 
     def build(self) -> api.Ident:
         """Build the requested binary package."""
+
+        assert (
+            self._spec is not None
+        ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
 
         runtime = spfs.active_runtime()
         build_options = self._spec.resolve_all_options(self._options)

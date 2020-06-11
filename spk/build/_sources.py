@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import os
 
 import structlog
@@ -17,13 +17,41 @@ class CollectionError(BuildError):
     pass
 
 
-def make_source_package(spec: api.Spec) -> api.Ident:
-    """Create a local source package for the given spec."""
+class SourcePackageBuilder:
+    """Builds a source package.
 
-    repo = storage.local_repository()
-    layer = collect_and_commit_sources(spec)
-    repo.publish_package(spec.pkg.with_build(api.SRC), layer.digest())
-    return spec.pkg.with_build(api.SRC)
+    >>> (
+    ...     SourcePackageBuilder
+    ...     .from_spec(api.Spec.from_dict({
+    ...         "pkg": "my_pkg",
+    ...      }))
+    ...     .build()
+    ... )
+    my_pkg/src
+    """
+
+    def __init__(self) -> None:
+
+        self._spec: Optional[api.Spec] = None
+
+    @staticmethod
+    def from_spec(spec: api.Spec) -> "SourcePackageBuilder":
+
+        builder = SourcePackageBuilder()
+        builder._spec = spec
+        return builder
+
+    def build(self) -> api.Ident:
+        """Build the requested source package."""
+
+        assert (
+            self._spec is not None
+        ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
+
+        repo = storage.local_repository()
+        layer = collect_and_commit_sources(self._spec)
+        repo.publish_package(self._spec.pkg.with_build(api.SRC), layer.digest())
+        return self._spec.pkg.with_build(api.SRC)
 
 
 def collect_and_commit_sources(spec: api.Spec) -> spfs.storage.Layer:

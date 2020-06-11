@@ -56,5 +56,5 @@ def _make_source(args: argparse.Namespace) -> None:
             spec = spk.load_spec(package)
 
         _LOGGER.info("collecting sources", pkg=spec.pkg)
-        out = spk.make_source_package(spec)
+        out = spk.SourcePackageBuilder.from_spec(spec).build()
         _LOGGER.info("created", pkg=out)

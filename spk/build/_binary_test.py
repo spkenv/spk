@@ -69,5 +69,5 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     )
 
     tmprepo.publish_spec(dep_spec)
-    BinaryPackageBuilder.from_spec(dep_spec).build()
-    BinaryPackageBuilder.from_spec(spec).build()
+    BinaryPackageBuilder.from_spec(dep_spec).with_repository(tmprepo).build()
+    BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
