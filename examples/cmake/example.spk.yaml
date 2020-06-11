@@ -6,6 +6,9 @@ opts:
 - pkg: gcc/4.8
 
 build:
+  variants:
+  - {gcc: 6.3}
+  - {gcc: 4.8}
   script:
   - mkdir -p build
   - cd build
