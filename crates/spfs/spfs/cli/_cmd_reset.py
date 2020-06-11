@@ -26,7 +26,7 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
 
 def _reset(args: argparse.Namespace) -> None:
-    """Clean the repository storage of untracked data."""
+    """Rebuild the current /spfs dir with the requested refs, removing any active changes."""
 
     config = spfs.get_config()
     repo = config.get_repository()
