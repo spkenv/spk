@@ -83,7 +83,7 @@ class Solver:
 
             spec, repo = next(iterator)
             decision.set_resolved(spec, repo)
-            for dep in spec.depends:
+            for dep in spec.install.requirements:
                 decision.add_request(dep)
 
         except StopIteration:

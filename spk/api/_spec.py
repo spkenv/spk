@@ -11,6 +11,7 @@ from ._compat import Compat, parse_compat
 from ._request import Request
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec
+from ._install_spec import InstallSpec
 from ._source_spec import SourceSpec, LocalSource
 
 
@@ -25,8 +26,7 @@ class Spec:
     compat: Compat = field(default_factory=Compat)
     sources: List[SourceSpec] = field(default_factory=list)
     build: BuildSpec = field(default_factory=BuildSpec)
-    depends: List["Request"] = field(default_factory=list)
-    provides: List["Spec"] = field(default_factory=list)
+    install: InstallSpec = field(default_factory=InstallSpec)
 
     def resolve_all_options(self, given: OptionMap) -> OptionMap:
 
@@ -53,13 +53,10 @@ class Spec:
         spec = Spec(pkg)
         if "compat" in data:
             spec.compat = parse_compat(data.pop("compat"))
-        spec.build = BuildSpec.from_dict(data.pop("build", {}))
         for src in data.pop("sources", [{"path": "."}]):
             spec.sources.append(SourceSpec.from_dict(src))
-        for dep in data.pop("depends", []):
-            spec.depends.append(Request.from_dict(dep))
-        for provided in data.pop("provides", []):
-            spec.provides.append(Spec.from_dict(provided))
+        spec.build = BuildSpec.from_dict(data.pop("build", {}))
+        spec.install = InstallSpec.from_dict(data.pop("install", {}))
 
         if len(data):
             raise ValueError(f"unrecognized fields in spec: {', '.join(data.keys())}")
@@ -72,8 +69,7 @@ class Spec:
             "pkg": str(self.pkg),
             "compat": str(self.compat),
             "build": self.build.to_dict(),
-            "depends": list(d.to_dict() for d in self.depends),
-            "provides": list(p.to_dict() for p in self.provides),
+            "install": self.install.to_dict(),
         }
 
 

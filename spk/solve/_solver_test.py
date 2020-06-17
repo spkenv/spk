@@ -81,8 +81,8 @@ def test_solver_single_package_simple_deps() -> None:
             {"pkg": "pkg_a/1.2.0"},
             {"pkg": "pkg_a/1.2.1"},
             {"pkg": "pkg_a/2.0.0"},
-            {"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/2"}]},
-            {"pkg": "pkg_b/1.1.0", "depends": [{"pkg": "pkg_a/1"}]},
+            {"pkg": "pkg_b/1.0.0", "install": {"requirements": [{"pkg": "pkg_a/2"}]}},
+            {"pkg": "pkg_b/1.1.0", "install": {"requirements": [{"pkg": "pkg_a/1"}]}},
         ]
     )
 
@@ -107,7 +107,7 @@ def test_solver_dependency_incompatible() -> None:
         [
             {"pkg": "pkg_a/1.0.0"},
             {"pkg": "pkg_a/2.0.0"},
-            {"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/2"}]},
+            {"pkg": "pkg_b/1.0.0", "install": {"requirements": [{"pkg": "pkg_a/2"}]}},
         ]
     )
 
@@ -140,8 +140,8 @@ def test_solver_dependency_incompatible_stepback() -> None:
         [
             {"pkg": "pkg_a/1.0.0"},
             {"pkg": "pkg_a/2.0.0"},
-            {"pkg": "pkg_b/1.1.0", "depends": [{"pkg": "pkg_a/2"}]},
-            {"pkg": "pkg_b/1.0.0", "depends": [{"pkg": "pkg_a/1"}]},
+            {"pkg": "pkg_b/1.1.0", "install": {"requirements": [{"pkg": "pkg_a/2"}]}},
+            {"pkg": "pkg_b/1.0.0", "install": {"requirements": [{"pkg": "pkg_a/1"}]}},
         ]
     )
 
@@ -170,12 +170,14 @@ def test_solver_dependency_already_satisfied() -> None:
             {
                 "pkg": "pkg_top/1.0.0",
                 # should resolve dep_1 as 1.0.0
-                "depends": [{"pkg": "dep_1/~1.0.0"}, {"pkg": "dep_2/1"}],
+                "install": {
+                    "requirements": [{"pkg": "dep_1/~1.0.0"}, {"pkg": "dep_2/1"}]
+                },
             },
             {"pkg": "dep_1/1.1.0"},
             {"pkg": "dep_1/1.0.0"},
             # when dep_2 gets resolved, it will re-request this but it has already resolved
-            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/1"}]},
+            {"pkg": "dep_2/1.0.0", "install": {"requirements": [{"pkg": "dep_1/1"}]}},
         ]
     )
     solver = Solver(api.OptionMap())
@@ -206,13 +208,16 @@ def test_solver_dependency_reopen_solvable() -> None:
             {
                 "pkg": "pkg_top/1.0.0",
                 # should resolve dep_1 as 1.1.0 (favoring latest)
-                "depends": [{"pkg": "dep_1/1"}, {"pkg": "dep_2/1"}],
+                "install": {"requirements": [{"pkg": "dep_1/1"}, {"pkg": "dep_2/1"}]},
             },
             {"pkg": "dep_1/1.1.0"},
             {"pkg": "dep_1/1.0.0"},
             # when dep_2 gets resolved, it will enforce an older version
             # of the existing resolve, which is still valid for all requests
-            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/~1.0.0"}]},
+            {
+                "pkg": "dep_2/1.0.0",
+                "install": {"requirements": [{"pkg": "dep_1/~1.0.0"}]},
+            },
         ]
     )
     solver = Solver(api.OptionMap())
@@ -242,13 +247,16 @@ def test_solver_dependency_reopen_unsolvable() -> None:
             {
                 "pkg": "pkg_top/1.0.0",
                 # must resolve dep_1 as 1.1.0 (favoring latest)
-                "depends": [{"pkg": "dep_1/1.1"}, {"pkg": "dep_2/1"}],
+                "install": {"requirements": [{"pkg": "dep_1/1.1"}, {"pkg": "dep_2/1"}]},
             },
             {"pkg": "dep_1/1.1.0"},
             {"pkg": "dep_1/1.0.0"},
             # when dep_2 gets resolved, it will enforce an older version
             # of the existing resolve, which is in conflict with the original
-            {"pkg": "dep_2/1.0.0", "depends": [{"pkg": "dep_1/~1.0.0"}]},
+            {
+                "pkg": "dep_2/1.0.0",
+                "install": {"requirements": [{"pkg": "dep_1/~1.0.0"}]},
+            },
         ]
     )
     solver = Solver(api.OptionMap())

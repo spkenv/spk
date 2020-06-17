@@ -8,7 +8,10 @@ from ruamel import yaml
 def test_spec_from_dict() -> None:
 
     spec = Spec.from_dict(
-        {"pkg": "hello_world/1.0.0", "depends": [{"pkg": "output/0.1.9"}]}
+        {
+            "pkg": "hello_world/1.0.0",
+            "install": {"requirements": [{"pkg": "output/0.1.9"}]},
+        }
     )
     assert isinstance(spec.build, BuildSpec)
     assert isinstance(spec.pkg, Ident)
