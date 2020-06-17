@@ -24,7 +24,7 @@ if pipfile.has_section("packages"):
 setup(
     name="spk",
     description="The 'S' Package System: Convenience, clarity and speed.",
-    version="0.3.0",
+    version="0.4.0",
     packages=find_packages(),
     install_requires=install_requires,
     package_data={"": ["Pipfile"]},

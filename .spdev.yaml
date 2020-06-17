@@ -1,6 +1,7 @@
-version: 0.3.0
+version: 0.4.0
 release_notes: |
-  * Update spec structure to be more self-documenting
+  * Change 'depends' to install.requirements
+    * this makes each top-level field a package lifecycle stage
 
 environment:
   kind: PipEnv
