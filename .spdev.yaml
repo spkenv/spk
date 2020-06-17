@@ -1,7 +1,7 @@
-version: 0.4.0
+version: 0.4.1
 release_notes: |
-  * Change 'depends' to install.requirements
-    * this makes each top-level field a package lifecycle stage
+  * Update install command to separate requested from dependecies
+  * Fix publish command so it processes all args
 
 environment:
   kind: PipEnv

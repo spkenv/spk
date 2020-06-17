@@ -68,8 +68,22 @@ def _install(args: argparse.Namespace) -> None:
         return
 
     print("The following packages will be modified:\n")
+    requested = solver.decision_tree.root.get_requests()
+    primary, tertiary = [], []
     for _, spec, _ in packages.items():
-        print("\t" + format_ident(spec.pkg))
+        if spec.pkg.name in requested:
+            primary.append(spec)
+        else:
+            tertiary.append(spec)
+
+    print("  Requested:")
+    for spec in primary:
+        print("    " + format_ident(spec.pkg))
+    if tertiary:
+        print("\n  Dependencies:")
+        for spec in tertiary:
+            print("    " + format_ident(spec.pkg))
+
     print("")
 
     if args.yes:

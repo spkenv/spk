@@ -13,4 +13,4 @@ from ._version_range import (
 from ._build_spec import BuildSpec, VarSpec, opt_from_dict
 from ._source_spec import SourceSpec
 from ._spec import Spec, read_spec_file, read_spec, write_spec
-from ._request import Request
+from ._request import Request, parse_ident_range
