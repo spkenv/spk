@@ -1,5 +1,6 @@
 from typing import Dict, List
 import argparse
+from collections import OrderedDict
 
 import spk
 
@@ -60,7 +61,7 @@ def get_repos_from_repo_flags(
     args: argparse.Namespace,
 ) -> Dict[str, spk.storage.Repository]:
 
-    repos: Dict[str, spk.storage.Repository] = {}
+    repos: Dict[str, spk.storage.Repository] = OrderedDict()
     if args.local_repo:
         repos["local"] = spk.storage.local_repository()
     for name in args.enable_repo:

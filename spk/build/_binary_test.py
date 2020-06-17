@@ -62,9 +62,9 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
                     'test "$SPK_PKG_dep_VERSION" == "1.0.0"',
                     "env | grep SPK",
                     'test "$SPK_OPT_dep" == "1.0.0"',
-                ]
+                ],
+                "options": [{"pkg": "dep/1.0.0"}],
             },
-            "opts": [{"pkg": "dep/1.0.0"}],
         }
     )
 

@@ -88,7 +88,7 @@ class BinaryPackageBuilder:
         for repo in self._repos:
             build_env_solver.add_repository(repo)
 
-        for opt in self._spec.opts:
+        for opt in self._spec.build.options:
             if not isinstance(opt, api.Request):
                 continue
             if opt.pkg.name in build_options:

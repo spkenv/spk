@@ -13,6 +13,10 @@ class SpFSRepository(Repository):
 
         self._repo = spfs_repo
 
+    def __repr__(self) -> str:
+
+        return f"SpFSRepository({self._repo.address()})"
+
     def as_spfs_repo(self) -> spfs.storage.Repository:
         return self._repo
 

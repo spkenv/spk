@@ -1,17 +1,25 @@
 pkg: cmake-example/0.1.0
 
-opts:
-- var: os
-- var: arch
-- pkg: gcc/4.8
-
 build:
+
+  options:
+  - var: os
+  - var: arch
+  - var: debug
+    default: off
+  - pkg: gcc
+
   variants:
-  - {gcc: 6.3}
-  - {gcc: 4.8}
+  - {gcc: 6.3, debug: off}
+  - {gcc: 6.3, debug: on}
+  - {gcc: 4.8, debug: off}
+  - {gcc: 4.8, debug: on}
+
   script:
   - mkdir -p build
   - cd build
+  - CONFIG=Release
+  - if [[ "${SPK_OPT_debug}" == "on" ]]; then CONFIG=Debug; fi
   - cmake ..
       -DCMAKE_PREFIX_PATH=/spfs
       -DCMAKE_INSTALL_PREFIX=/spfs
