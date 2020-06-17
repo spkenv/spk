@@ -1,3 +1,4 @@
+from typing import Union, Dict, Any
 from dataclasses import dataclass
 import base64
 import binascii

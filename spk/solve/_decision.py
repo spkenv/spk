@@ -2,9 +2,13 @@ from typing import List, Dict, Set, Optional, Union, Iterator, Tuple, Iterable
 from collections import defaultdict
 from functools import lru_cache
 
+import structlog
+
 from .. import api, storage
 from ._errors import SolverError, ConflictingRequestsError, PackageNotFoundError
 from ._solution import Solution
+
+_LOGGER = structlog.get_logger("spk.solve")
 
 
 class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
@@ -68,7 +72,11 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             version = api.parse_version(version_str)
             pkg = api.Ident(self._request.pkg.name, version)
             repo = self._version_map[version_str]
-            spec = repo.read_spec(pkg)
+            try:
+                spec = repo.read_spec(pkg)
+            except ValueError:
+                _LOGGER.error("package disappeared from repo", pkg=pkg, repo=repo)
+                continue
             options = spec.resolve_all_options(self._options)
 
             candidate = pkg.with_build(options.digest())

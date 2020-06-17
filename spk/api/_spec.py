@@ -25,39 +25,12 @@ class Spec:
     compat: Compat = field(default_factory=Compat)
     sources: List[SourceSpec] = field(default_factory=list)
     build: BuildSpec = field(default_factory=BuildSpec)
-    opts: List[Union["Request", "VarSpec"]] = field(default_factory=list)
     depends: List["Request"] = field(default_factory=list)
     provides: List["Spec"] = field(default_factory=list)
 
     def resolve_all_options(self, given: OptionMap) -> OptionMap:
 
-        resolved = OptionMap()
-        for opt in self.opts:
-
-            if isinstance(opt, Request):
-                name = opt.pkg.name
-                default = str(opt.pkg.version)
-
-            elif isinstance(opt, VarSpec):
-                name = opt.var
-                default = ""
-
-            else:
-                raise NotImplementedError(f"Unhandled option type: {type(opt)}")
-
-            env_var = f"SPM_OPT_{name}"
-            if env_var in os.environ:
-                value = os.environ[env_var]
-
-            elif name in given:
-                value = given[name]
-
-            else:
-                value = default
-
-            resolved[name] = value
-
-        return resolved
+        return self.build.resolve_all_options(given)
 
     def sastisfies_request(self, request: Request) -> bool:
         """Return true if this package spec satisfies the given request."""
@@ -83,8 +56,6 @@ class Spec:
         spec.build = BuildSpec.from_dict(data.pop("build", {}))
         for src in data.pop("sources", [{"path": "."}]):
             spec.sources.append(SourceSpec.from_dict(src))
-        for opt in data.pop("opts", []):
-            spec.opts.append(opt_from_dict(opt))
         for dep in data.pop("depends", []):
             spec.depends.append(Request.from_dict(dep))
         for provided in data.pop("provides", []):
@@ -101,7 +72,6 @@ class Spec:
             "pkg": str(self.pkg),
             "compat": str(self.compat),
             "build": self.build.to_dict(),
-            "opts": list(o.to_dict() for o in self.opts),
             "depends": list(d.to_dict() for d in self.depends),
             "provides": list(p.to_dict() for p in self.provides),
         }
@@ -131,33 +101,3 @@ def read_spec(stream: IO[str]) -> Spec:
 def write_spec(spec: Spec) -> bytes:
 
     return yaml.dump(spec.to_dict()).encode()  # type: ignore
-
-
-def opt_from_dict(data: Dict[str, Any]) -> Union[Request, "VarSpec"]:
-
-    if "pkg" in data:
-        return Request.from_dict(data)
-    if "var" in data:
-        return VarSpec.from_dict(data)
-
-    raise ValueError("Incomprehensible option definition")
-
-
-@dataclass
-class VarSpec:
-
-    var: str
-
-    def to_dict(self) -> Dict[str, Any]:
-
-        return {"var": self.var}
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "VarSpec":
-
-        try:
-            var = data["var"]
-        except KeyError:
-            raise ValueError("missing required key for VarSpec: var")
-
-        return VarSpec(var)
