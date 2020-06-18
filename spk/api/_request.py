@@ -4,7 +4,7 @@ import abc
 
 from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
-from ._ident import Ident, parse_ident
+from ._ident import Ident, parse_ident, validate_name
 from ._version_range import parse_version_range, VersionFilter
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ def parse_ident_range(source: str) -> RangeIdent:
         raise ValueError(f"Too many tokens in identifier: {source}")
 
     return RangeIdent(
-        name=name,
+        name=validate_name(name),
         version=parse_version_range(version),
         build=parse_build(build) if build else None,
     )

@@ -24,13 +24,13 @@ class BinaryPackageBuilder:
     >>> (
     ...     BinaryPackageBuilder
     ...     .from_spec(api.Spec.from_dict({
-    ...         "pkg": "my_pkg",
+    ...         "pkg": "my-pkg",
     ...         "build": {"script": "echo hello, world"},
     ...      }))
     ...     .with_option("debug", "true")
     ...     .build()
     ... )
-    my_pkg/3I42H3S6
+    my-pkg/3I42H3S6
     """
 
     def __init__(self) -> None:

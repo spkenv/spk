@@ -23,11 +23,11 @@ class SourcePackageBuilder:
     >>> (
     ...     SourcePackageBuilder
     ...     .from_spec(api.Spec.from_dict({
-    ...         "pkg": "my_pkg",
+    ...         "pkg": "my-pkg",
     ...      }))
     ...     .build()
     ... )
-    my_pkg/src
+    my-pkg/src
     """
 
     def __init__(self) -> None:
