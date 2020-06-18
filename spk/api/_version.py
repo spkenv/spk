@@ -1,19 +1,34 @@
-from typing import Union, Tuple, Any, Dict
+from typing import Union, Tuple, Any, MutableMapping
 from dataclasses import dataclass, field
+from sortedcontainers import SortedDict
 
 VERSION_SEP = "."
 
 
-class TagSet(Dict[str, int]):
+class TagSet(SortedDict, MutableMapping[str, int]):
+    """TagSet contains a set of pre or post release version tags."""
+
     pass
 
 
 def parse_tag_set(tags: str) -> TagSet:
+    """Parse the given string as a set of version tags.
 
+    >>> parse_tag_set("release.0,alpha.1")
+    TagSet({'alpha': 1, 'release': 0})
+    """
+
+    tag_set = TagSet()
     if not tags:
-        return TagSet()
+        return tag_set
 
-    raise NotImplementedError("parse_tag_set")
+    for tag in tags.split(","):
+        name, num = tag.split(".")
+        if name in tag_set:
+            raise ValueError("duplicate tag: " + name)
+        tag_set[name] = int(num)
+
+    return tag_set
 
 
 @dataclass
