@@ -21,3 +21,17 @@ def test_version_nonzero() -> None:
 def test_is_gt(base: str, test: str, expected: bool) -> None:
 
     assert (parse_version(base) > parse_version(test)) == expected
+
+
+@pytest.mark.parametrize(
+    "string,expected",
+    [
+        ("1.0.0", Version(1, 0, 0)),
+        ("0.0.0", Version(0, 0, 0)),
+        ("1.2.3.4.5.6", Version(1, 2, 3, (4, 5, 6))),
+    ],
+)
+def test_parse_version(string: str, expected: Version) -> None:
+
+    actual = parse_version(string)
+    assert actual == expected
