@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from sortedcontainers import SortedDict
 from functools import total_ordering
 
+from ._name import validate_tag_name
+
 VERSION_SEP = "."
 
 
@@ -59,6 +61,7 @@ def parse_tag_set(tags: str) -> TagSet:
         name, num = tag.split(".")
         if name in tag_set:
             raise ValueError("duplicate tag: " + name)
+        validate_tag_name(name)
         tag_set[name] = int(num)
 
     return tag_set

@@ -3,9 +3,10 @@ from dataclasses import dataclass, field
 import abc
 import enum
 
+from ._name import validate_name
 from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
-from ._ident import Ident, parse_ident, validate_name
+from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter
 
 if TYPE_CHECKING:

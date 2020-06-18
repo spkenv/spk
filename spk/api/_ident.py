@@ -6,6 +6,7 @@ from ruamel import yaml
 
 from ._version import Version, parse_version
 from ._build import Build, parse_build
+from ._name import validate_name
 
 
 @dataclass
@@ -63,37 +64,6 @@ def parse_ident(source: str) -> Ident:
     ident = Ident("")
     ident.parse(source)
     return ident
-
-
-_NAME_UTF_CATEGORIES = (
-    "Ll",  # letter lower
-    "Lu",  # letter upper
-    "Pd",  # punctuation dash
-    "Nd",  # number digit
-)
-
-
-def validate_name(name: str) -> str:
-    """Return 'name' if it's a valide package name or raises ValueError"""
-
-    index = _validate_source_str(name, _NAME_UTF_CATEGORIES)
-    if index > -1:
-        err_str = f"{name[:index]} > {name[index]} < {name[index+1:]}"
-        raise ValueError(f"invalid package name at pos {index}: {err_str}")
-    return name
-
-
-def _validate_source_str(source: str, valid_categories: Tuple[str, ...]) -> int:
-
-    i = -1
-    while i < len(source) - 1:
-        i += 1
-        char = source[i]
-        category = unicodedata.category(char)
-        if category in valid_categories:
-            continue
-        return i
-    return -1
 
 
 yaml.Dumper.add_representer(
