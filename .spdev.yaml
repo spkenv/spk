@@ -1,7 +1,9 @@
-version: 0.4.1
+version: 0.5.0
 release_notes: |
-  * Update install command to separate requested from dependecies
-  * Fix publish command so it processes all args
+  * Add support for pre and post release tags on version numbers
+  * Ensure proposed naming convention is enforced
+  * Add file to build process to store build options
+  * Update ls command to be able to print build options for each package build
 
 toolchain:
 - kind: Shell
