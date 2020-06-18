@@ -23,6 +23,7 @@ def register(
     )
     _flags.add_repo_flags(explain_cmd)
     _flags.add_option_flags(explain_cmd)
+    _flags.add_request_flags(explain_cmd)
     explain_cmd.add_argument(
         "packages",
         metavar="PKG",
@@ -40,12 +41,8 @@ def _explain(args: argparse.Namespace) -> None:
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 
-    for package in args.packages:
-        request = yaml.safe_load(package)
-        if isinstance(request, str):
-            solver.add_request(package)
-        else:
-            solver.add_request(spk.api.Request.from_dict(request))
+    for request in _flags.parse_requests_using_flags(args, *args.packages):
+        solver.add_request(request)
 
     try:
         solver.solve()

@@ -32,6 +32,7 @@ def register(
             "spawn a new shell"
         ),
     )
+    _flags.add_request_flags(env_cmd)
     _flags.add_repo_flags(env_cmd)
     _flags.add_option_flags(env_cmd)
     env_cmd.set_defaults(func=_env)
@@ -52,12 +53,8 @@ def _env(args: argparse.Namespace) -> None:
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 
-    for request in requests:
-        request = yaml.safe_load(package)
-        if isinstance(request, str):
-            solver.add_request(package)
-        else:
-            solver.add_request(spk.api.Request.from_dict(request))
+    for request in _flags.parse_requests_using_flags(args, *requests):
+        solver.add_request(request)
 
     try:
         solution = solver.solve()
