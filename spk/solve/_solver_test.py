@@ -38,7 +38,7 @@ def test_solver_package_with_no_spec() -> None:
 
     repo = storage.MemRepository()
 
-    pkg = api.parse_ident("my_pkg/1.0.0")
+    pkg = api.parse_ident("my-pkg/1.0.0")
     options = api.OptionMap()
 
     # publish package without publishing spec
@@ -46,7 +46,7 @@ def test_solver_package_with_no_spec() -> None:
 
     solver = Solver(options)
     solver.add_repository(repo)
-    solver.add_request("my_pkg")
+    solver.add_request("my-pkg")
 
     with pytest.raises(PackageNotFoundError):
         solver.solve()
@@ -54,21 +54,21 @@ def test_solver_package_with_no_spec() -> None:
 
 def test_solver_single_package_no_deps() -> None:
 
-    repo = make_repo([{"pkg": "my_pkg/1.0.0"}])
+    repo = make_repo([{"pkg": "my-pkg/1.0.0"}])
     options = api.OptionMap()
 
     solver = Solver(options)
     solver.add_repository(repo)
-    solver.add_request("my_pkg")
+    solver.add_request("my-pkg")
 
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
     assert len(packages) == 1, "expected one resolved package"
-    assert packages.get("my_pkg").spec.pkg.version == "1.0.0"
-    assert packages.get("my_pkg").spec.pkg.build is not None
-    assert packages.get("my_pkg").spec.pkg.build.digest != api.SRC  # type: ignore
+    assert packages.get("my-pkg").spec.pkg.version == "1.0.0"
+    assert packages.get("my-pkg").spec.pkg.build is not None
+    assert packages.get("my-pkg").spec.pkg.build.digest != api.SRC  # type: ignore
 
 
 def test_solver_single_package_simple_deps() -> None:
@@ -76,27 +76,27 @@ def test_solver_single_package_simple_deps() -> None:
     options = api.OptionMap()
     repo = make_repo(
         [
-            {"pkg": "pkg_a/0.9.0"},
-            {"pkg": "pkg_a/1.0.0"},
-            {"pkg": "pkg_a/1.2.0"},
-            {"pkg": "pkg_a/1.2.1"},
-            {"pkg": "pkg_a/2.0.0"},
-            {"pkg": "pkg_b/1.0.0", "install": {"requirements": [{"pkg": "pkg_a/2"}]}},
-            {"pkg": "pkg_b/1.1.0", "install": {"requirements": [{"pkg": "pkg_a/1"}]}},
+            {"pkg": "pkg-a/0.9.0"},
+            {"pkg": "pkg-a/1.0.0"},
+            {"pkg": "pkg-a/1.2.0"},
+            {"pkg": "pkg-a/1.2.1"},
+            {"pkg": "pkg-a/2.0.0"},
+            {"pkg": "pkg-b/1.0.0", "install": {"requirements": [{"pkg": "pkg-a/2"}]}},
+            {"pkg": "pkg-b/1.1.0", "install": {"requirements": [{"pkg": "pkg-a/1"}]}},
         ]
     )
 
     solver = Solver(options)
     solver.add_repository(repo)
-    solver.add_request("pkg_b/1.1")
+    solver.add_request("pkg-b/1.1")
 
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
     assert len(packages) == 2, "expected two resolved packages"
-    assert packages.get("pkg_a").spec.pkg.version == "1.2.1"
-    assert packages.get("pkg_b").spec.pkg.version == "1.1.0"
+    assert packages.get("pkg-a").spec.pkg.version == "1.2.1"
+    assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
 
 
 def test_solver_dependency_incompatible() -> None:
@@ -105,17 +105,17 @@ def test_solver_dependency_incompatible() -> None:
     # with an existing request in the stack
     repo = make_repo(
         [
-            {"pkg": "pkg_a/1.0.0"},
-            {"pkg": "pkg_a/2.0.0"},
-            {"pkg": "pkg_b/1.0.0", "install": {"requirements": [{"pkg": "pkg_a/2"}]}},
+            {"pkg": "pkg-a/1.0.0"},
+            {"pkg": "pkg-a/2.0.0"},
+            {"pkg": "pkg-b/1.0.0", "install": {"requirements": [{"pkg": "pkg-a/2"}]}},
         ]
     )
 
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg_b/1")
-    # this one is incompatible with pkg_b.depends but the solver doesn't know it yet
-    solver.add_request("pkg_a/1")
+    solver.add_request("pkg-b/1")
+    # this one is incompatible with pkg-b.depends but the solver doesn't know it yet
+    solver.add_request("pkg-a/1")
 
     with pytest.raises(UnresolvedPackageError):
         solver.solve()
@@ -138,25 +138,25 @@ def test_solver_dependency_incompatible_stepback() -> None:
     # better dependencies
     repo = make_repo(
         [
-            {"pkg": "pkg_a/1.0.0"},
-            {"pkg": "pkg_a/2.0.0"},
-            {"pkg": "pkg_b/1.1.0", "install": {"requirements": [{"pkg": "pkg_a/2"}]}},
-            {"pkg": "pkg_b/1.0.0", "install": {"requirements": [{"pkg": "pkg_a/1"}]}},
+            {"pkg": "pkg-a/1.0.0"},
+            {"pkg": "pkg-a/2.0.0"},
+            {"pkg": "pkg-b/1.1.0", "install": {"requirements": [{"pkg": "pkg-a/2"}]}},
+            {"pkg": "pkg-b/1.0.0", "install": {"requirements": [{"pkg": "pkg-a/1"}]}},
         ]
     )
 
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg_b/1")
-    # this one is incompatible with pkg_b/1.1.depends but not pkg_b/1.0
-    solver.add_request("pkg_a/1")
+    solver.add_request("pkg-b/1")
+    # this one is incompatible with pkg-b/1.1.depends but not pkg-b/1.0
+    solver.add_request("pkg-a/1")
 
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
-    assert packages.get("pkg_b").spec.pkg.version == "1.0.0"
-    assert packages.get("pkg_a").spec.pkg.version == "1.0.0"
+    assert packages.get("pkg-b").spec.pkg.version == "1.0.0"
+    assert packages.get("pkg-a").spec.pkg.version == "1.0.0"
 
 
 def test_solver_dependency_already_satisfied() -> None:
@@ -168,32 +168,32 @@ def test_solver_dependency_already_satisfied() -> None:
     repo = make_repo(
         [
             {
-                "pkg": "pkg_top/1.0.0",
+                "pkg": "pkg-top/1.0.0",
                 # should resolve dep_1 as 1.0.0
                 "install": {
-                    "requirements": [{"pkg": "dep_1/~1.0.0"}, {"pkg": "dep_2/1"}]
+                    "requirements": [{"pkg": "dep-1/~1.0.0"}, {"pkg": "dep-2/1"}]
                 },
             },
-            {"pkg": "dep_1/1.1.0"},
-            {"pkg": "dep_1/1.0.0"},
+            {"pkg": "dep-1/1.1.0"},
+            {"pkg": "dep-1/1.0.0"},
             # when dep_2 gets resolved, it will re-request this but it has already resolved
-            {"pkg": "dep_2/1.0.0", "install": {"requirements": [{"pkg": "dep_1/1"}]}},
+            {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1/1"}]}},
         ]
     )
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg_top")
+    solver.add_request("pkg-top")
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
 
     assert list(s.spec.pkg.name for s in packages.items()) == [
-        "pkg_top",
-        "dep_1",
-        "dep_2",
+        "pkg-top",
+        "dep-1",
+        "dep-2",
     ]
-    assert packages.get("dep_1").spec.pkg.version == "1.0.0"
+    assert packages.get("dep-1").spec.pkg.version == "1.0.0"
 
 
 def test_solver_dependency_reopen_solvable() -> None:
@@ -206,33 +206,33 @@ def test_solver_dependency_reopen_solvable() -> None:
     repo = make_repo(
         [
             {
-                "pkg": "pkg_top/1.0.0",
+                "pkg": "pkg-top/1.0.0",
                 # should resolve dep_1 as 1.1.0 (favoring latest)
-                "install": {"requirements": [{"pkg": "dep_1/1"}, {"pkg": "dep_2/1"}]},
+                "install": {"requirements": [{"pkg": "dep-1/1"}, {"pkg": "dep-2/1"}]},
             },
-            {"pkg": "dep_1/1.1.0"},
-            {"pkg": "dep_1/1.0.0"},
+            {"pkg": "dep-1/1.1.0"},
+            {"pkg": "dep-1/1.0.0"},
             # when dep_2 gets resolved, it will enforce an older version
             # of the existing resolve, which is still valid for all requests
             {
-                "pkg": "dep_2/1.0.0",
-                "install": {"requirements": [{"pkg": "dep_1/~1.0.0"}]},
+                "pkg": "dep-2/1.0.0",
+                "install": {"requirements": [{"pkg": "dep-1/~1.0.0"}]},
             },
         ]
     )
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg_top")
+    solver.add_request("pkg-top")
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree))
     assert list(s.spec.pkg.name for s in packages.items()) == [
-        "pkg_top",
-        "dep_2",
-        "dep_1",
+        "pkg-top",
+        "dep-2",
+        "dep-1",
     ]
-    assert packages.get("dep_1").spec.pkg.version == "1.0.0"
+    assert packages.get("dep-1").spec.pkg.version == "1.0.0"
 
 
 def test_solver_dependency_reopen_unsolvable() -> None:
@@ -245,23 +245,53 @@ def test_solver_dependency_reopen_unsolvable() -> None:
     repo = make_repo(
         [
             {
-                "pkg": "pkg_top/1.0.0",
+                "pkg": "pkg-top/1.0.0",
                 # must resolve dep_1 as 1.1.0 (favoring latest)
-                "install": {"requirements": [{"pkg": "dep_1/1.1"}, {"pkg": "dep_2/1"}]},
+                "install": {"requirements": [{"pkg": "dep-1/1.1"}, {"pkg": "dep-2/1"}]},
             },
-            {"pkg": "dep_1/1.1.0"},
-            {"pkg": "dep_1/1.0.0"},
+            {"pkg": "dep-1/1.1.0"},
+            {"pkg": "dep-1/1.0.0"},
             # when dep_2 gets resolved, it will enforce an older version
             # of the existing resolve, which is in conflict with the original
             {
-                "pkg": "dep_2/1.0.0",
-                "install": {"requirements": [{"pkg": "dep_1/~1.0.0"}]},
+                "pkg": "dep-2/1.0.0",
+                "install": {"requirements": [{"pkg": "dep-1/~1.0.0"}]},
             },
         ]
     )
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg_top")
+    solver.add_request("pkg-top")
     with pytest.raises(UnresolvedPackageError):
         packages = solver.solve()
         print(packages)
+
+
+def test_solver_pre_release_config() -> None:
+
+    repo = make_repo(
+        [
+            {"pkg": "my-pkg/0.9.0"},
+            {"pkg": "my-pkg/1.0.0-pre.0"},
+            {"pkg": "my-pkg/1.0.0-pre.1"},
+            {"pkg": "my-pkg/1.0.0-pre.2"},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-pkg")
+
+    solution = solver.solve()
+    assert (
+        solution.get("my-pkg").spec.pkg.version == "0.9.0"
+    ), "should not resolve pre-release by default"
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request(
+        api.Request.from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
+    )
+
+    solution = solver.solve()
+    assert solution.get("my-pkg").spec.pkg.version == "1.0.0-pre.2"

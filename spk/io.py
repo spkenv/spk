@@ -56,3 +56,14 @@ def format_request(name: str, requests: List[api.Request]) -> str:
         versions.append(ver)
     out += ",".join(versions)
     return out
+
+
+def format_options(options: api.OptionMap) -> str:
+
+    formatted = []
+    for name, value in options.items():
+        formatted.append(
+            f"{name}{Style.DIM}={Style.NORMAL}{Fore.BLUE}{value}{Fore.RESET}"
+        )
+
+    return f"{{{', '.join(formatted)}}}"

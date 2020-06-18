@@ -9,7 +9,7 @@ def test_spec_from_dict() -> None:
 
     spec = Spec.from_dict(
         {
-            "pkg": "hello_world/1.0.0",
+            "pkg": "hello-world/1.0.0",
             "install": {"requirements": [{"pkg": "output/0.1.9"}]},
         }
     )

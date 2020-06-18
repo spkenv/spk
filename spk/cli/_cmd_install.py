@@ -6,6 +6,7 @@ import termios
 
 import spfs
 import structlog
+from ruamel import yaml
 from colorama import Fore, Style
 
 import spk
@@ -34,6 +35,7 @@ def register(
         help="Do not prompt for confirmation, just continue",
     )
     _flags.add_repo_flags(install_cmd)
+    _flags.add_request_flags(install_cmd)
     install_cmd.set_defaults(func=_install)
     return install_cmd
 
@@ -50,8 +52,8 @@ def _install(args: argparse.Namespace) -> None:
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 
-    for package in args.packages:
-        solver.add_request(package)
+    for request in _flags.parse_requests_using_flags(args, *args.packages):
+        solver.add_request(request)
 
     try:
         packages = solver.solve()

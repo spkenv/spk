@@ -1,6 +1,7 @@
 from typing import Any
 import argparse
 
+from ruamel import yaml
 import structlog
 
 import spfs
@@ -22,6 +23,7 @@ def register(
     )
     _flags.add_repo_flags(explain_cmd)
     _flags.add_option_flags(explain_cmd)
+    _flags.add_request_flags(explain_cmd)
     explain_cmd.add_argument(
         "packages",
         metavar="PKG",
@@ -39,8 +41,8 @@ def _explain(args: argparse.Namespace) -> None:
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 
-    for package in args.packages:
-        solver.add_request(package)
+    for request in _flags.parse_requests_using_flags(args, *args.packages):
+        solver.add_request(request)
 
     try:
         solver.solve()

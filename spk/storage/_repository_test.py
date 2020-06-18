@@ -41,10 +41,10 @@ def test_repo_get_package_empty(repo: Repository) -> None:
 
 def test_repo_publish_spec(repo: Repository) -> None:
 
-    spec = api.Spec.from_dict({"pkg": "my_pkg/1.0.0",})
+    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0",})
     repo.publish_spec(spec)
-    assert list(repo.list_packages()) == ["my_pkg"]
-    assert list(repo.list_package_versions("my_pkg")) == ["1.0.0"]
+    assert list(repo.list_packages()) == ["my-pkg"]
+    assert list(repo.list_package_versions("my-pkg")) == ["1.0.0"]
 
     with pytest.raises(VersionExistsError):
         repo.publish_spec(spec)
@@ -53,6 +53,6 @@ def test_repo_publish_spec(repo: Repository) -> None:
 
 def test_repo_publish_package(repo: Repository) -> None:
 
-    pkg = api.parse_ident("my_pkg/1.0.0/7CI5R7Y4")
+    pkg = api.parse_ident("my-pkg/1.0.0/7CI5R7Y4")
     repo.publish_package(pkg, spfs.encoding.EMPTY_DIGEST)
     assert list(repo.list_package_builds(pkg)) == [pkg]

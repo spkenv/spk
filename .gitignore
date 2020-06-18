@@ -19,3 +19,9 @@ dist/
 # editors
 .idea/
 .vscode/
+# GENERATED FOR spdev:Shell
+
+# END spdev:Shell
+# GENERATED FOR spdev:Pipenv
+.venv/
+# END spdev:Pipenv

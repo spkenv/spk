@@ -1,10 +1,11 @@
 from typing import Dict, List, Any, Union, Optional, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc
+import enum
 
 from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
-from ._ident import Ident, parse_ident
+from ._ident import Ident, parse_ident, validate_name
 from ._version_range import parse_version_range, VersionFilter
 
 if TYPE_CHECKING:
@@ -92,17 +93,24 @@ def parse_ident_range(source: str) -> RangeIdent:
         raise ValueError(f"Too many tokens in identifier: {source}")
 
     return RangeIdent(
-        name=name,
+        name=validate_name(name),
         version=parse_version_range(version),
         build=parse_build(build) if build else None,
     )
 
 
+class PreReleasePolicy(enum.IntEnum):
+
+    ExcludeAll = enum.auto()
+    IncludeAll = enum.auto()
+
+
 @dataclass
 class Request:
-    """A desired package and set of restrictions."""
+    """A desired package and set of restrictions on how it's selected."""
 
     pkg: RangeIdent
+    prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll
 
     def __hash__(self) -> int:
 
@@ -129,10 +137,19 @@ class Request:
         if not isinstance(version, Version):
             version = parse_version(version)
 
+        if self.prerelease_policy is PreReleasePolicy.ExcludeAll and version.pre:
+            return False
+
         return self.pkg.version.is_applicable(version)
 
     def is_satisfied_by(self, spec: "Spec") -> bool:
         """Return true if the given package spec satisfies this request."""
+
+        if (
+            self.prerelease_policy is PreReleasePolicy.ExcludeAll
+            and spec.pkg.version.pre
+        ):
+            return False
 
         if not self.pkg.is_satisfied_by(spec):
             return False
@@ -142,13 +159,14 @@ class Request:
     def restrict(self, other: "Request") -> None:
         """Reduce the scope of this request to the intersection with another."""
 
+        self.prerelease_policy = PreReleasePolicy(
+            min(self.prerelease_policy.value, other.prerelease_policy.value)
+        )
         self.pkg.restrict(other.pkg)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
-        return {
-            "pkg": str(self.pkg),
-        }
+        return {"pkg": str(self.pkg), "prereleasePolicy": self.prerelease_policy.name}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Request":
@@ -158,6 +176,16 @@ class Request:
             req = Request(parse_ident_range(data.pop("pkg")))
         except KeyError as e:
             raise ValueError(f"Missing required key in package request: {e}")
+
+        if "prereleasePolicy" in data:
+            try:
+                name = data.pop("prereleasePolicy")
+                policy = PreReleasePolicy.__members__[name]
+            except KeyError:
+                raise ValueError(
+                    f"Unknown prereleasePolicy: {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
+                )
+            req.prerelease_policy = policy
 
         if len(data):
             raise ValueError(

@@ -1,6 +1,7 @@
 from typing import List, Iterable, Optional
 import os
 import stat
+import json
 import subprocess
 
 import structlog
@@ -24,13 +25,13 @@ class BinaryPackageBuilder:
     >>> (
     ...     BinaryPackageBuilder
     ...     .from_spec(api.Spec.from_dict({
-    ...         "pkg": "my_pkg",
+    ...         "pkg": "my-pkg",
     ...         "build": {"script": "echo hello, world"},
     ...      }))
     ...     .with_option("debug", "true")
     ...     .build()
     ... )
-    my_pkg/3I42H3S6
+    my-pkg/3I42H3S6
     """
 
     def __init__(self) -> None:
@@ -131,10 +132,13 @@ def build_artifacts(
     os.makedirs(prefix, exist_ok=True)
 
     metadata_dir = data_path(pkg, prefix=prefix)
-    build_script = os.path.join(metadata_dir, "build.sh")
+    build_options = build_options_path(pkg, prefix=prefix)
+    build_script = build_script_path(pkg, prefix=prefix)
     os.makedirs(metadata_dir, exist_ok=True)
-    with open(build_script, "w+") as f:
-        f.write(spec.build.script)
+    with open(build_script, "w+") as writer:
+        writer.write(spec.build.script)
+    with open(build_options, "w+") as writer:
+        json.dump(options, writer, indent="\t")
 
     env = os.environ.copy()
     env.update(options.to_environment())
@@ -146,6 +150,24 @@ def build_artifacts(
         raise BuildError(
             f"Build script returned non-zero exit status: {proc.returncode}"
         )
+
+
+def build_options_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
+    """Return the file path for the given build's options.json file.
+
+    This file is created during a build and stores the set
+    of build options used when creating the package
+    """
+    return os.path.join(data_path(pkg, prefix), "options.json")
+
+
+def build_script_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
+    """Return the file path for the given build's build.sh file.
+
+    This file is created during a build and stores the bash
+    script used to build the package contents
+    """
+    return os.path.join(data_path(pkg, prefix), "build.sh")
 
 
 def validate_build_changeset(
