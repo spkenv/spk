@@ -61,4 +61,20 @@ def _ls(args: argparse.Namespace) -> None:
         for repo in repos.values():
             pkg = spk.api.parse_ident(args.package)
             for build in repo.list_package_builds(pkg):
-                print(build)
+                if not build.build or build.build.is_source():
+                    print(spk.io.format_ident(build))
+                    continue
+
+                if isinstance(repo, spk.storage.SpFSRepository):
+                    try:
+                        options = repo.get_package_build_options(build)
+                        print(
+                            spk.io.format_ident(build), spk.io.format_options(options),
+                        )
+                        continue
+                    except FileNotFoundError:
+                        pass
+
+                print(
+                    spk.io.format_ident(build), f"{{ {Fore.RED}??{Fore.RESET} }}",
+                )

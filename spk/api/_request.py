@@ -137,6 +137,9 @@ class Request:
         if not isinstance(version, Version):
             version = parse_version(version)
 
+        if self.prerelease_policy is PreReleasePolicy.ExcludeAll and version.pre:
+            return False
+
         return self.pkg.version.is_applicable(version)
 
     def is_satisfied_by(self, spec: "Spec") -> bool:
