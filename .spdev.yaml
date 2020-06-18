@@ -3,10 +3,11 @@ release_notes: |
   * Update install command to separate requested from dependecies
   * Fix publish command so it processes all args
 
-environment:
-  kind: PipEnv
+toolchain:
+- kind: Shell
   variables:
     SENTRY_ENVIRONMENT: development
+- kind: Pipenv
 
 components:
 

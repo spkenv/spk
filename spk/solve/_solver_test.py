@@ -265,3 +265,33 @@ def test_solver_dependency_reopen_unsolvable() -> None:
     with pytest.raises(UnresolvedPackageError):
         packages = solver.solve()
         print(packages)
+
+
+def test_solver_pre_release_config() -> None:
+
+    repo = make_repo(
+        [
+            {"pkg": "my-pkg/0.9.0"},
+            {"pkg": "my-pkg/1.0.0-pre.0"},
+            {"pkg": "my-pkg/1.0.0-pre.1"},
+            {"pkg": "my-pkg/1.0.0-pre.2"},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-pkg")
+
+    solution = solver.solve()
+    assert (
+        solution.get("my-pkg").spec.pkg.version == "0.9.0"
+    ), "should not resolve pre-release by default"
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request(
+        api.Request.from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
+    )
+
+    solution = solver.solve()
+    assert solution.get("my-pkg").spec.pkg.version == "1.0.0-pre.2"

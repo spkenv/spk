@@ -6,7 +6,7 @@ from functools import total_ordering
 VERSION_SEP = "."
 
 
-@total_ordering
+@total_ordering  # type: ignore
 class TagSet(SortedDict, MutableMapping[str, int]):
     """TagSet contains a set of pre or post release version tags."""
 
@@ -23,6 +23,8 @@ class TagSet(SortedDict, MutableMapping[str, int]):
         True
         >>> TagSet({"alpha": 0}) > TagSet({})
         True
+        >>> TagSet({"alpha": 0}) > TagSet({'beta': 1})
+        False
         """
 
         if not isinstance(other, TagSet):
