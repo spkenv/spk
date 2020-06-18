@@ -13,7 +13,7 @@ Version numbers can have optional release tags appended to the end, which denote
 
 Pre-releases are understood to come before the normal release of the same number, and are not considered when resolving packages unless specifically requested. The `-` symbol preceeds pre-release tags. Each tag is made up of a name and single integer version (eg `name.0`). Multiple of these tags can be included, separated by a comma.
 
-```
+```txt
 1.0.0-pre.1
 1.2.2-alpha.0
 25.0.8-alpha.0,test.1
@@ -21,7 +21,7 @@ Pre-releases are understood to come before the normal release of the same number
 
 Post-releases come after the normal release of the same number, and must come after and pre-release tags if both are specified.
 
-```
+```txt
 1.0.0+rev.1
 1.2.0+post.2,release.1
 2.6.8-alpha.0+patch.6
@@ -33,13 +33,14 @@ Post-releases come after the normal release of the same number, and must come af
 - A post-release version will always be greater than the same verison number with no tags
 - All release tags are sorted alphabetically, and by number
 
-```
-   1.0.0-alpha.1  <  1.0.0
-   1.0.0-alpha.2  <  1.0.0-alpha.3
-             6.3  <  6.3+post.0
-         6.3+a.0  <  6.3+b.0
-6.3-pre.0+post.1  <  6.3-pre.0+post.2
-6.3-pre.0+post.1  <  6.3-pre.1+post.0
+
+```txt
+1.0.0-alpha.1    < 1.0.0
+1.0.0-alpha.2    < 1.0.0-alpha.3
+6.3              < 6.3+post.0
+6.3+a.0          < 6.3+b.0
+6.3-pre.0+post.1 < 6.3-pre.0+post.2
+6.3-pre.0+post.1 < 6.3-pre.1+post.0
 ```
 
 ### Version Ranges
