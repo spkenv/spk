@@ -16,11 +16,17 @@ def test_version_nonzero() -> None:
         ("1", "1.0.0", False),
         ("1.0.0", "1", False),
         ("6.3", "4.8.5", True),
+        ("6.3", "6.3+post.0", False),
+        ("6.3+post.0", "6.3", True),
+        ("6.3+b.0", "6.3+a.0", True),
+        ("6.3-pre.0", "6.3", False),
+        ("6.3", "6.3-pre.0", True),
     ],
 )
 def test_is_gt(base: str, test: str, expected: bool) -> None:
 
-    assert (parse_version(base) > parse_version(test)) == expected
+    actual = parse_version(base) > parse_version(test)
+    assert actual == expected
 
 
 @pytest.mark.parametrize(
@@ -32,7 +38,7 @@ def test_is_gt(base: str, test: str, expected: bool) -> None:
         ("1.0+post.1", Version(1, 0, 0, post=TagSet({"post": 1}))),
         (
             "1.2.5.7-alpha.4+rev.6",
-            Version(1, 2, 5, (7,), pre=TagSet({"alpha": 4}), post=TagSet({"post": 1})),
+            Version(1, 2, 5, (7,), pre=TagSet({"alpha": 4}), post=TagSet({"rev": 6})),
         ),
     ],
 )
