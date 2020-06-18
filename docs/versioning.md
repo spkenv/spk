@@ -1,8 +1,48 @@
 ---
-title: Version Ranges
+title: Versioning
 summary: Version compatibility syntax and semantics.
 weight: 10
 ---
+### Version Numbers
+
+Version numbers in spk are made up of at least three dot-separated digits (eg: `1.2.3`), but can have as many digits as they want (eg: `1.2.3.4.5.6`...). In all cases, when you specify a version number with less than three digits, the others are assumed to be zero (eg: `1.1` == `1.1.0`).
+
+#### Pre and Post Release Tags
+
+Version numbers can have optional release tags appended to the end, which denote pre and post releases.
+
+Pre-releases are understood to come before the normal release of the same number, and are not considered when resolving packages unless specifically requested. The `-` symbol preceeds pre-release tags. Each tag is made up of a name and single integer version (eg `name.0`). Multiple of these tags can be included, separated by a comma.
+
+```
+1.0.0-pre.1
+1.2.2-alpha.0
+25.0.8-alpha.0,test.1
+```
+
+Post-releases come after the normal release of the same number, and must come after and pre-release tags if both are specified.
+
+```
+1.0.0+rev.1
+1.2.0+post.2,release.1
+2.6.8-alpha.0+patch.6
+```
+
+##### Sorting of Release Tags
+
+- A pre-release version will always be less than the same version number with no tags
+- A post-release version will always be greater than the same verison number with no tags
+- All release tags are sorted alphabetically, and by number
+
+```
+   1.0.0-alpha.1  <  1.0.0
+   1.0.0-alpha.2  <  1.0.0-alpha.3
+             6.3  <  6.3+post.0
+         6.3+a.0  <  6.3+b.0
+6.3-pre.0+post.1  <  6.3-pre.0+post.2
+6.3-pre.0+post.1  <  6.3-pre.1+post.0
+```
+
+### Version Ranges
 
 The version range specifiers are largely based on those from Rust's Cargo toolchain ([source](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)). The main difference is the support of package [compatibility specifications](../spec#Compatibility)
 
