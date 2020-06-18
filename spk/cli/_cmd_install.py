@@ -6,6 +6,7 @@ import termios
 
 import spfs
 import structlog
+from ruamel import yaml
 from colorama import Fore, Style
 
 import spk
@@ -51,7 +52,11 @@ def _install(args: argparse.Namespace) -> None:
     _flags.configure_solver_with_repo_flags(args, solver)
 
     for package in args.packages:
-        solver.add_request(package)
+        request = yaml.safe_load(package)
+        if isinstance(request, str):
+            solver.add_request(package)
+        else:
+            solver.add_request(spk.api.Request.from_dict(request))
 
     try:
         packages = solver.solve()

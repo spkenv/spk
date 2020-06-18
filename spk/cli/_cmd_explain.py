@@ -1,6 +1,7 @@
 from typing import Any
 import argparse
 
+from ruamel import yaml
 import structlog
 
 import spfs
@@ -40,7 +41,11 @@ def _explain(args: argparse.Namespace) -> None:
     _flags.configure_solver_with_repo_flags(args, solver)
 
     for package in args.packages:
-        solver.add_request(package)
+        request = yaml.safe_load(package)
+        if isinstance(request, str):
+            solver.add_request(package)
+        else:
+            solver.add_request(spk.api.Request.from_dict(request))
 
     try:
         solver.solve()
