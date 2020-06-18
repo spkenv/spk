@@ -1,7 +1,19 @@
-from typing import Union, Tuple, Any
+from typing import Union, Tuple, Any, Dict
 from dataclasses import dataclass, field
 
 VERSION_SEP = "."
+
+
+class TagSet(Dict[str, int]):
+    pass
+
+
+def parse_tag_set(tags: str) -> TagSet:
+
+    if not tags:
+        return TagSet()
+
+    raise NotImplementedError("parse_tag_set")
 
 
 @dataclass
@@ -12,6 +24,8 @@ class Version:
     minor: int = 0
     patch: int = 0
     tail: Tuple[int, ...] = tuple()
+    pre: TagSet = field(default_factory=TagSet)
+    post: TagSet = field(default_factory=TagSet)
 
     def __str__(self) -> str:
 
@@ -66,6 +80,17 @@ def parse_version(version: str) -> Version:
     if not version:
         return Version()
 
+    pre, post = "", ""
+    if "+" in version:
+        version, post = version.split("+", 1)
+    if "-" in version:
+        version, pre = version.split("-", 1)
+
     str_parts = version.split(VERSION_SEP)
     parts = tuple(int(p) for p in str_parts)
-    return Version(*parts[:3], tail=parts[3:])  # type: ignore
+    return Version(  # type: ignore
+        *parts[:3],  # type: ignore
+        tail=parts[3:],
+        pre=parse_tag_set(pre),
+        post=parse_tag_set(post)
+    )
