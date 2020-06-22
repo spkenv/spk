@@ -112,6 +112,7 @@ class Request:
 
     pkg: RangeIdent
     prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll
+    pin: str = ""
 
     def __hash__(self) -> int:
 
@@ -167,7 +168,11 @@ class Request:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
-        return {"pkg": str(self.pkg), "prereleasePolicy": self.prerelease_policy.name}
+        return {
+            "pkg": str(self.pkg),
+            "prereleasePolicy": self.prerelease_policy.name,
+            "pin": self.pin,
+        }
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Request":
@@ -187,6 +192,8 @@ class Request:
                     f"Unknown prereleasePolicy: {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
                 )
             req.prerelease_policy = policy
+
+        req.pin = data.pop("pin", "")
 
         if len(data):
             raise ValueError(
