@@ -22,10 +22,10 @@ def make_repo(
 
     def add_pkg(spec_dict: Dict) -> None:
         spec = api.Spec.from_dict(spec_dict)
+        spec.pkg.with_build(spec.resolve_all_options(options).digest())
         repo.publish_spec(spec)
         repo.publish_package(
-            spec.pkg.with_build(spec.resolve_all_options(options).digest()),
-            spfs.encoding.EMPTY_DIGEST,
+            spec, spfs.encoding.EMPTY_DIGEST,
         )
 
     for spec in specs:
@@ -38,11 +38,12 @@ def test_solver_package_with_no_spec() -> None:
 
     repo = storage.MemRepository()
 
-    pkg = api.parse_ident("my-pkg/1.0.0")
     options = api.OptionMap()
+    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
+    spec.pkg.set_build(options.digest())
 
     # publish package without publishing spec
-    repo.publish_package(pkg.with_build(options.digest()), spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(spec, spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
     solver.add_repository(repo)

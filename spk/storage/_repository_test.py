@@ -53,6 +53,6 @@ def test_repo_publish_spec(repo: Repository) -> None:
 
 def test_repo_publish_package(repo: Repository) -> None:
 
-    pkg = api.parse_ident("my-pkg/1.0.0/7CI5R7Y4")
-    repo.publish_package(pkg, spfs.encoding.EMPTY_DIGEST)
-    assert list(repo.list_package_builds(pkg)) == [pkg]
+    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0/7CI5R7Y4"})
+    repo.publish_package(spec, spfs.encoding.EMPTY_DIGEST)
+    assert list(repo.list_package_builds(spec.pkg)) == [spec.pkg]

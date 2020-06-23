@@ -28,6 +28,9 @@ class Spec:
     build: BuildSpec = field(default_factory=BuildSpec)
     install: InstallSpec = field(default_factory=InstallSpec)
 
+    def clone(self) -> "Spec":
+        return Spec.from_dict(self.to_dict())
+
     def resolve_all_options(self, given: OptionMap) -> OptionMap:
 
         return self.build.resolve_all_options(given)

@@ -36,10 +36,10 @@ class Repository(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def read_spec(self, pkg: api.Ident) -> api.Spec:
-        """Read a package spec file for the given package and version.
+        """Read a package spec file for the given package, version and optional build.
 
         Raises
-            PackageNotFoundError: If the package or version does not exist
+            PackageNotFoundError: If the package, version, or build does not exist
         """
         pass
 
@@ -77,7 +77,7 @@ class Repository(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
+    def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
         """Publish a binary package to this repository.
 
         The published digest is expected to identify an spfs layer which contains

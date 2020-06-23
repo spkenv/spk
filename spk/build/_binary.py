@@ -105,7 +105,9 @@ class BinaryPackageBuilder:
         os.environ.update(solution.to_environment())
         layer = build_and_commit_artifacts(self._spec, self._source_dir, build_options)
         pkg = self._spec.pkg.with_build(build_options.digest())
-        storage.local_repository().publish_package(pkg, layer.digest())
+        spec = self._spec.clone()
+        spec.pkg = pkg
+        storage.local_repository().publish_package(spec, layer.digest())
         return pkg
 
 

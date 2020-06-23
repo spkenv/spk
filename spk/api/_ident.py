@@ -38,6 +38,15 @@ class Ident:
 
         return parse_ident(str(self))
 
+    def set_build(self, build: Union[Build, str, None]) -> None:
+        """Set the build component of this package identifier."""
+        if build is None or build == "":
+            build = None
+        elif not isinstance(build, Build):
+            build = parse_build(build)
+
+        self.build = build
+
     def with_build(self, build: Union[Build, str, None]) -> "Ident":
         """Return a copy of this identifier with the given build replaced"""
 

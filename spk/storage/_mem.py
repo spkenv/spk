@@ -68,15 +68,16 @@ class MemRepository(Repository):
             raise VersionExistsError(version)
         versions[version] = spec
 
-    def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
+    def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
-        if pkg.build is None:
+        if spec.pkg.build is None:
             raise ValueError(
-                "Package must include a build in order to be published: " + str(pkg)
+                "Package must include a build in order to be published: "
+                + str(spec.pkg)
             )
 
-        self._packages.setdefault(pkg.name, {})
-        version = str(pkg.version)
-        self._packages[pkg.name].setdefault(version, {})
-        build = pkg.build.digest
-        self._packages[pkg.name][version][build] = digest
+        self._packages.setdefault(spec.pkg.name, {})
+        version = str(spec.pkg.version)
+        self._packages[spec.pkg.name].setdefault(version, {})
+        build = spec.pkg.build.digest
+        self._packages[spec.pkg.name][version][build] = digest
