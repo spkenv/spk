@@ -25,53 +25,53 @@ def register(
     return new_cmd
 
 
+TEMPLATE = """\
+pkg: {name}/0.1.0
+
+build:
+
+  # options are all the inputs to the package build process, including
+  # build-time dependencies
+  options:
+    # var options define environment/string values that affect the build.
+    # The value is defined in the build environment as SPK_OPT_{{name}}
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    # declaring options prefixed by this pacakges name signals
+    # to others that they are not global build settings for any package
+    # - var: {name}_debug # toggle a debug build of this package
+
+    # pkg options request packages that need to be present
+    # in the build environment. You can specify a version number
+    # here as the default for when the option is not otherise specified
+    - pkg: maya
+
+  # variants declares the default set of variants to build and publish
+  # using the spk build and make-* commands
+  variants:
+    - {{maya: 2020}}
+    - {{maya: 2021}}
+
+  # the build script is arbitrary bash script to be executed for the
+  # build. It should be and install artifacts into /spfs
+  script:
+    # if you remove this it will try to run a build.sh script instead
+    - echo "don't forget to add build logic!"
+    - exit 1
+
+install:
+  requirements:
+    # packages listed here need to be installed/available at run time
+    - pkg: maya
+"""
+
+
 def _new(args: argparse.Namespace) -> None:
     """Generate a new package spec file."""
 
-    name = args.name[0]
-
-    spec = f"""\
-        pkg: {name}/0.1.0
-
-        build:
-
-          # options are all the inputs to the package build process, including
-          # build-time dependencies
-          options:
-            # var options define environment/string values that affect the build.
-            # The value is defined in the build environment as SPK_OPT_{{name}}
-            - var: arch    # rebuild if the arch changes
-            - var: os      # rebuild if the os changes
-            - var: centos  # rebuild if centos version changes
-            # declaring options prefixed by this pacakges name signals
-            # to others that they are not global build settings for any package
-            # - var: {name}_debug # toggle a debug build of this package
-
-            # pkg options request packages that need to be present
-            # in the build environment. You can specify a version number
-            # here as the default for when the option is not otherise specified
-            - pkg: maya
-
-          # variants declares the default set of variants to build and publish
-          # using the spk build and make-* commands
-          variants:
-            - {{maya: 2020}}
-            - {{maya: 2021}}
-
-          # the build script is arbitrary bash script to be executed for the
-          # build. It should be and install artifacts into /spfs
-          script:
-            # if you remove this it will try to run a build.sh script instead
-            - echo "don't forget to add build logic!"
-            - exit 1
-
-        install:
-          requirements:
-            # packages listed here need to be installed/available at run time
-            - pkg: maya
-        """
-    # TODO: talk about pinning build env packages once supported
-    spec = textwrap.dedent(spec)
+    name = spk.api.validate_name(args.name[0])
+    spec = TEMPLATE.format(name=name)
 
     spec_file = f"{name}.yaml"
     with open(spec_file, "x") as writer:
