@@ -1,4 +1,4 @@
-from typing import List, Iterable, Optional
+from typing import List, Iterable, Optional, MutableMapping
 import os
 import stat
 import json
@@ -90,20 +90,21 @@ class BinaryPackageBuilder:
             build_env_solver.add_repository(repo)
 
         for opt in self._spec.build.options:
-            if not isinstance(opt, api.Request):
+            print(opt, type(opt))
+            if not isinstance(opt, api.PkgOpt):
                 continue
-            if opt.pkg.name in build_options:
-                opt = opt.clone()
-                opt.pkg.version = api.parse_version_range(build_options[opt.pkg.name])
-            build_env_solver.add_request(opt)
+            request = opt.to_request(build_options.get(opt.pkg))
+            print(request)
+            build_env_solver.add_request(request)
 
         solution = build_env_solver.solve()
         exec.configure_runtime(runtime, solution)
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
-        os.environ.update(solution.to_environment())
-        layer = build_and_commit_artifacts(self._spec, self._source_dir, build_options)
+        layer = build_and_commit_artifacts(
+            self._spec, self._source_dir, build_options, solution.to_environment()
+        )
         pkg = self._spec.pkg.with_build(build_options.digest())
         spec = self._spec.clone()
         spec.pkg = pkg
@@ -112,11 +113,11 @@ class BinaryPackageBuilder:
 
 
 def build_and_commit_artifacts(
-    spec: api.Spec, sources: str, options: api.OptionMap
+    spec: api.Spec, sources: str, options: api.OptionMap, env: MutableMapping[str, str]
 ) -> spfs.storage.Layer:
 
     prefix = "/spfs"
-    build_artifacts(spec, sources, options, prefix)
+    build_artifacts(spec, sources, options, prefix, env)
 
     diffs = spfs.diff()
     validate_build_changeset(diffs, prefix)
@@ -126,7 +127,11 @@ def build_and_commit_artifacts(
 
 
 def build_artifacts(
-    spec: api.Spec, sources: str, options: api.OptionMap, prefix: str
+    spec: api.Spec,
+    sources: str,
+    options: api.OptionMap,
+    prefix: str,
+    env: MutableMapping[str, str] = None,
 ) -> None:
 
     pkg = spec.pkg.with_build(options.digest())
@@ -142,7 +147,7 @@ def build_artifacts(
     with open(build_options, "w+") as writer:
         json.dump(options, writer, indent="\t")
 
-    env = os.environ.copy()
+    env = env or {}
     env.update(options.to_environment())
     env["PREFIX"] = prefix
 

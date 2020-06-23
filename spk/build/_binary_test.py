@@ -58,12 +58,12 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
                 "script": [
                     "touch /spfs/top-file",
                     "test -f /spfs/dep-file",
+                    "env | grep SPK",
                     'test ! -x "$SPK_PKG_dep"',
                     'test "$SPK_PKG_dep_VERSION" == "1.0.0"',
-                    "env | grep SPK",
                     'test "$SPK_OPT_dep" == "1.0.0"',
                 ],
-                "options": [{"pkg": "dep/1.0.0"}],
+                "options": [{"pkg": "dep", "default": "1.0.0"}],
             },
         }
     )

@@ -8,6 +8,7 @@ from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter
+from ._compat import Compatibility, COMPATIBLE
 
 if TYPE_CHECKING:
     from ._spec import Spec
@@ -52,19 +53,21 @@ class RangeIdent:
 
         return True
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this request."""
 
         if spec.pkg.name != self.name:
-            return False
+            return Compatibility("different package names")
 
-        if not self.version.is_satisfied_by(spec):
-            return False
+        c = self.version.is_satisfied_by(spec)
+        if not c:
+            return c
 
         if self.build is not None:
             if self.build != spec.pkg.build:
-                return False
-        return True
+                return Compatibility(f"different builds: {self.build} != {spec.pkg.build}")
+
+        return COMPATIBLE
 
     def restrict(self, other: "RangeIdent") -> None:
 
@@ -128,7 +131,7 @@ class Request:
 
         return Request.from_dict(self.to_dict())
 
-    def is_version_applicable(self, version: Union[str, Version]) -> bool:
+    def is_version_applicable(self, version: Union[str, Version]) -> Compatibility:
         """Return true if the given version number is applicable to this request.
 
         This is used a cheap preliminary way to prune package
@@ -140,23 +143,20 @@ class Request:
             version = parse_version(version)
 
         if self.prerelease_policy is PreReleasePolicy.ExcludeAll and version.pre:
-            return False
+            return Compatibility("prereleases not allowed")
 
         return self.pkg.version.is_applicable(version)
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this request."""
 
         if (
             self.prerelease_policy is PreReleasePolicy.ExcludeAll
             and spec.pkg.version.pre
         ):
-            return False
+            return Compatibility("prereleases not allowed")
 
-        if not self.pkg.is_satisfied_by(spec):
-            return False
-
-        return True
+        return self.pkg.is_satisfied_by(spec)
 
     def restrict(self, other: "Request") -> None:
         """Reduce the scope of this request to the intersection with another."""

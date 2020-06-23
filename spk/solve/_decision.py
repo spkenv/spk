@@ -30,7 +30,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._options = options
         self._versions: Optional[Iterator[str]] = None
         self._version_map: Dict[str, storage.Repository] = {}
-        self.history: Dict[str, str] = {}
+        self.history: Dict[api.Version, api.Compatibility] = {}
 
     def _start(self) -> None:
 
@@ -43,9 +43,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         if not len(self._version_map):
             raise PackageNotFoundError(self._request.pkg.name)
 
-        versions = list(
-            filter(self._request.is_version_applicable, self._version_map.keys())
-        )
+        versions = list(self._version_map.keys())
         versions.sort()
         versions.reverse()
         self._versions = iter(versions)
@@ -57,9 +55,10 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             self._start()
 
         other = PackageIterator(self._repos, self._request, self._options)
-        remaining = list(self._versions)  # type: ignore
+        remaining = list(self._versions or [])
         other._versions = iter(remaining)
         self._versions = iter(remaining)
+        other.history = self.history.copy()
         other._version_map = self._version_map
         return other
 
@@ -68,8 +67,14 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         if self._versions is None:
             self._start()
 
-        for version_str in self._versions:  # type: ignore
+        for version_str in self._versions or []:
             version = api.parse_version(version_str)
+
+            compat = self._request.is_version_applicable(version)
+            if not compat:
+                self.history[version] = compat
+                continue
+
             pkg = api.Ident(self._request.pkg.name, version)
             repo = self._version_map[version_str]
             try:
@@ -84,11 +89,12 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             try:
                 repo.get_package(candidate)
             except storage.PackageNotFoundError:
-                self.history[version_str] = f"no build for {options}"
+                self.history[version] = api.Compatibility(f"no build for {options}")
                 continue
 
-            if not self._request.is_satisfied_by(spec):
-                self.history[version_str] = "request not satisfied"
+            compat = self._request.is_satisfied_by(spec)
+            if not compat:
+                self.history[version] = compat
                 continue
 
             spec.pkg = candidate
@@ -258,7 +264,7 @@ class Decision:
     def add_branch(self) -> "Decision":
         """Add a child branch to this decision."""
 
-        branch = Decision(self)
+        branch = Decision(parent=self)
         self.branches.append(branch)
         return branch
 

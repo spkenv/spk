@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable, Union, Tuple
 import abc
 
 import spfs
@@ -11,7 +11,9 @@ class MemRepository(Repository):
     def __init__(self) -> None:
         self._specs: Dict[str, Dict[str, api.Spec]] = {}
         self._sources: Dict[str, Dict[str, spfs.encoding.Digest]] = {}
-        self._packages: Dict[str, Dict[str, Dict[str, spfs.encoding.Digest]]] = {}
+        self._packages: Dict[
+            str, Dict[str, Dict[str, Tuple[api.Spec, spfs.encoding.Digest]]]
+        ] = {}
 
     def list_packages(self) -> Iterable[str]:
         return list(self._specs.keys())
@@ -38,7 +40,10 @@ class MemRepository(Repository):
     def read_spec(self, pkg: api.Ident) -> api.Spec:
 
         try:
-            return self._specs[pkg.name][str(pkg.version)]
+            if not pkg.build:
+                return self._specs[pkg.name][str(pkg.version)]
+            else:
+                return self._packages[pkg.name][str(pkg.version)][str(pkg.build)][0]
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -47,7 +52,7 @@ class MemRepository(Repository):
         if pkg.build is None:
             raise PackageNotFoundError(pkg)
         try:
-            return self._packages[pkg.name][str(pkg.version)][pkg.build.digest]
+            return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][1]
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -80,4 +85,4 @@ class MemRepository(Repository):
         version = str(spec.pkg.version)
         self._packages[spec.pkg.name].setdefault(version, {})
         build = spec.pkg.build.digest
-        self._packages[spec.pkg.name][version][build] = digest
+        self._packages[spec.pkg.name][version][build] = (spec.clone(), digest)

@@ -1,13 +1,37 @@
-from typing import Union, Tuple, Any
+from typing import Union, Tuple, Any, Optional
 from dataclasses import dataclass
 import enum
 
 
 from ._version import VERSION_SEP, Version
 
-COMPAT_NONE = "x"
-COMPAT_API = "a"
-COMPAT_ABI = "b"
+
+class CompatRule(enum.Enum):
+
+    NONE = "x"
+
+    # The current logic requires that there is an order to these
+    # enums. For example API is less than ABI because it's considered
+    # a subset - aka you cannot provide binary compatibility and not
+    # API compatibility
+    API = "a"
+    ABI = "b"
+
+
+class Compatibility(str):
+    """Denotes whether or not something is compatible.
+
+    If not compatible, each instance contains a description
+    of the incompatibility. Compatibility instances will properly
+    evaluate as a boolean (aka empty string (no issues) == true)
+    """
+
+    def __bool__(self) -> bool:
+        """Things are truthy/compatible when no error is specified."""
+        return len(self) == 0
+
+
+COMPATIBLE = Compatibility()
 
 
 class Compat:
@@ -36,28 +60,45 @@ class Compat:
 
         return Compat(VERSION_SEP.join(self.parts))
 
-    def is_api_compatible(self, base: Version, other: Version) -> bool:
+    def is_api_compatible(self, base: Version, other: Version) -> Compatibility:
         """Return true if the two version are api compatible by this compat rule."""
 
-        return self._check_compat(base, other, COMPAT_API)
+        return self._check_compat(base, other, CompatRule.API)
 
-    def is_binary_compatible(self, base: Version, other: Version) -> bool:
+    def is_binary_compatible(self, base: Version, other: Version) -> Compatibility:
         """Return true if the two version are binary compatible by this compat rule."""
 
-        return self._check_compat(base, other, COMPAT_ABI)
+        return self._check_compat(base, other, CompatRule.ABI)
 
-    def _check_compat(self, base: Version, other: Version, required: str) -> bool:
+    def _check_compat(
+        self, base: Version, other: Version, required: CompatRule
+    ) -> Compatibility:
 
-        for rule, a, b in zip(self.parts, base.parts, other.parts):
+        if base == other:
+            return COMPATIBLE
 
-            if required in rule:
-                if b < a:
-                    return False
-                return True
-            if a != b:
-                return False
+        each = list(zip(self.parts, base.parts, other.parts))
+        for i, (rule, a, b) in enumerate(each):
 
-        return True
+            for char in rule:
+
+                if CompatRule.NONE.value == char:
+                    if a != b:
+                        return Compatibility(
+                            f"Not compatible: {base} ({self}) [at pos {i}]"
+                        )
+                    continue
+
+                if char <= required.value and b < a:
+                    return Compatibility(
+                        f"Not {required.name} compatible: {base} ({self}) [at pos {i}]"
+                    )
+                if char >= required.value:
+                    return COMPATIBLE
+
+        return Compatibility(
+            f"Not compatible: {base} ({self}) [{required.name} compatibility not specified]"
+        )
 
 
 def parse_compat(compat: str) -> Compat:

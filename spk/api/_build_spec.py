@@ -2,7 +2,7 @@ from typing import Dict, List, Any, Union
 import os
 from dataclasses import dataclass, field
 
-from ._request import Request
+from ._request import Request, parse_ident_range
 from ._option_map import OptionMap
 from ._name import validate_name
 
@@ -117,17 +117,24 @@ class PkgOpt:
     def name(self) -> str:
         return self.pkg
 
+    def to_request(self, given_value: str = None) -> Request:
+
+        value = self.default
+        if given_value is not None:
+            value = given_value
+        return Request(pkg=parse_ident_range(f"{self.pkg}/{value}"))
+
     def to_dict(self) -> Dict[str, Any]:
 
         return {"pkg": self.pkg, "default": self.default}
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "VarOpt":
+    def from_dict(data: Dict[str, Any]) -> "PkgOpt":
 
         try:
             pkg = data.pop("pkg")
         except KeyError:
-            raise ValueError("missing required key for VarOpt: pkg")
+            raise ValueError("missing required key for PkgOpt: pkg")
 
         if "/" in pkg:
             raise ValueError(
@@ -140,4 +147,4 @@ class PkgOpt:
         if len(data):
             raise ValueError(f"unrecognized fields in pkg: {', '.join(data.keys())}")
 
-        return VarOpt(pkg, default=default)
+        return PkgOpt(pkg, default=default)
