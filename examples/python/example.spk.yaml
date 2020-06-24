@@ -1,0 +1,17 @@
+pkg: python-example/0.1.0
+
+build:
+
+  options:
+    - pkg: python
+  variants:
+    - {python: 2}
+    - {python: 3}
+
+  script:
+    - python setup.py install
+
+install:
+  requirements:
+    - pkg: python
+      fromBuildEnv: x.x

@@ -49,4 +49,4 @@ def _explain(args: argparse.Namespace) -> None:
     except spk.SolverError:
         pass
 
-    print(spk.io.format_decision_tree(solver.decision_tree))
+    print(spk.io.format_decision_tree(solver.decision_tree, args.verbose))

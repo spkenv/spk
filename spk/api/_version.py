@@ -88,6 +88,9 @@ class Version:
 
         return base
 
+    def __hash__(self) -> int:
+        return hash(self.__str__())
+
     def __repr__(self) -> str:
 
         return f"Version({self.__str__()})"

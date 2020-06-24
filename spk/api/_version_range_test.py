@@ -12,7 +12,7 @@ def test_parse_version_range_carat() -> None:
 
 
 @pytest.mark.parametrize(
-    "range,version,applicable",
+    "range,version,expected",
     [
         ("~1.0.0", "1.0.0", True),
         ("~1.0.0", "1.0.1", True),
@@ -35,11 +35,10 @@ def test_parse_version_range_carat() -> None:
         ("1.0.0", "1.0.0", True),
     ],
 )
-def test_version_range_is_applicable(
-    range: str, version: str, applicable: bool
-) -> None:
+def test_version_range_is_applicable(range: str, version: str, expected: bool) -> None:
 
     vr = parse_version_range(range)
     v = parse_version(version)
+    actual = vr.is_applicable(v)
 
-    assert vr.is_applicable(v) == applicable
+    assert bool(actual) == expected

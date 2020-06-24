@@ -57,6 +57,12 @@ class Solver:
         request = state.next_request()
         while request is not None:
 
+            if request.pin:
+                _LOGGER.warning(
+                    "Solving for unpinned request, this is probably not what you want to be happening!",
+                    request=request,
+                )
+
             try:
                 state = self._solve_request(state, request)
             except SolverError:
@@ -88,7 +94,7 @@ class Solver:
 
         except StopIteration:
             it: PackageIterator = iterator  # type: ignore
-            err = UnresolvedPackageError(request.to_dict(), history=it.history)
+            err = UnresolvedPackageError(request.to_dict(), history=it.history)  # type: ignore
             decision.set_error(err)
             raise err from None
         except SolverError as e:

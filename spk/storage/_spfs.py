@@ -95,10 +95,10 @@ class SpFSRepository(Repository):
         with self._repo.payloads.open_payload(tag.target) as spec_file:
             return api.read_spec(spec_file)
 
-    def publish_package(self, pkg: api.Ident, digest: spfs.encoding.Digest) -> None:
+    def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
-        tag_string = self.build_package_tag(pkg)
-        # TODO: sanity check if tag already exists?
+        tag_string = self.build_package_tag(spec.pkg)
+        self.force_publish_spec(spec)
         self._repo.tags.push_tag(tag_string, digest)
 
     def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
@@ -119,7 +119,7 @@ class SpFSRepository(Repository):
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spk/spec/{pkg.with_build(None)}"
+        return f"spk/spec/{pkg}"
 
 
 def local_repository() -> SpFSRepository:

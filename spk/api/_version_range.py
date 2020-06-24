@@ -3,6 +3,7 @@ import abc
 from functools import lru_cache
 from dataclasses import dataclass, field
 
+from ._compat import Compatibility, COMPATIBLE
 from ._version import Version, parse_version, VERSION_SEP
 
 if TYPE_CHECKING:
@@ -31,7 +32,7 @@ class VersionRange(metaclass=abc.ABCMeta):
 
         return str(self) == str(other)
 
-    def is_applicable(self, other: Version) -> bool:
+    def is_applicable(self, other: Version) -> Compatibility:
         """Return true if the given version seems applicable to this range
 
         Versions that are applicable are not necessarily satisfactory, but
@@ -40,14 +41,14 @@ class VersionRange(metaclass=abc.ABCMeta):
 
         gt = self.greater_or_equal_to()
         if gt and not other >= gt:
-            return False
+            return Compatibility("version too low")
         lt = self.less_than()
         if lt and not other < lt:
-            return False
-        return True
+            return Compatibility("version too high")
+        return COMPATIBLE
 
     @abc.abstractmethod
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this version range."""
 
         pass
@@ -76,7 +77,7 @@ class SemverRange(VersionRange):
 
         return Version(self._base.major + 1)
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         return self.is_applicable(spec.pkg.version)
 
 
@@ -112,16 +113,16 @@ class WildcardRange(VersionRange):
         parts[-1] += 1  # type: ignore
         return Version(*parts[:3], parts[3:])  # type: ignore
 
-    def is_applicable(self, version: Version) -> bool:
+    def is_applicable(self, version: Version) -> Compatibility:
 
-        for a, b in zip(self._parts, version.parts):
+        for i, (a, b) in enumerate(zip(self._parts, version.parts)):
 
             if a != b and a != "*":
-                return False
+                return Compatibility(f"Out of range: {self} [at pos {i}]")
 
-        return True
+        return COMPATIBLE
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -151,7 +152,7 @@ class LowestSpecifiedRange(VersionRange):
         parts[-1] += 1
         return parse_version(VERSION_SEP.join(str(p) for p in parts))
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         return self.is_applicable(spec.pkg.version)
 
 
@@ -177,13 +178,15 @@ class GreaterThanRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
-    def is_applicable(self, version: Version) -> bool:
+    def is_applicable(self, version: Version) -> Compatibility:
 
-        return version > self._bound
+        if not version > self._bound:
+            return Compatibility(f"Not {self} [too low]")
+        return COMPATIBLE
 
 
 class LessThanRange(VersionRange):
@@ -206,13 +209,15 @@ class LessThanRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return self._bound
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
-    def is_applicable(self, version: Version) -> bool:
+    def is_applicable(self, version: Version) -> Compatibility:
 
-        return version < self._bound
+        if not version < self._bound:
+            return Compatibility(f"Not {self} [too high]")
+        return COMPATIBLE
 
 
 class GreaterThanOrEqualToRange(VersionRange):
@@ -235,13 +240,15 @@ class GreaterThanOrEqualToRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
-    def is_applicable(self, version: Version) -> bool:
+    def is_applicable(self, version: Version) -> Compatibility:
 
-        return version >= self._bound
+        if not version >= self._bound:
+            return Compatibility(f"Not {self} [too low]")
+        return COMPATIBLE
 
 
 class LessThanOrEqualToRange(VersionRange):
@@ -264,13 +271,15 @@ class LessThanOrEqualToRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
-    def is_applicable(self, version: Version) -> bool:
+    def is_applicable(self, version: Version) -> Compatibility:
 
-        return version <= self._bound
+        if not version <= self._bound:
+            return Compatibility(f"Not {self} [too high]")
+        return COMPATIBLE
 
 
 class ExactVersion(VersionRange):
@@ -298,9 +307,11 @@ class ExactVersion(VersionRange):
         parts[-1] += 1
         return parse_version(VERSION_SEP.join(str(p) for p in parts))
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
-        return self._version == spec.pkg.version
+        if not self._version == spec.pkg.version:
+            return Compatibility(f"{spec.pkg.version} !! {self} [not equal]")
+        return COMPATIBLE
 
 
 class CompatRange(VersionRange):
@@ -324,7 +335,7 @@ class CompatRange(VersionRange):
 
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
         if not spec.pkg.build or spec.pkg.build.is_source():
             return spec.compat.is_api_compatible(self._base, spec.pkg.version)
@@ -352,7 +363,7 @@ class VersionFilter(VersionRange):
         mins = list(v.less_than() for v in self.rules)
         return min(filter(None, mins))
 
-    def is_applicable(self, other: Union[str, Version]) -> bool:
+    def is_applicable(self, other: Union[str, Version]) -> Compatibility:
         """Return true if the given version number is applicable to this range.
 
         Versions that are applicable are not necessarily satisfactory, but
@@ -361,15 +372,22 @@ class VersionFilter(VersionRange):
         if not isinstance(other, Version):
             other = parse_version(other)
 
-        return all(r.is_applicable(other) for r in self.rules)
+        for r in self.rules:
+            c = r.is_applicable(other)
+            if not c:
+                return c
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+        return COMPATIBLE
+
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this version range."""
 
         for rule in self.rules:
-            if not rule.is_satisfied_by(spec):
-                return False
-        return True
+            c = rule.is_satisfied_by(spec)
+            if not c:
+                return c
+
+        return COMPATIBLE
 
     def restrict(self, other: "VersionFilter") -> None:
         """Reduce this range by another

@@ -23,9 +23,9 @@ def make_repo(
     def add_pkg(spec_dict: Dict) -> None:
         spec = api.Spec.from_dict(spec_dict)
         repo.publish_spec(spec)
+        spec.pkg.set_build(spec.resolve_all_options(options).digest())
         repo.publish_package(
-            spec.pkg.with_build(spec.resolve_all_options(options).digest()),
-            spfs.encoding.EMPTY_DIGEST,
+            spec, spfs.encoding.EMPTY_DIGEST,
         )
 
     for spec in specs:
@@ -38,11 +38,12 @@ def test_solver_package_with_no_spec() -> None:
 
     repo = storage.MemRepository()
 
-    pkg = api.parse_ident("my-pkg/1.0.0")
     options = api.OptionMap()
+    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
+    spec.pkg.set_build(options.digest())
 
     # publish package without publishing spec
-    repo.publish_package(pkg.with_build(options.digest()), spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(spec, spfs.encoding.EMPTY_DIGEST)
 
     solver = Solver(options)
     solver.add_repository(repo)
@@ -64,7 +65,7 @@ def test_solver_single_package_no_deps() -> None:
     try:
         packages = solver.solve()
     finally:
-        print(io.format_decision_tree(solver.decision_tree))
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
     assert len(packages) == 1, "expected one resolved package"
     assert packages.get("my-pkg").spec.pkg.version == "1.0.0"
     assert packages.get("my-pkg").spec.pkg.build is not None
@@ -93,7 +94,7 @@ def test_solver_single_package_simple_deps() -> None:
     try:
         packages = solver.solve()
     finally:
-        print(io.format_decision_tree(solver.decision_tree))
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
     assert len(packages) == 2, "expected two resolved packages"
     assert packages.get("pkg-a").spec.pkg.version == "1.2.1"
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
@@ -120,7 +121,7 @@ def test_solver_dependency_incompatible() -> None:
     with pytest.raises(UnresolvedPackageError):
         solver.solve()
 
-    print(io.format_decision_tree(solver.decision_tree))
+    print(io.format_decision_tree(solver.decision_tree, verbosity=100))
     for decision in solver.decision_tree.walk():
         err = decision.get_error()
         if err is not None:
@@ -154,7 +155,7 @@ def test_solver_dependency_incompatible_stepback() -> None:
     try:
         packages = solver.solve()
     finally:
-        print(io.format_decision_tree(solver.decision_tree))
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
     assert packages.get("pkg-b").spec.pkg.version == "1.0.0"
     assert packages.get("pkg-a").spec.pkg.version == "1.0.0"
 
@@ -186,7 +187,7 @@ def test_solver_dependency_already_satisfied() -> None:
     try:
         packages = solver.solve()
     finally:
-        print(io.format_decision_tree(solver.decision_tree))
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
 
     assert list(s.spec.pkg.name for s in packages.items()) == [
         "pkg-top",
@@ -226,7 +227,7 @@ def test_solver_dependency_reopen_solvable() -> None:
     try:
         packages = solver.solve()
     finally:
-        print(io.format_decision_tree(solver.decision_tree))
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
     assert list(s.spec.pkg.name for s in packages.items()) == [
         "pkg-top",
         "dep-2",

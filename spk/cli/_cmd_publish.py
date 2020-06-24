@@ -86,10 +86,11 @@ def _publish(args: argparse.Namespace) -> None:
                 continue
 
             _LOGGER.info("publishing package", pkg=build)
+            spec = local_repo.read_spec(build)
             digest = local_repo.get_package(build)
             spfs.sync_ref(
                 str(digest), local_repo.as_spfs_repo(), remote_repo.as_spfs_repo()
             )
-            remote_repo.publish_package(build, digest)
+            remote_repo.publish_package(spec, digest)
 
     _LOGGER.info("done")

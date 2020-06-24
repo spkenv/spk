@@ -50,8 +50,10 @@ class SourcePackageBuilder:
 
         repo = storage.local_repository()
         layer = collect_and_commit_sources(self._spec)
-        repo.publish_package(self._spec.pkg.with_build(api.SRC), layer.digest())
-        return self._spec.pkg.with_build(api.SRC)
+        spec = self._spec.clone()
+        spec.pkg.set_build(api.SRC)
+        repo.publish_package(spec, layer.digest())
+        return spec.pkg
 
 
 def collect_and_commit_sources(spec: api.Spec) -> spfs.storage.Layer:

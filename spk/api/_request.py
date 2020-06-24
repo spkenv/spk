@@ -2,12 +2,14 @@ from typing import Dict, List, Any, Union, Optional, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc
 import enum
+import itertools
 
 from ._name import validate_name
 from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter
+from ._compat import Compatibility, COMPATIBLE
 
 if TYPE_CHECKING:
     from ._spec import Spec
@@ -52,19 +54,23 @@ class RangeIdent:
 
         return True
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this request."""
 
         if spec.pkg.name != self.name:
-            return False
+            return Compatibility("different package names")
 
-        if not self.version.is_satisfied_by(spec):
-            return False
+        c = self.version.is_satisfied_by(spec)
+        if not c:
+            return c
 
         if self.build is not None:
             if self.build != spec.pkg.build:
-                return False
-        return True
+                return Compatibility(
+                    f"different builds: {self.build} != {spec.pkg.build}"
+                )
+
+        return COMPATIBLE
 
     def restrict(self, other: "RangeIdent") -> None:
 
@@ -112,6 +118,7 @@ class Request:
 
     pkg: RangeIdent
     prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll
+    pin: str = ""
 
     def __hash__(self) -> int:
 
@@ -127,7 +134,24 @@ class Request:
 
         return Request.from_dict(self.to_dict())
 
-    def is_version_applicable(self, version: Union[str, Version]) -> bool:
+    def render_pin(self, pkg: Ident) -> "Request":
+        """Create a copy of this request with it's pin rendered out using 'pkg'."""
+
+        if not self.pin:
+            raise RuntimeError("Request has no pin to be rendered")
+
+        digits = itertools.chain(pkg.version.parts, itertools.repeat(0))
+        rendered = list(self.pin)
+        for i, char in enumerate(self.pin):
+            if char == "x":
+                rendered[i] = str(next(digits))
+
+        new = self.clone()
+        new.pin = ""
+        new.pkg.version = parse_version_range("".join(rendered))
+        return new
+
+    def is_version_applicable(self, version: Union[str, Version]) -> Compatibility:
         """Return true if the given version number is applicable to this request.
 
         This is used a cheap preliminary way to prune package
@@ -139,23 +163,20 @@ class Request:
             version = parse_version(version)
 
         if self.prerelease_policy is PreReleasePolicy.ExcludeAll and version.pre:
-            return False
+            return Compatibility("prereleases not allowed")
 
         return self.pkg.version.is_applicable(version)
 
-    def is_satisfied_by(self, spec: "Spec") -> bool:
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this request."""
 
         if (
             self.prerelease_policy is PreReleasePolicy.ExcludeAll
             and spec.pkg.version.pre
         ):
-            return False
+            return Compatibility("prereleases not allowed")
 
-        if not self.pkg.is_satisfied_by(spec):
-            return False
-
-        return True
+        return self.pkg.is_satisfied_by(spec)
 
     def restrict(self, other: "Request") -> None:
         """Reduce the scope of this request to the intersection with another."""
@@ -167,7 +188,13 @@ class Request:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
-        return {"pkg": str(self.pkg), "prereleasePolicy": self.prerelease_policy.name}
+        out = {
+            "pkg": str(self.pkg),
+            "prereleasePolicy": self.prerelease_policy.name,
+        }
+        if self.pin:
+            out["fromBuildEnv"] = self.pin
+        return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Request":
@@ -187,6 +214,12 @@ class Request:
                     f"Unknown prereleasePolicy: {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
                 )
             req.prerelease_policy = policy
+
+        req.pin = data.pop("fromBuildEnv", "")
+        if req.pin and req.pkg.version.rules:
+            raise ValueError(
+                "Package request cannot include both a version number and fromBuildEnv"
+            )
 
         if len(data):
             raise ValueError(

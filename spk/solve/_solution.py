@@ -17,6 +17,9 @@ class Solution:
 
         self._resolved: Dict[api.Request, Tuple[api.Spec, storage.Repository]] = {}
 
+    def __bool__(self) -> bool:
+        return bool(self._resolved)
+
     def __contains__(self, other: Any) -> bool:
 
         return other in self._resolved

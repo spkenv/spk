@@ -15,11 +15,9 @@ class PackageNotFoundError(SolverError, storage.PackageNotFoundError):
 class UnresolvedPackageError(SolverError):
     def __init__(self, pkg: Any, history: Dict[str, str] = None) -> None:
 
-        message = f"Failed to resolve: {pkg}"
-        if history is not None:
-            version_list = ", ".join(f"{v} ({err})" for v, err in history.items())
-            message += f" - from versions: [{version_list}]"
-        super(UnresolvedPackageError, self).__init__(message)
+        self.message = f"Failed to resolve: {pkg}"
+        self.history = history
+        super(UnresolvedPackageError, self).__init__(self.message)
 
 
 class ConflictingRequestsError(SolverError):

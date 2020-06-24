@@ -11,13 +11,13 @@ from ._compat import parse_compat
         ("x.x.a", "1.0.0", "1.0.2", True),
         ("x.x.x", "1.0.0", "1.0.2", False),
         ("x.a", "1.0.0", "1.1.0", True),
-        ("x.b", "1.0.0", "1.1.0", False),
+        ("x.b", "1.0.0", "1.1.0", True),
     ],
 )
 def test_compat_api(compat: str, a: str, b: str, expected: bool) -> None:
 
     actual = parse_compat(compat).is_api_compatible(parse_version(a), parse_version(b))
-    assert actual == expected
+    assert bool(actual) == expected
 
 
 @pytest.mark.parametrize(
@@ -35,4 +35,4 @@ def test_compat_abi(compat: str, a: str, b: str, expected: bool) -> None:
     actual = parse_compat(compat).is_binary_compatible(
         parse_version(a), parse_version(b)
     )
-    assert actual == expected
+    assert bool(actual) == expected

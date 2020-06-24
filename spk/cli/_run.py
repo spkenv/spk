@@ -75,4 +75,10 @@ def run(argv: Sequence[str]) -> int:
 
 def _capture_if_relevant(e: Exception) -> None:
 
+    if isinstance(e, spk.storage.PackageNotFoundError):
+        return
+    if isinstance(e, spk.storage.VersionExistsError):
+        return
+    if isinstance(e, spk.solve.SolverError):
+        return
     sentry_sdk.capture_exception(e)

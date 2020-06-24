@@ -40,7 +40,7 @@ def _ls(args: argparse.Namespace) -> None:
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:
         print(
-            f"{Fore.YELLOW}No repositories selected, specify --local-repo and/or --enable-repo{Fore.RESET}",
+            f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
             file=sys.stderr,
         )
         sys.exit(1)
