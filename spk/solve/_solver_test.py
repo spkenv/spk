@@ -106,17 +106,20 @@ def test_solver_dependency_incompatible() -> None:
     # with an existing request in the stack
     repo = make_repo(
         [
-            {"pkg": "pkg-a/1.0.0"},
-            {"pkg": "pkg-a/2.0.0"},
-            {"pkg": "pkg-b/1.0.0", "install": {"requirements": [{"pkg": "pkg-a/2"}]}},
+            {"pkg": "maya/2019.0.0"},
+            {"pkg": "maya/2020.0.0"},
+            {
+                "pkg": "my-plugin/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/2020"}]},
+            },
         ]
     )
 
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg-b/1")
-    # this one is incompatible with pkg-b.depends but the solver doesn't know it yet
-    solver.add_request("pkg-a/1")
+    solver.add_request("my-plugin/1")
+    # this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
+    solver.add_request("maya/2019")
 
     with pytest.raises(UnresolvedPackageError):
         solver.solve()
@@ -139,25 +142,31 @@ def test_solver_dependency_incompatible_stepback() -> None:
     # better dependencies
     repo = make_repo(
         [
-            {"pkg": "pkg-a/1.0.0"},
-            {"pkg": "pkg-a/2.0.0"},
-            {"pkg": "pkg-b/1.1.0", "install": {"requirements": [{"pkg": "pkg-a/2"}]}},
-            {"pkg": "pkg-b/1.0.0", "install": {"requirements": [{"pkg": "pkg-a/1"}]}},
+            {"pkg": "maya/2019"},
+            {"pkg": "maya/2020"},
+            {
+                "pkg": "my-plugin/1.1.0",
+                "install": {"requirements": [{"pkg": "maya/2020"}]},
+            },
+            {
+                "pkg": "my-plugin/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/2019"}]},
+            },
         ]
     )
 
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg-b/1")
-    # this one is incompatible with pkg-b/1.1.depends but not pkg-b/1.0
-    solver.add_request("pkg-a/1")
+    solver.add_request("my-plugin/1")
+    # this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
+    solver.add_request("maya/2019")
 
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree, verbosity=100))
-    assert packages.get("pkg-b").spec.pkg.version == "1.0.0"
-    assert packages.get("pkg-a").spec.pkg.version == "1.0.0"
+    assert packages.get("my-plugin").spec.pkg.version == "1.0.0"
+    assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
 def test_solver_dependency_already_satisfied() -> None:
@@ -207,33 +216,35 @@ def test_solver_dependency_reopen_solvable() -> None:
     repo = make_repo(
         [
             {
-                "pkg": "pkg-top/1.0.0",
-                # should resolve dep_1 as 1.1.0 (favoring latest)
-                "install": {"requirements": [{"pkg": "dep-1/1"}, {"pkg": "dep-2/1"}]},
+                "pkg": "my-plugin/1.0.0",
+                # should resolve maya as 2019.2 (favoring latest)
+                "install": {
+                    "requirements": [{"pkg": "maya/2019"}, {"pkg": "some-library/1"}]
+                },
             },
-            {"pkg": "dep-1/1.1.0"},
-            {"pkg": "dep-1/1.0.0"},
-            # when dep_2 gets resolved, it will enforce an older version
+            {"pkg": "maya/2019.2.0"},
+            {"pkg": "maya/2019.0.0"},
+            # when some-library gets resolved, it will enforce an older version
             # of the existing resolve, which is still valid for all requests
             {
-                "pkg": "dep-2/1.0.0",
-                "install": {"requirements": [{"pkg": "dep-1/~1.0.0"}]},
+                "pkg": "some-library/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/~2019.0.0"}]},
             },
         ]
     )
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("pkg-top")
+    solver.add_request("my-plugin")
     try:
         packages = solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree, verbosity=100))
     assert list(s.spec.pkg.name for s in packages.items()) == [
-        "pkg-top",
-        "dep-2",
-        "dep-1",
+        "my-plugin",
+        "some-library",
+        "maya",
     ]
-    assert packages.get("dep-1").spec.pkg.version == "1.0.0"
+    assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
 def test_solver_dependency_reopen_unsolvable() -> None:

@@ -10,14 +10,14 @@ Both of these operations take a set of package requests and try to figure out th
 
 ## Understanding Solver Errors
 
-Depending on the complexity of the requests and number of dependencies of each package, the final error that you see is not always the most useful one. There are a number of ways that you can try to understand what went wrong which can give you insight into possible fixes. The best place to start is the `spk explain` command, which takes the same set of package requests and prints out the decision tree of the solver. This output can be quite verbose, but often provides much better insight into what went wrong.
+Depending on the complexity of the requests and number of dependencies of each package, the final error that you see is not always the most useful one. There are a number of ways that you can try to understand what went wrong which can give you insight into possible fixes. The best place to start is the `spk explain` command, which takes the same set of package requests and prints out the decision tree of the solver. This output can be quite verbose, but often provides much better insight into what went wrong. This output can also be retrieved and further expanded by specifying the `--verbose (-v)` flag a number of times (eg `spk env -vvv my-package/1`)
 
 To help understand the decision tree and what can go wrong let's look at some examples:
 
 ### Package Doesn't Exist
 
 ```bash
-$ spk explain doesntexist
+$ spk explain -v doesntexist
 REQUEST doesntexist/*
 > BLOCKED Package not found: doesntexist
 ```
@@ -34,33 +34,37 @@ This error is one of the most obvious - but knowing when and why it can appear h
 ### No Applicable Versions
 
 ```bash
-$ spk explain gcc/3.*
+$ spk explain -v gcc/3.*
  REQUEST gcc/3.*
-> BLOCKED Failed to resolve: {'pkg': 'gcc/3.*'} - from versions: []
+> TRY 6.3.1 - Out of range: 3.* [at pos 0]
+. TRY 4.8.5 - Out of range: 3.* [at pos 0]
+. BLOCKED Failed to resolve: {'pkg': 'gcc/3.*', 'prereleasePolicy': 'ExcludeAll'}
 ```
 
-In this case, the package exists but still failed to resolve. The lack of versions in this error message doesn't mean that there are no version of the package available (because that would cause a _package not found error_ instead). The lack of versions means that none of the available versions were even worth looking at.
+In this case, the package exists but still failed to resolve. We can see that the solver looked at the existing versions of the `gcc` package but found that none of them were applicable to the requested version range.
 
 #### Additional Information
 
-The solver doesn't know for sure if a package is compatible until it loads the spec file, but it will also only load versions that are not obviously incomatible. In this case, our use of a wildcard version means that anything version starting with something other than 3 is never going to be relevant and there are no gcc packages with a major version number of 3.
+In these cases, the additional use of the `--verbose (-v)` flag is extremely helpful, as it shows us that the solver tried to find an appropriate version and, most importantly, it shows us why none of those versions could be used.
 
 #### Possible Solutions
 
 - if you just created a new version but haven't published it, make sure the the `--local-repo` flag is used
 - if the package is in a testing or other alternative repository, make sure to enable the repository with `--enable-repo=<name>`
 - try using the `spk ls <name>` command to list the available versions of the package
-- try loosening the version requirements or using a different version of the requested package altogether
+- try loosening the version requirements or using a different version altogether of the requested package
 
 ### No Applicable Build
 
 ```bash
-$ spk explain gcc -o os=darwin
- REQUEST gcc/*
-> BLOCKED Failed to resolve: {'pkg': 'gcc'} - from versions: [4.8.5 (no build for {arch=x86_64, os=darwin})]
+$ spk explain -v gcc/6 -o os=darwin
+ REQUEST gcc/6.0.0
+> TRY 6.3.1 - no build for {arch=x86_64, os=darwin}
+. TRY 4.8.5 - version too low
+. BLOCKED Failed to resolve: {'pkg': 'gcc/6.0.0', 'prereleasePolicy': 'ExcludeAll'}
 ```
 
-In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/4.8.5` package available, there is no build of that package for the set of build options that we've requested.
+In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/6.3.1` package available, there is no build of that package for the set of build options that we've requested.
 
 #### Possible Solutions
 
@@ -74,21 +78,28 @@ In this example, we've specifically requested an environment where the `os` opti
 In most cases, the solver will encouter multiple issues as it tries to find an appropriate solution to the set of requested packages. Not all errors are bad, and some are even expected. Here are some common patterns that you may see in your solver decision tree which can help to differentiate benign issues from actual problems.
 
 ```bash
-$ spk env my-plugin maya/2020
+$ spk env -vv my-plugin maya/2020
 REQUEST my-plugin/* maya/2020.0.0
-> RESOLVE my-plugin/10.0.0/3I42H3S6 REQUEST maya/2019.0.0
->> BLOCKED Failed to resolve: {'pkg': 'maya/2020.0.0,2019.0.0'} - from versions: [2019.2.0 (request not satisfied), 2020.2.1 (request not satisfied)]
-> BLOCKED Failed to resolve: {'pkg': 'my-plugin/*'} - from versions: [10.0.0 (request not satisfied)]
+> RESOLVE my-plugin/10.0.0/3I42H3S6
+. REQUEST maya/2019.0.0
+>> TRY 2020.2.1 - version too high
+.. TRY 2019.2.0 - version too low
+.. BLOCKED Failed to resolve: {'pkg': 'maya/2020.0.0,2019.0.0'}
+> TRY 10.0.0 - request not satisfied
+. BLOCKED Failed to resolve: {'pkg': 'my-plugin/*'}
 ```
 
 #### Incompatible Dependencies
 
 ```bash
-$ spk explain my-plugin/1, maya/2020
-REQUEST my-plugin/1.0.0, maya/2020.0.0
-> RESOLVE my-plugin/1.0.0/3I42H3S6 REQUEST maya/2019.0.0
->> BLOCKED Failed to resolve: {'pkg': 'maya/2019.0.0,2020.0.0'} - from versions: [2020.0.0 (request not satisfied)]
-> BLOCKED Failed to resolve: {'pkg': 'my-plugin/1.0.0'} - from versions: [1.0.0 (request not satisfied)]
+$ spk explain -v my-plugin/1, maya/2020
+ REQUEST my-plugin/1.0.0, maya/2019.0.0
+> RESOLVE my-plugin/1.0.0/3I42H3S6
+. REQUEST maya/2020.0.0
+>> TRY 2020.0.0 - Not compatible: 2019.0.0 (x.a.b) [at pos 0]
+.. TRY 2019.0.0 - version too low
+.. BLOCKED Failed to resolve: {'pkg': 'maya/2020.0.0,2019.0.0', 'prereleasePolicy': 'ExcludeAll'}
+> BLOCKED Failed to resolve: {'pkg': 'my-plugin/1.0.0', 'prereleasePolicy': 'ExcludeAll'}
 ```
 
 In this example, we've requested my-plugin version 1 and maya 2020. The solver resolved `my-plugin/1.0.0` but this package has it's own dependency on `maya/2019`, as denoted by the additional `REQUEST` which is added. The solver combines the two requests into one, and then cannot find a version that satisfies both the `2019` and `2020` request.
@@ -98,12 +109,17 @@ The last line of this output is the unwinding of the solver stack. When the firs
 #### Recovered Incompatibility
 
 ```bash
-$ spk explain my-plugin/1 maya/2019
+$ spk explain -v my-plugin/1 maya/2019
  REQUEST my-plugin/1.0.0, maya/2019.0.0
-> RESOLVE my-plugin/1.1.0/3I42H3S6 REQUEST maya/2020.0.0
->> BLOCKED Failed to resolve: {'pkg': 'maya/2019.0.0,2020.0.0'} - from versions: [2020.0.0 (request not satisfied)]
-> RESOLVE my-plugin/1.0.0/3I42H3S6 REQUEST maya/2019.0.0
->> RESOLVE maya/2019.0.0/3I42H3S6
+> RESOLVE my-plugin/1.1.0/3I42H3S6
+. REQUEST maya/2020.0.0
+>> TRY 2020.0.0 - Not compatible: 2019.0.0 (x.a.b) [at pos 0]
+.. TRY 2019.0.0 - version too low
+.. BLOCKED Failed to resolve: {'pkg': 'maya/2019.0.0,2020.0.0', 'prereleasePolicy': 'ExcludeAll'}
+> RESOLVE my-plugin/1.0.0/3I42H3S6
+. REQUEST maya/2019.0.0
+>> TRY maya/2020.0.0 - Not compatible: 2019.0.0 (x.a.b) [at pos 0]
+.. RESOLVE maya/2019.0.0/3I42H3S6
 ```
 
 Similar to above, `my-plugin/1.1.0` has a dependency on `maya/2020` which conflicts with the original request for maya 2019. In this case, the solver backed out and tried an older version of `my-plugin`, which requested maya 2019 instead and so the resolve was completed.
@@ -111,11 +127,14 @@ Similar to above, `my-plugin/1.1.0` has a dependency on `maya/2020` which confli
 #### Revisiting a Request
 
 ```bash
-$ spk explain my-plugin
+$ spk explain -v my-plugin
  REQUEST my-plugin/*
-> RESOLVE my-plugin/1.0.0/3I42H3S6 REQUEST maya/2019.0.0, some-library/1.0.0
+> RESOLVE my-plugin/1.0.0/3I42H3S6
+. REQUEST maya/2019.0.0, some-library/1.0.0
 >> RESOLVE maya/2019.2.0/3I42H3S6
->>> RESOLVE some-library/1.0.0/3I42H3S6 REQUEST maya/~2019.0.0 UNRESOLVE maya
+>>> RESOLVE some-library/1.0.0/3I42H3S6
+... REQUEST maya/~2019.0.0
+... UNRESOLVE maya
 >>>> RESOLVE maya/2019.0.0/3I42H3S6
 ```
 
