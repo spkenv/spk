@@ -58,7 +58,7 @@ class Solver:
         while request is not None:
 
             if request.pin:
-                _LOGGER.warning("solving for unpinned request, this is probably not what you want to be happening!", request=request)
+                _LOGGER.warning("Solving for unpinned request, this is probably not what you want to be happening!", request=request)
 
             try:
                 state = self._solve_request(state, request)
