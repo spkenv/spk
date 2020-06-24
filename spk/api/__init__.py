@@ -3,7 +3,7 @@ from ._version import Version, parse_version, VERSION_SEP
 from ._compat import Compat, parse_compat, Compatibility, COMPATIBLE
 from ._build import Build, parse_build, SRC
 from ._install_spec import InstallSpec
-from ._ident import Ident, parse_ident
+from ._ident import Ident, parse_ident, validate_name
 from ._version_range import (
     VersionRange,
     VersionFilter,

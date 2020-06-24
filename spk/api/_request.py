@@ -2,6 +2,7 @@ from typing import Dict, List, Any, Union, Optional, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc
 import enum
+import itertools
 
 from ._name import validate_name
 from ._version import Version, parse_version, VERSION_SEP
@@ -65,7 +66,9 @@ class RangeIdent:
 
         if self.build is not None:
             if self.build != spec.pkg.build:
-                return Compatibility(f"different builds: {self.build} != {spec.pkg.build}")
+                return Compatibility(
+                    f"different builds: {self.build} != {spec.pkg.build}"
+                )
 
         return COMPATIBLE
 
@@ -130,6 +133,23 @@ class Request:
     def clone(self) -> "Request":
 
         return Request.from_dict(self.to_dict())
+
+    def render_pin(self, pkg: Ident) -> "Request":
+        """Create a copy of this request with it's pin rendered out using 'pkg'."""
+
+        if not self.pin:
+            raise RuntimeError("Request has no pin to be rendered")
+
+        digits = itertools.chain(pkg.version.parts, itertools.repeat(0))
+        rendered = list(self.pin)
+        for i, char in enumerate(self.pin):
+            if char == "x":
+                rendered[i] = str(digits)
+
+        new = self.clone()
+        new.pin = ""
+        new.pkg.version = parse_version_range("".join(rendered))
+        return new
 
     def is_version_applicable(self, version: Union[str, Version]) -> Compatibility:
         """Return true if the given version number is applicable to this request.

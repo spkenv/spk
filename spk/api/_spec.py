@@ -1,4 +1,4 @@
-from typing import List, Any, Dict, Union, IO
+from typing import List, Any, Dict, Union, IO, Iterable
 from dataclasses import dataclass, field
 import os
 
@@ -48,6 +48,11 @@ class Spec:
             return True
 
         return request.pkg.build == self.pkg.build
+
+    def render_all_pins(self, resolved: Iterable["Spec"]) -> None:
+        """Render all package pins in this spec using the given resolved packages."""
+
+        self.install.render_all_pins(s.pkg for s in resolved)
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Spec":

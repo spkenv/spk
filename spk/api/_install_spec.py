@@ -1,7 +1,8 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Iterable
 from dataclasses import dataclass, field
 
 from ._request import Request
+from ._ident import Ident
 
 
 @dataclass
@@ -14,6 +15,17 @@ class InstallSpec:
         return {
             "requirements": list(r.to_dict() for r in self.requirements),
         }
+
+    def render_all_pins(self, resolved: Iterable[Ident]) -> None:
+        """Render all requests with a package pin using the given resolved packages."""
+
+        by_name = dict((pkg.name, pkg) for pkg in resolved)
+        for i, request in enumerate(self.requirements):
+            if not request.pin:
+                continue
+            if request.pkg.name not in by_name:
+                raise ValueError(f"Pinned package not present: {request.pkg.name}")
+            self.requirements[i] = request.render_pin(by_name[request.pkg.name])
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "InstallSpec":

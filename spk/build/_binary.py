@@ -45,7 +45,7 @@ class BinaryPackageBuilder:
     def from_spec(spec: api.Spec) -> "BinaryPackageBuilder":
 
         builder = BinaryPackageBuilder()
-        builder._spec = spec
+        builder._spec = spec.clone()
         return builder
 
     def with_option(self, name: str, value: str) -> "BinaryPackageBuilder":
@@ -90,11 +90,9 @@ class BinaryPackageBuilder:
             build_env_solver.add_repository(repo)
 
         for opt in self._spec.build.options:
-            print(opt, type(opt))
             if not isinstance(opt, api.PkgOpt):
                 continue
             request = opt.to_request(build_options.get(opt.pkg))
-            print(request)
             build_env_solver.add_request(request)
 
         solution = build_env_solver.solve()
@@ -102,6 +100,7 @@ class BinaryPackageBuilder:
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
+        self._spec.render_all_pins(s for _, s, _ in solution.items())
         layer = build_and_commit_artifacts(
             self._spec, self._source_dir, build_options, solution.to_environment()
         )
