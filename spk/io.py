@@ -37,13 +37,13 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
         if err is None:
             return out
         if not isinstance(err, solve.UnresolvedPackageError):
-            return out + str(err)
+            return f"{Fore.RED}BLOCKED{Fore.RESET} {err}"
         if verbosity > 1:
             versions = list(
                 f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
                 for v, c in (err.history or {}).items()
             )
-            out += end.join(versions) + end
+            out += end.join(versions) + (end if versions else "")
 
         out += f"{Fore.RED}BLOCKED{Fore.RESET} {err.message}"
         return out
