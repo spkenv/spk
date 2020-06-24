@@ -63,7 +63,11 @@ build:
 install:
   requirements:
     # packages listed here need to be installed/available at run time
+    - pkg: vnp/3
     - pkg: maya
+      # we can use the version of maya from the build environment to dynamically
+      # define the install requirement
+      fromBuildEnv: x.x
 """
 
 

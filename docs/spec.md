@@ -94,6 +94,10 @@ build:
 
 The variants section of the build config defines the default set of variants that you want to build when running `spk build` and `spk make-binary`. Additional variants can be built later on, but this is a good way to streamline the default build process and define the set of variants that you want to support for every change.
 
+{{% notice note %}}
+Make sure that you have defined a build option for whatever you specify in your variants!
+{{% /notice %}}
+
 ### Install Configuration
 
 The install configuration specifies the environment that your package needs when it is installed or included in an spk environment.
@@ -107,3 +111,20 @@ install:
   requirements:
   - pkg: python/2.7
 ```
+
+You can also reference packages from the build environment in your installation requirements. This is the recommended way to connect the build environment with the run-time environment, so that the install requirements can change with each variant that is generated. For example, creating a python package for both python 2 and python 3 can use this feature to make sure that the same version of python is used at run-time.
+
+```yaml
+build:
+  options:
+    - pkg: python
+  variants:
+    - {python: 2}
+    - {python: 3}
+install:
+  requirements:
+    - pkg: python
+      fromBuildEnv: x.x
+```
+
+In this example, we might get two build envrionments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
