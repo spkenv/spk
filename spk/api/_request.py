@@ -191,7 +191,7 @@ class Request:
         return {
             "pkg": str(self.pkg),
             "prereleasePolicy": self.prerelease_policy.name,
-            "pin": self.pin,
+            "fromBuildEnv": self.pin,
         }
 
     @staticmethod
@@ -213,7 +213,7 @@ class Request:
                 )
             req.prerelease_policy = policy
 
-        req.pin = data.pop("pin", "")
+        req.pin = data.pop("fromBuildEnv", "")
 
         if len(data):
             raise ValueError(

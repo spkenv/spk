@@ -1,0 +1,16 @@
+version: 0.1.0
+
+release_notes: |
+  * Setup spdev configuration
+
+components:
+- kind: PythonPackage
+  name: python
+  lint:
+    python3: false
+  deploy:
+    rez:
+      enabled: false
+- kind: SPKPackage
+  name: spk
+  spec_file: example.spk.yaml

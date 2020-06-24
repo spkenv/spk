@@ -10,7 +10,8 @@ import spk.cli
 import spfs
 
 here = os.path.dirname(__file__)
-testable_examples = ("gcc", "cmake")
+testable_examples = set(os.listdir(here))
+testable_examples ^= {"_test.py", "__pycache__"}
 
 
 @pytest.fixture(autouse=True, scope="session")
