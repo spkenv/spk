@@ -144,7 +144,7 @@ class Request:
         rendered = list(self.pin)
         for i, char in enumerate(self.pin):
             if char == "x":
-                rendered[i] = str(digits)
+                rendered[i] = str(next(digits))
 
         new = self.clone()
         new.pin = ""

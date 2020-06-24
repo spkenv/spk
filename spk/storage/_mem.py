@@ -43,7 +43,7 @@ class MemRepository(Repository):
             if not pkg.build:
                 return self._specs[pkg.name][str(pkg.version)]
             else:
-                return self._packages[pkg.name][str(pkg.version)][str(pkg.build)][0]
+                return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][0]
         except KeyError:
             raise PackageNotFoundError(pkg)
 

@@ -98,7 +98,7 @@ class SpFSRepository(Repository):
     def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
         tag_string = self.build_package_tag(spec.pkg)
-        # TODO: sanity check if tag already exists?
+        self.force_publish_spec(spec)
         self._repo.tags.push_tag(tag_string, digest)
 
     def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
