@@ -1,10 +1,7 @@
-version: 0.6.0
+version: 0.6.1
 release_notes: |
-  * Update compatibility so that binary compat will also fail on api incompat
-  * Update compatibility checks to return error strings for easier tracking and debugging
-  * Add additional solver output layer that explains each skipped version
-  * Update storage to store complete spec with each build, to enable pinning
-  * Allow pinning of packages from the build environment, to ease variant creation
+  * Fix minor bugs with output formatting
+  * Update documentation to better reflect 0.6 changes
 
 toolchain:
 - kind: Shell
