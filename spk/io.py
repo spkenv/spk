@@ -32,15 +32,20 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
     end = "\n" if verbosity > 1 else " "
     out = ""
     if decision.get_error() is not None:
-        out = f"{Fore.RED}BLOCKED{Fore.RESET} "
+
         err = decision.get_error()
         if err is None:
             return out
         if not isinstance(err, solve.UnresolvedPackageError):
             return out + str(err)
-        versions = list(f"{v} ({c})" for v, c in (err.history or {}).items())
-        out += err.message + end
-        out += end.join(reversed(versions))
+        if verbosity > 1:
+            versions = list(
+                f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
+                for v, c in (err.history or {}).items()
+            )
+            out += end.join(versions) + end
+
+        out += f"{Fore.RED}BLOCKED{Fore.RESET} {err.message}"
         return out
 
     resolved = decision.get_resolved()

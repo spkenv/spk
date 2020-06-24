@@ -85,7 +85,7 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
                 "script": ["touch /spfs/top-file",],
                 "options": [{"pkg": "dep", "default": "1.0.0"}],
             },
-            "install": {"requirements": [{"pkg": "dep", "pin": "~x.x"}]},
+            "install": {"requirements": [{"pkg": "dep", "fromBuildEnv": "~x.x"}]},
         }
     )
 

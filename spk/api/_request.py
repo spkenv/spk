@@ -188,11 +188,13 @@ class Request:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
-        return {
+        out = {
             "pkg": str(self.pkg),
             "prereleasePolicy": self.prerelease_policy.name,
-            "fromBuildEnv": self.pin,
         }
+        if self.pin:
+            out["fromBuildEnv"] = self.pin
+        return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Request":
@@ -214,6 +216,10 @@ class Request:
             req.prerelease_policy = policy
 
         req.pin = data.pop("fromBuildEnv", "")
+        if req.pin and req.pkg.version.rules:
+            raise ValueError(
+                "Package request cannot include both a version number and fromBuildEnv"
+            )
 
         if len(data):
             raise ValueError(

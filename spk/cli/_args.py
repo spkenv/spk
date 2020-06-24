@@ -23,6 +23,7 @@ from . import (
     _cmd_publish,
     _cmd_search,
     _cmd_version,
+    _cmd_view,
 )
 
 
@@ -56,6 +57,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _cmd_publish.register(sub_parsers, parents=[parent_parser])
     _cmd_search.register(sub_parsers, parents=[parent_parser])
     _cmd_version.register(sub_parsers, parents=[parent_parser])
+    _cmd_view.register(sub_parsers, parents=[parent_parser])
 
     args = parser.parse_args(argv)
     if args.command is None:

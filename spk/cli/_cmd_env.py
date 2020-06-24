@@ -61,8 +61,14 @@ def _env(args: argparse.Namespace) -> None:
     except spk.SolverError as e:
         print(f"{Fore.RED}{e}{Fore.RESET}")
         if args.verbose:
-            print(spk.io.format_decision_tree(solver.decision_tree))
-        else:
+            print(
+                spk.io.format_decision_tree(
+                    solver.decision_tree, verbosity=args.verbose
+                )
+            )
+        if args.verbose < 2:
+            print(f"{Fore.YELLOW}{Style.DIM}try '-vv' for even more info{Fore.RESET}")
+        elif args.verbose == 0:
             print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
         sys.exit(1)
 
