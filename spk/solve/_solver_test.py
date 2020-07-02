@@ -307,3 +307,65 @@ def test_solver_pre_release_config() -> None:
 
     solution = solver.solve()
     assert solution.get("my-pkg").spec.pkg.version == "1.0.0-pre.2"
+
+
+def test_solver_constraint_only() -> None:
+
+    # test what happens when a dependency is marked as a constraint/optional
+    # and no other request is added
+    # - the constraint is noted
+    # - the package does not get resolved into the final env
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "vnp3/2.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "python/3.7", "include": "IfAlreadyPresent"}
+                    ]
+                },
+            },
+        ]
+    )
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("vnp3")
+    solution = solver.solve()
+
+    with pytest.raises(KeyError):
+        solution.get("python")
+
+
+def test_solver_constraint_and_request() -> None:
+
+    # test what happens when a dependency is marked as a constraint/optional
+    # and also requested by another package
+    # - the constraint is noted
+    # - the constraint is merged with the request
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "vnp3/2.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "python/=3.7.3", "include": "IfAlreadyPresent"}
+                    ]
+                },
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "install": {"requirements": [{"pkg": "vnp3"}, {"pkg": "python/3.7"}]},
+            },
+            {"pkg": "python/3.7.3"},
+            {"pkg": "python/3.8.1"},
+        ]
+    )
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-tool")
+    solution = solver.solve()
+    print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("python").spec.pkg.version == "3.7.3"

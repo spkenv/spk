@@ -142,7 +142,7 @@ class PkgOpt:
             )
         pkg = validate_name(pkg)
 
-        default = data.pop("default", "")
+        default = str(data.pop("default", ""))
 
         if len(data):
             raise ValueError(f"unrecognized fields in pkg: {', '.join(data.keys())}")

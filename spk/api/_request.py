@@ -112,12 +112,19 @@ class PreReleasePolicy(enum.IntEnum):
     IncludeAll = enum.auto()
 
 
+class InclusionPolicy(enum.IntEnum):
+
+    Always = enum.auto()
+    IfAlreadyPresent = enum.auto()
+
+
 @dataclass
 class Request:
     """A desired package and set of restrictions on how it's selected."""
 
     pkg: RangeIdent
     prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll
+    inclusion_policy: InclusionPolicy = InclusionPolicy.Always
     pin: str = ""
 
     def __hash__(self) -> int:
@@ -184,12 +191,16 @@ class Request:
         self.prerelease_policy = PreReleasePolicy(
             min(self.prerelease_policy.value, other.prerelease_policy.value)
         )
+        self.inclusion_policy = InclusionPolicy(
+            min(self.inclusion_policy.value, other.inclusion_policy.value)
+        )
         self.pkg.restrict(other.pkg)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
         out = {
             "pkg": str(self.pkg),
+            "include": self.inclusion_policy.name,
             "prereleasePolicy": self.prerelease_policy.name,
         }
         if self.pin:
@@ -211,9 +222,17 @@ class Request:
                 policy = PreReleasePolicy.__members__[name]
             except KeyError:
                 raise ValueError(
-                    f"Unknown prereleasePolicy: {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
+                    f"Unknown 'prereleasePolicy': {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
                 )
             req.prerelease_policy = policy
+
+        inclusion_policy = data.pop("include", InclusionPolicy.Always.name)
+        try:
+            req.inclusion_policy = InclusionPolicy.__members__[inclusion_policy]
+        except KeyError:
+            raise ValueError(
+                f"Unknown 'include' policy: {inclusion_policy} must be on of {list(InclusionPolicy.__members__.keys())}"
+            )
 
         req.pin = data.pop("fromBuildEnv", "")
         if req.pin and req.pkg.version.rules:

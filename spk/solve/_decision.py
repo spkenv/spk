@@ -296,7 +296,13 @@ class Decision:
         if len(unresolved) == 0:
             return None
 
-        return self.get_merged_request(next(iter(unresolved.keys())))
+        for name in unresolved.keys():
+            req = self.get_merged_request(name)
+            if req is None:
+                continue
+            if req.inclusion_policy is api.InclusionPolicy.Always:
+                return req
+        return None
 
     @lru_cache()
     def unresolved_requests(self) -> Dict[str, List[api.Request]]:

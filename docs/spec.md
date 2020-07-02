@@ -128,3 +128,19 @@ install:
 ```
 
 In this example, we might get two build envrionments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
+
+##### Optional Requirements
+
+Sometimes, you're package does not directly require another package, but would like to impose a constraint _if_ that package is required by something else. An example of this might be a cpp library with python bindings. The cpp library can be used without python, but if python exists in the environment, then we want to make sure it's of a compatible version.
+
+The `include` field allows you to specify how a requirement should be applied to the environment.
+
+```yaml
+install:
+  requirements:
+    - pkg: python/2.7
+      # if python is already in the environment/resolve then we
+      # we require it to be compatible with 2.7
+      # but no python at all is also okay
+      include: IfAlreadyPresent
+```
