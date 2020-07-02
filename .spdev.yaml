@@ -1,7 +1,8 @@
-version: 0.6.1
+version: 0.7.0
 release_notes: |
-  * Fix minor bugs with output formatting
-  * Update documentation to better reflect 0.6 changes
+  * Add the ability to specify optional dependencies
+    * Optional dependencies are only taken into account if the package is already installed or requested by another package
+    * This is done via the 'include' field of the package request (which can be 'Always' or 'IfAlreadyPresent')
 
 toolchain:
 - kind: Shell
