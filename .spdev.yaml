@@ -1,8 +1,6 @@
-version: 0.7.0
+version: 0.7.1
 release_notes: |
-  * Add the ability to specify optional dependencies
-    * Optional dependencies are only taken into account if the package is already installed or requested by another package
-    * This is done via the 'include' field of the package request (which can be 'Always' or 'IfAlreadyPresent')
+  * Ensure spfs shell env is setup during build
 
 toolchain:
 - kind: Shell

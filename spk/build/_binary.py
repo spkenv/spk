@@ -36,6 +36,7 @@ class BinaryPackageBuilder:
 
     def __init__(self) -> None:
 
+        self._prefix = "/spfs"
         self._spec: Optional[api.Spec] = None
         self._options: api.OptionMap = api.OptionMap()
         self._source_dir: str = "."
@@ -101,8 +102,8 @@ class BinaryPackageBuilder:
         spfs.remount_runtime(runtime)
 
         self._spec.render_all_pins(s for _, s, _ in solution.items())
-        layer = build_and_commit_artifacts(
-            self._spec, self._source_dir, build_options, solution.to_environment()
+        layer = self._build_and_commit_artifacts(
+            build_options, solution.to_environment()
         )
         pkg = self._spec.pkg.with_build(build_options.digest())
         spec = self._spec.clone()
@@ -110,52 +111,48 @@ class BinaryPackageBuilder:
         storage.local_repository().publish_package(spec, layer.digest())
         return pkg
 
+    def _build_and_commit_artifacts(
+        self, options: api.OptionMap, env: MutableMapping[str, str]
+    ) -> spfs.storage.Layer:
 
-def build_and_commit_artifacts(
-    spec: api.Spec, sources: str, options: api.OptionMap, env: MutableMapping[str, str]
-) -> spfs.storage.Layer:
+        self._build_artifacts(options, env)
 
-    prefix = "/spfs"
-    build_artifacts(spec, sources, options, prefix, env)
+        diffs = spfs.diff()
+        validate_build_changeset(diffs, self._prefix)
 
-    diffs = spfs.diff()
-    validate_build_changeset(diffs, prefix)
+        runtime = spfs.active_runtime()
+        return spfs.commit_layer(runtime)
 
-    runtime = spfs.active_runtime()
-    return spfs.commit_layer(runtime)
+    def _build_artifacts(
+        self, options: api.OptionMap, env: MutableMapping[str, str] = None,
+    ) -> None:
 
+        assert self._spec is not None
 
-def build_artifacts(
-    spec: api.Spec,
-    sources: str,
-    options: api.OptionMap,
-    prefix: str,
-    env: MutableMapping[str, str] = None,
-) -> None:
+        pkg = self._spec.pkg.with_build(options.digest())
 
-    pkg = spec.pkg.with_build(options.digest())
+        os.makedirs(self._prefix, exist_ok=True)
 
-    os.makedirs(prefix, exist_ok=True)
+        metadata_dir = data_path(pkg, prefix=self._prefix)
+        build_options = build_options_path(pkg, prefix=self._prefix)
+        build_script = build_script_path(pkg, prefix=self._prefix)
+        os.makedirs(metadata_dir, exist_ok=True)
+        with open(build_script, "w+") as writer:
+            writer.write(self._spec.build.script)
+        with open(build_options, "w+") as writer:
+            json.dump(options, writer, indent="\t")
 
-    metadata_dir = data_path(pkg, prefix=prefix)
-    build_options = build_options_path(pkg, prefix=prefix)
-    build_script = build_script_path(pkg, prefix=prefix)
-    os.makedirs(metadata_dir, exist_ok=True)
-    with open(build_script, "w+") as writer:
-        writer.write(spec.build.script)
-    with open(build_options, "w+") as writer:
-        json.dump(options, writer, indent="\t")
+        env = env or {}
+        env.update(options.to_environment())
+        env["PREFIX"] = self._prefix
 
-    env = env or {}
-    env.update(options.to_environment())
-    env["PREFIX"] = prefix
-
-    proc = subprocess.Popen(["/bin/sh", "-ex", build_script], cwd=sources, env=env)
-    proc.wait()
-    if proc.returncode != 0:
-        raise BuildError(
-            f"Build script returned non-zero exit status: {proc.returncode}"
-        )
+        cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
+        proc = subprocess.Popen(cmd, cwd=self._source_dir, env=env)
+        proc.wait()
+        if proc.returncode != 0:
+            raise BuildError(
+                f"Build script returned non-zero exit status: {proc.returncode}"
+            )
 
 
 def build_options_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
