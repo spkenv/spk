@@ -38,8 +38,10 @@ class BinaryPackageBuilder:
 
         self._prefix = "/spfs"
         self._spec: Optional[api.Spec] = None
-        self._options: api.OptionMap = api.OptionMap()
+        self._all_options = api.OptionMap()
+        self._pkg_options = api.OptionMap()
         self._source_dir: str = "."
+        self._solver: Optional[solve.Solver] = None
         self._repos: List[storage.Repository] = []
 
     @staticmethod
@@ -49,14 +51,27 @@ class BinaryPackageBuilder:
         builder._spec = spec.clone()
         return builder
 
+    def get_build_env_decision_tree(self) -> solve.DecisionTree:
+        """Return the solver decision tree for the build environment.
+
+        This is most useful for debugging build environments that failed to resolve,
+        and builds that failed with a SolverError.
+
+        If the builder has not run, return an empty tree.
+        """
+
+        if self._solver is None:
+            return solve.DecisionTree()
+        return self._solver.decision_tree
+
     def with_option(self, name: str, value: str) -> "BinaryPackageBuilder":
 
-        self._options[name] = value
+        self._all_options[name] = value
         return self
 
     def with_options(self, options: api.OptionMap) -> "BinaryPackageBuilder":
 
-        self._options.update(options)
+        self._all_options.update(options)
         return self
 
     def with_source_dir(self, dirname: str) -> "BinaryPackageBuilder":
@@ -84,38 +99,37 @@ class BinaryPackageBuilder:
         ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
 
         runtime = spfs.active_runtime()
-        build_options = self._spec.resolve_all_options(self._options)
+        self._pkg_options = self._spec.resolve_all_options(self._all_options)
+        self._all_options.update(self._pkg_options)
 
-        build_env_solver = solve.Solver(self._options)
+        self._solver = solve.Solver(self._all_options)
         for repo in self._repos:
-            build_env_solver.add_repository(repo)
+            self._solver.add_repository(repo)
 
         for opt in self._spec.build.options:
             if not isinstance(opt, api.PkgOpt):
                 continue
-            request = opt.to_request(build_options.get(opt.pkg))
-            build_env_solver.add_request(request)
+            request = opt.to_request(self._pkg_options.get(opt.pkg))
+            self._solver.add_request(request)
 
-        solution = build_env_solver.solve()
+        solution = self._solver.solve()
         exec.configure_runtime(runtime, solution)
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
         self._spec.render_all_pins(s for _, s, _ in solution.items())
-        layer = self._build_and_commit_artifacts(
-            build_options, solution.to_environment()
-        )
-        pkg = self._spec.pkg.with_build(build_options.digest())
+        layer = self._build_and_commit_artifacts(solution.to_environment())
+        pkg = self._spec.pkg.with_build(self._pkg_options.digest())
         spec = self._spec.clone()
         spec.pkg = pkg
         storage.local_repository().publish_package(spec, layer.digest())
         return pkg
 
     def _build_and_commit_artifacts(
-        self, options: api.OptionMap, env: MutableMapping[str, str]
+        self, env: MutableMapping[str, str]
     ) -> spfs.storage.Layer:
 
-        self._build_artifacts(options, env)
+        self._build_artifacts(env)
 
         diffs = spfs.diff()
         validate_build_changeset(diffs, self._prefix)
@@ -123,13 +137,11 @@ class BinaryPackageBuilder:
         runtime = spfs.active_runtime()
         return spfs.commit_layer(runtime)
 
-    def _build_artifacts(
-        self, options: api.OptionMap, env: MutableMapping[str, str] = None,
-    ) -> None:
+    def _build_artifacts(self, env: MutableMapping[str, str] = None,) -> None:
 
         assert self._spec is not None
 
-        pkg = self._spec.pkg.with_build(options.digest())
+        pkg = self._spec.pkg.with_build(self._pkg_options.digest())
 
         os.makedirs(self._prefix, exist_ok=True)
 
@@ -140,10 +152,10 @@ class BinaryPackageBuilder:
         with open(build_script, "w+") as writer:
             writer.write(self._spec.build.script)
         with open(build_options, "w+") as writer:
-            json.dump(options, writer, indent="\t")
+            json.dump(self._all_options, writer, indent="\t")
 
         env = env or {}
-        env.update(options.to_environment())
+        env.update(self._all_options.to_environment())
         env["PREFIX"] = self._prefix
 
         cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)

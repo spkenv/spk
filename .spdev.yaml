@@ -1,6 +1,7 @@
 version: 0.7.1
 release_notes: |
   * Ensure spfs shell env is setup during build
+  * Update make-binary command to also output solver tree for failed build env
 
 toolchain:
 - kind: Shell

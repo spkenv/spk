@@ -77,13 +77,19 @@ def _make_binary(args: argparse.Namespace) -> None:
         for variant in spec.build.variants:
 
             _LOGGER.info("building variant", variant=variant)
-            out = (
+            builder = (
                 spk.BinaryPackageBuilder.from_spec(spec)
                 .with_options(base_options)
                 .with_options(variant)
                 .with_repositories(repos)
                 .with_source_dir(os.getcwd())
-                .build()
             )
-
-            _LOGGER.info("created", pkg=out)
+            try:
+                out = builder.build()
+            except spk.SolverError:
+                if args.verbose:
+                    tree = builder.get_build_env_decision_tree()
+                    print(spk.io.format_decision_tree(tree, verbosity=args.verbose))
+                raise
+            else:
+                _LOGGER.info("created", pkg=out)

@@ -56,15 +56,16 @@ def test_make_binary_package(name: str) -> None:
     for filename in glob.glob("*.spk.yaml", recursive=False):
         subprocess.check_call(["spfs", "reset", "--edit", ""])
         try:
-            args = spk.cli.parse_args(
-                [
-                    "make-binary",
-                    "--local",
-                    filename,
-                    "--enable-repo=/net/libs/spfs",
-                    "--no-runtime",
-                ]
-            )
+            cmd = [
+                "make-binary",
+                "-vvv",
+                "--local",
+                filename,
+                "--enable-repo=/net/libs/spfs",
+                "--no-runtime",
+            ]
+            print(cmd)
+            args = spk.cli.parse_args(cmd)
             args.func(args)
             code = 0
         except SystemExit as e:

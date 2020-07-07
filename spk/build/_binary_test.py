@@ -8,8 +8,6 @@ from .. import api, storage
 from ._binary import (
     validate_build_changeset,
     BuildError,
-    build_artifacts,
-    build_and_commit_artifacts,
     BinaryPackageBuilder,
 )
 
@@ -40,7 +38,12 @@ def test_build_partifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -
         {"pkg": "test/1.0.0", "build": {"script": "echo $PWD > /dev/stderr"}}
     )
 
-    build_artifacts(spec, tmpdir.strpath, api.OptionMap(), tmpdir.strpath)
+    (
+        BinaryPackageBuilder()
+        .from_spec(spec)
+        .with_source_dir(tmpdir.strpath)
+        ._build_artifacts()
+    )
 
     _, err = capfd.readouterr()
     assert err.strip() == tmpdir.strpath
