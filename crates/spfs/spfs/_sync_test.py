@@ -65,3 +65,27 @@ def test_sync_ref(tmpdir: py.path.local) -> None:
 
     assert repo_a.read_ref("testing")
     assert repo_a.has_layer(layer.digest())
+
+
+def test_sync_through_tar(tmpdir: py._path.local.LocalPath) -> None:
+
+    src_dir = tmpdir.join("source")
+    src_dir.join("dir/file.txt").write("hello", ensure=True)
+    src_dir.join("dir2/otherfile.txt").write("hello2", ensure=True)
+    src_dir.join("dir//dir/dir/file.txt").write("hello, world", ensure=True)
+
+    repo_a = storage.fs.FSRepository(tmpdir.join("repo_a").strpath, create=True)
+    repo_tar = storage.tar.TarRepository(tmpdir.join("repo.tar").strpath)
+    repo_b = storage.fs.FSRepository(tmpdir.join("repo_b").strpath, create=True)
+
+    manifest = repo_a.commit_dir(src_dir.strpath)
+    layer = repo_a.create_layer(storage.Manifest(manifest))
+    platform = repo_a.create_platform([layer.digest()])
+    repo_a.tags.push_tag("testing", platform.digest())
+
+    sync_ref("testing", repo_a, repo_tar)
+    repo_tar = storage.tar.TarRepository(tmpdir.join("repo.tar").strpath)
+    sync_ref("testing", repo_tar, repo_b)
+
+    assert repo_b.read_ref("testing")
+    assert repo_b.has_layer(layer.digest())

@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple, Optional, List, cast, BinaryIO
+from typing import Iterator, Tuple, Optional, List, cast, BinaryIO, Dict
 import os
 import io
 import tarfile
@@ -13,10 +13,13 @@ class TagStorage:
 
         self._tar = tar
         self._prefix = "tags/"
+        self._tag_cache: Dict[str, bytes] = {}
 
     def has_tag(self, tag: str) -> bool:
         """Return true if the given tag exists in this storage."""
 
+        if tag in self._tag_cache:
+            return True
         try:
             self.resolve_tag(tag)
         except graph.UnknownReferenceError:
@@ -95,10 +98,14 @@ class TagStorage:
         spec = tracking.TagSpec(tag)
         filepath = os.path.join(self._prefix, spec.path + _TAG_EXT)
         blocks = []
+        reader: BinaryIO
         try:
-            reader = self._tar.extractfile(filepath)
-            if reader is None:
-                raise KeyError(tag)
+            if spec.path in self._tag_cache:
+                reader = io.BytesIO(self._tag_cache[spec.path])
+            else:
+                reader = self._tar.extractfile(filepath)  # type: ignore
+                if reader is None:
+                    raise KeyError(tag)
         except (KeyError, OSError):
             raise graph.UnknownReferenceError(f"Unknown tag: {tag}")
 
@@ -172,6 +179,7 @@ class TagStorage:
         info = tarfile.TarInfo(filepath)
         info.size = size + encoding.INT_SIZE
         self._tar.addfile(info, tag_file)
+        self._tag_cache[tag.path] = tag_file.getvalue()
 
     def remove_tag_stream(self, tag: str) -> None:
         """Remove an entire tag and all related tag history."""
