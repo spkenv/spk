@@ -8,6 +8,6 @@ from ._repository import Repository
 from ._registry import register_scheme, open_repository
 
 # automatically registered implementations
-from . import fs
+from . import fs, tar
 
 __all__ = list(locals().keys())

@@ -1,32 +1,42 @@
+from typing import Iterable, Any
 import stat
 import pytest
 import py.path
 
 from .. import tracking
-from .fs import FSDatabase, TagStorage, FSRepository, FSPayloadStorage
+from . import fs, tar
+from ._repository import Repository
 from ._layer import Layer
 from ._manifest import Manifest, ManifestViewer
 
 
-def test_find_aliases(tmpdir: py.path.local) -> None:
+@pytest.fixture(params=["fs", "tar"])
+def tmprepo(request: Any, tmpdir: py._path.local.LocalPath) -> Iterable[Repository]:
+
+    if request.param == "fs":
+        tmpdir = tmpdir.join("repo")
+        yield fs.FSRepository(tmpdir.strpath, create=True)
+    else:
+        yield tar.TarRepository(tmpdir.join("repo.tar").strpath)
+
+
+def test_find_aliases(tmpdir: py.path.local, tmprepo: Repository) -> None:
 
     tmpdir = tmpdir.join("repo")
-    repo = FSRepository(tmpdir.strpath, create=True)
+    tmprepo = fs.FSRepository(tmpdir.strpath, create=True)
     with pytest.raises(ValueError):
-        repo.find_aliases("not-existant")
+        tmprepo.find_aliases("not-existant")
 
     tmpdir.join("data", "file.txt").ensure()
-    manifest = repo.commit_dir(tmpdir.join("data").strpath)
-    layer = repo.create_layer(Manifest(manifest))
-    repo.tags.push_tag("test-tag", layer.digest())
+    manifest = tmprepo.commit_dir(tmpdir.join("data").strpath)
+    layer = tmprepo.create_layer(Manifest(manifest))
+    tmprepo.tags.push_tag("test-tag", layer.digest())
 
-    assert repo.find_aliases(layer.digest().str()) == ["test-tag"]
-    assert repo.find_aliases("test-tag") == [layer.digest().str()]
+    assert tmprepo.find_aliases(layer.digest().str()) == ["test-tag"]
+    assert tmprepo.find_aliases("test-tag") == [layer.digest().str()]
 
 
-def test_commit_mode(tmpdir: py.path.local) -> None:
-
-    repo = FSRepository(tmpdir.join("repo").strpath, create=True)
+def test_commit_mode(tmpdir: py.path.local, tmprepo: Repository) -> None:
 
     datafile_path = "dir1.0/dir2.0/file.txt"
     symlink_path = "dir1.0/dir2.0/file2.txt"
@@ -37,34 +47,32 @@ def test_commit_mode(tmpdir: py.path.local) -> None:
     src_dir.join(symlink_path).mksymlinkto(link_dest)
     link_dest.chmod(0o444)
 
-    manifest = repo.commit_dir(src_dir.strpath)
+    manifest = tmprepo.commit_dir(src_dir.strpath)
+    if not isinstance(tmprepo, ManifestViewer):
+        pytest.skip("Nothing to test for repo that is not a ManifestViewer")
+        return
 
-    assert isinstance(repo, ManifestViewer)
-    rendered_dir = repo.render_manifest(Manifest(manifest))
+    rendered_dir = tmprepo.render_manifest(Manifest(manifest))
     rendered_symlink = py.path.local(rendered_dir).join(symlink_path)
     assert stat.S_ISLNK(rendered_symlink.lstat().mode)
 
     symlink_entry = manifest.get_path(symlink_path)
-    payloads = repo.payloads
-    assert isinstance(payloads, FSPayloadStorage)
+    payloads = tmprepo.payloads
+    assert isinstance(payloads, fs.FSPayloadStorage)
     symlink_blob = py.path.local(payloads._build_digest_path(symlink_entry.object))
     assert not stat.S_ISLNK(symlink_blob.lstat().mode)
 
 
-def test_commit_broken_link(tmpdir: py.path.local) -> None:
-
-    repo = FSRepository(tmpdir.join("repo").strpath, create=True)
+def test_commit_broken_link(tmpdir: py.path.local, tmprepo: Repository) -> None:
 
     src_dir = tmpdir.join("source").ensure(dir=True)
     src_dir.join("broken-link").mksymlinkto("nonexistant")
 
-    manifest = repo.commit_dir(src_dir.strpath)
+    manifest = tmprepo.commit_dir(src_dir.strpath)
     assert manifest.get_path("broken-link") is not None
 
 
-def test_commit_dir(tmpdir: py.path.local) -> None:
-
-    repo = FSRepository(tmpdir.join("repo").strpath, create=True)
+def test_commit_dir(tmpdir: py.path.local, tmprepo: Repository) -> None:
 
     src_dir = tmpdir.join("source")
     src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
@@ -72,6 +80,6 @@ def test_commit_dir(tmpdir: py.path.local) -> None:
     src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
     src_dir.join("file.txt").write("rootdata", ensure=True)
 
-    manifest = Manifest(repo.commit_dir(src_dir.strpath))
-    manifest2 = Manifest(repo.commit_dir(src_dir.strpath))
+    manifest = Manifest(tmprepo.commit_dir(src_dir.strpath))
+    manifest2 = Manifest(tmprepo.commit_dir(src_dir.strpath))
     assert manifest.digest() == manifest2.digest()
