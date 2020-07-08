@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 import time
 import queue
 import shutil
@@ -18,11 +18,12 @@ _SYNC_ERROR_QUEUE: "multiprocessing.Queue[Exception]" = multiprocessing.Queue(10
 _SYNC_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
 
 
-def push_ref(ref: str, remote_name: str) -> graph.Object:
+def push_ref(ref: str, remote: Union[storage.Repository, str]) -> graph.Object:
 
     config = get_config()
     local = config.get_repository()
-    remote = config.get_remote(remote_name)
+    if not isinstance(remote, storage.Repository):
+        remote = config.get_remote(remote)
     return sync_ref(ref, local, remote)
 
 
@@ -108,31 +109,35 @@ def sync_layer(
         return
 
     _LOGGER.info("syncing layer", digest=layer.digest())
-    spawn_count = 0
     _SYNC_DONE_COUNTER.value = 0
-    results = []
-    manifest = src.read_manifest(layer.manifest)
-    for entry in manifest.iter_entries():
-
-        if entry.kind is not tracking.EntryKind.BLOB:
-            continue
-        result = worker_pool.apply_async(
-            _SYNC_ENTRY, (entry, src.address(), dest.address())
-        )
-        results.append(result)
-        spawn_count += 1
-
-    last_report = datetime.now().timestamp()
-    current_count = _SYNC_DONE_COUNTER.value
     errors: List[Exception] = []
-    while current_count < spawn_count:
-        time.sleep(0.1)
+    manifest = src.read_manifest(layer.manifest)
+
+    entries = list(
+        filter(lambda e: e.kind is tracking.EntryKind.BLOB, manifest.iter_entries())
+    )
+    last_report = datetime.now().timestamp()
+    total_count = len(entries)
+    current_count = -1
+    while current_count < total_count:
         current_count = _SYNC_DONE_COUNTER.value
         now = datetime.now().timestamp()
 
+        try:
+            entry = entries.pop()
+        except IndexError:
+            time.sleep(0.1)
+        else:
+            if dest.concurrent():
+                worker_pool.apply_async(
+                    _SYNC_ENTRY, (entry, src.address(), dest.address())
+                )
+            else:
+                _SYNC_ENTRY_LOCAL(entry, src, dest)
+
         if now - last_report > _SYNC_LOG_UPDATE_INTERVAL_SECONDS:
-            percent_done = (current_count / spawn_count) * 100
-            progress_message = f"{percent_done:.02f}% ({current_count}/{spawn_count})"
+            percent_done = (current_count / total_count) * 100
+            progress_message = f"{percent_done:.02f}% ({current_count}/{total_count})"
             _LOGGER.info(f"syncing layer data...", progress=progress_message)
             last_report = now
 
@@ -149,15 +154,30 @@ def sync_layer(
     dest.objects.write_object(layer)
 
 
-def _SYNC_ENTRY(entry: tracking.Entry, src_address: str, dest_address: str) -> None:
+def _SYNC_ENTRY(entry: storage.Entry, src_address: str, dest_address: str) -> None:
+    try:
+        src = storage.open_repository(src_address)
+        dest = storage.open_repository(dest_address)
+    except Exception as e:
+        _SYNC_ERROR_QUEUE.put(e)
+        with _SYNC_DONE_COUNTER.get_lock():
+            # read and subsequent write are not atomic unless lock is held throughout
+            _SYNC_DONE_COUNTER.value += 1
+        return
+    try:
+        _SYNC_ENTRY_LOCAL(entry, src, dest)
+    except Exception as e:
+        _SYNC_ERROR_QUEUE.put(e)
+
+
+def _SYNC_ENTRY_LOCAL(
+    entry: storage.Entry, src: storage.Repository, dest: storage.Repository
+) -> None:
 
     try:
 
         if entry.kind is not tracking.EntryKind.BLOB:
             return
-
-        src = storage.open_repository(src_address)
-        dest = storage.open_repository(dest_address)
 
         if not dest.objects.has_object(entry.object):
             blob = src.objects.read_object(entry.object)
@@ -169,8 +189,7 @@ def _SYNC_ENTRY(entry: tracking.Entry, src_address: str, dest_address: str) -> N
             with src.payloads.open_payload(entry.object) as payload:
                 _LOGGER.debug("syncing payload", digest=entry.object)
                 dest.payloads.write_payload(payload)
-    except Exception as e:
-        _SYNC_ERROR_QUEUE.put(e)
+
     finally:
         with _SYNC_DONE_COUNTER.get_lock():
             # read and subsequent write are not atomic unless lock is held throughout

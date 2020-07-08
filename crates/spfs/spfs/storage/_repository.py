@@ -38,6 +38,10 @@ class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
         """Return the address of this repository."""
         ...
 
+    def concurrent(self) -> bool:
+        """Return true if this repository supports concurrent access."""
+        return False
+
     def has_ref(self, ref: Union[str, encoding.Digest]) -> bool:
 
         try:

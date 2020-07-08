@@ -67,6 +67,9 @@ class FSRepository(Repository, FSManifestViewer):
     def root(self) -> str:
         return self.__root
 
+    def concurrent(self) -> bool:
+        return True
+
     def address(self) -> str:
         return f"file://{self.root}"
 
