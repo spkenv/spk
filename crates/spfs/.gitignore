@@ -12,3 +12,6 @@ spfs.build/
 spfs.dist/
 .venv/
 prof/
+# GENERATED FOR spdev:Pipenv
+.venv/
+# END spdev:Pipenv

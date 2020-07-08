@@ -25,7 +25,5 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 def _push(args: argparse.Namespace) -> None:
     """Push one or more objects to a remote repository."""
 
-    config = spfs.get_config()
-    remote = config.get_remote(args.remote)
     for ref in args.refs:
         spfs.push_ref(ref, args.remote)

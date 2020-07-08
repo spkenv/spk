@@ -1,10 +1,10 @@
-version: 0.19.7
+version: 0.19.8
 release_notes: |
-  * Fix bug where diff command could error for new files
-  * Fix bug where full digest could not be used in sync api
+  * Add the ability to export/import directly to/from tar files
+  * Fix bug where sync could temporarily report in valid progress
 
-environment:
-  kind: PipEnv
+toolchain:
+  - kind: Pipenv
 
 components:
 - name: python
