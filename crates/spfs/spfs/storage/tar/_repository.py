@@ -21,12 +21,6 @@ class TarRepository(Repository):
             filepath = filepath[len("tar:") :]
 
         self.__filepath = os.path.abspath(filepath)
-        print("MAKE")
-        import inspect
-
-        f = inspect.currentframe()
-        for frame in inspect.getouterframes(f, 3):
-            print(f"{frame[1]}:{frame[2]}", frame[3])
         if os.path.exists(self.__filepath):
             self._tar = tarfile.open(filepath, "r")
         else:

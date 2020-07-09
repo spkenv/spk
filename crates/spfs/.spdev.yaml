@@ -1,7 +1,6 @@
-version: 0.19.8
+version: 0.19.9
 release_notes: |
-  * Add the ability to export/import directly to/from tar files
-  * Fix bug where sync could temporarily report in valid progress
+  * Remove confusing output for tar repo
 
 toolchain:
   - kind: Pipenv
