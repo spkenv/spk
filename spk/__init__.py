@@ -21,4 +21,5 @@ from .build import (
     BuildError,
     CollectionError,
 )
+from .storage import export_package, import_package
 from .exec import setup_current_runtime, create_runtime
