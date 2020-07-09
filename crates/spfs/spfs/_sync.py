@@ -80,6 +80,9 @@ def sync_object(
         sync_layer(obj, src, dest)
     elif isinstance(obj, storage.Platform):
         sync_platform(obj, src, dest)
+    elif isinstance(obj, storage.Blob):
+        _LOGGER.info("syncing blob", digest=obj.digest())
+        dest.commit_blob(src.payloads.open_payload(obj.digest()))
     else:
         raise NotImplementedError("Push: Unhandled object of type: " + str(type(obj)))
 

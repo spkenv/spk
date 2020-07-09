@@ -1,6 +1,9 @@
 version: 0.19.9
 release_notes: |
   * Remove confusing output for tar repo
+  * Fix bug in reading tags from tar archive
+  * Remove spfs import from setup.py
+  * Allow blobs to by synced directly by digest/tag
 
 toolchain:
   - kind: Pipenv

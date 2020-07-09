@@ -1,7 +1,5 @@
 from setuptools import setup, find_packages
 
-import spfs
-
 setup(
     name="spfs",
     version="0.19.8",

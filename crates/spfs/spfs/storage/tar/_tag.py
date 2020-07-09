@@ -83,7 +83,7 @@ class TagStorage:
                 continue
             if not info.name.endswith(_TAG_EXT):
                 continue
-            filepath = info.name[len(self._prefix)]
+            filepath = info.name[len(self._prefix) :]
             tag = filepath[: -len(_TAG_EXT)]
             spec = tracking.TagSpec(tag)
             yield (spec, self.read_tag(tag))
