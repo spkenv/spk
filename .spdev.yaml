@@ -1,6 +1,6 @@
-version: 0.7.3
+version: 0.7.4
 release_notes: |
-  * Update ls command to be more callable programatically
+  * Fix bug where importing a file that doesn't exist would not fail
 
 toolchain:
 - kind: Shell

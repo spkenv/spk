@@ -1,4 +1,5 @@
 from typing import Union
+import os
 
 import spfs
 
@@ -30,6 +31,10 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
 
 def import_package(filename: str) -> None:
 
+    # spfs by default will create a new tar file if the file
+    # does not exist, but we want to ensure that for importing,
+    # the archive is already present
+    os.stat(filename)
     tar_spfs_repo = spfs.storage.tar.TarRepository(filename)
     dst_repo = local_repository().as_spfs_repo()
     for tag, _ in tar_spfs_repo.tags.iter_tags():
