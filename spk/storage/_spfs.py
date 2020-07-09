@@ -95,6 +95,14 @@ class SpFSRepository(Repository):
         with self._repo.payloads.open_payload(tag.target) as spec_file:
             return api.read_spec(spec_file)
 
+    def remove_spec(self, pkg: api.Ident) -> None:
+
+        tag_str = self.build_spec_tag(pkg)
+        try:
+            self._repo.tags.remove_tag_stream(tag_str)
+        except spfs.graph.UnknownReferenceError:
+            raise PackageNotFoundError(pkg) from None
+
     def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
         tag_string = self.build_package_tag(spec.pkg)
@@ -107,7 +115,15 @@ class SpFSRepository(Repository):
         try:
             return self._repo.tags.resolve_tag(tag_str).target
         except spfs.graph.UnknownReferenceError:
-            raise PackageNotFoundError(tag_str)
+            raise PackageNotFoundError(tag_str) from None
+
+    def remove_package(self, pkg: api.Ident) -> None:
+
+        tag_str = self.build_package_tag(pkg)
+        try:
+            self._repo.tags.remove_tag_stream(tag_str)
+        except spfs.graph.UnknownReferenceError:
+            raise PackageNotFoundError(pkg) from None
 
     def build_package_tag(self, pkg: api.Ident) -> str:
         """Construct an spfs tag string to represent a binary package layer."""
@@ -119,7 +135,7 @@ class SpFSRepository(Repository):
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spk/spec/{pkg}"
+        return f"spk/spec/{pkg.with_build(None)}"
 
 
 def local_repository() -> SpFSRepository:

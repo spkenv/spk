@@ -68,6 +68,16 @@ class Repository(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def remove_spec(self, pkg: api.Ident) -> None:
+        """Remove a package version from this repository.
+
+        This will not untag builds for this package, but make it unresolvable
+        and unsearchable. It's recommended that you remove all existing builds
+        before removing the spec in order to keep the repository clean.
+        """
+        pass
+
+    @abc.abstractmethod
     def force_publish_spec(self, spec: api.Spec) -> None:
         """Publish a package spec to this repository.
 
@@ -82,5 +92,13 @@ class Repository(metaclass=abc.ABCMeta):
 
         The published digest is expected to identify an spfs layer which contains
         the propery constructed binary package files and metadata.
+        """
+        pass
+
+    @abc.abstractmethod
+    def remove_package(self, pkg: api.Ident) -> None:
+        """Remove a package from this repository.
+
+        The given package identifier must identify a full package build
         """
         pass

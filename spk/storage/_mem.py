@@ -10,7 +10,6 @@ from ._repository import Repository, VersionExistsError, PackageNotFoundError
 class MemRepository(Repository):
     def __init__(self) -> None:
         self._specs: Dict[str, Dict[str, api.Spec]] = {}
-        self._sources: Dict[str, Dict[str, spfs.encoding.Digest]] = {}
         self._packages: Dict[
             str, Dict[str, Dict[str, Tuple[api.Spec, spfs.encoding.Digest]]]
         ] = {}
@@ -73,6 +72,13 @@ class MemRepository(Repository):
             raise VersionExistsError(version)
         versions[version] = spec
 
+    def remove_spec(self, pkg: api.Ident) -> None:
+
+        try:
+            del self._specs[pkg.name][str(pkg.version)]
+        except KeyError:
+            raise PackageNotFoundError(pkg)
+
     def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
         if spec.pkg.build is None:
@@ -86,3 +92,14 @@ class MemRepository(Repository):
         self._packages[spec.pkg.name].setdefault(version, {})
         build = spec.pkg.build.digest
         self._packages[spec.pkg.name][version][build] = (spec.clone(), digest)
+
+    def remove_package(self, pkg: api.Ident) -> None:
+
+        if pkg.build is None:
+            raise ValueError(
+                "Package must include a build in order to be removed: " + str(spec.pkg)
+            )
+        try:
+            del self._packages[pkg.name][str(pkg.version)][pkg.build.digest]
+        except KeyError:
+            raise PackageNotFoundError(pkg)
