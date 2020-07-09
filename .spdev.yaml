@@ -1,7 +1,6 @@
-version: 0.7.2
+version: 0.7.3
 release_notes: |
-  * Add import/export functionality to create tar archives of packages
-    * Mainly to support CI workflows and artifacts
+  * Update ls command to be more callable programatically
 
 toolchain:
 - kind: Shell

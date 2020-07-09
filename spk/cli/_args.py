@@ -94,12 +94,7 @@ def configure_spops() -> None:
 
 def configure_logging(args: argparse.Namespace) -> None:
 
-    if "CI" in os.environ:
-        # gitlab will show the colored output nicely even though it's
-        # not a shell environment so force to color to remain
-        colorama.init(strip=False)
-    else:
-        colorama.init()
+    colorama.init()
 
     level = logging.INFO
     processors = [

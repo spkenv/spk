@@ -37,6 +37,10 @@ def register(
 def _ls(args: argparse.Namespace) -> None:
     """ls a package into a shared repository."""
 
+    end = "\n"
+    if not sys.stdout.isatty():
+        end = " "
+
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:
         print(
@@ -48,13 +52,13 @@ def _ls(args: argparse.Namespace) -> None:
     if not args.package:
         for repo in repos.values():
             for name in repo.list_packages():
-                print(name)
+                print(name, end=end)
             continue
 
     elif "/" not in args.package:
         for repo in repos.values():
             for version in repo.list_package_versions(args.package):
-                print(version)
+                print(version, end=end)
             continue
 
     else:
@@ -62,19 +66,26 @@ def _ls(args: argparse.Namespace) -> None:
             pkg = spk.api.parse_ident(args.package)
             for build in repo.list_package_builds(pkg):
                 if not build.build or build.build.is_source():
-                    print(spk.io.format_ident(build))
+                    print(spk.io.format_ident(build), end=end)
                     continue
 
-                if isinstance(repo, spk.storage.SpFSRepository):
-                    try:
-                        options = repo.get_package_build_options(build)
-                        print(
-                            spk.io.format_ident(build), spk.io.format_options(options),
-                        )
-                        continue
-                    except FileNotFoundError:
-                        pass
+                if args.verbose:
+                    if isinstance(repo, spk.storage.SpFSRepository):
+                        try:
+                            options = repo.get_package_build_options(build)
+                            print(
+                                spk.io.format_ident(build),
+                                spk.io.format_options(options),
+                                end=end,
+                            )
+                            continue
+                        except FileNotFoundError:
+                            pass
 
-                print(
-                    spk.io.format_ident(build), f"{{ {Fore.RED}??{Fore.RESET} }}",
-                )
+                    print(
+                        spk.io.format_ident(build),
+                        f"{{ {Fore.RED}??{Fore.RESET} }}",
+                        end=end,
+                    )
+                else:
+                    print(spk.io.format_ident(build), end=end)
