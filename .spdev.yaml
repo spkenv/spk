@@ -1,7 +1,7 @@
-version: 0.7.1
+version: 0.7.2
 release_notes: |
-  * Ensure spfs shell env is setup during build
-  * Update make-binary command to also output solver tree for failed build env
+  * Add import/export functionality to create tar archives of packages
+    * Mainly to support CI workflows and artifacts
 
 toolchain:
 - kind: Shell
