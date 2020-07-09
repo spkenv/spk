@@ -1,4 +1,4 @@
-version: 0.19.9
+version: 0.19.10
 release_notes: |
   * Remove confusing output for tar repo
   * Fix bug in reading tags from tar archive
