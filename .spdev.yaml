@@ -1,6 +1,6 @@
-version: 0.7.4
+version: 0.7.5
 release_notes: |
-  * Fix bug where importing a file that doesn't exist would not fail
+  * Add the ability to remove packages and builds from a repo
 
 toolchain:
 - kind: Shell
