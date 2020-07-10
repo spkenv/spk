@@ -97,7 +97,7 @@ class MemRepository(Repository):
 
         if pkg.build is None:
             raise ValueError(
-                "Package must include a build in order to be removed: " + str(spec.pkg)
+                "Package must include a build in order to be removed: " + str(pkg)
             )
         try:
             del self._packages[pkg.name][str(pkg.version)][pkg.build.digest]
