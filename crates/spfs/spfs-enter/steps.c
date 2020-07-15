@@ -246,11 +246,7 @@ char *get_overlay_args()
     }
 
     char *overlay_args = NULL;
-    if (is_mounted(SPFS_DIR)) {
-        format_str = "remount,%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
-    } else{
-        format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
-    }
+    format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
     required_size = strlen(lowerdir_args);
     required_size += strlen(format_str);
     overlay_args = malloc(required_size + 1);
@@ -283,6 +279,33 @@ int mount_env()
         perror("Overlay mount command failed");
         return 1;
     }
+
+}
+
+int unmount_env()
+{
+    if (SPFS_DEBUG) {
+        printf("--> unmounting existing env...\n");
+    }
+    int result;
+    result = umount(SPFS_DIR);
+    if (result != 0) {
+        perror("Failed to unmount "SPFS_DIR);
+        return 1;
+    }
+    return 0;
+}
+
+int unlock_runtime()
+{
+
+    int flags = MS_REMOUNT;
+    int result = mount("none", RUNTIME_DIR, "tmpfs", flags, NULL);
+    if (result != 0) {
+        perror("Failed to unlock runtime");
+        return 1;
+    }
+    return 0;
 
 }
 

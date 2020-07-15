@@ -89,7 +89,9 @@ int main(int argc, char *argv[])
     step_t remount_steps[] = {
         become_root,
         ensure_mounts_already_exist,
+        unmount_env,
         setup_runtime,
+        unlock_runtime,
         mount_env,
         mask_files,
         set_runtime_lock,
