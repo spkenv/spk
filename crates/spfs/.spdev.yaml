@@ -1,6 +1,7 @@
-version: 0.20.1
+version: 0.20.2
 release_notes: |
-  * Fix bug where edit mode could not be re-enabled after disable
+  * Fix bug where reset/remount would fail with 'device or resource busy'
+  * Fix bux where only - could be given as ref during reset
 
 toolchain:
   - kind: Pipenv
