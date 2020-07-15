@@ -1,7 +1,6 @@
-version: 0.20.0
+version: 0.20.1
 release_notes: |
-  * Allow resetting of partial runtime
-    * Update reset command to work like git reset - resetting paths under spfs
+  * Fix bug where edit mode could not be re-enabled after disable
 
 toolchain:
   - kind: Pipenv

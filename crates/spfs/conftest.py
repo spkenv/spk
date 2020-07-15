@@ -60,3 +60,8 @@ def with_install() -> None:
     print(
         "This test requires a privileged install of spfs-enter, and may fail otherwise"
     )
+
+
+assert (
+    "SPFS_RUNTIME" not in os.environ
+), "Already in an SpFS runtime -- not good for testing"
