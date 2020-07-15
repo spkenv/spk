@@ -143,10 +143,10 @@ int become_root()
     }
 }
 
-int setup_runtime()
+int mount_runtime()
 {
     if (SPFS_DEBUG) {
-        printf("--> setting up runtime...\n");
+        printf("--> mounting runtime...\n");
     }
     int result;
     result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, 0);
@@ -154,7 +154,15 @@ int setup_runtime()
         perror("Failed to mount "RUNTIME_DIR);
         return 1;
     }
-    result = mkdir_permissive(RUNTIME_LOWER_DIR);
+    return 0;
+}
+
+int setup_runtime()
+{
+    if (SPFS_DEBUG) {
+        printf("--> setting up runtime...\n");
+    }
+    int result = mkdir_permissive(RUNTIME_LOWER_DIR);
     if (result != 0) {
         perror("Failed to create "RUNTIME_LOWER_DIR);
         return 1;
@@ -238,7 +246,11 @@ char *get_overlay_args()
     }
 
     char *overlay_args = NULL;
-    format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
+    if (is_mounted(SPFS_DIR)) {
+        format_str = "remount,%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
+    } else{
+        format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
+}
     required_size = strlen(lowerdir_args);
     required_size += strlen(format_str);
     overlay_args = malloc(required_size + 1);
@@ -255,7 +267,7 @@ int mount_env()
     }
     char * overlay_args = get_overlay_args();
     if (SPFS_DEBUG) {
-        fprintf(stderr, "/usr/bin/mount -t overlay -o "SPFS_DIR" none %s\n", overlay_args);
+        fprintf(stderr, "/usr/bin/mount -t overlay -o %s none "SPFS_DIR"\n", overlay_args);
     }
     int child_pid = fork();
     if (child_pid == 0) {

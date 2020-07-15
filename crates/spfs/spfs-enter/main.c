@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
         enter_mount_namespace,
         privatize_existing_mounts,
         ensure_mount_targets_exist,
+        mount_runtime,
         setup_runtime,
         mount_env,
         mask_files,
