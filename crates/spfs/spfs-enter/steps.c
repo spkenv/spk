@@ -250,7 +250,7 @@ char *get_overlay_args()
         format_str = "remount,%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
     } else{
         format_str = "%s,upperdir="RUNTIME_UPPER_DIR",workdir="RUNTIME_WORK_DIR;
-}
+    }
     required_size = strlen(lowerdir_args);
     required_size += strlen(format_str);
     overlay_args = malloc(required_size + 1);
@@ -286,15 +286,16 @@ int mount_env()
 
 }
 
-int lock_runtime_if_necessary()
+int set_runtime_lock()
 {
 
-    if (SPFS_EDITABLE) {
-        return 0;
+    int flags = MS_REMOUNT;
+    if (!SPFS_EDITABLE) {
+        flags |= MS_RDONLY;
     }
-    int result = mount("none", RUNTIME_DIR, "tmpfs", MS_REMOUNT | MS_RDONLY, NULL);
+    int result = mount("none", RUNTIME_DIR, "tmpfs", flags, NULL);
     if (result != 0) {
-        perror("Failed to make runtime read-only");
+        perror("Failed to set runtime lock");
         return 1;
     }
     return 0;
