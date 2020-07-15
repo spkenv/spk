@@ -7,6 +7,7 @@ import uuid
 import errno
 import shutil
 import hashlib
+import pathlib
 import subprocess
 import contextlib
 
@@ -103,12 +104,37 @@ class Runtime:
         """
         return self._get_config().editable
 
-    def reset(self) -> None:
+    def reset_stack(self) -> None:
         """Reset the config for this runtime to its default state."""
 
         self._get_config()
         self._config = Config(stack=tuple(), editable=False)
         self._write_config()
+
+    def reset(self, *paths: str) -> None:
+        """Remove working changes from this runtime's upper dir.
+
+        If no paths are specified, reset all changes.
+        """
+        if not paths:
+            paths = ("*",)
+
+        for root, dirs, files in os.walk(self.upper_dir):
+            root_path = pathlib.PurePath(root)
+            for name in files:
+                fullpath = root_path.joinpath(name)
+                relpath = fullpath.relative_to(self.upper_dir)
+                runpath = pathlib.PurePosixPath("/").joinpath(relpath)
+                for path in paths:
+                    if runpath.match(path):
+                        os.remove(fullpath)
+            for name in dirs:
+                fullpath = root_path.joinpath(name)
+                relpath = fullpath.relative_to(self.upper_dir)
+                runpath = pathlib.PurePosixPath("/").joinpath(relpath)
+                for path in paths:
+                    if runpath.match(path):
+                        shutil.rmtree(fullpath)
 
     def is_dirty(self) -> bool:
         """Return true if the upper dir of this runtime has changes."""

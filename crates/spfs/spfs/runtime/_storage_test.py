@@ -82,3 +82,33 @@ def test_storage_list_runtimes(tmpdir: py.path.local) -> None:
     storage.create_runtime()
     storage.create_runtime()
     assert len(storage.list_runtimes()) == 4
+
+
+def test_runtime_reset(tmpdir: py.path.local) -> None:
+
+    storage = Storage(tmpdir.join("root").strpath)
+    runtime = storage.create_runtime()
+    upper_dir = tmpdir.join("upper")
+    runtime.upper_dir = upper_dir.strpath
+
+    upper_dir.join("file").ensure()
+    upper_dir.join("dir/file").ensure()
+    upper_dir.join("dir/dir/dir/file").ensure()
+    upper_dir.join("dir/dir/dir/file2").ensure()
+    upper_dir.join("dir/dir/dir1/file").ensure()
+    upper_dir.join("dir/dir2/dir/file.other").ensure()
+
+    runtime.reset("file.*")
+    assert not upper_dir.join("dir/dir2/dir/file.other").exists()
+    assert upper_dir.join("dir/dir/dir/file2").exists()
+
+    runtime.reset("dir1/")
+    assert upper_dir.join("dir/dir/dir").exists()
+    assert upper_dir.join("dir/dir2").exists()
+
+    runtime.reset("/file")
+    assert upper_dir.join("dir/dir/dir/file").exists()
+    assert not upper_dir.join("file").exists()
+
+    runtime.reset()
+    assert os.listdir(upper_dir.strpath) == []

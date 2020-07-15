@@ -94,7 +94,9 @@ def resolve_stack_to_layers(
             expanded = resolve_stack_to_layers(entry.stack, repo)
             layers.extend(expanded)
         else:
-            raise NotImplementedError(type(entry))
+            raise NotImplementedError(
+                f"Cannot resolve object into a mountable filesystem layer: {type(entry)}"
+            )
     return layers
 
 

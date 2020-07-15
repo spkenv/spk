@@ -1,9 +1,7 @@
-version: 0.19.10
+version: 0.20.0
 release_notes: |
-  * Remove confusing output for tar repo
-  * Fix bug in reading tags from tar archive
-  * Remove spfs import from setup.py
-  * Allow blobs to by synced directly by digest/tag
+  * Allow resetting of partial runtime
+    * Update reset command to work like git reset - resetting paths under spfs
 
 toolchain:
   - kind: Pipenv
@@ -30,3 +28,8 @@ components:
 - kind: HugoDocs
   name: docs
   location: docs
+
+- kind: SentryRelease
+  name: sentry
+  project: spfs
+  deploy.enabled: true
