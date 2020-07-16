@@ -28,22 +28,20 @@ def register(
 def _build(args: argparse.Namespace) -> None:
     """Runs make-source and then make-binary."""
 
+    common_args = []
+    if args.verbose:
+        common_args += ["-" + "v" * args.verbose]
+
     for filename in args.files:
         spec = spk.read_spec_file(filename)
 
-        cmd = ["spk", "make-source", filename]
+        cmd = ["spk", "make-source", filename, *common_args]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)
         proc.wait()
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
-        # FIXME: do not use here argument in the future when src build are setup
-        cmd = [
-            "spk",
-            "make-binary",
-            "--here",
-            filename,
-        ]
+        cmd = ["spk", "make-binary", filename, *common_args]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)
         proc.wait()

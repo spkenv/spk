@@ -65,11 +65,6 @@ def _make_binary(args: argparse.Namespace) -> None:
             spk.save_spec(spec)
         else:
             spec = spk.load_spec(package)
-            if not args.here:
-                # FIXME: build binary package from source package
-                raise NotImplementedError(
-                    "No implementation yet to build from source package"
-                )
 
         base_options = spk.api.host_options()
         repos = _flags.get_repos_from_repo_flags(args).values()
@@ -82,8 +77,9 @@ def _make_binary(args: argparse.Namespace) -> None:
                 .with_options(base_options)
                 .with_options(variant)
                 .with_repositories(repos)
-                .with_source_dir(os.getcwd())
             )
+            if args.here:
+                builder = builder.with_source(os.getcwd())
             try:
                 out = builder.build()
             except spk.SolverError:
