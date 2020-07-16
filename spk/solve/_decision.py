@@ -100,6 +100,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
                     self.history[version] = api.Compatibility(f"no build for {options}")
                 continue
 
+            spec.pkg.set_build(candidate.build)
             compat = self._request.is_satisfied_by(spec)
             if not compat:
                 self.history[version] = compat

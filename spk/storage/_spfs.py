@@ -68,6 +68,8 @@ class SpFSRepository(Repository):
 
     def force_publish_spec(self, spec: api.Spec) -> None:
 
+        spec = spec.clone()
+        spec.pkg.set_build(None)
         meta_tag = self.build_spec_tag(spec.pkg)
         spec_data = api.write_spec(spec)
         digest = self._repo.payloads.write_payload(io.BytesIO(spec_data))
@@ -77,6 +79,7 @@ class SpFSRepository(Repository):
 
     def publish_spec(self, spec: api.Spec) -> None:
 
+        assert spec.pkg.build is None, "Spec must be published with no build"
         meta_tag = self.build_spec_tag(spec.pkg)
         if self._repo.tags.has_tag(meta_tag):
             # BUG(rbottriell): this creates a race condition but is not super dangerous
