@@ -157,7 +157,9 @@ class Version:
 
     def clone(self) -> "Version":
 
-        return Version(self.major, self.minor, self.patch, self.tail)
+        return Version(
+            self.major, self.minor, self.patch, self.tail, self.pre, self.post
+        )
 
 
 def parse_version(version: str) -> Version:
