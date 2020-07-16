@@ -38,7 +38,8 @@ def test_make_source_package(name: str) -> None:
     os.chdir(os.path.join(here, name))
 
     for filename in glob.glob("*.spk.yaml", recursive=False):
-        subprocess.check_call(["spfs", "reset", "--edit", ""])
+        subprocess.Popen(["spfs", "edit"]).wait()
+        subprocess.check_call(["spfs", "reset", "--edit", "-r", "-"])
         try:
             args = spk.cli.parse_args(["make-source", filename, "--no-runtime"])
             args.func(args)
@@ -54,7 +55,8 @@ def test_make_binary_package(name: str) -> None:
 
     os.chdir(os.path.join(here, name))
     for filename in glob.glob("*.spk.yaml", recursive=False):
-        subprocess.check_call(["spfs", "reset", "--edit", ""])
+        subprocess.Popen(["spfs", "edit"]).wait()
+        subprocess.check_call(["spfs", "reset", "--edit", "-r", "-"])
         try:
             cmd = [
                 "make-binary",
@@ -63,6 +65,7 @@ def test_make_binary_package(name: str) -> None:
                 filename,
                 "--enable-repo=/net/libs/spfs",
                 "--no-runtime",
+                "--here",
             ]
             print(cmd)
             args = spk.cli.parse_args(cmd)
