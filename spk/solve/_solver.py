@@ -89,8 +89,16 @@ class Solver:
 
             spec, repo = next(iterator)
             decision.set_resolved(spec, repo)
-            for dep in spec.install.requirements:
-                decision.add_request(dep)
+
+            # a source package should not have install dependencies
+            # added since it has not yet been built / resolved
+            # FIXME: really we might want to be building this package
+            # but there is also a case for including a source package in
+            # and environment... maybe solve build dependencies?
+            # although that will mess with the exisiting build process
+            if spec.pkg.build is None or not spec.pkg.build.is_source():
+                for dep in spec.install.requirements:
+                    decision.add_request(dep)
 
         except StopIteration:
             it: PackageIterator = iterator  # type: ignore
