@@ -68,8 +68,6 @@ class SpFSRepository(Repository):
 
     def force_publish_spec(self, spec: api.Spec) -> None:
 
-        spec = spec.clone()
-        spec.pkg.set_build(None)
         meta_tag = self.build_spec_tag(spec.pkg)
         spec_data = api.write_spec(spec)
         digest = self._repo.payloads.write_payload(io.BytesIO(spec_data))
@@ -138,7 +136,7 @@ class SpFSRepository(Repository):
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spk/spec/{pkg.with_build(None)}"
+        return f"spk/spec/{pkg}"
 
 
 def local_repository() -> SpFSRepository:
