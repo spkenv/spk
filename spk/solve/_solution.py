@@ -83,8 +83,9 @@ class Solution:
         )
         base["LIBRARY_PATH"] = "/spfs/lib" + os.pathsep + base.get("LIBRARY_PATH", "")
 
-        for _, spec, _ in self.items():
+        for solved in self.items():
 
+            spec = solved.spec
             base[f"SPK_PKG_{spec.pkg.name}"] = str(spec.pkg)
             base[f"SPK_PKG_{spec.pkg.name}_VERSION"] = str(spec.pkg.version)
             base[f"SPK_PKG_{spec.pkg.name}_BUILD"] = str(spec.pkg.build)
