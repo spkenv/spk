@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import glob
 import tempfile
@@ -39,4 +40,4 @@ def test_build_package(name: str) -> None:
 
     for filename in glob.glob("*.spk.yaml", recursive=False):
 
-        subprocess.check_call(["spk", "build", "-v", filename])
+        subprocess.check_call([sys.executable, "-m", "spk", "build", "-v", filename])
