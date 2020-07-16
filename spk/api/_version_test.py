@@ -65,4 +65,3 @@ def test_parse_version_clone(string: str) -> None:
     v1 = parse_version(string)
     v2 = v1.clone()
     assert v1 == v2
-    assert str(v2) == string
