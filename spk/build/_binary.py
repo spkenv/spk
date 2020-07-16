@@ -1,4 +1,4 @@
-from typing import List, Iterable, Optional, MutableMapping
+from typing import List, Iterable, Optional, MutableMapping, Union
 import os
 import stat
 import json
@@ -29,6 +29,7 @@ class BinaryPackageBuilder:
     ...         "build": {"script": "echo hello, world"},
     ...      }))
     ...     .with_option("debug", "true")
+    ...     .with_source(".")
     ...     .build()
     ... )
     my-pkg/3I42H3S6
@@ -40,7 +41,7 @@ class BinaryPackageBuilder:
         self._spec: Optional[api.Spec] = None
         self._all_options = api.OptionMap()
         self._pkg_options = api.OptionMap()
-        self._source_dir: str = "."
+        self._source: Union[str, api.Ident] = "."
         self._solver: Optional[solve.Solver] = None
         self._repos: List[storage.Repository] = []
 
@@ -49,6 +50,7 @@ class BinaryPackageBuilder:
 
         builder = BinaryPackageBuilder()
         builder._spec = spec.clone()
+        builder._source = spec.pkg.with_build(api.SRC)
         return builder
 
     def get_build_env_decision_tree(self) -> solve.DecisionTree:
@@ -74,9 +76,9 @@ class BinaryPackageBuilder:
         self._all_options.update(options)
         return self
 
-    def with_source_dir(self, dirname: str) -> "BinaryPackageBuilder":
+    def with_source(self, source: Union[str, api.Ident]) -> "BinaryPackageBuilder":
 
-        self._source_dir = os.path.abspath(dirname)
+        self._source = source
         return self
 
     def with_repository(self, repo: storage.Repository) -> "BinaryPackageBuilder":
@@ -102,17 +104,9 @@ class BinaryPackageBuilder:
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
         self._all_options.update(self._pkg_options)
 
-        self._solver = solve.Solver(self._all_options)
-        for repo in self._repos:
-            self._solver.add_repository(repo)
-
-        for opt in self._spec.build.options:
-            if not isinstance(opt, api.PkgOpt):
-                continue
-            request = opt.to_request(self._pkg_options.get(opt.pkg))
-            self._solver.add_request(request)
-
-        solution = self._solver.solve()
+        solution = self._resolve_source_package()
+        exec.configure_runtime(runtime, solution)
+        solution = self._resolve_build_environment()
         exec.configure_runtime(runtime, solution)
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
@@ -125,16 +119,48 @@ class BinaryPackageBuilder:
         storage.local_repository().publish_package(spec, layer.digest())
         return pkg
 
+    def _resolve_source_package(self) -> solve.Solution:
+
+        self._solver = solve.Solver(self._all_options)
+        self._solver.add_repository(storage.local_repository())
+
+        if isinstance(self._source, api.Ident):
+            self._solver.add_request(self._source)
+
+        return self._solver.solve()
+
+    def _resolve_build_environment(self) -> solve.Solution:
+
+        self._solver = solve.Solver(self._all_options)
+        for repo in self._repos:
+            self._solver.add_repository(repo)
+
+        assert self._spec is not None, "Internal Error: spec is not set"
+        for opt in self._spec.build.options:
+            if not isinstance(opt, api.PkgOpt):
+                continue
+            request = opt.to_request(self._pkg_options.get(opt.pkg))
+            self._solver.add_request(request)
+
+        return self._solver.solve()
+
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]
     ) -> spfs.storage.Layer:
 
+        assert self._spec is not None, "Internal Error: spec is None"
+
         self._build_artifacts(env)
+
+        sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
+
+        runtime = spfs.active_runtime()
+        runtime.reset(sources_dir[len(self._prefix) :])
+        spfs.remount_runtime(runtime)
 
         diffs = spfs.diff()
         validate_build_changeset(diffs, self._prefix)
 
-        runtime = spfs.active_runtime()
         return spfs.commit_layer(runtime)
 
     def _build_artifacts(self, env: MutableMapping[str, str] = None,) -> None:
@@ -158,8 +184,13 @@ class BinaryPackageBuilder:
         env.update(self._all_options.to_environment())
         env["PREFIX"] = self._prefix
 
+        if isinstance(self._source, api.Ident):
+            source_dir = data_path(self._source, prefix=self._prefix)
+        else:
+            source_dir = os.path.abspath(self._source)
+
         cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
-        proc = subprocess.Popen(cmd, cwd=self._source_dir, env=env)
+        proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
         proc.wait()
         if proc.returncode != 0:
             raise BuildError(
@@ -203,4 +234,4 @@ def validate_build_changeset(
             if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
                 continue
         if diff.mode is not spfs.tracking.DiffMode.added:
-            raise BuildError(f"Existing file was modified: {prefix}{diff.path}")
+            raise BuildError(f"Existing file was {diff.mode.name}: {prefix}{diff.path}")
