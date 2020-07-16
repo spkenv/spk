@@ -77,6 +77,7 @@ class SpFSRepository(Repository):
 
     def publish_spec(self, spec: api.Spec) -> None:
 
+        assert spec.pkg.build is None, "Spec must be published with no build"
         meta_tag = self.build_spec_tag(spec.pkg)
         if self._repo.tags.has_tag(meta_tag):
             # BUG(rbottriell): this creates a race condition but is not super dangerous
@@ -135,7 +136,7 @@ class SpFSRepository(Repository):
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spk/spec/{pkg.with_build(None)}"
+        return f"spk/spec/{pkg}"
 
 
 def local_repository() -> SpFSRepository:

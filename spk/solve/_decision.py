@@ -84,14 +84,23 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
                 continue
             options = spec.resolve_all_options(self._options)
 
-            candidate = pkg.with_build(options.digest())
+            if self._request.pkg.build is not None:
+                candidate = pkg.with_build(self._request.pkg.build)
+            else:
+                candidate = pkg.with_build(options.digest())
 
             try:
                 repo.get_package(candidate)
             except storage.PackageNotFoundError:
-                self.history[version] = api.Compatibility(f"no build for {options}")
+                if self._request.pkg.build is not None:
+                    self.history[version] = api.Compatibility(
+                        f"requested build does not exist {str(self._request.pkg.build)}"
+                    )
+                else:
+                    self.history[version] = api.Compatibility(f"no build for {options}")
                 continue
 
+            spec.pkg.set_build(candidate.build)
             compat = self._request.is_satisfied_by(spec)
             if not compat:
                 self.history[version] = compat

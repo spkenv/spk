@@ -98,6 +98,15 @@ The variants section of the build config defines the default set of variants tha
 Make sure that you have defined a build option for whatever you specify in your variants!
 {{% /notice %}}
 
+## Sources
+
+The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be customized with a local path relative to the yaml file if desired.
+
+```yaml
+sources:
+- path: src
+```
+
 ### Install Configuration
 
 The install configuration specifies the environment that your package needs when it is installed or included in an spk environment.

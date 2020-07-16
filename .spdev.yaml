@@ -1,6 +1,9 @@
-version: 0.7.5
+version: 0.8.0
 release_notes: |
-  * Add the ability to remove packages and builds from a repo
+  * Build from source packages by default
+    * The build command will produce a source package and binary package
+    * CWD during binary build will the the source package under /spfs
+    * Any artifacts left under CWD are cleaned and not packaged
 
 toolchain:
 - kind: Shell

@@ -1,4 +1,6 @@
 from typing import Any
+import os
+
 import pytest
 import py.path
 
@@ -41,7 +43,7 @@ def test_build_partifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -
     (
         BinaryPackageBuilder()
         .from_spec(spec)
-        .with_source_dir(tmpdir.strpath)
+        .with_source(tmpdir.strpath)
         ._build_artifacts()
     )
 
@@ -72,8 +74,12 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     )
 
     tmprepo.publish_spec(dep_spec)
-    BinaryPackageBuilder.from_spec(dep_spec).with_repository(tmprepo).build()
-    BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
+    BinaryPackageBuilder.from_spec(dep_spec).with_source(".").with_repository(
+        tmprepo
+    ).build()
+    BinaryPackageBuilder.from_spec(spec).with_source(".").with_repository(
+        tmprepo
+    ).build()
 
 
 def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
@@ -93,8 +99,15 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     )
 
     tmprepo.publish_spec(dep_spec)
-    BinaryPackageBuilder.from_spec(dep_spec).with_repository(tmprepo).build()
-    pkg = BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
+    BinaryPackageBuilder.from_spec(dep_spec).with_source(
+        os.getcwd()
+    ).with_repository(tmprepo).build()
+    pkg = (
+        BinaryPackageBuilder.from_spec(spec)
+        .with_source(os.getcwd())
+        .with_repository(tmprepo)
+        .build()
+    )
 
     spec = tmprepo.read_spec(pkg)
     assert str(spec.install.requirements[0].pkg) == "dep/~1.0"
