@@ -125,7 +125,10 @@ class BinaryPackageBuilder:
         self._solver.add_repository(storage.local_repository())
 
         if isinstance(self._source, api.Ident):
-            self._solver.add_request(self._source)
+            request = (
+                f"{self._source.name}/={self._source.version}/{self._source.build}"
+            )
+            self._solver.add_request(request)
 
         return self._solver.solve()
 
