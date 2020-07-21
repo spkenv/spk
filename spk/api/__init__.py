@@ -12,5 +12,6 @@ from ._version_range import (
 )
 from ._build_spec import BuildSpec, opt_from_dict, VarOpt, PkgOpt
 from ._source_spec import SourceSpec
-from ._spec import Spec, read_spec_file, read_spec, write_spec
 from ._request import Request, parse_ident_range, PreReleasePolicy, InclusionPolicy
+from ._spec import Spec, read_spec_file, read_spec, write_spec
+from ._env_spec import EnvSpec, Env, read_env_spec, read_env_spec_file
