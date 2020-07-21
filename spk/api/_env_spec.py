@@ -3,16 +3,9 @@ from dataclasses import dataclass, field
 import os
 
 import structlog
-from ruamel import yaml
 
 
-from ._ident import Ident, parse_ident
-from ._compat import Compat, parse_compat
 from ._request import Request
-from ._option_map import OptionMap
-from ._build_spec import BuildSpec
-from ._install_spec import InstallSpec
-from ._source_spec import SourceSpec, LocalSource
 
 
 _LOGGER = structlog.get_logger("spk")

@@ -1,15 +1,12 @@
 from typing import Dict, List, Any, Iterable
-from dataclasses import dataclass, field
 
 from ._request import Request
 from ._ident import Ident
+from ._env_spec import Env
 
 
-@dataclass
-class InstallSpec:
+class InstallSpec(Env):
     """A set of structured installation parameters for a package."""
-
-    requirements: List[Request] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -30,15 +27,6 @@ class InstallSpec:
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "InstallSpec":
 
-        spec = InstallSpec()
-
-        requirements = data.pop("requirements", [])
-        if requirements:
-            spec.requirements = list(Request.from_dict(r) for r in requirements)
-
-        if len(data):
-            raise ValueError(
-                f"unrecognized fields in spec.install: {', '.join(data.keys())}"
-            )
-
-        return spec
+        data["env"] = "install"
+        env = Env.from_dict(data)
+        return InstallSpec(env.name, env.requirements)
