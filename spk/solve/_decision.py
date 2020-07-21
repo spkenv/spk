@@ -185,6 +185,11 @@ class Decision:
         self.get_all_unresolved_requests.cache_clear()
         request = self.get_merged_request(spec.pkg.name)  # TODO: should this be passed?
         assert request is not None, "Cannot resolve unrequested package " + str(spec)
+        self.force_set_resolved(request, spec, repo)
+
+    def force_set_resolved(
+        self, request: api.Request, spec: api.Spec, repo: Optional[storage.Repository]
+    ) -> None:
         self._resolved.add(request, spec, repo)
 
     def get_resolved(self) -> Solution:
@@ -323,7 +328,7 @@ class Decision:
         unresolved = {}
         for name, v in requests.items():
             request = self.get_merged_request(name)
-            if request not in resolved:
+            if request and request not in resolved:
                 unresolved[name] = v
 
         return unresolved
@@ -338,7 +343,7 @@ class Decision:
         unresolved = {}
         for name, v in requests.items():
             request = self.get_merged_request(name)
-            if request not in resolved:
+            if request and request not in resolved:
                 unresolved[name] = v
 
         return unresolved

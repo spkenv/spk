@@ -178,8 +178,8 @@ class BinaryPackageBuilder:
         build_options = build_options_path(pkg, prefix=self._prefix)
         build_script = build_script_path(pkg, prefix=self._prefix)
         os.makedirs(metadata_dir, exist_ok=True)
-        with open(build_spec, "w+b") as writer:
-            writer.write(api.write_spec(self._spec))
+        with open(build_spec, "w+b") as bwriter:
+            bwriter.write(api.write_spec(self._spec))
         with open(build_script, "w+") as writer:
             writer.write(self._spec.build.script)
         with open(build_options, "w+") as writer:

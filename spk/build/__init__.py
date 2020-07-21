@@ -4,4 +4,5 @@ from ._binary import (
     BuildError,
     build_options_path,
     build_script_path,
+    build_spec_path,
 )

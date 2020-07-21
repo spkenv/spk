@@ -79,7 +79,9 @@ class RangeIdent:
         except ValueError as e:
             raise ValueError(f"{e} [{self.name}]") from None
 
-        if self.build == other.build or self.build is None:
+        if other.build is None:
+            pass
+        elif self.build == other.build or self.build is None:
             self.build = other.build
         else:
             raise ValueError(f"Incompatible builds: {self} && {other}")
@@ -200,9 +202,10 @@ class Request:
         """Return a serializable dict copy of this request."""
         out = {
             "pkg": str(self.pkg),
-            "include": self.inclusion_policy.name,
             "prereleasePolicy": self.prerelease_policy.name,
         }
+        if self.inclusion_policy is not InclusionPolicy.Always:
+            out["include"] = self.inclusion_policy.name
         if self.pin:
             out["fromBuildEnv"] = self.pin
         return out

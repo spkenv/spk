@@ -3,6 +3,7 @@ from collections import defaultdict
 from functools import lru_cache
 from itertools import chain
 
+from ruamel import yaml
 import structlog
 import spfs
 
@@ -102,7 +103,9 @@ class Solver:
 
         except StopIteration:
             it: PackageIterator = iterator  # type: ignore
-            err = UnresolvedPackageError(request.to_dict(), history=it.history)  # type: ignore
+            err = UnresolvedPackageError(
+                yaml.safe_dump(request.to_dict()).strip(), history=it.history  # type: ignore
+            )
             decision.set_error(err)
             raise err from None
         except SolverError as e:

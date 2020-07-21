@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import os
 
 import structlog
-
+from ruamel import yaml
 
 from ._request import Request
 
