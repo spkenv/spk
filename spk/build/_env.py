@@ -4,8 +4,8 @@ import re
 from .. import api
 
 
-def data_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
-    return f"{prefix}/spk/pkg/{pkg}/"
+def data_path(pkg: api.Ident = None, prefix: str = "/spfs") -> str:
+    return f"{prefix}/spk/pkg/{pkg or ''}"
 
 
 _var_expansion_regex: Optional[Pattern] = None
