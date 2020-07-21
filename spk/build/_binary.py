@@ -112,12 +112,10 @@ class BinaryPackageBuilder:
         spfs.remount_runtime(runtime)
 
         self._spec.render_all_pins(s for _, s, _ in solution.items())
+        self._spec.pkg.set_build(self._pkg_options.digest())
         layer = self._build_and_commit_artifacts(solution.to_environment())
-        pkg = self._spec.pkg.with_build(self._pkg_options.digest())
-        spec = self._spec.clone()
-        spec.pkg = pkg
-        storage.local_repository().publish_package(spec, layer.digest())
-        return pkg
+        storage.local_repository().publish_package(self._spec, layer.digest())
+        return self._spec.pkg
 
     def _resolve_source_package(self) -> solve.Solution:
 
@@ -171,14 +169,17 @@ class BinaryPackageBuilder:
 
         assert self._spec is not None
 
-        pkg = self._spec.pkg.with_build(self._pkg_options.digest())
+        pkg = self._spec.pkg
 
         os.makedirs(self._prefix, exist_ok=True)
 
         metadata_dir = data_path(pkg, prefix=self._prefix)
+        build_spec = build_spec_path(pkg, prefix=self._prefix)
         build_options = build_options_path(pkg, prefix=self._prefix)
         build_script = build_script_path(pkg, prefix=self._prefix)
         os.makedirs(metadata_dir, exist_ok=True)
+        with open(build_spec, "w+b") as writer:
+            writer.write(api.write_spec(self._spec))
         with open(build_script, "w+") as writer:
             writer.write(self._spec.build.script)
         with open(build_options, "w+") as writer:
@@ -200,6 +201,15 @@ class BinaryPackageBuilder:
             raise BuildError(
                 f"Build script returned non-zero exit status: {proc.returncode}"
             )
+
+
+def build_spec_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
+    """Return the file path for the given build's spec.yaml file.
+
+    This file is created during a build and stores the full
+    package spec of what was built.
+    """
+    return os.path.join(data_path(pkg, prefix), "spec.yaml")
 
 
 def build_options_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
