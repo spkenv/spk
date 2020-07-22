@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Union
 import os
+import abc
 from dataclasses import dataclass, field
 
 from ._request import Request, parse_ident_range
@@ -36,15 +37,36 @@ class BuildSpec:
 
         return resolved
 
+    def upsert_opt(self, opt: Union[str, Request, Option]) -> None:
+        """Add or update an option in this build spec.
+
+        An option is replaced if it shares a name with the given option,
+        otherwise the option is appended to the buid options
+        """
+        if isinstance(opt, str):
+            opt = Request(parse_ident_range(opt))
+        if isinstance(opt, Request):
+            opt = opt_from_request(opt)
+        for i, other in enumerate(self.options):
+            if other.name() == opt.name():
+                self.options[i] = opt
+                break
+        else:
+            self.options.append(opt)
+
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        spec: Dict[str, Any] = {
             "options": list(o.to_dict() for o in self.options),
-            "script": self.script.splitlines(),
-            "variants": list(dict(v) for v in self.variants),
         }
+        if self.script != BuildSpec().script:
+            spec["script"] = self.script.splitlines()
+        if self.variants != BuildSpec().variants:
+            spec["variants"] = list(dict(v) for v in self.variants)
+        return spec
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "BuildSpec":
+        """Construct a BuildSpec from a dictionary config."""
 
         bs = BuildSpec()
         if "script" in data:
@@ -79,6 +101,14 @@ def opt_from_dict(data: Dict[str, Any]) -> Union["PkgOpt", "VarOpt"]:
     raise ValueError("Incomprehensible option definition")
 
 
+def opt_from_request(request: Request) -> "PkgOpt":
+    """Create a build option from the given request."""
+
+    return PkgOpt(
+        pkg=request.pkg.name, default=str(request.pkg)[len(request.pkg.name) + 1 :]
+    )
+
+
 @dataclass
 class VarOpt:
 
@@ -90,7 +120,10 @@ class VarOpt:
 
     def to_dict(self) -> Dict[str, Any]:
 
-        return {"var": self.var, "default": self.default}
+        spec = {"var": self.var}
+        if self.default:
+            spec["default"] = self.default
+        return spec
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "VarOpt":
@@ -126,7 +159,10 @@ class PkgOpt:
 
     def to_dict(self) -> Dict[str, Any]:
 
-        return {"pkg": self.pkg, "default": self.default}
+        spec = {"pkg": self.pkg}
+        if self.default:
+            spec["default"] = self.default
+        return spec
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "PkgOpt":

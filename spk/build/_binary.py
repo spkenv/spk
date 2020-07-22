@@ -98,7 +98,7 @@ class BinaryPackageBuilder:
 
         assert (
             self._spec is not None
-        ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
+        ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
         runtime = spfs.active_runtime()
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
@@ -137,14 +137,23 @@ class BinaryPackageBuilder:
         for repo in self._repos:
             self._solver.add_repository(repo)
 
-        assert self._spec is not None, "Internal Error: spec is not set"
-        for opt in self._spec.build.options:
-            if not isinstance(opt, api.PkgOpt):
-                continue
-            request = opt.to_request(self._pkg_options.get(opt.pkg))
+        for request in self.get_build_requirements():
             self._solver.add_request(request)
 
         return self._solver.solve()
+
+    def get_build_requirements(self) -> Iterable[api.Request]:
+        """List the requirements for the build environment."""
+
+        assert (
+            self._spec is not None
+        ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
+
+        opts = self._spec.resolve_all_options(self._all_options)
+        for opt in self._spec.build.options:
+            if not isinstance(opt, api.PkgOpt):
+                continue
+            yield opt.to_request(opts.get(opt.pkg))
 
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]

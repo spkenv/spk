@@ -45,13 +45,14 @@ build:
     # pkg options request packages that need to be present
     # in the build environment. You can specify a version number
     # here as the default for when the option is not otherise specified
-    - pkg: maya
+    - pkg: python
+      default: 3
 
   # variants declares the default set of variants to build and publish
   # using the spk build and make-* commands
   variants:
-    - {{maya: 2020}}
-    - {{maya: 2021}}
+    - {{python: 2.7}}
+    - {{python: 3.7}}
 
   # the build script is arbitrary bash script to be executed for the
   # build. It should be and install artifacts into /spfs
@@ -62,10 +63,8 @@ build:
 
 install:
   requirements:
-    # packages listed here need to be installed/available at run time
-    - pkg: vnp/3
-    - pkg: maya
-      # we can use the version of maya from the build environment to dynamically
+    - pkg: python
+      # we can use the version of python from the build environment to dynamically
       # define the install requirement
       fromBuildEnv: x.x
 """
@@ -77,7 +76,7 @@ def _new(args: argparse.Namespace) -> None:
     name = spk.api.validate_name(args.name[0])
     spec = TEMPLATE.format(name=name)
 
-    spec_file = f"{name}.yaml"
+    spec_file = f"{name}.spk.yaml"
     with open(spec_file, "x") as writer:
         writer.write(spec)
     print("created:", spec_file)

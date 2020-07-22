@@ -1,9 +1,14 @@
+from typing import Union
 import os
+
+import structlog
+from ruamel import yaml
 
 from . import api, build, solve, storage
 
-
+_LOGGER = structlog.get_logger("spk")
 ACTIVE_PREFIX = os.getenv("SPK_ACTIVE_PREFIX", "/spfs")
+ENV_FILENAME = ".spk-env.yaml"
 
 
 class NoEnvironmentError(RuntimeError):
@@ -30,10 +35,3 @@ def current_env() -> solve.Solution:
                 solution.add(request, spec, runtime)
 
     return solution
-
-
-def load_env(name: str = "default", filename: str = "./.spk-env.yaml") -> api.Env:
-    """Load a named environment from an environment spec file."""
-
-    env_spec = api.read_env_spec_file(filename)
-    return env_spec.get_env(name)

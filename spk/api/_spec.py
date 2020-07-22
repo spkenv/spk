@@ -73,7 +73,7 @@ class Spec:
 
     def to_dict(self) -> Dict[str, Any]:
 
-        spec = {
+        spec: Dict[str, Any] = {
             "build": self.build.to_dict(),
             "install": self.install.to_dict(),
         }

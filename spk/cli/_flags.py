@@ -1,7 +1,10 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
+import sys
+import glob
 import argparse
 from collections import OrderedDict
 
+from colorama import Fore
 from ruamel import yaml
 import spk
 
@@ -21,7 +24,7 @@ def add_option_flags(parser: argparse.ArgumentParser) -> None:
 def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
 
     opts = spk.api.host_options()
-    for pair in args.opt:
+    for pair in getattr(args, "opt", []):
 
         name, value = pair.split("=")
         opts[name] = value
@@ -42,23 +45,87 @@ def parse_requests_using_flags(
     args: argparse.Namespace, *requests: str
 ) -> List[spk.api.Request]:
 
+    options = get_options_from_flags(args)
+
     out = []
     for r in requests:
 
-        parsed = yaml.safe_load(r)
-        if isinstance(parsed, str):
-            request = {"pkg": parsed}
+        if "@" in r:
+            spec, _, stage = parse_stage_specifier(r)
+
+            if stage == "source":
+                raise NotImplementedError("'source' stage is not yet supported")
+            elif stage == "build":
+                builder = spk.build.BinaryPackageBuilder.from_spec(spec).with_options(
+                    options
+                )
+                for request in builder.get_build_requirements():
+                    out.append(request)
+
+            elif stage == "install":
+                for request in spec.install.requirements:
+                    out.append(request)
+            else:
+                print(
+                    f"Unknown stage '{stage}', should be one of: 'source', 'build', 'install'"
+                )
+                sys.exit(1)
         else:
-            request = parsed
+            parsed = yaml.safe_load(r)
+            if isinstance(parsed, str):
+                request_data = {"pkg": parsed}
+            else:
+                request_data = parsed
 
-        if args.pre:
-            request.setdefault(
-                "prereleasePolicy", spk.api.PreReleasePolicy.IncludeAll.name
-            )
+            if args.pre:
+                request_data.setdefault(
+                    "prereleasePolicy", spk.api.PreReleasePolicy.IncludeAll.name
+                )
 
-        out.append(spk.api.Request.from_dict(request))
+            out.append(spk.api.Request.from_dict(request_data))
 
     return out
+
+
+def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
+    """Returns the spec, filename and stage for the given specifier."""
+
+    packages = glob.glob("*.spk.yaml")
+    package, stage = specifier.split("@", 1)
+    if not package:
+        if len(packages) == 1:
+            package = packages[0]
+        elif len(packages) > 1:
+            print(
+                f"{Fore.RED}Multiple package specs in current directory{Fore.RESET}",
+                file=sys.stderr,
+            )
+            print(
+                f"{Fore.RED} > please specify a package name or filepath (eg: my-package{specifier}){Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        else:
+            print(
+                f"{Fore.RED}No package specs found in current directory{Fore.RESET}",
+                file=sys.stderr,
+            )
+            print(
+                f"{Fore.RED} > please specify a filepath (eg: spk/my-package.spk.yaml{specifier}){Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    try:
+        spec = spk.api.read_spec_file(package)
+    except FileNotFoundError:
+        for filename in packages:
+            spec = spk.api.read_spec_file(filename)
+            if spec.pkg.name == package:
+                package = filename
+                break
+        else:
+            raise
+    return spec, package, stage
 
 
 def add_repo_flags(

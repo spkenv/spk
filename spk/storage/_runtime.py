@@ -10,18 +10,28 @@ from ._repository import Repository, PackageNotFoundError
 class RuntimeRepository(Repository):
     def list_packages(self) -> Iterable[str]:
         """Return the set of known packages in this repo."""
-        return os.listdir("/spfs/spk/pkg")
+        try:
+            return os.listdir("/spfs/spk/pkg")
+        except FileNotFoundError:
+            return []
 
     def list_package_versions(self, name: str) -> Iterable[str]:
         """Return the set of versions available for the named package."""
-        return os.listdir(f"/spfs/spk/pkg/{name}")
+        try:
+            return os.listdir(f"/spfs/spk/pkg/{name}")
+        except FileNotFoundError:
+            return []
 
     def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
         """Return the set of builds for the given package name and version."""
         if isinstance(pkg, str):
             pkg = api.parse_ident(pkg)
 
-        builds = os.listdir(f"/spfs/spk/pkg/{pkg.name}/{pkg.version}")
+        try:
+            builds = os.listdir(f"/spfs/spk/pkg/{pkg.name}/{pkg.version}")
+        except FileNotFoundError:
+            return
+
         for build in builds:
             yield pkg.with_build(build)
 

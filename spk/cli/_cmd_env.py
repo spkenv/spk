@@ -2,6 +2,7 @@ from typing import Any
 import argparse
 import sys
 import os
+import glob
 
 from ruamel import yaml
 from colorama import Fore, Style
@@ -24,7 +25,7 @@ def register(
     env_cmd = sub_parsers.add_parser("env", help=_env.__doc__, **parser_args)
     env_cmd.add_argument(
         "args",
-        metavar="[@NAME|PKG...] -- [CMD]",
+        metavar="[PKG@STAGE|PKG...] -- [CMD]",
         nargs=argparse.REMAINDER,
         help=(
             "The environment or packages, and optional command to run. "
@@ -49,29 +50,12 @@ def _env(args: argparse.Namespace) -> None:
     requests = args.args[:separator]
     command = args.args[separator + 1 :] or [os.getenv("SHELL", "/bin/bash")]
 
-    if not requests and os.path.exists(".spk-env.yaml"):
-        _LOGGER.info("using local default environment from .spk-env.yaml")
-        requests = ["@default"]
-
     options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
 
-    has_named_env = any(r.startswith("@") for r in requests)
-    if has_named_env:
-        if len(requests) != 1:
-            print(
-                f"{Fore.RED}You can only specify single named environment{Fore.RESET}",
-                file=sys.stderr,
-            )
-        env_name = requests[0].lstrip("@")
-        env_spec = spk.load_env(env_name)
-        for request in env_spec.requirements:
-            solver.add_request(request)
-
-    else:
-        for request in _flags.parse_requests_using_flags(args, *requests):
-            solver.add_request(request)
+    for request in _flags.parse_requests_using_flags(args, *requests):
+        solver.add_request(request)
 
     try:
         solution = solver.solve()

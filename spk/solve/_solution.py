@@ -77,17 +77,25 @@ class Solution:
             base = base.copy()
 
         # TODO: this might not be the right place for this PATH logic...
-        base["PATH"] = "/spfs/bin" + os.pathsep + base.get("PATH", "")
-        base["LD_LIBRARY_PATH"] = (
-            "/spfs/lib" + os.pathsep + base.get("LD_LIBRARY_PATH", "")
+        base["SPK_ACTIVE_PREFIX"] = "/spfs"
+        base["PATH"] = os.pathsep.join(
+            filter(None, ["/spfs/bin", base.get("PATH", "")])
         )
-        base["LIBRARY_PATH"] = "/spfs/lib" + os.pathsep + base.get("LIBRARY_PATH", "")
+        base["LD_LIBRARY_PATH"] = os.pathsep.join(
+            filter(None, ["/spfs/lib", "/spfs/lib64", base.get("LD_LIBRARY_PATH", "")])
+        )
+        base["LIBRARY_PATH"] = os.pathsep.join(
+            filter(None, ["/spfs/lib", "/spfs/lib64", base.get("LIBRARY_PATH", "")])
+        )
 
         for solved in self.items():
 
             spec = solved.spec
             base[f"SPK_PKG_{spec.pkg.name}"] = str(spec.pkg)
             base[f"SPK_PKG_{spec.pkg.name}_VERSION"] = str(spec.pkg.version)
+            base[f"SPK_PKG_{spec.pkg.name}_VERSION_MAJOR"] = str(spec.pkg.version.major)
+            base[f"SPK_PKG_{spec.pkg.name}_VERSION_MINOR"] = str(spec.pkg.version.minor)
+            base[f"SPK_PKG_{spec.pkg.name}_VERSION_PATCH"] = str(spec.pkg.version.patch)
             base[f"SPK_PKG_{spec.pkg.name}_BUILD"] = str(spec.pkg.build)
 
         return base

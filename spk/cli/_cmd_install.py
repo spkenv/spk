@@ -30,9 +30,9 @@ def register(
     install_cmd.add_argument(
         "--save",
         nargs="?",
-        const="default",
-        metavar="NAME",
-        help="Also save this requirement to the local environment file",
+        const="@build",
+        metavar="PKG@STAGE",
+        help="Also save this requirement to the local package spec file",
     )
     install_cmd.add_argument(
         "--yes",
@@ -64,7 +64,29 @@ def _install(args: argparse.Namespace) -> None:
         raise
 
     if args.save:
-        _append_requests_to_environment(requests, args.save)
+        spec, filename, stage = _flags.parse_stage_specifier(args.save)
+        if stage == "source":
+            raise NotImplementedError("'source' stage is not yet supported")
+        elif stage == "build":
+            for r in requests:
+                spec.build.upsert_opt(r)
+
+        elif stage == "install":
+            for r in requests:
+                spec.install.upsert_requirement(r)
+        else:
+            print(
+                f"{Fore.RED}Unknown stage '{stage}', should be one of: 'source', 'build', 'install'{Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        spk.api.save_spec_file(filename, spec)
+        print(f"{Fore.YELLOW}Updated: {filename}{Fore.RESET}")
+        try:
+            spfs.active_runtime()
+        except spfs.NoRuntimeError:
+            return
 
     for solved in env.items():
         solver.decision_tree.root.force_set_resolved(
@@ -114,37 +136,3 @@ def _install(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     spk.setup_current_runtime(packages)
-
-
-def _append_requests_to_environment(
-    requests: List[spk.api.Request], env_name: str
-) -> None:
-
-    with open(".spk-env.yaml", "w+") as reader:
-        data = yaml.round_trip_load(reader) or {}
-    data.setdefault("environments", [])
-    for env in data["environments"]:
-        if env.get("env") == env_name:
-            break
-    else:
-        env = spk.api.Env(env_name, requests).to_dict()
-        data["environments"].append(env)
-
-    env.setdefault("requirements", [])
-    requirements = env["requirements"]
-    for request in requests:
-        for i, r in enumerate(requirements):
-            requirement = spk.api.Request.from_dict(r)
-            if requirement.pkg.name == request.pkg.name:
-                _LOGGER.info(
-                    "updating existing request", pkg=str(request.pkg), env=env_name
-                )
-                requirements[i] = request.to_dict()
-                break
-        else:
-            _LOGGER.info("adding new request", pkg=request.pkg, env=env_name)
-            requirements.append(request.to_dict())
-
-    with open(".spk-env.yaml", "w") as writer:
-        yaml.round_trip_dump(data, writer)
-    _LOGGER.info("Updated: .spk-env.yaml")
