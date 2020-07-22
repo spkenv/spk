@@ -1,6 +1,6 @@
 import os
 
-from . import api, build, solve
+from . import api, build, solve, storage
 
 
 ACTIVE_PREFIX = os.getenv("SPK_ACTIVE_PREFIX", "/spfs")
@@ -16,34 +16,20 @@ class NoEnvironmentError(RuntimeError):
 def current_env() -> solve.Solution:
     """Load the current environment from the spfs file system."""
 
-    metadata_dir = build.data_path(prefix=ACTIVE_PREFIX)
-    try:
-        package_names = os.listdir(metadata_dir)
-    except FileNotFoundError:
-        raise NoEnvironmentError()
-
+    runtime = storage.RuntimeRepository()
     solution = solve.Solution()
-    for name in package_names:
-        versions = os.listdir(os.path.join(metadata_dir, name))
-        for version in versions:
-            builds = os.listdir(os.path.join(metadata_dir, name, version))
-            for digest in builds:
+    for name in runtime.list_packages():
+        for version in runtime.list_package_versions(name):
+            for pkg in runtime.list_package_builds(name + "/" + version):
 
-                pkg = api.parse_ident(f"{name}/{version}/{digest}")
-                spec = _read_installed_spec(pkg)
+                spec = runtime.read_spec(pkg)
                 request = api.Request(
-                    api.parse_ident_range(f"{name}/={version}/{digest}"),
+                    api.parse_ident_range(f"{pkg.name}/={pkg.version}/{pkg.build}"),
                     prerelease_policy=api.PreReleasePolicy.IncludeAll,
                 )
-                solution.add(request, spec, None)
+                solution.add(request, spec, runtime)
 
     return solution
-
-
-def _read_installed_spec(pkg: api.Ident) -> api.Spec:
-
-    path = build.build_spec_path(pkg, ACTIVE_PREFIX)
-    return api.read_spec_file(path)
 
 
 def load_env(name: str = "default", filename: str = "./.spk-env.yaml") -> api.Env:

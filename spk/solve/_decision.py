@@ -188,7 +188,7 @@ class Decision:
         self.force_set_resolved(request, spec, repo)
 
     def force_set_resolved(
-        self, request: api.Request, spec: api.Spec, repo: Optional[storage.Repository]
+        self, request: api.Request, spec: api.Spec, repo: storage.Repository
     ) -> None:
         self._resolved.add(request, spec, repo)
 

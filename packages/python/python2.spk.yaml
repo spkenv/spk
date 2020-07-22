@@ -6,4 +6,4 @@ build:
     - var: os
     - var: centos
   script:
-  - python2.7 -m virtualenv -p python2.7 --download --always-copy --prompt "SPK>PY27>"  /spfs
+  - virtualenv -p python2.7 --download --always-copy --prompt "SPK>PY27>"  /spfs

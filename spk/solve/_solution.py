@@ -7,7 +7,7 @@ from .. import api, storage
 class SolvedRequest(NamedTuple):
     request: api.Request
     spec: api.Spec
-    repo: Optional[storage.Repository] = None
+    repo: storage.Repository
 
 
 class Solution:
@@ -15,9 +15,7 @@ class Solution:
 
     def __init__(self) -> None:
 
-        self._resolved: Dict[
-            api.Request, Tuple[api.Spec, Optional[storage.Repository]]
-        ] = {}
+        self._resolved: Dict[api.Request, Tuple[api.Spec, storage.Repository]] = {}
 
     def __bool__(self) -> bool:
         return bool(self._resolved)
@@ -36,7 +34,7 @@ class Solution:
         return other
 
     def add(
-        self, request: api.Request, package: api.Spec, source: storage.Repository = None
+        self, request: api.Request, package: api.Spec, source: storage.Repository
     ) -> None:
 
         self._resolved[request] = (package, source)

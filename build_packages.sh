@@ -1,12 +1,12 @@
 set -ex
 
-pushd examples/cmake
-spk build example.spk.yaml
-popd
-
 pushd packages/gcc
 spk build gcc48.spk.yaml
 spk build gcc63.spk.yaml
+popd
+
+pushd examples/cmake
+spk build example.spk.yaml
 popd
 
 pushd packages/python
