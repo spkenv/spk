@@ -73,12 +73,15 @@ class Spec:
 
     def to_dict(self) -> Dict[str, Any]:
 
-        return {
-            "pkg": str(self.pkg),
-            "compat": str(self.compat),
+        spec = {
             "build": self.build.to_dict(),
             "install": self.install.to_dict(),
         }
+        if self.compat != Compat():
+            spec["compat"] = str(self.compat)
+        if self.pkg != Ident(""):
+            spec["pkg"] = str(self.pkg)
+        return spec
 
 
 def read_spec_file(filepath: str) -> Spec:
@@ -94,6 +97,56 @@ def read_spec_file(filepath: str) -> Spec:
             source.path = os.path.join(spec_root, source.path)
 
     return spec
+
+
+def save_spec_file(filepath: str, spec: Spec) -> None:
+    """Save the given spec to a file.
+
+    If the named file already exists, update the spec while trying
+    to maintain formatting and comments.
+    """
+
+    try:
+        with open(filepath, "r") as reader:
+            original_data = yaml.round_trip_load(reader)
+    except (FileNotFoundError, yaml.YAMLError):
+        original_data = {}
+
+    new_data = spec.to_dict()
+    _update_dict(original_data, new_data)
+    with open(filepath, "w+") as writer:
+        yaml.round_trip_dump(original_data, writer)
+
+
+def _update_dict(original_data: Dict[str, Any], new_data: Dict[str, Any]) -> None:
+
+    for name, data in new_data.items():
+        if name not in original_data:
+            original_data[name] = data
+            continue
+        if isinstance(data, dict):
+            _update_dict(original_data[name], data)
+        if isinstance(data, list):
+            _update_list(original_data[name], data)
+        else:
+            original_data[name] = data
+    for name in list(original_data.keys()):
+        if name not in new_data:
+            del original_data[name]
+
+
+def _update_list(original_data: List[Any], new_data: List[Any]) -> None:
+
+    for i, data in enumerate(new_data):
+        if i >= len(original_data):
+            original_data.append(data)
+            continue
+        if isinstance(data, dict):
+            _update_dict(original_data[i], data)
+        if isinstance(data, list):
+            _update_list(original_data[i], data)
+    while len(original_data) > len(new_data):
+        original_data.pop(len(new_data))
 
 
 def read_spec(stream: IO[str]) -> Spec:
