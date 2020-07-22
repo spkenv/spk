@@ -1,9 +1,12 @@
-version: 0.8.0
+version: 0.9.0
 release_notes: |
-  * Build from source packages by default
-    * The build command will produce a source package and binary package
-    * CWD during binary build will the the source package under /spfs
-    * Any artifacts left under CWD are cleaned and not packaged
+  * Include published spec in package binary build
+    * So that installed packages can be viewed via /spfs
+  * Update install command to account for existing packages
+  * Add support for local environment files
+    * To enable the creation and tracking of development environments
+      not unlike tools such as pipenv and npm
+
 
 toolchain:
 - kind: Shell
