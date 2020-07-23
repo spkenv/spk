@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from ._option_map import OptionMap
 from ._ident import Ident
 
+import structlog
+
+_LOGGER = structlog.get_logger("spk.api")
+
 
 class SourceSpec(metaclass=abc.ABCMeta):
     def subdir(self) -> Optional[str]:
@@ -36,13 +40,16 @@ class LocalSource(SourceSpec):
 
     def collect(self, dirname: str) -> None:
 
+        dirname = os.path.join(dirname, "")  # require trailing '/' for rsync semantics
+        path = os.path.join(self.path, "")  # require trailing '/' for rsync semantics
         args = ["--recursive", "--archive"]
         if "SPM_DEBUG" in os.environ:
             args.append("--verbose")
-        if os.path.exists(os.path.join(dirname, ".gitignore")):
+        if os.path.exists(os.path.join(path, ".gitignore")):
             args += ["--filter", ":- .gitignore"]
-        args += ["--cvs-exclude", self.path, dirname]
+        args += ["--cvs-exclude", path, dirname]
         cmd = ["rsync"] + args
+        _LOGGER.debug(" ".join(cmd))
         subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
