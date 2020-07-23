@@ -161,15 +161,19 @@ class BinaryPackageBuilder:
 
         assert self._spec is not None, "Internal Error: spec is None"
 
-        self._build_artifacts(env)
+        # self._build_artifacts(env)
 
         sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
         runtime = spfs.active_runtime()
-        runtime.reset(sources_dir[len(self._prefix) :])
+        pattern = os.path.join(sources_dir[len(self._prefix) :], "**", "*")
+        _LOGGER.info("Purging all changes made to source directory", dir=pattern)
+        runtime.reset(pattern)
         spfs.remount_runtime(runtime)
 
+        _LOGGER.info("Calculating package fileset...")
         diffs = spfs.diff()
+        _LOGGER.info("Validating package fileset...")
         validate_build_changeset(diffs, self._prefix)
 
         return spfs.commit_layer(runtime)
@@ -257,4 +261,12 @@ def validate_build_changeset(
             if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
                 continue
         if diff.mode is not spfs.tracking.DiffMode.added:
+            if diff.mode is spfs.tracking.DiffMode.changed and diff.entries:
+                mode_change = diff.entries[0].mode ^ diff.entries[1].mode
+                nonperm_change = (mode_change | 0o777) ^ 0o777
+                if mode_change and not nonperm_change:
+                    # NOTE(rbottriell):permission changes are not properly reset by spfs
+                    # so we must deal with them manually for now
+                    os.chmod(prefix + diff.path, diff.entries[0].mode)
+                    continue
             raise BuildError(f"Existing file was {diff.mode.name}: {prefix}{diff.path}")
