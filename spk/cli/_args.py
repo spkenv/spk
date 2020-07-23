@@ -105,7 +105,7 @@ def configure_logging(args: argparse.Namespace) -> None:
         structlog.stdlib.PositionalArgumentsFormatter(),
     ]
 
-    logging.getLogger("spfs").setLevel(logging.INFO)
+    logging.getLogger("spfs").setLevel(logging.WARNING)
     os.environ["SPK_VERBOSITY"] = str(args.verbose)
     if args.verbose > 0:
         level = logging.DEBUG
@@ -116,8 +116,9 @@ def configure_logging(args: argparse.Namespace) -> None:
                 structlog.processors.format_exc_info,
             ]
         )
+    if args.verbose > 1:
+        logging.getLogger("spfs").setLevel(logging.INFO)
     if args.verbose > 2:
-        os.environ["SPFS_DEBUG"] = "1"
         logging.getLogger("spfs").setLevel(logging.DEBUG)
 
     processors.append(structlog.dev.ConsoleRenderer())
