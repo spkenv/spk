@@ -106,8 +106,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
                 self.history[version] = compat
                 continue
 
-            spec.pkg = candidate
-            return (spec, repo)
+            return (repo.read_spec(candidate), repo)
 
         raise StopIteration
 
