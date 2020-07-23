@@ -91,6 +91,11 @@ def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
     """Returns the spec, filename and stage for the given specifier."""
 
     packages = glob.glob("*.spk.yaml")
+    if "@" not in specifier:
+        raise ValueError(
+            f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
+        )
+
     package, stage = specifier.split("@", 1)
     if not package:
         if len(packages) == 1:
