@@ -161,7 +161,7 @@ class BinaryPackageBuilder:
 
         assert self._spec is not None, "Internal Error: spec is None"
 
-        # self._build_artifacts(env)
+        self._build_artifacts(env)
 
         sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
