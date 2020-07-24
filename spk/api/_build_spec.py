@@ -17,6 +17,10 @@ class Option(metaclass=abc.ABCMeta):
     def name(self) -> str:
         pass
 
+    @abc.abstractmethod
+    def to_dict(self) -> Dict[str, Any]:
+        pass
+
     def set_value(self, value: str) -> None:
         """Assign a value to this option.
 

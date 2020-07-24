@@ -44,28 +44,6 @@ class SpFSRepository(Repository):
         except KeyError:
             return []
 
-    def get_package_build_options(self, pkg: Union[str, api.Ident]) -> api.OptionMap:
-        """Return the set of build options for a package build
-
-        This loads the build options directly out of spfs using the
-        options.json file created at build time.
-        """
-
-        import spk
-
-        if not isinstance(pkg, api.Ident):
-            pkg = api.parse_ident(pkg)
-
-        tag_str = self.build_package_tag(pkg)
-        tag = self._repo.tags.resolve_tag(tag_str)
-        layer = self._repo.read_layer(tag.target)
-        manifest = self._repo.read_manifest(layer.manifest).unlock()
-
-        filepath = spk.build.build_options_path(pkg, "/")
-        entry = manifest.get_path(filepath)
-        with self._repo.payloads.open_payload(entry.object) as reader:
-            return api.OptionMap.from_dict(json.load(reader))
-
     def force_publish_spec(self, spec: api.Spec) -> None:
 
         meta_tag = self.build_spec_tag(spec.pkg)

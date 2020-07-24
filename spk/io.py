@@ -56,7 +56,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
                 iterator = decision.get_iterator(spec.pkg.name)
                 if iterator is not None:
                     versions = list(
-                        f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(api.Ident(spec.pkg.name, v))} - {c}"
+                        f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(api.parse_ident(spec.pkg.name +'/'+ v))} - {c}"
                         for v, c in iterator.history.items()
                     )
                     out += end.join(reversed(versions)) + end
