@@ -32,7 +32,7 @@ class BinaryPackageBuilder:
     ...     .with_source(".")
     ...     .build()
     ... )
-    my-pkg/3I42H3S6
+    my-pkg/0.0.0/3I42H3S6
     """
 
     def __init__(self) -> None:
@@ -113,6 +113,8 @@ class BinaryPackageBuilder:
 
         self._spec.render_all_pins(s for _, s, _ in solution.items())
         self._spec.pkg.set_build(self._pkg_options.digest())
+        for opt in self._spec.build.options:
+            opt.set_value(self._pkg_options.get(opt.name(), ""))
         layer = self._build_and_commit_artifacts(solution.to_environment())
         storage.local_repository().publish_package(self._spec, layer.digest())
         return self._spec.pkg

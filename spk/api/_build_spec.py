@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any, Union, Set
 import os
 import abc
 from dataclasses import dataclass, field
@@ -6,13 +6,40 @@ from dataclasses import dataclass, field
 from ._request import Request, parse_ident_range
 from ._option_map import OptionMap
 from ._name import validate_name
+from ._compat import Compatibility, COMPATIBLE
 
-Option = Union["PkgOpt", "VarOpt"]
+
+class Option(metaclass=abc.ABCMeta):
+    def __init__(self) -> None:
+        self.__value: str = ""
+
+    @abc.abstractmethod
+    def name(self) -> str:
+        pass
+
+    def set_value(self, value: str) -> None:
+        """Assign a value to this option.
+
+        Once a value is assigned, it overrides any 'given' value on future access.
+        """
+
+        self.__value = value
+
+    def get_value(self, given: str = None) -> str:
+        """Return the current value of this option, if set.
+
+        Given is only returned if the option is not currently set to something else.
+        """
+
+        if self.__value:
+            return self.__value
+
+        return given or ""
 
 
 @dataclass
 class BuildSpec:
-    """A set of structured inputs to build a package."""
+    """A set of structured inputs used to build a package."""
 
     script: str = "sh ./build.sh"
     options: List[Option] = field(default_factory=list)
@@ -23,19 +50,25 @@ class BuildSpec:
         for opt in self.options:
 
             name = opt.name()
-            env_var = f"SPM_OPT_{name}"
-            if env_var in os.environ:
-                value = os.environ[env_var]
-
-            elif name in given:
-                value = given[name]
-
+            # TODO: is this an appropriate place? or should
+            # this be handled at the command line?
+            for env_var in (f"SPK_OPT_{name}",):
+                if env_var in os.environ:
+                    given_value = os.environ[env_var]
+                    break
             else:
-                value = opt.default
+                given_value = given.get(name, "")
 
+            value = opt.get_value(given_value)
             resolved[name] = value
 
         return resolved
+
+    def check_build_compatibility(
+        self, given_options: OptionMap, build_options: OptionMap
+    ) -> Compatibility:
+
+        pass
 
     def upsert_opt(self, opt: Union[str, Request, Option]) -> None:
         """Add or update an option in this build spec.
@@ -91,7 +124,7 @@ class BuildSpec:
         return bs
 
 
-def opt_from_dict(data: Dict[str, Any]) -> Union["PkgOpt", "VarOpt"]:
+def opt_from_dict(data: Dict[str, Any]) -> Option:
 
     if "pkg" in data:
         return PkgOpt.from_dict(data)
@@ -110,19 +143,43 @@ def opt_from_request(request: Request) -> "PkgOpt":
 
 
 @dataclass
-class VarOpt:
+class VarOpt(Option):
 
     var: str
     default: str = ""
+    choices: Set[str] = field(default_factory=set)
 
     def name(self) -> str:
         return self.var
+
+    def value(self, given: str = None) -> str:
+
+        assigned = super(VarOpt, self).get_value(given)
+        if assigned:
+            return assigned
+
+        if given is not None:
+            return given
+
+        return self.default
+
+    def set_value(self, value: str) -> None:
+
+        if value and self.choices and value not in self.choices:
+            raise ValueError(
+                f"Invalid value for option {self.var}: '{value}', must be one of {self.choices}"
+            )
+        super(VarOpt, self).set_value(value)
 
     def to_dict(self) -> Dict[str, Any]:
 
         spec = {"var": self.var}
         if self.default:
             spec["default"] = self.default
+
+        base_value = super(VarOpt, self).get_value()
+        if base_value:
+            spec["static"] = base_value
         return spec
 
     @staticmethod
@@ -133,22 +190,46 @@ class VarOpt:
         except KeyError:
             raise ValueError("missing required key for VarOpt: var")
 
-        default = data.pop("default", "")
+        opt = VarOpt(var)
+        opt.default = data.pop("default", "")
+        opt.choices = data.pop("choices", set())
+        opt.set_value(data.pop("static", ""))
 
         if len(data):
             raise ValueError(f"unrecognized fields in var: {', '.join(data.keys())}")
 
-        return VarOpt(var, default=default)
+        return opt
 
 
 @dataclass
-class PkgOpt:
+class PkgOpt(Option):
 
     pkg: str
     default: str = ""
 
     def name(self) -> str:
         return self.pkg
+
+    def value(self, given: str = None) -> str:
+
+        assigned = super(PkgOpt, self).get_value(given)
+        if assigned:
+            return assigned
+
+        if given is not None:
+            return given
+
+        return self.default
+
+    def set_value(self, value: str) -> None:
+
+        try:
+            parse_ident_range(f"{self.pkg}/{value}")
+        except ValueError as err:
+            raise ValueError(
+                f"Invalid value for option {self.pkg}: '{value}', not a valid package request: {err}"
+            )
+        super(PkgOpt, self).set_value(value)
 
     def to_request(self, given_value: str = None) -> Request:
 
@@ -162,6 +243,9 @@ class PkgOpt:
         spec = {"pkg": self.pkg}
         if self.default:
             spec["default"] = self.default
+        base_value = super(PkgOpt, self).get_value()
+        if base_value:
+            spec["static"] = base_value
         return spec
 
     @staticmethod
@@ -179,8 +263,10 @@ class PkgOpt:
         pkg = validate_name(pkg)
 
         default = str(data.pop("default", ""))
+        opt = PkgOpt(pkg, default=default)
+        opt.set_value(data.pop("static", ""))
 
         if len(data):
             raise ValueError(f"unrecognized fields in pkg: {', '.join(data.keys())}")
 
-        return PkgOpt(pkg, default=default)
+        return opt

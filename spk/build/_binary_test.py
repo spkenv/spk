@@ -68,7 +68,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
                     'test "$SPK_PKG_dep_VERSION" == "1.0.0"',
                     'test "$SPK_OPT_dep" == "1.0.0"',
                 ],
-                "options": [{"pkg": "dep", "default": "1.0.0"}],
+                "options": [{"pkg": "dep"}],
             },
         }
     )
@@ -77,9 +77,14 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     BinaryPackageBuilder.from_spec(dep_spec).with_source(".").with_repository(
         tmprepo
     ).build()
-    BinaryPackageBuilder.from_spec(spec).with_source(".").with_repository(
-        tmprepo
-    ).build()
+    pkg = (
+        BinaryPackageBuilder.from_spec(spec)
+        .with_source(".")
+        .with_repository(tmprepo)
+        .with_option("dep", "1.0.0")
+        .build()
+    )
+    assert tmprepo.read_spec(pkg).build.options[0].value() == "1.0.0"
 
 
 def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
@@ -99,9 +104,9 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     )
 
     tmprepo.publish_spec(dep_spec)
-    BinaryPackageBuilder.from_spec(dep_spec).with_source(
-        os.getcwd()
-    ).with_repository(tmprepo).build()
+    BinaryPackageBuilder.from_spec(dep_spec).with_source(os.getcwd()).with_repository(
+        tmprepo
+    ).build()
     pkg = (
         BinaryPackageBuilder.from_spec(spec)
         .with_source(os.getcwd())

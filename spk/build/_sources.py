@@ -27,7 +27,7 @@ class SourcePackageBuilder:
     ...      }))
     ...     .build()
     ... )
-    my-pkg/src
+    my-pkg/0.0.0/src
     """
 
     def __init__(self) -> None:
