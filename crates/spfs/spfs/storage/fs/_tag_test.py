@@ -44,10 +44,28 @@ def test_ls_tags(tmpdir: py.path.local) -> None:
     for tag in (
         "spi/stable/my_tag",
         "spi/stable/other_tag",
+        "spi/stable",
         "spi/latest/my_tag",
     ):
         storage.push_tag(tag, encoding.EMPTY_DIGEST)
 
     assert storage.ls_tags("/") == ["spi"]
-    assert storage.ls_tags("/spi") == ["stable", "latest"]
+    assert storage.ls_tags("/spi") == ["latest", "stable"]
     assert storage.ls_tags("spi/stable") == ["my_tag", "other_tag"]
+
+
+def test_rm_tags(tmpdir: py.path.local) -> None:
+
+    storage = TagStorage(tmpdir.join("tags").strpath)
+    for tag in (
+        "spi/stable/my_tag",
+        "spi/stable/other_tag",
+        "spi/latest/my_tag",
+    ):
+        storage.push_tag(tag, encoding.EMPTY_DIGEST)
+
+    assert storage.ls_tags("/spi") == ["latest", "stable"]
+    storage.remove_tag_stream("spi/stable/my_tag")
+    assert storage.ls_tags("spi/stable") == ["other_tag"]
+    storage.remove_tag_stream("spi/stable/other_tag")
+    assert storage.ls_tags("spi") == ["latest"]

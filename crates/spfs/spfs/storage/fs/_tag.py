@@ -1,6 +1,7 @@
 from typing import Iterator, Tuple, Optional, List
 import os
 import io
+import errno
 import contextlib
 
 from ... import tracking, graph, encoding
@@ -41,10 +42,16 @@ class TagStorage:
             entries = os.listdir(filepath)
         except (FileNotFoundError, NotADirectoryError):
             return []
-        return list(
-            map(
-                lambda x: x if not x.endswith(_TAG_EXT) else x[: -len(_TAG_EXT)],
-                entries,
+        return sorted(
+            list(
+                set(
+                    map(
+                        lambda x: x
+                        if not x.endswith(_TAG_EXT)
+                        else x[: -len(_TAG_EXT)],
+                        entries,
+                    )
+                )
             )
         )
 
@@ -174,8 +181,12 @@ class TagStorage:
         try:
             with _tag_lock(filepath):
                 os.remove(filepath)
+            os.rmdir(os.path.dirname(filepath))
         except FileNotFoundError:
             raise graph.UnknownReferenceError("Unknown tag: " + tag)
+        except OSError as e:
+            if e.errno != errno.ENOTEMPTY:
+                raise
 
     def remove_tag(self, tag: tracking.Tag) -> None:
         """Remove the oldest stored instance of the given tag."""
