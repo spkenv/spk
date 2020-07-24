@@ -50,15 +50,7 @@ class BuildSpec:
         for opt in self.options:
 
             name = opt.name()
-            # TODO: is this an appropriate place? or should
-            # this be handled at the command line?
-            for env_var in (f"SPK_OPT_{name}",):
-                if env_var in os.environ:
-                    given_value = os.environ[env_var]
-                    break
-            else:
-                given_value = given.get(name, "")
-
+            given_value = given.get(name, "")
             value = opt.get_value(given_value)
             resolved[name] = value
 
