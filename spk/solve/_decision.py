@@ -30,7 +30,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._options = options
         self._versions: Optional[Iterator[str]] = None
         self._version_map: Dict[str, storage.Repository] = {}
-        self.history: Dict[api.Version, api.Compatibility] = {}
+        self.history: Dict[str, api.Compatibility] = {}
 
     def _start(self) -> None:
 
@@ -72,7 +72,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
 
             compat = self._request.is_version_applicable(version)
             if not compat:
-                self.history[version] = compat
+                self.history[version_str] = compat
                 continue
 
             pkg = api.Ident(self._request.pkg.name, version)
@@ -82,31 +82,44 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             except ValueError:
                 _LOGGER.error("package disappeared from repo", pkg=pkg, repo=repo)
                 continue
-            options = spec.resolve_all_options(self._options)
 
-            if self._request.pkg.build is not None:
-                candidate = pkg.with_build(self._request.pkg.build)
-            else:
-                candidate = pkg.with_build(options.digest())
-
-            try:
-                repo.get_package(candidate)
-            except storage.PackageNotFoundError:
-                if self._request.pkg.build is not None:
-                    self.history[version] = api.Compatibility(
-                        f"requested build does not exist {str(self._request.pkg.build)}"
-                    )
-                else:
-                    self.history[version] = api.Compatibility(f"no build for {options}")
-                continue
-
-            spec.pkg.set_build(candidate.build)
             compat = self._request.is_satisfied_by(spec)
             if not compat:
-                self.history[version] = compat
+                self.history[version_str] = compat
                 continue
 
-            return (repo.read_spec(candidate), repo)
+            options = spec.resolve_all_options(self._options)
+            if self._request.pkg.build is not None:
+                candidate = pkg.with_build(self._request.pkg.build)
+                try:
+                    build_spec = repo.read_spec(candidate)
+                except storage.PackageNotFoundError:
+                    self.history[version_str] = api.Compatibility(
+                        f"requested build does not exist {str(self._request.pkg.build)}"
+                    )
+                    continue
+                compat = self._request.is_satisfied_by(build_spec)
+                if not compat:
+                    self.history[version] = compat
+                    continue
+            else:
+                for candidate in repo.list_package_builds(pkg):
+                    if candidate.build.is_source():
+                        # TODO: support resolving/building source packages on the fly
+                        continue
+                    build_spec = repo.read_spec(candidate)
+                    compat = self._request.is_satisfied_by(build_spec)
+                    if not compat:
+                        self.history[candidate.version_and_build()] = compat
+                        continue
+                    break
+                else:
+                    self.history[version_str] = api.Compatibility(
+                        f"no build for {options}"
+                    )
+                    continue
+
+            return (build_spec, repo)
 
         raise StopIteration
 

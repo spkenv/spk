@@ -25,13 +25,21 @@ class Ident:
     def __str__(self) -> str:
 
         out = self.name
-        if self.version:
-            out += "/" + str(self.version)
-        if self.build:
-            out += "/" + self.build.digest
+        vb = self.version_and_build()
+        if vb:
+            out += "/" + vb
         return out
 
     __repr__ = __str__
+
+    def version_and_build(self) -> str:
+
+        out = ""
+        if self.version or self.build:
+            out += str(self.version)
+        if self.build:
+            out += "/" + self.build.digest
+        return out
 
     def clone(self) -> "Ident":
         """Create a copy of this identifier."""
