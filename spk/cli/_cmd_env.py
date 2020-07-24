@@ -48,7 +48,7 @@ def _env(args: argparse.Namespace) -> None:
     except ValueError:
         separator = len(args.args)
     requests = args.args[:separator]
-    command = args.args[separator + 1 :] or [os.getenv("SHELL", "/bin/bash")]
+    command = args.args[separator + 1 :] or [""]
 
     options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
