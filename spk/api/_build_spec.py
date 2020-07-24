@@ -144,7 +144,7 @@ class VarOpt(Option):
     def name(self) -> str:
         return self.var
 
-    def value(self, given: str = None) -> str:
+    def get_value(self, given: str = None) -> str:
 
         assigned = super(VarOpt, self).get_value(given)
         if assigned:
@@ -202,7 +202,7 @@ class PkgOpt(Option):
     def name(self) -> str:
         return self.pkg
 
-    def value(self, given: str = None) -> str:
+    def get_value(self, given: str = None) -> str:
 
         assigned = super(PkgOpt, self).get_value(given)
         if assigned:

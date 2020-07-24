@@ -81,10 +81,14 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
         BinaryPackageBuilder.from_spec(spec)
         .with_source(".")
         .with_repository(tmprepo)
-        .with_option("dep", "1.0.0")
+        .with_option("dep", "2.0.0")  # option should be set in final published spec
+        .with_option("top.dep", "1.0.0")  # specific option takes precendence
         .build()
     )
-    assert tmprepo.read_spec(pkg).build.options[0].value() == "1.0.0"
+    build_options = tmprepo.read_spec(pkg).build.resolve_all_options(
+        api.OptionMap({"dep": "7"})  # given value should be ignored after build
+    )
+    assert build_options.get("dep") == "1.0.0"
 
 
 def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:

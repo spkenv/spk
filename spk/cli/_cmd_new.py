@@ -38,9 +38,6 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    # declaring options prefixed by this pacakges name signals
-    # to others that they are not global build settings for any package
-    # - var: {name}_debug # toggle a debug build of this package
 
     # pkg options request packages that need to be present
     # in the build environment. You can specify a version number
@@ -53,6 +50,8 @@ build:
   variants:
     - {{python: 2.7}}
     - {{python: 3.7}}
+    # you can also force option values for specific dependencies with a prefix
+    # - {python: 2.7, vnp3.debug: on}
 
   # the build script is arbitrary bash script to be executed for the
   # build. It should be and install artifacts into /spfs

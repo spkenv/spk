@@ -33,6 +33,7 @@ class Spec:
 
     def resolve_all_options(self, given: OptionMap) -> OptionMap:
 
+        given = given.package_options(self.pkg.name)
         return self.build.resolve_all_options(given)
 
     def sastisfies_request(self, request: Request) -> bool:
