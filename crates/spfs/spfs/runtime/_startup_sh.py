@@ -18,5 +18,5 @@ if [[ "$#" -ne 0 ]]; then
     exit $?
 fi
 
-echo "* You are now in an spfs-configured shell *" 1>&2
+echo "* You are now in an configured subshell shell *" 1>&2
 """

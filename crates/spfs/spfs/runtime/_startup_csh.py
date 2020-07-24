@@ -25,5 +25,5 @@ if ( "$#argv" != 0 ) then
 endif
 
 # csh cannot echo to stderr, only sh can do that :/
-/bin/sh -c "echo '* You are now in an spfs-configured shell *' 1>&2"
+/bin/sh -c "echo '* You are now in an configured subshell *' 1>&2"
 """
