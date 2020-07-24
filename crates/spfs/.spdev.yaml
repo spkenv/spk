@@ -1,7 +1,8 @@
-version: 0.20.2
+version: 0.20.3
 release_notes: |
-  * Fix bug where reset/remount would fail with 'device or resource busy'
-  * Fix bux where only - could be given as ref during reset
+  * Fix bug where metadata-only changes could not be reset
+  * Fix bug where ls-tags could return duplicates of the same name
+  * Fix bug where remove tags did not remove their parent from ls-tags results
 
 toolchain:
   - kind: Pipenv
