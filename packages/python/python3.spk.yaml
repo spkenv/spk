@@ -5,5 +5,11 @@ build:
     - var: arch
     - var: os
     - var: centos
+    - pkg: stdfs
   script:
   - python3.7 -m venv --copies --prompt "SPK>PY37>" /spfs
+install:
+  requirements:
+  - pkg: stdfs
+  - pkg: gcc/4.8              # the current system python uses gcc 4
+    include: IfAlreadyPresent # only included if requested by something else
