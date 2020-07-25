@@ -252,7 +252,9 @@ class PkgOpt(Option):
 
     def validate(self, value: str) -> Compatibility:
 
-        base = self.get_value()
+        # skip any default that might exist since
+        # that does not represent a definitive range
+        base = super(PkgOpt, self).get_value()
         base_range = parse_ident_range(f"{self.pkg}/{base}")
         try:
             value_range = parse_ident_range(f"{self.pkg}/{value}")
