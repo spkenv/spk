@@ -10,7 +10,7 @@ from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request
 from ._option_map import OptionMap
-from ._build_spec import BuildSpec
+from ._build_spec import BuildSpec, PkgOpt
 from ._install_spec import InstallSpec
 from ._source_spec import SourceSpec, LocalSource
 
@@ -31,7 +31,10 @@ class Spec:
     def clone(self) -> "Spec":
         return Spec.from_dict(self.to_dict())
 
-    def resolve_all_options(self, given: OptionMap) -> OptionMap:
+    def resolve_all_options(self, given: Union[OptionMap, Dict[str, Any]]) -> OptionMap:
+
+        if not isinstance(given, OptionMap):
+            given = OptionMap(given)
 
         given = given.package_options(self.pkg.name)
         return self.build.resolve_all_options(given)
@@ -50,10 +53,24 @@ class Spec:
 
         return request.pkg.build == self.pkg.build
 
-    def render_all_pins(self, resolved: Iterable["Spec"]) -> None:
-        """Render all package pins in this spec using the given resolved packages."""
+    def update_for_build(self, options: OptionMap, resolved: List["Spec"]) -> None:
+        """Update this spec to represent a specific binary package build."""
 
         self.install.render_all_pins(s.pkg for s in resolved)
+
+        specs = dict((s.pkg.name, s) for s in resolved)
+        for opt in self.build.options:
+            if not isinstance(opt, PkgOpt):
+                opt.set_value(options.get(opt.name(), ""))
+                continue
+
+            spec = specs.get(opt.pkg)
+            if spec is None:
+                raise ValueError("PkgOpt missing in resolved: " + opt.pkg)
+
+            opt.set_value(str(spec.compat.render(spec.pkg.version)))
+
+        self.pkg.set_build(self.resolve_all_options(options).digest())
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Spec":

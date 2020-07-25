@@ -32,6 +32,9 @@ class Ident:
 
     __repr__ = __str__
 
+    def __hash__(self) -> int:
+        return hash(self.__str__())
+
     def version_and_build(self) -> str:
 
         out = ""

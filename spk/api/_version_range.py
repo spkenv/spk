@@ -53,6 +53,46 @@ class VersionRange(metaclass=abc.ABCMeta):
 
         pass
 
+    def contains(self, other: "VersionRange") -> Compatibility:
+
+        self_lower = self.greater_or_equal_to()
+        self_upper = self.less_than()
+        other_lower = other.greater_or_equal_to()
+        other_upper = other.less_than()
+
+        if self_lower and other_lower:
+            if self_lower > other_lower:
+                return Compatibility(
+                    f"{other} represents a wider range than allowed by {self}"
+                )
+        if self_upper and other_upper:
+            if self_upper < other_upper:
+                return Compatibility(
+                    f"{other} represents a wider range than allowed by {self}"
+                )
+
+        return self.intersects(other)
+
+    def intersects(self, other: "VersionRange") -> Compatibility:
+
+        self_lower = self.greater_or_equal_to()
+        self_upper = self.less_than()
+        other_lower = other.greater_or_equal_to()
+        other_upper = other.less_than()
+
+        if self_upper and other_lower:
+            if self_upper < other_lower:
+                return Compatibility(
+                    f"{other_lower} does not intersect with {self_upper}, all versions too low"
+                )
+        if self_lower and other_upper:
+            if self_lower > other_upper:
+                return Compatibility(
+                    f"{other_upper} does not intersect with {self_lower}, all versions too high"
+                )
+
+        return COMPATIBLE
+
 
 class SemverRange(VersionRange):
     def __init__(self, minimum: Union[str, Version]) -> None:
@@ -361,6 +401,8 @@ class VersionFilter(VersionRange):
     def less_than(self) -> Optional[Version]:
 
         mins = list(v.less_than() for v in self.rules)
+        if not mins:
+            return None
         return min(filter(None, mins))
 
     def is_applicable(self, other: Union[str, Version]) -> Compatibility:
@@ -389,12 +431,44 @@ class VersionFilter(VersionRange):
 
         return COMPATIBLE
 
+    def contains(self, other: VersionRange) -> Compatibility:
+
+        if not isinstance(other, VersionFilter):
+            other = VersionFilter({other})
+
+        new_rules = other.rules - self.rules
+        for new_rule in new_rules:
+            for old_rule in self.rules:
+                compat = old_rule.contains(new_rule)
+                if not compat:
+                    return compat
+
+        return COMPATIBLE
+
+    def intersects(self, other: VersionRange) -> Compatibility:
+
+        if not isinstance(other, VersionFilter):
+            other = VersionFilter({other})
+
+        new_rules = other.rules - self.rules
+        for new_rule in new_rules:
+            for old_rule in self.rules:
+                compat = old_rule.intersects(new_rule)
+                if not compat:
+                    return compat
+
+        return COMPATIBLE
+
     def restrict(self, other: "VersionFilter") -> None:
         """Reduce this range by another
 
         This version range will become restricted to the intersection
         of the current version range and the other.
         """
+
+        compat = self.intersects(other)
+        if not compat:
+            raise ValueError(compat)
 
         self.rules |= other.rules
 

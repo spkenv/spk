@@ -72,6 +72,24 @@ class RangeIdent:
 
         return COMPATIBLE
 
+    def contains(self, other: "RangeIdent") -> Compatibility:
+
+        if other.name != self.name:
+            return Compatibility(
+                f"Version selectors are for different packages: {self.name} != {other.name}"
+            )
+
+        compat = self.version.contains(other.version)
+        if not compat:
+            return compat
+
+        if other.build is None:
+            return COMPATIBLE
+        elif self.build == other.build or self.build is None:
+            return COMPATIBLE
+        else:
+            return Compatibility(f"Incompatible builds: {self} && {other}")
+
     def restrict(self, other: "RangeIdent") -> None:
 
         try:

@@ -29,8 +29,9 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._request = request
         self._options = options
         self._versions: Optional[Iterator[str]] = None
+        self._builds: Optional[Iterator[api.Ident]] = None
         self._version_map: Dict[str, storage.Repository] = {}
-        self.history: Dict[str, api.Compatibility] = {}
+        self.history: Dict[api.Ident, api.Compatibility] = {}
 
     def _start(self) -> None:
 
@@ -47,6 +48,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         versions.sort()
         versions.reverse()
         self._versions = iter(versions)
+        self._builds = iter([])
 
     def clone(self) -> "PackageIterator":
         """Create a copy of this iterator, with the cursor at the same point."""
@@ -55,9 +57,12 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             self._start()
 
         other = PackageIterator(self._repos, self._request, self._options)
-        remaining = list(self._versions or [])
-        other._versions = iter(remaining)
-        self._versions = iter(remaining)
+        remaining_versions = list(self._versions or [])
+        remaining_builds = list(self._builds or [])
+        other._versions = iter(remaining_versions)
+        self._versions = iter(remaining_versions)
+        self._builds = iter(remaining_builds)
+        other._builds = iter(remaining_builds)
         other.history = self.history.copy()
         other._version_map = self._version_map
         return other
@@ -67,12 +72,48 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         if self._versions is None:
             self._start()
 
+        requested_build = self._request.pkg.build
+        for candidate in self._builds or []:
+
+            if requested_build is not None:
+                if requested_build != candidate.build:
+                    continue
+            elif candidate.build.is_source():  # type: ignore
+                # TODO: support resolving/building source packages on the fly
+                continue
+
+            version_str = str(candidate.version)
+            repo = self._version_map[version_str]
+            spec = repo.read_spec(candidate)
+
+            compat = self._request.is_satisfied_by(spec)
+            if not compat:
+                self.history[candidate] = compat
+                continue
+
+            build_options = spec.resolve_all_options({})
+            compat = spec.build.validate_options(self._options)
+            if not compat:
+                self.history[candidate] = compat
+                continue
+
+            return (spec, repo)
+
+        # FIXME: make this work...
+        # self.history[version_str] = api.Compatibility(
+        #     f"no build for {options}"
+        # )
+        self._start_next_version()
+        return self.__next__()
+
+    def _start_next_version(self) -> None:
+
         for version_str in self._versions or []:
             version = api.parse_version(version_str)
 
             compat = self._request.is_version_applicable(version)
             if not compat:
-                self.history[version_str] = compat
+                self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
 
             pkg = api.Ident(self._request.pkg.name, version)
@@ -85,41 +126,11 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
 
             compat = self._request.is_satisfied_by(spec)
             if not compat:
-                self.history[version_str] = compat
+                self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
 
-            options = spec.resolve_all_options(self._options)
-            if self._request.pkg.build is not None:
-                candidate = pkg.with_build(self._request.pkg.build)
-                try:
-                    build_spec = repo.read_spec(candidate)
-                except storage.PackageNotFoundError:
-                    self.history[version_str] = api.Compatibility(
-                        f"requested build does not exist {str(self._request.pkg.build)}"
-                    )
-                    continue
-                compat = self._request.is_satisfied_by(build_spec)
-                if not compat:
-                    self.history[version] = compat
-                    continue
-            else:
-                for candidate in repo.list_package_builds(pkg):
-                    if candidate.build.is_source():
-                        # TODO: support resolving/building source packages on the fly
-                        continue
-                    build_spec = repo.read_spec(candidate)
-                    compat = self._request.is_satisfied_by(build_spec)
-                    if not compat:
-                        self.history[candidate.version_and_build()] = compat
-                        continue
-                    break
-                else:
-                    self.history[version_str] = api.Compatibility(
-                        f"no build for {options}"
-                    )
-                    continue
-
-            return (build_spec, repo)
+            self._builds = iter(repo.list_package_builds(pkg))
+            return
 
         raise StopIteration
 

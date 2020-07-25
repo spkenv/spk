@@ -111,10 +111,8 @@ class BinaryPackageBuilder:
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
-        self._spec.render_all_pins(s for _, s, _ in solution.items())
-        self._spec.pkg.set_build(self._pkg_options.digest())
-        for opt in self._spec.build.options:
-            opt.set_value(self._pkg_options.get(opt.name(), ""))
+        specs = list(s for _, s, _ in solution.items())
+        self._spec.update_for_build(self._pkg_options, specs)
         layer = self._build_and_commit_artifacts(solution.to_environment())
         storage.local_repository().publish_package(self._spec, layer.digest())
         return self._spec.pkg

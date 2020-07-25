@@ -18,6 +18,10 @@ class Option(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def validate(self, value: str) -> Compatibility:
+        pass
+
+    @abc.abstractmethod
     def to_dict(self) -> Dict[str, Any]:
         pass
 
@@ -60,11 +64,15 @@ class BuildSpec:
 
         return resolved
 
-    def check_build_compatibility(
-        self, given_options: OptionMap, build_options: OptionMap
-    ) -> Compatibility:
+    def validate_options(self, given_options: OptionMap) -> Compatibility:
+        """Validate the given options against the options in this spec."""
 
-        pass
+        for option in self.options:
+            compat = option.validate(given_options.get(option.name(), ""))
+            if not compat:
+                return Compatibility(f"options.{option.name()}: {compat}")
+
+        return COMPATIBLE
 
     def upsert_opt(self, opt: Union[str, Request, Option]) -> None:
         """Add or update an option in this build spec.
@@ -167,6 +175,21 @@ class VarOpt(Option):
             )
         super(VarOpt, self).set_value(value)
 
+    def validate(self, value: str) -> Compatibility:
+
+        assigned = super(VarOpt, self).get_value()
+        if assigned:
+            if assigned == value:
+                return COMPATIBLE
+            return Compatibility(f"Incompatible option: wanted {value}, got {assigned}")
+
+        if value and self.choices and value not in self.choices:
+            return Compatibility(
+                f"Invalid value for option {self.var}: '{value}', must be one of {self.choices}"
+            )
+
+        return COMPATIBLE
+
     def to_dict(self) -> Dict[str, Any]:
 
         spec = {"var": self.var}
@@ -226,6 +249,17 @@ class PkgOpt(Option):
                 f"Invalid value for option {self.pkg}: '{value}', not a valid package request: {err}"
             )
         super(PkgOpt, self).set_value(value)
+
+    def validate(self, value: str) -> Compatibility:
+
+        base = self.get_value()
+        base_range = parse_ident_range(f"{self.pkg}/{base}")
+        try:
+            value_range = parse_ident_range(f"{self.pkg}/{value}")
+        except ValueError as err:
+            return Compatibility(str(err))
+
+        return value_range.contains(base_range)
 
     def to_request(self, given_value: str = None) -> Request:
 
