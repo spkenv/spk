@@ -124,7 +124,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
                 _LOGGER.error("package disappeared from repo", pkg=pkg, repo=repo)
                 continue
 
-            compat = self._request.is_satisfied_by(spec)
+            compat = self._request.pkg.version.is_satisfied_by(spec)
             if not compat:
                 self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
