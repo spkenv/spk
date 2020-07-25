@@ -15,7 +15,7 @@ build:
   - {gcc: 4.8, debug: on}
 
   script:
-  - rm -r build; mkdir build
+  - rm -r build || true; mkdir build
   - cd build
   - CONFIG=Release
   - if [[ "${SPK_OPT_debug}" == "on" ]]; then CONFIG=Debug; fi

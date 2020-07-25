@@ -88,7 +88,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     build_options = tmprepo.read_spec(pkg).build.resolve_all_options(
         api.OptionMap({"dep": "7"})  # given value should be ignored after build
     )
-    assert build_options.get("dep") == "1.0.0"
+    assert build_options.get("dep") == "~1.0.0"
 
 
 def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:

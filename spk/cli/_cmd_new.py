@@ -51,7 +51,7 @@ build:
     - {{python: 2.7}}
     - {{python: 3.7}}
     # you can also force option values for specific dependencies with a prefix
-    # - {python: 2.7, vnp3.debug: on}
+    # - {{python: 2.7, vnp3.debug: on}}
 
   # the build script is arbitrary bash script to be executed for the
   # build. It should be and install artifacts into /spfs
