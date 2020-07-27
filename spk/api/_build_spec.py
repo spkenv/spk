@@ -146,12 +146,17 @@ def opt_from_request(request: Request) -> "PkgOpt":
     )
 
 
-@dataclass
 class VarOpt(Option):
 
     var: str
     default: str = ""
     choices: Set[str] = field(default_factory=set)
+
+    def __init__(self, var: str, default: str = "", choices: Set[str] = None) -> None:
+        self.var = var
+        self.default = default
+        self.choices = choices if choices else set()
+        super(VarOpt, self).__init__()
 
     def name(self) -> str:
         return self.var
@@ -228,11 +233,11 @@ class VarOpt(Option):
         return opt
 
 
-@dataclass
 class PkgOpt(Option):
-
-    pkg: str
-    default: str = ""
+    def __init__(self, pkg: str, default: str = "") -> None:
+        self.pkg = pkg
+        self.default = default
+        super(PkgOpt, self).__init__()
 
     def name(self) -> str:
         return self.pkg

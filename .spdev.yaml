@@ -2,6 +2,7 @@ version: 0.9.1
 release_notes: |
   * Ensure empty yaml files are valid specs
     * This eases the automation process and getting started docs
+  * Fix error 'object has no attribute _Option__value'
 
 
 toolchain:
