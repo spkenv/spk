@@ -10,7 +10,7 @@ from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request
 from ._option_map import OptionMap
-from ._build_spec import BuildSpec
+from ._build_spec import BuildSpec, PkgOpt
 from ._install_spec import InstallSpec
 from ._source_spec import SourceSpec, LocalSource
 
@@ -31,8 +31,12 @@ class Spec:
     def clone(self) -> "Spec":
         return Spec.from_dict(self.to_dict())
 
-    def resolve_all_options(self, given: OptionMap) -> OptionMap:
+    def resolve_all_options(self, given: Union[OptionMap, Dict[str, Any]]) -> OptionMap:
 
+        if not isinstance(given, OptionMap):
+            given = OptionMap(given)
+
+        given = given.package_options(self.pkg.name)
         return self.build.resolve_all_options(given)
 
     def sastisfies_request(self, request: Request) -> bool:
@@ -49,10 +53,24 @@ class Spec:
 
         return request.pkg.build == self.pkg.build
 
-    def render_all_pins(self, resolved: Iterable["Spec"]) -> None:
-        """Render all package pins in this spec using the given resolved packages."""
+    def update_for_build(self, options: OptionMap, resolved: List["Spec"]) -> None:
+        """Update this spec to represent a specific binary package build."""
 
         self.install.render_all_pins(s.pkg for s in resolved)
+
+        specs = dict((s.pkg.name, s) for s in resolved)
+        for opt in self.build.options:
+            if not isinstance(opt, PkgOpt):
+                opt.set_value(options.get(opt.name(), ""))
+                continue
+
+            spec = specs.get(opt.pkg)
+            if spec is None:
+                raise ValueError("PkgOpt missing in resolved: " + opt.pkg)
+
+            opt.set_value(str(spec.compat.render(spec.pkg.version)))
+
+        self.pkg.set_build(self.resolve_all_options(options).digest())
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Spec":
@@ -73,12 +91,15 @@ class Spec:
 
     def to_dict(self) -> Dict[str, Any]:
 
-        return {
-            "pkg": str(self.pkg),
-            "compat": str(self.compat),
+        spec: Dict[str, Any] = {
             "build": self.build.to_dict(),
             "install": self.install.to_dict(),
         }
+        if self.compat != Compat():
+            spec["compat"] = str(self.compat)
+        if self.pkg != Ident(""):
+            spec["pkg"] = str(self.pkg)
+        return spec
 
 
 def read_spec_file(filepath: str) -> Spec:
@@ -94,6 +115,56 @@ def read_spec_file(filepath: str) -> Spec:
             source.path = os.path.join(spec_root, source.path)
 
     return spec
+
+
+def save_spec_file(filepath: str, spec: Spec) -> None:
+    """Save the given spec to a file.
+
+    If the named file already exists, update the spec while trying
+    to maintain formatting and comments.
+    """
+
+    try:
+        with open(filepath, "r") as reader:
+            original_data = yaml.round_trip_load(reader)
+    except (FileNotFoundError, yaml.YAMLError):
+        original_data = {}
+
+    new_data = spec.to_dict()
+    _update_dict(original_data, new_data)
+    with open(filepath, "w+") as writer:
+        yaml.round_trip_dump(original_data, writer)
+
+
+def _update_dict(original_data: Dict[str, Any], new_data: Dict[str, Any]) -> None:
+
+    for name, data in new_data.items():
+        if name not in original_data:
+            original_data[name] = data
+            continue
+        if isinstance(data, dict):
+            _update_dict(original_data[name], data)
+        if isinstance(data, list):
+            _update_list(original_data[name], data)
+        else:
+            original_data[name] = data
+    for name in list(original_data.keys()):
+        if name not in new_data:
+            del original_data[name]
+
+
+def _update_list(original_data: List[Any], new_data: List[Any]) -> None:
+
+    for i, data in enumerate(new_data):
+        if i >= len(original_data):
+            original_data.append(data)
+            continue
+        if isinstance(data, dict):
+            _update_dict(original_data[i], data)
+        if isinstance(data, list):
+            _update_list(original_data[i], data)
+    while len(original_data) > len(new_data):
+        original_data.pop(len(new_data))
 
 
 def read_spec(stream: IO[str]) -> Spec:

@@ -12,13 +12,14 @@ The `spk build` command runs in two distinct phases, each with a small number of
 1. make the source package
   1. load the package spec
   1. setup a source directory under `/spfs/spk/pkg/<name>/<version>/src/`
-  1. collect the source files defined in the package yaml file
+  1. collect the source files defined in the [package yaml file](../spec#Sources)
   1. validate the collected source files
   1. store the source package and it's spec in the local repository
 1. make the binary package
   1. load the package spec
   1. resolve the build environment / build dependencies
-  1. execute the build script, which installs files under `/spfs`
+  1. execute the build script (in the source directory, see above)
+  1. purge any changes made under the source directory
   1. validate the installed package files
   1. store the package and it's spec in the local repository
 

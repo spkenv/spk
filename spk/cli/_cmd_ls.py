@@ -70,21 +70,11 @@ def _ls(args: argparse.Namespace) -> None:
                     continue
 
                 if args.verbose:
-                    if isinstance(repo, spk.storage.SpFSRepository):
-                        try:
-                            options = repo.get_package_build_options(build)
-                            print(
-                                spk.io.format_ident(build),
-                                spk.io.format_options(options),
-                                end=end,
-                            )
-                            continue
-                        except FileNotFoundError:
-                            pass
-
+                    spec = repo.read_spec(build)
+                    options = spec.resolve_all_options(spk.api.OptionMap({}))
                     print(
                         spk.io.format_ident(build),
-                        f"{{ {Fore.RED}??{Fore.RESET} }}",
+                        spk.io.format_options(options),
                         end=end,
                     )
                 else:

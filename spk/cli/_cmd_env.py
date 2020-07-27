@@ -2,6 +2,7 @@ from typing import Any
 import argparse
 import sys
 import os
+import glob
 
 from ruamel import yaml
 from colorama import Fore, Style
@@ -24,11 +25,11 @@ def register(
     env_cmd = sub_parsers.add_parser("env", help=_env.__doc__, **parser_args)
     env_cmd.add_argument(
         "args",
-        metavar="[PKG...] -- [CMD]",
+        metavar="[PKG@STAGE|PKG...] -- [CMD]",
         nargs=argparse.REMAINDER,
         help=(
-            "The packages and optional command to run, "
-            "use '--' to separate packages from command or if no command is given "
+            "The environment or packages, and optional command to run. "
+            "Use '--' to separate packages from command or if no command is given "
             "spawn a new shell"
         ),
     )
@@ -47,7 +48,7 @@ def _env(args: argparse.Namespace) -> None:
     except ValueError:
         separator = len(args.args)
     requests = args.args[:separator]
-    command = args.args[separator + 1 :] or [os.getenv("SHELL", "/bin/bash")]
+    command = args.args[separator + 1 :] or [""]
 
     options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
@@ -66,10 +67,17 @@ def _env(args: argparse.Namespace) -> None:
                     solver.decision_tree, verbosity=args.verbose
                 )
             )
-        if args.verbose < 2:
-            print(f"{Fore.YELLOW}{Style.DIM}try '-vv' for even more info{Fore.RESET}")
-        elif args.verbose == 0:
-            print(f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Fore.RESET}")
+        if args.verbose == 0:
+            print(
+                f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Style.RESET_ALL}",
+                file=sys.stderr,
+            )
+        elif args.verbose < 2:
+            print(
+                f"{Fore.YELLOW}{Style.DIM}try '-vv' for even more info{Style.RESET_ALL}",
+                file=sys.stderr,
+            )
+
         sys.exit(1)
 
     runtime = spk.create_runtime(solution)

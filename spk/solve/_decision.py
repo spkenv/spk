@@ -29,8 +29,9 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._request = request
         self._options = options
         self._versions: Optional[Iterator[str]] = None
+        self._builds: Optional[Iterator[api.Ident]] = None
         self._version_map: Dict[str, storage.Repository] = {}
-        self.history: Dict[api.Version, api.Compatibility] = {}
+        self.history: Dict[api.Ident, api.Compatibility] = {}
 
     def _start(self) -> None:
 
@@ -47,6 +48,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         versions.sort()
         versions.reverse()
         self._versions = iter(versions)
+        self._builds = iter([])
 
     def clone(self) -> "PackageIterator":
         """Create a copy of this iterator, with the cursor at the same point."""
@@ -55,9 +57,12 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             self._start()
 
         other = PackageIterator(self._repos, self._request, self._options)
-        remaining = list(self._versions or [])
-        other._versions = iter(remaining)
-        self._versions = iter(remaining)
+        remaining_versions = list(self._versions or [])
+        remaining_builds = list(self._builds or [])
+        other._versions = iter(remaining_versions)
+        self._versions = iter(remaining_versions)
+        self._builds = iter(remaining_builds)
+        other._builds = iter(remaining_builds)
         other.history = self.history.copy()
         other._version_map = self._version_map
         return other
@@ -67,12 +72,48 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         if self._versions is None:
             self._start()
 
+        requested_build = self._request.pkg.build
+        for candidate in self._builds or []:
+
+            if requested_build is not None:
+                if requested_build != candidate.build:
+                    continue
+            elif candidate.build.is_source():  # type: ignore
+                # TODO: support resolving/building source packages on the fly
+                continue
+
+            version_str = str(candidate.version)
+            repo = self._version_map[version_str]
+            spec = repo.read_spec(candidate)
+
+            compat = self._request.is_satisfied_by(spec)
+            if not compat:
+                self.history[candidate] = compat
+                continue
+
+            build_options = spec.resolve_all_options({})
+            compat = spec.build.validate_options(self._options)
+            if not compat:
+                self.history[candidate] = compat
+                continue
+
+            return (spec, repo)
+
+        # FIXME: make this work...
+        # self.history[version_str] = api.Compatibility(
+        #     f"no build for {options}"
+        # )
+        self._start_next_version()
+        return self.__next__()
+
+    def _start_next_version(self) -> None:
+
         for version_str in self._versions or []:
             version = api.parse_version(version_str)
 
             compat = self._request.is_version_applicable(version)
             if not compat:
-                self.history[version] = compat
+                self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
 
             pkg = api.Ident(self._request.pkg.name, version)
@@ -82,32 +123,14 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             except ValueError:
                 _LOGGER.error("package disappeared from repo", pkg=pkg, repo=repo)
                 continue
-            options = spec.resolve_all_options(self._options)
 
-            if self._request.pkg.build is not None:
-                candidate = pkg.with_build(self._request.pkg.build)
-            else:
-                candidate = pkg.with_build(options.digest())
-
-            try:
-                repo.get_package(candidate)
-            except storage.PackageNotFoundError:
-                if self._request.pkg.build is not None:
-                    self.history[version] = api.Compatibility(
-                        f"requested build does not exist {str(self._request.pkg.build)}"
-                    )
-                else:
-                    self.history[version] = api.Compatibility(f"no build for {options}")
-                continue
-
-            spec.pkg.set_build(candidate.build)
-            compat = self._request.is_satisfied_by(spec)
+            compat = self._request.pkg.version.is_satisfied_by(spec)
             if not compat:
-                self.history[version] = compat
+                self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
 
-            spec.pkg = candidate
-            return (spec, repo)
+            self._builds = iter(repo.list_package_builds(pkg))
+            return
 
         raise StopIteration
 
@@ -185,6 +208,11 @@ class Decision:
         self.get_all_unresolved_requests.cache_clear()
         request = self.get_merged_request(spec.pkg.name)  # TODO: should this be passed?
         assert request is not None, "Cannot resolve unrequested package " + str(spec)
+        self.force_set_resolved(request, spec, repo)
+
+    def force_set_resolved(
+        self, request: api.Request, spec: api.Spec, repo: storage.Repository
+    ) -> None:
         self._resolved.add(request, spec, repo)
 
     def get_resolved(self) -> Solution:
@@ -323,7 +351,7 @@ class Decision:
         unresolved = {}
         for name, v in requests.items():
             request = self.get_merged_request(name)
-            if request not in resolved:
+            if request and request not in resolved:
                 unresolved[name] = v
 
         return unresolved
@@ -338,7 +366,7 @@ class Decision:
         unresolved = {}
         for name, v in requests.items():
             request = self.get_merged_request(name)
-            if request not in resolved:
+            if request and request not in resolved:
                 unresolved[name] = v
 
         return unresolved

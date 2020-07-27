@@ -68,7 +68,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
                     'test "$SPK_PKG_dep_VERSION" == "1.0.0"',
                     'test "$SPK_OPT_dep" == "1.0.0"',
                 ],
-                "options": [{"pkg": "dep", "default": "1.0.0"}],
+                "options": [{"pkg": "dep"}],
             },
         }
     )
@@ -77,9 +77,18 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     BinaryPackageBuilder.from_spec(dep_spec).with_source(".").with_repository(
         tmprepo
     ).build()
-    BinaryPackageBuilder.from_spec(spec).with_source(".").with_repository(
-        tmprepo
-    ).build()
+    pkg = (
+        BinaryPackageBuilder.from_spec(spec)
+        .with_source(".")
+        .with_repository(tmprepo)
+        .with_option("dep", "2.0.0")  # option should be set in final published spec
+        .with_option("top.dep", "1.0.0")  # specific option takes precendence
+        .build()
+    )
+    build_options = tmprepo.read_spec(pkg).build.resolve_all_options(
+        api.OptionMap({"dep": "7"})  # given value should be ignored after build
+    )
+    assert build_options.get("dep") == "~1.0.0"
 
 
 def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
@@ -99,9 +108,9 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     )
 
     tmprepo.publish_spec(dep_spec)
-    BinaryPackageBuilder.from_spec(dep_spec).with_source(
-        os.getcwd()
-    ).with_repository(tmprepo).build()
+    BinaryPackageBuilder.from_spec(dep_spec).with_source(os.getcwd()).with_repository(
+        tmprepo
+    ).build()
     pkg = (
         BinaryPackageBuilder.from_spec(spec)
         .with_source(os.getcwd())
@@ -111,3 +120,24 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
 
     spec = tmprepo.read_spec(pkg)
     assert str(spec.install.requirements[0].pkg) == "dep/~1.0"
+
+
+def test_build_bad_options() -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "my-package/1.0.0",
+            "build": {
+                "script": ["touch /spfs/top-file",],
+                "options": [{"var": "debug", "choices": ["on", "off"]}],
+            },
+        }
+    )
+
+    with pytest.raises(ValueError):
+        pkg = (
+            BinaryPackageBuilder.from_spec(spec)
+            .with_source(os.getcwd())
+            .with_option("debug", "false")
+            .build()
+        )

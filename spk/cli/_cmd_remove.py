@@ -44,14 +44,15 @@ def _remove(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     for name in args.packages:
+        if "/" not in name:
+            print(f"{Fore.RED}Must provide a version number: {name}/???")
+            print(f" > use 'spk ls {name}' to view available versions{Fore.RESET}")
+            sys.exit(1)
+        ident = spk.api.parse_ident(name)
         for repo_name, repo in repos.items():
-            if "/" not in name:
-                print(f"{Fore.RED}Must provide a version number: {name}/???")
-                print(
-                    f" > versions in '{repo_name}': {', '.join(repo.list_package_versions(name))}{Fore.RESET}"
-                )
-                sys.exit(1)
-            ident = spk.api.parse_ident(name)
-            for build in repo.list_package_builds(ident):
-                repo.remove_package(build)
-            repo.remove_spec(ident)
+            if ident.build is not None:
+                repo.remove_package(ident)
+            else:
+                for build in repo.list_package_builds(ident):
+                    repo.remove_package(build)
+                repo.remove_spec(ident)

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import spfs
 import pytest
@@ -14,24 +14,35 @@ from ._solver import Solver
 
 
 def make_repo(
-    specs: List[Dict], opts: api.OptionMap = api.OptionMap()
+    specs: List[Union[Dict, api.Spec]], opts: api.OptionMap = api.OptionMap()
 ) -> storage.MemRepository:
 
     repo = storage.MemRepository()
-    options = api.OptionMap()
 
-    def add_pkg(spec_dict: Dict) -> None:
-        spec = api.Spec.from_dict(spec_dict)
-        repo.publish_spec(spec)
-        spec.pkg.set_build(spec.resolve_all_options(options).digest())
+    def add_pkg(s: Union[Dict, api.Spec]) -> None:
+        if isinstance(s, dict):
+            s = api.Spec.from_dict(s)
+            repo.publish_spec(s)
+            s = make_build(s.to_dict(), opts)
         repo.publish_package(
-            spec, spfs.encoding.EMPTY_DIGEST,
+            s, spfs.encoding.EMPTY_DIGEST,
         )
 
     for spec in specs:
         add_pkg(spec)
 
     return repo
+
+
+def make_build(
+    spec_dict: Dict, deps: List[api.Spec] = [], opts: api.OptionMap = api.OptionMap()
+) -> api.Spec:
+
+    spec = api.Spec.from_dict(spec_dict)
+    build_opts = opts.copy()
+    build_opts = spec.resolve_all_options(build_opts)
+    spec.update_for_build(build_opts, deps)
+    return spec
 
 
 def test_solver_package_with_no_spec() -> None:
@@ -55,8 +66,8 @@ def test_solver_package_with_no_spec() -> None:
 
 def test_solver_single_package_no_deps() -> None:
 
-    repo = make_repo([{"pkg": "my-pkg/1.0.0"}])
     options = api.OptionMap()
+    repo = make_repo([{"pkg": "my-pkg/1.0.0"}], options)
 
     solver = Solver(options)
     solver.add_repository(repo)
@@ -369,3 +380,43 @@ def test_solver_constraint_and_request() -> None:
     print(io.format_decision_tree(solver.decision_tree, verbosity=100))
 
     assert solution.get("python").spec.pkg.version == "3.7.3"
+
+
+def test_solver_option_compatibility() -> None:
+
+    # test what happens when an option is given in the solver
+    # - the options for each build are checked
+    # - the resolved build must have used the option
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "vnp3/2.0.0",
+            "build": {
+                "options": [{"pkg": "python"}],
+                "variants": [{"python": "3.7"}, {"python": "2.7"}],
+            },
+        }
+    )
+    repo = make_repo(
+        [
+            make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]),
+            make_build(spec.to_dict(), [make_build({"pkg": "python/3.7.3"})]),
+        ]
+    )
+    repo.publish_spec(spec)
+
+    for pyver in ("2", "2.7", "2.7.5", "3", "3.7", "3.7.3"):
+        solver = Solver(api.OptionMap({"python": pyver}))
+        solver.add_repository(repo)
+        solver.add_request("vnp3")
+        try:
+            solution = solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+        assert (
+            solution.get("vnp3")
+            .spec.build.options[0]
+            .get_value()
+            .startswith(f"~{pyver}")
+        )

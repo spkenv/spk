@@ -32,7 +32,7 @@ class BinaryPackageBuilder:
     ...     .with_source(".")
     ...     .build()
     ... )
-    my-pkg/3I42H3S6
+    my-pkg/0.0.0/3I42H3S6
     """
 
     def __init__(self) -> None:
@@ -98,10 +98,13 @@ class BinaryPackageBuilder:
 
         assert (
             self._spec is not None
-        ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
+        ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
         runtime = spfs.active_runtime()
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
+        compat = self._spec.build.validate_options(self._pkg_options)
+        if not compat:
+            raise ValueError(compat)
         self._all_options.update(self._pkg_options)
 
         solution = self._resolve_source_package()
@@ -111,13 +114,11 @@ class BinaryPackageBuilder:
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
-        self._spec.render_all_pins(s for _, s, _ in solution.items())
+        specs = list(s for _, s, _ in solution.items())
+        self._spec.update_for_build(self._pkg_options, specs)
         layer = self._build_and_commit_artifacts(solution.to_environment())
-        pkg = self._spec.pkg.with_build(self._pkg_options.digest())
-        spec = self._spec.clone()
-        spec.pkg = pkg
-        storage.local_repository().publish_package(spec, layer.digest())
-        return pkg
+        storage.local_repository().publish_package(self._spec, layer.digest())
+        return self._spec.pkg
 
     def _resolve_source_package(self) -> solve.Solution:
 
@@ -139,14 +140,23 @@ class BinaryPackageBuilder:
         for repo in self._repos:
             self._solver.add_repository(repo)
 
-        assert self._spec is not None, "Internal Error: spec is not set"
-        for opt in self._spec.build.options:
-            if not isinstance(opt, api.PkgOpt):
-                continue
-            request = opt.to_request(self._pkg_options.get(opt.pkg))
+        for request in self.get_build_requirements():
             self._solver.add_request(request)
 
         return self._solver.solve()
+
+    def get_build_requirements(self) -> Iterable[api.Request]:
+        """List the requirements for the build environment."""
+
+        assert (
+            self._spec is not None
+        ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
+
+        opts = self._spec.resolve_all_options(self._all_options)
+        for opt in self._spec.build.options:
+            if not isinstance(opt, api.PkgOpt):
+                continue
+            yield opt.to_request(opts.get(opt.pkg))
 
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]
@@ -159,10 +169,14 @@ class BinaryPackageBuilder:
         sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
         runtime = spfs.active_runtime()
-        runtime.reset(sources_dir[len(self._prefix) :])
+        pattern = os.path.join(sources_dir[len(self._prefix) :], "**", "*")
+        _LOGGER.info("Purging all changes made to source directory", dir=pattern)
+        runtime.reset(pattern)
         spfs.remount_runtime(runtime)
 
+        _LOGGER.info("Calculating package fileset...")
         diffs = spfs.diff()
+        _LOGGER.info("Validating package fileset...")
         validate_build_changeset(diffs, self._prefix)
 
         return spfs.commit_layer(runtime)
@@ -171,14 +185,17 @@ class BinaryPackageBuilder:
 
         assert self._spec is not None
 
-        pkg = self._spec.pkg.with_build(self._pkg_options.digest())
+        pkg = self._spec.pkg
 
         os.makedirs(self._prefix, exist_ok=True)
 
         metadata_dir = data_path(pkg, prefix=self._prefix)
+        build_spec = build_spec_path(pkg, prefix=self._prefix)
         build_options = build_options_path(pkg, prefix=self._prefix)
         build_script = build_script_path(pkg, prefix=self._prefix)
         os.makedirs(metadata_dir, exist_ok=True)
+        with open(build_spec, "w+b") as bwriter:
+            bwriter.write(api.write_spec(self._spec))
         with open(build_script, "w+") as writer:
             writer.write(self._spec.build.script)
         with open(build_options, "w+") as writer:
@@ -200,6 +217,15 @@ class BinaryPackageBuilder:
             raise BuildError(
                 f"Build script returned non-zero exit status: {proc.returncode}"
             )
+
+
+def build_spec_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
+    """Return the file path for the given build's spec.yaml file.
+
+    This file is created during a build and stores the full
+    package spec of what was built.
+    """
+    return os.path.join(data_path(pkg, prefix), "spec.yaml")
 
 
 def build_options_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
@@ -238,4 +264,12 @@ def validate_build_changeset(
             if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
                 continue
         if diff.mode is not spfs.tracking.DiffMode.added:
+            if diff.mode is spfs.tracking.DiffMode.changed and diff.entries:
+                mode_change = diff.entries[0].mode ^ diff.entries[1].mode
+                nonperm_change = (mode_change | 0o777) ^ 0o777
+                if mode_change and not nonperm_change:
+                    # NOTE(rbottriell):permission changes are not properly reset by spfs
+                    # so we must deal with them manually for now
+                    os.chmod(prefix + diff.path, diff.entries[0].mode)
+                    continue
             raise BuildError(f"Existing file was {diff.mode.name}: {prefix}{diff.path}")

@@ -1,0 +1,14 @@
+pkg: spk/0.1.0
+
+build:
+  options:
+  - var: arch
+  - var: os
+    choices: [linux]
+  script:
+  - exit 1
+  - python -m nuitka --follow-imports --standalone --output-dir=./build --show-progress
+    --show-scons --show-modules spk
+  - mkdir -p $PREFIX/{opt,bin}/
+  - cp -r build/spk.dist $PREFIX/opt
+  - ln -s $PREFIX/opt/spk.dist/spk $PREFIX/bin/spk

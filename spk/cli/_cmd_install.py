@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Callable, Any, List
 import argparse
 import os
 import sys
@@ -28,6 +28,13 @@ def register(
         "packages", metavar="PKG", nargs="+", help="The packages to install",
     )
     install_cmd.add_argument(
+        "--save",
+        nargs="?",
+        const="@build",
+        metavar="PKG@STAGE",
+        help="Also save this requirement to the local package spec file",
+    )
+    install_cmd.add_argument(
         "--yes",
         "-y",
         action="store_true",
@@ -36,6 +43,7 @@ def register(
     )
     _flags.add_repo_flags(install_cmd)
     _flags.add_request_flags(install_cmd)
+    _flags.add_option_flags(install_cmd)
     install_cmd.set_defaults(func=_install)
     return install_cmd
 
@@ -43,16 +51,49 @@ def register(
 def _install(args: argparse.Namespace) -> None:
     """install a package into spfs."""
 
-    try:
-        spfs.active_runtime()
-    except spfs.NoRuntimeError:
-        raise spfs.NoRuntimeError("maybe use 'spk env' instead?")
-
-    options = spk.api.host_options()
+    options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
+    requests = _flags.parse_requests_using_flags(args, *args.packages)
 
-    for request in _flags.parse_requests_using_flags(args, *args.packages):
+    try:
+        env = spk.current_env()
+    except spk.NoEnvironmentError:
+        if args.save:
+            _LOGGER.warning("no current environment to install to")
+            return
+        raise
+
+    if args.save:
+        spec, filename, stage = _flags.parse_stage_specifier(args.save)
+        if stage == "source":
+            raise NotImplementedError("'source' stage is not yet supported")
+        elif stage == "build":
+            for r in requests:
+                spec.build.upsert_opt(r)
+
+        elif stage == "install":
+            for r in requests:
+                spec.install.upsert_requirement(r)
+        else:
+            print(
+                f"{Fore.RED}Unknown stage '{stage}', should be one of: 'source', 'build', 'install'{Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        spk.api.save_spec_file(filename, spec)
+        print(f"{Fore.YELLOW}Updated: {filename}{Fore.RESET}")
+        try:
+            spfs.active_runtime()
+        except spfs.NoRuntimeError:
+            return
+
+    for solved in env.items():
+        solver.decision_tree.root.force_set_resolved(
+            solved.request, solved.spec, solved.repo
+        )
+    for request in requests:
         solver.add_request(request)
 
     try:
@@ -72,10 +113,11 @@ def _install(args: argparse.Namespace) -> None:
     print("The following packages will be modified:\n")
     requested = solver.decision_tree.root.get_requests()
     primary, tertiary = [], []
-    for _, spec, _ in packages.items():
+    for req, spec, _ in packages.items():
         if spec.pkg.name in requested:
             primary.append(spec)
-        else:
+            continue
+        if req not in env:
             tertiary.append(spec)
 
     print("  Requested:")

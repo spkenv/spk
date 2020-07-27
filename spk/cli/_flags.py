@@ -1,9 +1,16 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
+import os
+import re
+import sys
+import glob
 import argparse
 from collections import OrderedDict
 
+from colorama import Fore
 from ruamel import yaml
 import spk
+
+OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
 
 
 def add_option_flags(parser: argparse.ArgumentParser) -> None:
@@ -14,16 +21,39 @@ def add_option_flags(parser: argparse.ArgumentParser) -> None:
         type=str,
         default=[],
         action="append",
-        help="Specify option values for the envrionment",
+        help="Specify build options",
+    )
+    parser.add_argument(
+        "--no-host",
+        action="store_true",
+        help="Do not add the default options for the current host system",
     )
 
 
 def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
 
-    opts = spk.api.host_options()
-    for pair in args.opt:
+    if args.no_host:
+        opts = spk.api.OptionMap()
+    else:
+        opts = spk.api.host_options()
 
-        name, value = pair.split("=")
+    for name, value in os.environ.items():
+
+        match = OPTION_VAR_RE.match(name)
+        if match:
+            opts[match.group(1)] = value
+
+    for pair in getattr(args, "opt", []):
+
+        pair = pair.strip()
+        if pair.startswith("{"):
+            opts.update(yaml.safe_load(pair) or {})
+            continue
+
+        if "=" in pair:
+            name, value = pair.split("=", 1)
+        elif ":" in pair:
+            name, value = pair.split(":", 1)
         opts[name] = value
 
     return opts
@@ -42,23 +72,97 @@ def parse_requests_using_flags(
     args: argparse.Namespace, *requests: str
 ) -> List[spk.api.Request]:
 
+    options = get_options_from_flags(args)
+
     out = []
     for r in requests:
 
-        parsed = yaml.safe_load(r)
-        if isinstance(parsed, str):
-            request = {"pkg": parsed}
+        if "@" in r:
+            spec, _, stage = parse_stage_specifier(r)
+
+            if stage == "source":
+                raise NotImplementedError("'source' stage is not yet supported")
+            elif stage == "build":
+                builder = spk.build.BinaryPackageBuilder.from_spec(spec).with_options(
+                    options
+                )
+                for request in builder.get_build_requirements():
+                    out.append(request)
+
+            elif stage == "install":
+                for request in spec.install.requirements:
+                    out.append(request)
+            else:
+                print(
+                    f"Unknown stage '{stage}', should be one of: 'source', 'build', 'install'"
+                )
+                sys.exit(1)
         else:
-            request = parsed
+            parsed = yaml.safe_load(r)
+            if isinstance(parsed, str):
+                request_data = {"pkg": parsed}
+            else:
+                request_data = parsed
 
-        if args.pre:
-            request.setdefault(
-                "prereleasePolicy", spk.api.PreReleasePolicy.IncludeAll.name
-            )
+            if args.pre:
+                request_data.setdefault(
+                    "prereleasePolicy", spk.api.PreReleasePolicy.IncludeAll.name
+                )
 
-        out.append(spk.api.Request.from_dict(request))
+            out.append(spk.api.Request.from_dict(request_data))
 
     return out
+
+
+def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
+    """Returns the spec, filename and stage for the given specifier."""
+
+    if "@" not in specifier:
+        raise ValueError(
+            f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
+        )
+
+    package, stage = specifier.split("@", 1)
+    spec, filename = find_package_spec(package)
+    return spec, filename, stage
+
+
+def find_package_spec(package: str) -> Tuple[spk.api.Spec, str]:
+
+    packages = glob.glob("*.spk.yaml")
+    if not package:
+        if len(packages) == 1:
+            package = packages[0]
+        elif len(packages) > 1:
+            print(
+                f"{Fore.RED}Multiple package specs in current directory{Fore.RESET}",
+                file=sys.stderr,
+            )
+            print(
+                f"{Fore.RED} > please specify a package name or filepath{Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        else:
+            print(
+                f"{Fore.RED}No package specs found in current directory{Fore.RESET}",
+                file=sys.stderr,
+            )
+            print(
+                f"{Fore.RED} > please specify a filepath{Fore.RESET}", file=sys.stderr,
+            )
+            sys.exit(1)
+    try:
+        spec = spk.api.read_spec_file(package)
+    except FileNotFoundError:
+        for filename in packages:
+            spec = spk.api.read_spec_file(filename)
+            if spec.pkg.name == package:
+                package = filename
+                break
+        else:
+            raise
+    return spec, package
 
 
 def add_repo_flags(

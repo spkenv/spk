@@ -1,8 +1,16 @@
 pkg: python/3.7.3
+sources: []
 build:
   options:
     - var: arch
     - var: os
     - var: centos
+    - pkg: stdfs
   script:
   - python3.7 -m venv --copies --prompt "SPK>PY37>" /spfs
+  - find /spfs -name "__pycache__" | xargs -r rm -r
+install:
+  requirements:
+  - pkg: stdfs
+  - pkg: gcc/4.8              # the current system python uses gcc 4
+    include: IfAlreadyPresent # only included if requested by something else

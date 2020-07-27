@@ -5,6 +5,7 @@ import platform
 import os
 
 import distro
+from ruamel import yaml
 from sortedcontainers import SortedDict
 
 # given option digests are namespaced by the package itself,
@@ -19,7 +20,7 @@ class OptionMap(SortedDict):
 
     def __str__(self) -> str:
 
-        return f"{{{', '.join(f'{n}={v}' for n, v in self.items())}}}"
+        return f"{{{', '.join(f'{n}: {v}' for n, v in self.items())}}}"
 
     __repr__ = __str__
 
@@ -34,6 +35,20 @@ class OptionMap(SortedDict):
 
         digest = hasher.digest()
         return base64.b32encode(digest)[:_DIGEST_SIZE].decode()
+
+    def global_options(self) -> "OptionMap":
+
+        return OptionMap(o for o in self.items() if "." not in o[0])
+
+    def package_options(self, name: str) -> "OptionMap":
+        """Return the set of options relevant to the named package."""
+
+        prefix = name + "."
+        options = self.global_options()
+        for key, value in self.items():
+            if key.startswith(prefix):
+                options[key[len(prefix) :]] = value
+        return options
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "OptionMap":

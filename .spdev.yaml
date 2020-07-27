@@ -1,14 +1,27 @@
-version: 0.8.0
+version: 0.9.0
 release_notes: |
-  * Build from source packages by default
-    * The build command will produce a source package and binary package
-    * CWD during binary build will the the source package under /spfs
-    * Any artifacts left under CWD are cleaned and not packaged
+  * Include published spec in package binary build
+    * So that installed packages can be viewed via /spfs
+  * Update install command to account for existing packages
+  * Add support for named package environments
+    * To enable the resolving ob source, build and install
+      environments using a package spec file
+  * Add support for fuzzier build resolution in the solver
+    * This means that pkg options work more as 'expected' for
+      downstream environments and builds
+  * Update remove command to handle removal of a single build
+  * Export package verion major,minor,patch variables in environment
+  * Fix bug where pinned packages were not respected during solve
+  * Fix bug where mode-only changes to source files caused the build to error
+  * Fic bug where duplicate results are show in search, ls
+  * Fix bug where ls still showed results after package removal
+
 
 toolchain:
 - kind: Shell
   variables:
     SENTRY_ENVIRONMENT: development
+    PATH: $SPDEV_ENV/bin:$PATH
 - kind: Pipenv
 
 components:
@@ -29,6 +42,29 @@ components:
 - kind: HugoDocs
   name: docs
   location: docs
+
 - kind: RPMPackage
   name: rpm
   spec_file: spk.spec
+
+# bootstrap packages that need to go out with any new features
+- kind: SPKPackage
+  name: spk-stdfs
+  version: 1.0.0
+  spec_file: packages/stdfs/stdfs.spk.yaml
+- kind: SPKPackage
+  name: spk-gcc48
+  version: 4.8.5
+  spec_file: packages/gcc/gcc48.spk.yaml
+- kind: SPKPackage
+  name: spk-gcc63
+  version: 6.3.1
+  spec_file: packages/gcc/gcc48.spk.yaml
+- kind: SPKPackage
+  name: spk-python2
+  version: 2.7.5
+  spec_file: packages/python/python2.spk.yaml
+- kind: SPKPackage
+  name: spk-python3
+  version: 3.7.3
+  spec_file: packages/python/python3.spk.yaml

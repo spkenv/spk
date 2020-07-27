@@ -26,7 +26,7 @@ Check the [Version Semantics](versioning) for help on how to request packages.
 $ spk new my-pkg
 
 # make any necessary changes to the file and then build it
-$ spk build my-pkg.yaml
+$ spk build
 
 # run environments using locally built packages
 $ spk env --local my-pkg

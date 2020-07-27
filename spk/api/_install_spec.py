@@ -11,6 +11,19 @@ class InstallSpec:
 
     requirements: List[Request] = field(default_factory=list)
 
+    def upsert_requirement(self, request: Request) -> None:
+        """Add or update a requirement to the set of installation requirements.
+
+        If a request exists for the same package, it is replaced with the given
+        one. Otherwise the new request is appended to the list.
+        """
+        for i, other in enumerate(self.requirements):
+            if other.pkg.name == request.pkg.name:
+                self.requirements[i] = request
+                return
+        else:
+            self.requirements.append(request)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "requirements": list(r.to_dict() for r in self.requirements),

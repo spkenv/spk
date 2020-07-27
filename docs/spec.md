@@ -45,12 +45,22 @@ build:
   options:
     - var: debug
       default: off
-    - pkg: cmake/3
+      choices: [on, off]
+    - pkg: cmake
+      default: 3.16
 ```
 
 All options that are declared in your package should be used in the build script, otherwise they are not relevant build options and your package may need rebuilding unnecessarily.
 
-When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`.
+When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`. Package options are also resolved into the build environment and can be accessed more concretely with the variables `SPK_PKG_{name}`, `SPK_PKG_{name}_VERSION`, `SPK_PKG_{name}_BUILD`, `SPK_PKG_{name}_VERSION_MAJOR`, `SPK_PKG_{name}_VERSION_MINOR`, `SPK_PKG_{name}_VERSION_PATCH`
+
+{{% notice tip %}}
+Best practice for defining boolean options is to follow the cmake convention of having two choices: `on` and `off`
+{{% /notice %}}
+
+{{% notice tip %}}
+Best practice for package requrements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itselfrather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
+{{% /notice %}}
 
 #### Script
 
@@ -94,8 +104,14 @@ build:
 
 The variants section of the build config defines the default set of variants that you want to build when running `spk build` and `spk make-binary`. Additional variants can be built later on, but this is a good way to streamline the default build process and define the set of variants that you want to support for every change.
 
+By default, the command line will build all variants defined in your spec file. Supplying any options on the command line will instead build only a single variant using specified options.
+
 {{% notice note %}}
 Make sure that you have defined a build option for whatever you specify in your variants!
+{{% /notice %}}
+
+{{% notice tip %}}
+Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
 {{% /notice %}}
 
 ## Sources
@@ -137,6 +153,10 @@ install:
 ```
 
 In this example, we might get two build envrionments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
+
+{{% notice tip %}}
+Install requirements can also be updated in the command line: `spk install --save @install build-dependency/1.0`
+{{% /notice %}}
 
 ##### Optional Requirements
 

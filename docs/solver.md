@@ -54,24 +54,24 @@ In these cases, the additional use of the `--verbose (-v)` flag is extremely hel
 - try using the `spk ls <name>` command to list the available versions of the package
 - try loosening the version requirements or using a different version altogether of the requested package
 
-### No Applicable Build
+### Incompatible Options
 
 ```bash
 $ spk explain -v gcc/6 -o os=darwin
- REQUEST gcc/6.0.0
-> TRY 6.3.1 - no build for {arch=x86_64, os=darwin}
-. TRY 4.8.5 - version too low
-. BLOCKED Failed to resolve: {'pkg': 'gcc/6.0.0', 'prereleasePolicy': 'ExcludeAll'}
+ REQUEST gcc/4.0.0
+> TRY gcc/6.3.1/NQWIGWXA - Incompatible option: wanted 'darwin', got 'linux'
+. TRY gcc/4.8.5 - version too low
+. BLOCKED Failed to resolve: {pkg: gcc/4.0.0, prereleasePolicy: ExcludeAll}
 ```
 
-In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/6.3.1` package available, there is no build of that package for the set of build options that we've requested.
+In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/6.3.1` package available that it was build for `os: linux`, which is not what we requested.
 
 #### Possible Solutions
 
 - Ensure that all your options are appropriate for the package that you are requesting
 - Consider whether the build options that you are using are required or unnecessarily specific
 - Build or request a build of the package with the necessary options
-- Request a different or version of the package which has a build available for the desired options
+- Request a different version of the package which has a build available for the desired options
 
 ### Solver Patterns
 

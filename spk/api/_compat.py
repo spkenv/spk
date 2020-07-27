@@ -70,6 +70,12 @@ class Compat:
 
         return self._check_compat(base, other, CompatRule.ABI)
 
+    def render(self, version: Version) -> str:
+
+        # FIXME: is it reasonable to know about this here?
+        parts = version.parts[: len(self.parts)]
+        return f"~{VERSION_SEP.join(str(i) for i in parts)}"
+
     def _check_compat(
         self, base: Version, other: Version, required: CompatRule
     ) -> Compatibility:
