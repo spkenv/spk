@@ -1,0 +1,5 @@
+#!/bin/sh
+venv="$(pipenv --venv)"
+$venv/bin/pip install -e .
+$venv/bin/spk "$@"
+exit $?

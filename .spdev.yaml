@@ -21,6 +21,7 @@ toolchain:
 - kind: Shell
   variables:
     SENTRY_ENVIRONMENT: development
+    PATH: $SPDEV_ENV/bin:$PATH
 - kind: Pipenv
 
 components:
