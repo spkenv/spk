@@ -45,12 +45,14 @@ build:
   options:
     - var: debug
       default: off
-    - pkg: cmake/3
+      choices: [on, off]
+    - pkg: cmake
+      default: ^3.16
 ```
 
 All options that are declared in your package should be used in the build script, otherwise they are not relevant build options and your package may need rebuilding unnecessarily.
 
-When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`.
+When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`. Package options are also resolved into the build environment and can be accessed more concretely with the variables `SPK_PKG_{name}`, `SPK_PKG_{name}_VERSION`, `SPK_PKG_{name}_BUILD`, `SPK_PKG_{name}_VERSION_MAJOR`, `SPK_PKG_{name}_VERSION_MINOR`, `SPK_PKG_{name}_VERSION_PATCH`
 
 #### Script
 
@@ -93,6 +95,8 @@ build:
 ```
 
 The variants section of the build config defines the default set of variants that you want to build when running `spk build` and `spk make-binary`. Additional variants can be built later on, but this is a good way to streamline the default build process and define the set of variants that you want to support for every change.
+
+By default, the command line will build all variants defined in your spec file. Supplying any options on the command line will instead build only a single variant using specified options.
 
 {{% notice note %}}
 Make sure that you have defined a build option for whatever you specify in your variants!
