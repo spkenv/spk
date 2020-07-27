@@ -5,6 +5,7 @@ import platform
 import os
 
 import distro
+from ruamel import yaml
 from sortedcontainers import SortedDict
 
 # given option digests are namespaced by the package itself,
@@ -19,7 +20,7 @@ class OptionMap(SortedDict):
 
     def __str__(self) -> str:
 
-        return f"{{{', '.join(f'{n}={v}' for n, v in self.items())}}}"
+        return f"{{{', '.join(f'{n}: {v}' for n, v in self.items())}}}"
 
     __repr__ = __str__
 

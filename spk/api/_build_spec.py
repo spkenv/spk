@@ -70,7 +70,7 @@ class BuildSpec:
         for option in self.options:
             compat = option.validate(given_options.get(option.name(), ""))
             if not compat:
-                return Compatibility(f"options.{option.name()}: {compat}")
+                return compat
 
         return COMPATIBLE
 
@@ -171,7 +171,7 @@ class VarOpt(Option):
 
         if value and self.choices and value not in self.choices:
             raise ValueError(
-                f"Invalid value for option {self.var}: '{value}', must be one of {self.choices}"
+                f"Invalid value '{value}' for option '{self.var}', must be one of {self.choices}"
             )
         super(VarOpt, self).set_value(value)
 
@@ -185,7 +185,7 @@ class VarOpt(Option):
 
         if value and self.choices and value not in self.choices:
             return Compatibility(
-                f"Invalid value for option {self.var}: '{value}', must be one of {self.choices}"
+                f"Invalid value '{value}' for option '{self.var}', must be one of {self.choices}"
             )
 
         return COMPATIBLE
@@ -195,6 +195,9 @@ class VarOpt(Option):
         spec = {"var": self.var}
         if self.default:
             spec["default"] = self.default
+
+        if self.choices:
+            spec["choices"] = list(self.choices)
 
         base_value = super(VarOpt, self).get_value()
         if base_value:
@@ -246,7 +249,7 @@ class PkgOpt(Option):
             parse_ident_range(f"{self.pkg}/{value}")
         except ValueError as err:
             raise ValueError(
-                f"Invalid value for option {self.pkg}: '{value}', not a valid package request: {err}"
+                f"Invalid value '{value}' for option '{self.pkg}', not a valid package request: {err}"
             )
         super(PkgOpt, self).set_value(value)
 
@@ -259,7 +262,9 @@ class PkgOpt(Option):
         try:
             value_range = parse_ident_range(f"{self.pkg}/{value}")
         except ValueError as err:
-            return Compatibility(str(err))
+            return Compatibility(
+                f"Invalid value '{value}' for option '{self.pkg}', not a valid package request: {err}"
+            )
 
         return value_range.contains(base_range)
 

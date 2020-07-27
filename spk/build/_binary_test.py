@@ -120,3 +120,24 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
 
     spec = tmprepo.read_spec(pkg)
     assert str(spec.install.requirements[0].pkg) == "dep/~1.0"
+
+
+def test_build_bad_options() -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "my-package/1.0.0",
+            "build": {
+                "script": ["touch /spfs/top-file",],
+                "options": [{"var": "debug", "choices": ["on", "off"]}],
+            },
+        }
+    )
+
+    with pytest.raises(ValueError):
+        pkg = (
+            BinaryPackageBuilder.from_spec(spec)
+            .with_source(os.getcwd())
+            .with_option("debug", "false")
+            .build()
+        )

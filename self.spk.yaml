@@ -1,12 +1,13 @@
 
 pkg: spk/0.1.0
 
-opts:
-- var: arch
-- var: os
-
 build:
+  options:
+  - var: arch
+  - var: os
+    choices: [centos]
   script:
+    - exit 1
     - python -m nuitka
         --follow-imports
         --standalone
