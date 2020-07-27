@@ -9,6 +9,7 @@ import spfs
 import spk
 
 from spk.io import format_decision
+from . import _flags
 
 _LOGGER = structlog.get_logger("cli")
 
@@ -19,8 +20,13 @@ def register(
 
     build_cmd = sub_parsers.add_parser("build", help=_build.__doc__, **parser_args)
     build_cmd.add_argument(
-        "files", metavar="SPEC_FILE", nargs="+", help="The package(s) to build"
+        "files",
+        metavar="SPEC_FILE",
+        nargs="*",
+        default=[""],
+        help="The package(s) to build",
     )
+    _flags.add_option_flags(build_cmd)
     build_cmd.set_defaults(func=_build)
     return build_cmd
 
@@ -33,7 +39,7 @@ def _build(args: argparse.Namespace) -> None:
         common_args += ["-" + "v" * args.verbose]
 
     for filename in args.files:
-        spec = spk.read_spec_file(filename)
+        spec, filename = _flags.find_package_spec(filename)
 
         cmd = ["spk", "make-source", filename, *common_args]
         _LOGGER.info(" ".join(cmd))
@@ -41,7 +47,11 @@ def _build(args: argparse.Namespace) -> None:
         proc.wait()
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
-        cmd = ["spk", "make-binary", filename, *common_args]
+        options = _flags.get_options_from_flags(args)
+        option_flags = []
+        for name, value in options.items():
+            option_flags.extend(["-o", f"{name}={value}"])
+        cmd = ["spk", "make-binary", filename, *common_args, *option_flags]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)
         proc.wait()

@@ -21,13 +21,13 @@ def add_option_flags(parser: argparse.ArgumentParser) -> None:
         type=str,
         default=[],
         action="append",
-        help="Specify option values for the envrionment",
+        help="Specify build options",
     )
 
 
 def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
 
-    opts = spk.api.host_options()
+    opts = spk.api.OptionMap()
 
     for name, value in os.environ.items():
 
@@ -37,7 +37,15 @@ def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
 
     for pair in getattr(args, "opt", []):
 
-        name, value = pair.split("=")
+        pair = pair.strip()
+        if pair.startswith("{"):
+            opts.update(yaml.safe_load(pair) or {})
+            continue
+
+        if "=" in pair:
+            name, value = pair.split("=", 1)
+        elif ":" in pair:
+            name, value = pair.split(":", 1)
         opts[name] = value
 
     return opts
@@ -101,13 +109,19 @@ def parse_requests_using_flags(
 def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
     """Returns the spec, filename and stage for the given specifier."""
 
-    packages = glob.glob("*.spk.yaml")
     if "@" not in specifier:
         raise ValueError(
             f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
         )
 
     package, stage = specifier.split("@", 1)
+    spec, filename = find_package_spec(package)
+    return spec, filename, stage
+
+
+def find_package_spec(package: str) -> Tuple[spk.api.Spec, str]:
+
+    packages = glob.glob("*.spk.yaml")
     if not package:
         if len(packages) == 1:
             package = packages[0]
@@ -117,7 +131,7 @@ def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
                 file=sys.stderr,
             )
             print(
-                f"{Fore.RED} > please specify a package name or filepath (eg: my-package{specifier}){Fore.RESET}",
+                f"{Fore.RED} > please specify a package name or filepath{Fore.RESET}",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -127,8 +141,7 @@ def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
                 file=sys.stderr,
             )
             print(
-                f"{Fore.RED} > please specify a filepath (eg: spk/my-package.spk.yaml{specifier}){Fore.RESET}",
-                file=sys.stderr,
+                f"{Fore.RED} > please specify a filepath{Fore.RESET}", file=sys.stderr,
             )
             sys.exit(1)
     try:
@@ -141,7 +154,7 @@ def parse_stage_specifier(specifier: str) -> Tuple[spk.api.Spec, str, str]:
                 break
         else:
             raise
-    return spec, package, stage
+    return spec, package
 
 
 def add_repo_flags(

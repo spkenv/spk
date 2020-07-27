@@ -44,6 +44,7 @@ def register(
         help="The packages or yaml specification files to build",
     )
     _flags.add_repo_flags(mkb_cmd)
+    _flags.add_option_flags(mkb_cmd)
     mkb_cmd.set_defaults(func=_make_binary)
     return mkb_cmd
 
@@ -67,9 +68,13 @@ def _make_binary(args: argparse.Namespace) -> None:
             spec = spk.load_spec(package)
 
         base_options = spk.api.host_options()
+        options = _flags.get_options_from_flags(args)
+        variants = spec.build.variants
+        if options:
+            variants = [options]
         repos = _flags.get_repos_from_repo_flags(args).values()
         _LOGGER.info("building binary package", pkg=spec.pkg)
-        for variant in spec.build.variants:
+        for variant in variants:
 
             _LOGGER.info("building variant", variant=variant)
             builder = (
