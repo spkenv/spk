@@ -169,7 +169,7 @@ def _update_list(original_data: List[Any], new_data: List[Any]) -> None:
 
 def read_spec(stream: IO[str]) -> Spec:
 
-    yaml_data = yaml.safe_load(stream)
+    yaml_data = yaml.safe_load(stream) or {}
     return Spec.from_dict(yaml_data)
 
 

@@ -1,6 +1,8 @@
+import io
+
 from ._ident import Ident
 from ._build_spec import BuildSpec
-from ._spec import Spec
+from ._spec import Spec, read_spec
 
 from ruamel import yaml
 
@@ -15,3 +17,8 @@ def test_spec_from_dict() -> None:
     )
     assert isinstance(spec.build, BuildSpec)
     assert isinstance(spec.pkg, Ident)
+
+
+def test_empty_spec_is_valid() -> None:
+
+    spec = read_spec(io.StringIO())
