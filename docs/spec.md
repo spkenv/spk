@@ -47,12 +47,20 @@ build:
       default: off
       choices: [on, off]
     - pkg: cmake
-      default: ^3.16
+      default: 3.16
 ```
 
 All options that are declared in your package should be used in the build script, otherwise they are not relevant build options and your package may need rebuilding unnecessarily.
 
 When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`. Package options are also resolved into the build environment and can be accessed more concretely with the variables `SPK_PKG_{name}`, `SPK_PKG_{name}_VERSION`, `SPK_PKG_{name}_BUILD`, `SPK_PKG_{name}_VERSION_MAJOR`, `SPK_PKG_{name}_VERSION_MINOR`, `SPK_PKG_{name}_VERSION_PATCH`
+
+{{% notice tip %}}
+Best practice for defining boolean options is to follow the cmake convention of having two choices: `on` and `off`
+{{% /notice %}}
+
+{{% notice tip %}}
+Best practice for package requrements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itselfrather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
+{{% /notice %}}
 
 #### Script
 
@@ -102,6 +110,10 @@ By default, the command line will build all variants defined in your spec file. 
 Make sure that you have defined a build option for whatever you specify in your variants!
 {{% /notice %}}
 
+{{% notice tip %}}
+Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
+{{% /notice %}}
+
 ## Sources
 
 The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be customized with a local path relative to the yaml file if desired.
@@ -141,6 +153,10 @@ install:
 ```
 
 In this example, we might get two build envrionments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
+
+{{% notice tip %}}
+Install requirements can also be updated in the command line: `spk install --save @install build-dependency/1.0`
+{{% /notice %}}
 
 ##### Optional Requirements
 

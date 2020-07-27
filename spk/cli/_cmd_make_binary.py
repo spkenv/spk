@@ -78,7 +78,6 @@ def _make_binary(args: argparse.Namespace) -> None:
             _LOGGER.info("building variant", variant=variant)
             builder = (
                 spk.BinaryPackageBuilder.from_spec(spec)
-                .with_options(base_options)
                 .with_options(variant)
                 .with_repositories(repos)
             )

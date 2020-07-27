@@ -8,6 +8,7 @@ build:
     - pkg: stdfs
   script:
   - python3.7 -m venv --copies --prompt "SPK>PY37>" /spfs
+  - find /spfs -name "__pycache__" | xargs -r rm -r
 install:
   requirements:
   - pkg: stdfs

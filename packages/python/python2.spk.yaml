@@ -8,6 +8,7 @@ build:
     - pkg: stdfs
   script:
   - virtualenv -p python2.7 --download --always-copy --prompt "SPK>PY27>"  /spfs
+  - find /spfs -name "*.pyc" | xargs -r rm
 install:
   requirements:
   - pkg: stdfs
