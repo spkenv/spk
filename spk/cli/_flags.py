@@ -23,11 +23,19 @@ def add_option_flags(parser: argparse.ArgumentParser) -> None:
         action="append",
         help="Specify build options",
     )
+    parser.add_argument(
+        "--no-host",
+        action="store_true",
+        help="Do not add the default options for the current host system",
+    )
 
 
 def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
 
-    opts = spk.api.OptionMap()
+    if args.no_host:
+        opts = spk.api.OptionMap()
+    else:
+        opts = spk.api.host_options()
 
     for name, value in os.environ.items():
 

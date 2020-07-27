@@ -67,10 +67,9 @@ def _make_binary(args: argparse.Namespace) -> None:
         else:
             spec = spk.load_spec(package)
 
-        base_options = spk.api.host_options()
         options = _flags.get_options_from_flags(args)
         variants = spec.build.variants
-        if options:
+        if args.opt or args.no_host:
             variants = [options]
         repos = _flags.get_repos_from_repo_flags(args).values()
         _LOGGER.info("building binary package", pkg=spec.pkg)

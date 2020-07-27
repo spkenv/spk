@@ -43,6 +43,7 @@ def register(
     )
     _flags.add_repo_flags(install_cmd)
     _flags.add_request_flags(install_cmd)
+    _flags.add_option_flags(install_cmd)
     install_cmd.set_defaults(func=_install)
     return install_cmd
 
@@ -50,7 +51,7 @@ def register(
 def _install(args: argparse.Namespace) -> None:
     """install a package into spfs."""
 
-    options = spk.api.host_options()
+    options = _flags.get_options_from_flags(args)
     solver = spk.Solver(options)
     _flags.configure_solver_with_repo_flags(args, solver)
     requests = _flags.parse_requests_using_flags(args, *args.packages)

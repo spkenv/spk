@@ -177,13 +177,18 @@ class VarOpt(Option):
 
     def validate(self, value: str) -> Compatibility:
 
+        if not value:
+            return COMPATIBLE
+
         assigned = super(VarOpt, self).get_value()
         if assigned:
             if assigned == value:
                 return COMPATIBLE
-            return Compatibility(f"Incompatible option: wanted {value}, got {assigned}")
+            return Compatibility(
+                f"Incompatible option: wanted '{value}', got '{assigned}'"
+            )
 
-        if value and self.choices and value not in self.choices:
+        if self.choices and value not in self.choices:
             return Compatibility(
                 f"Invalid value '{value}' for option '{self.var}', must be one of {self.choices}"
             )
@@ -192,7 +197,7 @@ class VarOpt(Option):
 
     def to_dict(self) -> Dict[str, Any]:
 
-        spec = {"var": self.var}
+        spec: Dict[str, Any] = {"var": self.var}
         if self.default:
             spec["default"] = self.default
 
@@ -214,7 +219,7 @@ class VarOpt(Option):
 
         opt = VarOpt(var)
         opt.default = data.pop("default", "")
-        opt.choices = data.pop("choices", set())
+        opt.choices = set(str(c) for c in data.pop("choices", []))
         opt.set_value(data.pop("static", ""))
 
         if len(data):
