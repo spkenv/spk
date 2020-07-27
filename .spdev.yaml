@@ -1,20 +1,7 @@
-version: 0.9.0
+version: 0.9.1
 release_notes: |
-  * Include published spec in package binary build
-    * So that installed packages can be viewed via /spfs
-  * Update install command to account for existing packages
-  * Add support for named package environments
-    * To enable the resolving ob source, build and install
-      environments using a package spec file
-  * Add support for fuzzier build resolution in the solver
-    * This means that pkg options work more as 'expected' for
-      downstream environments and builds
-  * Update remove command to handle removal of a single build
-  * Export package verion major,minor,patch variables in environment
-  * Fix bug where pinned packages were not respected during solve
-  * Fix bug where mode-only changes to source files caused the build to error
-  * Fic bug where duplicate results are show in search, ls
-  * Fix bug where ls still showed results after package removal
+  * Ensure empty yaml files are valid specs
+    * This eases the automation process and getting started docs
 
 
 toolchain:
