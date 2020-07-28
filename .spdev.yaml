@@ -1,7 +1,7 @@
-version: 0.9.2
+version: 0.9.3
 release_notes: |
-  * Add support for fetching sources directly from git
-  * Add support for getting sources directly from a tar archive
+  * Allow exporting of all builds of a package version
+  * Fix bug where package import still lead to package not found error
 
 
 toolchain:
