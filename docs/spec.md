@@ -31,11 +31,11 @@ compat: x.a.b
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
 
 
-### Build Configutration
+### Build Configuration
 
 The build section of the package spec tells spk how to properly compile and cature your software as a package.
 
-### Options
+#### Options
 
 Build options are considered inputs to the build process. There are two types of options that can be specified: package options are build dependencies and var options are arbitrary configuration values for the build.
 
@@ -114,13 +114,49 @@ Make sure that you have defined a build option for whatever you specify in your 
 Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
 {{% /notice %}}
 
-## Sources
+### Sources
 
-The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be customized with a local path relative to the yaml file if desired.
+The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be overriden with a number of different sources.
+
+#### Local Source
 
 ```yaml
 sources:
-- path: src
+- path: ./src
+```
+
+#### Git Source
+
+Git sources are cloned into the source area, and can take an optional ref (tag, branch name, commit) to be checked out.
+
+```yaml
+sources:
+- git: https://github.com/qt/qt5
+  ref: v5.12.9
+```
+
+#### Tar Source
+
+Tar sources can reference both local tar files and remote ones, which will be downloaded first to a temporary location. The tar file is extraced automatically into the source area for use during the build.
+
+```yaml
+sources:
+- tar: https://github.com/qt/qt5/archive/v5.12.9.tar.gz
+```
+
+#### Multiple Sources
+
+You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package.
+
+```yaml
+sources:
+  # clones this git repo into the 'someproject' subdirectory
+- git: https://gitlab.spimageworks.com/someproject
+  ref: master
+  subdir: someproject
+  # copies the contents of the spec file's location into the 'src' subdirectory
+- path: ./
+  subdir: src
 ```
 
 ### Install Configuration

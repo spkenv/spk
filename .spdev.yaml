@@ -1,8 +1,7 @@
-version: 0.9.1
+version: 0.9.2
 release_notes: |
-  * Ensure empty yaml files are valid specs
-    * This eases the automation process and getting started docs
-  * Fix error 'object has no attribute _Option__value'
+  * Add support for fetching sources directly from git
+  * Add support for getting sources directly from a tar archive
 
 
 toolchain:
@@ -56,3 +55,9 @@ components:
   name: spk-python3
   version: 3.7.3
   spec_file: packages/python/python3.spk.yaml
+
+- kind: SentryRelease
+  name: sentry
+  project: spk
+  deploy:
+    enabled: true
