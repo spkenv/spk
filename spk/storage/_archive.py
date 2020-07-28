@@ -2,6 +2,7 @@ from typing import Union
 import os
 
 import spfs
+import structlog
 
 from .. import api
 from ._spfs import (
@@ -11,22 +12,36 @@ from ._spfs import (
     PackageNotFoundError,
 )
 
+_LOGGER = structlog.get_logger("spk.storage")
+
 
 def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
     if not isinstance(pkg, api.Ident):
         pkg = api.parse_ident(pkg)
 
+    try:
+        os.remove(filename)
+    except FileNotFoundError:
+        pass
     tar_spfs_repo = spfs.storage.tar.TarRepository(filename)
     tar_repo = SpFSRepository(tar_spfs_repo)
 
-    for src_repo in (local_repository(), remote_repository()):
-        try:
-            _copy_package(pkg, src_repo, tar_repo)
-            return
-        except (spfs.graph.UnknownReferenceError, PackageNotFoundError):
-            continue
+    to_transfer = {pkg}
+    if pkg.build is None:
+        to_transfer |= set(local_repository().list_package_builds(pkg))
+        to_transfer |= set(remote_repository().list_package_builds(pkg))
+    else:
+        to_transfer.add(pkg.with_build(None))
 
-    raise PackageNotFoundError(pkg)
+    for pkg in to_transfer:
+        for src_repo in (local_repository(), remote_repository()):
+            try:
+                _copy_package(pkg, src_repo, tar_repo)
+                break
+            except (spfs.graph.UnknownReferenceError, PackageNotFoundError):
+                continue
+        else:
+            raise PackageNotFoundError(pkg)
 
 
 def import_package(filename: str) -> None:
@@ -36,9 +51,11 @@ def import_package(filename: str) -> None:
     # the archive is already present
     os.stat(filename)
     tar_spfs_repo = spfs.storage.tar.TarRepository(filename)
-    dst_repo = local_repository().as_spfs_repo()
+    tar_repo = SpFSRepository(tar_spfs_repo)
+    local_repo = local_repository()
     for tag, _ in tar_spfs_repo.tags.iter_tags():
-        spfs.sync_ref(str(tag), tar_spfs_repo, dst_repo)
+        _LOGGER.info("importing", ref=str(tag))
+        spfs.sync_ref(str(tag), tar_spfs_repo, local_repo.as_spfs_repo())
 
 
 def _copy_package(
@@ -46,7 +63,12 @@ def _copy_package(
 ) -> None:
 
     spec = src_repo.read_spec(pkg)
-    digest = src_repo.get_package(pkg)
+    if pkg.build is None:
+        _LOGGER.info("exporting", pkg=str(pkg))
+        dst_repo.publish_spec(spec)
+        return
 
+    digest = src_repo.get_package(pkg)
+    _LOGGER.info("exporting", pkg=str(pkg))
     spfs.sync_ref(digest.str(), src_repo.as_spfs_repo(), dst_repo.as_spfs_repo())
     dst_repo.publish_package(spec, digest)
