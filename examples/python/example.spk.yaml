@@ -9,7 +9,7 @@ build:
     - {python: 3}
 
   script:
-    - python setup.py install
+    - /spfs/bin/python setup.py install
 
 install:
   requirements:
