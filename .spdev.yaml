@@ -47,7 +47,7 @@ components:
 - kind: SPKPackage
   name: spk-gcc63
   version: 6.3.1
-  spec_file: packages/gcc/gcc48.spk.yaml
+  spec_file: packages/gcc/gcc63.spk.yaml
 - kind: SPKPackage
   name: spk-python2
   version: 2.7.5
