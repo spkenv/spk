@@ -38,6 +38,13 @@ def test_tag_no_duplication(tmpdir: py.path.local) -> None:
     assert len(list(storage.read_tag("hello"))) == 1
 
 
+def test_tag_permissions(tmpdir: py.path.local) -> None:
+
+    storage = TagStorage(tmpdir.join("tags").strpath)
+    storage.push_tag("hello", encoding.EMPTY_DIGEST)
+    assert tmpdir.join("tags", "hello.tag").stat().mode & 0o777 == 0o777
+
+
 def test_ls_tags(tmpdir: py.path.local) -> None:
 
     storage = TagStorage(tmpdir.join("tags").strpath)

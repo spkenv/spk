@@ -4,11 +4,13 @@ import io
 import errno
 import contextlib
 
-from ... import tracking, graph, encoding
+import structlog
 
+from ... import tracking, graph, encoding
 from ._database import makedirs_with_perms
 
 _TAG_EXT = ".tag"
+_LOGGER = structlog.get_logger("spfs.storage.fs")
 
 
 class TagStorage:
@@ -171,6 +173,11 @@ class TagStorage:
             with os.fdopen(tag_file_fd, "ab") as tag_file:
                 encoding.write_int(tag_file, size)
                 tag_file.write(encoded_tag)
+            try:
+                os.chmod(filepath, 0o777)
+            except Exception as err:
+                _LOGGER.error("Failed to set tag permissions", err=str(err), filepath=filepath)
+                pass
 
     def remove_tag_stream(self, tag: str) -> None:
         """Remove an entire tag and all related tag history."""
