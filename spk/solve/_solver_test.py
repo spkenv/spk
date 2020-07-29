@@ -23,7 +23,7 @@ def make_repo(
         if isinstance(s, dict):
             s = api.Spec.from_dict(s)
             repo.publish_spec(s)
-            s = make_build(s.to_dict(), opts)
+            s = make_build(s.to_dict(), [], opts)
         repo.publish_package(
             s, spfs.encoding.EMPTY_DIGEST,
         )
@@ -420,3 +420,35 @@ def test_solver_option_compatibility() -> None:
             .get_value()
             .startswith(f"~{pyver}")
         )
+
+
+def test_solver_build_from_source() -> None:
+
+    # test when no appropriate build exists but the source is available
+    # - the build is skipped
+    # - the source package is checked for current options
+    # - a new build is created
+    # - the local package is used in the resolve
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-tool/1.2.0",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+            {"pkg": "gcc/4.8"},
+            {"pkg": "gcc/6.3"},
+        ],
+        api.OptionMap(debug="off"),
+    )
+
+    # the new option value should disqulify the existing build
+    # but a new one should be generated for this set of options
+    solver = Solver(api.OptionMap(debug="on"))
+    solver.add_repository(repo)
+    solver.add_request("my-tool")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
