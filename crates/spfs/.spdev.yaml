@@ -1,36 +1,34 @@
-version: 0.20.3
+version: 0.20.4
 release_notes: |
-  * Fix bug where metadata-only changes could not be reset
-  * Fix bug where ls-tags could return duplicates of the same name
-  * Fix bug where remove tags did not remove their parent from ls-tags results
+  * Fix bug where tags in shared storage could cause permission issues
 
 toolchain:
   - kind: Pipenv
 
 components:
-- name: python
-  kind: PythonPackage
-  lint:
-    python3: false
-    black: true
-    mypy: true
-  test:
-    command: pytest
-  install:
-    enabled: true
-  deploy:
-    rez:
-      enabled: false
+  - name: python
+    kind: PythonPackage
+    lint:
+      python3: false
+      black: true
+      mypy: true
+    test:
+      command: pytest
+    install:
+      enabled: true
+    deploy:
+      rez:
+        enabled: false
 
-- name: rpm
-  kind: RPMPackage
-  spec_file: spfs.spec
+  - name: rpm
+    kind: RPMPackage
+    spec_file: spfs.spec
 
-- kind: HugoDocs
-  name: docs
-  location: docs
+  - kind: HugoDocs
+    name: docs
+    location: docs
 
-- kind: SentryRelease
-  name: sentry
-  project: spfs
-  deploy.enabled: true
+  - kind: SentryRelease
+    name: sentry
+    project: spfs
+    deploy.enabled: true

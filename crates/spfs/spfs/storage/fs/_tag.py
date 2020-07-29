@@ -176,7 +176,9 @@ class TagStorage:
             try:
                 os.chmod(filepath, 0o777)
             except Exception as err:
-                _LOGGER.error("Failed to set tag permissions", err=str(err), filepath=filepath)
+                _LOGGER.error(
+                    "Failed to set tag permissions", err=str(err), filepath=filepath
+                )
                 pass
 
     def remove_tag_stream(self, tag: str) -> None:
