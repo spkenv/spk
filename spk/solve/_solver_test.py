@@ -22,7 +22,7 @@ def make_repo(
     def add_pkg(s: Union[Dict, api.Spec]) -> None:
         if isinstance(s, dict):
             s = api.Spec.from_dict(s)
-            repo.publish_spec(s)
+            repo.force_publish_spec(s)
             s = make_build(s.to_dict(), [], opts)
         repo.publish_package(
             s, spfs.encoding.EMPTY_DIGEST,
@@ -39,6 +39,8 @@ def make_build(
 ) -> api.Spec:
 
     spec = api.Spec.from_dict(spec_dict)
+    if spec.pkg.build and spec.pkg.build.is_source():
+        return spec
     build_opts = opts.copy()
     build_opts = spec.resolve_all_options(build_opts)
     spec.update_for_build(build_opts, deps)
@@ -432,6 +434,10 @@ def test_solver_build_from_source() -> None:
 
     repo = make_repo(
         [
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
             {
                 "pkg": "my-tool/1.2.0",
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
