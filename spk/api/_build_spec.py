@@ -58,7 +58,7 @@ class BuildSpec:
         for opt in self.options:
 
             name = opt.name()
-            given_value = given.get(name, "")
+            given_value = given.get(name, None)
             value = opt.get_value(given_value)
             resolved[name] = value
 
@@ -180,12 +180,9 @@ class VarOpt(Option):
 
     def validate(self, value: str) -> Compatibility:
 
-        if not value:
-            return COMPATIBLE
-
         assigned = super(VarOpt, self).get_value()
         if assigned:
-            if assigned == value:
+            if not value or assigned == value:
                 return COMPATIBLE
             return Compatibility(
                 f"Incompatible option: wanted '{value}', got '{assigned}'"

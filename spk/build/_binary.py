@@ -93,7 +93,7 @@ class BinaryPackageBuilder:
         self._repos.extend(repos)
         return self
 
-    def build(self) -> api.Ident:
+    def build(self) -> api.Spec:
         """Build the requested binary package."""
 
         assert (
@@ -118,7 +118,7 @@ class BinaryPackageBuilder:
         self._spec.update_for_build(self._pkg_options, specs)
         layer = self._build_and_commit_artifacts(solution.to_environment())
         storage.local_repository().publish_package(self._spec, layer.digest())
-        return self._spec.pkg
+        return self._spec
 
     def _resolve_source_package(self) -> solve.Solution:
 
