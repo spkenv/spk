@@ -44,14 +44,6 @@ components:
     name: spk-gcc63
     version: 6.3.1
     spec_file: packages/gcc/gcc63.spk.yaml
-  - kind: SPKPackage
-    name: spk-python2
-    version: 2.7.5
-    spec_file: packages/python/python2.spk.yaml
-  - kind: SPKPackage
-    name: spk-python3
-    version: 3.7.3
-    spec_file: packages/python/python3.spk.yaml
 
   - kind: SentryRelease
     name: sentry
