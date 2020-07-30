@@ -97,7 +97,9 @@ class Solver:
 
         self._running = False
         self._complete = True
-        return state.get_current_solution()
+        solution = state.get_current_solution()
+        solution.set_options(self._options)
+        return solution
 
     def _solve_request(self, state: Decision, request: api.Request) -> Decision:
 

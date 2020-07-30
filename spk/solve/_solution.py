@@ -1,4 +1,4 @@
-from typing import Tuple, Iterator, Dict, Optional, Any, NamedTuple
+from typing import Tuple, Iterator, Dict, List, NamedTuple
 import os
 
 from .. import api, storage
@@ -13,8 +13,9 @@ class SolvedRequest(NamedTuple):
 class Solution:
     """Represents a set of resolved packages."""
 
-    def __init__(self) -> None:
+    def __init__(self, options: api.OptionMap = None) -> None:
 
+        self._options = api.OptionMap(options or {})
         self._resolved: Dict[api.Request, Tuple[api.Spec, storage.Repository]] = {}
 
     def __bool__(self) -> bool:
@@ -27,9 +28,26 @@ class Solution:
     def __len__(self) -> int:
         return len(self._resolved)
 
+    def options(self) -> api.OptionMap:
+        """Return the options used to generate this solution."""
+        return api.OptionMap(self._options)
+
+    def set_options(self, options: api.OptionMap) -> None:
+        """Update the options used for this solution to the given ones."""
+        self._options = api.OptionMap(options)
+
+    def repositories(self) -> List[storage.Repository]:
+        """Return the set of repositories in this solution."""
+
+        repos = []
+        for _, _, repo in self.items():
+            if repo not in repos:
+                repos.append(repo)
+        return repos
+
     def clone(self) -> "Solution":
 
-        other = Solution()
+        other = Solution(self._options)
         other._resolved.update(self._resolved)
         return other
 

@@ -86,7 +86,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             version_str = str(candidate.version)
             repo = self._version_map[version_str]
 
-            if candidate.build.is_source():
+            if requested_build is None and candidate.build.is_source():
                 spec = self._version_spec
             else:
                 spec = repo.read_spec(candidate)
@@ -101,9 +101,6 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
                 self.history[candidate] = compat
                 continue
 
-            assert (
-                spec.pkg.build is None or not spec.pkg.build.is_source()
-            ), f"{candidate} {candidate.build.is_source()} {self._version_spec}"
             return (spec, repo)
 
         self._start_next_version()
