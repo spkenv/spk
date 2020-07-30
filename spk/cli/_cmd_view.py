@@ -31,8 +31,7 @@ def register(
         help="Package, or package build to show the spec file of",
     )
     _flags.add_request_flags(view_cmd)
-    _flags.add_repo_flags(view_cmd, defaults=[])
-    _flags.add_option_flags(view_cmd)
+    _flags.add_solver_flags(view_cmd)
     view_cmd.set_defaults(func=_view)
     return view_cmd
 
@@ -40,18 +39,7 @@ def register(
 def _view(args: argparse.Namespace) -> None:
     """view a package into a shared repository."""
 
-    repos = _flags.get_repos_from_repo_flags(args)
-    if not repos:
-        print(
-            f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    options = _flags.get_options_from_flags(args)
-    solver = spk.Solver(options)
-    _flags.configure_solver_with_repo_flags(args, solver)
-
+    solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]
     solver.add_request(request)
 
@@ -78,8 +66,9 @@ def _view(args: argparse.Namespace) -> None:
 
         sys.exit(1)
 
-    for _, spec, _ in solution.items():
+    for _, spec, repo in solution.items():
         if spec.pkg.name == request.pkg.name:
+            print(f"{Fore.BLUE}found in:{Fore.RESET} {repo}", file=sys.stderr)
             yaml.safe_dump(spec.to_dict(), sys.stdout, default_flow_style=False)
             break
     else:

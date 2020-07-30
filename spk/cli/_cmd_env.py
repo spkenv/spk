@@ -33,9 +33,8 @@ def register(
             "spawn a new shell"
         ),
     )
+    _flags.add_solver_flags(env_cmd)
     _flags.add_request_flags(env_cmd)
-    _flags.add_repo_flags(env_cmd)
-    _flags.add_option_flags(env_cmd)
     env_cmd.set_defaults(func=_env)
     return env_cmd
 
@@ -51,8 +50,7 @@ def _env(args: argparse.Namespace) -> None:
     command = args.args[separator + 1 :] or [""]
 
     options = _flags.get_options_from_flags(args)
-    solver = spk.Solver(options)
-    _flags.configure_solver_with_repo_flags(args, solver)
+    solver = _flags.get_solver_from_flags(args)
 
     for request in _flags.parse_requests_using_flags(args, *requests):
         solver.add_request(request)
