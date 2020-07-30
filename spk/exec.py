@@ -28,6 +28,9 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
     local_repo = storage.local_repository()
     for _, spec, repo in solution.items():
 
+        if spec.pkg.build is None:
+            raise ValueError(f"Solution has package that needs building: {spec.pkg}")
+
         try:
             digest = repo.get_package(spec.pkg)
         except FileNotFoundError:
