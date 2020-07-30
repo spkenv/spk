@@ -1,4 +1,5 @@
 from typing import Dict, List, Union
+from _pytest.python import Package
 
 import spfs
 import pytest
@@ -21,15 +22,17 @@ def make_repo(
 
     def add_pkg(s: Union[Dict, api.Spec]) -> None:
         if isinstance(s, dict):
-            s = api.Spec.from_dict(s)
-            repo.publish_spec(s)
-            s = make_build(s.to_dict(), opts)
+            spec = api.Spec.from_dict(s)
+            s = spec.clone()
+            spec.pkg.set_build(None)
+            repo.force_publish_spec(spec)
+            s = make_build(s.to_dict(), [], opts)
         repo.publish_package(
             s, spfs.encoding.EMPTY_DIGEST,
         )
 
-    for spec in specs:
-        add_pkg(spec)
+    for s in specs:
+        add_pkg(s)
 
     return repo
 
@@ -39,6 +42,8 @@ def make_build(
 ) -> api.Spec:
 
     spec = api.Spec.from_dict(spec_dict)
+    if spec.pkg.build and spec.pkg.build.is_source():
+        return spec
     build_opts = opts.copy()
     build_opts = spec.resolve_all_options(build_opts)
     spec.update_for_build(build_opts, deps)
@@ -420,3 +425,90 @@ def test_solver_option_compatibility() -> None:
             .get_value()
             .startswith(f"~{pyver}")
         )
+
+
+def test_solver_build_from_source() -> None:
+
+    # test when no appropriate build exists but the source is available
+    # - the build is skipped
+    # - the source package is checked for current options
+    # - a new build is created
+    # - the local package is used in the resolve
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+        ],
+        api.OptionMap(debug="off"),
+    )
+
+    # the new option value should disqulify the existing build
+    # but a new one should be generated for this set of options
+    solver = Solver(api.OptionMap(debug="on"))
+    solver.add_repository(repo)
+    solver.add_request("my-tool")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert (
+        solution.get("my-tool").spec.pkg.build is None
+    ), "Should return unbuilt package"
+
+    solver = Solver(api.OptionMap(debug="on"))
+    solver.add_repository(repo)
+    solver.add_request("my-tool")
+    solver.set_binary_only(True)
+    with pytest.raises(UnresolvedPackageError):
+        # Should fail when binary-only is specified
+        try:
+            solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_build_from_source_unsolvable() -> None:
+
+    # test when no appropriate build exists but the source is available
+    # - if the requested pkg cannot resolve a build environment
+    # - this is flagged by the solver as impossible
+
+    gcc48 = make_build({"pkg": "gcc/4.8"})
+    repo = make_repo(
+        [
+            gcc48,
+            make_build(
+                {
+                    "pkg": "my-tool/1.2.0",
+                    "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+                },
+                [gcc48],
+            ),
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+            },
+        ],
+        api.OptionMap(gcc="4.8"),
+    )
+
+    # the new option value should disqulify the existing build
+    # and there is no 6.3 that can be resolved for this request
+    solver = Solver(api.OptionMap(gcc="6.3"))
+    solver.add_repository(repo)
+    solver.add_request("my-tool")
+
+    with pytest.raises(UnresolvedPackageError):
+        try:
+            solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))

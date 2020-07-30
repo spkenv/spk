@@ -77,7 +77,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     BinaryPackageBuilder.from_spec(dep_spec).with_source(".").with_repository(
         tmprepo
     ).build()
-    pkg = (
+    spec = (
         BinaryPackageBuilder.from_spec(spec)
         .with_source(".")
         .with_repository(tmprepo)
@@ -85,7 +85,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
         .with_option("top.dep", "1.0.0")  # specific option takes precendence
         .build()
     )
-    build_options = tmprepo.read_spec(pkg).build.resolve_all_options(
+    build_options = tmprepo.read_spec(spec.pkg).build.resolve_all_options(
         api.OptionMap({"dep": "7"})  # given value should be ignored after build
     )
     assert build_options.get("dep") == "~1.0.0"
@@ -111,14 +111,14 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     BinaryPackageBuilder.from_spec(dep_spec).with_source(os.getcwd()).with_repository(
         tmprepo
     ).build()
-    pkg = (
+    spec = (
         BinaryPackageBuilder.from_spec(spec)
         .with_source(os.getcwd())
         .with_repository(tmprepo)
         .build()
     )
 
-    spec = tmprepo.read_spec(pkg)
+    spec = tmprepo.read_spec(spec.pkg)
     assert str(spec.install.requirements[0].pkg) == "dep/~1.0"
 
 
@@ -135,7 +135,7 @@ def test_build_bad_options() -> None:
     )
 
     with pytest.raises(ValueError):
-        pkg = (
+        spec = (
             BinaryPackageBuilder.from_spec(spec)
             .with_source(os.getcwd())
             .with_option("debug", "false")

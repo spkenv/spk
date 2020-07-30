@@ -1,63 +1,64 @@
-version: 0.9.3
+version: 0.10.0
 release_notes: |
-  * Allow exporting of all builds of a package version
-  * Fix bug where package import still lead to package not found error
-
+  * Add support for resolving and building from source on the fly
+  * Update view/info command to print currently installed packages
+  * Fix bug where build could have invalid option
+    * When the option required a value but non was specified on the command line
+  * Fix bug where env command failed with command not found in some cases
 
 toolchain:
-- kind: Shell
-  variables:
-    SENTRY_ENVIRONMENT: development
-    PATH: $SPDEV_ENV/bin:$PATH
-- kind: Pipenv
+  - kind: Shell
+    variables:
+      SENTRY_ENVIRONMENT: development
+      PATH: $SPDEV_ENV/bin:$PATH
+  - kind: Pipenv
 
 components:
+  - kind: PythonPackage
+    name: python
+    lint:
+      black: true
+      python3: false
+      mypy: true
+    test:
+      command: spfs run - pytest
+    install:
+      enabled: true
+    deploy:
+      rez.enabled: false
 
-- kind: PythonPackage
-  name: python
-  lint:
-    black: true
-    python3: false
-    mypy: true
-  test:
-    command: spfs run - pytest
-  install:
-    enabled: true
-  deploy:
-    rez.enabled: false
+  - kind: HugoDocs
+    name: docs
+    location: docs
 
-- kind: HugoDocs
-  name: docs
-  location: docs
+  - kind: RPMPackage
+    name: rpm
+    spec_file: spk.spec
 
-- kind: RPMPackage
-  name: rpm
-  spec_file: spk.spec
+  # bootstrap packages that need to go out with any new features
+  - kind: SPKPackage
+    name: spk-stdfs
+    version: 1.0.0
+    spec_file: packages/stdfs/stdfs.spk.yaml
+  - kind: SPKPackage
+    name: spk-gcc48
+    version: 4.8.5
+    spec_file: packages/gcc/gcc48.spk.yaml
+  - kind: SPKPackage
+    name: spk-gcc63
+    version: 6.3.1
+    spec_file: packages/gcc/gcc63.spk.yaml
+  - kind: SPKPackage
+    name: spk-python2
+    version: 2.7.5
+    spec_file: packages/python/python2.spk.yaml
+  - kind: SPKPackage
+    name: spk-python3
+    version: 3.7.3
+    spec_file: packages/python/python3.spk.yaml
 
-# bootstrap packages that need to go out with any new features
-- kind: SPKPackage
-  name: spk-stdfs
-  version: 1.0.0
-  spec_file: packages/stdfs/stdfs.spk.yaml
-- kind: SPKPackage
-  name: spk-gcc48
-  version: 4.8.5
-  spec_file: packages/gcc/gcc48.spk.yaml
-- kind: SPKPackage
-  name: spk-gcc63
-  version: 6.3.1
-  spec_file: packages/gcc/gcc63.spk.yaml
-- kind: SPKPackage
-  name: spk-python2
-  version: 2.7.5
-  spec_file: packages/python/python2.spk.yaml
-- kind: SPKPackage
-  name: spk-python3
-  version: 3.7.3
-  spec_file: packages/python/python3.spk.yaml
-
-- kind: SentryRelease
-  name: sentry
-  project: spk
-  deploy:
-    enabled: true
+  - kind: SentryRelease
+    name: sentry
+    project: spk
+    deploy:
+      enabled: true

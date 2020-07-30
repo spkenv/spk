@@ -21,8 +21,7 @@ def register(
     explain_cmd = sub_parsers.add_parser(
         "explain", help=_explain.__doc__, **parser_args
     )
-    _flags.add_repo_flags(explain_cmd)
-    _flags.add_option_flags(explain_cmd)
+    _flags.add_solver_flags(explain_cmd)
     _flags.add_request_flags(explain_cmd)
     explain_cmd.add_argument(
         "packages",
@@ -37,9 +36,7 @@ def register(
 def _explain(args: argparse.Namespace) -> None:
     """Print the decision tree for the resolve of a set of packages."""
 
-    options = _flags.get_options_from_flags(args)
-    solver = spk.Solver(options)
-    _flags.configure_solver_with_repo_flags(args, solver)
+    solver = _flags.get_solver_from_flags(args)
 
     for request in _flags.parse_requests_using_flags(args, *args.packages):
         solver.add_request(request)

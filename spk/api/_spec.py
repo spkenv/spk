@@ -32,6 +32,7 @@ class Spec:
         return Spec.from_dict(self.to_dict())
 
     def resolve_all_options(self, given: Union[OptionMap, Dict[str, Any]]) -> OptionMap:
+        """Return the full set of resolved build options using the given ones."""
 
         if not isinstance(given, OptionMap):
             given = OptionMap(given)

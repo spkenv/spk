@@ -58,7 +58,7 @@ class BuildSpec:
         for opt in self.options:
 
             name = opt.name()
-            given_value = given.get(name, "")
+            given_value = given.get(name, None)
             value = opt.get_value(given_value)
             resolved[name] = value
 
@@ -147,16 +147,14 @@ def opt_from_request(request: Request) -> "PkgOpt":
 
 
 class VarOpt(Option):
-
-    var: str
-    default: str = ""
-    choices: Set[str] = field(default_factory=set)
-
     def __init__(self, var: str, default: str = "", choices: Set[str] = None) -> None:
         self.var = var
         self.default = default
         self.choices = choices if choices else set()
         super(VarOpt, self).__init__()
+
+    def __repr__(self) -> str:
+        return f"VarOpt({self.to_dict()})"
 
     def name(self) -> str:
         return self.var
@@ -182,12 +180,9 @@ class VarOpt(Option):
 
     def validate(self, value: str) -> Compatibility:
 
-        if not value:
-            return COMPATIBLE
-
         assigned = super(VarOpt, self).get_value()
         if assigned:
-            if assigned == value:
+            if not value or assigned == value:
                 return COMPATIBLE
             return Compatibility(
                 f"Incompatible option: wanted '{value}', got '{assigned}'"
@@ -238,6 +233,9 @@ class PkgOpt(Option):
         self.pkg = pkg
         self.default = default
         super(PkgOpt, self).__init__()
+
+    def __repr__(self) -> str:
+        return f"PkgOpt({self.to_dict()})"
 
     def name(self) -> str:
         return self.pkg

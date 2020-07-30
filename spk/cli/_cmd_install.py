@@ -41,9 +41,8 @@ def register(
         default=False,
         help="Do not prompt for confirmation, just continue",
     )
-    _flags.add_repo_flags(install_cmd)
     _flags.add_request_flags(install_cmd)
-    _flags.add_option_flags(install_cmd)
+    _flags.add_solver_flags(install_cmd)
     install_cmd.set_defaults(func=_install)
     return install_cmd
 
@@ -51,9 +50,7 @@ def register(
 def _install(args: argparse.Namespace) -> None:
     """install a package into spfs."""
 
-    options = _flags.get_options_from_flags(args)
-    solver = spk.Solver(options)
-    _flags.configure_solver_with_repo_flags(args, solver)
+    solver = _flags.get_solver_from_flags(args)
     requests = _flags.parse_requests_using_flags(args, *args.packages)
 
     try:
@@ -122,11 +119,17 @@ def _install(args: argparse.Namespace) -> None:
 
     print("  Requested:")
     for spec in primary:
-        print("    " + format_ident(spec.pkg))
+        end = "\n"
+        if spec.pkg.build is None:
+            end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
+        print("    " + format_ident(spec.pkg), end=end)
     if tertiary:
         print("\n  Dependencies:")
         for spec in tertiary:
-            print("    " + format_ident(spec.pkg))
+            end = "\n"
+            if spec.pkg.build is None:
+                end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
+            print("    " + format_ident(spec.pkg), end=end)
 
     print("")
 
@@ -136,4 +139,5 @@ def _install(args: argparse.Namespace) -> None:
         print("Installation cancelled")
         sys.exit(1)
 
-    spk.setup_current_runtime(packages)
+    compiled_solution = spk.build_required_packages(packages)
+    spk.setup_current_runtime(compiled_solution)

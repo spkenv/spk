@@ -91,4 +91,4 @@ def _make_binary(args: argparse.Namespace) -> None:
                     print(spk.io.format_decision_tree(tree, verbosity=args.verbose))
                 raise
             else:
-                _LOGGER.info("created", pkg=out)
+                _LOGGER.info("created", pkg=out.pkg)

@@ -13,6 +13,27 @@ import spk
 OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
 
 
+def add_solver_flags(parser: argparse.ArgumentParser) -> None:
+
+    add_option_flags(parser)
+    add_repo_flags(parser)
+    parser.add_argument(
+        "--binary-only",
+        action="store_true",
+        default=False,
+        help="If true, never build packages from source if needed",
+    )
+
+
+def get_solver_from_flags(args: argparse.Namespace) -> spk.Solver:
+
+    options = get_options_from_flags(args)
+    solver = spk.Solver(options)
+    configure_solver_with_repo_flags(args, solver)
+    solver.set_binary_only(args.binary_only)
+    return solver
+
+
 def add_option_flags(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument(
@@ -54,6 +75,10 @@ def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
             name, value = pair.split("=", 1)
         elif ":" in pair:
             name, value = pair.split(":", 1)
+        else:
+            raise ValueError(
+                f"Invalid option: -o {pair} (should be in the form name=value)"
+            )
         opts[name] = value
 
     return opts

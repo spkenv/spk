@@ -22,7 +22,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     view_cmd = sub_parsers.add_parser(
-        "view", aliases=["list"], help=_view.__doc__, **parser_args,
+        "view", aliases=["info"], help=_view.__doc__, **parser_args,
     )
     view_cmd.add_argument(
         "package",
@@ -31,27 +31,19 @@ def register(
         help="Package, or package build to show the spec file of",
     )
     _flags.add_request_flags(view_cmd)
-    _flags.add_repo_flags(view_cmd, defaults=[])
-    _flags.add_option_flags(view_cmd)
+    _flags.add_solver_flags(view_cmd)
     view_cmd.set_defaults(func=_view)
     return view_cmd
 
 
 def _view(args: argparse.Namespace) -> None:
-    """view a package into a shared repository."""
+    """view the current environment or a specific package's information."""
 
-    repos = _flags.get_repos_from_repo_flags(args)
-    if not repos:
-        print(
-            f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    if not args.package:
+        _print_current_env()
+        return
 
-    options = _flags.get_options_from_flags(args)
-    solver = spk.Solver(options)
-    _flags.configure_solver_with_repo_flags(args, solver)
-
+    solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]
     solver.add_request(request)
 
@@ -78,9 +70,18 @@ def _view(args: argparse.Namespace) -> None:
 
         sys.exit(1)
 
-    for _, spec, _ in solution.items():
+    for _, spec, repo in solution.items():
         if spec.pkg.name == request.pkg.name:
+            print(f"{Fore.BLUE}found in:{Fore.RESET} {repo}", file=sys.stderr)
             yaml.safe_dump(spec.to_dict(), sys.stdout, default_flow_style=False)
             break
     else:
         raise RuntimeError("Internal Error: requested package was not in solution")
+
+
+def _print_current_env() -> None:
+
+    solution = spk.current_env()
+    print("Installed Packages:")
+    for _, spec, _ in solution.items():
+        print("  " + format_ident(spec.pkg))
