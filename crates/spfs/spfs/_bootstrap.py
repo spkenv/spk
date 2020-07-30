@@ -31,6 +31,27 @@ def build_command_for_runtime(
     return _build_spfs_enter_command(runtime, spfs_exe, *args)
 
 
+def build_interactive_shell_cmd() -> Tuple[str, ...]:
+    """Return a command that initializes and runs an interactive shell
+
+    The returned command properly sets up and runs an interactive
+    shell session in the current runtime.
+    """
+
+    rt = active_runtime()
+    shell_path = os.environ.get("SHELL", "<not-set>")
+    shell_name = os.path.basename(shell_path)
+
+    if shell_name in ("tcsh",):
+        return ("expect", rt.csh_expect_file, shell_path, rt.csh_startup_file)
+
+    if shell_name not in ("bash",):
+        _logger.warning(f"current shell not supported ({shell_path}) - using bash")
+        shell_path = "/usr/bin/bash"
+        shell_name = "bash"
+    return (shell_path, "--init-file", rt.sh_startup_file)
+
+
 def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]:
     """Construct a boostrapping command for initializing through the shell.
 

@@ -1,6 +1,6 @@
 """Filesystem isolation, capture and distribution."""
 
-__version__ = "0.20.4"
+__version__ = "0.20.5"
 
 from . import storage, tracking, runtime, io, graph, encoding
 from ._config import get_config, load_config, Config
@@ -14,7 +14,11 @@ from ._runtime import (
     remount_runtime,
     NoRuntimeError,
 )
-from ._bootstrap import build_command_for_runtime, build_shell_initialized_command
+from ._bootstrap import (
+    build_command_for_runtime,
+    build_shell_initialized_command,
+    build_interactive_shell_cmd,
+)
 from ._sync import push_ref, pull_ref, sync_ref
 from ._commit import commit_layer, commit_platform, NothingToCommitError
 from ._clean import (

@@ -1,6 +1,6 @@
-version: 0.20.4
+version: 0.20.5
 release_notes: |
-  * Fix bug where tags in shared storage could cause permission issues
+  * Expose interactive shell builder in public api (for spk)
 
 toolchain:
   - kind: Pipenv
