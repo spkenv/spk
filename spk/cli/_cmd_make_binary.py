@@ -94,6 +94,7 @@ def _make_binary(args: argparse.Namespace) -> None:
             try:
                 out = builder.build()
             except spk.SolverError:
+                _LOGGER.error("build failed", variant=opts)
                 if args.verbose:
                     tree = builder.get_build_env_decision_tree()
                     print(spk.io.format_decision_tree(tree, verbosity=args.verbose))

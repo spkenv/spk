@@ -66,7 +66,7 @@ def run(argv: Sequence[str]) -> int:
         _capture_if_relevant(e)
         spops.count("spk.error_count", command=args.command)
         print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
-        if args.verbose > 1:
+        if args.verbose > 2:
             print(f"{Fore.RED}{traceback.format_exc()}{Fore.RESET}", file=sys.stderr)
         return 1
 
@@ -80,6 +80,8 @@ def _capture_if_relevant(e: Exception) -> None:
     if isinstance(e, spk.storage.VersionExistsError):
         return
     if isinstance(e, spk.NoEnvironmentError):
+        return
+    if isinstance(e, spk.build.BuildError):
         return
     if isinstance(e, spk.solve.SolverError):
         return
