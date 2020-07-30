@@ -35,6 +35,10 @@ Source files are gathered based on the [sources](../spec#sources) section of the
 
 There are two ways that a binary package can be built, using an existing source package, or an external set of source files.
 
+{{% notice tip %}}
+When building a package on the command line, it will build all variants of the package by default. You can use the `-o` flag to further select which variants should be build (or specify an entirely new variant).
+{{% /notice %}}
+
 ### From a Source Package
 
 Usually, the `spk build` command will create a source package first and then build it so building from a source package is the most common scenario.
