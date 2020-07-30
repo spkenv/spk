@@ -1,4 +1,4 @@
-from typing import Mapping, Union
+from typing import Mapping, Union, Type
 
 import pytest
 
@@ -33,7 +33,7 @@ def test_expand_defined_args(
     ],
 )
 def test_expand_vars(
-    value: str, vars: Mapping[str, str], expected: Union[str, Exception]
+    value: str, vars: Mapping[str, str], expected: Union[str, Type[Exception]]
 ) -> None:
 
     if isinstance(expected, str):

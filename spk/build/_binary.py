@@ -31,7 +31,7 @@ class BinaryPackageBuilder:
     ...     .with_option("debug", "true")
     ...     .with_source(".")
     ...     .build()
-    ... )
+    ... ).pkg
     my-pkg/0.0.0/3I42H3S6
     """
 
@@ -137,6 +137,7 @@ class BinaryPackageBuilder:
     def _resolve_build_environment(self) -> solve.Solution:
 
         self._solver = solve.Solver(self._all_options)
+        self._solver.set_binary_only(True)
         for repo in self._repos:
             self._solver.add_repository(repo)
 
