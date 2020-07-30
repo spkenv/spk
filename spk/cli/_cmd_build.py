@@ -47,10 +47,11 @@ def _build(args: argparse.Namespace) -> None:
         proc.wait()
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
-        options = _flags.get_options_from_flags(args)
         option_flags = []
-        for name, value in options.items():
-            option_flags.extend(["-o", f"{name}={value}"])
+        for option in args.opt:
+            option_flags.extend(["-o", option])
+        if args.no_host:
+            option_flags.append("--no_host")
         cmd = ["spk", "make-binary", filename, *common_args, *option_flags]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)

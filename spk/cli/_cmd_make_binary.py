@@ -58,7 +58,6 @@ def _make_binary(args: argparse.Namespace) -> None:
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
 
-    source_dir = os.getcwd()
     for package in args.packages:
         if os.path.isfile(package):
             spec = spk.api.read_spec_file(package)
@@ -68,17 +67,26 @@ def _make_binary(args: argparse.Namespace) -> None:
             spec = spk.load_spec(package)
 
         options = _flags.get_options_from_flags(args)
-        variants = spec.build.variants
-        if args.opt or args.no_host:
-            variants = [options]
         repos = _flags.get_repos_from_repo_flags(args).values()
         _LOGGER.info("building binary package", pkg=spec.pkg)
-        for variant in variants:
+        built = set()
+        for variant in spec.build.variants:
 
-            _LOGGER.info("building variant", variant=variant)
+            if not args.no_host:
+                opts = spk.api.host_options()
+            else:
+                opts = spk.api.OptionMap()
+
+            opts.update(variant)
+            opts.update(options)
+            if opts.digest() in built:
+                continue
+            built.add(opts.digest())
+
+            _LOGGER.info("building variant", variant=opts)
             builder = (
                 spk.BinaryPackageBuilder.from_spec(spec)
-                .with_options(variant)
+                .with_options(opts)
                 .with_repositories(repos)
             )
             if args.here:
