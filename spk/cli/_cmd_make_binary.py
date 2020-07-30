@@ -57,6 +57,8 @@ def _make_binary(args: argparse.Namespace) -> None:
         runtime.set_editable(True)
         cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
         os.execv(cmd[0], cmd)
+    else:
+        runtime = spfs.active_runtime()
 
     for package in args.packages:
         if os.path.isfile(package):
@@ -82,6 +84,12 @@ def _make_binary(args: argparse.Namespace) -> None:
             if opts.digest() in built:
                 continue
             built.add(opts.digest())
+
+            runtime.set_editable(True)
+            spfs.remount_runtime(runtime)
+            runtime.reset("**/*")
+            runtime.reset_stack()
+            spfs.remount_runtime(runtime)
 
             _LOGGER.info("building variant", variant=opts)
             builder = (
