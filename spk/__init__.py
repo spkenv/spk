@@ -9,6 +9,7 @@ from ._env import current_env, NoEnvironmentError
 # promote useful front line api functions
 from .solve import (
     Solver,
+    Solution,
     UnresolvedPackageError,
     ConflictingRequestsError,
     SolverError,
@@ -23,4 +24,4 @@ from .build import (
     CollectionError,
 )
 from .storage import export_package, import_package
-from .exec import setup_current_runtime, create_runtime
+from .exec import build_required_packages, setup_current_runtime, create_runtime

@@ -1,9 +1,37 @@
 import spfs
 import structlog
 
-from . import solve, storage, io
+from . import solve, storage, io, build
 
 _LOGGER = structlog.get_logger("spk.exec")
+
+
+def build_required_packages(solution: solve.Solution) -> solve.Solution:
+    """Build any packages in the given solution that need building.
+
+    Returns:
+      solve.Solution: a new solution of only binary packages
+    """
+
+    local_repo = storage.local_repository()
+    repos = solution.repositories()
+    options = solution.options()
+    compiled_solution = solve.Solution(options)
+    for req, spec, repo in solution.items():
+        if spec.pkg.build is not None:
+            compiled_solution.add(req, spec, repo)
+            continue
+        _LOGGER.info(
+            f"Building: {io.format_ident(spec.pkg)} for {io.format_options(options)}"
+        )
+        spec = (
+            build.BinaryPackageBuilder.from_spec(spec)
+            .with_repositories(repos)
+            .with_options(options)
+            .build()
+        )
+        compiled_solution.add(req, spec, local_repo)
+    return compiled_solution
 
 
 def setup_current_runtime(solution: solve.Solution) -> None:
@@ -29,7 +57,9 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
     for _, spec, repo in solution.items():
 
         if spec.pkg.build is None:
-            raise ValueError(f"Solution has package that needs building: {spec.pkg}")
+            raise ValueError(
+                f"Solution includes package that needs building: {spec.pkg}"
+            )
 
         try:
             digest = repo.get_package(spec.pkg)

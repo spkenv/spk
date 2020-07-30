@@ -1,10 +1,10 @@
 from typing import Union
 import os
 
+import spfs
 import structlog
-from ruamel import yaml
 
-from . import api, build, solve, storage
+from . import api, solve, storage
 
 _LOGGER = structlog.get_logger("spk")
 ACTIVE_PREFIX = os.getenv("SPK_ACTIVE_PREFIX", "/spfs")
@@ -20,6 +20,11 @@ class NoEnvironmentError(RuntimeError):
 
 def current_env() -> solve.Solution:
     """Load the current environment from the spfs file system."""
+
+    try:
+        spfs.active_runtime()
+    except spfs.NoRuntimeError:
+        raise NoEnvironmentError()
 
     runtime = storage.RuntimeRepository()
     solution = solve.Solution()
