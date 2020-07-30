@@ -40,9 +40,11 @@ class MemRepository(Repository):
 
         try:
             if not pkg.build:
-                return self._specs[pkg.name][str(pkg.version)]
+                return self._specs[pkg.name][str(pkg.version)].clone()
             else:
-                return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][0]
+                return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][
+                    0
+                ].clone()
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -65,12 +67,13 @@ class MemRepository(Repository):
 
     def publish_spec(self, spec: api.Spec) -> None:
 
+        assert spec.pkg.build is None, "Spec must be published with no build"
         self._specs.setdefault(spec.pkg.name, {})
         versions = self._specs[spec.pkg.name]
         version = str(spec.pkg.version)
         if version in versions:
             raise VersionExistsError(version)
-        versions[version] = spec
+        versions[version] = spec.clone()
 
     def remove_spec(self, pkg: api.Ident) -> None:
 

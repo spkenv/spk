@@ -1,11 +1,7 @@
-from typing import List, Union, Iterable, Dict, Optional, Tuple, Any, Iterator, Set
-from collections import defaultdict
-from functools import lru_cache
-from itertools import chain
+from typing import List, Union, Dict
 
 from ruamel import yaml
 import structlog
-import spfs
 
 from .. import api, storage
 from ._decision import Decision, PackageIterator, DecisionTree
@@ -25,6 +21,18 @@ class Solver:
         self.decision_tree = DecisionTree()
         self._running = False
         self._complete = False
+        self._binary_only = False
+
+    def set_binary_only(self, binary_only: bool) -> None:
+        """If true, only solve pre-built binary packages.
+
+        When false, the solver may return packages where the build is not set.
+        These packages are known to have a source package available, and the requested
+        options are valid for a new build of that source package.
+        These packages are not actually built as part of the solver process but their
+        build environments are fully resolved and dependencies included
+        """
+        self._binary_only = binary_only
 
     def add_repository(self, repo: storage.Repository) -> None:
         """Add a repository where the solver can get packages."""
@@ -41,6 +49,19 @@ class Solver:
         if self._complete:
             raise RuntimeError("Solver has already been executed")
         self.decision_tree.root.add_request(pkg)
+
+    def solve_build_environment(self, spec: api.Spec) -> Solution:
+        """Adds requests for all build """
+
+        build_options = spec.resolve_all_options(self._options)
+        for option in spec.build.options:
+            if not isinstance(option, api.PkgOpt):
+                continue
+            given = build_options.get(option.name())
+            request = option.to_request(given)
+            self.add_request(request)
+
+        return self.solve()
 
     def solve(self) -> Solution:
         """Solve the current set of package requests into a complete environment.
@@ -88,18 +109,22 @@ class Solver:
                 iterator = self._make_iterator(request)
                 state.set_iterator(request.pkg.name, iterator)
 
-            spec, repo = next(iterator)
-            decision.set_resolved(spec, repo)
+            while True:
+                spec, repo = next(iterator)
+                if spec.pkg.build is None:
+                    if self._binary_only:
+                        compat = api.Compatibility("Only binary packages are allowed")
+                    else:
+                        compat = self._resolve_new_build(spec, state)
+                    if not compat:
+                        iterator.history[spec.pkg] = compat
+                        continue
+                elif not spec.pkg.build.is_source():
+                    for dep in spec.install.requirements:
+                        decision.add_request(dep)
+                break
 
-            # a source package should not have install dependencies
-            # added since it has not yet been built / resolved
-            # FIXME: really we might want to be building this package
-            # but there is also a case for including a source package in
-            # and environment... maybe solve build dependencies?
-            # although that will mess with the exisiting build process
-            if spec.pkg.build is None or not spec.pkg.build.is_source():
-                for dep in spec.install.requirements:
-                    decision.add_request(dep)
+            decision.set_resolved(spec, repo)
 
         except StopIteration:
             it: PackageIterator = iterator  # type: ignore
@@ -118,3 +143,24 @@ class Solver:
 
         assert len(self._repos), "No configured package repositories."
         return PackageIterator(self._repos, request, self._options)
+
+    def _resolve_new_build(self, spec: api.Spec, state: Decision) -> api.Compatibility:
+
+        solver = Solver(self._options.copy())
+        for repo in self._repos:
+            solver.add_repository(repo)
+
+        try:
+            solution = solver.solve_build_environment(spec)
+        except SolverError as err:
+            return api.Compatibility(f"Failed to resolve build env: {err}")
+
+        spec = spec.clone()
+        spec.update_for_build(self._options, list(s for _, s, _ in solution.items()))
+        for request in spec.install.requirements:
+            try:
+                state.add_request(request)
+            except ConflictingRequestsError as err:
+                return api.Compatibility(str(err))
+
+        return api.COMPATIBLE

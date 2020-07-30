@@ -28,6 +28,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._versions: Optional[Iterator[str]] = None
         self._builds: Optional[Iterator[api.Ident]] = None
         self._version_map: Dict[str, storage.Repository] = {}
+        self._version_spec: api.Spec = api.Spec.from_dict({})
         self.history: Dict[api.Ident, api.Compatibility] = {}
 
     def _start(self) -> None:
@@ -62,6 +63,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         other._builds = iter(remaining_builds)
         other.history = self.history.copy()
         other._version_map = self._version_map
+        other._version_spec = self._version_spec
         return other
 
     def __next__(self) -> Tuple[api.Spec, storage.Repository]:
@@ -83,26 +85,25 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
 
             version_str = str(candidate.version)
             repo = self._version_map[version_str]
-            spec = repo.read_spec(candidate)
+
+            if candidate.build.is_source():
+                spec = self._version_spec
+            else:
+                spec = repo.read_spec(candidate)
 
             compat = self._request.is_satisfied_by(spec)
             if not compat:
                 self.history[candidate] = compat
                 continue
 
-            if candidate.build.is_source():
-                build_options = spec.resolve_all_options(self._options)
-                compat = spec.build.validate_options(build_options)
-                if not compat:
-                    self.history[candidate] = compat
-                    continue
-                return (spec, repo)
-
             compat = spec.build.validate_options(self._options)
             if not compat:
                 self.history[candidate] = compat
                 continue
 
+            assert (
+                spec.pkg.build is None or not spec.pkg.build.is_source()
+            ), f"{candidate} {candidate.build.is_source()} {self._version_spec}"
             return (spec, repo)
 
         self._start_next_version()
@@ -121,17 +122,17 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             pkg = api.Ident(self._request.pkg.name, version)
             repo = self._version_map[version_str]
             try:
-                spec = repo.read_spec(pkg)
+                self._version_spec = repo.read_spec(pkg)
             except ValueError:
                 _LOGGER.error("package disappeared from repo", pkg=pkg, repo=repo)
                 continue
 
-            compat = spec.build.validate_options(self._options)
+            compat = self._version_spec.build.validate_options(self._options)
             if not compat:
                 self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
 
-            compat = self._request.pkg.version.is_satisfied_by(spec)
+            compat = self._request.pkg.version.is_satisfied_by(self._version_spec)
             if not compat:
                 self.history[api.Ident(self._request.pkg.name, version)] = compat
                 continue
