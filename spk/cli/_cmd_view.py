@@ -22,7 +22,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     view_cmd = sub_parsers.add_parser(
-        "view", aliases=["list"], help=_view.__doc__, **parser_args,
+        "view", aliases=["info"], help=_view.__doc__, **parser_args,
     )
     view_cmd.add_argument(
         "package",
@@ -37,7 +37,11 @@ def register(
 
 
 def _view(args: argparse.Namespace) -> None:
-    """view a package into a shared repository."""
+    """view the current environment or a specific package's information."""
+
+    if not args.package:
+        _print_current_env()
+        return
 
     solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]
@@ -73,3 +77,11 @@ def _view(args: argparse.Namespace) -> None:
             break
     else:
         raise RuntimeError("Internal Error: requested package was not in solution")
+
+
+def _print_current_env() -> None:
+
+    solution = spk.current_env()
+    print("Installed Packages:")
+    for _, spec, _ in solution.items():
+        print("  " + format_ident(spec.pkg))

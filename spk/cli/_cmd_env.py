@@ -33,21 +33,46 @@ def register(
             "spawn a new shell"
         ),
     )
-    _flags.add_solver_flags(env_cmd)
-    _flags.add_request_flags(env_cmd)
+    add_env_flags(env_cmd)
     env_cmd.set_defaults(func=_env)
     return env_cmd
 
 
+def add_env_flags(parser: argparse.ArgumentParser) -> None:
+
+    parser.add_argument(
+        "--no-runtime",
+        "-nr",
+        action="store_true",
+        help="Reconfigure the current spfs runtime (useful for speed and debugging)",
+    )
+    _flags.add_solver_flags(parser)
+    _flags.add_request_flags(parser)
+
+
 def _env(args: argparse.Namespace) -> None:
     """Resolve and run an environment on the fly."""
+
+    # parse args again to get flags that might be missed
+    # while using the argparse.REMAINDER flag above
+    extra_parser = argparse.ArgumentParser()
+    extra_parser.add_argument("--verbose", "-v", action="count", default=0)
+    add_env_flags(extra_parser)
 
     try:
         separator = args.args.index("--")
     except ValueError:
         separator = len(args.args)
     requests = args.args[:separator]
-    command = args.args[separator + 1 :] or [""]
+    command = args.args[separator + 1 :] or []
+    args, requests = extra_parser.parse_known_args(requests, args)
+
+    if not args.no_runtime:
+        runtime = spfs.get_config().get_runtime_storage().create_runtime()
+        argv = sys.argv
+        argv.insert(argv.index("env") + 1, "--no-runtime")
+        cmd = spfs.build_command_for_runtime(runtime, *argv)
+        os.execv(cmd[0], cmd)
 
     options = _flags.get_options_from_flags(args)
     solver = _flags.get_solver_from_flags(args)
@@ -78,8 +103,12 @@ def _env(args: argparse.Namespace) -> None:
 
         sys.exit(1)
 
-    runtime = spk.create_runtime(solution)
+    solution = spk.build_required_packages(solution)
+    spk.setup_current_runtime(solution)
     os.environ.update(solution.to_environment())
     os.environ.update(options.to_environment())
-    cmd = spfs.build_command_for_runtime(runtime, *command)
-    os.execvp(cmd[0], cmd)
+    if not command:
+        cmd = spfs.build_interactive_shell_cmd()
+    else:
+        cmd = spfs.build_shell_initialized_command(*command)
+    os.execv(cmd[0], cmd)

@@ -119,11 +119,17 @@ def _install(args: argparse.Namespace) -> None:
 
     print("  Requested:")
     for spec in primary:
-        print("    " + format_ident(spec.pkg))
+        end = "\n"
+        if spec.pkg.build is None:
+            end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
+        print("    " + format_ident(spec.pkg), end=end)
     if tertiary:
         print("\n  Dependencies:")
         for spec in tertiary:
-            print("    " + format_ident(spec.pkg))
+            end = "\n"
+            if spec.pkg.build is None:
+                end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
+            print("    " + format_ident(spec.pkg), end=end)
 
     print("")
 
@@ -133,4 +139,5 @@ def _install(args: argparse.Namespace) -> None:
         print("Installation cancelled")
         sys.exit(1)
 
-    spk.setup_current_runtime(packages)
+    compiled_solution = spk.build_required_packages(packages)
+    spk.setup_current_runtime(compiled_solution)

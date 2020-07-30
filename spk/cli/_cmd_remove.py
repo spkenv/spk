@@ -51,8 +51,10 @@ def _remove(args: argparse.Namespace) -> None:
         ident = spk.api.parse_ident(name)
         for repo_name, repo in repos.items():
             if ident.build is not None:
+                repo.remove_spec(ident)
                 repo.remove_package(ident)
             else:
                 for build in repo.list_package_builds(ident):
+                    repo.remove_spec(build)
                     repo.remove_package(build)
                 repo.remove_spec(ident)
