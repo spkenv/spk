@@ -273,4 +273,6 @@ def validate_build_changeset(
                     # so we must deal with them manually for now
                     os.chmod(prefix + diff.path, diff.entries[0].mode)
                     continue
-            raise BuildError(f"Existing file was {diff.mode.name}: {prefix}{diff.path}")
+            raise BuildError(
+                f"Existing file was {diff.mode.name}: {spfs.io.format_diffs([diff])}"
+            )
