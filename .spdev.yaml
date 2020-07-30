@@ -1,10 +1,6 @@
-version: 0.10.0
+version: 0.10.1
 release_notes: |
-  * Add support for resolving and building from source on the fly
-  * Update view/info command to print currently installed packages
-  * Fix bug where build could have invalid option
-    * When the option required a value but non was specified on the command line
-  * Fix bug where env command failed with command not found in some cases
+  * Fix bug where all variants were not always build
 
 toolchain:
   - kind: Shell
