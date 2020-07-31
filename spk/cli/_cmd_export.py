@@ -30,7 +30,10 @@ def _export(args: argparse.Namespace) -> None:
 
     for package in args.packages:
         pkg = spk.api.parse_ident(package)
-        filename = f"{pkg.name}_{pkg.version}.spk"
+        build = ""
+        if pkg.build is not None:
+            build = f"_{pkg.build.digest}"
+        filename = f"{pkg.name}_{pkg.version}{build}.spk"
         try:
             spk.export_package(pkg, filename)
         except spk.storage.PackageNotFoundError:
