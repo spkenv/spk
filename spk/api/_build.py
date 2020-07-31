@@ -6,6 +6,12 @@ import binascii
 SRC = "src"
 
 
+class InvalidBuildError(ValueError):
+    """Denotes that an invalid build digest was given."""
+
+    pass
+
+
 @dataclass
 class Build:
     """Build represents a package build identifier."""
@@ -27,5 +33,5 @@ def parse_build(digest: str) -> Build:
     try:
         base64.b32decode(digest)
     except binascii.Error as e:
-        raise ValueError(f"Invalid build digest: {e}") from None
+        raise InvalidBuildError(f"Invalid build digest: {e}") from None
     return Build(digest)

@@ -73,18 +73,25 @@ def run(argv: Sequence[str]) -> int:
     return 0
 
 
-def _capture_if_relevant(e: Exception) -> None:
+def _capture_if_relevant(err: Exception) -> None:
 
-    if isinstance(e, spk.storage.PackageNotFoundError):
+    if isinstance(err, spk.storage.PackageNotFoundError):
         return
-    if isinstance(e, spk.storage.VersionExistsError):
+    if isinstance(err, spk.storage.VersionExistsError):
         return
-    if isinstance(e, spk.NoEnvironmentError):
+    if isinstance(err, spk.NoEnvironmentError):
         return
-    if isinstance(e, spk.build.BuildError):
+    if isinstance(err, spk.build.BuildError):
         return
-    if isinstance(e, spk.solve.SolverError):
+    if isinstance(err, spk.solve.SolverError):
         return
-    if isinstance(e, spk.api.InvalidVersionError):
+    if isinstance(
+        err,
+        (
+            spk.api.InvalidNameError,
+            spk.api.InvalidVersionError,
+            spk.api.InvalidBuildError,
+        ),
+    ):
         return
-    sentry_sdk.capture_exception(e)
+    sentry_sdk.capture_exception(err)

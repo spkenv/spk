@@ -1,6 +1,13 @@
 from typing import Tuple
 import unicodedata
 
+
+class InvalidNameError(ValueError):
+    """Denotes that an invalid package name was given."""
+
+    pass
+
+
 _NAME_UTF_CATEGORIES = (
     "Ll",  # letter lower
     "Pd",  # punctuation dash
@@ -15,7 +22,7 @@ def validate_name(name: str) -> str:
     index = _validate_source_str(name, _NAME_UTF_CATEGORIES)
     if index > -1:
         err_str = f"{name[:index]} > {name[index]} < {name[index+1:]}"
-        raise ValueError(f"invalid package name at pos {index}: {err_str}")
+        raise InvalidNameError(f"Invalid package name at pos {index}: {err_str}")
     return name
 
 
@@ -25,7 +32,7 @@ def validate_tag_name(name: str) -> str:
     index = _validate_source_str(name, _TAG_NAME_UTF_CATEGORIES)
     if index > -1:
         err_str = f"{name[:index]} > {name[index]} < {name[index+1:]}"
-        raise ValueError(f"invalid release tag name at pos {index}: {err_str}")
+        raise InvalidNameError(f"Invalid release tag name at pos {index}: {err_str}")
     return name
 
 

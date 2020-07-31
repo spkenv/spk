@@ -6,7 +6,7 @@ from ruamel import yaml
 
 from ._version import Version, parse_version
 from ._build import Build, parse_build
-from ._name import validate_name
+from ._name import validate_name, InvalidNameError
 
 
 @dataclass
@@ -72,7 +72,10 @@ class Ident:
         name, version, build, *other = str(source).split("/") + ["", ""]
 
         if any(other):
-            raise ValueError(f"Too many tokens in identifier: {source}")
+            raise InvalidNameError(
+                "Too many tokens in package identifier, expected "
+                f"at most 2 slashes ('/'): {source}"
+            )
 
         self.name = validate_name(name)
         self.version = parse_version(version)

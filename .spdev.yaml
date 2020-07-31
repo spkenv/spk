@@ -1,6 +1,7 @@
-version: 0.10.1
+version: 0.10.2
 release_notes: |
-  * Fix bug where all variants were not always build
+  * Fix bug where post releases could not be saved to spfs
+  * Improve error messages for invalid package names
 
 toolchain:
   - kind: Shell
