@@ -5,9 +5,12 @@ import json
 import posixpath
 
 import spfs
+import structlog
 
 from .. import api
 from ._repository import Repository, PackageNotFoundError, VersionExistsError
+
+_LOGGER = structlog.get_logger("spk.storage.spfs")
 
 
 class SpFSRepository(Repository):
@@ -88,6 +91,12 @@ class SpFSRepository(Repository):
 
     def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
+        try:
+            self.read_spec(spec.pkg.with_build(None))
+        except PackageNotFoundError:
+            _LOGGER.error(
+                "Internal error: version spec must be published before a specific build"
+            )
         tag_string = self.build_package_tag(spec.pkg)
         self.force_publish_spec(spec)
         self._repo.tags.push_tag(tag_string, digest)

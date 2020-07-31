@@ -13,7 +13,17 @@ from .. import api, storage, build
 
 _LOGGER = structlog.get_logger("spk.external.spcomp2")
 SPCOMP2_ROOT = "/shots/spi/home/lib/SpComp2"
-SPCOMP2_EXCLUDED_BUILDS = ("do-not-use", "lion", ".svn")
+SPCOMP2_EXCLUDED_BUILDS = (
+    "do-not-use",
+    "lion",
+    "copy",
+    ".rhel",
+    "darwin",
+    "windows",
+    "c++03",
+    "-ins",
+    "linux-",
+)
 CURRENT = "current"
 BUILD_SCRIPT = """\
 cd {root}/{name}/{build}/{version}
@@ -131,6 +141,8 @@ def iter_spcomp2_builds(name: str, install_root: str = SPCOMP2_ROOT) -> Iterable
     for build in os.listdir(root):
         if not root.joinpath(build).is_dir():
             continue
+        if "-" not in build:
+            continue
         for excl in SPCOMP2_EXCLUDED_BUILDS:
             if excl in build:
                 break
@@ -184,17 +196,18 @@ KNOWN_OPTIONS: List[Tuple[re.Pattern, str, str, List[api.Option]]] = [
         "gcc",
         [api.opt_from_dict({"var": "arch", "choices": ["x86_64"]})],
     ),
-    (re.compile(r"boost(\d)(\d+)"), "pkg", "boost", []),
-    (re.compile(r"ice(\d)(\d)"), "pkg", "ice", []),
     (
         re.compile(r"spinux(\d)"),
-        "pkg",
+        "var",
         "spinux",
         [
             api.opt_from_dict({"var": "os", "choices": ["linux"]}),
             api.opt_from_dict({"var": "distro", "choices": ["spinux"]}),
         ],
     ),
+    (re.compile(r"boost(\d)_?(\d+)"), "pkg", "boost", []),
+    (re.compile(r"ice(\d)(\d)"), "pkg", "ice", []),
+    (re.compile(r"py(\d)(\d)"), "pkg", "python", []),
 ]
 
 

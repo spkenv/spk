@@ -1,9 +1,12 @@
+import os
+from os.path import isdir
+
 import pytest
 
 from .. import api
 
 
-from ._spcomp2 import _build_to_options
+from ._spcomp2 import _build_to_options, SPCOMP2_EXCLUDED_BUILDS, SPCOMP2_ROOT
 
 
 @pytest.mark.parametrize(
@@ -120,3 +123,27 @@ def test_build_to_options(build: str, expected: api.OptionMap) -> None:
     spec = api.BuildSpec(options=actual)
     compat = spec.validate_options(expected)
     assert compat, compat
+
+
+all_builds = set()
+for name in os.listdir(SPCOMP2_ROOT):
+    build_dir = os.path.join(SPCOMP2_ROOT, name)
+    if not os.path.isdir(build_dir):
+        continue
+    for build in os.listdir(build_dir):
+        if not os.path.isdir(os.path.join(build_dir, build)):
+            continue
+        all_builds.add(build)
+
+
+@pytest.mark.parametrize("build", list(all_builds))
+def test_build_to_options_all_cases(build: str) -> None:
+
+    if "-" not in build:
+        pytest.skip("must include a dash to be considered")
+    for excl in SPCOMP2_EXCLUDED_BUILDS:
+        if excl in build:
+            pytest.skip("build is excluded")
+
+    # should not raise - but we won't check each one definitively
+    _build_to_options(build)

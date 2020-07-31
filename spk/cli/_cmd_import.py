@@ -1,6 +1,8 @@
+import sys
 from typing import Callable, Any
 import os
 import argparse
+import spfs
 
 import structlog
 from colorama import Fore, Style
@@ -42,6 +44,12 @@ def register(
         default=False,
         help="Forcefully overwrite any existing publishes",
     )
+    spcomp2_group.add_argument(
+        "--no-runtime",
+        "-nr",
+        action="store_true",
+        help="Do not build in a new spfs runtime (useful for speed and debugging)",
+    )
 
     import_cmd.add_argument(
         "packages", metavar="FILE|NAME", nargs="+", help="The packages to import",
@@ -63,7 +71,12 @@ def _import(args: argparse.Namespace) -> None:
 
 def _import_spcomp2s(args: argparse.Namespace) -> None:
 
-    _import_spcomp2s(args)
+    if not args.no_runtime:
+        runtime = spfs.get_config().get_runtime_storage().create_runtime()
+        runtime.set_editable(True)
+        cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
+        os.execv(cmd[0], cmd)
+
     specs = []
     for name in args.packages:
         specs.extend(spk.external.import_spcomp2(name))
