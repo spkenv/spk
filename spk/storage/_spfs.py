@@ -94,8 +94,8 @@ class SpFSRepository(Repository):
         try:
             self.read_spec(spec.pkg.with_build(None))
         except PackageNotFoundError:
-            _LOGGER.error(
-                "Internal error: version spec must be published before a specific build"
+            _LOGGER.debug(
+                "Internal warning: version spec must be published before a specific build"
             )
         tag_string = self.build_package_tag(spec.pkg)
         self.force_publish_spec(spec)

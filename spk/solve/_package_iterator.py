@@ -28,7 +28,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         self._versions: Optional[Iterator[str]] = None
         self._builds: Optional[Iterator[api.Ident]] = None
         self._version_map: Dict[str, storage.Repository] = {}
-        self._version_spec: api.Spec = api.Spec.from_dict({})
+        self._version_spec: Optional[api.Spec] = None
         self.history: Dict[api.Ident, api.Compatibility] = {}
 
     def _start(self) -> None:
@@ -87,6 +87,11 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             repo = self._version_map[version_str]
 
             if requested_build is None and candidate.build.is_source():
+                if self._version_spec is None:
+                    self.history[candidate] = api.Compatibility(
+                        "No version-level spec, cannot rebuild from source"
+                    )
+                    continue
                 spec = self._version_spec
             else:
                 spec = repo.read_spec(candidate)
@@ -120,19 +125,19 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             repo = self._version_map[version_str]
             try:
                 self._version_spec = repo.read_spec(pkg)
-            except ValueError:
-                _LOGGER.error("package disappeared from repo", pkg=pkg, repo=repo)
-                continue
+            except storage.PackageNotFoundError:
+                _LOGGER.debug("package has no verison spec", pkg=pkg, repo=repo)
+                self._version_spec = None
+            else:
+                compat = self._version_spec.build.validate_options(self._options)
+                if not compat:
+                    self.history[api.Ident(self._request.pkg.name, version)] = compat
+                    continue
 
-            compat = self._version_spec.build.validate_options(self._options)
-            if not compat:
-                self.history[api.Ident(self._request.pkg.name, version)] = compat
-                continue
-
-            compat = self._request.pkg.version.is_satisfied_by(self._version_spec)
-            if not compat:
-                self.history[api.Ident(self._request.pkg.name, version)] = compat
-                continue
+                compat = self._request.pkg.version.is_satisfied_by(self._version_spec)
+                if not compat:
+                    self.history[api.Ident(self._request.pkg.name, version)] = compat
+                    continue
 
             builds = list(repo.list_package_builds(pkg))
             # source packages must come last to ensure that building
