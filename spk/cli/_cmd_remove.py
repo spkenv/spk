@@ -53,8 +53,11 @@ def _remove(args: argparse.Namespace) -> None:
             if ident.build is not None:
                 repo.remove_spec(ident)
                 repo.remove_package(ident)
+                _LOGGER.info("removed", pkg=ident, repo=repo_name)
             else:
                 for build in repo.list_package_builds(ident):
                     repo.remove_spec(build)
                     repo.remove_package(build)
+                    _LOGGER.info("removed", pkg=build, repo=repo_name)
                 repo.remove_spec(ident)
+                _LOGGER.info("removed", pkg=ident, repo=repo_name)

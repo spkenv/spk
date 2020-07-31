@@ -40,4 +40,9 @@ def test_build_package(name: str) -> None:
 
     for filename in glob.glob("*.spk.yaml", recursive=False):
 
-        subprocess.check_call([sys.executable, "-m", "spk", "build", "-v", filename])
+        subprocess.check_call(
+            [os.path.dirname(sys.executable) + "/spk", "mks", "-v", filename]
+        )
+        subprocess.check_call(
+            [os.path.dirname(sys.executable) + "/spk", "mkb", "-v", filename]
+        )
