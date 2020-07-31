@@ -95,7 +95,7 @@ def format_options(options: api.OptionMap) -> str:
     formatted = []
     for name, value in options.items():
         formatted.append(
-            f"{name}{Style.DIM}={Style.NORMAL}{Fore.BLUE}{value}{Fore.RESET}"
+            f"{name}{Style.DIM}={Style.NORMAL}{Fore.CYAN}{value}{Fore.RESET}"
         )
 
     return f"{{{', '.join(formatted)}}}"

@@ -85,12 +85,6 @@ def _make_binary(args: argparse.Namespace) -> None:
                 continue
             built.add(opts.digest())
 
-            runtime.set_editable(True)
-            spfs.remount_runtime(runtime)
-            runtime.reset("**/*")
-            runtime.reset_stack()
-            spfs.remount_runtime(runtime)
-
             _LOGGER.info("building variant", variant=opts)
             builder = (
                 spk.BinaryPackageBuilder.from_spec(spec)

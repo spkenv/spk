@@ -53,7 +53,8 @@ class BuildSpec:
     options: List[Option] = field(default_factory=list)
     variants: List[OptionMap] = field(default_factory=lambda: [OptionMap()])
 
-    def resolve_all_options(self, given: OptionMap) -> OptionMap:
+    def resolve_all_options(self, given: Union[Dict, OptionMap] = {}) -> OptionMap:
+
         resolved = OptionMap()
         for opt in self.options:
 
@@ -135,7 +136,7 @@ def opt_from_dict(data: Dict[str, Any]) -> Option:
     if "var" in data:
         return VarOpt.from_dict(data)
 
-    raise ValueError("Incomprehensible option definition")
+    raise ValueError(f"Incomprehensible option definition: {data}")
 
 
 def opt_from_request(request: Request) -> "PkgOpt":
