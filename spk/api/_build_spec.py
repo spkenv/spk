@@ -135,7 +135,7 @@ def opt_from_dict(data: Dict[str, Any]) -> Option:
     if "var" in data:
         return VarOpt.from_dict(data)
 
-    raise ValueError("Incomprehensible option definition")
+    raise ValueError(f"Incomprehensible option definition: {data}")
 
 
 def opt_from_request(request: Request) -> "PkgOpt":

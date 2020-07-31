@@ -62,6 +62,11 @@ def collect_and_commit_sources(spec: api.Spec) -> spfs.storage.Layer:
     pkg = spec.pkg.with_build(api.SRC)
 
     runtime = spfs.active_runtime()
+    runtime.set_editable(True)
+    spfs.remount_runtime(runtime)
+    runtime.reset("**/*")
+    runtime.reset_stack()
+    spfs.remount_runtime(runtime)
 
     source_dir = data_path(pkg)
     collect_sources(spec, source_dir)
