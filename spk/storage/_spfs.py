@@ -1,3 +1,4 @@
+from platform import version
 from typing import Iterable, Union
 import io
 import json
@@ -29,7 +30,10 @@ class SpFSRepository(Repository):
     def list_package_versions(self, name: str) -> Iterable[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
-        return list(self._repo.tags.ls_tags(path))
+        versions = list(self._repo.tags.ls_tags(path))
+        # undo our encoding of the invalid '+' character in spfs tags
+        versions = list(v.replace("..", "+") for v in versions)
+        return versions
 
     def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
 
@@ -109,12 +113,21 @@ class SpFSRepository(Repository):
 
         assert pkg.build is not None, "Package must have associated build digest"
 
-        return f"spk/pkg/{pkg}"
+        tag = f"spk/pkg/{pkg}"
+
+        # the "+" character is not a valid spfs tag character,
+        # so we 'encode' it with two dots, which is not a valid sequence
+        # for spk package names
+        return tag.replace("+", "..")
 
     def build_spec_tag(self, pkg: api.Ident) -> str:
         """construct an spfs tag string to represent a spec file blob."""
 
-        return f"spk/spec/{pkg}"
+        tag = f"spk/spec/{pkg}"
+
+        # the "+" character is not a valid spfs tag character,
+        # see above ^
+        return tag.replace("+", "..")
 
 
 def local_repository() -> SpFSRepository:
