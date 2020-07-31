@@ -53,7 +53,8 @@ class BuildSpec:
     options: List[Option] = field(default_factory=list)
     variants: List[OptionMap] = field(default_factory=lambda: [OptionMap()])
 
-    def resolve_all_options(self, given: OptionMap) -> OptionMap:
+    def resolve_all_options(self, given: Union[Dict, OptionMap] = {}) -> OptionMap:
+
         resolved = OptionMap()
         for opt in self.options:
 

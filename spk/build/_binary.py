@@ -41,7 +41,7 @@ class BinaryPackageBuilder:
         self._spec: Optional[api.Spec] = None
         self._all_options = api.OptionMap()
         self._pkg_options = api.OptionMap()
-        self._source: Union[str, api.Ident] = ""
+        self._source: Union[str, api.Ident] = "."
         self._solver: Optional[solve.Solver] = None
         self._repos: List[storage.Repository] = []
 
@@ -105,6 +105,7 @@ class BinaryPackageBuilder:
         spfs.remount_runtime(runtime)
         runtime.reset("**/*")
         runtime.reset_stack()
+        runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
@@ -113,7 +114,7 @@ class BinaryPackageBuilder:
             raise ValueError(compat)
         self._all_options.update(self._pkg_options)
 
-        if not self._source:
+        if isinstance(self._source, api.Ident):
             solution = self._resolve_source_package()
             exec.configure_runtime(runtime, solution)
         solution = self._resolve_build_environment()

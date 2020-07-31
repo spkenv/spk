@@ -24,6 +24,7 @@ class Publisher:
     def skip_source_packages(self, skip_source_packages: bool) -> "Publisher":
 
         self._skip_source_packages = skip_source_packages
+        return self
 
     def force(self, force: bool) -> "Publisher":
 
