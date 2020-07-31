@@ -85,4 +85,6 @@ def _capture_if_relevant(e: Exception) -> None:
         return
     if isinstance(e, spk.solve.SolverError):
         return
+    if isinstance(e, spk.api.InvalidVersionError):
+        return
     sentry_sdk.capture_exception(e)

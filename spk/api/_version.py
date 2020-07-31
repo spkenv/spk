@@ -8,6 +8,12 @@ from ._name import validate_tag_name
 VERSION_SEP = "."
 
 
+class InvalidVersionError(ValueError):
+    """Denotes that an in valid verison number was given"""
+
+    pass
+
+
 @total_ordering  # type: ignore
 class TagSet(SortedDict, MutableMapping[str, int]):
     """TagSet contains a set of pre or post release version tags."""
@@ -175,10 +181,17 @@ def parse_version(version: str) -> Version:
         version, pre = version.split("-", 1)
 
     str_parts = version.split(VERSION_SEP)
-    parts = tuple(int(p) for p in str_parts)
+    parts = []
+    for i, p in enumerate(str_parts):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            raise InvalidVersionError(
+                f"Version must be a sequence of integers, got '{p}' in position {i} [{version}]"
+            )
     return Version(  # type: ignore
-        *parts[:3],  # type: ignore
-        tail=parts[3:],
+        *tuple(parts[:3]),  # type: ignore
+        tail=tuple(parts[3:]),
         pre=parse_tag_set(pre),
         post=parse_tag_set(post),
     )
