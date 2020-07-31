@@ -5,6 +5,7 @@ __version__ = "0.10.2"
 from . import api, storage, solve, build, exec
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError
+from ._publish import Publisher
 
 # promote useful front line api functions
 from .solve import (

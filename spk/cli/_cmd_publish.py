@@ -1,17 +1,11 @@
-from typing import Callable, Any
+from typing import Any
 import argparse
-import os
 import sys
-import termios
 
-import spfs
 import structlog
-from colorama import Fore, Style
+from colorama import Fore
 
 import spk
-from spk.io import format_ident
-
-from . import _flags
 
 _LOGGER = structlog.get_logger("spk.cli")
 
@@ -54,43 +48,15 @@ def register(
 def _publish(args: argparse.Namespace) -> None:
     """publish a package into a shared repository."""
 
-    local_repo = spk.storage.local_repository()
-    remote_repo = spk.storage.remote_repository(args.target_repo)
+    publisher = (
+        spk.Publisher()
+        .with_target(args.target_repo)
+        .force(args.force)
+        .skip_source_packages(args.no_source)
+    )
 
-    for p in args.packages:
-        pkg = spk.api.parse_ident(p)
-        if pkg.build is None:
-            try:
-                spec = local_repo.read_spec(pkg)
-            except FileNotFoundError as e:
-                print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
-                sys.exit(1)
+    for pkg in args.packages:
 
-            try:
-                _LOGGER.info("publishing spec", pkg=spec.pkg)
-                if args.force:
-                    remote_repo.force_publish_spec(spec)
-                else:
-                    remote_repo.publish_spec(spec)
-            except spk.storage.VersionExistsError as e:
-                print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
-                sys.exit(1)
-            builds = local_repo.list_package_builds(spec.pkg)
-        else:
-            builds = [pkg]
-
-        for build in builds:
-
-            if build == spk.api.SRC and args.no_source:
-                _LOGGER.info("skipping source package (--no-source)")
-                continue
-
-            _LOGGER.info("publishing package", pkg=build)
-            spec = local_repo.read_spec(build)
-            digest = local_repo.get_package(build)
-            spfs.sync_ref(
-                str(digest), local_repo.as_spfs_repo(), remote_repo.as_spfs_repo()
-            )
-            remote_repo.publish_package(spec, digest)
+        publisher.publish(pkg)
 
     _LOGGER.info("done")
