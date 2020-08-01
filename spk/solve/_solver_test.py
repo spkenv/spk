@@ -549,7 +549,7 @@ def test_solver_deprecated_version() -> None:
 
     specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
     deprecated = make_build({"pkg": "my-pkg/1.0.0"})
-    repo = make_repo([*specs, deprecated])
+    repo = make_repo(specs + [deprecated])  # type: ignore
 
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
