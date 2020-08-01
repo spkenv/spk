@@ -1,7 +1,8 @@
-version: 0.10.2
+version: 0.10.3
 release_notes: |
-  * Fix bug where post releases could not be saved to spfs
-  * Improve error messages for invalid package names
+  * Add support for ingesting spComp2s as packages
+    * using the `spk convert spcomp2 ...` command
+    * generates a spec and build for compatible spComp2 archs
 
 toolchain:
   - kind: Shell
