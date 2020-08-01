@@ -139,3 +139,20 @@ $ spk explain -v my-plugin
 ```
 
 In this example, `my-plugin` has two dependencies. The first maya dependency is resolved to `2019.2` but then when `some-library` is resolved, it adds a new request for `maya/~2019.0.0` for which `2019.2` is not applicable. The solver re-opens the request, denoting this by the `UNRESOLVE` statement above, and then manges to find an older version of maya that works for both requests.
+
+### Depreacted Packages
+
+```
+$ spk explain -v my-tool
+ REQUEST my-tool/*
+> TRY my-tool/1.2.0/STLY6HNC - Build is deprecated and was not specifically requested
+. TRY my-tool/1.2.0/src - Build is deprecated and was not specifically requested
+. BLOCKED Failed to resolve: {pkg: my-tool, prereleasePolicy: ExcludeAll}
+```
+
+Packages can be deprecated by package owners when an issue is found or an older version is no longer fit for use. Deprecated packages should not be used under normal circumstances, but there are ways to use the packages if absolutely required.
+
+# Possible Solutions
+
+- Generally, you want to update to a newer version of the package that has not been deprecated. Package maintainers should not deprecate packages without providing a resonable alternative.
+- If you are really stuck, note that the error message says _was not specifically requested_. This means that if you request the deprecated build exactly, then it will still resolve the environment for you, eg `spk env my-tool/1.2.0/STLY6HNC`.
