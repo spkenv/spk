@@ -5,6 +5,8 @@ summary: Package Manager for SPFS
 
 A packaging system and package manager for spfs. Pronouced like "_s-pack_".
 
+The `spk` command line has a great number of useful commands to explore, simply run `spk --help` to explore.
+
 ### Run an Environment
 
 ```bash

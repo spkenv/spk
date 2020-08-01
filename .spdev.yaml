@@ -1,8 +1,9 @@
-version: 0.10.3
+version: 0.11.0
 release_notes: |
-  * Add support for ingesting spComp2s as packages
-    * using the `spk convert spcomp2 ...` command
-    * generates a spec and build for compatible spComp2 archs
+  * Add support for deprecating packages
+    * the spk deprecate command can be used to mark a package or package build as deprecated
+    * deprecated package builds will not resolve unless the exact build is requested
+    * deprecated package versions will also refuse to rebuild from source during resolve
 
 toolchain:
   - kind: Shell

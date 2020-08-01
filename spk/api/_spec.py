@@ -24,6 +24,7 @@ class Spec:
 
     pkg: Ident
     compat: Compat = field(default_factory=Compat)
+    deprecated: bool = False
     sources: List[SourceSpec] = field(default_factory=list)
     build: BuildSpec = field(default_factory=BuildSpec)
     install: InstallSpec = field(default_factory=InstallSpec)
@@ -80,6 +81,8 @@ class Spec:
         spec = Spec(pkg)
         if "compat" in data:
             spec.compat = parse_compat(data.pop("compat"))
+        if "deprecated" in data:
+            spec.deprecated = bool(data.pop("deprecated"))
         for src in data.pop("sources", [{"path": "."}]):
             spec.sources.append(SourceSpec.from_dict(src))
         spec.build = BuildSpec.from_dict(data.pop("build", {}))
@@ -92,14 +95,16 @@ class Spec:
 
     def to_dict(self) -> Dict[str, Any]:
 
-        spec: Dict[str, Any] = {
-            "build": self.build.to_dict(),
-            "install": self.install.to_dict(),
-        }
-        if self.compat != Compat():
-            spec["compat"] = str(self.compat)
+        spec: Dict[str, Any] = {}
         if self.pkg != Ident(""):
             spec["pkg"] = str(self.pkg)
+        if self.compat != Compat():
+            spec["compat"] = str(self.compat)
+        if self.deprecated:
+            spec["deprecated"] = self.deprecated
+
+        spec["build"] = self.build.to_dict()
+        spec["install"] = self.install.to_dict()
         return spec
 
 

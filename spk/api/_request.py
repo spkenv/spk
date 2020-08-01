@@ -197,6 +197,16 @@ class Request:
     def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         """Return true if the given package spec satisfies this request."""
 
+        if spec.deprecated:
+            # deprecated builds are only okay if their build
+            # was specifically requested
+            if self.pkg.build is not None and self.pkg.build == spec.pkg.build:
+                pass
+            else:
+                return Compatibility(
+                    "Build is deprecated and was not specifically requested"
+                )
+
         if (
             self.prerelease_policy is PreReleasePolicy.ExcludeAll
             and spec.pkg.version.pre
