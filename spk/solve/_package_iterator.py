@@ -96,6 +96,10 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
             else:
                 spec = repo.read_spec(candidate)
 
+            if self._version_spec is not None:
+                if self._version_spec.deprecated:
+                    spec.deprecated = True
+
             compat = self._request.is_satisfied_by(spec)
             if not compat:
                 self.history[candidate] = compat

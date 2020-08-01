@@ -512,3 +512,96 @@ def test_solver_build_from_source_unsolvable() -> None:
             solver.solve()
         finally:
             print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_deprecated_build() -> None:
+
+    specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0"}]
+    deprecated = make_build({"pkg": "my-pkg/1.0.0", "deprecated": True})
+    repo = make_repo([*specs, deprecated])
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-pkg")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+    assert (
+        solution.get("my-pkg").spec.pkg.version == "0.9.0"
+    ), "should not resolve deprecated build by default"
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request(api.Request.from_dict({"pkg": str(deprecated.pkg)}))
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+    assert (
+        solution.get("my-pkg").spec.pkg.version == "1.0.0"
+    ), "should be able to resolve exact deprecated build"
+
+
+def test_solver_deprecated_version() -> None:
+
+    specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
+    deprecated = make_build({"pkg": "my-pkg/1.0.0"})
+    repo = make_repo([*specs, deprecated])
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-pkg")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+    assert (
+        solution.get("my-pkg").spec.pkg.version == "0.9.0"
+    ), "should not resolve build when version is deprecated by default"
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request(api.Request.from_dict({"pkg": str(deprecated.pkg)}))
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+    assert (
+        solution.get("my-pkg").spec.pkg.version == "1.0.0"
+    ), "should be able to resolve exact build when version is deprecated"
+
+
+def test_solver_build_from_source_deprecated() -> None:
+
+    # test when no appropriate build exists and the main package
+    # has been deprecated, no source build should be allowed
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+        ],
+        api.OptionMap(debug="off"),
+    )
+    repo._specs["my-tool"]["1.2.0"].deprecated = True
+
+    solver = Solver(api.OptionMap(debug="on"))
+    solver.add_repository(repo)
+    solver.add_request("my-tool")
+
+    with pytest.raises(UnresolvedPackageError):
+        try:
+            solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))
