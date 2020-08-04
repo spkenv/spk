@@ -1,4 +1,5 @@
 pkg: stdfs/1.0.0
+compat: x.ab
 build:
   script:
     - mkdir /spfs/{bin,lib,etc}
@@ -13,18 +14,18 @@ build:
     # Initialization for csh environments
     - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.csh
     - if ( \$?LD_LIBRARY_PATH ) then
-    -     setenv LD_LIBRARY_PATH "/spfs/lib:\${LD_LIBRARY_PATH}"
+    - setenv LD_LIBRARY_PATH "/spfs/lib:\${LD_LIBRARY_PATH}"
     - else
-    -     setenv LD_LIBRARY_PATH "/spfs/lib"
+    - setenv LD_LIBRARY_PATH "/spfs/lib"
     - endif
     - if ( \$?LIBRARY_PATH ) then
-    -     setenv LIBRARY_PATH "/spfs/lib:\${LIBRARY_PATH}"
+    - setenv LIBRARY_PATH "/spfs/lib:\${LIBRARY_PATH}"
     - else
-    -     setenv LIBRARY_PATH "/spfs/lib"
+    - setenv LIBRARY_PATH "/spfs/lib"
     - endif
     - if ( \$?PATH ) then
-    -     setenv PATH "/spfs/bin:\${PATH}"
+    - setenv PATH "/spfs/bin:\${PATH}"
     - else
-    -     setenv PATH "/spfs/bin"
+    - setenv PATH "/spfs/bin"
     - endif
     - EOF
