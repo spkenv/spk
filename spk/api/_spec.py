@@ -22,7 +22,7 @@ _LOGGER = structlog.get_logger("spk")
 class Spec:
     """Spec encompases the complete specification of a package."""
 
-    pkg: Ident
+    pkg: Ident = field(default_factory=Ident)
     compat: Compat = field(default_factory=Compat)
     deprecated: bool = False
     sources: List[SourceSpec] = field(default_factory=list)

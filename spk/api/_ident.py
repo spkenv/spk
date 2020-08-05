@@ -18,7 +18,7 @@ class Ident:
 	syntax and context
 	"""
 
-    name: str
+    name: str = ""
     version: Version = field(default_factory=Version)
     build: Optional[Build] = None
 
