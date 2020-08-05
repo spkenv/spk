@@ -1,6 +1,6 @@
-version: 0.11.2
+version: 0.11.3
 release_notes: |
-  * Improve convert command output cleanliness
+  * Fix 'No such file' error when using tcsh
 
 toolchain:
   - kind: Shell
