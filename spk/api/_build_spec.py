@@ -93,9 +93,7 @@ class BuildSpec:
             self.options.append(opt)
 
     def to_dict(self) -> Dict[str, Any]:
-        spec: Dict[str, Any] = {
-            "options": list(o.to_dict() for o in self.options),
-        }
+        spec: Dict[str, Any] = {"options": list(o.to_dict() for o in self.options)}
         if self.script != BuildSpec().script:
             spec["script"] = self.script.splitlines()
         if self.variants != BuildSpec().variants:

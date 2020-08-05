@@ -17,7 +17,7 @@ _LOGGER = structlog.get_logger("spk.external.pip")
 
 
 def import_pip(
-    name: str, version: str = "", python_version: str = "3", recursive: bool = True,
+    name: str, version: str = "", python_version: str = "3", recursive: bool = True
 ) -> List[api.Spec]:
     """Import an SpComp2 into the spk ecosystem.
 

@@ -22,10 +22,10 @@ def register(
 ) -> argparse.ArgumentParser:
 
     remove_cmd = sub_parsers.add_parser(
-        "remove", aliases=["rm"], help=_remove.__doc__, **parser_args,
+        "remove", aliases=["rm"], help=_remove.__doc__, **parser_args
     )
     remove_cmd.add_argument(
-        "packages", metavar="PKG", nargs="+", help="The packages to remove",
+        "packages", metavar="PKG", nargs="+", help="The packages to remove"
     )
     _flags.add_repo_flags(remove_cmd, defaults=[])
     remove_cmd.set_defaults(func=_remove)

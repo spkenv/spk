@@ -174,7 +174,7 @@ def find_package_spec(package: str) -> Tuple[spk.api.Spec, str]:
                 file=sys.stderr,
             )
             print(
-                f"{Fore.RED} > please specify a filepath{Fore.RESET}", file=sys.stderr,
+                f"{Fore.RED} > please specify a filepath{Fore.RESET}", file=sys.stderr
             )
             sys.exit(1)
     try:

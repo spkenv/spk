@@ -25,9 +25,7 @@ class InstallSpec:
             self.requirements.append(request)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "requirements": list(r.to_dict() for r in self.requirements),
-        }
+        return {"requirements": list(r.to_dict() for r in self.requirements)}
 
     def render_all_pins(self, resolved: Iterable[Ident]) -> None:
         """Render all requests with a package pin using the given resolved packages."""

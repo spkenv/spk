@@ -131,7 +131,8 @@ class Solver:
         except StopIteration:
             it: PackageIterator = iterator  # type: ignore
             err = UnresolvedPackageError(
-                yaml.safe_dump(request.to_dict()).strip(), history=it.history  # type: ignore
+                yaml.safe_dump(request.to_dict()).strip(),
+                history=it.history,  # type: ignore
             )
             decision.set_error(err)
             raise err from None

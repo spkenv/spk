@@ -57,9 +57,7 @@ class LocalSource(SourceSpec):
         subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "path": self.path,
-        }
+        return {"path": self.path}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "LocalSource":
@@ -86,9 +84,7 @@ class GitSource(SourceSpec):
             subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
-        out = {
-            "git": self.git,
-        }
+        out = {"git": self.git}
 
         if self.ref:
             out["ref"] = self.ref
@@ -123,9 +119,7 @@ class TarSource(SourceSpec):
             subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
-        out = {
-            "tar": self.tar,
-        }
+        out = {"tar": self.tar}
         return out
 
     @staticmethod

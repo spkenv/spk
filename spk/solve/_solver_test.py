@@ -27,9 +27,7 @@ def make_repo(
             spec.pkg.set_build(None)
             repo.force_publish_spec(spec)
             s = make_build(s.to_dict(), [], opts)
-        repo.publish_package(
-            s, spfs.encoding.EMPTY_DIGEST,
-        )
+        repo.publish_package(s, spfs.encoding.EMPTY_DIGEST)
 
     for s in specs:
         add_pkg(s)
@@ -341,7 +339,7 @@ def test_solver_constraint_only() -> None:
                         {"pkg": "python/3.7", "include": "IfAlreadyPresent"}
                     ]
                 },
-            },
+            }
         ]
     )
     solver = Solver(api.OptionMap())

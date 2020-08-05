@@ -48,7 +48,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
 
     sub_parsers = parser.add_subparsers(
-        dest="command", title="commands", metavar="COMMAND",
+        dest="command", title="commands", metavar="COMMAND"
     )
 
     _cmd_build.register(sub_parsers, parents=[parent_parser])

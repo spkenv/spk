@@ -69,8 +69,6 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
         if isinstance(repo, storage.SpFSRepository):
             if not local_repo.as_spfs_repo().objects.has_object(digest):
                 _LOGGER.info("collecting " + io.format_ident(spec.pkg))
-            spfs.sync_ref(
-                str(digest), repo.as_spfs_repo(), local_repo.as_spfs_repo(),
-            )
+            spfs.sync_ref(str(digest), repo.as_spfs_repo(), local_repo.as_spfs_repo())
 
         runtime.push_digest(digest)

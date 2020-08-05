@@ -21,7 +21,7 @@ def repo(request: Any, tmpdir: py.path.local) -> Repository:
         return MemRepository()
     if request.param is SpFSRepository:
         return SpFSRepository(
-            spfs.storage.fs.FSRepository(tmpdir.join("repo").strpath, create=True),
+            spfs.storage.fs.FSRepository(tmpdir.join("repo").strpath, create=True)
         )
 
     raise NotImplementedError(

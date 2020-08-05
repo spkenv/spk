@@ -49,7 +49,7 @@ def test_parse_version(string: str, expected: Version) -> None:
 
 
 @pytest.mark.parametrize(
-    "string", ["1.a.0", "my-version", "1.0+post.1-pre.2", "1.2.5-alpha.a"],
+    "string", ["1.a.0", "my-version", "1.0+post.1-pre.2", "1.2.5-alpha.a"]
 )
 def test_parse_version_invalid(string: str) -> None:
 
@@ -58,7 +58,7 @@ def test_parse_version_invalid(string: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "string", ["1.0.0", "0.0.0", "1.2.3.4.5.6", "1.0+post.1", "1.2.5.7-alpha.4+rev.6",],
+    "string", ["1.0.0", "0.0.0", "1.2.3.4.5.6", "1.0+post.1", "1.2.5.7-alpha.4+rev.6"]
 )
 def test_parse_version_clone(string: str) -> None:
 

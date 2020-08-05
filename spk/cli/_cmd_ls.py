@@ -21,7 +21,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     ls_cmd = sub_parsers.add_parser(
-        "ls", aliases=["list"], help=_ls.__doc__, **parser_args,
+        "ls", aliases=["list"], help=_ls.__doc__, **parser_args
     )
     ls_cmd.add_argument(
         "package",

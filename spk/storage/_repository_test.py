@@ -41,7 +41,7 @@ def test_repo_get_package_empty(repo: Repository) -> None:
 
 def test_repo_publish_spec(repo: Repository) -> None:
 
-    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0",})
+    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
     repo.publish_spec(spec)
     assert list(repo.list_packages()) == ["my-pkg"]
     assert list(repo.list_package_versions("my-pkg")) == ["1.0.0"]

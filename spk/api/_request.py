@@ -228,10 +228,7 @@ class Request:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
-        out = {
-            "pkg": str(self.pkg),
-            "prereleasePolicy": self.prerelease_policy.name,
-        }
+        out = {"pkg": str(self.pkg), "prereleasePolicy": self.prerelease_policy.name}
         if self.inclusion_policy is not InclusionPolicy.Always:
             out["include"] = self.inclusion_policy.name
         if self.pin:

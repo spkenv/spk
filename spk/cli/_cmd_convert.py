@@ -24,7 +24,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     convert_cmd = sub_parsers.add_parser(
-        "convert", help=_convert.__doc__, **parser_args,
+        "convert", help=_convert.__doc__, **parser_args
     )
 
     sub_parsers = convert_cmd.add_subparsers(dest="converter", required=True)
@@ -83,7 +83,7 @@ def register(
         "pip", help="Convert and import packages using pip", **parser_args
     )
     pip_cmd.add_argument(
-        "--python-version", default="3.7", help="The version of python to install for",
+        "--python-version", default="3.7", help="The version of python to install for"
     )
     pip_cmd.add_argument(
         "--target-repo",
@@ -203,7 +203,7 @@ def _convert_pip_packages(args: argparse.Namespace) -> None:
 
         specs.extend(
             spk.external.import_pip(
-                name, version, python_version=args.python_version, recursive=args.deps,
+                name, version, python_version=args.python_version, recursive=args.deps
             )
         )
 

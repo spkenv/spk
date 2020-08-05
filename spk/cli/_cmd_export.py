@@ -16,10 +16,10 @@ def register(
 ) -> argparse.ArgumentParser:
 
     export_cmd = sub_parsers.add_parser(
-        "export", aliases=["i"], help=_export.__doc__, **parser_args,
+        "export", aliases=["i"], help=_export.__doc__, **parser_args
     )
     export_cmd.add_argument(
-        "packages", metavar="PKG", nargs="+", help="The packages to export",
+        "packages", metavar="PKG", nargs="+", help="The packages to export"
     )
     export_cmd.set_defaults(func=_export)
     return export_cmd

@@ -9,9 +9,7 @@ from ._source_spec import GitSource, TarSource
 def test_git_sources(tmpdir: py.path.local) -> None:
 
     tmpdir = tmpdir.join("source").ensure(dir=1)
-    spec = {
-        "git": os.getcwd(),
-    }
+    spec = {"git": os.getcwd()}
     source = GitSource.from_dict(spec)
     source.collect(tmpdir.strpath)
 
@@ -25,9 +23,7 @@ def test_tar_sources(tmpdir: py.path.local) -> None:
         tar.add("spk/__init__.py")
 
     tmpdir = tmpdir.join("source").ensure(dir=1)
-    spec = {
-        "tar": filename,
-    }
+    spec = {"tar": filename}
     source = TarSource.from_dict(spec)
     source.collect(tmpdir.strpath)
 
