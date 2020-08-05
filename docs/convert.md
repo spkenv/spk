@@ -18,3 +18,23 @@ $ spk convert spcomp2 FileSequence/v6
 ```
 
 When being converted, the spComp2 libraries, and headers are copied into `/spfs` under `lib/` and `include/`, respectively. Additionally, the process strips all RPATHs from the binaries so that they pick up their dependencies.
+
+## Pip
+
+Pip packages from pypi can be converted into spk packages as well. This process will recursively find and convert any dependencies of the requested pip package as well.
+
+```sh
+# convert the current version of filesequence
+$ spk convert pip gitlab-python
+# or request a specific version (using pip version semantics)
+$ spk convert spcomp2 gitlab-python==1.7
+
+$ spk env gitlab-python --local -- python -c "import gitlab; print(gitlab)"
+```
+
+As of writing, the converted package will also be dependant on the current os and arch since noarch support cannot easily be detected.
+
+```sh
+# convert for a specific python version
+spk convert pip --python-version 2.7 numpy
+```
