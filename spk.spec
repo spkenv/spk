@@ -11,7 +11,7 @@ BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: python-pip
 BuildRequires: python37-devel
-Requires: spfs
+Requires: spfs >= 0.20.5
 
 %description
 Package manager for SPFS
