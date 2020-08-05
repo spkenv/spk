@@ -1,6 +1,6 @@
-version: 0.20.5
+version: 0.20.6
 release_notes: |
-  * Expose interactive shell builder in public api (for spk)
+  * Fix error using tcsh where expect command was not found
 
 toolchain:
   - kind: Pipenv
