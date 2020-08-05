@@ -354,6 +354,39 @@ class ExactVersion(VersionRange):
         return COMPATIBLE
 
 
+class ExcludedVersion(VersionRange):
+    def __init__(self, exclude: str) -> None:
+
+        self._specified = len(exclude.split(VERSION_SEP))
+        self._base = parse_version(exclude)
+
+    def __str__(self) -> str:
+
+        parts = list(self._base.parts[: self._specified])
+        return f"!={VERSION_SEP.join(str(p) for p in parts)}"
+
+    __repr__ = __str__
+
+    @lru_cache()
+    def greater_or_equal_to(self) -> Optional[Version]:
+        return None
+
+    @lru_cache()
+    def less_than(self) -> Optional[Version]:
+        return None
+
+    def is_applicable(self, version: Version) -> Compatibility:
+
+        if version.parts[: self._specified] == self._base.parts[: self._specified]:
+            return Compatibility(f"excluded [{self}]")
+
+        return COMPATIBLE
+
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+
+        return self.is_applicable(spec.pkg.version)
+
+
 class CompatRange(VersionRange):
     def __init__(self, minimum: Union[str, Version]) -> None:
 
@@ -498,6 +531,8 @@ def parse_version_range(range: str) -> VersionFilter:
             rule = LessThanRange(rule_str[1:])
         elif rule_str.startswith("="):
             rule = ExactVersion(rule_str[1:])
+        elif rule_str.startswith("!="):
+            rule = ExcludedVersion(rule_str[2:])
         elif "*" in rule_str:
             rule = WildcardRange(rule_str)
         else:
