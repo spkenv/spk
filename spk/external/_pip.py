@@ -161,7 +161,6 @@ class PipImporter:
 
         _LOGGER.info("building generated spec", pkg=spec.pkg)
         repo = storage.local_repository()
-        repo.force_publish_spec(spec)
         options = api.host_options()
         pkg = spec.pkg.with_build(spec.resolve_all_options(options).digest())
         try:
