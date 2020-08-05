@@ -1,4 +1,4 @@
-from typing import List, Iterable, Optional, MutableMapping, Union
+from typing import List, Iterable, Optional, MutableMapping, Union, Dict
 import os
 import stat
 import json
@@ -212,6 +212,7 @@ class BinaryPackageBuilder:
 
         env = env or {}
         env.update(self._all_options.to_environment())
+        env.update(get_package_build_env(self._spec))
         env["PREFIX"] = self._prefix
 
         if isinstance(self._source, api.Ident):
@@ -226,6 +227,23 @@ class BinaryPackageBuilder:
             raise BuildError(
                 f"Build script returned non-zero exit status: {proc.returncode}"
             )
+
+
+def get_package_build_env(spec: api.Spec) -> Dict[str, str]:
+    """Return the environment variables to be set for a build of the given package spec."""
+
+    return {
+        "SPK_PKG": str(spec.pkg),
+        "SPK_PKG_NAME": str(spec.pkg.name),
+        "SPK_PKG_VERSION": str(spec.pkg.version),
+        "SPK_PKG_BUILD": str(spec.pkg.build or ""),
+        "SPK_PKG_VERSION_MAJOR": str(spec.pkg.version.major),
+        "SPK_PKG_VERSION_MINOR": str(spec.pkg.version.minor),
+        "SPK_PKG_VERSION_PATCH": str(spec.pkg.version.patch),
+        "SPK_PKG_VERSION_BASE": str(
+            api.VERSION_SEP.join(str(p) for p in spec.pkg.version.parts)
+        ),
+    }
 
 
 def build_spec_path(pkg: api.Ident, prefix: str = "/spfs") -> str:

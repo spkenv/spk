@@ -1,6 +1,6 @@
-version: 0.11.3
+version: 0.11.4
 release_notes: |
-  * Fix 'No such file' error when using tcsh
+  * Add variables
 
 toolchain:
   - kind: Shell

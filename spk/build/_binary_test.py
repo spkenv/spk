@@ -34,7 +34,7 @@ def test_validate_build_changeset_modified() -> None:
         )
 
 
-def test_build_partifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
+def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
 
     spec = api.Spec.from_dict(
         {"pkg": "test/1.0.0", "build": {"script": "echo $PWD > /dev/stderr"}}
@@ -58,7 +58,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     )
     spec = api.Spec.from_dict(
         {
-            "pkg": "top/1.0.0",
+            "pkg": "top/1.2.3+r.2",
             "build": {
                 "script": [
                     "touch /spfs/top-file",
@@ -67,6 +67,12 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
                     'test ! -x "$SPK_PKG_dep"',
                     'test "$SPK_PKG_dep_VERSION" == "1.0.0"',
                     'test "$SPK_OPT_dep" == "1.0.0"',
+                    'test "$SPK_PKG_NAME" == "top"',
+                    'test "$SPK_PKG_VERSION" == "1.2.3+r.2"',
+                    'test "$SPK_PKG_VERSION_MAJOR" == "1"',
+                    'test "$SPK_PKG_VERSION_MINOR" == "2"',
+                    'test "$SPK_PKG_VERSION_PATCH" == "3"',
+                    'test "$SPK_PKG_VERSION_BASE" == "1.2.3"',
                 ],
                 "options": [{"pkg": "dep"}],
             },
