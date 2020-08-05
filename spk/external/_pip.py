@@ -1,3 +1,4 @@
+from os import sysconf
 from typing import List, Iterable, Set
 import re
 import tempfile
@@ -61,7 +62,7 @@ class PipImporter:
             return []
         self._visited.add(name)
 
-        _LOGGER.info("converting pip package...", name=name, version=version)
+        _LOGGER.info("fetching pip package...", name=name, version=version)
 
         converted = []
         with tempfile.TemporaryDirectory() as _tmpdir:
@@ -78,7 +79,10 @@ class PipImporter:
             ]
 
             _LOGGER.debug(" ".join([*env_command, "--", *pip_command]))
-            subprocess.check_call([*env_command, "--", *pip_command])
+            try:
+                subprocess.check_output([*env_command, "--", *pip_command])
+            except subprocess.CalledProcessError:
+                _LOGGER.error(f"failed to download pip package")
 
             downloaded = list(tmpdir.glob(f"*"))
             assert (
@@ -125,7 +129,7 @@ class PipImporter:
             ]
         )
 
-        specs = [spec]
+        builds = []
         if info.requires_python:
             spk_version_range = _to_spk_version_range(info.requires_python)
             spec.install.requirements.append(
@@ -156,29 +160,24 @@ class PipImporter:
             spec.install.requirements.append(request)
 
             if self._follow_deps:
-                _LOGGER.info("scanning dependencies...")
-                specs.extend(self.import_package(match.group(1), match.group(3) or ""))
+                _LOGGER.debug("following dependencies...")
+                builds.extend(self.import_package(match.group(1), match.group(3) or ""))
 
-        _LOGGER.info("building generated spec", pkg=spec.pkg)
         repo = storage.local_repository()
         options = api.host_options()
-        pkg = spec.pkg.with_build(spec.resolve_all_options(options).digest())
-        try:
-            repo.read_spec(pkg)
-        except storage.PackageNotFoundError:
-            specs.append(
-                build.BinaryPackageBuilder()
-                .from_spec(spec)
-                .with_options(options)
-                .with_repository(storage.remote_repository())
-                .with_repository(repo)
-                .with_source(".")
-                .build()
-            )
-        else:
-            _LOGGER.info("build already available, skipping", pkg=pkg)
+        _LOGGER.info("building generated package spec...", pkg=spec.pkg)
+        builds.insert(
+            0,
+            build.BinaryPackageBuilder()
+            .from_spec(spec)
+            .with_options(options)
+            .with_repository(repo)
+            .with_repository(storage.remote_repository())
+            .with_source(".")
+            .build(),
+        )
 
-        return specs
+        return builds
 
 
 def _to_spk_name(name: str) -> str:

@@ -1,7 +1,6 @@
-version: 0.11.1
+version: 0.11.2
 release_notes: |
-  * Add support for ingesting pip packages
-    * Using the `spk convert pip ...` command line
+  * Improve convert command output cleanliness
 
 toolchain:
   - kind: Shell
