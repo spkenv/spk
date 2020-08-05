@@ -43,7 +43,12 @@ def build_interactive_shell_cmd() -> Tuple[str, ...]:
     shell_name = os.path.basename(shell_path)
 
     if shell_name in ("tcsh",):
-        return ("expect", rt.csh_expect_file, shell_path, rt.csh_startup_file)
+        expect = which("expect")
+        if expect is None:
+            _logger.error("'expect' command not found in PATH, falling back to bash")
+            shell_name = "bash"
+        else:
+            return (expect, rt.csh_expect_file, shell_path, rt.csh_startup_file)
 
     if shell_name not in ("bash",):
         _logger.warning(f"current shell not supported ({shell_path}) - using bash")
