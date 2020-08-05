@@ -104,7 +104,7 @@ Although the `*` range is convenient, it is also unstable and may slow down your
 
 #### Comparison Requirements
 
-Comparison requirements allow manually specifying a version range or an exact version to depend on.
+Comparison requirements allow manually specifying a version range, exact version, or excluded version.
 
 Here are some examples of comparison requirements:
 
@@ -113,6 +113,7 @@ Here are some examples of comparison requirements:
 > 1
 < 2
 = 1.2.3
+!= 4.2
 ```
 
 #### Multiple Requirements

@@ -64,9 +64,14 @@ def parse_tag_set(tags: str) -> TagSet:
         return tag_set
 
     for tag in tags.split(","):
-        name, num = tag.split(".")
+        try:
+            name, num = tag.split(".")
+        except ValueError:
+            raise InvalidVersionError(
+                f"Version tag segment must be of the form <name>.<int>, got [{tag}]"
+            )
         if name in tag_set:
-            raise ValueError("duplicate tag: " + name)
+            raise InvalidVersionError("duplicate tag: " + name)
         validate_tag_name(name)
         tag_set[name] = int(num)
 
