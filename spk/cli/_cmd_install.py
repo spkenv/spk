@@ -88,7 +88,7 @@ def _install(args: argparse.Namespace) -> None:
 
     for solved in env.items():
         solver.decision_tree.root.force_set_resolved(
-            solved.request, solved.spec, solved.repo
+            solved.request, solved.spec, solved.source
         )
     for request in requests:
         solver.add_request(request)

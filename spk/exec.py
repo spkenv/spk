@@ -54,12 +54,16 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
     """Pull the necessary layers and setup the given runtime to have all solution packages."""
 
     local_repo = storage.local_repository()
-    for _, spec, repo in solution.items():
+    for _, spec, source in solution.items():
 
         if spec.pkg.build is None:
             raise ValueError(
                 f"Solution includes package that needs building: {spec.pkg}"
             )
+
+        if not isinstance(source, storage.Repository):
+            continue
+        repo = source
 
         try:
             digest = repo.get_package(spec.pkg)

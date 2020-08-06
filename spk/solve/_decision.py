@@ -6,7 +6,7 @@ import structlog
 
 from .. import api, storage
 from ._errors import SolverError, ConflictingRequestsError
-from ._solution import Solution
+from ._solution import Solution, PackageSource
 
 _LOGGER = structlog.get_logger("spk.solve")
 
@@ -76,7 +76,7 @@ class Decision:
         """Get the error caused by this decision (if any)."""
         return self._error
 
-    def set_resolved(self, spec: api.Spec, repo: storage.Repository) -> None:
+    def set_resolved(self, spec: api.Spec, source: PackageSource) -> None:
         """Set the given package as resolved by this decision.
 
         The given spec is expected to have a fully resolved package with exact build.
@@ -86,12 +86,26 @@ class Decision:
         self.get_all_unresolved_requests.cache_clear()
         request = self.get_merged_request(spec.pkg.name)  # TODO: should this be passed?
         assert request is not None, "Cannot resolve unrequested package " + str(spec)
-        self.force_set_resolved(request, spec, repo)
+        self.force_set_resolved(request, spec, source)
+
+        for embeded in spec.install.embeded:
+            self.set_embeded(embeded, spec)
+
+    def set_embeded(self, spec: api.Spec, source: PackageSource) -> None:
+        """Set the given package as embeded by this decision.
+
+        This is similar to 'set_resolved' but also injects a request that matches the
+        given spec exaclty - so that it can be properly tracked in the solution
+        """
+
+        req = api.Request.from_ident(spec.pkg)
+        self.add_request(req)
+        self.set_resolved(spec, source)
 
     def force_set_resolved(
-        self, request: api.Request, spec: api.Spec, repo: storage.Repository
+        self, request: api.Request, spec: api.Spec, source: PackageSource
     ) -> None:
-        self._resolved.add(request, spec, repo)
+        self._resolved.add(request, spec, source)
 
     def get_resolved(self) -> Solution:
         """Get the set of packages resolved by this decision."""
