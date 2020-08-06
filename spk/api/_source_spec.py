@@ -32,6 +32,8 @@ class SourceSpec(metaclass=abc.ABCMeta):
             return LocalSource.from_dict(data)
         elif "git" in data:
             return GitSource.from_dict(data)
+        elif "tar" in data:
+            return TarSource.from_dict(data)
         else:
             raise ValueError("Cannot determine type of source specifier")
 
@@ -74,11 +76,12 @@ class GitSource(SourceSpec):
 
     def collect(self, dirname: str) -> None:
 
-        commands = [["git", "clone", self.git, dirname]]
+        git_cmd = ["git", "clone", "--depth=1"]
         if self.ref:
-            commands.append(["git", "checkout", self.ref])
+            git_cmd += ["-b", self.ref]
+        git_cmd += [self.git, dirname]
 
-        commands.append(["git", "submodule", "update", "--init"])
+        commands = [git_cmd, ["git", "submodule", "update", "--init"]]
         for cmd in commands:
             _LOGGER.debug(" ".join(cmd))
             subprocess.check_call(cmd, cwd=dirname)
@@ -112,7 +115,7 @@ class TarSource(SourceSpec):
                 _LOGGER.debug(" ".join(cmd))
                 subprocess.check_call(cmd, cwd=tmpdir)
             else:
-                tarfile = self.tar
+                tarfile = os.path.abspath(self.tar)
 
             cmd = ["tar", "-xf", tarfile]
             _LOGGER.debug(" ".join(cmd))
