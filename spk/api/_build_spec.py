@@ -219,7 +219,7 @@ class VarOpt(Option):
         opt = VarOpt(var)
         opt.default = data.pop("default", "")
         opt.choices = set(str(c) for c in data.pop("choices", []))
-        opt.set_value(data.pop("static", ""))
+        opt.set_value(str(data.pop("static", "")))
 
         if len(data):
             raise ValueError(f"unrecognized fields in var: {', '.join(data.keys())}")
@@ -308,7 +308,7 @@ class PkgOpt(Option):
 
         default = str(data.pop("default", ""))
         opt = PkgOpt(pkg, default=default)
-        opt.set_value(data.pop("static", ""))
+        opt.set_value(str(data.pop("static", "")))
 
         if len(data):
             raise ValueError(f"unrecognized fields in pkg: {', '.join(data.keys())}")
