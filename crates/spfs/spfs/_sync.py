@@ -92,7 +92,7 @@ def sync_platform(
 ) -> None:
 
     if dest.has_platform(platform.digest()):
-        _LOGGER.info("platform already synced", digest=platform.digest())
+        _LOGGER.debug("platform already synced", digest=platform.digest())
         return
     _LOGGER.info("syncing platform", digest=platform.digest())
     for digest in platform.stack:
@@ -108,7 +108,7 @@ def sync_layer(
 
     worker_pool = _get_worker_pool()
     if dest.has_layer(layer.digest()):
-        _LOGGER.info("layer already synced", digest=layer.digest())
+        _LOGGER.debug("layer already synced", digest=layer.digest())
         return
 
     _LOGGER.info("syncing layer", digest=layer.digest())
