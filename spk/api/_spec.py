@@ -39,7 +39,12 @@ class InstallSpec:
             self.requirements.append(request)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"requirements": list(r.to_dict() for r in self.requirements)}
+        data = {}
+        if self.requirements:
+            data["requirements"] = list(r.to_dict() for r in self.requirements)
+        if self.embeded:
+            data["embeded"] = list(r.to_dict() for r in self.embeded)
+        return data
 
     def render_all_pins(self, resolved: Iterable[Ident]) -> None:
         """Render all requests with a package pin using the given resolved packages."""
@@ -64,7 +69,7 @@ class InstallSpec:
         embeded = data.pop("embeded", [])
         for e in embeded:
             es = Spec.from_dict(e)
-            if es.pkg.build is not None:
+            if es.pkg.build is not None and not es.pkg.build.is_emdeded():
                 raise ValueError(
                     f"embeded package should not specify a build, got: {es.pkg}"
                 )

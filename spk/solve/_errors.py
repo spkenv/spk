@@ -1,5 +1,7 @@
 from typing import Dict, Any, List
 
+from ruamel import yaml
+
 from .. import api
 from .. import storage
 
@@ -23,8 +25,9 @@ class UnresolvedPackageError(SolverError):
 class ConflictingRequestsError(SolverError):
     def __init__(self, msg: str, requests: List[api.Request] = None) -> None:
 
+        self.requests = requests
         message = f"Conflicting requests: {msg}"
         if requests is not None:
-            req_list = ", ".join(str(r) for r in requests)
+            req_list = ", ".join(yaml.safe_dump(r.to_dict()).strip() for r in requests)
             message += f" - from requests: [{req_list}]"
         super(ConflictingRequestsError, self).__init__(message)

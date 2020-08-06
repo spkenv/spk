@@ -87,11 +87,26 @@ class Decision:
         request = self.get_merged_request(spec.pkg.name)  # TODO: should this be passed?
         assert request is not None, "Cannot resolve unrequested package " + str(spec)
         self.force_set_resolved(request, spec, source)
-
+        if spec.pkg.build is not None and spec.pkg.build.is_source():
+            return
         for embeded in spec.install.embeded:
-            self.set_embeded(embeded, spec)
+            try:
+                self._set_embeded(embeded, spec)
+            except ConflictingRequestsError as err:
+                raise ConflictingRequestsError(
+                    f"embeded package '{embeded.pkg}' is incompatible", err.requests,
+                )
 
-    def set_embeded(self, spec: api.Spec, source: PackageSource) -> None:
+    def force_set_resolved(
+        self, request: api.Request, spec: api.Spec, source: PackageSource
+    ) -> None:
+        self._resolved.add(request, spec, source)
+        try:
+            self._unresolved.remove(spec.pkg.name)
+        except KeyError:
+            pass
+
+    def _set_embeded(self, spec: api.Spec, source: PackageSource) -> None:
         """Set the given package as embeded by this decision.
 
         This is similar to 'set_resolved' but also injects a request that matches the
@@ -101,11 +116,6 @@ class Decision:
         req = api.Request.from_ident(spec.pkg)
         self.add_request(req)
         self.set_resolved(spec, source)
-
-    def force_set_resolved(
-        self, request: api.Request, spec: api.Spec, source: PackageSource
-    ) -> None:
-        self._resolved.add(request, spec, source)
 
     def get_resolved(self) -> Solution:
         """Get the set of packages resolved by this decision."""
@@ -172,7 +182,7 @@ class Decision:
 
         try:
             current = self.get_current_solution().get(request.pkg.name)
-            if not current[1].sastisfies_request(request):
+            if not request.is_satisfied_by(current.spec):
                 self.set_unresolved(request.pkg.name)
         except KeyError:
             pass

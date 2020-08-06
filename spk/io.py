@@ -31,26 +31,13 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
 
     end = "\n" if verbosity > 1 else " "
     out = ""
-    if decision.get_error() is not None:
 
-        err = decision.get_error()
-        if err is None:
-            return out
-        if not isinstance(err, solve.UnresolvedPackageError):
-            return f"{Fore.RED}BLOCKED{Fore.RESET} {err}"
-        if verbosity > 1:
-            versions = list(
-                f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
-                for v, c in (err.history or {}).items()
-            )
-            out += end.join(versions) + (end if versions else "")
-
-        out += f"{Fore.RED}BLOCKED{Fore.RESET} {err.message}"
-        return out
-
+    error = decision.get_error()
+    print(list(decision._resolved.items()))
     resolved = decision.get_resolved()
+    requests = decision.get_requests()
+    unresolved = decision.get_unresolved()
     if resolved:
-
         if verbosity > 1:
             for _, spec, _ in resolved.items():
                 iterator = decision.get_iterator(spec.pkg.name)
@@ -59,21 +46,32 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
                         f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(v)} - {c}"
                         for v, c in iterator.history.items()
                     )
-                    out += end.join(reversed(versions)) + end
+                    if versions:
+                        out += end.join(reversed(versions)) + end
                 out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(spec.pkg)}" + end
         else:
             values = list(format_ident(spec.pkg) for _, spec, _ in resolved.items())
             out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {', '.join(values)}" + end
-    if decision.get_requests():
-        values = list(
-            format_request(n, pkgs) for n, pkgs in decision.get_requests().items()
-        )
+    if requests:
+        values = list(format_request(n, pkgs) for n, pkgs in requests.items())
         out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)}" + end
-    if decision.get_unresolved():
-        out += (
-            f"{Fore.RED}UNRESOLVE{Fore.RESET} {', '.join(decision.get_unresolved())}"
-            + end
-        )
+    if unresolved:
+        out += f"{Fore.RED}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
+
+    if error is not None:
+
+        if not isinstance(error, solve.UnresolvedPackageError):
+            out += f"{Fore.RED}BLOCKED{Fore.RESET} {error}"
+        else:
+            if verbosity > 1:
+                versions = list(
+                    f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
+                    for v, c in (error.history or {}).items()
+                )
+                out += end.join(versions) + (end if versions else "")
+
+            out += f"{Fore.RED}BLOCKED{Fore.RESET} {error.message}"
+
     return out.strip()
 
 
@@ -84,7 +82,12 @@ def format_request(name: str, requests: List[api.Request]) -> str:
     for req in requests:
         ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
         if req.pkg.build is not None:
-            ver += f"/{Style.DIM}{req.pkg.build}{Style.RESET_ALL}"
+            if req.pkg.build.is_emdeded():
+                ver += f"/{Fore.LIGHTMAGENTA_EX}{req.pkg.build}{Style.RESET_ALL}"
+            if req.pkg.build.is_source():
+                ver += f"/{Fore.LIGHTYELLOW_EX}{req.pkg.build}{Style.RESET_ALL}"
+            else:
+                ver += f"/{Style.DIM}{req.pkg.build}{Style.RESET_ALL}"
         versions.append(ver)
     out += ",".join(versions)
     return out
