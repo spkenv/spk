@@ -6,6 +6,7 @@ import structlog
 from ruamel import yaml
 
 
+from ._build import EMBEDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request
@@ -61,8 +62,14 @@ class InstallSpec:
             spec.requirements = list(Request.from_dict(r) for r in requirements)
 
         embeded = data.pop("embeded", [])
-        if embeded:
-            spec.embeded = list(Spec.from_dict(e) for e in embeded)
+        for e in embeded:
+            es = Spec.from_dict(e)
+            if es.pkg.build is not None:
+                raise ValueError(
+                    f"embeded package should not specify a build, got: {es.pkg}"
+                )
+            es.pkg.set_build(EMBEDED)
+            spec.embeded.append(es)
 
         if len(data):
             raise ValueError(
