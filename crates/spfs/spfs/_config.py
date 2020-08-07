@@ -100,4 +100,9 @@ def load_config() -> Config:
         if e.errno != errno.ENOENT:
             raise
 
+    try:
+        config.get_repository()
+        config.get_runtime_storage()
+    except Exception:
+        pass
     return config
