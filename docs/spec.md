@@ -4,7 +4,7 @@ summary: Write package spec files for creating packages.
 weight: 20
 ---
 
-The package specification (spec) file is a yaml or json file which follows the structure detailed below.
+The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [API Reference](../reference) for a more detailed and complete set of documentation.
 
 ### Name and Version
 
@@ -30,7 +30,6 @@ compat: x.a.b
 
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
 
-
 ### Build Configuration
 
 The build section of the package spec tells spk how to properly compile and cature your software as a package.
@@ -38,7 +37,6 @@ The build section of the package spec tells spk how to properly compile and catu
 #### Options
 
 Build options are considered inputs to the build process. There are two types of options that can be specified: package options are build dependencies and var options are arbitrary configuration values for the build.
-
 
 ```yaml
 build:
@@ -62,12 +60,23 @@ Best practice for defining boolean options is to follow the cmake convention of 
 Best practice for package requrements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itselfrather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
 {{% /notice %}}
 
+##### Common Build Options
+
+There are some build options that are either provided by the system or are used enough to create a comon convention.
+
+| Option Name | Value(s)                                       | Example                |
+| ----------- | ---------------------------------------------- | ---------------------- |
+| arch        | The build architecture                         | x86_64, i386, ...      |
+| os          | The operating system                           | linux, windows, darwin |
+| distro      | The linux distribution, if applicable          | centos, ubuntu, ...    |
+| centos      | The centos major version number, if applicable | 7, 8, ...              |
+| debug       | Denotes a build with debug information         | on, off                |
+
 #### Script
 
 ```yaml
 build:
-  options:
-    ...
+  options: ...
   script:
     - mkdir -p build; cd build
     - CONFIG=Release
@@ -91,15 +100,13 @@ If your build script is getting long or feels obstructive in your spec file, you
 
 ```yaml
 build:
-  options:
-    ...
+  options: ...
   variants:
-    - {gcc: 6.3, debug: off}
-    - {gcc: 6.3, debug: on}
-    - {gcc: 4.8, debug: off}
-    - {gcc: 4.8, debug: on}
-  script:
-    ...
+    - { gcc: 6.3, debug: off }
+    - { gcc: 6.3, debug: on }
+    - { gcc: 4.8, debug: off }
+    - { gcc: 4.8, debug: on }
+  script: ...
 ```
 
 The variants section of the build config defines the default set of variants that you want to build when running `spk build` and `spk make-binary`. Additional variants can be built later on, but this is a good way to streamline the default build process and define the set of variants that you want to support for every change.
@@ -122,7 +129,7 @@ The `sources` section of the package spec tells spk where to collect and how to 
 
 ```yaml
 sources:
-- path: ./src
+  - path: ./src
 ```
 
 #### Git Source
@@ -131,8 +138,8 @@ Git sources are cloned into the source area, and can take an optional ref (tag, 
 
 ```yaml
 sources:
-- git: https://github.com/qt/qt5
-  ref: v5.12.9
+  - git: https://github.com/qt/qt5
+    ref: v5.12.9
 ```
 
 #### Tar Source
@@ -141,7 +148,7 @@ Tar sources can reference both local tar files and remote ones, which will be do
 
 ```yaml
 sources:
-- tar: https://github.com/qt/qt5/archive/v5.12.9.tar.gz
+  - tar: https://github.com/qt/qt5/archive/v5.12.9.tar.gz
 ```
 
 #### Multiple Sources
@@ -151,12 +158,12 @@ You can include sources from mulitple location, but will need to specify a subdi
 ```yaml
 sources:
   # clones this git repo into the 'someproject' subdirectory
-- git: https://gitlab.spimageworks.com/someproject
-  ref: master
-  subdir: someproject
-  # copies the contents of the spec file's location into the 'src' subdirectory
-- path: ./
-  subdir: src
+  - git: https://gitlab.spimageworks.com/someproject
+    ref: master
+    subdir: someproject
+    # copies the contents of the spec file's location into the 'src' subdirectory
+  - path: ./
+    subdir: src
 ```
 
 ### Install Configuration
@@ -170,7 +177,7 @@ Packages often require other packages to be present at run-time. These requireme
 ```yaml
 install:
   requirements:
-  - pkg: python/2.7
+    - pkg: python/2.7
 ```
 
 You can also reference packages from the build environment in your installation requirements. This is the recommended way to connect the build environment with the run-time environment, so that the install requirements can change with each variant that is generated. For example, creating a python package for both python 2 and python 3 can use this feature to make sure that the same version of python is used at run-time.
@@ -180,8 +187,8 @@ build:
   options:
     - pkg: python
   variants:
-    - {python: 2}
-    - {python: 3}
+    - { python: 2 }
+    - { python: 3 }
 install:
   requirements:
     - pkg: python
@@ -216,8 +223,8 @@ Some software, like Maya or other DCC applications, come bundled with their own 
 
 ```yaml
 pkg: maya/2019.2.0
-...
+---
 install:
   embeded:
-  - pkg: qt/5.12.6
+    - pkg: qt/5.12.6
 ```

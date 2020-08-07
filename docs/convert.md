@@ -1,10 +1,10 @@
 ---
 title: External Packages
 summary: Convert packages from other package managers for use in spk.
+weight: 40
 ---
 
 The `spk convert` command can be used to ingest packages from supported package managers into spk. One converted, these packages are available for local testing and can also be published for others to use.
-
 
 ## SpComp2
 
