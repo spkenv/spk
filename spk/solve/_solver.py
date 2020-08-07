@@ -4,7 +4,8 @@ from ruamel import yaml
 import structlog
 
 from .. import api, storage
-from ._decision import Decision, PackageIterator, DecisionTree
+from ._package_iterator import RepositoryPackageIterator
+from ._decision import Decision, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
 from ._solution import Solution
 
@@ -104,12 +105,12 @@ class Solver:
     def _solve_request(self, state: Decision, request: api.Request) -> Decision:
 
         decision = state.add_branch()
-        try:
+        iterator = state.get_iterator(request.pkg.name)
+        if iterator is None:
+            iterator = self._make_iterator(request)
+            state.set_iterator(request.pkg.name, iterator)
 
-            iterator = state.get_iterator(request.pkg.name)
-            if iterator is None:
-                iterator = self._make_iterator(request)
-                state.set_iterator(request.pkg.name, iterator)
+        try:
 
             while True:
                 spec, repo = next(iterator)
@@ -119,7 +120,8 @@ class Solver:
                     else:
                         compat = self._resolve_new_build(spec, state)
                     if not compat:
-                        iterator.history[spec.pkg] = compat
+                        if isinstance(iterator, RepositoryPackageIterator):
+                            iterator.history[spec.pkg] = compat
                         continue
                 elif not spec.pkg.build.is_source():
                     for dep in spec.install.requirements:
@@ -129,10 +131,12 @@ class Solver:
             decision.set_resolved(spec, repo)
 
         except StopIteration:
-            it: PackageIterator = iterator  # type: ignore
+            history: Dict[api.Ident, api.Compatibility] = {}
+            if isinstance(iterator, RepositoryPackageIterator):
+                history = iterator.history
             err = UnresolvedPackageError(
                 yaml.safe_dump(request.to_dict()).strip(),  # type: ignore
-                history=it.history,  # type: ignore
+                history=history,
             )
             decision.set_error(err)
             raise err from None
@@ -142,10 +146,10 @@ class Solver:
 
         return decision
 
-    def _make_iterator(self, request: api.Request) -> PackageIterator:
+    def _make_iterator(self, request: api.Request) -> RepositoryPackageIterator:
 
         assert len(self._repos), "No configured package repositories."
-        return PackageIterator(self._repos, request, self._options)
+        return RepositoryPackageIterator(self._repos, request, self._options)
 
     def _resolve_new_build(self, spec: api.Spec, state: Decision) -> api.Compatibility:
 

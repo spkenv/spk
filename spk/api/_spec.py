@@ -6,16 +6,86 @@ import structlog
 from ruamel import yaml
 
 
+from ._build import EMBEDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec, PkgOpt
-from ._install_spec import InstallSpec
 from ._source_spec import SourceSpec, LocalSource
 
 
 _LOGGER = structlog.get_logger("spk")
+
+
+@dataclass
+class InstallSpec:
+    """A set of structured installation parameters for a package."""
+
+    requirements: List[Request] = field(default_factory=list)
+    embeded: List["Spec"] = field(default_factory=list)
+
+    def upsert_requirement(self, request: Request) -> None:
+        """Add or update a requirement to the set of installation requirements.
+
+        If a request exists for the same package, it is replaced with the given
+        one. Otherwise the new request is appended to the list.
+        """
+        for i, other in enumerate(self.requirements):
+            if other.pkg.name == request.pkg.name:
+                self.requirements[i] = request
+                return
+        else:
+            self.requirements.append(request)
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = {}
+        if self.requirements:
+            data["requirements"] = list(r.to_dict() for r in self.requirements)
+        if self.embeded:
+            data["embeded"] = list(r.to_dict() for r in self.embeded)
+        return data
+
+    def render_all_pins(self, resolved: Iterable[Ident]) -> None:
+        """Render all requests with a package pin using the given resolved packages."""
+
+        by_name = dict((pkg.name, pkg) for pkg in resolved)
+        for i, request in enumerate(self.requirements):
+            if not request.pin:
+                continue
+            if request.pkg.name not in by_name:
+                raise ValueError(f"Pinned package not present: {request.pkg.name}")
+            self.requirements[i] = request.render_pin(by_name[request.pkg.name])
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "InstallSpec":
+
+        spec = InstallSpec()
+
+        requirements = data.pop("requirements", [])
+        if requirements:
+            spec.requirements = list(Request.from_dict(r) for r in requirements)
+
+        embeded = data.pop("embeded", [])
+        for e in embeded:
+            if "build" in e:
+                raise ValueError("embeded packages cannot specify the build field")
+            if "install" in e:
+                raise ValueError("embeded packages cannot specify the install field")
+            es = Spec.from_dict(e)
+            if es.pkg.build is not None and not es.pkg.build.is_emdeded():
+                raise ValueError(
+                    f"embeded package should not specify a build, got: {es.pkg}"
+                )
+            es.pkg.set_build(EMBEDED)
+            spec.embeded.append(es)
+
+        if len(data):
+            raise ValueError(
+                f"unrecognized fields in spec.install: {', '.join(data.keys())}"
+            )
+
+        return spec
 
 
 @dataclass
@@ -61,7 +131,12 @@ class Spec:
         self.install.render_all_pins(s.pkg for s in resolved)
 
         specs = dict((s.pkg.name, s) for s in resolved)
-        for opt in self.build.options:
+
+        build_options = list(self.build.options)
+        for e in self.install.embeded:
+            build_options.extend(e.build.options)
+
+        for opt in build_options:
             if not isinstance(opt, PkgOpt):
                 opt.set_value(options.get(opt.name(), ""))
                 continue
@@ -103,8 +178,12 @@ class Spec:
         if self.deprecated:
             spec["deprecated"] = self.deprecated
 
-        spec["build"] = self.build.to_dict()
-        spec["install"] = self.install.to_dict()
+        build = self.build.to_dict()
+        if build:
+            spec["build"] = build
+        install = self.install.to_dict()
+        if install:
+            spec["install"] = install
         return spec
 
 

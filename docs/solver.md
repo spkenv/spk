@@ -77,18 +77,6 @@ In this example, we've specifically requested an environment where the `os` opti
 
 In most cases, the solver will encouter multiple issues as it tries to find an appropriate solution to the set of requested packages. Not all errors are bad, and some are even expected. Here are some common patterns that you may see in your solver decision tree which can help to differentiate benign issues from actual problems.
 
-```bash
-$ spk env -vv my-plugin maya/2020
-REQUEST my-plugin/* maya/2020.0.0
-> RESOLVE my-plugin/10.0.0/3I42H3S6
-. REQUEST maya/2019.0.0
->> TRY 2020.2.1 - version too high
-.. TRY 2019.2.0 - version too low
-.. BLOCKED Failed to resolve: {'pkg': 'maya/2020.0.0,2019.0.0'}
-> TRY 10.0.0 - request not satisfied
-. BLOCKED Failed to resolve: {'pkg': 'my-plugin/*'}
-```
-
 #### Incompatible Dependencies
 
 ```bash
@@ -140,7 +128,7 @@ $ spk explain -v my-plugin
 
 In this example, `my-plugin` has two dependencies. The first maya dependency is resolved to `2019.2` but then when `some-library` is resolved, it adds a new request for `maya/~2019.0.0` for which `2019.2` is not applicable. The solver re-opens the request, denoting this by the `UNRESOLVE` statement above, and then manges to find an older version of maya that works for both requests.
 
-### Depreacted Packages
+#### Depreacted Packages
 
 ```
 $ spk explain -v my-tool
@@ -152,7 +140,22 @@ $ spk explain -v my-tool
 
 Packages can be deprecated by package owners when an issue is found or an older version is no longer fit for use. Deprecated packages should not be used under normal circumstances, but there are ways to use the packages if absolutely required.
 
-# Possible Solutions
+##### Possible Solutions
 
 - Generally, you want to update to a newer version of the package that has not been deprecated. Package maintainers should not deprecate packages without providing a resonable alternative.
 - If you are really stuck, note that the error message says _was not specifically requested_. This means that if you request the deprecated build exactly, then it will still resolve the environment for you, eg `spk env my-tool/1.2.0/STLY6HNC`.
+
+#### Embeded Packages
+
+Some package, especially DCC packages, are bundled with other software/packages. Package maintainers should include these packages as _embeded_ packages, so that the solver understands what's in the bundle. The solver will show embeded packages being requested and resolved, always with the `embeded` build string.
+
+```
+ REQUEST qt/*, maya/*
+> RESOLVE qt/5.13.0/3I42H3S6
+>> RESOLVE maya/2019.2.0/3I42H3S6
+.. REQUEST qt/=5.12.6/embeded
+.. UNRESOLVE qt
+>>> RESOLVE qt/5.12.6/embeded
+```
+
+In this case, `qt` was resolved to version 5.13 first, but maya brought in it's own embeded version of qt, which replaced the initially resolved external package. The solver will always show the same `REQUEST` and `RESOLVE` pattern for embeded packages, but embeded packages can only ever resolve to the one bundled with the original requester.

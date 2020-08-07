@@ -43,7 +43,7 @@ def make_build(
     if spec.pkg.build and spec.pkg.build.is_source():
         return spec
     build_opts = opts.copy()
-    build_opts = spec.resolve_all_options(build_opts)
+    build_opts.update(spec.resolve_all_options(build_opts))
     spec.update_for_build(build_opts, deps)
     return spec
 
@@ -599,6 +599,71 @@ def test_solver_build_from_source_deprecated() -> None:
     solver.add_request("my-tool")
 
     with pytest.raises(UnresolvedPackageError):
+        try:
+            solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_embeded_package_solvable() -> None:
+
+    # test when there is an embeded package
+    # - the embeded package is added to the solution
+    # - the embeded package resolves existing requests
+    # - the solution includes the embeded packages
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embeded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {"pkg": "qt/5.13.0", "build": {"script": "echo BUILD"},},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("qt")
+    solver.add_request("maya")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("qt").spec.pkg.version == "5.12.6"
+    assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
+
+
+def test_solver_embeded_package_unsolvable() -> None:
+
+    # test when there is an embeded package
+    # - the embeded package is added to the solution
+    # - the embeded package conflicts with existing requests
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-plugin",
+                # the qt/5.13 requirement is available but conflits with maya embeded
+                "install": {"requirements": [{"pkg": "maya/2019"}, {"pkg": "qt/5.13"}]},
+            },
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embeded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {"pkg": "qt/5.13.0", "build": {"script": "echo BUILD"},},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-plugin")
+
+    with pytest.raises(ConflictingRequestsError):
         try:
             solver.solve()
         finally:

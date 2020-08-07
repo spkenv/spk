@@ -1,13 +1,18 @@
-from typing import Tuple, Iterator, Dict, List, NamedTuple
+from typing import Tuple, Iterator, Dict, List, NamedTuple, Union
 import os
 
 from .. import api, storage
 
 
+PackageSource = Union[storage.Repository, api.Spec]
+
+
 class SolvedRequest(NamedTuple):
+    """Represents a package request that has been resolved."""
+
     request: api.Request
     spec: api.Spec
-    repo: storage.Repository
+    source: PackageSource
 
 
 class Solution:
@@ -16,7 +21,7 @@ class Solution:
     def __init__(self, options: api.OptionMap = None) -> None:
 
         self._options = api.OptionMap(options or {})
-        self._resolved: Dict[api.Request, Tuple[api.Spec, storage.Repository]] = {}
+        self._resolved: Dict[api.Request, Tuple[api.Spec, PackageSource]] = {}
 
     def __bool__(self) -> bool:
         return bool(self._resolved)
@@ -40,9 +45,11 @@ class Solution:
         """Return the set of repositories in this solution."""
 
         repos = []
-        for _, _, repo in self.items():
-            if repo not in repos:
-                repos.append(repo)
+        for _, _, source in self.items():
+            if not isinstance(source, storage.Repository):
+                continue
+            if source not in repos:
+                repos.append(source)
         return repos
 
     def clone(self) -> "Solution":
@@ -52,19 +59,19 @@ class Solution:
         return other
 
     def add(
-        self, request: api.Request, package: api.Spec, source: storage.Repository
+        self, request: api.Request, package: api.Spec, source: PackageSource,
     ) -> None:
 
         self._resolved[request] = (package, source)
 
     def update(self, other: "Solution") -> None:
-        for request, spec, repo in other.items():
-            self.add(request, spec, repo)
+        for request, spec, source in other.items():
+            self.add(request, spec, source)
 
     def items(self) -> Iterator[SolvedRequest]:
 
-        for request, (spec, repo) in self._resolved.items():
-            yield SolvedRequest(request, spec, repo)
+        for request, (spec, source) in self._resolved.items():
+            yield SolvedRequest(request, spec, source)
 
     def remove(self, name: str) -> None:
 

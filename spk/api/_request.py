@@ -8,7 +8,7 @@ from ._name import validate_name
 from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
-from ._version_range import parse_version_range, VersionFilter
+from ._version_range import parse_version_range, VersionFilter, ExactVersion
 from ._compat import Compatibility, COMPATIBLE
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ class RangeIdent:
     """Identitfies a range of package versions and builds."""
 
     name: str
-    version: VersionFilter = field(default_factory=lambda: VersionFilter())
+    version: VersionFilter = field(default_factory=VersionFilter)
     build: Optional[Build] = None
 
     def __str__(self) -> str:
@@ -234,6 +234,16 @@ class Request:
         if self.pin:
             out["fromBuildEnv"] = self.pin
         return out
+
+    @staticmethod
+    def from_ident(pkg: Ident) -> "Request":
+
+        ri = RangeIdent(
+            name=pkg.name,
+            version=VersionFilter({ExactVersion(pkg.version),}),
+            build=pkg.build,
+        )
+        return Request(ri)
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Request":

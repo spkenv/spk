@@ -1,3 +1,5 @@
+from re import L
+from sys import version
 from typing import List
 from colorama import Fore, Style
 
@@ -10,7 +12,7 @@ def format_ident(pkg: api.Ident) -> str:
     if pkg.version.parts or pkg.build is not None:
         out += f"/{Fore.LIGHTBLUE_EX}{pkg.version}{Fore.RESET}"
     if pkg.build is not None:
-        out += f"/{Style.DIM}{pkg.build}{Style.RESET_ALL}"
+        out += f"/{format_build(pkg.build)}"
     return out
 
 
@@ -31,49 +33,46 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
 
     end = "\n" if verbosity > 1 else " "
     out = ""
-    if decision.get_error() is not None:
 
-        err = decision.get_error()
-        if err is None:
-            return out
-        if not isinstance(err, solve.UnresolvedPackageError):
-            return f"{Fore.RED}BLOCKED{Fore.RESET} {err}"
-        if verbosity > 1:
-            versions = list(
-                f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
-                for v, c in (err.history or {}).items()
-            )
-            out += end.join(versions) + (end if versions else "")
-
-        out += f"{Fore.RED}BLOCKED{Fore.RESET} {err.message}"
-        return out
-
+    error = decision.get_error()
     resolved = decision.get_resolved()
+    requests = decision.get_requests()
+    unresolved = decision.get_unresolved()
     if resolved:
-
         if verbosity > 1:
             for _, spec, _ in resolved.items():
                 iterator = decision.get_iterator(spec.pkg.name)
-                if iterator is not None:
+                if isinstance(iterator, solve.RepositoryPackageIterator):
                     versions = list(
                         f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(v)} - {c}"
                         for v, c in iterator.history.items()
                     )
-                    out += end.join(reversed(versions)) + end
+                    if versions:
+                        out += end.join(reversed(versions)) + end
                 out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(spec.pkg)}" + end
         else:
             values = list(format_ident(spec.pkg) for _, spec, _ in resolved.items())
             out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {', '.join(values)}" + end
-    if decision.get_requests():
-        values = list(
-            format_request(n, pkgs) for n, pkgs in decision.get_requests().items()
-        )
+    if requests:
+        values = list(format_request(n, pkgs) for n, pkgs in requests.items())
         out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)}" + end
-    if decision.get_unresolved():
-        out += (
-            f"{Fore.RED}UNRESOLVE{Fore.RESET} {', '.join(decision.get_unresolved())}"
-            + end
-        )
+    if unresolved:
+        out += f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
+
+    if error is not None:
+
+        if not isinstance(error, solve.UnresolvedPackageError):
+            out += f"{Fore.RED}BLOCKED{Fore.RESET} {error}"
+        else:
+            if verbosity > 1:
+                versions = list(
+                    f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
+                    for v, c in (error.history or {}).items()
+                )
+                out += end.join(versions) + (end if versions else "")
+
+            out += f"{Fore.RED}BLOCKED{Fore.RESET} {error.message}"
+
     return out.strip()
 
 
@@ -84,7 +83,7 @@ def format_request(name: str, requests: List[api.Request]) -> str:
     for req in requests:
         ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
         if req.pkg.build is not None:
-            ver += f"/{Style.DIM}{req.pkg.build}{Style.RESET_ALL}"
+            ver += f"/{format_build(req.pkg.build)}"
         versions.append(ver)
     out += ",".join(versions)
     return out
@@ -99,3 +98,13 @@ def format_options(options: api.OptionMap) -> str:
         )
 
     return f"{{{', '.join(formatted)}}}"
+
+
+def format_build(build: api.Build) -> str:
+
+    if build.is_emdeded():
+        return f"{Fore.LIGHTMAGENTA_EX}{build}{Style.RESET_ALL}"
+    elif build.is_source():
+        return f"{Fore.LIGHTYELLOW_EX}{build}{Style.RESET_ALL}"
+    else:
+        return f"{Style.DIM}{build}{Style.RESET_ALL}"
