@@ -6,7 +6,7 @@ import spfs
 
 from .. import register_scheme, Repository
 from ._tag import TagStorage
-from ._database import FSDatabase, FSPayloadStorage
+from ._database import FSDatabase, FSPayloadStorage, makedirs_with_perms
 from ._renderer import FSManifestViewer
 
 
@@ -34,10 +34,7 @@ class FSRepository(Repository, FSManifestViewer):
 
         if not os.path.exists(self.__root) and not create:
             raise ValueError("Directory does not exist: " + self.__root)
-        try:
-            os.makedirs(self.__root, mode=0o777)
-        except FileExistsError:
-            pass
+        makedirs_with_perms(self.__root)
 
         if len(os.listdir(self.__root)) == 0:
             set_last_migration(self.__root, spfs.__version__)
@@ -61,7 +58,9 @@ class FSRepository(Repository, FSManifestViewer):
                 f"Repository requires a newer version of spfs [{repo_version}]: {self.address()}"
             )
         if repo_version.compare(self.minimum_compatible_version) < 0:
-            raise MigrationRequiredError(repo_version, self.minimum_compatible_version)
+            raise MigrationRequiredError(
+                str(repo_version), self.minimum_compatible_version
+            )
 
     @property
     def root(self) -> str:
@@ -106,6 +105,10 @@ def set_last_migration(root: str, version: str = None) -> None:
     version_file = os.path.join(root, "VERSION")
     with open(version_file, "w+") as f:
         f.write(version)
+    try:
+        os.chmod(version_file, 0o666)
+    except PermissionError:
+        pass
 
 
 register_scheme("file", FSRepository)
