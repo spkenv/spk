@@ -1,3 +1,5 @@
+from re import L
+from sys import version
 from typing import List
 from colorama import Fore, Style
 
@@ -10,7 +12,7 @@ def format_ident(pkg: api.Ident) -> str:
     if pkg.version.parts or pkg.build is not None:
         out += f"/{Fore.LIGHTBLUE_EX}{pkg.version}{Fore.RESET}"
     if pkg.build is not None:
-        out += f"/{Style.DIM}{pkg.build}{Style.RESET_ALL}"
+        out += f"/{format_build(pkg.build)}"
     return out
 
 
@@ -33,7 +35,6 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
     out = ""
 
     error = decision.get_error()
-    print(list(decision._resolved.items()))
     resolved = decision.get_resolved()
     requests = decision.get_requests()
     unresolved = decision.get_unresolved()
@@ -41,7 +42,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
         if verbosity > 1:
             for _, spec, _ in resolved.items():
                 iterator = decision.get_iterator(spec.pkg.name)
-                if iterator is not None:
+                if isinstance(iterator, solve.RepositoryPackageIterator):
                     versions = list(
                         f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(v)} - {c}"
                         for v, c in iterator.history.items()
@@ -56,7 +57,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
         values = list(format_request(n, pkgs) for n, pkgs in requests.items())
         out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)}" + end
     if unresolved:
-        out += f"{Fore.RED}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
+        out += f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
 
     if error is not None:
 
@@ -82,12 +83,7 @@ def format_request(name: str, requests: List[api.Request]) -> str:
     for req in requests:
         ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
         if req.pkg.build is not None:
-            if req.pkg.build.is_emdeded():
-                ver += f"/{Fore.LIGHTMAGENTA_EX}{req.pkg.build}{Style.RESET_ALL}"
-            if req.pkg.build.is_source():
-                ver += f"/{Fore.LIGHTYELLOW_EX}{req.pkg.build}{Style.RESET_ALL}"
-            else:
-                ver += f"/{Style.DIM}{req.pkg.build}{Style.RESET_ALL}"
+            ver += f"/{format_build(req.pkg.build)}"
         versions.append(ver)
     out += ",".join(versions)
     return out
@@ -102,3 +98,13 @@ def format_options(options: api.OptionMap) -> str:
         )
 
     return f"{{{', '.join(formatted)}}}"
+
+
+def format_build(build: api.Build) -> str:
+
+    if build.is_emdeded():
+        return f"{Fore.LIGHTMAGENTA_EX}{build}{Style.RESET_ALL}"
+    elif build.is_source():
+        return f"{Fore.LIGHTYELLOW_EX}{build}{Style.RESET_ALL}"
+    else:
+        return f"{Style.DIM}{build}{Style.RESET_ALL}"
