@@ -1,6 +1,7 @@
-version: 0.20.6
+version: 0.20.7
 release_notes: |
-  * Fix error using tcsh where expect command was not found
+  * Fix errors related to permission issues on created directories
+  * Fix bug where runtime created before repo would cause a failure
 
 toolchain:
   - kind: Pipenv
