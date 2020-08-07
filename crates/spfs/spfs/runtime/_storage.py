@@ -58,15 +58,7 @@ class Runtime:
         """Create a runtime to represent the data under 'root'."""
 
         self.root = os.path.abspath(root)
-        try:
-            os.makedirs(self.root, mode=0o777)
-        except FileExistsError:
-            pass
-        else:
-            # force the permissions on newly created dir,
-            # since the above command passes 777 to the os
-            # but the os may still create based on the current mask
-            os.chmod(self.root, 0o777)
+        makedirs_with_perms(self.root)
 
         self.config_file = os.path.join(self.root, self._config_file)
         self.sh_startup_file = os.path.join(self.root, self._sh_startup_file)
@@ -204,9 +196,9 @@ class Runtime:
 
 def _ensure_runtime(path: str) -> Runtime:
 
-    os.makedirs(path, exist_ok=True, mode=0o777)
+    makedirs_with_perms(path)
     runtime = Runtime(path)
-    os.makedirs(runtime.upper_dir, exist_ok=True, mode=0o777)
+    makedirs_with_perms(runtime.upper_dir)
     with open(runtime.sh_startup_file, "w+") as f:
         f.write(_startup_sh.source)
     with open(runtime.csh_startup_file, "w+") as f:
@@ -223,6 +215,7 @@ class Storage:
         """Initialize a new storage inside the given root directory."""
 
         self._root = os.path.abspath(root)
+        makedirs_with_perms(self._root)
 
     def remove_runtime(self, ref: str) -> None:
         """Remove a runtime forcefully.
@@ -272,7 +265,7 @@ class Storage:
 
         runtime_dir = os.path.join(self._root, ref)
         try:
-            os.makedirs(runtime_dir)
+            makedirs_with_perms(runtime_dir)
         except OSError as e:
             if e.errno == errno.EEXIST:
                 raise ValueError("Runtime exists: " + ref)
@@ -295,3 +288,27 @@ class Storage:
                 raise
 
         return [Runtime(os.path.join(self._root, d)) for d in dirs]
+
+
+def makedirs_with_perms(dirname: str, perms: int = 0o777) -> None:
+    """Recursively create the given directory with the appropriate permissions."""
+
+    dirnames = os.path.normpath(dirname).split(os.sep)
+    for i in range(2, len(dirnames) + 1):
+        dirname = os.path.join("/", *dirnames[0:i])
+
+        try:
+            # even though checking existance first is not
+            # needed, it is required to trigger the automounter
+            # in cases when the desired path is in that location
+            if not os.path.exists(dirname):
+                os.mkdir(dirname, mode=0o777)
+        except FileExistsError:
+            continue
+
+        try:
+            os.chmod(dirname, perms)
+        except PermissionError:
+            # not fatal, so it's worth allowing things to continue
+            # even though it could cause permission issues later on
+            pass
