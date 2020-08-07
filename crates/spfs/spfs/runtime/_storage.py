@@ -264,12 +264,8 @@ class Storage:
             ref = hashlib.sha256(uuid.uuid1().bytes).hexdigest()
 
         runtime_dir = os.path.join(self._root, ref)
-        try:
-            makedirs_with_perms(runtime_dir)
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                raise ValueError("Runtime exists: " + ref)
-            raise
+        if os.path.exists(runtime_dir):
+            raise ValueError("Runtime already exists: " + ref)
         return _ensure_runtime(runtime_dir)
 
     def list_runtimes(self) -> List[Runtime]:
