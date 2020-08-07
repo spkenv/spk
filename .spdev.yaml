@@ -1,7 +1,7 @@
-version: 0.12.0
+version: 0.12.1
 release_notes: |
-  * Add support for embeded/bundled packages
-    * Primary use case is DCC apps that bundle libraries at specifc versions
+  * Update spfs dependency
+    * To fix issue where `spk env` always fails the very first time
 
 toolchain:
   - kind: Shell
