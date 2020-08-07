@@ -7,10 +7,9 @@ import structlog
 from .. import api, storage
 from ._errors import SolverError, ConflictingRequestsError
 from ._solution import Solution, PackageSource
+from ._package_iterator import PackageIterator, RepositoryPackageIterator
 
 _LOGGER = structlog.get_logger("spk.solve")
-
-from ._package_iterator import PackageIterator
 
 
 class Decision:
@@ -115,7 +114,7 @@ class Decision:
 
         req = api.Request.from_ident(spec.pkg)
         self.add_request(req)
-        self.set_resolved(spec, source)
+        self.set_iterator(spec.pkg.name, iter([(spec, source)]))
 
     def get_resolved(self) -> Solution:
         """Get the set of packages resolved by this decision."""
@@ -153,8 +152,12 @@ class Decision:
         if name not in self._iterators:
             if self.parent is not None:
                 parent_iter = self.parent.get_iterator(name)
-                if parent_iter is not None:
+                if isinstance(parent_iter, RepositoryPackageIterator):
                     self._iterators[name] = parent_iter.clone()
+                elif parent_iter is not None:
+                    dupe = list(parent_iter)
+                    self.parent.set_iterator(name, iter(dupe))
+                    self._iterators[name] = iter(dupe)
 
         return self._iterators.get(name)
 

@@ -24,6 +24,9 @@ class OptionMap(SortedDict):
 
     __repr__ = __str__
 
+    def copy(self) -> "OptionMap":
+        return OptionMap(**self)
+
     def digest(self) -> str:
 
         hasher = hashlib.sha1()

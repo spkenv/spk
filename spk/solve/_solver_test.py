@@ -43,7 +43,7 @@ def make_build(
     if spec.pkg.build and spec.pkg.build.is_source():
         return spec
     build_opts = opts.copy()
-    build_opts = spec.resolve_all_options(build_opts)
+    build_opts.update(spec.resolve_all_options(build_opts))
     spec.update_for_build(build_opts, deps)
     return spec
 

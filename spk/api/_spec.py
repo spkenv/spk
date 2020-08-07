@@ -68,6 +68,10 @@ class InstallSpec:
 
         embeded = data.pop("embeded", [])
         for e in embeded:
+            if "build" in e:
+                raise ValueError("embeded packages cannot specify the build field")
+            if "install" in e:
+                raise ValueError("embeded packages cannot specify the install field")
             es = Spec.from_dict(e)
             if es.pkg.build is not None and not es.pkg.build.is_emdeded():
                 raise ValueError(
@@ -127,7 +131,12 @@ class Spec:
         self.install.render_all_pins(s.pkg for s in resolved)
 
         specs = dict((s.pkg.name, s) for s in resolved)
-        for opt in self.build.options:
+
+        build_options = list(self.build.options)
+        for e in self.install.embeded:
+            build_options.extend(e.build.options)
+
+        for opt in build_options:
             if not isinstance(opt, PkgOpt):
                 opt.set_value(options.get(opt.name(), ""))
                 continue
@@ -169,8 +178,12 @@ class Spec:
         if self.deprecated:
             spec["deprecated"] = self.deprecated
 
-        spec["build"] = self.build.to_dict()
-        spec["install"] = self.install.to_dict()
+        build = self.build.to_dict()
+        if build:
+            spec["build"] = build
+        install = self.install.to_dict()
+        if install:
+            spec["install"] = install
         return spec
 
 

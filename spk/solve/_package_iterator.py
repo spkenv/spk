@@ -1,15 +1,18 @@
-from typing import List, Dict, Optional, Iterator, Tuple
+from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple
 
 import structlog
 
 from .. import api, storage
 from ._errors import PackageNotFoundError
+from ._solution import PackageSource
 
 _LOGGER = structlog.get_logger("spk.solve")
 
+PackageIterator = Iterator[Tuple[api.Spec, PackageSource]]
 
-class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
-    """PackageIterator is a stateful cursor yielding package versions.
+
+class RepositoryPackageIterator(PackageIterator):
+    """A stateful cursor yielding package versions from a set of repos.
 
     The iterator yields packages from a repository which are compatible with some
     request. These are used to retain a cursor in the repo in the case of
@@ -54,7 +57,7 @@ class PackageIterator(Iterator[Tuple[api.Spec, storage.Repository]]):
         if self._versions is None:
             self._start()
 
-        other = PackageIterator(self._repos, self._request, self._options)
+        other = RepositoryPackageIterator(self._repos, self._request, self._options)
         remaining_versions = list(self._versions or [])
         remaining_builds = list(self._builds or [])
         other._versions = iter(remaining_versions)

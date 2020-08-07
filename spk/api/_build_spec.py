@@ -93,7 +93,9 @@ class BuildSpec:
             self.options.append(opt)
 
     def to_dict(self) -> Dict[str, Any]:
-        spec: Dict[str, Any] = {"options": list(o.to_dict() for o in self.options)}
+        spec: Dict[str, Any] = {}
+        if self.options:
+            spec["options"] = list(o.to_dict() for o in self.options)
         if self.script != BuildSpec().script:
             spec["script"] = self.script.splitlines()
         if self.variants != BuildSpec().variants:
@@ -184,7 +186,7 @@ class VarOpt(Option):
             if not value or assigned == value:
                 return COMPATIBLE
             return Compatibility(
-                f"Incompatible option: wanted '{value}', got '{assigned}'"
+                f"Incompatible option '{self.var}': wanted '{value}', got '{assigned}'"
             )
 
         if self.choices and value not in self.choices:
