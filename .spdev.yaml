@@ -1,7 +1,6 @@
-version: 0.12.1
+version: 0.12.2
 release_notes: |
-  * Update spfs dependency
-    * To fix issue where `spk env` always fails the very first time
+  * Improve output by re-enabling spfs logging
 
 toolchain:
   - kind: Shell
