@@ -37,10 +37,6 @@ class Solution:
         """Return the options used to generate this solution."""
         return api.OptionMap(self._options)
 
-    def set_options(self, options: api.OptionMap) -> None:
-        """Update the options used for this solution to the given ones."""
-        self._options = api.OptionMap(options)
-
     def repositories(self) -> List[storage.Repository]:
         """Return the set of repositories in this solution."""
 

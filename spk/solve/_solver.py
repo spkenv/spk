@@ -18,8 +18,8 @@ class Solver:
     def __init__(self, options: Union[api.OptionMap, Dict[str, str]]) -> None:
 
         self._repos: List[storage.Repository] = []
-        self._options = api.OptionMap(options.items())
         self.decision_tree = DecisionTree()
+        self.decision_tree.root.update_options(options)
         self._running = False
         self._complete = False
         self._binary_only = False
@@ -54,7 +54,7 @@ class Solver:
     def solve_build_environment(self, spec: api.Spec) -> Solution:
         """Adds requests for all build """
 
-        build_options = spec.resolve_all_options(self._options)
+        build_options = spec.resolve_all_options(self.decision_tree.root.get_options())
         for option in spec.build.options:
             if not isinstance(option, api.PkgOpt):
                 continue
@@ -99,7 +99,6 @@ class Solver:
         self._running = False
         self._complete = True
         solution = state.get_current_solution()
-        solution.set_options(self._options)
         return solution
 
     def _solve_request(self, state: Decision, request: api.Request) -> Decision:
@@ -107,7 +106,7 @@ class Solver:
         decision = state.add_branch()
         iterator = state.get_iterator(request.pkg.name)
         if iterator is None:
-            iterator = self._make_iterator(request)
+            iterator = self._make_iterator(decision, request)
             state.set_iterator(request.pkg.name, iterator)
 
         try:
@@ -146,14 +145,17 @@ class Solver:
 
         return decision
 
-    def _make_iterator(self, request: api.Request) -> RepositoryPackageIterator:
+    def _make_iterator(
+        self, state: Decision, request: api.Request
+    ) -> RepositoryPackageIterator:
 
         assert len(self._repos), "No configured package repositories."
-        return RepositoryPackageIterator(self._repos, request, self._options)
+        return RepositoryPackageIterator(self._repos, request, state.get_options())
 
     def _resolve_new_build(self, spec: api.Spec, state: Decision) -> api.Compatibility:
 
-        solver = Solver(self._options.copy())
+        opts = state.get_options()
+        solver = Solver(opts)
         for repo in self._repos:
             solver.add_repository(repo)
 
@@ -163,7 +165,7 @@ class Solver:
             return api.Compatibility(f"Failed to resolve build env: {err}")
 
         spec = spec.clone()
-        spec.update_for_build(self._options, list(s for _, s, _ in solution.items()))
+        spec.update_for_build(opts, list(s for _, s, _ in solution.items()))
         for request in spec.install.requirements:
             try:
                 state.add_request(request)

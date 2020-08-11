@@ -42,6 +42,7 @@ class Decision:
         self._unresolved: Set[str] = set()
         self._error: Optional[SolverError] = None
         self._iterators: Dict[str, PackageIterator] = {}
+        self._options = api.OptionMap()
 
     def __str__(self) -> str:
         if self._error is not None:
@@ -65,6 +66,14 @@ class Decision:
             level += 1
             parent = parent.parent
         return level
+
+    def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
+        """Update the options for this solver state."""
+        self._options.update(options)
+
+    def get_options(self) -> api.OptionMap:
+        """Return the current set of build options for this solver state."""
+        return self._options.copy()
 
     def set_error(self, error: SolverError) -> None:
         """Set the error on this decision, marking it as an invalid state."""
@@ -99,7 +108,12 @@ class Decision:
     def force_set_resolved(
         self, request: api.Request, spec: api.Spec, source: PackageSource
     ) -> None:
+
         self._resolved.add(request, spec, source)
+
+        for name, value in spec.resolve_all_options({}).items():
+            self._options.setdefault(name, value)
+
         try:
             self._unresolved.remove(spec.pkg.name)
         except KeyError:
@@ -207,6 +221,7 @@ class Decision:
         """Add a child branch to this decision."""
 
         branch = Decision(parent=self)
+        branch.update_options(self._options)
         self.branches.append(branch)
         return branch
 
@@ -216,7 +231,7 @@ class Decision:
         Unlike get_resolved, this includes resolved packages from all parents.
         """
 
-        packages = Solution()
+        packages = Solution(self.get_options())
         if self.parent is not None:
             packages.update(self.parent.get_current_solution())
         packages.update(self._resolved)

@@ -108,7 +108,13 @@ class RepositoryPackageIterator(PackageIterator):
                 self.history[candidate] = compat
                 continue
 
-            compat = spec.build.validate_options(self._options)
+            # resolve and update missing options from spec in case there
+            # are options with a default value that need to be set before
+            # validating
+            opts = self._options.copy()
+            for name, value in spec.build.resolve_all_options(opts).items():
+                opts.setdefault(name, value)
+            compat = spec.build.validate_options(opts)
             if not compat:
                 self.history[candidate] = compat
                 continue
@@ -136,7 +142,8 @@ class RepositoryPackageIterator(PackageIterator):
                 _LOGGER.debug("package has no verison spec", pkg=pkg, repo=repo)
                 self._version_spec = None
             else:
-                compat = self._version_spec.build.validate_options(self._options)
+                opts = self._version_spec.build.resolve_all_options(self._options)
+                compat = self._version_spec.build.validate_options(opts)
                 if not compat:
                     self.history[api.Ident(self._request.pkg.name, version)] = compat
                     continue
