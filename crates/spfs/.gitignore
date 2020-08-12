@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .vscode/
 coverage.xml
+.coverage.*
 build/
 build
 dist/
