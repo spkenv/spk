@@ -1,3 +1,4 @@
+from conftest import with_install
 import subprocess
 
 import py.path
@@ -42,3 +43,19 @@ def test_runtime_dir_removal(tmpdir: py.path.local, with_install: None) -> None:
         ensure=True,
     )
     subprocess.check_call(["bash", "-ex", script.strpath])
+
+
+def test_runtime_recursion(with_install: None) -> None:
+
+    out = subprocess.check_output(
+        [
+            "spfs",
+            "run",
+            "",
+            "--",
+            "sh",
+            "-c",
+            "spfs edit --off; spfs run - -- echo hello",
+        ]
+    )
+    assert out.decode() == "hello\n"
