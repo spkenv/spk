@@ -1,7 +1,7 @@
-version: 0.20.7
+version: 0.20.8
 release_notes: |
-  * Fix errors related to permission issues on created directories
-  * Fix bug where runtime created before repo would cause a failure
+  * Fix bug where creating a new runtime failed from non-editable runtimes, even
+    though the error was non-fatal and should have continued
 
 toolchain:
   - kind: Pipenv
