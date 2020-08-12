@@ -198,7 +198,15 @@ def _ensure_runtime(path: str) -> Runtime:
 
     makedirs_with_perms(path)
     runtime = Runtime(path)
-    makedirs_with_perms(runtime.upper_dir)
+    try:
+        makedirs_with_perms(runtime.upper_dir)
+    except OSError as err:
+        # this can fail if we try to establish a new runtime
+        # from a non-editable runtime but is not fatal. It will
+        # only become fatal if the mount fails for this runtime in spfs-enter
+        # so we defer to that point
+        if err.errno != errno.EROFS:
+            raise
     with open(runtime.sh_startup_file, "w+") as f:
         f.write(_startup_sh.source)
     with open(runtime.csh_startup_file, "w+") as f:
