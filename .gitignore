@@ -21,6 +21,7 @@ dist/
 # editors
 .idea/
 .vscode/
+.nfs*
 # GENERATED FOR spdev:Shell
 
 # END spdev:Shell

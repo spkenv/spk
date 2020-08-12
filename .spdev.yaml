@@ -1,8 +1,7 @@
-version: 0.12.2
+version: 0.12.3
 release_notes: |
-  * Improve output by re-enabling spfs logging
-  * Update solver to properly use defaults/static options from
-    dependency builds while resolving
+  * Update to the latest spfs to get bug fixes
+    * Fix bug where packages could not be built from within an spfs environment
 
 toolchain:
   - kind: Shell

@@ -13,7 +13,7 @@ pytest-cov = "*"
 twine = "*"
 
 [packages]
-spfs = "~=0.20.7"
+spfs = "~=0.20.8"
 "ruamel.yaml" = "~=0.16.10"
 colorama = "~=0.4.3"
 typing-extensions = "~=3.7"
