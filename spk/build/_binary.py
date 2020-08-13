@@ -132,6 +132,11 @@ class BinaryPackageBuilder:
 
         self._solver = solve.Solver(self._all_options)
         self._solver.add_repository(storage.local_repository())
+        for repo in self._repos:
+            if repo == storage.local_repository():
+                # local repo is always injected first, and duplicates are redundant
+                continue
+            self._solver.add_repository(repo)
 
         if isinstance(self._source, api.Ident):
             ident_range = api.parse_ident_range(
