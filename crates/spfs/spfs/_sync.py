@@ -1,7 +1,6 @@
 from typing import Optional, List, Union
 import time
 import queue
-import shutil
 import multiprocessing
 from datetime import datetime
 
@@ -12,7 +11,7 @@ from ._config import get_config
 
 _LOGGER = structlog.get_logger(__name__)
 _SYNC_LOG_UPDATE_INTERVAL_SECONDS = 2
-_SYNC_WORKER_COUNT = max((1, multiprocessing.cpu_count() - 1))
+_SYNC_WORKER_COUNT = multiprocessing.cpu_count() * 4
 _SYNC_DONE_COUNTER = multiprocessing.Value("i", 0)
 _SYNC_ERROR_QUEUE: "multiprocessing.Queue[Exception]" = multiprocessing.Queue(10)
 _SYNC_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
