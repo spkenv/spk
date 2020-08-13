@@ -1,7 +1,8 @@
-version: 0.12.4
+version: 0.12.5
 release_notes: |
-  * Fix bug where converted pip packages could be unresolvable
-  * Fix bug where 'remove' command could fail to see partially-built packages
+  * Add _depth_ option to git sources to control depth of cloning
+  * Fix bug where git sources did not recursively fetch submodules
+  * Fix bug where source package could not be used from non-local repo
 
 toolchain:
   - kind: Shell
