@@ -73,31 +73,48 @@ class GitSource(SourceSpec):
 
     git: str
     ref: str = ""
+    depth: int = 1
 
     def collect(self, dirname: str) -> None:
 
-        git_cmd = ["git", "clone", "--depth=1"]
+        git_cmd = ["git", "clone", f"--depth={self.depth}"]
         if self.ref:
             git_cmd += ["-b", self.ref]
         git_cmd += [self.git, dirname]
 
-        commands = [git_cmd, ["git", "submodule", "update", "--init"]]
+        commands = [
+            git_cmd,
+            [
+                "git",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+                f"--depth={self.depth}",
+            ],
+        ]
         for cmd in commands:
             _LOGGER.debug(" ".join(cmd))
             subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
-        out = {"git": self.git}
+        out: Dict[str, Any] = {"git": self.git}
 
         if self.ref:
             out["ref"] = self.ref
+        if self.depth != 1:
+            out["depth"] = self.depth
 
         return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "GitSource":
 
-        return GitSource(data["git"], data.get("ref", ""))
+        return GitSource(
+            git=data["git"],
+            ref=str(data.get("ref", "")),
+            depth=int(data.get("depth", 1)),
+        )
 
 
 @dataclass
