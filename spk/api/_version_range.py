@@ -83,12 +83,12 @@ class VersionRange(metaclass=abc.ABCMeta):
         if self_upper and other_lower:
             if self_upper < other_lower:
                 return Compatibility(
-                    f"{other_lower} does not intersect with {self_upper}, all versions too low"
+                    f"{other} does not intersect with {self}, all versions too low"
                 )
         if self_lower and other_upper:
             if self_lower > other_upper:
                 return Compatibility(
-                    f"{other_upper} does not intersect with {self_lower}, all versions too high"
+                    f"{other} does not intersect with {self}, all versions too high"
                 )
 
         return COMPATIBLE
@@ -125,9 +125,9 @@ class WildcardRange(VersionRange):
     def __init__(self, minimum: str) -> None:
 
         self._specified = len(minimum.split(VERSION_SEP))
-        self._parts = tuple(
-            int(p) if p != "*" else p for p in minimum.split(VERSION_SEP)
-        )
+        self._parts = minimum.split(VERSION_SEP)
+        if self._parts.count("*") != 1:
+            raise ValueError("Expected exactly one wildcard in version range: {self}")
 
     def __str__(self) -> str:
 
@@ -146,18 +146,21 @@ class WildcardRange(VersionRange):
     def less_than(self) -> Optional[Version]:
 
         first_wildcard = self._parts.index("*")
-        if first_wildcard < 0:
+        if first_wildcard <= 0:
             return None
 
-        parts = list(self._parts[:first_wildcard])
-        parts[-1] += 1  # type: ignore
-        return Version(*parts[:3], parts[3:])  # type: ignore
+        str_parts = list(self._parts[:first_wildcard])
+        if not str_parts:
+            str_parts = ["0"]
+        parts = list(int(i) for i in str_parts)
+        parts[-1] += 1
+        return Version.from_parts(*parts)
 
     def is_applicable(self, version: Version) -> Compatibility:
 
         for i, (a, b) in enumerate(zip(self._parts, version.parts)):
 
-            if a != b and a != "*":
+            if a != "*" and int(a) != b:
                 return Compatibility(f"Out of range: {self} [at pos {i}]")
 
         return COMPATIBLE

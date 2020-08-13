@@ -1,7 +1,7 @@
-version: 0.12.3
+version: 0.12.4
 release_notes: |
-  * Update to the latest spfs to get bug fixes
-    * Fix bug where packages could not be built from within an spfs environment
+  * Fix bug where converted pip packages could be unresolvable
+  * Fix bug where 'remove' command could fail to see partially-built packages
 
 toolchain:
   - kind: Shell

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import structlog
 
-from .. import api, storage, build
+from .. import api, storage, build, solve, io
 
 
 _LOGGER = structlog.get_logger("spk.external.pip")
@@ -47,6 +47,9 @@ class PipImporter:
 
     def with_python_version(self, version: str) -> "PipImporter":
 
+        assert (
+            re.match(r"\d+.\d+", version) is not None
+        ), "python version must be in the form x.x"
         self._python_version = version
         return self
 
@@ -131,10 +134,15 @@ class PipImporter:
 
         builds = []
         if info.requires_python:
-            spk_version_range = _to_spk_version_range(info.requires_python)
-            spec.install.requirements.append(
-                api.Request(api.parse_ident_range(f"python/{spk_version_range}"))
+            _LOGGER.debug(
+                "ignoring defined python range, other version of python will need to have this package reconverted"
             )
+        # python packages can support a wide range of versions, and present dynamic
+        # requirements based on the version used - spk does not do this so instead
+        # we restrict the package to the python version that it's being imported for
+        spec.install.requirements.append(
+            api.Request(api.parse_ident_range(f"python/{self._python_version}"))
+        )
         for requirement_str in info.requires_dist:
 
             if ";" not in requirement_str:
@@ -143,7 +151,9 @@ class PipImporter:
 
             if markers_str.strip():
                 marker = packaging.markers.Marker(markers_str)
-                if not marker.evaluate({"extra": ""}):
+                if not marker.evaluate(
+                    {"extra": "", "python_version": self._python_version}
+                ):
                     _LOGGER.debug(
                         "Skip requirement due to markers", requirement=requirement_str
                     )
@@ -166,16 +176,23 @@ class PipImporter:
         repo = storage.local_repository()
         options = api.host_options()
         _LOGGER.info("building generated package spec...", pkg=spec.pkg)
-        builds.insert(
-            0,
-            build.BinaryPackageBuilder()
-            .from_spec(spec)
-            .with_options(options)
-            .with_repository(repo)
-            .with_repository(storage.remote_repository())
-            .with_source(".")
-            .build(),
-        )
+        builder = build.BinaryPackageBuilder().from_spec(spec)
+        try:
+            created = (
+                builder.with_options(options)
+                .with_repository(repo)
+                .with_repository(storage.remote_repository())
+                .with_source(".")
+                .build()
+            )
+        except solve.SolverError:
+            print(
+                io.format_decision_tree(
+                    builder.get_build_env_decision_tree(), verbosity=100
+                )
+            )
+            raise
+        builds.insert(0, created)
 
         return builds
 
