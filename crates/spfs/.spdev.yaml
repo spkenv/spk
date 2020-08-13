@@ -1,7 +1,6 @@
-version: 0.20.8
+version: 0.20.9
 release_notes: |
-  * Fix bug where creating a new runtime failed from non-editable runtimes, even
-    though the error was non-fatal and should have continued
+  * Improve sync speed for huge filesets (tens of thousands)
 
 toolchain:
   - kind: Pipenv

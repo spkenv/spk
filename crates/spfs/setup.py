@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="spfs",
-    version="0.20.8",
+    version="0.20.9",
     packages=find_packages(),
     package_data={"spfs": ["*.sh"]},
     entry_points={"console_scripts": ["spfs=spfs.cli:main"]},
