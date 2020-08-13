@@ -89,6 +89,13 @@ class Version:
     pre: TagSet = field(default_factory=TagSet)
     post: TagSet = field(default_factory=TagSet)
 
+    @staticmethod
+    def from_parts(*parts: int) -> "Version":
+
+        while len(parts) < 3:
+            parts += (0,)
+        return Version(major=parts[0], minor=parts[1], patch=parts[2], tail=parts[3:])
+
     def __str__(self) -> str:
 
         base = str(VERSION_SEP.join(str(s) for s in self.parts))
@@ -194,9 +201,7 @@ def parse_version(version: str) -> Version:
             raise InvalidVersionError(
                 f"Version must be a sequence of integers, got '{p}' in position {i} [{version}]"
             )
-    return Version(  # type: ignore
-        *tuple(parts[:3]),  # type: ignore
-        tail=tuple(parts[3:]),
-        pre=parse_tag_set(pre),
-        post=parse_tag_set(post),
-    )
+    v = Version.from_parts(*parts)
+    v.pre = parse_tag_set(pre)
+    v.post = parse_tag_set(post)
+    return v
