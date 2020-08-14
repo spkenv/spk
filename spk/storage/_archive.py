@@ -1,5 +1,7 @@
+import tarfile
 from typing import Union
 import os
+import tempfile
 
 import spfs
 import structlog
@@ -23,8 +25,6 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
         os.remove(filename)
     except FileNotFoundError:
         pass
-    tar_spfs_repo = spfs.storage.tar.TarRepository(filename)
-    tar_repo = SpFSRepository(tar_spfs_repo)
 
     to_transfer = {pkg}
     if pkg.build is None:
@@ -33,15 +33,23 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
     else:
         to_transfer.add(pkg.with_build(None))
 
-    for pkg in to_transfer:
-        for src_repo in (local_repository(), remote_repository()):
-            try:
-                _copy_package(pkg, src_repo, tar_repo)
-                break
-            except (spfs.graph.UnknownReferenceError, PackageNotFoundError):
-                continue
-        else:
-            raise PackageNotFoundError(pkg)
+    tmpdir = tempfile.TemporaryDirectory()
+    with tmpdir:
+        tmprepo = SpFSRepository(spfs.storage.fs.FSRepository(tmpdir.name, create=True))
+
+        for pkg in to_transfer:
+            for src_repo in (local_repository(), remote_repository()):
+                try:
+                    _copy_package(pkg, src_repo, tmprepo)
+                    break
+                except (spfs.graph.UnknownReferenceError, PackageNotFoundError):
+                    continue
+            else:
+                raise PackageNotFoundError(pkg)
+
+        _LOGGER.info("building archive", path=filename)
+        with tarfile.open(filename, "w:bz2") as tar:
+            tar.add(tmpdir.name, arcname="", recursive=True)
 
 
 def import_package(filename: str) -> None:
@@ -51,11 +59,16 @@ def import_package(filename: str) -> None:
     # the archive is already present
     os.stat(filename)
     tar_spfs_repo = spfs.storage.tar.TarRepository(filename)
-    tar_repo = SpFSRepository(tar_spfs_repo)
-    local_repo = local_repository()
-    for tag, _ in tar_spfs_repo.tags.iter_tags():
-        _LOGGER.info("importing", ref=str(tag))
-        spfs.sync_ref(str(tag), tar_spfs_repo, local_repo.as_spfs_repo())
+    tmpdir = tempfile.TemporaryDirectory()
+    tar = tarfile.open(filename, "r")
+    with tmpdir, tar:
+        _LOGGER.info("Extracting archive...")
+        tar.extractall(tmpdir.name)
+        archive_repo = spfs.storage.fs.FSRepository(tmpdir.name, create=True)
+        local_repo = local_repository()
+        for tag, _ in archive_repo.tags.iter_tags():
+            _LOGGER.info("importing", ref=str(tag))
+            spfs.sync_ref(str(tag), archive_repo, local_repo.as_spfs_repo())
 
 
 def _copy_package(
