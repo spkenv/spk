@@ -1,8 +1,7 @@
-version: 0.12.5
+version: 0.12.6
 release_notes: |
-  * Add _depth_ option to git sources to control depth of cloning
-  * Fix bug where git sources did not recursively fetch submodules
-  * Fix bug where source package could not be used from non-local repo
+  * Use staging area to impove import/export speed
+  * Use bz2 to reduce size of package archives/exports
 
 toolchain:
   - kind: Shell
