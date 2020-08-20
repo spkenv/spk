@@ -1,7 +1,6 @@
-version: 0.12.6
+version: 0.12.7
 release_notes: |
-  * Use staging area to impove import/export speed
-  * Use bz2 to reduce size of package archives/exports
+  * Fix bug where --no-source flag was ignored on publish
 
 toolchain:
   - kind: Shell
