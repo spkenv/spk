@@ -186,16 +186,20 @@ class TagStorage:
 
         tag_spec = tracking.TagSpec(tag)
         filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
-        makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
         try:
             with _tag_lock(filepath):
                 os.remove(filepath)
-            os.rmdir(os.path.dirname(filepath))
-        except FileNotFoundError:
+        except (RuntimeError, FileNotFoundError):
             raise graph.UnknownReferenceError("Unknown tag: " + tag)
-        except OSError as e:
-            if e.errno != errno.ENOTEMPTY:
-                raise
+        head = os.path.dirname(filepath)
+        while head != self._root:
+            try:
+                os.rmdir(head)
+                head = os.path.dirname(head)
+            except OSError as e:
+                if e.errno != errno.ENOTEMPTY:
+                    raise
+                break
 
     def remove_tag(self, tag: tracking.Tag) -> None:
         """Remove the oldest stored instance of the given tag."""

@@ -1,6 +1,7 @@
-version: 0.20.9
+version: 0.20.10
 release_notes: |
-  * Improve sync speed for huge filesets (tens of thousands)
+  * Update tag stream removal to remove all empty parent directories
+    * this ensures that ls-tags never shows directories with no tags under them
 
 toolchain:
   - kind: Pipenv
