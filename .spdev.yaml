@@ -1,6 +1,6 @@
-version: 0.12.7
+version: 0.12.8
 release_notes: |
-  * Fix bug where --no-source flag was ignored on publish
+  * Add checks for unrecognized fields in sources data
 
 toolchain:
   - kind: Shell

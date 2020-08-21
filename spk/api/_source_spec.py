@@ -64,7 +64,12 @@ class LocalSource(SourceSpec):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "LocalSource":
 
-        return LocalSource(data["path"])
+        src = LocalSource(data.pop("path"))
+
+        for name in data:
+            raise ValueError(f"Unknown field in LocalSource: '{name}'")
+
+        return src
 
 
 @dataclass
@@ -110,11 +115,16 @@ class GitSource(SourceSpec):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "GitSource":
 
-        return GitSource(
-            git=data["git"],
-            ref=str(data.get("ref", "")),
-            depth=int(data.get("depth", 1)),
+        src = GitSource(
+            git=data.pop("git"),
+            ref=str(data.pop("ref", "")),
+            depth=int(data.pop("depth", 1)),
         )
+
+        for name in data:
+            raise ValueError(f"Unknown field in GitSource: '{name}'")
+
+        return src
 
 
 @dataclass
@@ -145,4 +155,9 @@ class TarSource(SourceSpec):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "TarSource":
 
-        return TarSource(data["tar"])
+        src = TarSource(data.pop("tar"))
+
+        for name in data:
+            raise ValueError(f"Unknown field in TarSource: '{name}'")
+
+        return src
