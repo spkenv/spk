@@ -52,18 +52,34 @@ def _remove(args: argparse.Namespace) -> None:
         for repo_name, repo in repos.items():
             if ident.build is not None:
                 try:
-                    repo.remove_spec(ident)
+                    repo.remove_package(ident)
+                    _LOGGER.info("removed build", pkg=ident, repo=repo_name)
                 except spk.storage.PackageNotFoundError:
+                    _LOGGER.warning("build not found", pkg=ident, repo=repo_name)
                     pass
-                repo.remove_package(ident)
-                _LOGGER.info("removed", pkg=ident, repo=repo_name)
+                try:
+                    repo.remove_package(ident)
+                    _LOGGER.info("removed build spec", pkg=ident, repo=repo_name)
+                except spk.storage.PackageNotFoundError:
+                    _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
+                    pass
             else:
                 for build in repo.list_package_builds(ident):
                     try:
-                        repo.remove_spec(ident)
+                        repo.remove_package(build)
+                        _LOGGER.info("removed build", pkg=build, repo=repo_name)
                     except spk.storage.PackageNotFoundError:
+                        _LOGGER.warning("build not found", pkg=ident, repo=repo_name)
                         pass
-                    repo.remove_package(build)
-                    _LOGGER.info("removed", pkg=build, repo=repo_name)
-                repo.remove_spec(ident)
-                _LOGGER.info("removed", pkg=ident, repo=repo_name)
+                    try:
+                        repo.remove_package(build)
+                        _LOGGER.info("removed build spec", pkg=build, repo=repo_name)
+                    except spk.storage.PackageNotFoundError:
+                        _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
+                        pass
+                try:
+                    repo.remove_spec(ident)
+                    _LOGGER.info("removed spec", pkg=ident, repo=repo_name)
+                except spk.storage.PackageNotFoundError:
+                    _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
+                    pass
