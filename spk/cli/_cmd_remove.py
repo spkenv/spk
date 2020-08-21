@@ -25,6 +25,9 @@ def register(
         "remove", aliases=["rm"], help=_remove.__doc__, **parser_args
     )
     remove_cmd.add_argument(
+        "--yes", action="store_true", help="Do not ask for confirmations (dangerous!)"
+    )
+    remove_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to remove"
     )
     _flags.add_repo_flags(remove_cmd, defaults=[])
@@ -44,42 +47,56 @@ def _remove(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     for name in args.packages:
-        if "/" not in name:
-            print(f"{Fore.RED}Must provide a version number: {name}/???")
-            print(f" > use 'spk ls {name}' to view available versions{Fore.RESET}")
-            sys.exit(1)
-        ident = spk.api.parse_ident(name)
+
+        if "/" not in name and not args.yes:
+            answer = input(
+                f"{Fore.YELLOW}Are you sure that you want to remove all versions of {name}?{Fore.RESET} [y/N]: "
+            )
+            if answer.lower() not in ("y", "yes"):
+                sys.exit(1)
+
         for repo_name, repo in repos.items():
-            if ident.build is not None:
-                try:
-                    repo.remove_package(ident)
-                    _LOGGER.info("removed build", pkg=ident, repo=repo_name)
-                except spk.storage.PackageNotFoundError:
-                    _LOGGER.warning("build not found", pkg=ident, repo=repo_name)
-                    pass
-                try:
-                    repo.remove_package(ident)
-                    _LOGGER.info("removed build spec", pkg=ident, repo=repo_name)
-                except spk.storage.PackageNotFoundError:
-                    _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
-                    pass
+
+            if "/" not in name:
+                versions = list(f"{name}/{v}" for v in repo.list_package_versions(name))
             else:
-                for build in repo.list_package_builds(ident):
-                    try:
-                        repo.remove_package(build)
-                        _LOGGER.info("removed build", pkg=build, repo=repo_name)
-                    except spk.storage.PackageNotFoundError:
-                        _LOGGER.warning("build not found", pkg=ident, repo=repo_name)
-                        pass
-                    try:
-                        repo.remove_package(build)
-                        _LOGGER.info("removed build spec", pkg=build, repo=repo_name)
-                    except spk.storage.PackageNotFoundError:
-                        _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
-                        pass
-                try:
-                    repo.remove_spec(ident)
-                    _LOGGER.info("removed spec", pkg=ident, repo=repo_name)
-                except spk.storage.PackageNotFoundError:
-                    _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
-                    pass
+                versions = [name]
+
+            for version in versions:
+
+                ident = spk.api.parse_ident(version)
+                if ident.build is not None:
+                    _remove_build(repo_name, repo, ident)
+                else:
+                    _remove_all(repo_name, repo, ident)
+
+
+def _remove_build(
+    repo_name: str, repo: spk.storage.Repository, ident: spk.api.Ident
+) -> None:
+    try:
+        repo.remove_spec(ident)
+        _LOGGER.info("removed build spec", pkg=ident, repo=repo_name)
+    except spk.storage.PackageNotFoundError:
+        _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
+        pass
+    try:
+        repo.remove_package(ident)
+        _LOGGER.info("removed build", pkg=ident, repo=repo_name)
+    except spk.storage.PackageNotFoundError:
+        _LOGGER.warning("build not found", pkg=ident, repo=repo_name)
+        pass
+
+
+def _remove_all(
+    repo_name: str, repo: spk.storage.Repository, ident: spk.api.Ident
+) -> None:
+
+    for build in repo.list_package_builds(ident):
+        _remove_build(repo_name, repo, build)
+    try:
+        repo.remove_spec(ident)
+        _LOGGER.info("removed spec", pkg=ident, repo=repo_name)
+    except spk.storage.PackageNotFoundError:
+        _LOGGER.warning("spec not found", pkg=ident, repo=repo_name)
+        pass

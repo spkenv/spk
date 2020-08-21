@@ -44,7 +44,7 @@ class SpFSRepository(Repository):
             pkg = api.parse_ident(pkg)
 
         pkg = pkg.with_build(api.SRC)
-        base = posixpath.dirname(self.build_package_tag(pkg))
+        base = posixpath.dirname(self.build_spec_tag(pkg))
         try:
             for build in self._repo.tags.ls_tags(base):
                 yield pkg.with_build(build)
