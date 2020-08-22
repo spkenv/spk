@@ -53,7 +53,7 @@ class Publisher:
 
         for build in builds:
 
-            if build.build and build.build.is_source() and self.skip_source_packages:
+            if build.build and build.build.is_source() and self._skip_source_packages:
                 _LOGGER.info("skipping source package", pkg=build)
                 continue
 

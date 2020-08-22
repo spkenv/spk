@@ -1,10 +1,6 @@
-version: 0.12.8
+version: 0.12.9
 release_notes: |
-  * Add checks for unrecognized fields in sources data
-  * Update remove command to recursively remove all version after confirmation
-  * Update remove command to be more complete and show less errors
-  * Update to latest spfs
-    * Fixes bug where removed packages still showed
+  * Fix issue where source packages could not be published
 
 toolchain:
   - kind: Shell
