@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, overload
 
 import spfs
 import structlog
@@ -11,14 +11,23 @@ _LOGGER = structlog.get_logger("spk")
 class Publisher:
     def __init__(self) -> None:
 
-        self._from = storage.local_repository()
-        self._to = storage.remote_repository()
+        self._from: storage.Repository = storage.local_repository()
+        self._to: storage.Repository = storage.remote_repository()
         self._skip_source_packages = False
         self._force = False
 
-    def with_target(self, name: str) -> "Publisher":
+    def with_source(self, repo: Union[str, storage.Repository]) -> "Publisher":
 
-        self._to = storage.remote_repository(name)
+        if not isinstance(repo, storage.Repository):
+            repo = storage.remote_repository(repo)
+        self._from = repo
+        return self
+
+    def with_target(self, repo: Union[str, storage.Repository]) -> "Publisher":
+
+        if not isinstance(repo, storage.Repository):
+            repo = storage.remote_repository(repo)
+        self._to = repo
         return self
 
     def skip_source_packages(self, skip_source_packages: bool) -> "Publisher":
@@ -38,15 +47,18 @@ class Publisher:
 
         if pkg.build is None:
 
-            spec = self._from.read_spec(pkg)
-
-            _LOGGER.info("publishing spec", pkg=spec.pkg)
-            if self._force:
-                self._to.force_publish_spec(spec)
+            try:
+                spec = self._from.read_spec(pkg)
+            except storage.PackageNotFoundError:
+                pass
             else:
-                self._to.publish_spec(spec)
+                _LOGGER.info("publishing spec", pkg=spec.pkg)
+                if self._force:
+                    self._to.force_publish_spec(spec)
+                else:
+                    self._to.publish_spec(spec)
 
-            builds = self._from.list_package_builds(spec.pkg)
+            builds = self._from.list_package_builds(pkg)
 
         else:
             builds = [pkg]
@@ -60,7 +72,12 @@ class Publisher:
             _LOGGER.info("publishing package", pkg=build)
             spec = self._from.read_spec(build)
             digest = self._from.get_package(build)
-            spfs.sync_ref(
-                str(digest), self._from.as_spfs_repo(), self._to.as_spfs_repo()
-            )
+            if not isinstance(self._from, storage.SpFSRepository):
+                _LOGGER.warn("Source is not an spfs repo, skipping package payload")
+            elif not isinstance(self._to, storage.SpFSRepository):
+                _LOGGER.warn("Target is not an spfs repo, skipping package payload")
+            else:
+                spfs.sync_ref(
+                    str(digest), self._from.as_spfs_repo(), self._to.as_spfs_repo()
+                )
             self._to.publish_package(spec, digest)
