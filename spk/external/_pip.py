@@ -116,7 +116,7 @@ class PipImporter:
 
         spec = api.Spec()
         spec.pkg.name = _to_spk_name(info.name)
-        spec.pkg.version = _to_spk_version(info.version)
+        spec.pkg.version.parse(_to_spk_version(info.version))
         spec.sources = []
         spec.build.options = [
             api.VarOpt("os"),
