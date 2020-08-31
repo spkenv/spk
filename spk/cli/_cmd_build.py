@@ -26,6 +26,7 @@ def register(
         default=[""],
         help="The package(s) to build",
     )
+    _flags.add_repo_flags(build_cmd)
     _flags.add_option_flags(build_cmd)
     build_cmd.set_defaults(func=_build)
     return build_cmd
@@ -47,12 +48,16 @@ def _build(args: argparse.Namespace) -> None:
         proc.wait()
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
-        option_flags = []
+        binary_flags = []
         for option in args.opt:
-            option_flags.extend(["-o", option])
+            binary_flags.extend(["-o", option])
         if args.no_host:
-            option_flags.append("--no_host")
-        cmd = ["spk", "make-binary", filename, *common_args, *option_flags]
+            binary_flags.append("--no_host")
+        if args.local_repo:
+            binary_flags.append("-l")
+        for r in args.enable_repo:
+            binary_flags.extend(["-r", r])
+        cmd = ["spk", "make-binary", filename, *common_args, *binary_flags]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)
         proc.wait()
