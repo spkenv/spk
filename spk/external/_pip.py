@@ -227,19 +227,42 @@ def _to_spk_version_range(version_range: str) -> api.VersionRange:
     for i, version in enumerate(versions):
 
         stripped = version.lstrip("><=!~")
+        prefix = version[: -len(stripped)]
         if "*" not in version:
             # handle pre and post release tags added to version numbers if possible
             converted = _to_spk_version(stripped).__str__()
         else:
             converted = stripped
-        version = version[: -len(stripped)] + converted
+        version = _to_spk_range_prefix(prefix) + converted
 
         # we cannot combine '~=' and *, but a trailing * is the
         # most common and is semantically equal to the same version
         # without a wildcard
         # !=3.7.* ==> !=3.7
-        if version.startswith("!=") and version.endswith(".*"):
+        if version[0] in {"!", "="} and version.endswith(".*"):
             version = f"{version[:-2]}"
+        # spk uses a single equals sign for exact version, where pip
+        # would use a double
+        # ==1.4.0 --> =1.4.0
+        if version.startswith("=="):
+            version = version[1:]
         versions[i] = version
 
     return api.parse_version_range(",".join(versions))
+
+
+def _to_spk_range_prefix(prefix: str) -> str:
+
+    pip_to_spk = {
+        ">": ">",
+        "<": "<",
+        ">=": ">=",
+        "<=": "<=",
+        "==": "=",
+        "~=": "~",
+        "": "",
+    }
+    try:
+        return pip_to_spk[prefix]
+    except KeyError:
+        raise ValueError(f"Unhandled pip version range prefix: {prefix}")

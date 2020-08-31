@@ -1,7 +1,7 @@
-version: 0.12.10
+version: 0.12.11
 release_notes: |
-  * Update build command to take repo flags for make-binary subcommand
-  * Fix bug where a package with no version spec could not be published
+  * Increase coverage for converting pip versions to spk versions
+    * Fix issues where certain combintations of range selections didn't work in convert pip command
 
 toolchain:
   - kind: Shell
