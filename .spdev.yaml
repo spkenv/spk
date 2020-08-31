@@ -1,7 +1,6 @@
-version: 0.12.11
+version: 0.12.12
 release_notes: |
-  * Increase coverage for converting pip versions to spk versions
-    * Fix issues where certain combintations of range selections didn't work in convert pip command
+  * Fix bug where resolution-dependent version ranges were not properly converted
 
 toolchain:
   - kind: Shell

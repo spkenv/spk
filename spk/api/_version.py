@@ -98,7 +98,7 @@ class Version:
 
     def __str__(self) -> str:
 
-        base = str(VERSION_SEP.join(str(s) for s in self.parts))
+        base = self.base
         if self.pre:
             base += "-" + ",".join(f"{n}.{v}" for n, v in self.pre.items())
         if self.post:
@@ -172,6 +172,10 @@ class Version:
     @property
     def parts(self) -> Tuple[int, ...]:
         return (self.major, self.minor, self.patch, *self.tail)
+
+    @property
+    def base(self) -> str:
+        return VERSION_SEP.join(str(s) for s in self.parts)
 
     def clone(self) -> "Version":
 

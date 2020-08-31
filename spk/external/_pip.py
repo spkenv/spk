@@ -202,7 +202,7 @@ def _to_spk_name(name: str) -> str:
     return name.lower().replace("_", "-").replace(".", "-")
 
 
-def _to_spk_version(version: str) -> api.Version:
+def _to_spk_version(version: str) -> str:
 
     python_version = packaging.version.parse(version)
     spk_version = api.parse_version(python_version.base_version)
@@ -217,7 +217,8 @@ def _to_spk_version(version: str) -> api.Version:
         # irrelevant information for compatibility of versions and
         # no equal concept in spk versions specs
         pass
-    return spk_version
+
+    return spk_version.__str__().replace(spk_version.base, python_version.base_version)
 
 
 def _to_spk_version_range(version_range: str) -> api.VersionRange:
