@@ -15,9 +15,12 @@ _LOGGER = structlog.get_logger("spk.api")
 
 
 class SourceSpec(metaclass=abc.ABCMeta):
+    def __init__(self) -> None:
+        self._subdir: Optional[str] = None
+
     def subdir(self) -> Optional[str]:
 
-        return None
+        return self._subdir
 
     @abc.abstractmethod
     def collect(self, dirname: str) -> None:
@@ -68,12 +71,16 @@ class LocalSource(SourceSpec):
         subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"path": self.path}
+        out: Dict[str, Any] = {"path": self.path}
+        if self.subdir() is not None:
+            out["subdir"] = self.subdir()
+        return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "LocalSource":
 
         src = LocalSource(data.pop("path"))
+        src._subdir = data.pop("subdir", None)
 
         for name in data:
             raise ValueError(f"Unknown field in LocalSource: '{name}'")
@@ -118,6 +125,8 @@ class GitSource(SourceSpec):
             out["ref"] = self.ref
         if self.depth != 1:
             out["depth"] = self.depth
+        if self.subdir() is not None:
+            out["subdir"] = self.subdir()
 
         return out
 
@@ -129,6 +138,7 @@ class GitSource(SourceSpec):
             ref=str(data.pop("ref", "")),
             depth=int(data.pop("depth", 1)),
         )
+        src._subdir = data.pop("subdir", None)
 
         for name in data:
             raise ValueError(f"Unknown field in GitSource: '{name}'")
@@ -158,13 +168,16 @@ class TarSource(SourceSpec):
             subprocess.check_call(cmd, cwd=dirname)
 
     def to_dict(self) -> Dict[str, Any]:
-        out = {"tar": self.tar}
+        out: Dict[str, Any] = {"tar": self.tar}
+        if self.subdir() is not None:
+            out["subdir"] = self.subdir()
         return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "TarSource":
 
         src = TarSource(data.pop("tar"))
+        src._subdir = data.pop("subdir", None)
 
         for name in data:
             raise ValueError(f"Unknown field in TarSource: '{name}'")

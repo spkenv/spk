@@ -159,7 +159,7 @@ sources:
 
 #### Multiple Sources
 
-You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package.
+You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package. Some sources can be intermixed into the same location (such as local sources) but others require their own location (such as git sources).
 
 ```yaml
 sources:
