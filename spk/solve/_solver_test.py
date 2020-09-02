@@ -605,19 +605,19 @@ def test_solver_build_from_source_deprecated() -> None:
             print(io.format_decision_tree(solver.decision_tree, verbosity=100))
 
 
-def test_solver_embeded_package_solvable() -> None:
+def test_solver_embedded_package_solvable() -> None:
 
-    # test when there is an embeded package
-    # - the embeded package is added to the solution
-    # - the embeded package resolves existing requests
-    # - the solution includes the embeded packages
+    # test when there is an embedded package
+    # - the embedded package is added to the solution
+    # - the embedded package resolves existing requests
+    # - the solution includes the embedded packages
 
     repo = make_repo(
         [
             {
                 "pkg": "maya/2019.2",
                 "build": {"script": "echo BUILD"},
-                "install": {"embeded": [{"pkg": "qt/5.12.6"}]},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
             {"pkg": "qt/5.13.0", "build": {"script": "echo BUILD"},},
         ]
@@ -637,23 +637,23 @@ def test_solver_embeded_package_solvable() -> None:
     assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
 
 
-def test_solver_embeded_package_unsolvable() -> None:
+def test_solver_embedded_package_unsolvable() -> None:
 
-    # test when there is an embeded package
-    # - the embeded package is added to the solution
-    # - the embeded package conflicts with existing requests
+    # test when there is an embedded package
+    # - the embedded package is added to the solution
+    # - the embedded package conflicts with existing requests
 
     repo = make_repo(
         [
             {
                 "pkg": "my-plugin",
-                # the qt/5.13 requirement is available but conflits with maya embeded
+                # the qt/5.13 requirement is available but conflits with maya embedded
                 "install": {"requirements": [{"pkg": "maya/2019"}, {"pkg": "qt/5.13"}]},
             },
             {
                 "pkg": "maya/2019.2",
                 "build": {"script": "echo BUILD"},
-                "install": {"embeded": [{"pkg": "qt/5.12.6"}]},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
             {"pkg": "qt/5.13.0", "build": {"script": "echo BUILD"},},
         ]

@@ -6,7 +6,7 @@ import structlog
 from ruamel import yaml
 
 
-from ._build import EMBEDED
+from ._build import EMBEDDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request
@@ -23,7 +23,7 @@ class InstallSpec:
     """A set of structured installation parameters for a package."""
 
     requirements: List[Request] = field(default_factory=list)
-    embeded: List["Spec"] = field(default_factory=list)
+    embedded: List["Spec"] = field(default_factory=list)
 
     def upsert_requirement(self, request: Request) -> None:
         """Add or update a requirement to the set of installation requirements.
@@ -42,8 +42,8 @@ class InstallSpec:
         data = {}
         if self.requirements:
             data["requirements"] = list(r.to_dict() for r in self.requirements)
-        if self.embeded:
-            data["embeded"] = list(r.to_dict() for r in self.embeded)
+        if self.embedded:
+            data["embedded"] = list(r.to_dict() for r in self.embedded)
         return data
 
     def render_all_pins(self, resolved: Iterable[Ident]) -> None:
@@ -69,19 +69,21 @@ class InstallSpec:
         if requirements:
             spec.requirements = list(Request.from_dict(r) for r in requirements)
 
-        embeded = data.pop("embeded", [])
-        for e in embeded:
+        embedded = data.pop(
+            "embedded", data.pop("embedded", [])  # legacy support of misspelling
+        )
+        for e in embedded:
             if "build" in e:
-                raise ValueError("embeded packages cannot specify the build field")
+                raise ValueError("embedded packages cannot specify the build field")
             if "install" in e:
-                raise ValueError("embeded packages cannot specify the install field")
+                raise ValueError("embedded packages cannot specify the install field")
             es = Spec.from_dict(e)
             if es.pkg.build is not None and not es.pkg.build.is_emdeded():
                 raise ValueError(
-                    f"embeded package should not specify a build, got: {es.pkg}"
+                    f"embedded package should not specify a build, got: {es.pkg}"
                 )
-            es.pkg.set_build(EMBEDED)
-            spec.embeded.append(es)
+            es.pkg.set_build(EMBEDDED)
+            spec.embedded.append(es)
 
         if len(data):
             raise ValueError(
@@ -136,7 +138,7 @@ class Spec:
         specs = dict((s.pkg.name, s) for s in resolved)
 
         build_options = list(self.build.options)
-        for e in self.install.embeded:
+        for e in self.install.embedded:
             build_options.extend(e.build.options)
 
         for opt in build_options:

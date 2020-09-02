@@ -223,14 +223,14 @@ install:
       include: IfAlreadyPresent
 ```
 
-#### Embeded Packages
+#### Embedded Packages
 
-Some software, like Maya or other DCC applications, come bundled with their own specific version of many libraries. SPK can represent this bundled software natively, so that environments can be properly resolved using it. For example, Maya bundles it's own version of `qt`, and no other version of qt should be resolved into the environment. By defining `qt` as an embeded package, users who request envrionments with both `maya` and `qt`, will have qt resolved to the one bundled in the `maya` package, if compatible. If maya embededs `qt/5.12` but the user requests `qt/4.8` then the resolve will fail as expected since this environment is unsafe.
+Some software, like Maya or other DCC applications, come bundled with their own specific version of many libraries. SPK can represent this bundled software natively, so that environments can be properly resolved using it. For example, Maya bundles it's own version of `qt`, and no other version of qt should be resolved into the environment. By defining `qt` as an embedded package, users who request envrionments with both `maya` and `qt`, will have qt resolved to the one bundled in the `maya` package, if compatible. If maya embeds `qt/5.12` but the user requests `qt/4.8` then the resolve will fail as expected since this environment is unsafe.
 
 ```yaml
 pkg: maya/2019.2.0
 ---
 install:
-  embeded:
+  embedded:
     - pkg: qt/5.12.6
 ```

@@ -97,12 +97,12 @@ class Decision:
         self.force_set_resolved(request, spec, source)
         if spec.pkg.build is not None and spec.pkg.build.is_source():
             return
-        for embeded in spec.install.embeded:
+        for embedded in spec.install.embedded:
             try:
-                self._set_embeded(embeded, spec)
+                self._set_embedded(embedded, spec)
             except ConflictingRequestsError as err:
                 raise ConflictingRequestsError(
-                    f"embeded package '{embeded.pkg}' is incompatible", err.requests,
+                    f"embedded package '{embedded.pkg}' is incompatible", err.requests,
                 )
 
     def force_set_resolved(
@@ -119,8 +119,8 @@ class Decision:
         except KeyError:
             pass
 
-    def _set_embeded(self, spec: api.Spec, source: PackageSource) -> None:
-        """Set the given package as embeded by this decision.
+    def _set_embedded(self, spec: api.Spec, source: PackageSource) -> None:
+        """Set the given package as embedded by this decision.
 
         This is similar to 'set_resolved' but also injects a request that matches the
         given spec exaclty - so that it can be properly tracked in the solution

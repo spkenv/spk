@@ -4,7 +4,7 @@ import base64
 import binascii
 
 SRC = "src"
-EMBEDED = "embeded"
+EMBEDDED = "embedded"
 
 
 class InvalidBuildError(ValueError):
@@ -23,7 +23,7 @@ class Build:
         return self.digest == SRC
 
     def is_emdeded(self) -> bool:
-        return self.digest == EMBEDED
+        return self.digest == EMBEdDED
 
     def __str__(self) -> str:
         return self.digest
@@ -31,7 +31,7 @@ class Build:
 
 def parse_build(digest: str) -> Build:
 
-    if digest in (SRC, EMBEDED):
+    if digest in (SRC, EMBEdDED):
         return Build(digest)
 
     try:

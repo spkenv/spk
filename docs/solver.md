@@ -145,17 +145,17 @@ Packages can be deprecated by package owners when an issue is found or an older 
 - Generally, you want to update to a newer version of the package that has not been deprecated. Package maintainers should not deprecate packages without providing a resonable alternative.
 - If you are really stuck, note that the error message says _was not specifically requested_. This means that if you request the deprecated build exactly, then it will still resolve the environment for you, eg `spk env my-tool/1.2.0/STLY6HNC`.
 
-#### Embeded Packages
+#### Embedded Packages
 
-Some package, especially DCC packages, are bundled with other software/packages. Package maintainers should include these packages as _embeded_ packages, so that the solver understands what's in the bundle. The solver will show embeded packages being requested and resolved, always with the `embeded` build string.
+Some package, especially DCC packages, are bundled with other software/packages. Package maintainers should include these packages as _embedded_ packages, so that the solver understands what's in the bundle. The solver will show embedded packages being requested and resolved, always with the `embedded` build string.
 
 ```
  REQUEST qt/*, maya/*
 > RESOLVE qt/5.13.0/3I42H3S6
 >> RESOLVE maya/2019.2.0/3I42H3S6
-.. REQUEST qt/=5.12.6/embeded
+.. REQUEST qt/=5.12.6/embedded
 .. UNRESOLVE qt
->>> RESOLVE qt/5.12.6/embeded
+>>> RESOLVE qt/5.12.6/embedded
 ```
 
-In this case, `qt` was resolved to version 5.13 first, but maya brought in it's own embeded version of qt, which replaced the initially resolved external package. The solver will always show the same `REQUEST` and `RESOLVE` pattern for embeded packages, but embeded packages can only ever resolve to the one bundled with the original requester.
+In this case, `qt` was resolved to version 5.13 first, but maya brought in it's own embedded version of qt, which replaced the initially resolved external package. The solver will always show the same `REQUEST` and `RESOLVE` pattern for embedded packages, but embedded packages can only ever resolve to the one bundled with the original requester.

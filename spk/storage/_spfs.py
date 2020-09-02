@@ -55,7 +55,7 @@ class SpFSRepository(Repository):
 
         assert (
             spec.pkg.build is None or not spec.pkg.build.is_emdeded()
-        ), "Cannot publish embeded package"
+        ), "Cannot publish embedded package"
         meta_tag = self.build_spec_tag(spec.pkg)
         spec_data = api.write_spec(spec)
         digest = self._repo.payloads.write_payload(io.BytesIO(spec_data))
