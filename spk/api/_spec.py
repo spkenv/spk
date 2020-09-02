@@ -54,7 +54,10 @@ class InstallSpec:
             if not request.pin:
                 continue
             if request.pkg.name not in by_name:
-                raise ValueError(f"Pinned package not present: {request.pkg.name}")
+                raise ValueError(
+                    f"Cannot resolve fromBuildEnv, package not present: {request.pkg.name}\n"
+                    "Is it missing from your package build options?"
+                )
             self.requirements[i] = request.render_pin(by_name[request.pkg.name])
 
     @staticmethod
