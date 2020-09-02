@@ -1,8 +1,9 @@
 version: 0.12.13
 release_notes: |
   * Add support for identifying single files as local package sources
-  * Fix bug where info/view could fail to list installed packages
   * Enable support for subdir field in sources - as mentioned in the docs
+  * Fix bug where info/view could fail to list installed packages
+  * Fix bug where setuptools/pip/wheel dependencies caused pip conversion to fail
 
 toolchain:
   - kind: Shell

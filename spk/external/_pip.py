@@ -14,6 +14,7 @@ from .. import api, storage, build, solve, io
 
 
 _LOGGER = structlog.get_logger("spk.external.pip")
+BAKED_PYTHON_PACKAGES = ("setuptools", "pip", "wheel")
 
 
 def import_pip(
@@ -163,6 +164,12 @@ class PipImporter:
             match = re.match(r"([^ ]+)( \((.*)\))?", version_str.strip())
             assert match, f"Failed to parse requirement string: {version_str}"
             spk_name = _to_spk_name(match.group(1))
+            if spk_name in BAKED_PYTHON_PACKAGES:
+                _LOGGER.warning(
+                    f"skipping requirement for {spk_name}, this package cannot be updated with the "
+                    "pip conversion since it's baked into the spk python package"
+                )
+                continue
             spk_version_range = _to_spk_version_range(match.group(3) or "*")
             request = api.Request(
                 api.parse_ident_range(f"{spk_name}/{spk_version_range}")
