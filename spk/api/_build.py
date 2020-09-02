@@ -23,7 +23,7 @@ class Build:
         return self.digest == SRC
 
     def is_emdeded(self) -> bool:
-        return self.digest == EMBEdDED
+        return self.digest == EMBEDDED
 
     def __str__(self) -> str:
         return self.digest
@@ -31,7 +31,7 @@ class Build:
 
 def parse_build(digest: str) -> Build:
 
-    if digest in (SRC, EMBEdDED):
+    if digest in (SRC, EMBEDDED):
         return Build(digest)
 
     try:
