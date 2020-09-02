@@ -11,6 +11,7 @@ BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: python-pip
 BuildRequires: python37-devel
+Requires: rsync
 Requires: spfs >= 0.20.6
 
 %description

@@ -40,16 +40,25 @@ class SourceSpec(metaclass=abc.ABCMeta):
 
 @dataclass
 class LocalSource(SourceSpec):
-    """Package source files in a local file path."""
+    """Package source files in a local directory or file path."""
 
     path: str = "."
 
     def collect(self, dirname: str) -> None:
 
-        dirname = os.path.join(dirname, "")  # require trailing '/' for rsync semantics
-        path = os.path.join(self.path, "")  # require trailing '/' for rsync semantics
-        args = ["--recursive", "--archive"]
-        if "SPM_DEBUG" in os.environ:
+        args = ["--archive"]
+        if os.path.isdir(self.path):
+            # if the source path is a directory then we require
+            # a trailing '/' so that rsync doesn't create new subdirectories
+            # in the destination folder
+            path = os.path.join(self.path, "")
+            args.append("--recursive")
+        else:
+            path = self.path.rstrip(os.pathsep)
+        # require a trailing '/' on destination also so that rsync doesn't
+        # add aditional levels to the resulting structure
+        dirname = os.path.join(dirname, "")
+        if "SPK_DEBUG" in os.environ:
             args.append("--verbose")
         if os.path.exists(os.path.join(path, ".gitignore")):
             args += ["--filter", ":- .gitignore"]

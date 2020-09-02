@@ -3,7 +3,28 @@ import os
 
 import py.path
 
-from ._source_spec import GitSource, TarSource
+from ._source_spec import GitSource, TarSource, LocalSource
+
+
+def test_local_source_dir(tmpdir: py.path.local) -> None:
+
+    source_dir = tmpdir.join("source")
+    source_dir.join("file.txt").ensure()
+    spec = {"path": source_dir}
+    source = LocalSource.from_dict(spec)
+    source.collect(tmpdir.join("dest").ensure(dir=1).strpath)
+
+    assert tmpdir.join("dest", "file.txt").exists()
+
+
+def test_local_source_file(tmpdir: py.path.local) -> None:
+
+    source_file = tmpdir.join("src", "source.txt").ensure()
+    spec = {"path": source_file.strpath}
+    source = LocalSource.from_dict(spec)
+    source.collect(tmpdir.join("dest").ensure(dir=1).strpath)
+
+    assert tmpdir.join("dest", "source.txt").exists()
 
 
 def test_git_sources(tmpdir: py.path.local) -> None:

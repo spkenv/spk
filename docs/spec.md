@@ -127,9 +127,15 @@ The `sources` section of the package spec tells spk where to collect and how to 
 
 #### Local Source
 
+Local directories and files are simply copied into the source area. Paths here can be absolute, or relative to the location of the spec file. Git repositories (`.git`) and other source control files are automatically excluded, using the rsync `--cvs-exclude` flag. Furthermore, if a `.gitignore` file is found in the identified directory, then it will be used to further filter the files being copied.
+
 ```yaml
 sources:
+  # copy the src directory next to this spec file
   - path: ./src
+  # copy a single file from the config directory
+  # into the root of the source area
+  - path: ./config/my_config.json
 ```
 
 #### Git Source

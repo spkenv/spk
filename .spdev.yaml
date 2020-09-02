@@ -1,5 +1,6 @@
 version: 0.12.13
 release_notes: |
+  * Add support for identifying single files as local package sources
   * Fix bug where info/view could fail to list installed packages
 
 toolchain:
