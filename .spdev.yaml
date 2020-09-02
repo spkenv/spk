@@ -1,6 +1,6 @@
-version: 0.12.12
+version: 0.12.13
 release_notes: |
-  * Fix bug where resolution-dependent version ranges were not properly converted
+  * Fix bug where info/view could fail to list installed packages
 
 toolchain:
   - kind: Shell
