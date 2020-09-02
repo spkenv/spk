@@ -9,8 +9,7 @@ import structlog
 from ruamel import yaml
 from colorama import Fore, Style
 
-import spk
-from spk.io import format_ident
+import spk.io
 
 from . import _flags
 
@@ -40,7 +39,7 @@ def _view(args: argparse.Namespace) -> None:
     """view the current environment or a specific package's information."""
 
     if not args.package:
-        _print_current_env()
+        _print_current_env(args)
         return
 
     solver = _flags.get_solver_from_flags(args)
@@ -79,9 +78,15 @@ def _view(args: argparse.Namespace) -> None:
         raise RuntimeError("Internal Error: requested package was not in solution")
 
 
-def _print_current_env() -> None:
+def _print_current_env(args: argparse.Namespace) -> None:
 
     solution = spk.current_env()
     print("Installed Packages:")
     for _, spec, _ in solution.items():
-        print("  " + format_ident(spec.pkg))
+        if args.verbose:
+            options = spec.resolve_all_options(spk.api.OptionMap({}))
+            print(
+                " ", spk.io.format_ident(spec.pkg), spk.io.format_options(options),
+            )
+        else:
+            print(" ", spk.io.format_ident(spec.pkg))

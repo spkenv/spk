@@ -33,7 +33,10 @@ class RuntimeRepository(Repository):
             return
 
         for build in builds:
-            yield pkg.with_build(build)
+            if os.path.isfile(
+                f"/spfs/spk/pkg/{pkg.name}/{pkg.version}/{build}/spec.yaml"
+            ):
+                yield pkg.with_build(build)
 
     def read_spec(self, pkg: api.Ident) -> api.Spec:
         """Read a package spec file for the given package, version and optional build.
