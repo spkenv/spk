@@ -92,7 +92,7 @@ def _env(args: argparse.Namespace) -> None:
             )
         if args.verbose == 0:
             print(
-                f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Style.RESET_ALL}",
+                f"{Fore.YELLOW}{Style.DIM}try '--verbose/-v' for more info{Style.RESET_ALL}",
                 file=sys.stderr,
             )
         elif args.verbose < 2:
