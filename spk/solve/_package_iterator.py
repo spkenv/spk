@@ -72,7 +72,13 @@ class RepositoryPackageIterator(PackageIterator):
         for build in self._builds:
 
             repo = self._version_map[str(build.version)]
-            spec = repo.read_spec(build)
+            try:
+                spec = repo.read_spec(build)
+            except storage.PackageNotFoundError:
+                _LOGGER.warning(
+                    f"Repository listed build with no spec: {build} from {repo}"
+                )
+                continue
             return (spec, repo)
 
         version = next(self._versions or iter([]))
