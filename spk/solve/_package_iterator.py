@@ -26,7 +26,7 @@ class RepositoryPackageIterator(PackageIterator):
         options: api.OptionMap,
     ) -> None:
         self._repos = repos
-        self._request = request
+        self.request = request
         self._options = options
         self._versions: Optional[Iterator[str]] = None
         self._builds: Optional[Iterator[api.Ident]] = None
@@ -38,12 +38,12 @@ class RepositoryPackageIterator(PackageIterator):
 
         self._version_map = {}
         for repo in reversed(self._repos):
-            versions = repo.list_package_versions(self._request.pkg.name)
+            versions = repo.list_package_versions(self.request.pkg.name)
             for version in versions:
                 self._version_map[version] = repo
 
         if not len(self._version_map):
-            raise PackageNotFoundError(self._request.pkg.name)
+            raise PackageNotFoundError(self.request.pkg.name)
 
         versions = list(self._version_map.keys())
         versions.sort()
@@ -57,7 +57,7 @@ class RepositoryPackageIterator(PackageIterator):
         if self._versions is None:
             self._start()
 
-        other = RepositoryPackageIterator(self._repos, self._request, self._options)
+        other = RepositoryPackageIterator(self._repos, self.request, self._options)
         remaining_versions = list(self._versions or [])
         remaining_builds = list(self._builds or [])
         other._versions = iter(remaining_versions)
@@ -74,7 +74,7 @@ class RepositoryPackageIterator(PackageIterator):
         if self._versions is None:
             self._start()
 
-        requested_build = self._request.pkg.build
+        requested_build = self.request.pkg.build
         for candidate in self._builds or []:
 
             if requested_build is not None:
@@ -103,7 +103,7 @@ class RepositoryPackageIterator(PackageIterator):
                 if self._version_spec.deprecated:
                     spec.deprecated = True
 
-            compat = self._request.is_satisfied_by(spec)
+            compat = self.request.is_satisfied_by(spec)
             if not compat:
                 self.history[candidate] = compat
                 continue
@@ -129,12 +129,12 @@ class RepositoryPackageIterator(PackageIterator):
         for version_str in self._versions or []:
             version = api.parse_version(version_str)
 
-            compat = self._request.is_version_applicable(version)
+            compat = self.request.is_version_applicable(version)
             if not compat:
-                self.history[api.Ident(self._request.pkg.name, version)] = compat
+                self.history[api.Ident(self.request.pkg.name, version)] = compat
                 continue
 
-            pkg = api.Ident(self._request.pkg.name, version)
+            pkg = api.Ident(self.request.pkg.name, version)
             repo = self._version_map[version_str]
             try:
                 self._version_spec = repo.read_spec(pkg)
@@ -145,12 +145,12 @@ class RepositoryPackageIterator(PackageIterator):
                 opts = self._version_spec.build.resolve_all_options(self._options)
                 compat = self._version_spec.build.validate_options(opts)
                 if not compat:
-                    self.history[api.Ident(self._request.pkg.name, version)] = compat
+                    self.history[api.Ident(self.request.pkg.name, version)] = compat
                     continue
 
-                compat = self._request.pkg.version.is_satisfied_by(self._version_spec)
+                compat = self.request.pkg.version.is_satisfied_by(self._version_spec)
                 if not compat:
-                    self.history[api.Ident(self._request.pkg.name, version)] = compat
+                    self.history[api.Ident(self.request.pkg.name, version)] = compat
                     continue
 
             builds = list(repo.list_package_builds(pkg))

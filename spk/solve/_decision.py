@@ -209,6 +209,10 @@ class Decision:
         self._requests.setdefault(request.pkg.name, [])
         self._requests[request.pkg.name].append(request)
 
+        iterator = self.get_iterator(request.pkg.name)
+        if iterator is not None:
+            iterator.request = self.get_merged_request(request.pkg.name)
+
     def get_requests(self) -> Dict[str, List[api.Request]]:
         """Get the set of package requests added by this decision."""
 

@@ -1,5 +1,6 @@
 from .. import api, storage
 from ._decision import Decision
+from ._package_iterator import RepositoryPackageIterator
 
 
 def test_decision_stack() -> None:
@@ -41,3 +42,17 @@ def test_decision_unresolved() -> None:
     repo: storage.Repository = None  # type: ignore
     decision.set_resolved(api.Spec.from_dict({"pkg": "a/1"}), repo)
     assert "b" in decision.unresolved_requests()
+
+
+def test_decision_add_request_changes_iterator() -> None:
+
+    decision = Decision()
+    decision.add_request("a/1")
+    req = decision.get_merged_request("a")
+    assert req is not None
+    iterator = RepositoryPackageIterator(repos=[], request=req, options=api.OptionMap())
+    decision.set_iterator("a", iterator)
+    decision.add_request("a/2")
+    updated = decision.get_iterator("a")
+    assert isinstance(updated, RepositoryPackageIterator)
+    assert str(updated.request.pkg) == "a/2.0.0,1.0.0"
