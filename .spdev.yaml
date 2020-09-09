@@ -1,6 +1,6 @@
-version: 0.12.15
+version: 0.12.16
 release_notes: |
-  * Update install command to print verbose solver output
+  * Fix bug where incompatible secondary requests could be ignored
 
 toolchain:
   - kind: Shell
