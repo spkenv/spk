@@ -77,7 +77,11 @@ class RepositoryPackageIterator(PackageIterator):
 
         version = next(self._versions or iter([]))
         repo = self._version_map[version]
-        builds = list(repo.list_package_builds(api.Ident(self._package_name, version)))
+        builds = list(
+            repo.list_package_builds(
+                api.Ident(self._package_name, api.parse_version(version))
+            )
+        )
         # source packages must come last to ensure that building
         # from source is the last option under normal circumstances
         builds.sort(key=lambda pkg: bool(pkg.build and pkg.build.is_source()))
