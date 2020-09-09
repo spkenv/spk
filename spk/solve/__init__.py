@@ -5,7 +5,11 @@ from ._errors import (
     PackageNotFoundError,
 )
 from ._solution import Solution, SolvedRequest
-from ._package_iterator import PackageIterator, RepositoryPackageIterator
+from ._package_iterator import (
+    PackageIterator,
+    RepositoryPackageIterator,
+    FilteredPackageIterator,
+)
 from ._decision import Decision, DecisionTree
 from ._solver import Solver
 

@@ -7,7 +7,11 @@ import structlog
 from .. import api, storage
 from ._errors import SolverError, ConflictingRequestsError
 from ._solution import Solution, PackageSource
-from ._package_iterator import PackageIterator, RepositoryPackageIterator
+from ._package_iterator import (
+    PackageIterator,
+    RepositoryPackageIterator,
+    FilteredPackageIterator,
+)
 
 _LOGGER = structlog.get_logger("spk.solve")
 
@@ -211,7 +215,18 @@ class Decision:
 
         iterator = self.get_iterator(request.pkg.name)
         if iterator is not None:
-            iterator.request = self.get_merged_request(request.pkg.name)
+            updated_request = self.get_merged_request(request.pkg.name)
+            assert (
+                updated_request is not None
+            ), "Merged request should be set after appending request!"
+
+            if isinstance(iterator, FilteredPackageIterator):
+                iterator.request = updated_request
+            else:
+                iterator = FilteredPackageIterator(
+                    iterator, updated_request, self._options
+                )
+                self.set_iterator(request.pkg.name, iterator)
 
     def get_requests(self) -> Dict[str, List[api.Request]]:
         """Get the set of package requests added by this decision."""

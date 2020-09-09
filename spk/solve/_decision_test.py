@@ -1,6 +1,6 @@
 from .. import api, storage
 from ._decision import Decision
-from ._package_iterator import RepositoryPackageIterator
+from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterator
 
 
 def test_decision_stack() -> None:
@@ -50,9 +50,9 @@ def test_decision_add_request_changes_iterator() -> None:
     decision.add_request("a/1")
     req = decision.get_merged_request("a")
     assert req is not None
-    iterator = RepositoryPackageIterator(repos=[], request=req, options=api.OptionMap())
+    iterator = RepositoryPackageIterator("a", repos=[])
     decision.set_iterator("a", iterator)
     decision.add_request("a/2")
     updated = decision.get_iterator("a")
-    assert isinstance(updated, RepositoryPackageIterator)
-    assert str(updated.request.pkg) == "a/2.0.0,1.0.0"
+    assert isinstance(updated, FilteredPackageIterator)
+    assert updated.request.pkg == api.parse_ident_range("a/1.0.0,2.0.0")

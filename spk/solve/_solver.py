@@ -4,7 +4,7 @@ from ruamel import yaml
 import structlog
 
 from .. import api, storage
-from ._package_iterator import RepositoryPackageIterator
+from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterator
 from ._decision import Decision, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
 from ._solution import Solution
@@ -119,7 +119,7 @@ class Solver:
                     else:
                         compat = self._resolve_new_build(spec, state)
                     if not compat:
-                        if isinstance(iterator, RepositoryPackageIterator):
+                        if isinstance(iterator, FilteredPackageIterator):
                             iterator.history[spec.pkg] = compat
                         continue
                 elif not spec.pkg.build.is_source():
@@ -131,7 +131,7 @@ class Solver:
 
         except StopIteration:
             history: Dict[api.Ident, api.Compatibility] = {}
-            if isinstance(iterator, RepositoryPackageIterator):
+            if isinstance(iterator, FilteredPackageIterator):
                 history = iterator.history
             err = UnresolvedPackageError(
                 yaml.safe_dump(request.to_dict()).strip(),  # type: ignore
@@ -147,10 +147,14 @@ class Solver:
 
     def _make_iterator(
         self, state: Decision, request: api.Request
-    ) -> RepositoryPackageIterator:
+    ) -> FilteredPackageIterator:
 
         assert len(self._repos), "No configured package repositories."
-        return RepositoryPackageIterator(self._repos, request, state.get_options())
+        return FilteredPackageIterator(
+            RepositoryPackageIterator(request.pkg.name, self._repos),
+            request,
+            state.get_options(),
+        )
 
     def _resolve_new_build(self, spec: api.Spec, state: Decision) -> api.Compatibility:
 

@@ -42,7 +42,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
         if verbosity > 1:
             for _, spec, _ in resolved.items():
                 iterator = decision.get_iterator(spec.pkg.name)
-                if isinstance(iterator, solve.RepositoryPackageIterator):
+                if isinstance(iterator, solve.FilteredPackageIterator):
                     versions = list(
                         f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(v)} - {c}"
                         for v, c in iterator.history.items()
