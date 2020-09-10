@@ -154,7 +154,7 @@ class FilteredPackageIterator(PackageIterator):
                     continue
             if candidate.pkg.build is None:
                 _LOGGER.error(
-                    "published package has no associated build", pkg=candidate
+                    "published package has no associated build", pkg=candidate.pkg
                 )
                 continue
 
