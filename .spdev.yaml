@@ -1,6 +1,6 @@
-version: 0.12.16
+version: 0.12.17
 release_notes: |
-  * Fix bug where incompatible secondary requests could be ignored
+  * Fix issue where logged error was much more verbose than necessary
 
 toolchain:
   - kind: Shell
