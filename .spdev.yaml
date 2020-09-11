@@ -1,6 +1,7 @@
 version: 0.12.17
 release_notes: |
   * Fix issue where logged error was much more verbose than necessary
+  * Allow the solver to recover from old badly published specs if possible
 
 toolchain:
   - kind: Shell

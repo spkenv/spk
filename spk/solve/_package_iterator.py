@@ -79,6 +79,12 @@ class RepositoryPackageIterator(PackageIterator):
                     f"Repository listed build with no spec: {build} from {repo}"
                 )
                 continue
+            if spec.pkg.build is None:
+                _LOGGER.debug(
+                    "Published spec is corrupt (has no associated build)", pkg=build
+                )
+                spec.pkg.build = build.build
+
             return (spec, repo)
 
         version = next(self._versions or iter([]))
@@ -153,8 +159,8 @@ class FilteredPackageIterator(PackageIterator):
                     )
                     continue
             if candidate.pkg.build is None:
-                _LOGGER.error(
-                    "published package has no associated build", pkg=candidate.pkg
+                self.history[candidate.pkg] = api.Compatibility(
+                    "Package is corrupt (has no associated build)"
                 )
                 continue
 
