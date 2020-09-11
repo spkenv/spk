@@ -172,7 +172,6 @@ def _convert_spcomp2s(args: argparse.Namespace) -> None:
         print(spk.io.format_options(spec.build.resolve_all_options({})))
     print("")
 
-    print(args.publish)
     if args.publish is None:
         print("These packages are now available in the local repository")
         args.publish = bool(
