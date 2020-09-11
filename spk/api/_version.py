@@ -196,7 +196,7 @@ def parse_version(version: str) -> Version:
     if "-" in version:
         version, pre = version.split("-", 1)
 
-    str_parts = version.split(VERSION_SEP)
+    str_parts = version.split(VERSION_SEP) if version else []
     parts = []
     for i, p in enumerate(str_parts):
         try:

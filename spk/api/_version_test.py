@@ -21,6 +21,7 @@ def test_version_nonzero() -> None:
         ("6.3+b.0", "6.3+a.0", True),
         ("6.3-pre.0", "6.3", False),
         ("6.3", "6.3-pre.0", True),
+        ("6.3+r.1", "6.3+other.1,r.1", True),
     ],
 )
 def test_is_gt(base: str, test: str, expected: bool) -> None:

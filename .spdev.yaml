@@ -1,7 +1,8 @@
-version: 0.12.17
+version: 0.13.0
 release_notes: |
-  * Fix issue where logged error was much more verbose than necessary
-  * Allow the solver to recover from old badly published specs if possible
+  * Update the solver to only ever visit one release for any package version
+    * This reduces noise and makes the process more efficient. Package releases
+      were never intended to be searched exhaustively anyway
 
 toolchain:
   - kind: Shell

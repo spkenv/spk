@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar
+from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar, Set
 from typing_extensions import Protocol, runtime_checkable
 
 import structlog
@@ -27,16 +27,17 @@ class RepositoryPackageIterator(PackageIterator):
     def __init__(self, package_name: str, repos: List[storage.Repository],) -> None:
         self._package_name = package_name
         self._repos = repos
-        self._versions: Optional[Iterator[str]] = None
+        self._versions: Optional[Iterator[api.Version]] = None
         self._builds: Iterator[api.Ident] = iter([])
-        self._version_map: Dict[str, storage.Repository] = {}
+        self._version_map: Dict[api.Version, storage.Repository] = {}
 
     def _start(self) -> None:
 
         self._version_map = {}
         for repo in reversed(self._repos):
-            versions = repo.list_package_versions(self._package_name)
-            for version in versions:
+            repo_versions = repo.list_package_versions(self._package_name)
+            for version_str in repo_versions:
+                version = api.parse_version(version_str)
                 self._version_map[version] = repo
 
         if not len(self._version_map):
@@ -71,7 +72,7 @@ class RepositoryPackageIterator(PackageIterator):
 
         for build in self._builds:
 
-            repo = self._version_map[str(build.version)]
+            repo = self._version_map[build.version]
             try:
                 spec = repo.read_spec(build)
             except storage.PackageNotFoundError:
@@ -89,11 +90,7 @@ class RepositoryPackageIterator(PackageIterator):
 
         version = next(self._versions or iter([]))
         repo = self._version_map[version]
-        builds = list(
-            repo.list_package_builds(
-                api.Ident(self._package_name, api.parse_version(version))
-            )
-        )
+        builds = list(repo.list_package_builds(api.Ident(self._package_name, version)))
         # source packages must come last to ensure that building
         # from source is the last option under normal circumstances
         builds.sort(key=lambda pkg: bool(pkg.build and pkg.build.is_source()))
@@ -117,11 +114,15 @@ class FilteredPackageIterator(PackageIterator):
         self.request = request
         self.options = options
         self.history: Dict[api.Ident, api.Compatibility] = {}
+        self._visited_versions: Set[str] = set()
 
     def __next__(self) -> Tuple[api.Spec, PackageSource]:
 
         requested_build = self.request.pkg.build
         for candidate, repo in self._source:
+
+            if candidate.pkg.version.base in self._visited_versions:
+                continue
 
             # check version number without build
             compat = self.request.is_version_applicable(candidate.pkg.version)
@@ -196,6 +197,7 @@ class FilteredPackageIterator(PackageIterator):
                 self.history[candidate.pkg] = compat
                 continue
 
+            self._visited_versions.add(candidate.pkg.version.base)
             return (spec, repo)
 
         raise StopIteration
