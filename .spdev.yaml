@@ -1,8 +1,6 @@
-version: 0.13.0
+version: 0.13.1
 release_notes: |
-  * Update the solver to only ever visit one release for any package version
-    * This reduces noise and makes the process more efficient. Package releases
-      were never intended to be searched exhaustively anyway
+  * Fix bug where only one build was visited by the solver for a release
 
 toolchain:
   - kind: Shell
