@@ -4,24 +4,23 @@ summary: Detailed breakdown of how packages are built, and advanced build techni
 weight: 30
 ---
 
-
 ## General Build Process
 
 The `spk build` command runs in two distinct phases, each with a small number of steps:
 
 1. make the source package
-  1. load the package spec
-  1. setup a source directory under `/spfs/spk/pkg/<name>/<version>/src/`
-  1. collect the source files defined in the [package yaml file](../spec#Sources)
-  1. validate the collected source files
-  1. store the source package and it's spec in the local repository
+1. load the package spec
+1. setup a source directory under `/spfs/spk/pkg/<name>/<version>/src/`
+1. collect the source files defined in the [package yaml file](../spec#Sources)
+1. validate the collected source files
+1. store the source package and it's spec in the local repository
 1. make the binary package
-  1. load the package spec
-  1. resolve the build environment / build dependencies
-  1. execute the build script (in the source directory, see above)
-  1. purge any changes made under the source directory
-  1. validate the installed package files
-  1. store the package and it's spec in the local repository
+1. load the package spec
+1. resolve the build environment / build dependencies
+1. execute the build script (in the source directory, see above)
+1. purge any changes made under the source directory
+1. validate the installed package files
+1. store the package and it's spec in the local repository
 
 ## Source Package Generation
 
@@ -62,3 +61,11 @@ The most common example of this process is when using cmake. The build script us
 Binary packages can be created without the use of source packages by running the `spk make-binary` command and adding the `--here` flag. This flag tells spk that the build script should be run in the current directory, which is often helpful for quickly iterating on a local set of source files.
 
 In this scenario, spk will not do anything to the source folder after build, allowing build artifacts and chaches to be maintained and reused between builds.
+
+```sh
+# enter a local clone of the source code
+cd work/project_clone
+# build the package using this local
+# directory instead of the source package
+spk build --here ../project-feedstock/package.spk.yaml
+```
