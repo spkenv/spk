@@ -114,15 +114,20 @@ class FilteredPackageIterator(PackageIterator):
         self.request = request
         self.options = options
         self.history: Dict[api.Ident, api.Compatibility] = {}
-        self._visited_versions: Set[str] = set()
+        self._visited_versions: Dict[str, api.Version] = {}
 
     def __next__(self) -> Tuple[api.Spec, PackageSource]:
 
         requested_build = self.request.pkg.build
         for candidate, repo in self._source:
 
-            if candidate.pkg.version.base in self._visited_versions:
-                continue
+            base_version = candidate.pkg.version.base
+            if base_version in self._visited_versions:
+                # if we have already visited 1.0.0 with some release
+                # we don't want to visit any other releases, but we do
+                # want to visit other builds of the same release
+                if candidate.pkg.version != self._visited_versions[base_version]:
+                    continue
 
             # check version number without build
             compat = self.request.is_version_applicable(candidate.pkg.version)
@@ -197,7 +202,7 @@ class FilteredPackageIterator(PackageIterator):
                 self.history[candidate.pkg] = compat
                 continue
 
-            self._visited_versions.add(candidate.pkg.version.base)
+            self._visited_versions[candidate.pkg.version.base] = candidate.pkg.version
             return (spec, repo)
 
         raise StopIteration

@@ -19,6 +19,10 @@ def test_only_latest_release_is_given() -> None:
     repo.publish_package(
         spec, spfs.encoding.EMPTY_DIGEST,
     )
+    spec.pkg.set_build("BVOFAV57")
+    repo.publish_package(
+        spec, spfs.encoding.EMPTY_DIGEST,
+    )
 
     it = FilteredPackageIterator(
         RepositoryPackageIterator("my-pkg", [repo]),
@@ -26,10 +30,11 @@ def test_only_latest_release_is_given() -> None:
         api.OptionMap(),
     )
     packages = list(it)
-    assert len(packages) == 1, "Should return one release per package"
-    assert (
-        packages[0][0].pkg.version.post["r"] == 2
-    ), "Should always present the latest release"
+    assert len(packages) == 2, "Should return build of only release per package"
+    for spec, _ in packages:
+        assert (
+            spec.pkg.version.post["r"] == 2
+        ), "Should always present the latest release"
 
 
 def test_old_release_allowed_if_requested() -> None:
