@@ -268,6 +268,7 @@ def _to_spk_range_prefix(prefix: str) -> str:
         "<=": "<=",
         "==": "=",
         "~=": "~",
+        "!=": "!=",
         "": "",
     }
     try:
