@@ -115,7 +115,17 @@ class SemverRange(VersionRange):
     @lru_cache()
     def less_than(self) -> Optional[Version]:
 
-        return Version(self._base.major + 1)
+        parts = list(self._base.parts)
+        for i, p in enumerate(parts):
+            if p == 0:
+                continue
+            parts[i] = p + 1
+            parts = parts[: i + 1]
+            break
+        else:
+            parts[-1] += 1
+
+        return Version.from_parts(*parts)
 
     def is_satisfied_by(self, spec: "Spec") -> Compatibility:
         return self.is_applicable(spec.pkg.version)
