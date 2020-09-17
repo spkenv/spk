@@ -1,6 +1,7 @@
-version: 0.13.1
+version: 0.14.0
 release_notes: |
-  * Fix bug where only one build was visited by the solver for a release
+  * Fix carat version range to match documentation
+    * the leading zeros were not being accounted for like the docs mention
 
 toolchain:
   - kind: Shell
