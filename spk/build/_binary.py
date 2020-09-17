@@ -225,6 +225,11 @@ class BinaryPackageBuilder:
         else:
             source_dir = os.path.abspath(self._source)
 
+        # force the base environment to be setup using sh, so that the
+        # spfs startup and build environment are predictable and consistent
+        # (eg in case the user's shell does not have startup scripts in
+        #  the dependencies, is not supported by spfs, etc)
+        os.environ["SHELL"] = "sh"
         cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
         proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
         proc.wait()
