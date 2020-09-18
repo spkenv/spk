@@ -3,6 +3,7 @@ title: Versioning
 summary: Version compatibility syntax and semantics.
 weight: 10
 ---
+
 ### Version Numbers
 
 Version numbers in spk are made up of at least three dot-separated digits (eg: `1.2.3`), but can have as many digits as they want (eg: `1.2.3.4.5.6`...). In all cases, when you specify a version number with less than three digits, the others are assumed to be zero (eg: `1.1` == `1.1.0`).
@@ -32,7 +33,6 @@ Post-releases come after the normal release of the same number, and must come af
 - A pre-release version will always be less than the same version number with no tags
 - A post-release version will always be greater than the same verison number with no tags
 - All release tags are sorted alphabetically, and by number
-
 
 ```txt
 1.0.0-alpha.1    < 1.0.0
@@ -109,12 +109,16 @@ Comparison requirements allow manually specifying a version range, exact version
 Here are some examples of comparison requirements:
 
 ```
->= 1.2.0
-> 1
-< 2
-= 1.2.3
-!= 4.2
+>=1.2.0
+>1
+<2
+=1.2.3
+!=4.2
 ```
+
+{{% notice note %}}
+The exact operator will enforce exact post-release tags only if specified. This means that `=1.0.0` could resolve to `1.0.0+r.2`, but `=1.0.0+r.1` would ensure that a resolved version has the exact `r.1` tag. This is because post release tags are considered patches to the package themselves, and should not affect the underlying software.
+{{% /notice %}}
 
 #### Multiple Requirements
 

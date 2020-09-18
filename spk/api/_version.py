@@ -33,6 +33,10 @@ class TagSet(SortedDict, MutableMapping[str, int]):
         True
         >>> TagSet({"alpha": 0}) > TagSet({'beta': 1})
         False
+        >>> TagSet({"alpha": 0}) == TagSet({'alpha': 1})
+        False
+        >>> TagSet({"alpha": 1}) == TagSet({'alpha': 1})
+        True
         """
 
         if not isinstance(other, TagSet):

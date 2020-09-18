@@ -362,8 +362,19 @@ class ExactVersion(VersionRange):
 
     def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
-        if not self._version == spec.pkg.version:
+        if not self._version.base == spec.pkg.version.base:
             return Compatibility(f"{spec.pkg.version} !! {self} [not equal]")
+
+        if not self._version.pre == spec.pkg.version.pre:
+            return Compatibility(
+                f"{spec.pkg.version} !! {self} [not equal @ prerelease]"
+            )
+        # each post release tag must be exact if specified
+        for name in self._version.post:
+            if not spec.pkg.version.post.get(name) == self._version.post[name]:
+                return Compatibility(
+                    f"{spec.pkg.version} !! {self} [not equal @ postrelease]"
+                )
         return COMPATIBLE
 
 

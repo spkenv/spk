@@ -1,7 +1,9 @@
+from typing import Dict
 import pytest
 
 from ._version import parse_version
 from ._version_range import VersionRange, parse_version_range
+from ._spec import Spec
 
 
 def test_parse_version_range_carat() -> None:
@@ -39,6 +41,9 @@ def test_parse_version_range_carat() -> None:
         ("1.0.0", "1.0.0", True),
         ("!=1.0", "1.0.1", False),
         ("!=1.0", "1.1.0", True),
+        ("=1.0.0", "1.0.0", True),
+        ("=1.0.0", "1.0.0+r.1", True),
+        ("=1.0.0+r.2", "1.0.0+r.1", False),
     ],
 )
 def test_version_range_is_applicable(range: str, version: str, expected: bool) -> None:
@@ -46,5 +51,24 @@ def test_version_range_is_applicable(range: str, version: str, expected: bool) -
     vr = parse_version_range(range)
     v = parse_version(version)
     actual = vr.is_applicable(v)
+
+    assert bool(actual) == expected, actual
+
+
+@pytest.mark.parametrize(
+    "range,spec_dict,expected",
+    [
+        ("=1.0.0", {"pkg": "test/1.0.0"}, True),
+        ("=1.0.0", {"pkg": "test/1.0.0+r.1"}, True),
+        ("=1.0.0+r.2", {"pkg": "test/1.0.0+r.1"}, False),
+    ],
+)
+def test_version_range_is_satisfied(
+    range: str, spec_dict: Dict, expected: bool
+) -> None:
+
+    vr = parse_version_range(range)
+    spec = Spec.from_dict(spec_dict)
+    actual = vr.is_satisfied_by(spec)
 
     assert bool(actual) == expected, actual
