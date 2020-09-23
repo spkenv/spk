@@ -255,8 +255,8 @@ class Request:
             raise ValueError(f"Missing required key in package request: {e}")
 
         if "prereleasePolicy" in data:
+            name = data.pop("prereleasePolicy")
             try:
-                name = data.pop("prereleasePolicy")
                 policy = PreReleasePolicy.__members__[name]
             except KeyError:
                 raise ValueError(

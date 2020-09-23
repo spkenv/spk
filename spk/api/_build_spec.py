@@ -3,7 +3,7 @@ import os
 import abc
 from dataclasses import dataclass, field
 
-from ._request import Request, parse_ident_range
+from ._request import Request, parse_ident_range, PreReleasePolicy
 from ._option_map import OptionMap
 from ._name import validate_name
 from ._compat import Compatibility, COMPATIBLE
@@ -143,7 +143,9 @@ def opt_from_request(request: Request) -> "PkgOpt":
     """Create a build option from the given request."""
 
     return PkgOpt(
-        pkg=request.pkg.name, default=str(request.pkg)[len(request.pkg.name) + 1 :]
+        pkg=request.pkg.name,
+        default=str(request.pkg)[len(request.pkg.name) + 1 :],
+        prerelease_policy=request.prerelease_policy,
     )
 
 
@@ -230,9 +232,15 @@ class VarOpt(Option):
 
 
 class PkgOpt(Option):
-    def __init__(self, pkg: str, default: str = "") -> None:
+    def __init__(
+        self,
+        pkg: str,
+        default: str = "",
+        prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll,
+    ) -> None:
         self.pkg = pkg
         self.default = default
+        self.prerelease_policy = prerelease_policy
         super(PkgOpt, self).__init__()
 
     def __repr__(self) -> str:
@@ -282,7 +290,10 @@ class PkgOpt(Option):
         value = self.default
         if given_value is not None:
             value = given_value
-        return Request(pkg=parse_ident_range(f"{self.pkg}/{value}"))
+        return Request(
+            pkg=parse_ident_range(f"{self.pkg}/{value}"),
+            prerelease_policy=self.prerelease_policy,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
 
@@ -292,6 +303,8 @@ class PkgOpt(Option):
         base_value = super(PkgOpt, self).get_value()
         if base_value:
             spec["static"] = base_value
+        if self.prerelease_policy is not PreReleasePolicy.ExcludeAll:
+            spec["prereleasePolicy"] = self.prerelease_policy.name
         return spec
 
     @staticmethod
@@ -310,6 +323,17 @@ class PkgOpt(Option):
 
         default = str(data.pop("default", ""))
         opt = PkgOpt(pkg, default=default)
+
+        if "prereleasePolicy" in data:
+            name = data.pop("prereleasePolicy")
+            try:
+                policy = PreReleasePolicy.__members__[name]
+            except KeyError:
+                raise ValueError(
+                    f"Unknown 'prereleasePolicy': {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
+                )
+            opt.prerelease_policy = policy
+
         opt.set_value(str(data.pop("static", "")))
 
         if len(data):

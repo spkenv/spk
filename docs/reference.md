@@ -8,16 +8,16 @@ weight: 110
 
 | Field      | Type                              | Description                                                                                                                                           |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pkg        | [Identifier](#Identifier)         | The name and version number of this package                                                                                                           |
-| compat     | [Compat](#Compat)                 | The compatibility semantics of this packages versioning scheme                                                                                        |
+| pkg        | [Identifier](#identifier)         | The name and version number of this package                                                                                                           |
+| compat     | [Compat](#compat)                 | The compatibility semantics of this packages versioning scheme                                                                                        |
 | deprecated | _boolean_                         | True if this package has been deprecated, this is usually reserved for internal use only and should not generally be specified directly in spec files |
-| sources    | _List[[SourceSpec](#SourceSpec)]_ | Specifies where to get source files for building this package                                                                                         |
-| build      | [BuildSpec](#BuildSpec)           | Specifies how the package is to be built                                                                                                              |
-| install    | [InstallSpec](#InstallSpec)       | Specifies how the package is to be installed                                                                                                          |
+| sources    | _List[[SourceSpec](#sourcespec)]_ | Specifies where to get source files for building this package                                                                                         |
+| build      | [BuildSpec](#buildspec)           | Specifies how the package is to be built                                                                                                              |
+| install    | [InstallSpec](#installspec)       | Specifies how the package is to be installed                                                                                                          |
 
 ## SourceSpec
 
-A source spec can be one of [LocalSource](#LocalSource), [GitSource](#GitSource), or [TarSource](#TarSource).
+A source spec can be one of [LocalSource](#localsource), [GitSource](#gitsource), or [TarSource](#tarsource).
 
 ### LocalSource
 
@@ -49,12 +49,12 @@ Fetches and extracts a tar archive as package source files.
 | Field    | Type                                | Description                                                    |
 | -------- | ----------------------------------- | -------------------------------------------------------------- |
 | script   | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
-| options  | _List[[BuildOption](#BuildOption)]_ | The set of inputs for the package build process                |
-| variants | _List[[OptionMap](#OptionMap)]_     | The default variants of the package options to build           |
+| options  | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
+| variants | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
 
 ### BuildOption
 
-A build option can be one of [VariableOption](#VariableOption), or [PackageOption](#PackageOption).
+A build option can be one of [VariableOption](#variableoption), or [PackageOption](#packageoption).
 
 #### VariableOption
 
@@ -71,11 +71,12 @@ Variable options represents some arbitrary configuration parameter to the build.
 
 Package options define a package that is required at build time.
 
-| Field   | Type  | Description                                                                                                                                                                                    |
-| ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pkg     | _str_ | The name of the package that is required                                                                                                                                                       |
-| default | _str_ | The default requested version for this option if not otherwise specified                                                                                                                       |
-| static  | _str_ | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the version of the package at build time |
+| Field            | Type                                    | Description                                                                                                                                                                                    |
+| ---------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pkg              | _str_                                   | The name of the package that is required                                                                                                                                                       |
+| default          | _str_                                   | The default requested version for this option if not otherwise specified                                                                                                                       |
+| prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                 |
+| static           | _str_                                   | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the version of the package at build time |
 
 ### OptionMap
 
@@ -85,16 +86,16 @@ An option map is a key-value mapping of option names to option values. In practi
 
 | Field        | Type                        | Description                                      |
 | ------------ | --------------------------- | ------------------------------------------------ |
-| requirements | _List[[Request](#Request)]_ | The set of packages required at runtime          |
-| embedded     | _List[[Spec](#Spec)]_       | A list of packages that come bundled in this one |
+| requirements | _List[[Request](#request)]_ | The set of packages required at runtime          |
+| embedded     | _List[[Spec](#spec)]_       | A list of packages that come bundled in this one |
 
 ### Request
 
 | Field            | Type                                    | Description                                                                                                                                                                                                                                                                                                                         |
 | ---------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pkg              | RangeIdentifier                         | Like an [Identifier](#Identifier) but with a verison range rather than an exact version, see [versioning](../versioning)                                                                                                                                                                                                            |
-| prereleasePolicy | _[PreReleasePolicy](#PreReleasePolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                                                                                                                                      |
-| inclusionPolicy  | _[InclusionPolicy](#InclusionPolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                                                                                                                                            |
+| pkg              | RangeIdentifier                         | Like an [Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning)                                                                                                                                                                                                            |
+| prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                                                                                                                                      |
+| inclusionPolicy  | _[InclusionPolicy](#inclusionpolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                                                                                                                                            |
 | fromBuildEnv     | _str_                                   | The optional template to use to generate this request based on the version of the package resolved into the build environment. This template takes the form `x.x.x`, where any _x_ is replaced by digits in the version number. For example, if `python/2.7.5` is in the build environment, the template `~x.x` would become `~2.7` |
 
 #### PreReleasePolicy
