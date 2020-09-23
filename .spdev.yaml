@@ -1,9 +1,6 @@
-version: 0.14.0
+version: 0.14.1
 release_notes: |
-  * Fix carat version range to match documentation
-    * the leading zeros were not being accounted for like the docs mention
-  * Fix bug where packages with sh-only startup files were not sourced when build
-    was triggered from a non-sh shell
+  * Add support for prereleasePolicy field in pkg build options
 
 toolchain:
   - kind: Shell
