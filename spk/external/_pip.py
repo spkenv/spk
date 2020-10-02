@@ -142,7 +142,7 @@ class PipImporter:
         # requirements based on the version used - spk does not do this so instead
         # we restrict the package to the python version that it's being imported for
         spec.install.requirements.append(
-            api.Request(api.parse_ident_range(f"python/{self._python_version}"))
+            api.PkgRequest(api.parse_ident_range(f"python/{self._python_version}"))
         )
         for requirement_str in info.requires_dist:
 
@@ -171,7 +171,7 @@ class PipImporter:
                 )
                 continue
             spk_version_range = _to_spk_version_range(match.group(3) or "*")
-            request = api.Request(
+            request = api.PkgRequest(
                 api.parse_ident_range(f"{spk_name}/{spk_version_range}")
             )
             spec.install.requirements.append(request)

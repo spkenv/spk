@@ -3,7 +3,7 @@ import os
 import abc
 from dataclasses import dataclass, field
 
-from ._request import Request, parse_ident_range, PreReleasePolicy
+from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
 from ._option_map import OptionMap
 from ._name import validate_name
 from ._compat import Compatibility, COMPATIBLE
@@ -107,7 +107,7 @@ class BuildSpec:
         otherwise the option is appended to the buid options
         """
         if isinstance(opt, str):
-            opt = Request(parse_ident_range(opt))
+            opt = PkgRequest(parse_ident_range(opt))
         if isinstance(opt, Request):
             opt = opt_from_request(opt)
         for i, other in enumerate(self.options):
@@ -167,11 +167,14 @@ def opt_from_dict(data: Dict[str, Any]) -> Option:
 def opt_from_request(request: Request) -> "PkgOpt":
     """Create a build option from the given request."""
 
-    return PkgOpt(
-        pkg=request.pkg.name,
-        default=str(request.pkg)[len(request.pkg.name) + 1 :],
-        prerelease_policy=request.prerelease_policy,
-    )
+    if isinstance(request, PkgRequest):
+        return PkgOpt(
+            pkg=request.pkg.name,
+            default=str(request.pkg)[len(request.pkg.name) + 1 :],
+            prerelease_policy=request.prerelease_policy,
+        )
+
+    raise ValueError(f"Cannot convert {type(request)} to option")
 
 
 class VarOpt(Option):
@@ -321,7 +324,7 @@ class PkgOpt(Option):
         value = self.default
         if given_value is not None:
             value = given_value
-        return Request(
+        return PkgRequest(
             pkg=parse_ident_range(f"{self.pkg}/{value}"),
             prerelease_policy=self.prerelease_policy,
         )

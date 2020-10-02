@@ -126,7 +126,9 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     )
 
     spec = tmprepo.read_spec(spec.pkg)
-    assert str(spec.install.requirements[0].pkg) == "dep/~1.0"
+    req = spec.install.requirements[0]
+    assert isinstance(req, api.PkgRequest)
+    assert str(req.pkg) == "dep/~1.0"
 
 
 def test_build_bad_options() -> None:

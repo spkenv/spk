@@ -150,7 +150,7 @@ class BinaryPackageBuilder:
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
-            request = api.Request(ident_range, api.PreReleasePolicy.IncludeAll)
+            request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
             self._solver.add_request(request)
 
         return self._solver.solve()

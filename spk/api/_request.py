@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Union, Optional, Set, TYPE_CHECKING
+from typing import Dict, List, Any, Union, Optional, Set, TypeVar, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc
 import enum
@@ -13,6 +13,8 @@ from ._compat import Compatibility, COMPATIBLE
 
 if TYPE_CHECKING:
     from ._spec import Spec
+
+Self = TypeVar("Self")
 
 
 @dataclass
@@ -138,8 +140,41 @@ class InclusionPolicy(enum.IntEnum):
     IfAlreadyPresent = enum.auto()
 
 
+class Request(metaclass=abc.ABCMeta):
+    """Represents a contraint added to a resolved environment."""
+
+    @abc.abstractproperty
+    def name(self) -> str:
+        """Return the canonical name of this requirement."""
+        pass
+
+    @abc.abstractmethod
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+        """Return true if the given package spec satisfies this request."""
+        pass
+
+    @abc.abstractmethod
+    def clone(self: Self) -> Self:
+        """Return a copy of this request instance."""
+        pass
+
+    @abc.abstractmethod
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a serializable dict copy of this request."""
+        pass
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "Request":
+        """Construct a request from it's dictionary representation."""
+
+        if "pkg" in data:
+            return PkgRequest.from_dict(data)
+
+        raise ValueError(f"Incomprehensible request definition: {data}")
+
+
 @dataclass
-class Request:
+class PkgRequest(Request):
     """A desired package and set of restrictions on how it's selected."""
 
     pkg: RangeIdent
@@ -157,11 +192,15 @@ class Request:
             return bool(str(self) == other)
         return self.__hash__() == other.__hash__()
 
-    def clone(self) -> "Request":
+    @property
+    def name(self) -> str:
+        return self.pkg.name
 
-        return Request.from_dict(self.to_dict())
+    def clone(self) -> "PkgRequest":
 
-    def render_pin(self, pkg: Ident) -> "Request":
+        return PkgRequest.from_dict(self.to_dict())
+
+    def render_pin(self, pkg: Ident) -> "PkgRequest":
         """Create a copy of this request with it's pin rendered out using 'pkg'."""
 
         if not self.pin:
@@ -215,7 +254,7 @@ class Request:
 
         return self.pkg.is_satisfied_by(spec)
 
-    def restrict(self, other: "Request") -> None:
+    def restrict(self, other: "PkgRequest") -> None:
         """Reduce the scope of this request to the intersection with another."""
 
         self.prerelease_policy = PreReleasePolicy(
@@ -243,14 +282,14 @@ class Request:
             version=VersionFilter({ExactVersion(pkg.version),}),
             build=pkg.build,
         )
-        return Request(ri)
+        return PkgRequest(ri)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "Request":
+    def from_dict(data: Dict[str, Any]) -> "PkgRequest":
         """Construct a request from it's dictionary representation."""
 
         try:
-            req = Request(parse_ident_range(data.pop("pkg")))
+            req = PkgRequest(parse_ident_range(data.pop("pkg")))
         except KeyError as e:
             raise ValueError(f"Missing required key in package request: {e}")
 

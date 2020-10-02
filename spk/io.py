@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Sequence
 from colorama import Fore, Style
 
 from . import api, solve
@@ -86,11 +86,14 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
     return out.strip()
 
 
-def format_request(name: str, requests: List[api.Request]) -> str:
+def format_request(name: str, requests: Sequence[api.Request]) -> str:
 
     out = f"{Style.BRIGHT}{name}{Style.RESET_ALL}/"
     versions = []
     for req in requests:
+        assert isinstance(
+            req, api.PkgRequest
+        ), f"TODO: Unhandled request in formatter {type(req)}"
         ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
         if req.pkg.build is not None:
             ver += f"/{format_build(req.pkg.build)}"

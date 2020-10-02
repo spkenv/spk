@@ -26,7 +26,7 @@ def test_only_latest_release_is_given() -> None:
 
     it = FilteredPackageIterator(
         RepositoryPackageIterator("my-pkg", [repo]),
-        api.Request(api.parse_ident_range("my-pkg")),
+        api.PkgRequest(api.parse_ident_range("my-pkg")),
         api.OptionMap(),
     )
     packages = list(it)
@@ -55,7 +55,7 @@ def test_old_release_allowed_if_requested() -> None:
 
     it = FilteredPackageIterator(
         RepositoryPackageIterator("my-pkg", [repo]),
-        api.Request(api.parse_ident_range("my-pkg/=1+r.1")),
+        api.PkgRequest(api.parse_ident_range("my-pkg/=1+r.1")),
         api.OptionMap(),
     )
     packages = list(it)

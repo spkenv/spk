@@ -153,7 +153,7 @@ class FilteredPackageIterator(PackageIterator):
     """
 
     def __init__(
-        self, source: PackageIterator, request: api.Request, options: api.OptionMap,
+        self, source: PackageIterator, request: api.PkgRequest, options: api.OptionMap,
     ) -> None:
         self._source = source
         self.request = request

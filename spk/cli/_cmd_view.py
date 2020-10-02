@@ -42,6 +42,8 @@ def _view(args: argparse.Namespace) -> None:
     solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]
     solver.add_request(request)
+    if not isinstance(request, spk.api.PkgRequest):
+        raise ValueError(f"Not a package request: {request}")
 
     try:
         solution = solver.solve()

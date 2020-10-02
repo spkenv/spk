@@ -9,7 +9,7 @@ from ruamel import yaml
 from ._build import EMBEDDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
-from ._request import Request
+from ._request import Request, PkgRequest
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec, PkgOpt
 from ._source_spec import SourceSpec, LocalSource
@@ -32,7 +32,7 @@ class InstallSpec:
         one. Otherwise the new request is appended to the list.
         """
         for i, other in enumerate(self.requirements):
-            if other.pkg.name == request.pkg.name:
+            if other.name == request.name:
                 self.requirements[i] = request
                 return
         else:
@@ -51,6 +51,8 @@ class InstallSpec:
 
         by_name = dict((pkg.name, pkg) for pkg in resolved)
         for i, request in enumerate(self.requirements):
+            if not isinstance(request, PkgRequest):
+                continue
             if not request.pin:
                 continue
             if request.pkg.name not in by_name:
@@ -115,7 +117,7 @@ class Spec:
 
         return self.build.resolve_all_options(self.pkg.name, given)
 
-    def sastisfies_request(self, request: Request) -> bool:
+    def sastisfies_request(self, request: PkgRequest) -> bool:
         """Return true if this package spec satisfies the given request."""
 
         if request.pkg.name != self.pkg.name:

@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Sequence
 
 from ruamel import yaml
 
@@ -25,7 +25,7 @@ class UnresolvedPackageError(SolverError):
 
 
 class ConflictingRequestsError(SolverError):
-    def __init__(self, msg: str, requests: List[api.Request] = None) -> None:
+    def __init__(self, msg: str, requests: Sequence[api.Request] = None) -> None:
 
         self.requests = requests
         message = f"Conflicting requests: {msg}"
