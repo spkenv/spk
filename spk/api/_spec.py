@@ -28,7 +28,7 @@ class InstallSpec:
     def upsert_requirement(self, request: Request) -> None:
         """Add or update a requirement to the set of installation requirements.
 
-        If a request exists for the same package, it is replaced with the given
+        If a request exists for the same name, it is replaced with the given
         one. Otherwise the new request is appended to the list.
         """
         for i, other in enumerate(self.requirements):
@@ -70,6 +70,11 @@ class InstallSpec:
         requirements = data.pop("requirements", [])
         if requirements:
             spec.requirements = list(Request.from_dict(r) for r in requirements)
+        request_names = list(r.name for r in spec.requirements)
+        while request_names:
+            name = request_names.pop()
+            if name in request_names:
+                raise ValueError(f"found multiple install requirements for '{name}'")
 
         embedded = data.pop(
             "embedded", data.pop("embeded", [])  # legacy support of misspelling
