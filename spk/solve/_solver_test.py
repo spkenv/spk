@@ -770,3 +770,38 @@ def test_solver_unknown_package_options() -> None:
         solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_var_requirements() -> None:
+
+    # test what happens when a dependency is added which is incompatible
+    # with an existing request in the stack
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/2.7.5",
+                "build": {"options": [{"var": "api", "static": "cp27"}]},
+            },
+            {
+                "pkg": "python/3.7.3",
+                "build": {"options": [{"var": "api", "static": "cp37"}]},
+            },
+            {
+                "pkg": "my-app/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
+                },
+            },
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-app")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("python").spec.pkg.version == "2.7.5"

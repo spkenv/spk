@@ -169,8 +169,47 @@ class Request(metaclass=abc.ABCMeta):
 
         if "pkg" in data:
             return PkgRequest.from_dict(data)
+        if "var" in data:
+            return VarRequest.from_dict(data)
 
         raise ValueError(f"Incomprehensible request definition: {data}")
+
+
+@dataclass
+class VarRequest(Request):
+    """A set of restrictions placed on selected packages' build options."""
+
+    var: str
+
+    def name(self) -> str:
+        """Return the canonical name of this requirement."""
+        return self.var
+
+    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+        """Return true if the given package spec satisfies this request."""
+        raise NotImplementedError("VarRequest.is_satisfied_by")
+
+    def clone(self: Self) -> Self:
+        """Return a copy of this request instance."""
+        return VarRequest.from_dict(self.to_dict())
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a serializable dict copy of this request."""
+
+        return {"var": self.var}
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "VarRequest":
+
+        var = data.pop("var")
+        request = VarRequest(var=var)
+
+        if len(data):
+            raise ValueError(
+                f"unrecognized fields in var request: {', '.join(data.keys())}"
+            )
+
+        return request
 
 
 @dataclass
