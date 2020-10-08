@@ -22,7 +22,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    env_cmd = sub_parsers.add_parser("env", help=_env.__doc__, **parser_args)
+    env_cmd = sub_parsers.add_parser(
+        "env", aliases=["run"], help=_env.__doc__, **parser_args
+    )
     env_cmd.add_argument(
         "args",
         metavar="[PKG@STAGE|PKG...] -- [CMD]",
@@ -70,7 +72,7 @@ def _env(args: argparse.Namespace) -> None:
     if not args.no_runtime:
         runtime = spfs.get_config().get_runtime_storage().create_runtime()
         argv = sys.argv
-        argv.insert(argv.index("env") + 1, "--no-runtime")
+        argv.insert(argv.index(args.command) + 1, "--no-runtime")
         cmd = spfs.build_command_for_runtime(runtime, *argv)
         os.execv(cmd[0], cmd)
 
