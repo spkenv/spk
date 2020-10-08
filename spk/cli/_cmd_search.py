@@ -26,11 +26,7 @@ def register(
 def _search(args: argparse.Namespace) -> None:
     """Search for packages by name/substring."""
 
-    repos = {}
-    if args.local_repo:
-        repos["local"] = spk.storage.local_repository()
-    for name in args.enable_repo:
-        repos[name] = spk.storage.remote_repository(name)
+    repos = _flags.get_repos_from_repo_flags(args)
 
     width = max(map(len, repos.keys()))
     for repo_name, repo in repos.items():

@@ -29,16 +29,18 @@ def register(
         nargs="?",
         help="Given a name, list versions. Given a name/version list builds",
     )
-    _flags.add_repo_flags(ls_cmd, defaults=[])
+    _flags.add_repo_flags(ls_cmd)
     ls_cmd.set_defaults(func=_ls)
     return ls_cmd
 
 
 def _ls(args: argparse.Namespace) -> None:
-    """ls a package into a shared repository."""
+    """list packages in one or more repositories."""
 
+    prefix = f"{Style.DIM}{{repo}}:{Style.RESET_ALL} "
     end = "\n"
     if not sys.stdout.isatty():
+        prefix = ""
         end = " "
 
     repos = _flags.get_repos_from_repo_flags(args)
@@ -50,9 +52,9 @@ def _ls(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if not args.package:
-        for repo in repos.values():
+        for repo_name, repo in repos.items():
             for name in repo.list_packages():
-                print(name, end=end)
+                print(prefix.format(repo=repo_name) + name, end=end)
             continue
 
     elif "/" not in args.package:

@@ -209,6 +209,15 @@ def add_repo_flags(
         default=defaults,
         help="Repositories to include in the resolve. Any configured spfs repository can be named here",
     )
+    parser.add_argument(
+        "--disable-repo",
+        "-dr",
+        type=str,
+        metavar="NAME",
+        action="append",
+        default=[],
+        help="Repositories to exclude in the resolve. Any configured spfs repository can be named here",
+    )
 
 
 def configure_solver_with_repo_flags(
@@ -227,5 +236,6 @@ def get_repos_from_repo_flags(
     if args.local_repo:
         repos["local"] = spk.storage.local_repository()
     for name in args.enable_repo:
-        repos[name] = spk.storage.remote_repository(name)
+        if name not in args.disable_repo:
+            repos[name] = spk.storage.remote_repository(name)
     return repos
