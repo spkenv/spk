@@ -1,10 +1,7 @@
-from typing import Callable, Any
+from typing import Any
 import argparse
-import os
 import sys
-import termios
 
-import spfs
 import structlog
 from ruamel import yaml
 from colorama import Fore, Style
@@ -81,12 +78,4 @@ def _view(args: argparse.Namespace) -> None:
 def _print_current_env(args: argparse.Namespace) -> None:
 
     solution = spk.current_env()
-    print("Installed Packages:")
-    for _, spec, _ in solution.items():
-        if args.verbose:
-            options = spec.resolve_all_options(spk.api.OptionMap({}))
-            print(
-                " ", spk.io.format_ident(spec.pkg), spk.io.format_options(options),
-            )
-        else:
-            print(" ", spk.io.format_ident(spec.pkg))
+    print(spk.io.format_solution(solution))

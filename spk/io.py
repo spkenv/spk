@@ -1,9 +1,7 @@
-from re import L
-from sys import version
 from typing import List
 from colorama import Fore, Style
 
-from . import api, storage, solve
+from . import api, solve
 
 
 def format_ident(pkg: api.Ident) -> str:
@@ -108,3 +106,15 @@ def format_build(build: api.Build) -> str:
         return f"{Fore.LIGHTYELLOW_EX}{build}{Style.RESET_ALL}"
     else:
         return f"{Style.DIM}{build}{Style.RESET_ALL}"
+
+
+def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
+
+    out = "Installed Packages:\n"
+    for _, spec, _ in solution.items():
+        if verbosity:
+            options = spec.resolve_all_options(api.OptionMap({}))
+            out += f"  {format_ident(spec.pkg)} {format_options(options)}"
+        else:
+            out += f"  {format_ident(spec.pkg)}"
+    return out
