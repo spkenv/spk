@@ -56,7 +56,7 @@ def _reset(args: argparse.Namespace) -> None:
             args.edit = True
         else:
             env_spec = spfs.tracking.EnvSpec(args.ref)
-            for target in env_spec.tags:
+            for target in env_spec.items:
                 obj = repo.read_ref(target)
                 runtime.push_digest(obj.digest())
     else:

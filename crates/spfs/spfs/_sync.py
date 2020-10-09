@@ -1,3 +1,4 @@
+from spfs import encoding
 from typing import Optional, List, Union
 import time
 import queue
@@ -26,7 +27,7 @@ def push_ref(ref: str, remote: Union[storage.Repository, str]) -> graph.Object:
     return sync_ref(ref, local, remote)
 
 
-def pull_ref(ref: str) -> graph.Object:
+def pull_ref(ref: Union[str, tracking.TagSpec, encoding.Digest]) -> graph.Object:
     """Pull a reference to the local repository, searching all configured remotes.
 
     Args:
@@ -52,15 +53,17 @@ def pull_ref(ref: str) -> graph.Object:
             continue
         return sync_ref(ref, remote, local)
     else:
-        raise graph.UnknownReferenceError("Unknown ref: " + ref)
+        raise graph.UnknownReferenceError(f"Unknown ref: {ref}")
 
 
 def sync_ref(
-    ref: str, src: storage.Repository, dest: storage.Repository
+    ref: Union[str, tracking.TagSpec, encoding.Digest],
+    src: storage.Repository,
+    dest: storage.Repository,
 ) -> graph.Object:
 
     try:
-        tag: Optional[tracking.Tag] = src.tags.resolve_tag(ref)
+        tag: Optional[tracking.Tag] = src.tags.resolve_tag(str(ref))
     except (graph.UnknownObjectError, ValueError):
         tag = None
 

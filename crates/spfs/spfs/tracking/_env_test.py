@@ -6,7 +6,10 @@ from ._env import EnvSpec
 def test_env_spec_validation() -> None:
 
     spec = EnvSpec("one+two")
-    assert len(spec.tags) == 2
+    assert len(list(spec.items)) == 2
+
+
+def test_env_spec_empty() -> None:
 
     with pytest.raises(ValueError):
-        EnvSpec("")
+        spec = EnvSpec("")

@@ -42,7 +42,7 @@ def _shell(args: argparse.Namespace) -> None:
     runtime = runtimes.create_runtime()
     if args.ref and args.ref != "-":
         env_spec = spfs.tracking.EnvSpec(args.ref)
-        for target in env_spec.tags:
+        for target in env_spec.items:
             if args.pull or not repo.has_ref(target):
                 _logger.info("pulling target ref", ref=target)
                 obj = spfs.pull_ref(target)
