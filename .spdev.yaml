@@ -1,8 +1,8 @@
-version: 0.15.0
+version: 0.15.1
 release_notes: |
-  * Improve some broken cli descriptions and duplicate aliases
-  * Fix error where old packages with incorrect embeded spelling could not be used
-  * Add bake command line to output the spfs layer stack for a solve or current env
+  * Fix bug that make some build artifacts get published into binary package
+    * The pattern used to identify files to be purged did
+       not match files in the root of the build area
 
 toolchain:
   - kind: Shell
