@@ -11,7 +11,7 @@ from ._manifest import Manifest, ManifestViewer
 
 
 @pytest.fixture(params=["fs", "tar"])
-def tmprepo(request: Any, tmpdir: py._path.local.LocalPath) -> Iterable[Repository]:
+def tmprepo(request: Any, tmpdir: py.path.local) -> Iterable[Repository]:
 
     if request.param == "fs":
         tmpdir = tmpdir.join("repo")
@@ -66,7 +66,7 @@ def test_commit_mode(tmpdir: py.path.local, tmprepo: Repository) -> None:
 def test_commit_broken_link(tmpdir: py.path.local, tmprepo: Repository) -> None:
 
     src_dir = tmpdir.join("source").ensure(dir=True)
-    src_dir.join("broken-link").mksymlinkto("nonexistant")
+    src_dir.join("broken-link").mksymlinkto("nonexistant")  # type: ignore
 
     manifest = tmprepo.commit_dir(src_dir.strpath)
     assert manifest.get_path("broken-link") is not None

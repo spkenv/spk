@@ -23,7 +23,7 @@ def test_read_write_manifest(tmpdir: py.path.local) -> None:
     assert manifest.digest() in list(storage._db.iter_digests())
 
 
-def test_manifest_parity(tmpdir: py._path.local.LocalPath) -> None:
+def test_manifest_parity(tmpdir: py.path.local) -> None:
 
     storage = ManifestStorage(FSDatabase(tmpdir.join("storage").strpath))
 

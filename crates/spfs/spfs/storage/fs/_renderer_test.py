@@ -10,7 +10,7 @@ from ._repository import FSRepository
 def test_render_manifest(tmpdir: py.path.local) -> None:
 
     storage = FSPayloadStorage(tmpdir.join("storage").strpath)
-    viewer = FSManifestViewer(tmpdir.join("renders"), storage)
+    viewer = FSManifestViewer(tmpdir.join("renders").strpath, storage)
 
     src_dir = tmpdir.join("source")
     src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
@@ -37,8 +37,8 @@ def test_copy_manfest(tmpdir: py.path.local) -> None:
     src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
     src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
     src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
-    src_dir.join("dir2.0/file2.txt").mksymlinkto("file.txt")
-    src_dir.join("dir2.0/abssrc").mksymlinkto(src_dir.strpath)
+    src_dir.join("dir2.0/file2.txt").mksymlinkto("file.txt")  # type: ignore
+    src_dir.join("dir2.0/abssrc").mksymlinkto(src_dir.strpath)  # type: ignore
     src_dir.join("dir2.0").chmod(0o555)
     src_dir.join("file.txt").write("rootdata", ensure=True)
     src_dir.join("file.txt").chmod(0o400)

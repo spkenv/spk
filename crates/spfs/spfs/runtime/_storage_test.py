@@ -25,7 +25,7 @@ def test_config_serialization() -> None:
 def test_runtime_properties(tmpdir: py.path.local) -> None:
 
     runtime = Runtime(tmpdir.strpath)
-    assert tmpdir.bestrelpath(runtime.root) == "."
+    assert tmpdir.bestrelpath(runtime.root) == "."  # type: ignore
     assert os.path.basename(runtime.config_file) == Runtime._config_file
 
 

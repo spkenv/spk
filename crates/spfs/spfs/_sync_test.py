@@ -67,7 +67,7 @@ def test_sync_ref(tmpdir: py.path.local) -> None:
     assert repo_a.has_layer(layer.digest())
 
 
-def test_sync_through_tar(tmpdir: py._path.local.LocalPath) -> None:
+def test_sync_through_tar(tmpdir: py.path.local) -> None:
 
     src_dir = tmpdir.join("source")
     src_dir.join("dir/file.txt").write("hello", ensure=True)
