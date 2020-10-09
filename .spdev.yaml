@@ -1,6 +1,8 @@
-version: 0.14.1
+version: 0.15.0
 release_notes: |
-  * Add support for prereleasePolicy field in pkg build options
+  * Improve some broken cli descriptions and duplicate aliases
+  * Fix error where old packages with incorrect embeded spelling could not be used
+  * Add bake command line to output the spfs layer stack for a solve or current env
 
 toolchain:
   - kind: Shell
