@@ -7,6 +7,7 @@ import py.path
 import spfs
 
 from .. import api, storage
+from ._sources import SourcePackageBuilder, data_path
 from ._binary import (
     validate_build_changeset,
     BuildError,
@@ -147,3 +148,40 @@ def test_build_bad_options() -> None:
             .with_option("debug", "false")
             .build()
         )
+
+
+def test_build_package_source_cleanup(tmprepo: storage.SpFSRepository) -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "spk-test/1.0.0+beta.1",
+            "sources": [
+                {"path": os.getcwd() + "/.spdev.yaml"},
+                {"path": os.getcwd() + "/examples", "subdir": "examples"},
+            ],
+            "build": {
+                "script": [
+                    "ls -la",
+                    "mkdir build",
+                    "touch build/some_build_file.out",
+                    "touch examples/some_build_file.out",
+                    "mkdir examples/build",
+                    "touch examples/build/some_build_file.out",
+                ]
+            },
+        }
+    )
+    tmprepo.publish_spec(spec)
+    src_pkg = (
+        SourcePackageBuilder.from_spec(spec).with_target_repository(tmprepo).build()
+    )
+
+    pkg = BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
+
+    digest = storage.local_repository().get_package(pkg.pkg)
+    spfs_repo = storage.local_repository().as_spfs_repo()
+    layer = spfs_repo.read_layer(digest)
+    manifest = spfs_repo.read_manifest(layer.manifest).unlock()
+
+    source_dir_files = manifest.list_dir(data_path(src_pkg, prefix=""))
+    assert not source_dir_files, "no files should be committed from source path"

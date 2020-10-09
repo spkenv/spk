@@ -33,6 +33,7 @@ class SourcePackageBuilder:
     def __init__(self) -> None:
 
         self._spec: Optional[api.Spec] = None
+        self._repo: Optional[storage.Repository] = None
 
     @staticmethod
     def from_spec(spec: api.Spec) -> "SourcePackageBuilder":
@@ -41,6 +42,14 @@ class SourcePackageBuilder:
         builder._spec = spec
         return builder
 
+    def with_target_repository(
+        self, repo: storage.Repository
+    ) -> "SourcePackageBuilder":
+        """Set the repository that the created package should be published to."""
+
+        self._repo = repo
+        return self
+
     def build(self) -> api.Ident:
         """Build the requested source package."""
 
@@ -48,7 +57,11 @@ class SourcePackageBuilder:
             self._spec is not None
         ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
 
-        repo = storage.local_repository()
+        if self._repo is not None:
+            repo = self._repo
+        else:
+            repo = storage.local_repository()
+
         layer = collect_and_commit_sources(self._spec)
         spec = self._spec.clone()
         spec.pkg.set_build(api.SRC)

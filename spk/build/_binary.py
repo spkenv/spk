@@ -183,8 +183,8 @@ class BinaryPackageBuilder:
         sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
         runtime = spfs.active_runtime()
-        pattern = os.path.join(sources_dir[len(self._prefix) :], "**", "*")
-        _LOGGER.info("Purging all changes made to source directory", dir=pattern)
+        pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
+        _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
         runtime.reset(pattern)
         spfs.remount_runtime(runtime)
 
