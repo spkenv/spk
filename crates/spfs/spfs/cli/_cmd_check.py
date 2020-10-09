@@ -12,7 +12,9 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     check_cmd = sub_parsers.add_parser("check", help=_check.__doc__)
     check_cmd.add_argument(
-        "--remote", "-r", help=("Trigger the check operation on a remote repository"),
+        "--remote",
+        "-r",
+        help=("Trigger the check operation on a remote repository"),
     )
     check_cmd.set_defaults(func=_check)
 

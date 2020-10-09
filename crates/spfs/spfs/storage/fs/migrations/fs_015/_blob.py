@@ -162,8 +162,7 @@ def _unmark_render_completed(render_path: str) -> None:
 
 
 def _copy_manifest(manifest: tracking.Manifest, src_root: str, dst_root: str) -> None:
-    """Copy manifest contents from one directory to another.
-    """
+    """Copy manifest contents from one directory to another."""
 
     src_root = src_root.rstrip("/")
     dst_root = dst_root.rstrip("/")

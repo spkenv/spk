@@ -42,7 +42,9 @@ class FSRepository(Repository, FSManifestViewer):
         self.objects = FSDatabase(os.path.join(self.__root, "objects"))
         self.payloads = FSPayloadStorage(os.path.join(self.__root, "payloads"))
         FSManifestViewer.__init__(
-            self, root=os.path.join(self.__root, "renders"), payloads=self.payloads,
+            self,
+            root=os.path.join(self.__root, "renders"),
+            payloads=self.payloads,
         )
         Repository.__init__(
             self,

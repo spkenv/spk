@@ -62,7 +62,10 @@ class Entry(dict):
         """Return a copy of this entry (does not clone)."""
 
         other = Entry(
-            kind=self.kind, object=self.object, mode=self.mode, size=self.size,
+            kind=self.kind,
+            object=self.object,
+            mode=self.mode,
+            size=self.size,
         )
         for name, node in self.items():
             other[name] = node

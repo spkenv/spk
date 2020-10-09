@@ -56,7 +56,8 @@ def test_prunable_tags_version(tmprepo: storage.fs.FSRepository) -> None:
     tag0 = tmprepo.tags.push_tag(tag, encoding.NULL_DIGEST)
 
     tags = get_prunable_tags(
-        tmprepo.tags, PruneParameters(prune_if_version_more_than=2),
+        tmprepo.tags,
+        PruneParameters(prune_if_version_more_than=2),
     )
     assert tag0 not in tags
     assert tag1 not in tags
@@ -103,7 +104,8 @@ def test_prune_tags(tmprepo: storage.fs.FSRepository) -> None:
 
     reset()
     prune_tags(
-        tmprepo.tags, PruneParameters(prune_if_version_more_than=2),
+        tmprepo.tags,
+        PruneParameters(prune_if_version_more_than=2),
     )
     for tag in tmprepo.tags.read_tag("test/prune"):
         assert tag is not tags[2025]
@@ -112,7 +114,8 @@ def test_prune_tags(tmprepo: storage.fs.FSRepository) -> None:
 
     reset()
     prune_tags(
-        tmprepo.tags, PruneParameters(prune_if_version_more_than=-1),
+        tmprepo.tags,
+        PruneParameters(prune_if_version_more_than=-1),
     )
     with pytest.raises(graph.UnknownReferenceError):
         for tag in tmprepo.tags.read_tag("test/prune"):

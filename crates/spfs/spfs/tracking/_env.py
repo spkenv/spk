@@ -8,10 +8,9 @@ from ._tag import TagSpec
 
 
 class EnvSpec(str):
-    """Env specifies a complete runtime environment that can be made up of multiple layers.
-    """
+    """Env specifies a complete runtime environment that can be made up of multiple layers."""
 
-    def __new__(cls, spec: str) -> None:
+    def __new__(cls, spec: str) -> "EnvSpec":
 
         tuple(parse_env_spec(spec))
         return str.__new__(cls, spec)  # type: ignore

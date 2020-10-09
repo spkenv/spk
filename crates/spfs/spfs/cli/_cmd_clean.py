@@ -15,7 +15,9 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     clean_cmd = sub_parsers.add_parser("clean", help=_clean.__doc__)
     clean_cmd.add_argument(
-        "--remote", "-r", help=("Trigger the clean operation on a remote repository"),
+        "--remote",
+        "-r",
+        help=("Trigger the clean operation on a remote repository"),
     )
     clean_cmd.add_argument(
         "--prune",

@@ -13,7 +13,9 @@ def register(sub_parsers: argparse._SubParsersAction) -> None:
 
     migrate_cmd = sub_parsers.add_parser("migrate", help=_migrate.__doc__)
     migrate_cmd.add_argument(
-        "path", metavar="PATH", help="the path to the filesystem repository to migrate",
+        "path",
+        metavar="PATH",
+        help="the path to the filesystem repository to migrate",
     )
     migrate_cmd.add_argument(
         "--upgrade",

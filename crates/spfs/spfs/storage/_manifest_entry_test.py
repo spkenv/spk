@@ -7,13 +7,19 @@ def test_entry_blobs_compare_name() -> None:
     a = Entry(
         name="a",
         entry=tracking.Entry(
-            kind=tracking.EntryKind.BLOB, mode=0, object=encoding.EMPTY_DIGEST, size=0,
+            kind=tracking.EntryKind.BLOB,
+            mode=0,
+            object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     b = Entry(
         name="b",
         entry=tracking.Entry(
-            kind=tracking.EntryKind.BLOB, mode=0, object=encoding.EMPTY_DIGEST, size=0,
+            kind=tracking.EntryKind.BLOB,
+            mode=0,
+            object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     assert a < b and b > a
@@ -24,13 +30,19 @@ def test_entry_trees_compare_name() -> None:
     a = Entry(
         name="a",
         entry=tracking.Entry(
-            kind=tracking.EntryKind.TREE, mode=0, object=encoding.EMPTY_DIGEST, size=0,
+            kind=tracking.EntryKind.TREE,
+            mode=0,
+            object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     b = Entry(
         name="b",
         entry=tracking.Entry(
-            kind=tracking.EntryKind.TREE, mode=0, object=encoding.EMPTY_DIGEST, size=0,
+            kind=tracking.EntryKind.TREE,
+            mode=0,
+            object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     assert a < b and b > a
@@ -41,13 +53,19 @@ def test_entry_compare_kind() -> None:
     blob = Entry(
         name="a",
         entry=tracking.Entry(
-            kind=tracking.EntryKind.BLOB, mode=0, object=encoding.EMPTY_DIGEST, size=0,
+            kind=tracking.EntryKind.BLOB,
+            mode=0,
+            object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     tree = Entry(
         name="b",
         entry=tracking.Entry(
-            kind=tracking.EntryKind.TREE, mode=0, object=encoding.EMPTY_DIGEST, size=0,
+            kind=tracking.EntryKind.TREE,
+            mode=0,
+            object=encoding.EMPTY_DIGEST,
+            size=0,
         ),
     )
     assert tree > blob and blob < tree
