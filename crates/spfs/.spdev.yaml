@@ -1,7 +1,6 @@
-version: 0.20.10
+version: 0.20.11
 release_notes: |
-  * Update tag stream removal to remove all empty parent directories
-    * this ensures that ls-tags never shows directories with no tags under them
+  * Fix bug that caused failures when full digests were given on the command line
 
 toolchain:
   - kind: Pipenv
