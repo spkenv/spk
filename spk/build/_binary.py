@@ -44,6 +44,7 @@ class BinaryPackageBuilder:
         self._source: Union[str, api.Ident] = "."
         self._solver: Optional[solve.Solver] = None
         self._repos: List[storage.Repository] = []
+        self._interactive = False
 
     @staticmethod
     def from_spec(spec: api.Spec) -> "BinaryPackageBuilder":
@@ -91,6 +92,11 @@ class BinaryPackageBuilder:
     ) -> "BinaryPackageBuilder":
 
         self._repos.extend(repos)
+        return self
+
+    def set_interactive(self, interactive: bool) -> "BinaryPackageBuilder":
+
+        self._interactive = interactive
         return self
 
     def build(self) -> api.Spec:
@@ -229,8 +235,18 @@ class BinaryPackageBuilder:
         # spfs startup and build environment are predictable and consistent
         # (eg in case the user's shell does not have startup scripts in
         #  the dependencies, is not supported by spfs, etc)
-        os.environ["SHELL"] = "sh"
-        cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
+        if self._interactive:
+            os.environ["SHELL"] = "bash"
+            print("\nNow entering an interactive build shell")
+            print(" - your current directory will be set to the sources area")
+            print(" - build and install your artifacts into /spfs")
+            print(" - this package's build script can be run from: " + build_script)
+            print(" - to cancel and discard this build, run `exit 1`")
+            print(" - to finalize and save the package, run `exit 0`")
+            cmd = spfs.build_interactive_shell_cmd()
+        else:
+            os.environ["SHELL"] = "sh"
+            cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
         proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
         proc.wait()
         if proc.returncode != 0:

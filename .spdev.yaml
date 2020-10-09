@@ -1,5 +1,9 @@
 version: 0.15.1
 release_notes: |
+  * Add --interactive/-i flag to build/make-binary cli commands
+    * This flag sets up the build but creates an interactive shell instead
+      of running the defined build script. This is helpful for debugging and quickly
+      iterating on package builds
   * Fix bug that make some build artifacts get published into binary package
     * The pattern used to identify files to be purged did
        not match files in the root of the build area

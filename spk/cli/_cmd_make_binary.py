@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Callable, Any
 import argparse
 import os
@@ -36,6 +37,13 @@ def register(
             "Build from the current directory, instead of a source package "
             "(only relevant when building from a source package, not yaml spec files)"
         ),
+    )
+    mkb_cmd.add_argument(
+        "--interactive",
+        "-i",
+        action="store_true",
+        default=False,
+        help="Setup the build, but instead of running the build script start an interactive shell",
     )
     mkb_cmd.add_argument(
         "packages",
@@ -93,6 +101,7 @@ def _make_binary(args: argparse.Namespace) -> None:
             )
             if args.here:
                 builder = builder.with_source(os.getcwd())
+            builder.set_interactive(args.interactive)
             try:
                 out = builder.build()
             except spk.SolverError:

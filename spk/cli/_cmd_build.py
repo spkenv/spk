@@ -20,6 +20,12 @@ def register(
 
     build_cmd = sub_parsers.add_parser("build", help=_build.__doc__, **parser_args)
     build_cmd.add_argument(
+        "--interactive",
+        "-i",
+        action="store_true",
+        help="Setup the build, but instead of running the build script start an interactive shell",
+    )
+    build_cmd.add_argument(
         "files",
         metavar="SPEC_FILE",
         nargs="*",
@@ -57,6 +63,8 @@ def _build(args: argparse.Namespace) -> None:
             binary_flags.append("-l")
         for r in args.enable_repo:
             binary_flags.extend(["-r", r])
+        if args.interactive:
+            binary_flags.append("-i")
         cmd = ["spk", "make-binary", filename, *common_args, *binary_flags]
         _LOGGER.info(" ".join(cmd))
         proc = subprocess.Popen(cmd)
