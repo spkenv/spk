@@ -12,6 +12,7 @@ import colorama
 
 import spk
 from . import (
+    _cmd_bake,
     _cmd_build,
     _cmd_convert,
     _cmd_deprecate,
@@ -51,6 +52,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         dest="command", title="commands", metavar="COMMAND"
     )
 
+    _cmd_bake.register(sub_parsers, parents=[parent_parser])
     _cmd_build.register(sub_parsers, parents=[parent_parser])
     _cmd_convert.register(sub_parsers, parents=[parent_parser])
     _cmd_deprecate.register(sub_parsers, parents=[parent_parser])
