@@ -31,11 +31,15 @@ class Build:
 
 def parse_build(digest: str) -> Build:
 
+    if digest == "embeded":
+        # legacy support of misspelling
+        digest = EMBEDDED
+
     if digest in (SRC, EMBEDDED):
         return Build(digest)
 
     try:
         base64.b32decode(digest)
     except binascii.Error as e:
-        raise InvalidBuildError(f"Invalid build digest: {e}") from None
+        raise InvalidBuildError(f"Invalid build digest '{digest}': {e}") from None
     return Build(digest)

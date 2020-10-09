@@ -70,7 +70,7 @@ class InstallSpec:
             spec.requirements = list(Request.from_dict(r) for r in requirements)
 
         embedded = data.pop(
-            "embedded", data.pop("embedded", [])  # legacy support of misspelling
+            "embedded", data.pop("embeded", [])  # legacy support of misspelling
         )
         for e in embedded:
             if "build" in e:
