@@ -15,6 +15,7 @@ from ._source_spec import SourceSpec, LocalSource, GitSource, TarSource
 from ._request import (
     Request,
     PkgRequest,
+    VarRequest,
     parse_ident_range,
     PreReleasePolicy,
     InclusionPolicy,

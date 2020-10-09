@@ -180,6 +180,7 @@ class VarRequest(Request):
     """A set of restrictions placed on selected packages' build options."""
 
     var: str
+    value: str
 
     def name(self) -> str:
         """Return the canonical name of this requirement."""
@@ -189,20 +190,24 @@ class VarRequest(Request):
         """Return true if the given package spec satisfies this request."""
         raise NotImplementedError("VarRequest.is_satisfied_by")
 
-    def clone(self: Self) -> Self:
+    def clone(self) -> "VarRequest":
         """Return a copy of this request instance."""
         return VarRequest.from_dict(self.to_dict())
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
 
-        return {"var": self.var}
+        return {"var": f"{self.var}/{self.value}"}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "VarRequest":
 
         var = data.pop("var")
-        request = VarRequest(var=var)
+        if "/" not in var:
+            raise ValueError(f"var request must be in the form name/value, got '{var}'")
+
+        var, value = var.split("/", 1)
+        request = VarRequest(var=var, value=value)
 
         if len(data):
             raise ValueError(

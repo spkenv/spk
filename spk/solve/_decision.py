@@ -216,8 +216,23 @@ class Decision:
 
         if isinstance(request, api.Ident):
             request = str(request)
+
         if not isinstance(request, api.Request):
             request = api.PkgRequest.from_dict({"pkg": request})
+
+        if isinstance(request, api.VarRequest):
+            try:
+                assert self._options[request.var] == request.value
+            except KeyError:
+                pass
+            except AssertionError:
+                raise ConflictingRequestsError(
+                    "Var requests are incompatible", [request]
+                )
+            self._options = self._options.copy()
+            self._options[request.var] = request.value
+            return
+
         if not isinstance(request, api.PkgRequest):
             raise NotImplementedError(f"TODO: Unahandled request type {type(request)}")
 

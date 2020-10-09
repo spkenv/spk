@@ -780,11 +780,11 @@ def test_solver_var_requirements() -> None:
         [
             {
                 "pkg": "python/2.7.5",
-                "build": {"options": [{"var": "api", "static": "cp27"}]},
+                "build": {"options": [{"var": "abi", "static": "cp27"}]},
             },
             {
                 "pkg": "python/3.7.3",
-                "build": {"options": [{"var": "api", "static": "cp37"}]},
+                "build": {"options": [{"var": "abi", "static": "cp37"}]},
             },
             {
                 "pkg": "my-app/1.0.0",
