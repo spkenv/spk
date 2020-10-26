@@ -141,9 +141,9 @@ class FilteredPackageIterator(PackageIterator):
                 assert isinstance(repo, storage.Repository)
                 version_spec = repo.read_spec(candidate.pkg.with_build(None))
             except (AssertionError, storage.PackageNotFoundError):
-                _LOGGER.debug(
-                    "package has no version spec", pkg=candidate.pkg, repo=repo
-                )
+                # package has no version spec, which will stop us checking
+                # some options efficiently, but is not really a problem
+                pass
 
             # check option compatibility of entire version, if applicable
             if version_spec is not None:
