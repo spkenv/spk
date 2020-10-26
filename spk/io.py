@@ -114,7 +114,7 @@ def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
     for _, spec, _ in solution.items():
         if verbosity:
             options = spec.resolve_all_options(api.OptionMap({}))
-            out += f"  {format_ident(spec.pkg)} {format_options(options)}"
+            out += f"  {format_ident(spec.pkg)} {format_options(options)}\n"
         else:
-            out += f"  {format_ident(spec.pkg)}"
+            out += f"  {format_ident(spec.pkg)}\n"
     return out
