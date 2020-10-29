@@ -1,6 +1,8 @@
-version: 0.20.11
+version: 0.20.12
 release_notes: |
-  * Fix bug that caused failures when full digests were given on the command line
+  * Update clean command to be faster on large repos
+    * Don't print all ids before cleaning
+    * Fix bug where it tried to clean the same thing many times
 
 toolchain:
   - kind: Pipenv
