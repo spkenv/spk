@@ -77,16 +77,15 @@ def _clean(args: argparse.Namespace) -> None:
     if not len(unattached):
         _LOGGER.info("no objects to remove")
         return
-    for digest in unattached:
-        print(spfs.io.format_digest(digest))
+    print(f"found {len(unattached)} objects to remove")
     if not args.yes:
         answer = input(
             "Do you wish to proceed with the removal of these objects? [y/N]: "
         )
         if answer != "y":
             sys.exit(1)
-    for digest in unattached:
-        spfs.purge_objects(unattached, repo)
+
+    spfs.purge_objects(unattached, repo)
 
 
 def _prune(args: argparse.Namespace, repo: spfs.storage.Repository) -> None:
