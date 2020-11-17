@@ -23,26 +23,30 @@ A source spec can be one of [LocalSource](#localsource), [GitSource](#gitsource)
 
 Defines a local directory to collect sources from. This process will also automatically detect a git repository and not transfer ignored files.
 
-| Field | Type  | Description                                        |
-| ----- | ----- | -------------------------------------------------- |
-| path  | _str_ | The relative or absolute path to a local directory |
+| Field   | Type        | Description                                                                                  |
+| ------- | ----------- | -------------------------------------------------------------------------------------------- |
+| path    | _str_       | The relative or absolute path to a local directory                                           |
+| exclude | List[_str_] | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/") |
+| subdir  | _str_       | An alternative path to place these files in the source package                               |
 
 ### GitSource
 
 Clones a git repository as package source files.
 
-| Field | Type  | Description                                             |
-| ----- | ----- | ------------------------------------------------------- |
-| git   | _str_ | The url or local path to a git repository to be cloned  |
-| ref   | _str_ | Optional branch, commit or tag name for the source repo |
+| Field  | Type  | Description                                                    |
+| ------ | ----- | -------------------------------------------------------------- |
+| git    | _str_ | The url or local path to a git repository to be cloned         |
+| ref    | _str_ | Optional branch, commit or tag name for the source repo        |
+| subdir | _str_ | An alternative path to place these files in the source package |
 
 ### TarSource
 
 Fetches and extracts a tar archive as package source files.
 
-| Field | Type  | Description                       |
-| ----- | ----- | --------------------------------- |
-| tar   | _str_ | The url or local path to tar file |
+| Field  | Type  | Description                                                    |
+| ------ | ----- | -------------------------------------------------------------- |
+| tar    | _str_ | The url or local path to tar file                              |
+| subdir | _str_ | An alternative path to place these files in the source package |
 
 ## BuildSpec
 

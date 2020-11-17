@@ -51,6 +51,7 @@ def test_sources_subdir(tmpdir: py.path.local) -> None:
     git_source = api.GitSource.from_dict({"git": os.getcwd(), "subdir": "git_repo"})
     source_dir = tmpdir.join("source")
     source_dir.join("file.txt").ensure()
+    source_dir.join(".git/gitfile").ensure()
     dir_source = api.LocalSource.from_dict({"path": source_dir, "subdir": "local"})
     source_file = tmpdir.join("src", "source_file.txt").ensure()
     file_source = api.LocalSource.from_dict(
@@ -66,5 +67,6 @@ def test_sources_subdir(tmpdir: py.path.local) -> None:
     assert dest_dir.join("archive/src").isdir()
     assert dest_dir.join("archive/src/spk/__init__.py").isfile()
     assert dest_dir.join("git_repo/spk/__init__.py").isfile()
+    assert not dest_dir.join("local/.git").exists(), "should exclude git repo"
     assert dest_dir.join("local/file.txt").isfile()
     assert dest_dir.join("local/source_file.txt").isfile()
