@@ -46,6 +46,7 @@ class LocalSource(SourceSpec):
     """Package source files in a local directory or file path."""
 
     path: str = "."
+    exclude: List[str] = field(default_factory=lambda: [".git/", ".svn/"])
 
     def collect(self, dirname: str) -> None:
 
@@ -65,7 +66,9 @@ class LocalSource(SourceSpec):
             args.append("--verbose")
         if os.path.exists(os.path.join(path, ".gitignore")):
             args += ["--filter", ":- .gitignore"]
-        args += ["--cvs-exclude", path, dirname]
+        for exclusion in self.exclude:
+            args += ["--exclude", exclusion]
+        args += [path, dirname]
         cmd = ["rsync"] + args
         _LOGGER.debug(" ".join(cmd))
         subprocess.check_call(cmd, cwd=dirname)

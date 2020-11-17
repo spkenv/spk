@@ -1,6 +1,9 @@
-version: 0.15.2
+version: 0.16.0
 release_notes: |
-  * Clean up console output in a few situations
+  * Update local sources to be less aggressive in file exclusions
+    * Use configurable flags instead of the `--cvs-exclude` flag in rsync
+    * This change should be backwards compatible with most existing specs but
+      may cause additional files to be included in source packages which were not before
 
 toolchain:
   - kind: Shell
