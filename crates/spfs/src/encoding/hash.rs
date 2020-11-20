@@ -43,7 +43,7 @@ impl Encodable for String {
 }
 
 /// Digest is the result of a hashing operation over binary data.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub struct Digest([u8; DIGEST_SIZE]);
 
 impl AsRef<[u8]> for Digest {
@@ -69,6 +69,12 @@ impl<'a> Digest {
     }
     pub fn parse(digest_str: &str) -> Result<Digest> {
         digest_str.try_into()
+    }
+}
+
+impl From<[u8; DIGEST_SIZE]> for Digest {
+    fn from(bytes: [u8; DIGEST_SIZE]) -> Self {
+        Digest(bytes)
     }
 }
 
