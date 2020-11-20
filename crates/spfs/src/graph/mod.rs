@@ -1,13 +1,11 @@
-"""Low-level digraph representation and manipulation for data storage."""
+///! Low-level digraph representation and manipulation for data storage.
+mod database;
+mod error;
+mod operations;
 
-from ._object import Object
-from ._database import (
-    Database,
-    DatabaseView,
-    UnknownObjectError,
-    UnknownReferenceError,
-    AmbiguousReferenceError,
-)
-from ._operations import check_database_integrity
+pub use error::{
+    AmbiguousReferenceError, Error, Result, UnknownObjectError, UnknownReferenceError,
+};
 
-__all__ = list(locals().keys())
+pub use database::{Database, DatabaseView};
+pub use operations::check_database_integrity;

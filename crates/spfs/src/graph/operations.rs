@@ -1,20 +1,24 @@
-from typing import List, Set
+use std::collections::HashSet;
 
-from .. import encoding
-from ._database import DatabaseView, UnknownObjectError
+use super::database::DatabaseView;
+use super::Error;
+use crate::encoding;
 
-
-def check_database_integrity(db: DatabaseView) -> List[Exception]:
-    """Validate that all objects can be loaded and their children are accessible."""
-
-    errors: List[Exception] = []
-    visited: Set[encoding.Digest] = set()
-    for obj in db.iter_objects():
-        for digest in obj.child_objects():
-            if digest in visited:
-                continue
-            try:
-                child = db.read_object(digest)
-            except Exception as e:
-                errors.append(e)
-    return errors
+/// Validate that all objects can be loaded and their children are accessible.
+pub fn check_database_integrity<'db>(db: impl DatabaseView<'db>) -> Vec<Error> {
+    let errors = Vec::new();
+    let visited: HashSet<&encoding::Digest> = Default::default();
+    for obj in db.iter_objects() {
+        for digest in obj.child_objects() {
+            if visited.contains(digest) {
+                continue;
+            }
+            visited.insert(digest);
+            match db.read_object(digest) {
+                Err(err) => errors.push(err),
+                Ok(_) => (),
+            }
+        }
+    }
+    errors
+}

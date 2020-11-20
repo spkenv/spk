@@ -1,153 +1,147 @@
-from typing import Iterable, Set
-import base64
-import abc
-import collections
+use std::collections::{HashSet, VecDeque};
 
-from .. import encoding
-from ._object import Object
+use super::{AmbiguousReferenceError, Result, UnknownReferenceError};
+use crate::encoding;
+use crate::tracking;
 
+/// Walks an object tree depth-first starting at some root digest
+pub struct DatabaseWalker<'db, DB>
+where
+    DB: DatabaseView<'db> + ?Sized,
+{
+    db: &'db DB,
+    queue: VecDeque<encoding::Digest>,
+}
 
-class UnknownObjectError(ValueError):
-    """Denotes a missing object or one that is not present in the database."""
+impl<'db, DB> DatabaseWalker<'db, DB>
+where
+    DB: DatabaseView<'db> + ?Sized,
+{
+    /// Create an iterator that yields all child objects starting at root
+    /// from the given database.
+    ///
+    /// # Errors
+    /// The same as [`DatabaseView::read_object`]
+    pub fn new(db: &'db DB, root: encoding::Digest) -> Self {
+        let queue = VecDeque::new();
+        queue.push_back(root);
+        DatabaseWalker {
+            db: db,
+            queue: queue,
+        }
+    }
+}
 
-    def __init__(self, digest: encoding.Digest) -> None:
+impl<'db, DB> Iterator for DatabaseWalker<'db, DB>
+where
+    DB: DatabaseView<'db> + Sized,
+{
+    type Item = Result<(encoding::Digest, tracking::Object)>;
 
-        super(UnknownObjectError, self).__init__(f"Unknown object: {str(digest)}")
+    fn next(&mut self) -> Option<&'db Self::Item> {
+        let next = self.queue.pop_front();
+        match next {
+            None => None,
+            Some(next) => {
+                let obj = self.db.read_object(next);
+                if let Ok(obj) = obj {
+                    for digest in obj.child_objects() {
+                        self.queue.push_back(digest);
+                    }
+                }
+                Some((next, obj))
+            }
+        }
+    }
+}
 
+/// A read-only object database.
+pub trait DatabaseView<'db> {
+    type Iterator: Iterator<Item = &'db encoding::Digest>;
 
-class UnknownReferenceError(ValueError):
-    """Denotes a reference that is not known."""
+    /// Read information about the given object from the database.
+    ///
+    /// # Errors:
+    /// - [`super::UnknownObjectError`]: if the object is not in this database
+    fn read_object(&self, digest: encoding::Digest) -> Result<&'db tracking::Object>;
 
-    pass
+    /// Iterate all the object digests in this database.
+    fn iter_digests(&self) -> Self::Iterator;
 
+    /// Return true if this database contains the identified object
+    fn has_object(&self, digest: encoding::Digest) -> bool {
+        if let Ok(_) = self.read_object(digest) {
+            true
+        } else {
+            false
+        }
+    }
 
-class AmbiguousReferenceError(ValueError):
-    """Denotes a reference that could refer to more than one object in the storage."""
+    /// Iterate all the object in this database.
+    fn iter_objects(
+        &self,
+    ) -> Box<dyn Iterator<Item = Result<(encoding::Digest, tracking::Object)>>> {
+        self.iter_digests()
+            .map(|digest| (digest, self.read_object(digest)))
+    }
 
-    def __init__(self, ref: str) -> None:
-        super(AmbiguousReferenceError, self).__init__(
-            f"Ambiguous reference [too short]: {ref}"
-        )
+    /// Walk all objects connected to the given root object.
+    fn walk_objects(&'db self, root: encoding::Digest) -> DatabaseWalker<'db, Self> {
+        DatabaseWalker::new(self, root)
+    }
 
+    /// Return the shortened version of the given digest.
+    ///
+    /// By default this is an O(n) operation defined by the number of objects.
+    /// Other implemntations may provide better results.
+    fn get_shortened_digest(&self, digest: encoding::Digest) -> String {
+        const size_step: usize = 5; // creates 8 char string at base 32
+        let shortest_size: usize = size_step;
+        let shortest = &digest.as_ref()[..shortest_size];
+        for other in self.iter_digests() {
+            if &other.as_ref()[..shortest_size] != shortest {
+                continue;
+            }
+            if other == &digest {
+                continue;
+            }
+            while &other.as_ref()[..shortest_size] == shortest {
+                shortest_size += size_step;
+                shortest = &digest.as_ref()[..shortest_size];
+            }
+        }
+        data_encoding::BASE32.encode(shortest)
+    }
 
-class DatabaseView(metaclass=abc.ABCMeta):
-    """A read-only object database."""
+    /// Resolve the complete object digest from a shortened one.
+    ///
+    /// By default this is an O(n) operation defined by the number of objects.
+    /// Other implemntations may provide better results.
+    ///
+    /// # Errors
+    /// - UnknownReferenceError: if the digest cannot be resolved
+    /// - AmbiguousReferenceError: if the digest could point to multiple objects
+    fn resolve_full_digest(&self, short_digest: String) -> Result<encoding::Digest> {
+        let decoded = data_encoding::BASE32.decode(short_digest.as_bytes())?;
+        let options = Vec::new();
+        for digest in self.iter_digests() {
+            if &digest.as_ref()[..decoded.len()] == decoded {
+                options.push(digest)
+            }
+        }
 
-    @abc.abstractmethod
-    def read_object(self, digest: encoding.Digest) -> Object:
-        """Read information about the given object from the database.
+        match options.len() {
+            0 => Err(UnknownReferenceError::new(short_digest).into()),
+            1 => Ok(options.get(0).unwrap().clone()),
+            _ => Err(AmbiguousReferenceError::new(short_digest).into()),
+        }
+    }
+}
 
-        Raises:
-            UnknownObjectError: if the identified object does not exist in the database.
-        """
-        ...
+pub trait Database<'db>: DatabaseView<'db> {
+    /// Write an object to the database, for later retrieval.
+    fn write_object(&mut self, obj: &tracking::Object);
 
-    @abc.abstractmethod
-    def iter_digests(self) -> Iterable[encoding.Digest]:
-        """Iterate all the object digests in this database."""
-        ...
-
-    def has_object(self, digest: encoding.Digest) -> bool:
-
-        try:
-            self.read_object(digest)
-        except UnknownObjectError:
-            return False
-        else:
-            return True
-
-    def iter_objects(self) -> Iterable[Object]:
-        """Iterate all the object in this database."""
-
-        for digest in self.iter_digests():
-            yield self.read_object(digest)
-
-    def walk_objects(self, root: encoding.Digest) -> Iterable[Object]:
-        """Walk all objects connected to the given root object."""
-
-        objs = collections.deque([self.read_object(root)])
-        while len(objs) > 0:
-
-            obj = objs.popleft()
-            yield obj
-
-            for digest in obj.child_objects():
-                objs.append(self.read_object(digest))
-
-    def get_descendants(self, root: encoding.Digest) -> Set[encoding.Digest]:
-        """Return the set of all objects under the given object, recursively."""
-
-        visited: Set[encoding.Digest] = set()
-
-        def follow(digest: encoding.Digest) -> None:
-            if digest in visited:
-                return
-
-            visited.add(digest)
-            try:
-                obj = self.read_object(digest)
-            except UnknownObjectError:
-                return
-
-            for child in obj.child_objects():
-                follow(child)
-
-        follow(root)
-        return visited
-
-    def get_shortened_digest(self, digest: encoding.Digest) -> str:
-        """Return the shortened version of the given digest.
-
-        By default this is an O(n) operation defined by the number of objects.
-        Other implemntations may provide better results.
-        """
-
-        shortest_size = 5  # creates 8 char string at base 32
-        shortest = digest[:shortest_size]
-        for other in self.iter_digests():
-            if other[:shortest_size] != shortest:
-                continue
-            if other == digest:
-                continue
-            while other[:shortest_size] == shortest:
-                shortest_size += 5
-                shortest = digest[:shortest_size]
-        return base64.b32encode(shortest).decode()
-
-    def resolve_full_digest(self, short_digest: str) -> encoding.Digest:
-        """Resolve the complete object digest from a shortened one.
-
-        By default this is an O(n) operation defined by the number of objects.
-        Other implemntations may provide better results.
-
-        Raises:
-            UnknownReferenceError: if the digest cannot be resolved
-            AmbiguousReferenceError: if the digest could point to multiple objects
-        """
-
-        decoded = base64.b32decode(short_digest.encode())
-        options = []
-        for digest in self.iter_digests():
-            if digest[: len(decoded)] == decoded:
-                options.append(digest)
-
-        if len(options) == 0:
-            raise UnknownReferenceError(short_digest)
-        if len(options) > 1:
-            raise AmbiguousReferenceError(short_digest)
-
-        return options[0]
-
-
-class Database(DatabaseView):
-    """Databases store and retrieve graph objects."""
-
-    @abc.abstractmethod
-    def write_object(self, obj: Object) -> None:
-        """Write an object to the database, for later retrieval."""
-        ...
-
-    @abc.abstractmethod
-    def remove_object(self, digest: encoding.Digest) -> None:
-        """Remove an object from the database."""
-        ...
+    /// Remove an object from the database.
+    fn remove_object(&mut self, digest: &encoding::Digest);
+}
