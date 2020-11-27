@@ -1,2 +1,10 @@
-from ._storage import Config, Runtime, Storage, STARTUP_FILES_LOCATION
-from ._overlayfs import is_removed_entry
+//! Handles the setup and initialization of runtime environments
+
+mod csh_exp;
+mod overlayfs;
+mod startup_csh;
+mod startup_sh;
+mod storage;
+
+pub use overlayfs::is_removed_entry;
+pub use storage::{Config, Runtime, Storage, STARTUP_FILES_LOCATION};

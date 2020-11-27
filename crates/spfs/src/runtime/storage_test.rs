@@ -1,114 +1,163 @@
-import os
+use std::ffi::OsStr;
 
-import pytest
-import py.path
+use rstest::{fixture, rstest};
 
-from .. import encoding
-from ._storage import Runtime, Config, Storage, _ensure_runtime
+use super::{ensure_runtime, Config, Runtime, Storage};
+use crate::encoding;
 
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new_in("/tmp", module_path!().clone().replace("::", "_").as_ref())
+        .expect("failed to create tempdir for test")
+}
 
-def test_runtime_repr(tmpdir: py.path.local) -> None:
+#[rstest]
+fn test_config_serialization() {
+    let expected = Config {
+        stack: vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()],
+        ..Default::default()
+    };
+    let data = serde_json::to_string_pretty(&expected).expect("failed to serialize config");
+    let actual: Config = serde_json::from_str(&data).expect("failed to deserialize config data");
 
-    runtime = Runtime(tmpdir.strpath)
-    assert repr(runtime)
+    assert_eq!(actual, expected);
+}
 
+#[rstest]
+fn test_runtime_properties(tmpdir: tempdir::TempDir) {
+    let runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
+    assert_eq!(tmpdir.path(), runtime.root);
+    assert_eq!(
+        runtime.config_file.file_name(),
+        Some(OsStr::new(Runtime::CONFIG_FILE))
+    );
+}
 
-def test_config_serialization() -> None:
+#[rstest]
+fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
+    let mut runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
+    assert_eq!(runtime.config, Config::default());
+    assert!(runtime.read_config().is_ok());
+    assert!(runtime.config_file.metadata().is_ok());
+}
 
-    expected = Config(stack=(encoding.NULL_DIGEST, encoding.EMPTY_DIGEST))
-    data = expected.dump_dict()
-    actual = Config.load_dict(data)
+#[rstest]
+fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
+    let runtime = ensure_runtime(tmpdir.path().join("root")).expect("failed to ensure runtime");
+    assert!(runtime.root.metadata().is_ok(), "root should exist");
+    assert!(
+        runtime.upper_dir.metadata().is_ok(),
+        "upper_dir should exist"
+    );
 
-    assert actual == expected
+    ensure_runtime(runtime.root).expect("failed to ensure runtime on second call");
+}
 
+#[rstest]
+fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
+    let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
-def test_runtime_properties(tmpdir: py.path.local) -> None:
+    let runtime = storage
+        .create_runtime()
+        .expect("failed to create runtime in storage");
+    assert!(!runtime.reference().is_empty());
+    assert!(runtime.root.metadata().unwrap().file_type().is_dir());
 
-    runtime = Runtime(tmpdir.strpath)
-    assert tmpdir.bestrelpath(runtime.root) == "."  # type: ignore
-    assert os.path.basename(runtime.config_file) == Runtime._config_file
+    assert!(storage.create_named_runtime(runtime.reference()).is_err());
+}
 
+#[rstest]
+fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
+    let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
-def test_runtime_config_notnone(tmpdir: py.path.local) -> None:
+    assert!(
+        storage.remove_runtime("non-existant").is_err(),
+        "should fail to remove non-existant runtime"
+    );
 
-    runtime = Runtime(tmpdir.strpath)
-    assert runtime._config is None
-    assert runtime._get_config() is not None
-    assert py.path.local(runtime.config_file).exists()
+    let runtime = storage.create_runtime().expect("failed to create runtime");
+    storage
+        .remove_runtime(runtime.reference())
+        .expect("should remove runtime properly");
+}
 
+#[rstest]
+fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
+    let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
 
-def test_ensure_runtime(tmpdir: py.path.local) -> None:
+    let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
+    let runtimes = runtimes.expect("unexpected error while listing runtimes");
+    assert_eq!(runtimes.len(), 0);
 
-    runtime = _ensure_runtime(tmpdir.join("root").strpath)
-    assert py.path.local(runtime.root).exists()
-    assert py.path.local(runtime.upper_dir).exists()
+    storage.create_runtime().expect("failed to create runtime");
+    let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
+    let runtimes = runtimes.expect("unexpected error while listing runtimes");
+    assert_eq!(runtimes.len(), 1);
 
-    _ensure_runtime(runtime.root)
+    storage.create_runtime().expect("failed to create runtime");
+    storage.create_runtime().expect("failed to create runtime");
+    storage.create_runtime().expect("failed to create runtime");
+    let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
+    let runtimes = runtimes.expect("unexpected error while listing runtimes");
+    assert_eq!(runtimes.len(), 4);
+}
 
+#[rstest]
+fn test_runtime_reset(tmpdir: tempdir::TempDir) {
+    let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
+    let mut runtime = storage
+        .create_runtime()
+        .expect("failed to create runtime in storage");
+    let upper_dir = tmpdir.path().join("upper");
+    runtime.upper_dir = upper_dir.clone();
 
-def test_storage_create_runtime(tmpdir: py.path.local) -> None:
+    ensure(upper_dir.join("file"));
+    ensure(upper_dir.join("dir/file"));
+    ensure(upper_dir.join("dir/dir/dir/file"));
+    ensure(upper_dir.join("dir/dir/dir/file2"));
+    ensure(upper_dir.join("dir/dir/dir1/file"));
+    ensure(upper_dir.join("dir/dir2/dir/file.other"));
 
-    storage = Storage(tmpdir.strpath)
+    runtime
+        .reset(&["file.*"])
+        .expect("failed to reset runtime paths");
+    assert!(!upper_dir.join("dir/dir2/dir/file.other").exists());
+    assert!(upper_dir.join("dir/dir/dir/file2").exists());
 
-    runtime = storage.create_runtime()
-    assert runtime.ref
-    assert py.path.local(runtime.root).isdir()
+    runtime
+        .reset(&["dir1/"])
+        .expect("failed to reset runtime paths");
+    assert!(upper_dir.join("dir/dir/dir").exists());
+    assert!(upper_dir.join("dir/dir2").exists());
 
-    with pytest.raises(ValueError):
-        storage.create_runtime(runtime.ref)
+    runtime
+        .reset(&["/file"])
+        .expect("failed to reset runtime paths");
+    assert!(upper_dir.join("dir/dir/dir/file").exists());
+    assert!(!upper_dir.join("file").exists());
 
+    runtime.reset_all().expect("failed to reset runtime paths");
+    assert_eq!(listdir(upper_dir), Vec::<String>::new());
+}
 
-def test_storage_remove_runtime(tmpdir: py.path.local) -> None:
+fn listdir(path: std::path::PathBuf) -> Vec<String> {
+    std::fs::read_dir(path)
+        .expect("failed to read dir")
+        .into_iter()
+        .map(|res| {
+            res.expect("error while reading dir")
+                .file_name()
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect()
+}
 
-    storage = Storage(tmpdir.strpath)
-
-    with pytest.raises(ValueError):
-        storage.remove_runtime("non-existant")
-
-    runtime = storage.create_runtime()
-    storage.remove_runtime(runtime.ref)
-
-
-def test_storage_list_runtimes(tmpdir: py.path.local) -> None:
-
-    storage = Storage(tmpdir.join("root").strpath)
-
-    assert storage.list_runtimes() == []
-
-    storage.create_runtime()
-    assert len(storage.list_runtimes()) == 1
-
-    storage.create_runtime()
-    storage.create_runtime()
-    storage.create_runtime()
-    assert len(storage.list_runtimes()) == 4
-
-
-def test_runtime_reset(tmpdir: py.path.local) -> None:
-
-    storage = Storage(tmpdir.join("root").strpath)
-    runtime = storage.create_runtime()
-    upper_dir = tmpdir.join("upper")
-    runtime.upper_dir = upper_dir.strpath
-
-    upper_dir.join("file").ensure()
-    upper_dir.join("dir/file").ensure()
-    upper_dir.join("dir/dir/dir/file").ensure()
-    upper_dir.join("dir/dir/dir/file2").ensure()
-    upper_dir.join("dir/dir/dir1/file").ensure()
-    upper_dir.join("dir/dir2/dir/file.other").ensure()
-
-    runtime.reset("file.*")
-    assert not upper_dir.join("dir/dir2/dir/file.other").exists()
-    assert upper_dir.join("dir/dir/dir/file2").exists()
-
-    runtime.reset("dir1/")
-    assert upper_dir.join("dir/dir/dir").exists()
-    assert upper_dir.join("dir/dir2").exists()
-
-    runtime.reset("/file")
-    assert upper_dir.join("dir/dir/dir/file").exists()
-    assert not upper_dir.join("file").exists()
-
-    runtime.reset()
-    assert os.listdir(upper_dir.strpath) == []
+fn ensure(path: std::path::PathBuf) {
+    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
+    std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path)
+        .expect("failed to create file");
+}

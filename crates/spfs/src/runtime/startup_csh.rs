@@ -1,4 +1,4 @@
-source = """#!/usr/bin/env csh
+pub static SOURCE: &str = r#"#!/usr/bin/env csh
 if ( -f ~/.tcshrc ) then
     source ~/.tcshrc || true
 else if ( -f ~/.cshrc ) then
@@ -26,4 +26,4 @@ endif
 
 # csh cannot echo to stderr, only sh can do that :/
 /bin/sh -c "echo '* You are now in an configured subshell *' 1>&2"
-"""
+"#;

@@ -1,4 +1,4 @@
-source = """#!/usr/bin/env sh
+pub static SOURCE: &str = r#"#!/usr/bin/env sh
 if [[ -f ~/.bashrc ]]; then
     source ~/.bashrc || true
 fi
@@ -19,4 +19,4 @@ if [[ "$#" -ne 0 ]]; then
 fi
 
 echo "* You are now in an configured subshell *" 1>&2
-"""
+"#;
