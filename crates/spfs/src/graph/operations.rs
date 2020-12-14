@@ -5,18 +5,23 @@ use super::Error;
 use crate::encoding;
 
 /// Validate that all objects can be loaded and their children are accessible.
-pub fn check_database_integrity<'db>(db: impl DatabaseView<'db>) -> Vec<Error> {
-    let errors = Vec::new();
-    let visited: HashSet<&encoding::Digest> = Default::default();
+pub fn check_database_integrity<'db>(db: impl DatabaseView + 'db) -> Vec<Error> {
+    let mut errors = Vec::new();
+    let mut visited: HashSet<&encoding::Digest> = Default::default();
     for obj in db.iter_objects() {
-        for digest in obj.child_objects() {
-            if visited.contains(digest) {
-                continue;
-            }
-            visited.insert(digest);
-            match db.read_object(digest) {
-                Err(err) => errors.push(err),
-                Ok(_) => (),
+        match obj {
+            Err(err) => errors.push(err),
+            Ok((_digest, obj)) => {
+                for digest in obj.child_objects() {
+                    if visited.contains(digest) {
+                        continue;
+                    }
+                    visited.insert(&digest);
+                    match db.read_object(&digest) {
+                        Err(err) => errors.push(err),
+                        Ok(_) => (),
+                    }
+                }
             }
         }
     }

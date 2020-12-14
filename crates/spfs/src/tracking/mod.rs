@@ -1,11 +1,13 @@
-from ._tag import Tag, TagSpec, split_tag_spec, build_tag_spec
-from ._env import EnvSpec
-from ._entry import EntryKind, Entry
-from ._manifest import (
-    Manifest,
-    ManifestBuilder,
-    compute_manifest,
-)
-from ._diff import Diff, DiffMode, compute_diff
-
-__all__ = list(locals().keys())
+///! Object tracking and definitions
+// mod diff;
+// pub use diff::{compute_diff, Diff, DiffMode};
+mod entry;
+pub use entry::{Entry, EntryKind};
+mod env;
+pub use env::{parse_env_spec, EnvSpec};
+mod manifest;
+pub use manifest::{compute_manifest, Manifest};
+mod object;
+pub use object::Object;
+mod tag;
+pub use tag::{build_tag_spec, split_tag_spec, Tag, TagSpec};

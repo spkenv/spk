@@ -1,7 +1,7 @@
 mod binary;
 pub use binary::{
-    consume_header, read_digest, read_int, read_string, write_digest, write_header, write_int,
-    write_string, INT_SIZE,
+    consume_header, read_digest, read_int, read_string, read_uint, write_digest, write_header,
+    write_int, write_string, write_uint, INT_SIZE,
 };
 
 mod hash;

@@ -1,249 +1,349 @@
-from typing import (
-    Tuple,
-    Dict,
-    Optional,
-    Iterable,
-    TYPE_CHECKING,
-    DefaultDict,
-    BinaryIO,
-    Callable,
-)
-from collections import OrderedDict
-import os
-import io
-import stat
-import hashlib
-import posixpath
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
 
-from .. import runtime, graph, encoding
+use itertools::Itertools;
+use relative_path::RelativePathBuf;
 
-from ._entry import EntryKind, Entry
+use super::entry::{Entry, EntryKind};
+use crate::encoding;
+use crate::runtime;
+use crate::Result;
 
+#[cfg(test)]
+#[path = "./manifest_test.rs"]
+mod manifest_test;
 
-if TYPE_CHECKING:
-    NodeMap = OrderedDict[str, Entry]  # pylint: disable=unsubscriptable-object
-else:
-    NodeMap = OrderedDict
+#[derive(Default, Debug, Eq, PartialEq, Clone)]
+pub struct Manifest {
+    root: Entry,
+}
 
+impl Manifest {
+    pub fn new(root: Entry) -> Self {
+        Self { root: root }
+    }
 
-class Manifest:
+    pub fn take_root(self) -> Entry {
+        self.root
+    }
 
-    __fields__ = ("root",)
+    /// Return true if this manifest has no contents.
+    pub fn is_empty(self) -> bool {
+        self.root.entries.len() == 0
+    }
 
-    def __init__(self) -> None:
+    /// Get an entry in this manifest given it's filepath.
+    ///
+    /// # Errors
+    /// - [`NotADirectoryError`]: if an element in the path is not a directory
+    /// - [`FileNotFoundError`]: if the entry does not exist
+    pub fn get_path<'a, P: AsRef<str>>(&'a self, path: P) -> Result<&'a Entry> {
+        const TRIM_START: &[char] = &['/', '.'];
+        const TRIM_END: &[char] = &['/'];
+        let path = path
+            .as_ref()
+            .trim_start_matches(TRIM_START)
+            .trim_end_matches(TRIM_END);
+        let mut entry = &self.root;
+        if path.is_empty() {
+            return Ok(entry);
+        }
+        for step in path.split("/").into_iter() {
+            if let EntryKind::Tree = entry.kind {
+                let next = entry.entries.get(step);
+                entry = match next {
+                    Some(entry) => entry,
+                    None => return Err(crate::Error::new_io(std::io::ErrorKind::NotFound, path)),
+                };
+            } else {
+                return Err(crate::Error::new_io(std::io::ErrorKind::NotFound, path));
+            }
+        }
 
-        self.root = Entry()
+        Ok(entry)
+    }
 
-    def is_empty(self) -> bool:
-        """Return true if this manifest has no contents."""
+    /// List the contents of a directory in this manifest.
+    ///
+    /// # Errors:
+    /// - [`FileNotFoundError`]: if the directory does not exist
+    /// - [`NotADirectoryError`]: if the entry at the given path is not a tree
+    pub fn list_dir(&self, path: &str) -> Result<Vec<String>> {
+        let entry = self.get_path(path)?;
+        match entry.kind {
+            EntryKind::Tree => Ok(entry.entries.keys().map(|k| k.clone()).collect()),
+            _ => Err(nix::errno::Errno::ENOTDIR.into()),
+        }
+    }
 
-        return len(self.root) == 0
+    /// Walk the contents of this manifest depth-first.
+    pub fn walk<'m>(&'m self) -> ManifestWalker<'m> {
+        ManifestWalker::new(&self.root)
+    }
 
-    def get_path(self, path: str) -> Entry:
-        """Get an entry in this manifest given it's filepath.
+    /// Same as walk(), but joins all entry paths to the given root.
+    pub fn walk_abs<'m>(&'m self, root: &str) -> ManifestWalker<'m> {
+        ManifestWalker::new(&self.root).with_prefix(root)
+    }
 
-        Raises:
-            NotADirectoryError: if an element in the path is not a directory
-            FileNotFoundError: if the entry does not exist
-        """
+    /// Add a new directory entry to this manifest
+    pub fn mkdir<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry> {
+        let entry = Entry::default();
+        self.mknod(path, entry)
+    }
 
-        path = posixpath.normpath(path).strip("/.")
-        entry = self.root
-        if not path:
-            return entry
-        steps = path.split("/")
-        i = 0
-        while i < len(steps):
-            if entry.kind is not EntryKind.TREE:
-                raise NotADirectoryError("/".join(steps[:i]))
-            step = steps[i]
-            if step not in entry:
-                raise FileNotFoundError("/".join(steps[:i]))
-            entry = entry[step]
-            i += 1
+    /// Ensure that all levels of the given directory name exist.
+    ///
+    /// Entries that do not exist are created with a resonable default
+    /// file mode, but can and should be replaced by a new entry in the
+    /// case where this is not desired.
+    pub fn mkdirs<'m, P: AsRef<str>>(&'m mut self, path: P) -> Result<&'m mut Entry> {
+        static TRIM_PAT: &[char] = &['/', '.'];
+        let path = path.as_ref().trim_start_matches(TRIM_PAT);
+        if path.is_empty() {
+            return Err(nix::errno::Errno::EEXIST.into());
+        }
+        let path = RelativePathBuf::from(path).normalize();
+        let mut entry = &mut self.root;
+        for step in path.components() {
+            match step {
+                relative_path::Component::Normal(step) => {
+                    let entries = &mut entry.entries;
+                    if let None = entries.get_mut(step) {
+                        entries.insert(step.to_string(), Entry::default());
+                    }
+                    entry = entries.get_mut(step).unwrap();
+                    if !entry.kind.is_tree() {
+                        return Err(nix::errno::Errno::ENOTDIR.into());
+                    }
+                }
+                // do not expect any other components after normalizing
+                _ => continue,
+            }
+        }
+        Ok(entry)
+    }
 
-        return entry
+    /// Make a new file entry in this manifest
+    pub fn mkfile<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry> {
+        let mut entry = Entry::default();
+        entry.kind = EntryKind::Blob;
+        self.mknod(path, entry)
+    }
 
-    def list_dir(self, path: str) -> Tuple[str, ...]:
-        """List the contents of a directory in this manifest.
+    pub fn mknod<'m, P: AsRef<str>>(
+        &'m mut self,
+        path: P,
+        new_entry: Entry,
+    ) -> Result<&'m mut Entry> {
+        use relative_path::Component;
+        static TRIM_PAT: &[char] = &['/', '.'];
 
-        Raises:
-            FileNotFoundError: if the directory does not exist
-            NotADirectoryError: if the entry at the given path is not a tree
-        """
+        let path = path.as_ref().trim_start_matches(TRIM_PAT);
+        if path.is_empty() {
+            return Err(nix::errno::Errno::EEXIST.into());
+        }
+        let path = RelativePathBuf::from(path).normalize();
+        let mut entry = &mut self.root;
+        let mut components = path.components();
+        let last = components.next_back();
+        for step in components {
+            match step {
+                Component::Normal(step) => match entry.entries.get_mut(step) {
+                    None => {
+                        return Err(nix::errno::Errno::ENOENT.into());
+                    }
+                    Some(e) => {
+                        if !e.kind.is_tree() {
+                            return Err(nix::errno::Errno::ENOTDIR.into());
+                        }
+                        entry = e;
+                    }
+                },
+                // do not expect any other components after normalizing
+                _ => continue,
+            }
+        }
+        match last {
+            None => Err(nix::errno::Errno::ENOENT.into()),
+            Some(Component::Normal(step)) => {
+                entry.entries.insert(step.to_string(), new_entry);
+                Ok(entry.entries.get_mut(step).unwrap())
+            }
+            _ => Err(nix::errno::Errno::EIO.into()),
+        }
+    }
 
-        entry = self.get_path(path)
-        if entry.kind is not EntryKind.TREE:
-            raise NotADirectoryError(path)
-        return tuple(entry.keys())
+    /// Layer another manifest on top of this one
+    pub fn update(&mut self, other: &Self) {
+        self.root.update(&other.root)
+    }
+}
 
-    def walk(self) -> Iterable[Tuple[str, Entry]]:
-        """Walk the contents of this manifest depth-first."""
+/// Walks all entries in a manifest depth-first
+pub struct ManifestWalker<'m> {
+    prefix: RelativePathBuf,
+    children: std::collections::hash_map::Iter<'m, String, Entry>,
+    active_child: Option<Box<ManifestWalker<'m>>>,
+}
 
-        def iter_node(root: str, entry: Entry) -> Iterable[Tuple[str, Entry]]:
+impl<'m> ManifestWalker<'m> {
+    fn new(root: &'m Entry) -> Self {
+        ManifestWalker {
+            prefix: RelativePathBuf::from("/"),
+            children: root.entries.iter(),
+            active_child: None,
+        }
+    }
 
-            for name, entry in entry.items():
-                full_path = os.path.join(root, name)
-                yield full_path, entry
-                if entry.kind is EntryKind.TREE:
-                    for i in iter_node(full_path, entry):
-                        yield i
+    fn with_prefix<P: AsRef<str>>(mut self, prefix: P) -> Self {
+        self.prefix = RelativePathBuf::from(prefix.as_ref());
+        self
+    }
+}
 
-        return iter_node("/", self.root)
+impl<'m> Iterator for ManifestWalker<'m> {
+    type Item = ManifestNode<'m>;
 
-    def walk_abs(self, root: str) -> Iterable[Tuple[str, Entry]]:
-        """Same as walk(), but joins all entry paths to the given root."""
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(active_child) = self.active_child.as_mut() {
+            match active_child.next() {
+                Some(next) => return Some(next),
+                None => {
+                    self.active_child = None;
+                }
+            }
+        }
 
-        for relpath, entry in self.walk():
-            yield os.path.join(root, relpath.lstrip("/")), entry
+        match self.children.next() {
+            None => None,
+            Some((name, child)) => {
+                if child.kind.is_tree() {
+                    self.active_child = Some(
+                        ManifestWalker::new(child)
+                            .with_prefix(&self.prefix.join(name))
+                            .into(),
+                    );
+                }
+                Some(ManifestNode {
+                    path: self.prefix.join(name),
+                    entry: &child,
+                })
+            }
+        }
+    }
+}
 
-    def mkdir(self, path: str) -> Entry:
+/// Build a manifest that describes a directorie's contents.
+pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> {
+    let mut manifest = Manifest::default();
+    compute_tree_node(path, &mut manifest.root)?;
+    Ok(manifest)
+}
 
-        path = posixpath.normpath(path).strip("/.")
-        if not path:
-            raise FileExistsError(path)
-        entry = self.root
-        *dirname, name = path.split("/")
-        for step in dirname:
-            if step not in entry:
-                raise FileNotFoundError(step)
-            entry = entry[step]
-            if entry.kind is not EntryKind.TREE:
-                raise NotADirectoryError(step)
-        if name in entry:
-            raise FileExistsError(name)
-        new_node = Entry()
-        entry[name] = new_node
-        return new_node
+fn compute_tree_node<P: AsRef<std::path::Path>>(dirname: P, tree_node: &mut Entry) -> Result<()> {
+    tree_node.kind = EntryKind::Tree;
+    for dir_entry in std::fs::read_dir(&dirname)? {
+        let dir_entry = dir_entry?;
+        let path = dirname.as_ref().join(dir_entry.file_name());
+        let mut entry = Entry::default();
+        compute_node(path, &mut entry)?;
+        tree_node
+            .entries
+            .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
+    }
+    tree_node.size = tree_node.entries.len() as u64;
+    Ok(())
+}
 
-    def mkdirs(self, path: str) -> Entry:
-        """Ensure that all levels of the given directory name exist.
+fn compute_node<P: AsRef<std::path::Path>>(path: P, entry: &mut Entry) -> Result<()> {
+    let stat_result = std::fs::symlink_metadata(&path)?;
 
-        Entries that do not exist are created with a resonable default
-        file mode, but can and should be replaces by a new entry in the
-        case where this is not desired.
-        """
+    entry.mode = stat_result.mode();
+    entry.size = stat_result.size();
 
-        path = posixpath.normpath(path).strip("/.")
-        if not path:
-            return self.root
-        entry = self.root
-        for step in path.split("/"):
-            if step not in entry:
-                entry[step] = Entry()
-            entry = entry[step]
-            if entry.kind is not EntryKind.TREE:
-                raise NotADirectoryError(step)
-        return entry
+    let file_type = stat_result.file_type();
+    if file_type.is_symlink() {
+        let link_target = std::fs::read_link(&path)?;
+        entry.kind = EntryKind::Blob;
+        entry.object = encoding::Digest::from_reader(&mut link_target.as_os_str().as_bytes())?;
+    } else if file_type.is_dir() {
+        compute_tree_node(path, entry)?;
+    } else if runtime::is_removed_entry(&stat_result) {
+        entry.kind = EntryKind::Mask;
+        entry.object = encoding::NULL_DIGEST.into();
+    } else if !stat_result.is_file() {
+        return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
+    } else {
+        entry.kind = EntryKind::Blob;
+        let mut reader = std::fs::File::open(path)?;
+        entry.object = encoding::Digest::from_reader(&mut reader)?;
+    }
+    Ok(())
+}
 
-    def mkfile(self, path: str) -> Entry:
+#[derive(Debug, Eq, PartialEq)]
+pub struct ManifestNode<'a> {
+    path: RelativePathBuf,
+    entry: &'a Entry,
+}
 
-        path = posixpath.normpath(path).strip("/")
-        entry = self.root
-        *dirname, name = path.split("/")
-        for step in dirname:
-            if step not in entry:
-                raise FileNotFoundError(step)
-            entry = entry[step]
-            if entry.kind is not EntryKind.TREE:
-                raise NotADirectoryError(step)
-        if name in entry:
-            raise FileExistsError(name)
-        new_node = Entry()
-        new_node.kind = EntryKind.BLOB
-        entry[name] = new_node
-        return new_node
+impl<'a> Ord for ManifestNode<'a> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use itertools::EitherOrBoth::{Both, Left, Right};
+        use relative_path::Component::Normal;
+        use std::cmp::Ordering;
 
-    def update(self, other: "Manifest") -> None:
+        let self_path = self.path.normalize();
+        let other_path = other.path.normalize();
+        let mut path_iter = self_path
+            .components()
+            .zip_longest(other_path.components())
+            .peekable();
 
-        self.root.update(other.root)
+        loop {
+            let item = path_iter.next();
+            if let Some(item) = item {
+                // we only expect normal path components here due to the fact that
+                // we are normalizing the path before iteration, any '.' or '..' entries
+                // will mess with this comparison process.
+                match item {
+                    Both(Normal(left), Normal(right)) => {
+                        let kinds = match path_iter.peek() {
+                            Some(Both(Normal(_), Normal(_))) => (EntryKind::Tree, EntryKind::Tree),
+                            Some(Left(_)) => (EntryKind::Tree, other.entry.kind),
+                            Some(Right(_)) => (self.entry.kind, EntryKind::Tree),
+                            _ => (self.entry.kind, other.entry.kind),
+                        };
+                        // let the entry type take precedence over any name
+                        // - this is to ensure directories are sorted first
+                        let cmp = match kinds.0.cmp(&kinds.1) {
+                            Ordering::Equal => left.cmp(right),
+                            cmp => cmp,
+                        };
+                        if let Ordering::Equal = cmp {
+                            continue;
+                        }
+                        return cmp;
+                    }
+                    Left(_) => {
+                        return std::cmp::Ordering::Greater;
+                    }
+                    Right(_) => {
+                        return std::cmp::Ordering::Less;
+                    }
+                    _ => continue,
+                }
+            } else {
+                break;
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
+}
 
-
-def compute_manifest(path: str) -> Manifest:
-    """Build a manifest that describes a directorie's contents."""
-
-    builder = ManifestBuilder()
-    return builder.compute_manifest(path)
-
-
-class ManifestBuilder:
-    """Builds a manifest by walking a local file path."""
-
-    def __init__(self) -> None:
-
-        self.blob_hasher: Callable[[BinaryIO], encoding.Digest] = _hash_file
-
-    def compute_manifest(self, path: str) -> Manifest:
-
-        manifest = Manifest()
-        self._compute_tree_node(path, manifest.root)
-        return manifest
-
-    def _compute_tree_node(self, dirname: str, tree_node: Entry) -> None:
-
-        entries = os.listdir(dirname)
-        tree_node.size = len(entries)
-        for name in entries:
-            path = posixpath.join(dirname, name)
-            entry = Entry()
-            tree_node[name] = entry
-            self._compute_node(path, entry)
-
-    def _compute_node(self, path: str, entry: Entry) -> None:
-
-        stat_result = os.lstat(path)
-
-        entry.mode = stat_result.st_mode
-        entry.size = stat_result.st_size
-
-        if stat.S_ISLNK(stat_result.st_mode):
-            link_target = os.readlink(path)
-            reader: BinaryIO = io.BytesIO(link_target.encode("utf-8"))
-            entry.kind = EntryKind.BLOB
-            entry.object = self.blob_hasher(reader)
-        elif stat.S_ISDIR(stat_result.st_mode):
-            entry.kind = EntryKind.TREE
-            self._compute_tree_node(path, entry)
-        elif runtime.is_removed_entry(stat_result):
-            entry.kind = EntryKind.MASK
-            entry.object = encoding.NULL_DIGEST
-        elif not stat.S_ISREG(stat_result.st_mode):
-            raise ValueError("unsupported special file: " + path)
-        else:
-            entry.kind = EntryKind.BLOB
-            with open(path, "rb") as reader:
-                entry.object = self.blob_hasher(reader)
-
-
-def _hash_file(reader: BinaryIO) -> encoding.Digest:
-    hasher = encoding.Hasher()
-    for byte_block in iter(lambda: reader.read(4096), b""):
-        hasher.update(byte_block)
-    return hasher.digest()
-
-
-def sort_entries(entries: NodeMap) -> NodeMap:
-    """Sort a set of entries organized by file path.
-
-    The given entry set must be complete, meaning that
-    if an entry is specified at path '/dir/file.txt', then
-    an entry must exist for '/dir' and '/'
-
-    Raises:
-        KeyError: if a required entry is missing from the map
-    """
-
-    def key(item: Tuple[str, Entry]) -> Tuple:
-
-        split_entries = []
-        parts = item[0].rstrip("/").split(os.sep)
-        path = "/"
-        for part in parts:
-            path = os.path.join(path, part)
-            entry = entries.get(path)
-            split_entries.append(entry)
-
-        return tuple(split_entries)
-
-    items = entries.items()
-    return NodeMap(sorted(items, key=key))
+impl<'a> PartialOrd for ManifestNode<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}

@@ -1,11 +1,11 @@
-use std::{fmt, io};
+use std::io;
 
 #[derive(Debug)]
 pub enum Error {
+    String(String),
     Nix(nix::Error),
     IO(io::Error),
-    String(String),
-    GraphError(crate::graph::Error),
+    JSON(serde_json::Error),
 }
 
 impl Error {
@@ -65,9 +65,14 @@ impl From<&str> for Error {
         Error::String(err.to_string())
     }
 }
-impl From<crate::graph::Error> for Error {
-    fn from(err: crate::graph::Error) -> Error {
-        Error::GraphError(err)
+impl From<std::path::StripPrefixError> for Error {
+    fn from(err: std::path::StripPrefixError) -> Self {
+        Error::String(err.to_string())
+    }
+}
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::JSON(err)
     }
 }
 

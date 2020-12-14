@@ -1,94 +1,166 @@
-from typing import NamedTuple, Any, Dict, BinaryIO
-import enum
-import hashlib
+use std::str::FromStr;
+use std::string::ToString;
 
-from .. import encoding
+use crate::encoding;
+use crate::{Error, Result};
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum EntryKind {
+    /// directory / node
+    Tree,
+    /// file / leaf
+    Blob,
+    /// removed entry / node or leaf
+    Mask,
+}
 
-class EntryKind(enum.Enum):
+impl PartialOrd for EntryKind {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for EntryKind {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self.is_tree(), other.is_tree()) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => std::cmp::Ordering::Equal,
+        }
+    }
+}
 
-    TREE = "tree"  # directory / node
-    BLOB = "file"  # file / leaf
-    MASK = "mask"  # removed entry / node or leaf
+impl EntryKind {
+    pub fn is_tree(&self) -> bool {
+        if let Self::Tree = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_blob(&self) -> bool {
+        if let Self::Blob = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_mask(&self) -> bool {
+        if let Self::Mask = self {
+            true
+        } else {
+            false
+        }
+    }
+}
 
+impl FromStr for EntryKind {
+    type Err = Error;
 
-class Entry(dict):
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "tree" => Ok(Self::Tree),
+            "blob" => Ok(Self::Blob),
+            "mask" => Ok(Self::Mask),
+            kind => Err(format!("invalid entry kind: {}", kind).into()),
+        }
+    }
+}
 
-    __fields__ = ("kind", "object", "mode", "size")
+impl ToString for EntryKind {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Tree => "tree".to_string(),
+            Self::Blob => "blob".to_string(),
+            Self::Mask => "mask".to_string(),
+        }
+    }
+}
 
-    def __init__(
-        self,
-        kind: EntryKind = EntryKind.TREE,
-        object: encoding.Digest = encoding.NULL_DIGEST,
-        mode: int = 0o777,
-        size: int = 0,
-    ) -> None:
-        self.kind = kind
-        self.object = object
-        self.mode = mode
-        self.size = size
+impl encoding::Encodable for EntryKind {
+    fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_string(writer, self.to_string().as_ref())
+    }
 
-    def __str__(self) -> str:
-        return repr(self)
+    fn decode(reader: &mut impl std::io::Read) -> Result<Self> {
+        Self::from_str(encoding::read_string(reader)?.as_str())
+    }
+}
 
-    def __repr__(self) -> str:
+#[derive(Clone)]
+pub struct Entry {
+    pub kind: EntryKind,
+    pub object: encoding::Digest,
+    pub mode: u32,
+    pub size: u64,
+    pub entries: std::collections::HashMap<String, Entry>,
+}
 
-        return f"Entry({repr(self.kind)}, 0o{self.mode:06o}, size={self.size}, object={repr(self.object)})"
+impl Default for Entry {
+    fn default() -> Self {
+        Self {
+            kind: EntryKind::Tree,
+            object: encoding::NULL_DIGEST.into(),
+            mode: 0o777,
+            size: 0,
+            entries: Default::default(),
+        }
+    }
+}
 
-    def __eq__(self, other: Any) -> bool:
+impl std::fmt::Debug for Entry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Entry")
+            .field("kind", &self.kind)
+            .field("mode", &format!("{:#06o}", self.mode))
+            .field("size", &self.size)
+            .field("object", &self.object)
+            .field("entries", &self.entries)
+            .finish()
+    }
+}
 
-        if not isinstance(other, Entry):
-            raise TypeError(
-                f"'==' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
-            )
+impl PartialEq for Entry {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.mode == other.mode
+            && self.size == other.size
+            && self.object == other.object
+    }
+}
+impl Eq for Entry {}
 
-        return (
-            other.kind is self.kind
-            and other.object == self.object
-            and other.mode == self.mode
-            and other.size == self.size
-        )
+impl PartialOrd for Entry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self.kind, other.kind) {
+            (EntryKind::Tree, EntryKind::Tree) => None,
+            (EntryKind::Tree, _) => Some(std::cmp::Ordering::Greater),
+            (_, EntryKind::Tree) => Some(std::cmp::Ordering::Less),
+            _ => None,
+        }
+    }
+}
 
-    def __lt__(self, other: Any) -> bool:
+impl Entry {
+    pub fn update(&mut self, other: &Self) {
+        self.kind = other.kind;
+        self.object = other.object;
+        self.mode = other.mode;
+        if !self.kind.is_tree() {
+            self.size = other.size;
+            return;
+        }
 
-        if not isinstance(other, Entry):
-            raise TypeError(
-                f"'<' not supported between '{type(self).__name__}' and '{type(other).__name__}'"
-            )
+        for (name, node) in other.entries.iter() {
+            if node.kind.is_mask() {
+                self.entries.remove(name);
+            }
 
-        return other.kind is EntryKind.TREE
-
-    def clone(self) -> "Entry":
-        """Return a copy of this entry (does not clone)."""
-
-        other = Entry(
-            kind=self.kind,
-            object=self.object,
-            mode=self.mode,
-            size=self.size,
-        )
-        for name, node in self.items():
-            other[name] = node
-        return other
-
-    def update(self, other: "Manifest.Node") -> None:  # type: ignore
-
-        self.kind = other.kind
-        self.object = other.object
-        self.mode = other.mode
-        if self.kind is not EntryKind.TREE:
-            self.size = other.size
-            return
-
-        for name, node in other.items():
-            if node.kind == EntryKind.MASK:
-                try:
-                    del self[name]
-                except KeyError:
-                    continue
-
-            if name not in self:
-                self[name] = node
-            else:
-                self[name].update(node)
-        self.size = len(self)
+            if let Some(existing) = self.entries.get_mut(name) {
+                existing.update(node);
+            } else {
+                self.entries.insert(name.clone(), node.clone());
+            }
+        }
+        self.size = self.entries.len() as u64;
+    }
+}

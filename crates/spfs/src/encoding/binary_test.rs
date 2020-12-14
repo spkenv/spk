@@ -20,7 +20,8 @@ fn test_consume_header() {
     let mut stream = Cursor::new(Vec::from("HEADER\n".as_bytes()));
     consume_header(&mut stream, "HEADER".as_bytes()).expect("failed to read header");
 
-    assert_read_content!(stream, &[]);
+    let nothing: &[u8] = &[];
+    assert_read_content!(stream, nothing);
 }
 
 #[test]

@@ -6,6 +6,23 @@ pub enum Error {
     UnknownObject(UnknownObjectError),
     UnknownReference(UnknownReferenceError),
     AmbiguousReference(AmbiguousReferenceError),
+    InvalidReferenceError(InvalidReferenceError),
+}
+
+impl From<UnknownObjectError> for Error {
+    fn from(err: UnknownObjectError) -> Self {
+        Error::UnknownObject(err)
+    }
+}
+impl From<UnknownReferenceError> for Error {
+    fn from(err: UnknownReferenceError) -> Self {
+        Error::UnknownReference(err)
+    }
+}
+impl From<AmbiguousReferenceError> for Error {
+    fn from(err: AmbiguousReferenceError) -> Self {
+        Error::AmbiguousReference(err)
+    }
 }
 
 /// Denotes a missing object or one that is not present in the database.
@@ -51,3 +68,17 @@ impl AmbiguousReferenceError {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Denotes a missing object or one that is not present in the database.
+#[derive(Debug, Eq, PartialEq)]
+pub struct InvalidReferenceError {
+    message: String,
+}
+
+impl InvalidReferenceError {
+    pub fn new(reference: impl Into<String>) -> Self {
+        Self {
+            message: format!("Invalid reference: {}", reference.into()),
+        }
+    }
+}

@@ -1,40 +1,68 @@
-from multiprocessing import Value
-from spfs import encoding
-from typing import NamedTuple, Dict, Optional, Union, Iterable, Tuple
-from datetime import datetime, timezone
-import unicodedata
+use super::tag::TagSpec;
+use crate::encoding;
+use crate::{Error, Result};
 
-from ._tag import TagSpec
+#[cfg(test)]
+#[path = "./env_test.rs"]
+mod env_test;
 
+/// One object specifier in an env spec
+#[derive(Debug)]
+pub enum EnvSpecItem {
+    TagSpec(TagSpec),
+    Digest(encoding::Digest),
+}
 
-class EnvSpec(str):
-    """Env specifies a complete runtime environment that can be made up of multiple layers."""
+impl std::fmt::Display for EnvSpecItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TagSpec(x) => x.fmt(f),
+            Self::Digest(x) => x.fmt(f),
+        }
+    }
+}
 
-    def __new__(cls, spec: str) -> "EnvSpec":
+/// Specifies a complete runtime environment that
+/// can be made up of multiple layers.
+#[derive(Debug)]
+pub struct EnvSpec {
+    /// The ordered set of references that make up this environment.
+    pub items: Vec<EnvSpecItem>,
+}
 
-        tuple(parse_env_spec(spec))
-        return str.__new__(cls, spec)  # type: ignore
+impl EnvSpec {
+    pub fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+            items: parse_env_spec(spec)?,
+        })
+    }
+}
 
-    @property
-    def items(self) -> Tuple[Union[TagSpec, encoding.Digest], ...]:
-        """Return the ordered set of tags that make up this environment."""
-        return tuple(parse_env_spec(self))
+/// Return the items identified in an environment spec string.
+///
+/// ```rust
+/// use spfs::tracking::parse_env_spec;
+/// let items = parse_env_spec("sometag~1+my-other-tag").unwrap();
+/// let items: Vec<_> = items.into_iter().map(|i| i.to_string()).collect();
+/// assert_eq!(items, vec!["sometag~1", "my-other-tag"]);
+/// let items = parse_env_spec("3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====+my-tag").unwrap();
+/// let items: Vec<_> = items.into_iter().map(|i| i.to_string()).collect();
+/// assert_eq!(items, vec!["3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====", "my-tag"]);
+/// ```
+pub fn parse_env_spec<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
+    let mut items = Vec::new();
+    for layer in spec.as_ref().split("+") {
+        if let Ok(digest) = encoding::parse_digest(layer) {
+            items.push(EnvSpecItem::Digest(digest));
+            continue;
+        }
+        let tag_spec = TagSpec::new(layer)?;
+        items.push(EnvSpecItem::TagSpec(tag_spec));
+    }
 
+    if items.len() == 0 {
+        return Err(Error::new("must specify at least one digest or tag"));
+    }
 
-def parse_env_spec(spec: str) -> Iterable[Union[TagSpec, encoding.Digest]]:
-    """Return the items identified in an environment spec string.
-
-    >>> list(parse_env_spec("sometag~1+my-other-tag"))
-    ['sometag~1', 'my-other-tag']
-    >>> list(parse_env_spec("3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====+my-tag"))
-    [3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====, 'my-tag']
-    """
-
-    layers = tuple(filter(None, spec.split("+")))
-    if not layers:
-        raise ValueError("Must specify at least one digest or tag")
-    for layer in layers:
-        try:
-            yield encoding.parse_digest(layer)
-        except ValueError:
-            yield TagSpec(layer)
+    Ok(items)
+}

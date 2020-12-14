@@ -1,15 +1,14 @@
-import pytest
+use rstest::rstest;
 
-from ._env import EnvSpec
+use super::EnvSpec;
 
+#[rstest]
+fn test_env_spec_validation() {
+    let spec = EnvSpec::new("one+two").expect("failed to parse env spec");
+    assert_eq!(spec.items.len(), 2);
+}
 
-def test_env_spec_validation() -> None:
-
-    spec = EnvSpec("one+two")
-    assert len(list(spec.items)) == 2
-
-
-def test_env_spec_empty() -> None:
-
-    with pytest.raises(ValueError):
-        spec = EnvSpec("")
+#[rstest]
+fn test_env_spec_empty() {
+    EnvSpec::new("").expect_err("empty spec should be invalid");
+}

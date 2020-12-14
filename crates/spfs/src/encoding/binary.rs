@@ -46,6 +46,19 @@ pub fn read_int(mut reader: impl Read) -> Result<i64> {
     Ok(i64::from_be_bytes(buf))
 }
 
+/// Write an unsigned integer to the given binary stream.
+pub fn write_uint(mut writer: impl Write, value: u64) -> Result<()> {
+    writer.write_all(&value.to_be_bytes())?;
+    Ok(())
+}
+
+/// Read an unsigned integer from the given binary stream.
+pub fn read_uint(mut reader: impl Read) -> Result<u64> {
+    let mut buf: [u8; INT_SIZE] = [0, 0, 0, 0, 0, 0, 0, 0];
+    reader.read_exact(&mut buf)?;
+    Ok(u64::from_be_bytes(buf))
+}
+
 /// Write a digest to the given binary stream.
 pub fn write_digest(mut writer: impl Write, digest: Digest) -> Result<()> {
     writer.write_all(digest.as_ref())?;

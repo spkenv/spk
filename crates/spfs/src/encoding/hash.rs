@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 
 use data_encoding::BASE32;
 use ring::digest::{Context, SHA256, SHA256_OUTPUT_LEN};
+use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
@@ -26,25 +27,31 @@ where
     }
 
     /// Write this object in binary format.
-    fn encode(&self, writer: impl Write) -> Result<()>;
+    fn encode(&self, writer: &mut impl Write) -> Result<()>;
 
     /// Read a previously encoded object from the given binary stream.
-    fn decode(reader: impl Read) -> Result<Self>;
+    fn decode(reader: &mut impl Read) -> Result<Self>;
 }
 
 impl Encodable for String {
-    fn encode(&self, writer: impl Write) -> Result<()> {
+    fn encode(&self, writer: &mut impl Write) -> Result<()> {
         super::binary::write_string(writer, self)
     }
 
-    fn decode(reader: impl Read) -> Result<Self> {
+    fn decode(reader: &mut impl Read) -> Result<Self> {
         super::binary::read_string(reader)
     }
 }
 
 /// Digest is the result of a hashing operation over binary data.
-#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub struct Digest([u8; DIGEST_SIZE]);
+
+impl std::fmt::Debug for Digest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.to_string().as_ref())
+    }
+}
 
 impl AsRef<[u8]> for Digest {
     fn as_ref(&self) -> &[u8] {
@@ -55,6 +62,9 @@ impl AsRef<[u8]> for Digest {
 impl<'a> Digest {
     pub fn as_bytes(&'a self) -> &'a [u8] {
         self.0.as_ref()
+    }
+    fn to_string(&self) -> String {
+        BASE32.encode(self.as_bytes())
     }
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {
@@ -69,6 +79,64 @@ impl<'a> Digest {
     }
     pub fn parse(digest_str: &str) -> Result<Digest> {
         digest_str.try_into()
+    }
+
+    pub fn from_reader(reader: &mut impl Read) -> Result<Self> {
+        let mut ctx = Context::new(&SHA256);
+        let mut buf = Vec::with_capacity(4096);
+        let mut count;
+        buf.resize(4096, 0);
+        loop {
+            count = reader.read(buf.as_mut_slice())?;
+            if count == 0 {
+                break;
+            }
+            ctx.update(&buf.as_slice()[..count]);
+        }
+        let ring_digest = ctx.finish();
+        let bytes = match ring_digest.as_ref().try_into() {
+            Err(err) => return Err(Error::new(format!("internal error: {:?}", err))),
+            Ok(b) => b,
+        };
+        Ok(Digest(bytes))
+    }
+}
+
+impl Serialize for Digest {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+impl<'de> Deserialize<'de> for Digest {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct StringVisitor<'de>(&'de u8);
+        impl<'de> serde::de::Visitor<'de> for StringVisitor<'de> {
+            type Value = Digest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("base32 encoded digest")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Digest, E>
+            where
+                E: serde::de::Error,
+            {
+                match Digest::try_from(value) {
+                    Ok(digest) => Ok(digest),
+                    Err(_) => Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Str(value),
+                        &self,
+                    )),
+                }
+            }
+        }
+        deserializer.deserialize_str(StringVisitor(&0))
     }
 }
 

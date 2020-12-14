@@ -6,6 +6,9 @@ import itertools
 from ._entry import Entry
 from ._manifest import Manifest, NodeMap, sort_entries
 
+#[cfg(test)]
+#[path = "./diff_test.rs"]
+mod diff_test;
 
 class DiffMode(enum.Enum):
 
