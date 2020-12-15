@@ -6,6 +6,7 @@ use data_encoding::BASE32;
 use ring::digest::{Context, SHA256, SHA256_OUTPUT_LEN};
 use serde::{Deserialize, Serialize};
 
+use super::binary;
 use crate::{Error, Result};
 
 /// Encodable is a type that can be binary encoded to a byte stream.
@@ -157,6 +158,20 @@ impl TryFrom<&str> for Digest {
 impl Display for Digest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(BASE32.encode(self.as_bytes()).as_ref())
+    }
+}
+
+impl Encodable for Digest {
+    fn encode(&self, mut writer: &mut impl Write) -> Result<()> {
+        binary::write_digest(&mut writer, self)
+    }
+
+    fn decode(mut reader: &mut impl Read) -> Result<Self> {
+        binary::read_digest(&mut reader)
+    }
+
+    fn digest(&self) -> Result<Digest> {
+        Ok(self.clone())
     }
 }
 

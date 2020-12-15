@@ -60,7 +60,7 @@ pub fn read_uint(mut reader: impl Read) -> Result<u64> {
 }
 
 /// Write a digest to the given binary stream.
-pub fn write_digest(mut writer: impl Write, digest: Digest) -> Result<()> {
+pub fn write_digest(mut writer: impl Write, digest: &Digest) -> Result<()> {
     writer.write_all(digest.as_ref())?;
     Ok(())
 }
