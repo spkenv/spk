@@ -21,7 +21,7 @@ fn test_compute_manifest() {
     let root = std::fs::canonicalize("./src").unwrap();
     let this = file!().to_string().replace("./", "").replace("src/", "");
     let manifest = compute_manifest(root).unwrap();
-    assert!(manifest.get_path(&this).is_ok());
+    assert!(manifest.get_path(&this).is_some());
 }
 
 #[rstest]
@@ -34,11 +34,11 @@ fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
 
     let manifest = compute_manifest(tmpdir).unwrap();
     assert!(
-        manifest.list_dir("/").is_ok(),
+        manifest.list_dir("/").is_some(),
         "should be able to list root"
     );
-    assert!(manifest.get_path("/dir1.0/dir2.0/file.txt").is_ok());
-    assert!(manifest.get_path("dir1.0/dir2.1/file.txt").is_ok());
+    assert!(manifest.get_path("/dir1.0/dir2.0/file.txt").is_some());
+    assert!(manifest.get_path("dir1.0/dir2.1/file.txt").is_some());
 }
 #[rstest]
 fn test_manifest_sorting(tmpdir: tempdir::TempDir) {

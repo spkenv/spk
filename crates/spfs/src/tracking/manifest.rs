@@ -33,11 +33,7 @@ impl Manifest {
     }
 
     /// Get an entry in this manifest given it's filepath.
-    ///
-    /// # Errors
-    /// - [`NotADirectoryError`]: if an element in the path is not a directory
-    /// - [`FileNotFoundError`]: if the entry does not exist
-    pub fn get_path<'a, P: AsRef<str>>(&'a self, path: P) -> Result<&'a Entry> {
+    pub fn get_path<'a, P: AsRef<str>>(&'a self, path: P) -> Option<&'a Entry> {
         const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];
         let path = path
@@ -46,33 +42,32 @@ impl Manifest {
             .trim_end_matches(TRIM_END);
         let mut entry = &self.root;
         if path.is_empty() {
-            return Ok(entry);
+            return Some(entry);
         }
         for step in path.split("/").into_iter() {
             if let EntryKind::Tree = entry.kind {
                 let next = entry.entries.get(step);
                 entry = match next {
                     Some(entry) => entry,
-                    None => return Err(crate::Error::new_io(std::io::ErrorKind::NotFound, path)),
+                    None => return None,
                 };
             } else {
-                return Err(crate::Error::new_io(std::io::ErrorKind::NotFound, path));
+                return None;
             }
         }
 
-        Ok(entry)
+        Some(entry)
     }
 
     /// List the contents of a directory in this manifest.
     ///
-    /// # Errors:
-    /// - [`FileNotFoundError`]: if the directory does not exist
-    /// - [`NotADirectoryError`]: if the entry at the given path is not a tree
-    pub fn list_dir(&self, path: &str) -> Result<Vec<String>> {
+    /// None is returned if the directory does not exist or the provided entry is
+    /// not a directory
+    pub fn list_dir(&self, path: &str) -> Option<Vec<String>> {
         let entry = self.get_path(path)?;
         match entry.kind {
-            EntryKind::Tree => Ok(entry.entries.keys().map(|k| k.clone()).collect()),
-            _ => Err(nix::errno::Errno::ENOTDIR.into()),
+            EntryKind::Tree => Some(entry.entries.keys().map(|k| k.clone()).collect()),
+            _ => None,
         }
     }
 
@@ -234,58 +229,85 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
-/// Build a manifest that describes a directorie's contents.
 pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> {
-    let mut manifest = Manifest::default();
-    compute_tree_node(path, &mut manifest.root)?;
-    Ok(manifest)
+    let builder = ManifestBuilder::default();
+    builder.compute_manifest(path)
 }
 
-fn compute_tree_node<P: AsRef<std::path::Path>>(dirname: P, tree_node: &mut Entry) -> Result<()> {
-    tree_node.kind = EntryKind::Tree;
-    for dir_entry in std::fs::read_dir(&dirname)? {
-        let dir_entry = dir_entry?;
-        let path = dirname.as_ref().join(dir_entry.file_name());
-        let mut entry = Entry::default();
-        compute_node(path, &mut entry)?;
-        tree_node
-            .entries
-            .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
-    }
-    tree_node.size = tree_node.entries.len() as u64;
-    Ok(())
+pub struct ManifestBuilder {
+    hasher: Box<dyn Fn(&mut std::fs::File) -> Result<encoding::Digest>>,
 }
 
-fn compute_node<P: AsRef<std::path::Path>>(path: P, entry: &mut Entry) -> Result<()> {
-    let stat_result = std::fs::symlink_metadata(&path)?;
-
-    entry.mode = stat_result.mode();
-    entry.size = stat_result.size();
-
-    let file_type = stat_result.file_type();
-    if file_type.is_symlink() {
-        let link_target = std::fs::read_link(&path)?;
-        entry.kind = EntryKind::Blob;
-        entry.object = encoding::Digest::from_reader(&mut link_target.as_os_str().as_bytes())?;
-    } else if file_type.is_dir() {
-        compute_tree_node(path, entry)?;
-    } else if runtime::is_removed_entry(&stat_result) {
-        entry.kind = EntryKind::Mask;
-        entry.object = encoding::NULL_DIGEST.into();
-    } else if !stat_result.is_file() {
-        return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
-    } else {
-        entry.kind = EntryKind::Blob;
-        let mut reader = std::fs::File::open(path)?;
-        entry.object = encoding::Digest::from_reader(&mut reader)?;
+impl Default for ManifestBuilder {
+    fn default() -> Self {
+        Self::new(encoding::Digest::from_reader)
     }
-    Ok(())
+}
+
+impl ManifestBuilder {
+    pub fn new(hasher: impl Fn(&mut std::fs::File) -> Result<encoding::Digest> + 'static) -> Self {
+        Self {
+            hasher: Box::new(hasher),
+        }
+    }
+
+    /// Build a manifest that describes a directorie's contents.
+    pub fn compute_manifest<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Manifest> {
+        let mut manifest = Manifest::default();
+        self.compute_tree_node(path, &mut manifest.root)?;
+        Ok(manifest)
+    }
+
+    fn compute_tree_node<P: AsRef<std::path::Path>>(
+        &self,
+        dirname: P,
+        tree_node: &mut Entry,
+    ) -> Result<()> {
+        tree_node.kind = EntryKind::Tree;
+        for dir_entry in std::fs::read_dir(&dirname)? {
+            let dir_entry = dir_entry?;
+            let path = dirname.as_ref().join(dir_entry.file_name());
+            let mut entry = Entry::default();
+            self.compute_node(path, &mut entry)?;
+            tree_node
+                .entries
+                .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
+        }
+        tree_node.size = tree_node.entries.len() as u64;
+        Ok(())
+    }
+
+    fn compute_node<P: AsRef<std::path::Path>>(&self, path: P, entry: &mut Entry) -> Result<()> {
+        let stat_result = std::fs::symlink_metadata(&path)?;
+
+        entry.mode = stat_result.mode();
+        entry.size = stat_result.size();
+
+        let file_type = stat_result.file_type();
+        if file_type.is_symlink() {
+            let link_target = std::fs::read_link(&path)?;
+            entry.kind = EntryKind::Blob;
+            entry.object = encoding::Digest::from_reader(&mut link_target.as_os_str().as_bytes())?;
+        } else if file_type.is_dir() {
+            self.compute_tree_node(path, entry)?;
+        } else if runtime::is_removed_entry(&stat_result) {
+            entry.kind = EntryKind::Mask;
+            entry.object = encoding::NULL_DIGEST.into();
+        } else if !stat_result.is_file() {
+            return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
+        } else {
+            entry.kind = EntryKind::Blob;
+            let mut reader = std::fs::File::open(path)?;
+            entry.object = (self.hasher)(&mut reader)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ManifestNode<'a> {
-    path: RelativePathBuf,
-    entry: &'a Entry,
+    pub path: RelativePathBuf,
+    pub entry: &'a Entry,
 }
 
 impl<'a> Ord for ManifestNode<'a> {

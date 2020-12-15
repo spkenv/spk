@@ -87,10 +87,10 @@ impl Encodable for Tag {
             encoding::write_string(&mut writer, "")?;
         }
         encoding::write_string(&mut writer, &self.name)?;
-        encoding::write_digest(&mut writer, self.target)?;
+        encoding::write_digest(&mut writer, &self.target)?;
         encoding::write_string(&mut writer, &self.user)?;
         encoding::write_string(&mut writer, &self.time.to_rfc3339())?;
-        encoding::write_digest(writer, self.parent)?;
+        encoding::write_digest(writer, &self.parent)?;
         Ok(())
     }
 

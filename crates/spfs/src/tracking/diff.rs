@@ -1,75 +1,155 @@
-from typing import List, NamedTuple, Optional, Tuple
-import enum
-import posixpath
-import itertools
+use std::collections::HashSet;
 
-from ._entry import Entry
-from ._manifest import Manifest, NodeMap, sort_entries
+use relative_path::RelativePathBuf;
+
+use super::{Entry, Manifest};
 
 #[cfg(test)]
 #[path = "./diff_test.rs"]
 mod diff_test;
 
-class DiffMode(enum.Enum):
+/// Identifies the style of difference between two file system entries
+#[derive(Debug, Eq, PartialEq)]
+pub enum DiffMode {
+    Unchanged,
+    Changed,
+    Added,
+    Removed,
+}
 
-    unchanged = "="
-    changed = "~"
-    added = "+"
-    removed = "-"
+impl std::fmt::Display for DiffMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unchanged => f.write_str("="),
+            Self::Changed => f.write_str("~"),
+            Self::Added => f.write_str("+"),
+            Self::Removed => f.write_str("-"),
+        }
+    }
+}
 
+impl DiffMode {
+    pub fn is_unchanged(&self) -> bool {
+        if let Self::Unchanged = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_changed(&self) -> bool {
+        if let Self::Changed = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_added(&self) -> bool {
+        if let Self::Added = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_removed(&self) -> bool {
+        if let Self::Removed = self {
+            true
+        } else {
+            false
+        }
+    }
+}
 
-class Diff(NamedTuple):
+#[derive(Debug, Eq, PartialEq)]
+pub struct Diff {
+    mode: DiffMode,
+    path: RelativePathBuf,
+    entries: Option<(Entry, Entry)>,
+}
 
-    mode: DiffMode
-    path: str
-    entries: Optional[Tuple[Entry, Entry]] = None
+impl std::fmt::Display for Diff {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{} {}{}",
+            self.mode,
+            self.path,
+            self.details()
+        ))
+    }
+}
 
-    def __str__(self) -> str:
-        return f"{self.mode.value} {self.path}{self.details()}"
+impl Diff {
+    fn details(&self) -> String {
+        let mut details = String::new();
+        match self.entries.as_ref() {
+            None => (),
+            Some((a, b)) => {
+                if a.mode != b.mode {
+                    details = format!("{} {{{:06o} => {:06o}}}", details, a.mode, b.mode);
+                }
+                if a.kind != b.kind {
+                    details = format!("{} {{{} => {}}}", details, a.kind, b.kind);
+                }
+                if a.object != b.object {
+                    details = format!("{} {{!object!}}", details);
+                }
+            }
+        }
+        details
+    }
+}
 
-    def details(self) -> str:
+pub fn compute_diff(a: &Manifest, b: &Manifest) -> Vec<Diff> {
+    let mut changes = Vec::new();
+    let mut all_entries: Vec<_> = a.walk().chain(b.walk()).collect();
+    all_entries.sort();
 
-        details = ""
-        if self.entries is None:
-            return details
-        a, b = self.entries
-        if a.mode != b.mode:
-            details += f" {{{a.mode:06o} => {b.mode:06o}}}"
-        if a.kind != b.kind:
-            details += f" {{{a.kind.value()} => {b.kind.value()}}}"
-        if a.object != b.object:
-            details += " {!object!}"
-        return details
+    let mut visited = HashSet::new();
+    for entry in all_entries.iter() {
+        if visited.contains(&entry.path) {
+            continue;
+        } else {
+            visited.insert(&entry.path);
+            changes.push(diff_path(a, b, &entry.path));
+        }
+    }
 
+    changes
+}
 
-def compute_diff(a: Manifest, b: Manifest) -> List[Diff]:
+fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Diff {
+    match (a.get_path(&path), b.get_path(&path)) {
+        (None, None) => Diff {
+            mode: DiffMode::Unchanged,
+            path: path.clone(),
+            entries: None,
+        },
 
-    changes: List[Diff] = []
-    all_entries = NodeMap(itertools.chain(a.walk(), b.walk()))
-    sort_entries(all_entries)
+        (None, Some(_)) => Diff {
+            mode: DiffMode::Added,
+            path: path.clone(),
+            entries: None,
+        },
 
-    for path in all_entries.keys():
+        (Some(_), None) => Diff {
+            mode: DiffMode::Removed,
+            path: path.clone(),
+            entries: None,
+        },
 
-        diff = _diff_path(a, b, path)
-        changes.append(diff)
-
-    return changes
-
-
-def _diff_path(a: Manifest, b: Manifest, path: str) -> Diff:
-
-    try:
-        a_entry = a.get_path(path)
-    except (FileNotFoundError, NotADirectoryError):
-        return Diff(mode=DiffMode.added, path=path)
-
-    try:
-        b_entry = b.get_path(path)
-    except (FileNotFoundError, NotADirectoryError):
-        return Diff(mode=DiffMode.removed, path=path)
-
-    name = posixpath.basename(path)
-    if a_entry == b_entry:
-        return Diff(mode=DiffMode.unchanged, path=path)
-
-    return Diff(mode=DiffMode.changed, path=path, entries=(a_entry, b_entry))
+        (Some(a_entry), Some(b_entry)) => {
+            if a_entry == b_entry {
+                Diff {
+                    mode: DiffMode::Unchanged,
+                    path: path.clone(),
+                    entries: None,
+                }
+            } else {
+                Diff {
+                    mode: DiffMode::Changed,
+                    path: path.clone(),
+                    entries: Some((a_entry.clone(), b_entry.clone())),
+                }
+            }
+        }
+    }
+}

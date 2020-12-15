@@ -1,63 +1,111 @@
-import py.path
+use rstest::{fixture, rstest};
 
-from ._manifest import Manifest, compute_manifest
-from ._diff import Diff, DiffMode, compute_diff
+use super::{compute_diff, Diff, DiffMode};
+use crate::tracking::{compute_manifest, Manifest};
 
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new("spfs-storage-").expect("failed to create dir for test")
+}
 
-def test_diff_str() -> None:
+#[rstest]
+fn test_diff_str() {
+    let display = format!(
+        "{}",
+        Diff {
+            mode: DiffMode::Added,
+            path: "some_path".into(),
+            entries: None
+        }
+    );
+    assert_eq!(&display, "+ some_path");
+}
 
-    assert Diff(DiffMode.added, "some_path")
+#[rstest]
+fn test_compute_diff_empty() {
+    let a = Manifest::default();
+    let b = Manifest::default();
 
+    assert_eq!(compute_diff(&a, &b), Vec::new());
+}
 
-def test_compute_diff_empty() -> None:
+#[rstest]
+fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
+    let tmpdir = tmpdir.path();
+    std::fs::create_dir_all(tmpdir.join("dir/dir")).unwrap();
+    std::fs::write(tmpdir.join("dir/dir/file"), "data").unwrap();
+    std::fs::write(tmpdir.join("dir/file"), "more").unwrap();
+    std::fs::write(tmpdir.join("file"), "otherdata").unwrap();
 
-    a = Manifest()
-    b = Manifest()
+    let manifest = compute_manifest(&tmpdir).unwrap();
+    let diffs = compute_diff(&manifest, &manifest);
+    for diff in diffs {
+        assert_eq!(diff.mode, DiffMode::Unchanged);
+    }
+}
 
-    assert compute_diff(a, b) == []
+#[rstest]
+fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
+    let tmpdir = tmpdir.path();
+    let a_dir = tmpdir.join("a");
+    std::fs::create_dir_all(&a_dir).unwrap();
+    let b_dir = tmpdir.join("b");
+    std::fs::create_dir_all(&b_dir).unwrap();
+    std::fs::create_dir_all(b_dir.join("dir/dir")).unwrap();
+    std::fs::write(b_dir.join("dir/dir/file"), "data").unwrap();
 
+    let a = compute_manifest(a_dir).unwrap();
+    let b = compute_manifest(b_dir).unwrap();
+    let actual = compute_diff(&a, &b);
+    let expected = vec![
+        Diff {
+            mode: DiffMode::Added,
+            path: "/dir".into(),
+            entries: None,
+        },
+        Diff {
+            mode: DiffMode::Added,
+            path: "/dir/dir".into(),
+            entries: None,
+        },
+        Diff {
+            mode: DiffMode::Added,
+            path: "/dir/dir/file".into(),
+            entries: None,
+        },
+    ];
+    assert_eq!(actual, expected);
+}
 
-def test_compute_diff_same(tmpdir: py.path.local) -> None:
+#[rstest]
+fn test_compute_diff_removed(tmpdir: tempdir::TempDir) {
+    let tmpdir = tmpdir.path();
+    let a_dir = tmpdir.join("a");
+    std::fs::create_dir_all(&a_dir).unwrap();
+    let b_dir = tmpdir.join("b");
+    std::fs::create_dir_all(&b_dir).unwrap();
+    std::fs::create_dir_all(a_dir.join("dir/dir")).unwrap();
+    std::fs::write(a_dir.join("dir/dir/file"), "data").unwrap();
 
-    tmpdir.join("dir/dir/file").write("data", ensure=True)
-    tmpdir.join("dir/file").write("more", ensure=True)
-    tmpdir.join("file").write("otherdata", ensure=True)
-
-    manifest = compute_manifest(tmpdir.strpath)
-    diffs = compute_diff(manifest, manifest)
-    for diff in diffs:
-        assert diff.mode is DiffMode.unchanged
-
-
-def test_compute_diff_added(tmpdir: py.path.local) -> None:
-
-    a_dir = tmpdir.join("a").ensure(dir=True)
-    b_dir = tmpdir.join("b").ensure(dir=True)
-    b_dir.join("dir/dir/file").write("data", ensure=True)
-
-    a = compute_manifest(a_dir.strpath)
-    b = compute_manifest(b_dir.strpath)
-    actual = compute_diff(a, b)
-    expected = [
-        Diff(mode=DiffMode.added, path="/dir"),
-        Diff(mode=DiffMode.added, path="/dir/dir"),
-        Diff(mode=DiffMode.added, path="/dir/dir/file"),
-    ]
-    assert actual == expected
-
-
-def test_compute_diff_removed(tmpdir: py.path.local) -> None:
-
-    a_dir = tmpdir.join("a").ensure(dir=True)
-    b_dir = tmpdir.join("b").ensure(dir=True)
-    a_dir.join("dir/dir/file").write("data", ensure=True)
-
-    a = compute_manifest(a_dir.strpath)
-    b = compute_manifest(b_dir.strpath)
-    actual = compute_diff(a, b)
-    expected = [
-        Diff(mode=DiffMode.removed, path="/dir"),
-        Diff(mode=DiffMode.removed, path="/dir/dir"),
-        Diff(mode=DiffMode.removed, path="/dir/dir/file"),
-    ]
-    assert actual == expected
+    let a = compute_manifest(a_dir).unwrap();
+    let b = compute_manifest(b_dir).unwrap();
+    let actual = compute_diff(&a, &b);
+    let expected = vec![
+        Diff {
+            mode: DiffMode::Removed,
+            path: "/dir".into(),
+            entries: None,
+        },
+        Diff {
+            mode: DiffMode::Removed,
+            path: "/dir/dir".into(),
+            entries: None,
+        },
+        Diff {
+            mode: DiffMode::Removed,
+            path: "/dir/dir/file".into(),
+            entries: None,
+        },
+    ];
+    assert_eq!(actual, expected);
+}

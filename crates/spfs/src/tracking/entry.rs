@@ -14,6 +14,16 @@ pub enum EntryKind {
     Mask,
 }
 
+impl std::fmt::Display for EntryKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tree => f.write_str("tree"),
+            Self::Blob => f.write_str("blob"),
+            Self::Mask => f.write_str("mask"),
+        }
+    }
+}
+
 impl PartialOrd for EntryKind {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -62,16 +72,6 @@ impl FromStr for EntryKind {
             "blob" => Ok(Self::Blob),
             "mask" => Ok(Self::Mask),
             kind => Err(format!("invalid entry kind: {}", kind).into()),
-        }
-    }
-}
-
-impl ToString for EntryKind {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Tree => "tree".to_string(),
-            Self::Blob => "blob".to_string(),
-            Self::Mask => "mask".to_string(),
         }
     }
 }
