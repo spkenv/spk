@@ -120,7 +120,7 @@ impl Manifest {
 
 impl Encodable for Manifest {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, self.root)?;
+        encoding::write_digest(&mut writer, &self.root)?;
         encoding::write_uint(&mut writer, self.trees.len() as u64)?;
         for tree in self.trees.values() {
             tree.encode(writer)?;

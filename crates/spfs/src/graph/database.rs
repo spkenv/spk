@@ -1,7 +1,9 @@
 use std::collections::VecDeque;
 
-use super::{AmbiguousReferenceError, Error, InvalidReferenceError, Result, UnknownReferenceError};
-use crate::{encoding, tracking};
+use super::{
+    AmbiguousReferenceError, Error, InvalidReferenceError, Object, Result, UnknownReferenceError,
+};
+use crate::encoding;
 
 /// Walks an object tree depth-first starting at some root digest
 pub struct DatabaseWalker<'db, DB>
@@ -35,7 +37,7 @@ impl<'db, DB> Iterator for DatabaseWalker<'db, DB>
 where
     DB: DatabaseView + Sized,
 {
-    type Item = Result<(encoding::Digest, &'db tracking::Object)>;
+    type Item = Result<(encoding::Digest, &'db Object)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.queue.pop_front();
@@ -46,9 +48,9 @@ where
                 match obj {
                     Ok(obj) => {
                         for digest in obj.child_objects() {
-                            self.queue.push_back(*digest);
+                            self.queue.push_back(digest);
                         }
-                        Some(Ok((next.clone(), &obj)))
+                        Some(Ok((next.clone(), obj)))
                     }
                     Err(err) => Some(Err(err)),
                 }
@@ -87,7 +89,7 @@ impl<'db, DB> Iterator for DatabaseIterator<'db, DB>
 where
     DB: DatabaseView + Sized,
 {
-    type Item = Result<(encoding::Digest, &'db tracking::Object)>;
+    type Item = Result<(encoding::Digest, &'db Object)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next();
@@ -96,7 +98,7 @@ where
             Some(next) => {
                 let obj = self.db.read_object(&next);
                 match obj {
-                    Ok(obj) => Some(Ok((next.clone(), &obj))),
+                    Ok(obj) => Some(Ok((next.clone(), obj))),
                     Err(err) => Some(Err(err)),
                 }
             }
@@ -110,7 +112,7 @@ pub trait DatabaseView {
     ///
     /// # Errors:
     /// - [`super::UnknownObjectError`]: if the object is not in this database
-    fn read_object<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db tracking::Object>;
+    fn read_object<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db Object>;
 
     /// Iterate all the object digests in this database.
     fn iter_digests<'db>(&'db self) -> Box<dyn Iterator<Item = &'db encoding::Digest>>;
@@ -186,8 +188,8 @@ pub trait DatabaseView {
 
 pub trait Database: DatabaseView {
     /// Write an object to the database, for later retrieval.
-    fn write_object(&mut self, obj: &tracking::Object);
+    fn write_object(&mut self, obj: &Object) -> Result<()>;
 
     /// Remove an object from the database.
-    fn remove_object(&mut self, digest: &encoding::Digest);
+    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()>;
 }

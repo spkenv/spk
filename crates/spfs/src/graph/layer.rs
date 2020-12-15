@@ -1,6 +1,10 @@
 use crate::encoding;
 use crate::Result;
 
+#[cfg(test)]
+#[path = "./layer_test.rs"]
+mod layer_test;
+
 /// Layers represent a logical collection of software artifacts.
 ///
 /// Layers are considered completely immutable, and are
@@ -16,14 +20,14 @@ impl Layer {
     }
 
     /// Return the child object of this one in the object DG.
-    pub fn child_objects(self) -> Vec<encoding::Digest> {
+    pub fn child_objects(&self) -> Vec<encoding::Digest> {
         vec![self.manifest]
     }
 }
 
 impl encoding::Encodable for Layer {
     fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(writer, self.manifest)
+        encoding::write_digest(writer, &self.manifest)
     }
 
     fn decode(reader: &mut impl std::io::Read) -> Result<Self> {

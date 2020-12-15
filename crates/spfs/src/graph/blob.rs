@@ -28,7 +28,7 @@ impl Blob {
 
 impl encoding::Encodable for Blob {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, self.payload)?;
+        encoding::write_digest(&mut writer, &self.payload)?;
         encoding::write_uint(writer, self.size)
     }
 

@@ -49,7 +49,7 @@ impl Ord for Entry {
 
 impl encoding::Encodable for Entry {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, self.object)?;
+        encoding::write_digest(&mut writer, &self.object)?;
         self.kind.encode(&mut writer)?;
         encoding::write_uint(&mut writer, self.mode as u64)?;
         encoding::write_uint(&mut writer, self.size)?;
