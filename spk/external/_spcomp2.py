@@ -1,8 +1,9 @@
 from os import openpty
-from typing import Iterable, List, Iterable, Tuple, Dict
+from typing import Iterable, List, Iterable, Optional, Tuple, Dict
 import os
 import re
 from pathlib import Path
+from packaging.markers import Value
 
 from ruamel import yaml
 
@@ -27,9 +28,13 @@ SPCOMP2_EXCLUDED_BUILDS = (
 CURRENT = "current"
 BUILD_SCRIPT = """\
 cd {root}/{name}/{build}/{version}
-rsync -rav --links --exclude '.svn' lib/*.so.* /spfs/lib/
-rsync -rav --links --exclude 'v*' --exclude '.svn' include/ /spfs/include/
-find /spfs/lib/ -name '*.so*' | xargs -r chrpath --delete
+libs=(lib/*.so.*)
+rsync -rav --usermap=$(id -u):$(id -g) --links --exclude '.svn' "${{libs[@]}}" /spfs/lib/
+rsync -rav --usermap=$(id -u):$(id -g) --links --exclude 'v*' --exclude '.svn' include/ /spfs/include/
+for lib in "${{libs[@]}}"; do
+    chmod +w /spfs/$lib
+    chrpath --delete $lib
+done
 """
 
 
@@ -76,15 +81,14 @@ def import_spcomp2(
             with version_cfg.open("r") as reader:
                 version_config = yaml.safe_load(reader) or {}
         except FileNotFoundError:
-            raise storage.PackageNotFoundError(str(version_dir))
+            continue
 
         spk_name = _to_spk_name(name)
+        latest = _get_latest_patch_version(version_dir)
+        if latest is None:
+            continue
         spec = api.Spec(
-            pkg=api.Ident(
-                spk_name,
-                _get_latest_patch_version(version_dir),
-                build=api.Build(build_opts.digest()),
-            ),
+            pkg=api.Ident(spk_name, latest, build=api.Build(build_opts.digest()),),
             compat=api.parse_compat("x.ab"),
             build=build_spec,
         )
@@ -128,6 +132,7 @@ def import_spcomp2(
             .with_options(build_opts)
             .with_source(".")
             .with_repository(storage.local_repository())
+            .with_repository(storage.remote_repository())
             .build()
         )
         imported.append(spec)
@@ -150,7 +155,7 @@ def iter_spcomp2_builds(name: str, install_root: str = SPCOMP2_ROOT) -> Iterable
             yield build
 
 
-def _get_latest_patch_version(version_dir: Path) -> api.Version:
+def _get_latest_patch_version(version_dir: Path) -> Optional[api.Version]:
     """Use the spComp2 so files to determine the highest patch version.
 
     Args:
@@ -163,6 +168,8 @@ def _get_latest_patch_version(version_dir: Path) -> api.Version:
     for filepath in so_files:
         _, version_str = filepath.name.split(".so.")
         versions.append(api.parse_version(version_str))
+    if not versions:
+        return None
     return sorted(versions)[-1]
 
 
