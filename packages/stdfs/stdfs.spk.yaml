@@ -2,30 +2,30 @@ pkg: stdfs/1.0.0
 compat: x.ab
 build:
   script:
-    - mkdir /spfs/{bin,lib,etc}
-    - mkdir -p /spfs/etc/spfs/startup.d
-    - ln -s lib /spfs/lib64
+  - mkdir /spfs/{bin,lib,etc}
+  - mkdir -p /spfs/etc/spfs/startup.d
+  - ln -s lib /spfs/lib64
     # Intitialization for bash environments
-    - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.sh
-    - export LD_LIBRARY_PATH="/spfs/lib:\${LD_LIBRARY_PATH}"
-    - export LIBRARY_PATH="/spfs/lib:\${LIBRARY_PATH}"
-    - export PATH="/spfs/bin:\${PATH}"
-    - EOF
+  - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.sh
+  - export LD_LIBRARY_PATH="/spfs/lib:\${LD_LIBRARY_PATH}"
+  - export LIBRARY_PATH="/spfs/lib:\${LIBRARY_PATH}"
+  - export PATH="/spfs/bin:\${PATH}"
+  - EOF
     # Initialization for csh environments
-    - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.csh
-    - if ( \$?LD_LIBRARY_PATH ) then
-    - setenv LD_LIBRARY_PATH "/spfs/lib:\${LD_LIBRARY_PATH}"
-    - else
-    - setenv LD_LIBRARY_PATH "/spfs/lib"
-    - endif
-    - if ( \$?LIBRARY_PATH ) then
-    - setenv LIBRARY_PATH "/spfs/lib:\${LIBRARY_PATH}"
-    - else
-    - setenv LIBRARY_PATH "/spfs/lib"
-    - endif
-    - if ( \$?PATH ) then
-    - setenv PATH "/spfs/bin:\${PATH}"
-    - else
-    - setenv PATH "/spfs/bin"
-    - endif
-    - EOF
+  - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.csh
+  - if ( \$?LD_LIBRARY_PATH ) then
+  - setenv LD_LIBRARY_PATH "/spfs/lib:\${LD_LIBRARY_PATH}"
+  - else
+  - setenv LD_LIBRARY_PATH "/spfs/lib"
+  - endif
+  - if ( \$?LIBRARY_PATH ) then
+  - setenv LIBRARY_PATH "/spfs/lib:\${LIBRARY_PATH}"
+  - else
+  - setenv LIBRARY_PATH "/spfs/lib"
+  - endif
+  - if ( \$?PATH ) then
+  - setenv PATH "/spfs/bin:\${PATH}"
+  - else
+  - setenv PATH "/spfs/bin"
+  - endif
+  - EOF

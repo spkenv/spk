@@ -1,9 +1,8 @@
-version: 0.16.0
+version: 0.16.1
 release_notes: |
-  * Update local sources to be less aggressive in file exclusions
-    * Use configurable flags instead of the `--cvs-exclude` flag in rsync
-    * This change should be backwards compatible with most existing specs but
-      may cause additional files to be included in source packages which were not before
+  * Fix bugs in spcomp2 conversion
+    * Add remote repo for build dependency resolution
+    * Skip versions with no config or actual releases
 
 toolchain:
   - kind: Shell
