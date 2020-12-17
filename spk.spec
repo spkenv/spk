@@ -3,8 +3,8 @@ Version: 0.16.1
 Release: 1
 Summary: Package manager for SPFS.
 License: NONE
-URL: https://gitlab.spimageworks.com/dev-group/dev-ops/spk
-Source0: https://gitlab.spimageworks.com/dev-group/dev-ops/spk/-/archive/v%{version}/%{name}-v%{version}.tar.gz
+URL: https://gitlab.spimageworks.com/spi/dev/dev-ops/spk
+Source0: https://gitlab.spimageworks.com/spi/dev/dev-ops/spk/-/archive/v%{version}/%{name}-v%{version}.tar.gz
 
 BuildRequires: gcc
 BuildRequires: gcc-c++
