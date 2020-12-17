@@ -27,7 +27,7 @@ Pip packages from pypi can be converted into spk packages as well. This process 
 # convert the current version of filesequence
 $ spk convert pip gitlab-python
 # or request a specific version (using pip version semantics)
-$ spk convert spcomp2 gitlab-python==1.7
+$ spk convert pip gitlab-python==1.7
 
 $ spk env gitlab-python --local -- python -c "import gitlab; print(gitlab)"
 ```
