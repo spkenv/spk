@@ -1,77 +1,53 @@
-from typing import Tuple, BinaryIO, Iterable
+use crate::{encoding, graph, Result};
+use encoding::Encodable;
 
-from .. import graph, encoding
-from ._manifest import Manifest
+pub trait LayerStorage: graph::Database {
+    /// Iterate the objects in this storage which are layers.
+    fn iter_layers<'db>(
+        &'db self,
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, &'db graph::Layer)>> + 'db>
+    where
+        Self: Sized,
+    {
+        use graph::Object;
+        Box::new(self.iter_objects().filter_map(|res| match res {
+            Ok((digest, obj)) => match obj {
+                Object::Layer(layer) => Some(Ok((digest, layer))),
+                _ => None,
+            },
+            Err(err) => Some(Err(err)),
+        }))
+    }
 
+    /// Return true if the identified layer exists in this storage.
+    fn has_layer(&self, digest: &encoding::Digest) -> bool {
+        match self.read_layer(digest) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 
-class Layer(graph.Object):
-    """Layers represent a logical collection of software artifacts.
+    /// Return the layer identified by the given digest.
+    fn read_layer<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db graph::Layer> {
+        use graph::Object;
+        match self.read_object(digest) {
+            Err(err) => Err(err.into()),
+            Ok(Object::Layer(layer)) => Ok(layer),
+            Ok(_) => Err(format!("Object is not a layer: {:?}", digest).into()),
+        }
+    }
 
-    Layers are considered completely immutable, and are
-    uniquely identifyable by the computed hash of all
-    relevant file and metadata.
-    """
+    /// Create and storage a new layer for the given layer.
+    fn create_layer(&mut self, manifest: &graph::Manifest) -> Result<graph::Layer> {
+        let layer = graph::Layer::new(manifest.digest()?);
+        let storable = graph::Object::Layer(layer);
+        self.write_object(&storable)?;
+        if let graph::Object::Layer(layer) = storable {
+            Ok(layer)
+        } else {
+            panic!("this is impossible!");
+        }
+    }
+}
 
-    __fields__ = ["manifest"]
-
-    def __init__(self, manifest: encoding.Digest) -> None:
-
-        self.manifest = manifest
-        super(Layer, self).__init__()
-
-    def child_objects(self) -> Tuple[encoding.Digest, ...]:
-        """Return the child object of this one in the object DG."""
-        return (self.manifest,)
-
-    def encode(self, writer: BinaryIO) -> None:
-
-        encoding.write_digest(writer, self.manifest)
-
-    @classmethod
-    def decode(cls, reader: BinaryIO) -> "Layer":
-
-        return Layer(manifest=encoding.read_digest(reader))
-
-
-class LayerStorage:
-    def __init__(self, db: graph.Database) -> None:
-
-        self._db = db
-
-    def iter_layers(self) -> Iterable[Layer]:
-        """Iterate the objects in this storage which are layers."""
-
-        for obj in self._db.iter_objects():
-            if isinstance(obj, Layer):
-                yield obj
-
-    def has_layer(self, digest: encoding.Digest) -> bool:
-        """Return true if the identified layer exists in this storage."""
-
-        try:
-            self.read_layer(digest)
-        except graph.UnknownObjectError:
-            return False
-        except AssertionError:
-            return False
-        return True
-
-    def read_layer(self, digest: encoding.Digest) -> Layer:
-        """Return the layer identified by the given digest.
-
-        Raises:
-            AssertionError: if the identified object is not a layer
-        """
-
-        obj = self._db.read_object(digest)
-        assert isinstance(
-            obj, Layer
-        ), f"Loaded object is not a layer, got: {type(obj).__name__}"
-        return obj
-
-    def create_layer(self, manifest: Manifest) -> Layer:
-        """Create and storage a new layer for the given manifest."""
-
-        layer = Layer(manifest=manifest.digest())
-        self._db.write_object(layer)
-        return layer
+impl<T: graph::Database> LayerStorage for T {}

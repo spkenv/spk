@@ -56,7 +56,7 @@ pub fn parse_env_spec<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
             items.push(EnvSpecItem::Digest(digest));
             continue;
         }
-        let tag_spec = TagSpec::new(layer)?;
+        let tag_spec = TagSpec::parse(layer)?;
         items.push(EnvSpecItem::TagSpec(tag_spec));
     }
 

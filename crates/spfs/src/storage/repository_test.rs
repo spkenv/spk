@@ -1,85 +1,138 @@
-from typing import Iterable, Any
-import stat
-import pytest
-import py.path
+use rstest::{fixture, rstest};
 
-from .. import tracking
-from . import fs, tar
-from ._repository import Repository
-from ._layer import Layer
-from ._manifest import Manifest, ManifestViewer
+use std::collections::HashSet;
+use std::iter::FromIterator;
+use std::os::unix::fs::PermissionsExt;
 
+use super::{Ref, Repository};
+use crate::graph::Manifest;
+use crate::storage::{fs, LayerStorage};
+use crate::{encoding::Encodable, tracking::TagSpec};
 
-@pytest.fixture(params=["fs", "tar"])
-def tmprepo(request: Any, tmpdir: py.path.local) -> Iterable[Repository]:
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new("spfs-test-").unwrap()
+}
 
-    if request.param == "fs":
-        tmpdir = tmpdir.join("repo")
-        yield fs.FSRepository(tmpdir.strpath, create=True)
-    else:
-        yield tar.TarRepository(tmpdir.join("repo.tar").strpath)
+#[rstest]
+fn test_find_aliases_fs(tmpdir: tempdir::TempDir) {
+    let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
+    test_find_aliases(repo);
+}
+#[rstest]
+fn test_find_aliases_tar(tmpdir: tempdir::TempDir) {
+    todo!()
+    // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
+    // test_find_aliases(repo);
+}
 
+fn test_find_aliases(tmprepo: impl Repository) {
+    tmprepo
+        .find_aliases("not-existant")
+        .expect_err("should error when ref is not found");
 
-def test_find_aliases(tmpdir: py.path.local, tmprepo: Repository) -> None:
+    let manifest = tmprepo.commit_dir("src/storage".as_ref()).unwrap();
+    let layer = tmprepo.create_layer(&Manifest::from(&manifest)).unwrap();
+    let test_tag = TagSpec::parse("test-tag").unwrap();
+    tmprepo.push_tag(test_tag, layer.digest().unwrap()).unwrap();
 
-    tmpdir = tmpdir.join("repo")
-    tmprepo = fs.FSRepository(tmpdir.strpath, create=True)
-    with pytest.raises(ValueError):
-        tmprepo.find_aliases("not-existant")
+    let actual = tmprepo
+        .find_aliases(layer.digest().unwrap().to_string().as_ref())
+        .unwrap();
+    let expected = HashSet::from_iter(vec![Ref::TagSpec(test_tag)]);
+    assert_eq!(actual, expected);
+    let actual = tmprepo.find_aliases("test-tag").unwrap();
+    let expected = HashSet::from_iter(vec![Ref::Digest(layer.digest().unwrap())]);
+    assert_eq!(actual, expected);
+}
 
-    tmpdir.join("data", "file.txt").ensure()
-    manifest = tmprepo.commit_dir(tmpdir.join("data").strpath)
-    layer = tmprepo.create_layer(Manifest(manifest))
-    tmprepo.tags.push_tag("test-tag", layer.digest())
+#[rstest]
+fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
+    let tmpdir = tmpdir.path();
+    let tmprepo = fs::FSRepository::create(tmpdir.join("repo")).unwrap();
+    let datafile_path = "dir1.0/dir2.0/file.txt";
+    let symlink_path = "dir1.0/dir2.0/file2.txt";
 
-    assert tmprepo.find_aliases(layer.digest().str()) == ["test-tag"]
-    assert tmprepo.find_aliases("test-tag") == [layer.digest().str()]
+    let src_dir = tmpdir.join("source");
+    std::fs::create_dir_all(tmpdir.join("dir1.0/dir2.0")).unwrap();
+    let link_dest = src_dir.join(datafile_path);
+    std::fs::write(&link_dest, "somedata").unwrap();
+    std::os::unix::fs::symlink(&src_dir.join(symlink_path), &link_dest).unwrap();
+    std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444));
 
+    let manifest = tmprepo.commit_dir(src_dir).expect("failed to commit dir");
+    let rendered_dir = tmprepo.render_manifest(Manifest::from(manifest));
+    let rendered_symlink = rendered_dir.join(symlink_path);
+    assert!(
+        rendered_symlink.symlink_metadata().unwrap().mode & libc::S_IFLNK > 0,
+        "should be a symlink"
+    );
 
-def test_commit_mode(tmpdir: py.path.local, tmprepo: Repository) -> None:
+    let symlink_entry = manifest
+        .get_path(symlink_path)
+        .expect("symlink not in manifest");
+    let symlink_blob = tmprepo.build_digest_path(symlink_entry.object);
+    assert!(
+        symlink_blob.symlink_metadata().unwrap().mode & libc::S_IFLNK == 0,
+        "stored blob should not be a symlink"
+    )
+}
 
-    datafile_path = "dir1.0/dir2.0/file.txt"
-    symlink_path = "dir1.0/dir2.0/file2.txt"
+#[rstest]
+fn test_commit_broken_link_fs(tmpdir: tempdir::TempDir) {
+    let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
+    test_commit_broken_link(tmpdir, repo);
+}
+#[rstest]
+fn test_commit_broken_link_tar(tmpdir: tempdir::TempDir) {
+    todo!();
+    // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
+    // test_commit_broken_link(tmpdir, repo);
+}
 
-    src_dir = tmpdir.join("source")
-    link_dest = src_dir.join(datafile_path)
-    link_dest.write("somedata", ensure=True)
-    src_dir.join(symlink_path).mksymlinkto(link_dest)
-    link_dest.chmod(0o444)
+fn test_commit_broken_link(tmpdir: tempdir::TempDir, tmprepo: impl Repository) {
+    let src_dir = tmpdir.path().join("source");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::os::unix::fs::symlink(
+        std::path::Path::new("nonexistant"),
+        src_dir.join("broken-link"),
+    )
+    .unwrap();
 
-    manifest = tmprepo.commit_dir(src_dir.strpath)
-    if not isinstance(tmprepo, ManifestViewer):
-        pytest.skip("Nothing to test for repo that is not a ManifestViewer")
-        return
+    let manifest = tmprepo.commit_dir(&src_dir).unwrap();
+    assert!(manifest.get_path("broken-link").is_some());
+}
 
-    rendered_dir = tmprepo.render_manifest(Manifest(manifest))
-    rendered_symlink = py.path.local(rendered_dir).join(symlink_path)
-    assert stat.S_ISLNK(rendered_symlink.lstat().mode)
+#[rstest]
+fn test_commit_dir_fs(tmpdir: tempdir::TempDir) {
+    let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
+    test_commit_dir(tmpdir, repo);
+}
+#[rstest]
+fn test_commit_dir_tar(tmpdir: tempdir::TempDir) {
+    todo!();
+    // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
+    // test_commit_dir(tmpdir, repo);
+}
 
-    symlink_entry = manifest.get_path(symlink_path)
-    payloads = tmprepo.payloads
-    assert isinstance(payloads, fs.FSPayloadStorage)
-    symlink_blob = py.path.local(payloads._build_digest_path(symlink_entry.object))
-    assert not stat.S_ISLNK(symlink_blob.lstat().mode)
+fn test_commit_dir(tmpdir: tempdir::TempDir, tmprepo: impl Repository) {
+    let src_dir = tmpdir.path().join("source");
+    ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
+    ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
+    ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
+    ensure(src_dir.join("file.txt"), "rootdata");
 
+    let manifest = Manifest::from(&tmprepo.commit_dir(&src_dir).unwrap());
+    let manifest2 = Manifest::from(&tmprepo.commit_dir(&src_dir).unwrap());
+    assert_eq!(manifest, manifest2);
+}
 
-def test_commit_broken_link(tmpdir: py.path.local, tmprepo: Repository) -> None:
-
-    src_dir = tmpdir.join("source").ensure(dir=True)
-    src_dir.join("broken-link").mksymlinkto("nonexistant")  # type: ignore
-
-    manifest = tmprepo.commit_dir(src_dir.strpath)
-    assert manifest.get_path("broken-link") is not None
-
-
-def test_commit_dir(tmpdir: py.path.local, tmprepo: Repository) -> None:
-
-    src_dir = tmpdir.join("source")
-    src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
-    src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
-    src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
-    src_dir.join("file.txt").write("rootdata", ensure=True)
-
-    manifest = Manifest(tmprepo.commit_dir(src_dir.strpath))
-    manifest2 = Manifest(tmprepo.commit_dir(src_dir.strpath))
-    assert manifest.digest() == manifest2.digest()
+fn ensure(path: std::path::PathBuf, data: &str) {
+    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path)
+        .expect("failed to create file");
+    std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
+}

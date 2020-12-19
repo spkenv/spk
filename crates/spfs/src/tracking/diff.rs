@@ -61,9 +61,9 @@ impl DiffMode {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Diff {
-    mode: DiffMode,
-    path: RelativePathBuf,
-    entries: Option<(Entry, Entry)>,
+    pub mode: DiffMode,
+    pub path: RelativePathBuf,
+    pub entries: Option<(Entry, Entry)>,
 }
 
 impl std::fmt::Display for Diff {

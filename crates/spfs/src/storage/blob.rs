@@ -1,62 +1,40 @@
-from typing import Tuple, BinaryIO
+use crate::{encoding, graph, Result};
 
-from .. import graph, encoding
+pub trait BlobStorage: graph::Database {
+    /// Iterate the objects in this storage which are blobs."""
+    fn iter_blobs<'db>(
+        &'db self,
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, &'db graph::Blob)>> + 'db>
+    where
+        Self: Sized,
+    {
+        use graph::Object;
+        Box::new(self.iter_objects().filter_map(|res| match res {
+            Ok((digest, obj)) => match obj {
+                Object::Blob(manifest) => Some(Ok((digest, manifest))),
+                _ => None,
+            },
+            Err(err) => Some(Err(err)),
+        }))
+    }
 
+    /// Return true if the identified blob exists in this storage.
+    fn has_blob(&self, digest: &encoding::Digest) -> bool {
+        match self.read_blob(digest) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 
-class Blob(graph.Object):
-    """Blobs represent an arbitrary chunk of binary data, usually a file."""
+    /// Return the blob identified by the given digest.
+    fn read_blob<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db graph::Blob> {
+        use graph::Object;
+        match self.read_object(digest) {
+            Err(err) => Err(err.into()),
+            Ok(Object::Blob(blob)) => Ok(blob),
+            Ok(_) => Err(format!("Object is not a blob: {:?}", digest).into()),
+        }
+    }
+}
 
-    __fields__ = ["size"]
-
-    def __init__(self, payload: encoding.Digest, size: int) -> None:
-
-        self.payload = payload
-        self.size = size
-        super(Blob, self).__init__()
-
-    def digest(self) -> encoding.Digest:
-        return self.payload
-
-    def child_objects(self) -> Tuple[encoding.Digest, ...]:
-        """Return the child object of this one in the object DG."""
-        return tuple()
-
-    def encode(self, writer: BinaryIO) -> None:
-
-        encoding.write_digest(writer, self.payload)
-        encoding.write_int(writer, self.size)
-
-    @classmethod
-    def decode(cls, reader: BinaryIO) -> "Blob":
-
-        return Blob(encoding.read_digest(reader), encoding.read_int(reader))
-
-
-class BlobStorage:
-    def __init__(self, db: graph.Database) -> None:
-
-        self._db = db
-
-    def has_blob(self, digest: encoding.Digest) -> bool:
-        """Return true if the identified blob exists in this storage."""
-
-        try:
-            self.read_blob(digest)
-        except graph.UnknownObjectError:
-            return False
-        except AssertionError:
-            return False
-        return True
-
-    def read_blob(self, digest: encoding.Digest) -> Blob:
-        """Return the blob identified by the given digest.
-
-        Raises:
-            AssertionError: if the identified object is not a blob
-        """
-
-        obj = self._db.read_object(digest)
-        assert isinstance(
-            obj, Blob
-        ), f"Loaded object is not a blob, got: {type(obj).__name__}"
-        return obj
+impl<T: graph::Database> BlobStorage for T {}

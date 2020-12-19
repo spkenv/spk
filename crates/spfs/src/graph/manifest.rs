@@ -5,6 +5,10 @@ use crate::encoding::Encodable;
 use crate::Result;
 use crate::{encoding, tracking};
 
+#[cfg(test)]
+#[path = "./manifest_test.rs"]
+mod manifest_test;
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct Manifest {
     root: encoding::Digest,
@@ -25,9 +29,9 @@ impl Default for Manifest {
     }
 }
 
-impl From<tracking::Manifest> for Manifest {
-    fn from(source: tracking::Manifest) -> Self {
-        Self::from(&source.take_root())
+impl From<&tracking::Manifest> for Manifest {
+    fn from(source: &tracking::Manifest) -> Self {
+        Self::from(source.root())
     }
 }
 

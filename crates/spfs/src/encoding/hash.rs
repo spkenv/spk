@@ -64,7 +64,7 @@ impl<'a> Digest {
     pub fn as_bytes(&'a self) -> &'a [u8] {
         self.0.as_ref()
     }
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         BASE32.encode(self.as_bytes())
     }
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {

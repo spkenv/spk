@@ -130,8 +130,8 @@ impl Encodable for Tag {
 pub struct TagSpec(Option<String>, String, u64);
 
 impl TagSpec {
-    pub fn new(spec: &str) -> Result<Self> {
-        split_tag_spec(spec)
+    pub fn parse<S: AsRef<str>>(spec: S) -> Result<Self> {
+        split_tag_spec(spec.as_ref())
     }
 
     pub fn org(&self) -> Option<String> {
@@ -184,7 +184,7 @@ pub fn build_tag_spec(org: String, name: String, version: u64) -> Result<TagSpec
     if version != 0 {
         spec = format!("{}~{}", &spec, version);
     }
-    TagSpec::new(&spec)
+    TagSpec::parse(&spec)
 }
 
 pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {

@@ -23,6 +23,10 @@ impl Manifest {
         Self { root: root }
     }
 
+    pub fn root<'a>(&'a self) -> &'a Entry {
+        &self.root
+    }
+
     pub fn take_root(self) -> Entry {
         self.root
     }
@@ -230,36 +234,36 @@ impl<'m> Iterator for ManifestWalker<'m> {
 }
 
 pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> {
-    let builder = ManifestBuilder::default();
+    let mut builder = ManifestBuilder::default();
     builder.compute_manifest(path)
 }
 
-pub struct ManifestBuilder {
-    hasher: Box<dyn Fn(&mut std::fs::File) -> Result<encoding::Digest>>,
+pub struct ManifestBuilder<'h> {
+    hasher: Box<dyn FnMut(&mut std::fs::File) -> Result<encoding::Digest> + 'h>,
 }
 
-impl Default for ManifestBuilder {
+impl<'h> Default for ManifestBuilder<'h> {
     fn default() -> Self {
         Self::new(encoding::Digest::from_reader)
     }
 }
 
-impl ManifestBuilder {
-    pub fn new(hasher: impl Fn(&mut std::fs::File) -> Result<encoding::Digest> + 'static) -> Self {
+impl<'h> ManifestBuilder<'h> {
+    pub fn new(hasher: impl FnMut(&mut std::fs::File) -> Result<encoding::Digest> + 'h) -> Self {
         Self {
             hasher: Box::new(hasher),
         }
     }
 
     /// Build a manifest that describes a directorie's contents.
-    pub fn compute_manifest<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Manifest> {
+    pub fn compute_manifest<P: AsRef<std::path::Path>>(&mut self, path: P) -> Result<Manifest> {
         let mut manifest = Manifest::default();
         self.compute_tree_node(path, &mut manifest.root)?;
         Ok(manifest)
     }
 
     fn compute_tree_node<P: AsRef<std::path::Path>>(
-        &self,
+        &mut self,
         dirname: P,
         tree_node: &mut Entry,
     ) -> Result<()> {
@@ -277,7 +281,11 @@ impl ManifestBuilder {
         Ok(())
     }
 
-    fn compute_node<P: AsRef<std::path::Path>>(&self, path: P, entry: &mut Entry) -> Result<()> {
+    fn compute_node<P: AsRef<std::path::Path>>(
+        &mut self,
+        path: P,
+        entry: &mut Entry,
+    ) -> Result<()> {
         let stat_result = std::fs::symlink_metadata(&path)?;
 
         entry.mode = stat_result.mode();

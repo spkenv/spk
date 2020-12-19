@@ -90,7 +90,7 @@ fn test_layer_manifests(tmpdir: tempdir::TempDir) {
     a.update(&b);
 
     assert_eq!(a, both);
-    assert_eq!(graph::Manifest::from(a), graph::Manifest::from(both));
+    assert_eq!(graph::Manifest::from(&a), graph::Manifest::from(&both));
 }
 #[rstest]
 fn test_layer_manifests_removal() {

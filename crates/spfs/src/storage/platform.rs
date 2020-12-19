@@ -1,84 +1,57 @@
-from typing import Tuple, BinaryIO, Iterable
+use crate::{encoding, graph, Result};
 
-from .. import graph, encoding
+pub trait PlatformStorage: graph::Database {
+    /// Iterate the objects in this storage which are platforms.
+    fn iter_platforms<'db>(
+        &'db self,
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, &'db graph::Platform)>> + 'db>
+    where
+        Self: Sized,
+    {
+        use graph::Object;
+        Box::new(self.iter_objects().filter_map(|res| match res {
+            Ok((digest, obj)) => match obj {
+                Object::Platform(platform) => Some(Ok((digest, platform))),
+                _ => None,
+            },
+            Err(err) => Some(Err(err)),
+        }))
+    }
 
+    /// Return true if the identified platform exists in this storage.
+    fn has_platform(&self, digest: &encoding::Digest) -> bool {
+        match self.read_platform(digest) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 
-class Platform(graph.Object):
-    """Platforms represent a predetermined collection of layers.
+    /// Return the platform identified by the given digest.
+    fn read_platform<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db graph::Platform> {
+        use graph::Object;
+        match self.read_object(digest) {
+            Err(err) => Err(err.into()),
+            Ok(Object::Platform(platform)) => Ok(platform),
+            Ok(_) => Err(format!("Object is not a platform: {:?}", digest).into()),
+        }
+    }
 
-    Platforms capture an entire runtime stack of layers or other platforms
-    as a single, identifiable object which can be applied/installed to
-    future runtimes.
-    """
+    /// Create and storage a new platform for the given platform.
+    /// Layers are ordered bottom to top.
+    fn create_platform<E, I>(&mut self, layers: I) -> Result<graph::Platform>
+    where
+        E: encoding::Encodable,
+        I: IntoIterator<Item = E>,
+    {
+        let platform = graph::Platform::new(layers)?;
+        let storable = graph::Object::Platform(platform);
+        self.write_object(&storable)?;
+        if let graph::Object::Platform(platform) = storable {
+            Ok(platform)
+        } else {
+            panic!("this is impossible!");
+        }
+    }
+}
 
-    __fields__ = ["stack"]
-
-    def __init__(self, stack: Iterable[encoding.Digest]) -> None:
-        self.stack = tuple(stack)
-        super(Platform, self).__init__()
-
-    def child_objects(self) -> Tuple[encoding.Digest, ...]:
-        """Return the child object of this one in the object DG."""
-        return self.stack
-
-    def encode(self, writer: BinaryIO) -> None:
-
-        encoding.write_int(writer, len(self.stack))
-        for digest in self.stack:
-            encoding.write_digest(writer, digest)
-
-    @classmethod
-    def decode(cls, reader: BinaryIO) -> "Platform":
-
-        stack = []
-        num_layers = encoding.read_int(reader)
-        for _ in range(num_layers):
-            stack.append(encoding.read_digest(reader))
-        return Platform(tuple(stack))
-
-
-class PlatformStorage:
-    def __init__(self, db: graph.Database) -> None:
-
-        self._db = db
-
-    def iter_platforms(self) -> Iterable[Platform]:
-        """Iterate the objects in this storage which are platforms."""
-
-        for obj in self._db.iter_objects():
-            if isinstance(obj, Platform):
-                yield obj
-
-    def has_platform(self, digest: encoding.Digest) -> bool:
-        """Return true if the identified platform exists in this storage."""
-
-        try:
-            self.read_platform(digest)
-        except graph.UnknownObjectError:
-            return False
-        except AssertionError:
-            return False
-        return True
-
-    def read_platform(self, digest: encoding.Digest) -> Platform:
-        """Return the platform identified by the given digest.
-
-        Raises:
-            AssertionError: if the identified object is not a platform
-        """
-
-        obj = self._db.read_object(digest)
-        assert isinstance(
-            obj, Platform
-        ), f"Loaded object is not a platform, got: {type(obj).__name__}"
-        return obj
-
-    def create_platform(self, stack: Iterable[encoding.Digest]) -> Platform:
-        """Create and store a platform containing the given layers.
-
-        The layers are given bottom to top order.
-        """
-
-        platform = Platform(stack=stack)
-        self._db.write_object(platform)
-        return platform
+impl<T: graph::Database> PlatformStorage for T {}

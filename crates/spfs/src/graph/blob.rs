@@ -2,14 +2,14 @@ use crate::encoding;
 use crate::Result;
 
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Blob {
     payload: encoding::Digest,
     size: u64,
 }
 
 impl Blob {
-    pub fn new(self, payload: encoding::Digest, size: u64) -> Self {
+    pub fn new(payload: encoding::Digest, size: u64) -> Self {
         Self {
             payload: payload,
             size: size,

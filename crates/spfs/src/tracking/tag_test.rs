@@ -32,7 +32,7 @@ fn test_tag_spec_split(raw: &str, expected: (Option<&str>, &str, u64)) {
 #[rstest]
 fn test_tag_spec_class() {
     let src = "org/name~1";
-    let spec = TagSpec::new(src).expect("failed to create tag");
+    let spec = TagSpec::parse(src).expect("failed to create tag");
     assert_eq!(format!("{}", spec), src.to_string());
     assert_eq!(spec.org(), Some("org".to_string()));
     assert_eq!(spec.name(), "name");
@@ -41,16 +41,16 @@ fn test_tag_spec_class() {
 
 #[rstest]
 fn test_tag_spec_path() {
-    let spec = TagSpec::new("one_part").expect("failed to parse tag");
+    let spec = TagSpec::parse("one_part").expect("failed to parse tag");
     assert_eq!(spec.path(), "one_part");
 
-    let spec = TagSpec::new("two/parts").expect("failed to parse tag");
+    let spec = TagSpec::parse("two/parts").expect("failed to parse tag");
     assert_eq!(spec.path(), "two/parts");
 }
 
 #[rstest]
 fn test_tag_spec_validation() {
-    TagSpec::new("").expect_err("should fail when empty");
-    TagSpec::new("name~-1").expect_err("should fail with negative version");
-    TagSpec::new("name~1.23").expect_err("should fail with float");
+    TagSpec::parse("").expect_err("should fail when empty");
+    TagSpec::parse("name~-1").expect_err("should fail with negative version");
+    TagSpec::parse("name~1.23").expect_err("should fail with float");
 }

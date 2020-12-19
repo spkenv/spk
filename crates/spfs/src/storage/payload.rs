@@ -1,46 +1,32 @@
-from typing import BinaryIO, Iterable
-import abc
+use crate::encoding;
+use crate::Result;
 
+/// Stores arbitrary binary data payloads using their content digest.
+pub trait PayloadStorage {
+    /// Iterate all the object in this database.
+    fn iter_digests(&self) -> Box<dyn Iterator<Item = encoding::Digest>>;
 
-from .. import encoding, graph
+    /// Return true if the identified payload exists.
+    fn has_payload(&self, digest: &encoding::Digest) -> bool {
+        match self.open_payload(digest) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 
+    /// Store the contents of the given stream, returning its digest and size
+    fn write_payload(&mut self, reader: &mut impl std::io::Read)
+        -> Result<(encoding::Digest, u64)>;
 
-class PayloadStorage(metaclass=abc.ABCMeta):
-    """Stores arbitrary binary data payloads using their content digest."""
+    /// Return a handle to the full content of a payload.
+    ///
+    /// # Errors:
+    /// - [`spfs::graph::UnknownObjectError`]: if the payload does not exist in this storage
+    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>>;
 
-    @abc.abstractmethod
-    def iter_digests(self) -> Iterable[encoding.Digest]:
-        """Iterate all the object in this database."""
-        ...
-
-    def has_payload(self, digest: encoding.Digest) -> bool:
-        """Return true if the identified payload exists."""
-        try:
-            self.open_payload(digest).close()
-            return True
-        except graph.UnknownObjectError:
-            pass
-        return False
-
-    @abc.abstractmethod
-    def write_payload(self, reader: BinaryIO) -> encoding.Digest:
-        """Store the contents of the given stream, returning its digest."""
-        ...
-
-    @abc.abstractmethod
-    def open_payload(self, digest: encoding.Digest) -> BinaryIO:
-        """Return a handle to the full content of a payload.
-
-        Raises:
-            UnknownObjectError: if the payload does not exist in this storage
-        """
-        ...
-
-    @abc.abstractmethod
-    def remove_payload(self, digest: encoding.Digest) -> None:
-        """Remove the payload idetified by the given digest.
-
-        Raises:
-            UnknownObjectError: if the payload does not exist in this storage
-        """
-        ...
+    /// Remove the payload idetified by the given digest.
+    ///
+    /// Errors:
+    /// - [`spfs::graph::UnknownObjectError`]: if the payload does not exist in this storage
+    fn remove_payload(self, digest: &encoding::Digest) -> Result<()>;
+}

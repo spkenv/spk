@@ -5,7 +5,7 @@ pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub mod encoding;
 pub mod graph;
 pub mod runtime;
-//pub mod storage;
+pub mod storage;
 pub mod tracking;
 
 mod error;

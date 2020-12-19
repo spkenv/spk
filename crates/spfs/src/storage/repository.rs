@@ -1,108 +1,102 @@
-from typing import List, Union, BinaryIO
-import os
-import stat
-import io
-import abc
+use std::collections::HashSet;
 
-import structlog
+use super::{PayloadStorage, TagStorage};
+use crate::{encoding, graph, tracking, Result};
+use encoding::Encodable;
+use graph::{Blob, Manifest};
 
-from .. import graph, encoding, tracking, runtime
-from ._layer import LayerStorage
-from ._platform import PlatformStorage
-from ._blob import Blob, BlobStorage
-from ._manifest import Manifest, ManifestStorage
-from ._tag import TagStorage
-from ._payload import PayloadStorage
+#[cfg(test)]
+#[path = "./repository_test.rs"]
+mod repository_test;
 
-_CHUNK_SIZE = 1024
-_logger = structlog.get_logger("spfs.storage")
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub enum Ref {
+    Digest(encoding::Digest),
+    TagSpec(tracking::TagSpec),
+}
 
+impl std::string::ToString for Ref {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Digest(d) => d.to_string(),
+            Self::TagSpec(t) => t.to_string(),
+        }
+    }
+}
 
-class Repository(PlatformStorage, LayerStorage, ManifestStorage, BlobStorage):
-    """Repostory represents a storage location for spfs data."""
+/// Represents a storage location for spfs data.
+pub trait Repository: TagStorage + PayloadStorage + graph::Database {
+    /// Attempt to open this repository at the given url
+    //fn open(address: url::Url) -> Result<Self>;
 
-    def __init__(
-        self,
-        tags: TagStorage,
-        object_database: graph.Database,
-        payload_storage: PayloadStorage,
-    ) -> None:
+    /// Return the address of this repository.
+    fn address(&self) -> url::Url;
 
-        self.tags = tags
-        self.objects = object_database
-        self.payloads = payload_storage
-        super(Repository, self).__init__(object_database)
+    /// Return true if this repository contains the given reference.
+    fn has_ref(&self, reference: &str) -> bool {
+        self.read_ref(reference).is_ok()
+    }
 
-    @abc.abstractmethod
-    def address(self) -> str:
-        """Return the address of this repository."""
-        ...
+    /// Read an object of unknown type by tag or digest.
+    fn read_ref<'a>(&'a self, reference: &str) -> Result<&'a graph::Object> {
+        let reference = reference.as_ref();
+        let digest = if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
+            if let Ok(tag) = self.resolve_tag(tag_spec) {
+                tag.target
+            } else {
+                self.resolve_full_digest(reference)?
+            }
+        } else {
+            self.resolve_full_digest(reference)?
+        };
 
-    def concurrent(self) -> bool:
-        """Return true if this repository supports concurrent access."""
-        return False
+        Ok(self.read_object(&digest)?)
+    }
 
-    def has_ref(self, ref: Union[str, encoding.Digest]) -> bool:
+    /// Return the other identifiers that can be used for 'reference'.
+    fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
+        let mut aliases = HashSet::new();
+        let digest = self.read_ref(reference)?.digest()?;
+        for spec in self.find_tags(&digest) {
+            aliases.insert(Ref::TagSpec(spec?));
+        }
+        if reference != digest.to_string().as_str() {
+            aliases.insert(Ref::Digest(digest));
+        }
+        Ok(aliases)
+    }
 
-        try:
-            self.read_ref(ref)
-        except (graph.UnknownObjectError, graph.UnknownReferenceError):
-            return False
-        return True
+    /// Commit the data from 'reader' as a blob in this repository
+    fn commit_blob(&mut self, reader: &mut impl std::io::Read) -> Result<encoding::Digest> {
+        let (digest, size) = self.write_payload(reader)?;
+        let blob = Blob::new(digest, size);
+        self.write_object(&graph::Object::Blob(blob))?;
+        Ok(digest)
+    }
 
-    def read_ref(self, ref: Union[str, encoding.Digest]) -> graph.Object:
-        """Read an object of unknown type by tag or digest."""
-        if isinstance(ref, encoding.Digest):
-            digest = ref
-        else:
-            try:
-                digest = self.tags.resolve_tag(ref).target
-            except ValueError:
-                digest = self.objects.resolve_full_digest(ref)
+    /// Commit a local file system directory to this storage.
+    ///
+    /// This collects all files to store as blobs and maintains a
+    /// render of the manifest for use immediately.
+    fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
+        let path = std::fs::canonicalize(path)?;
+        let mut builder = tracking::ManifestBuilder::new(|reader| self.commit_blob(reader));
 
-        return self.objects.read_object(digest)
+        tracing::info!("committing files");
+        let manifest = builder.compute_manifest(path)?;
+        drop(builder);
 
-    def find_aliases(self, ref: Union[str, encoding.Digest]) -> List[str]:
-        """Return the other identifiers that can be used for 'ref'."""
+        tracing::info!("writing manifest");
+        let storable = Manifest::from(&manifest);
+        self.write_object(&graph::Object::Manifest(storable))?;
+        for node in manifest.walk() {
+            if !node.entry.kind.is_blob() {
+                continue;
+            }
+            let blob = Blob::new(node.entry.object, node.entry.size);
+            self.write_object(&graph::Object::Blob(blob))?;
+        }
 
-        aliases: List[str] = []
-        digest = self.read_ref(ref).digest()
-        for spec in self.tags.find_tags(digest):
-            if spec not in aliases:
-                aliases.append(spec)
-        if ref != digest:
-            aliases.append(digest.str())
-            aliases.remove(str(ref))
-        return aliases
-
-    def commit_blob(self, reader: BinaryIO) -> encoding.Digest:
-
-        digest = self.payloads.write_payload(reader)
-        blob = Blob(digest, reader.tell())
-        self.objects.write_object(blob)
-        return digest
-
-    def commit_dir(self, path: str) -> tracking.Manifest:
-        """Commit a local file system directory to this storage.
-
-        This collects all files to store as blobs and maintains a
-        render of the manifest for use immediately.
-        """
-
-        path = os.path.abspath(path)
-        builder = tracking.ManifestBuilder()
-        builder.blob_hasher = self.commit_blob
-
-        _logger.info("committing files")
-        manifest = builder.compute_manifest(path)
-
-        _logger.info("writing manifest")
-        storable = Manifest(manifest)
-        self.objects.write_object(storable)
-        for _, node in manifest.walk():
-            if node.kind is not tracking.EntryKind.BLOB:
-                continue
-            blob = Blob(node.object, node.size)
-            self._db.write_object(blob)
-
-        return manifest
+        Ok(manifest)
+    }
+}

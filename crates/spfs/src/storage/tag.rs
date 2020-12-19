@@ -1,75 +1,66 @@
-from typing import NamedTuple, Tuple, Iterable, Dict
-from typing_extensions import Protocol, runtime_checkable
-import hashlib
+use crate::{encoding, tracking, Result};
+use relative_path::RelativePath;
 
-import json
+/// A location where tags are tracked and persisted.
+pub trait TagStorage {
+    /// Return true if the given tag exists in this storage.
+    fn has_tag(&self, tag: tracking::TagSpec) -> bool {
+        match self.resolve_tag(tag) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 
-from .. import tracking, encoding
+    /// Return the digest identified by the given tag spec.
+    ///
+    /// # Errors:
+    /// - if the tag does not exist in this storage
+    fn resolve_tag(&self, tag_spec: tracking::TagSpec) -> Result<tracking::Tag>;
 
+    /// List tags and tag directories based on a tag path.
+    ///
+    /// For example, if the repo contains the following tags
+    ///   spi/stable/my_tag
+    ///   spi/stable/other_tag
+    ///   spi/latest/my_tag
+    /// Then ls_tags("spi") would return
+    ///   stable
+    ///   latest
+    fn ls_tags<R: AsRef<RelativePath>>(&self, path: R) -> Result<Box<dyn Iterator<Item = str>>>;
 
-@runtime_checkable
-class TagStorage(Protocol):
-    """A location where tags are tracked and persisted."""
+    /// Find tags that point to the given digest.
+    fn find_tags(
+        &self,
+        digest: &encoding::Digest,
+    ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>>;
 
-    def has_tag(self, tag: str) -> bool:
-        """Return true if the given tag exists in this storage."""
-        ...
+    /// Iterate through the available tags in this storage.
+    fn iter_tags(&self) -> Box<dyn Iterator<Item = Result<(tracking::TagSpec, tracking::Tag)>>>;
 
-    def resolve_tag(self, tag_spec: str) -> tracking.Tag:
-        """Return the digest identified by the given tag spec.
+    /// Iterate through the available tags in this storage by stream.
+    fn iter_tag_streams(
+        &self,
+    ) -> Box<
+        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
+    >;
 
-        Raises:
-            ValueError: if the tag does not exist in this storage
-        """
-        ...
+    /// Read the entire tag stream for the given tag.
+    ///
+    /// # Errors:
+    /// - if the tag does not exist in the storage
+    fn read_tag(&self, tag: tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>>;
 
-    def ls_tags(self, path: str) -> Iterable[str]:
-        """List tags and tag directories based on a tag path.
+    /// Push the given tag onto the tag stream.
+    fn push_tag(&self, tag: tracking::TagSpec, target: encoding::Digest) -> Result<tracking::Tag>;
 
-        For example, if the repo contains the following tags:
-          spi/stable/my_tag
-          spi/stable/other_tag
-          spi/latest/my_tag
-        Then ls_tags("spi") would return:
-          stable
-          latest
-        """
-        ...
+    /// Push the given tag data to the tag stream, regardless of if it's valid.
+    fn push_raw_tag(&self, tag: tracking::Tag) -> Result<()>;
 
-    def find_tags(self, digest: encoding.Digest) -> Iterable[tracking.TagSpec]:
-        """Find tags that point to the given digest."""
-        ...
+    /// Remove an entire tag and all related tag history.
+    ///
+    /// If the given tag spec contains a version, the version is ignored.
+    fn remove_tag_stream(&self, tag: tracking::TagSpec) -> Result<()>;
 
-    def iter_tags(self) -> Iterable[Tuple[tracking.TagSpec, tracking.Tag]]:
-        """Iterate through the available tags in this storage."""
-        ...
-
-    def iter_tag_streams(
-        self,
-    ) -> Iterable[Tuple[tracking.TagSpec, Iterable[tracking.Tag]]]:
-        """Iterate through the available tags in this storage."""
-        ...
-
-    def read_tag(self, tag: str) -> Iterable[tracking.Tag]:
-        """Read the entire tag stream for the given tag.
-
-        Raises:
-            ValueError: if the tag does not exist in the storage
-        """
-        ...
-
-    def push_tag(self, tag: str, target: encoding.Digest) -> tracking.Tag:
-        """Push the given tag onto the tag stream."""
-        ...
-
-    def push_raw_tag(self, tag: tracking.Tag) -> None:
-        """Push the given tag data to the tag stream, regardless of if it's valid."""
-        ...
-
-    def remove_tag_stream(self, tag: str) -> None:
-        """Remove an entire tag and all related tag history."""
-        ...
-
-    def remove_tag(self, tag: tracking.Tag) -> None:
-        """Remove the oldest stored instance of the given tag."""
-        ...
+    /// Remove the oldest stored instance of the given tag.
+    fn remove_tag(&self, tag: tracking::Tag) -> Result<()>;
+}

@@ -60,17 +60,17 @@ where
 }
 
 /// Iterates all objects in a database, in no particular order
-pub struct DatabaseIterator<'db, DB>
+pub struct DatabaseIterator<'db, DB: ?Sized>
 where
-    DB: DatabaseView + ?Sized,
+    DB: DatabaseView,
 {
     db: &'db DB,
     inner: Box<dyn Iterator<Item = &'db encoding::Digest>>,
 }
 
-impl<'db, DB> DatabaseIterator<'db, DB>
+impl<'db, DB: ?Sized> DatabaseIterator<'db, DB>
 where
-    DB: DatabaseView + ?Sized,
+    DB: DatabaseView,
 {
     /// Create an iterator that yields all child objects starting at root
     /// from the given database.
@@ -127,8 +127,11 @@ pub trait DatabaseView {
     }
 
     /// Iterate all the object in this database.
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db, Self> {
-        DatabaseIterator::new(self)
+    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db, Self>
+    where
+        Self: Sized,
+    {
+        DatabaseIterator::new(&self)
     }
 
     /// Walk all objects connected to the given root object.
@@ -143,17 +146,17 @@ pub trait DatabaseView {
     fn get_shortened_digest(&self, digest: &encoding::Digest) -> String {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
-        let mut shortest = &digest.as_ref()[..shortest_size];
+        let mut shortest = &digest.as_bytes()[..shortest_size];
         for other in self.iter_digests() {
-            if &other.as_ref()[..shortest_size] != shortest {
+            if &other.as_bytes()[..shortest_size] != shortest {
                 continue;
             }
             if other == digest {
                 continue;
             }
-            while &other.as_ref()[..shortest_size] == shortest {
+            while &other.as_bytes()[..shortest_size] == shortest {
                 shortest_size += SIZE_STEP;
-                shortest = &digest.as_ref()[..shortest_size];
+                shortest = &digest.as_bytes()[..shortest_size];
             }
         }
         data_encoding::BASE32.encode(shortest)
@@ -173,7 +176,7 @@ pub trait DatabaseView {
             .map_err(|_| Error::InvalidReferenceError(InvalidReferenceError::new(short_digest)))?;
         let mut options = Vec::new();
         for digest in self.iter_digests() {
-            if &digest.as_ref()[..decoded.len()] == decoded {
+            if &digest.as_bytes()[..decoded.len()] == decoded {
                 options.push(digest)
             }
         }
