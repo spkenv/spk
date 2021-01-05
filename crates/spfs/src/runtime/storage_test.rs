@@ -1,8 +1,9 @@
 use std::ffi::OsStr;
+use std::os::unix::fs::PermissionsExt;
 
 use rstest::{fixture, rstest};
 
-use super::{ensure_runtime, Config, Runtime, Storage};
+use super::{ensure_runtime, makedirs_with_perms, Config, Runtime, Storage};
 use crate::encoding;
 
 #[fixture]
@@ -138,6 +139,17 @@ fn test_runtime_reset(tmpdir: tempdir::TempDir) {
 
     runtime.reset_all().expect("failed to reset runtime paths");
     assert_eq!(listdir(upper_dir), Vec::<String>::new());
+}
+
+#[rstest]
+fn test_makedirs_dont_change_existing(tmpdir: tempdir::TempDir) {
+    let chkdir = tmpdir.path().join("my_dir");
+    ensure(chkdir.join("file"));
+    std::fs::set_permissions(&chkdir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let original = std::fs::metadata(&chkdir).unwrap().permissions().mode();
+    makedirs_with_perms(chkdir.join("new"), 0o777).expect("makedirs should not fail");
+    let actual = std::fs::metadata(&chkdir).unwrap().permissions().mode();
+    assert_eq!(actual, original, "existing dir should not change perms");
 }
 
 fn listdir(path: std::path::PathBuf) -> Vec<String> {
