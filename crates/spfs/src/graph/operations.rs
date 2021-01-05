@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::database::DatabaseView;
-use super::Error;
+use crate::Error;
 
 /// Validate that all objects can be loaded and their children are accessible.
 pub fn check_database_integrity<'db>(db: impl DatabaseView + 'db) -> Vec<Error> {

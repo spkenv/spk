@@ -41,6 +41,32 @@ impl Object {
     }
 }
 
+impl From<Platform> for Object {
+    fn from(platform: Platform) -> Self {
+        Self::Platform(platform)
+    }
+}
+impl From<Layer> for Object {
+    fn from(layer: Layer) -> Self {
+        Self::Layer(layer)
+    }
+}
+impl From<Manifest> for Object {
+    fn from(manifest: Manifest) -> Self {
+        Self::Manifest(manifest)
+    }
+}
+impl From<Tree> for Object {
+    fn from(tree: Tree) -> Self {
+        Self::Tree(tree)
+    }
+}
+impl From<Blob> for Object {
+    fn from(blob: Blob) -> Self {
+        Self::Blob(blob)
+    }
+}
+
 /// Identifies the kind of object this is for the purposes of encoding
 #[derive(Debug)]
 pub enum ObjectKind {

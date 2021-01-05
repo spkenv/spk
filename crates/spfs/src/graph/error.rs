@@ -1,29 +1,4 @@
-use crate::encoding;
-
-/// An error returned by the graph module
-#[derive(Debug, PartialEq, Eq)]
-pub enum Error {
-    UnknownObject(UnknownObjectError),
-    UnknownReference(UnknownReferenceError),
-    AmbiguousReference(AmbiguousReferenceError),
-    InvalidReferenceError(InvalidReferenceError),
-}
-
-impl From<UnknownObjectError> for Error {
-    fn from(err: UnknownObjectError) -> Self {
-        Error::UnknownObject(err)
-    }
-}
-impl From<UnknownReferenceError> for Error {
-    fn from(err: UnknownReferenceError) -> Self {
-        Error::UnknownReference(err)
-    }
-}
-impl From<AmbiguousReferenceError> for Error {
-    fn from(err: AmbiguousReferenceError) -> Self {
-        Error::AmbiguousReference(err)
-    }
-}
+use crate::{encoding, Error};
 
 /// Denotes a missing object or one that is not present in the database.
 #[derive(Debug, Eq, PartialEq)]
@@ -32,10 +7,11 @@ pub struct UnknownObjectError {
 }
 
 impl UnknownObjectError {
-    pub fn new(digest: encoding::Digest) -> Self {
+    pub fn new(digest: &encoding::Digest) -> Error {
         Self {
-            message: format!("Unknown object: {}", digest),
+            message: format!("Unknown object: {}", digest.to_string()),
         }
+        .into()
     }
 }
 
@@ -46,10 +22,11 @@ pub struct UnknownReferenceError {
 }
 
 impl UnknownReferenceError {
-    pub fn new(reference: String) -> Self {
+    pub fn new(reference: impl AsRef<str>) -> Error {
         Self {
-            message: format!("Unknown reference: {}", reference),
+            message: format!("Unknown reference: {}", reference.as_ref()),
         }
+        .into()
     }
 }
 
@@ -60,10 +37,11 @@ pub struct AmbiguousReferenceError {
 }
 
 impl AmbiguousReferenceError {
-    pub fn new(reference: String) -> Self {
+    pub fn new(reference: impl AsRef<str>) -> Error {
         Self {
-            message: format!("Ambiguous reference [too short]: {}", reference),
+            message: format!("Ambiguous reference [too short]: {}", reference.as_ref()),
         }
+        .into()
     }
 }
 
@@ -76,9 +54,10 @@ pub struct InvalidReferenceError {
 }
 
 impl InvalidReferenceError {
-    pub fn new(reference: impl Into<String>) -> Self {
+    pub fn new(reference: impl AsRef<str>) -> Self {
         Self {
-            message: format!("Invalid reference: {}", reference.into()),
+            message: format!("Invalid reference: {}", reference.as_ref()),
         }
+        .into()
     }
 }

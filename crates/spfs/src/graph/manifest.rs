@@ -95,7 +95,7 @@ impl Manifest {
     }
 
     /// Unlock creates a tracking manifest that is more workable
-    pub fn unlock(self) -> tracking::Manifest {
+    pub fn unlock(&self) -> tracking::Manifest {
         let mut root = tracking::Entry::default();
 
         fn iter_tree(source: &Manifest, tree: &Tree, parent: &mut tracking::Entry) {

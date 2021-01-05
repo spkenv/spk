@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use super::{
-    AmbiguousReferenceError, Error, InvalidReferenceError, Object, Result, UnknownReferenceError,
+    AmbiguousReferenceError, InvalidReferenceError, Object, Result, UnknownReferenceError,
 };
 use crate::encoding;
 
@@ -37,7 +37,7 @@ impl<'db, DB> Iterator for DatabaseWalker<'db, DB>
 where
     DB: DatabaseView + Sized,
 {
-    type Item = Result<(encoding::Digest, &'db Object)>;
+    type Item = Result<(encoding::Digest, Object)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.queue.pop_front();
@@ -65,7 +65,7 @@ where
     DB: DatabaseView,
 {
     db: &'db DB,
-    inner: Box<dyn Iterator<Item = &'db encoding::Digest>>,
+    inner: Box<dyn Iterator<Item = Result<encoding::Digest>>>,
 }
 
 impl<'db, DB: ?Sized> DatabaseIterator<'db, DB>
@@ -89,19 +89,22 @@ impl<'db, DB> Iterator for DatabaseIterator<'db, DB>
 where
     DB: DatabaseView + Sized,
 {
-    type Item = Result<(encoding::Digest, &'db Object)>;
+    type Item = Result<(encoding::Digest, Object)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next();
         match next {
             None => None,
-            Some(next) => {
-                let obj = self.db.read_object(&next);
-                match obj {
-                    Ok(obj) => Some(Ok((next.clone(), obj))),
-                    Err(err) => Some(Err(err)),
+            Some(next) => match next {
+                Err(err) => Some(Err(err)),
+                Ok(next) => {
+                    let obj = self.db.read_object(&next);
+                    match obj {
+                        Ok(obj) => Some(Ok((next.clone(), obj))),
+                        Err(err) => Some(Err(err)),
+                    }
                 }
-            }
+            },
         }
     }
 }
@@ -112,10 +115,10 @@ pub trait DatabaseView {
     ///
     /// # Errors:
     /// - [`super::UnknownObjectError`]: if the object is not in this database
-    fn read_object<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db Object>;
+    fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
 
     /// Iterate all the object digests in this database.
-    fn iter_digests<'db>(&'db self) -> Box<dyn Iterator<Item = &'db encoding::Digest>>;
+    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>>;
 
     /// Return true if this database contains the identified object
     fn has_object(&self, digest: &encoding::Digest) -> bool {
@@ -148,15 +151,20 @@ pub trait DatabaseView {
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
         for other in self.iter_digests() {
-            if &other.as_bytes()[..shortest_size] != shortest {
-                continue;
-            }
-            if other == digest {
-                continue;
-            }
-            while &other.as_bytes()[..shortest_size] == shortest {
-                shortest_size += SIZE_STEP;
-                shortest = &digest.as_bytes()[..shortest_size];
+            match other {
+                Err(_) => continue,
+                Ok(other) => {
+                    if &other.as_bytes()[0..shortest_size] != shortest {
+                        continue;
+                    }
+                    if &other == digest {
+                        continue;
+                    }
+                    while &other.as_bytes()[..shortest_size] == shortest {
+                        shortest_size += SIZE_STEP;
+                        shortest = &digest.as_bytes()[..shortest_size];
+                    }
+                }
             }
         }
         data_encoding::BASE32.encode(shortest)
@@ -173,9 +181,10 @@ pub trait DatabaseView {
     fn resolve_full_digest(&self, short_digest: &str) -> Result<encoding::Digest> {
         let decoded = data_encoding::BASE32
             .decode(short_digest.as_bytes())
-            .map_err(|_| Error::InvalidReferenceError(InvalidReferenceError::new(short_digest)))?;
+            .map_err(|_| InvalidReferenceError::new(short_digest))?;
         let mut options = Vec::new();
         for digest in self.iter_digests() {
+            let digest = digest?;
             if &digest.as_bytes()[..decoded.len()] == decoded {
                 options.push(digest)
             }
@@ -183,7 +192,7 @@ pub trait DatabaseView {
 
         match options.len() {
             0 => Err(UnknownReferenceError::new(short_digest.to_string()).into()),
-            1 => Ok(*options.get(0).unwrap().to_owned()),
+            1 => Ok(options.get(0).unwrap().to_owned()),
             _ => Err(AmbiguousReferenceError::new(short_digest.to_string()).into()),
         }
     }
