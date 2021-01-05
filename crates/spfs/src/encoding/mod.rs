@@ -5,4 +5,4 @@ pub use binary::{
 };
 
 mod hash;
-pub use hash::{parse_digest, Digest, Encodable, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};
+pub use hash::{parse_digest, Digest, Encodable, Hasher, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};

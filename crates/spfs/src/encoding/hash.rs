@@ -9,22 +9,65 @@ use serde::{Deserialize, Serialize};
 use super::binary;
 use crate::{Error, Result};
 
+pub struct Hasher<'t> {
+    ctx: Context,
+    target: Option<&'t mut dyn Write>,
+}
+
+impl<'t> Hasher<'t> {
+    pub fn new() -> Self {
+        Self {
+            ctx: Context::new(&SHA256),
+            target: None,
+        }
+    }
+
+    pub fn with_target(mut self, writer: &'t mut impl Write) -> Self {
+        self.target.replace(writer);
+        self
+    }
+
+    pub fn digest(self) -> Digest {
+        let ring_digest = self.ctx.finish();
+        let bytes = match ring_digest.as_ref().try_into() {
+            Err(err) => panic!(format!("internal error: {:?}", err)),
+            Ok(b) => b,
+        };
+        Digest(bytes)
+    }
+}
+
+impl<'t> std::ops::Deref for Hasher<'t> {
+    type Target = Context;
+
+    fn deref(&self) -> &Self::Target {
+        &self.ctx
+    }
+}
+
+impl<'t> Write for Hasher<'t> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.ctx.update(&buf);
+        if let Some(target) = self.target.as_mut() {
+            target.write_all(&buf)?;
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Encodable is a type that can be binary encoded to a byte stream.
 pub trait Encodable
 where
     Self: Sized,
 {
     fn digest(&self) -> Result<Digest> {
-        let mut buffer = std::io::Cursor::new(Vec::<u8>::new());
-        self.encode(&mut buffer)?;
-        let mut ctx = Context::new(&SHA256);
-        ctx.update(&buffer.get_ref().as_slice());
-        let ring_digest = ctx.finish();
-        let bytes = match ring_digest.as_ref().try_into() {
-            Err(err) => return Err(Error::new(format!("internal error: {:?}", err))),
-            Ok(b) => b,
-        };
-        Ok(Digest(bytes))
+        let mut hasher = Hasher::new();
+        self.encode(&mut hasher)?;
+        Ok(hasher.digest())
     }
 
     /// Write this object in binary format.
@@ -199,8 +242,8 @@ pub const NULL_DIGEST: [u8; DIGEST_SIZE] = [
 ];
 
 /// Parse a string-digest.
-pub fn parse_digest(digest_str: &str) -> Result<Digest> {
-    let digest_bytes = match BASE32.decode(digest_str.as_bytes()) {
+pub fn parse_digest(digest_str: impl AsRef<str>) -> Result<Digest> {
+    let digest_bytes = match BASE32.decode(digest_str.as_ref().as_bytes()) {
         Ok(bytes) => bytes,
         Err(err) => return Err(Error::new(format!("invalid digest: {:?}", err))),
     };
