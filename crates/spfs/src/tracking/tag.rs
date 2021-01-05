@@ -154,6 +154,10 @@ impl TagSpec {
             self.1.clone()
         }
     }
+
+    pub fn with_version(&self, version: u64) -> TagSpec {
+        TagSpec(self.0.clone(), self.1.clone(), version)
+    }
 }
 
 impl std::fmt::Display for TagSpec {
