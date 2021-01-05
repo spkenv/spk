@@ -1,12 +1,13 @@
-use rstest::{fixture, rstest};
-
 use std::collections::HashSet;
 use std::iter::FromIterator;
+use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
+
+use rstest::{fixture, rstest};
 
 use super::{Ref, Repository};
 use crate::graph::Manifest;
-use crate::storage::{fs, LayerStorage};
+use crate::storage::{fs, LayerStorage, ManifestViewer};
 use crate::{encoding::Encodable, tracking::TagSpec};
 
 #[fixture]
@@ -34,7 +35,9 @@ fn test_find_aliases(tmprepo: impl Repository) {
     let manifest = tmprepo.commit_dir("src/storage".as_ref()).unwrap();
     let layer = tmprepo.create_layer(&Manifest::from(&manifest)).unwrap();
     let test_tag = TagSpec::parse("test-tag").unwrap();
-    tmprepo.push_tag(test_tag, layer.digest().unwrap()).unwrap();
+    tmprepo
+        .push_tag(&test_tag, layer.digest().unwrap())
+        .unwrap();
 
     let actual = tmprepo
         .find_aliases(layer.digest().unwrap().to_string().as_ref())
@@ -60,20 +63,22 @@ fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     std::os::unix::fs::symlink(&src_dir.join(symlink_path), &link_dest).unwrap();
     std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444));
 
-    let manifest = tmprepo.commit_dir(src_dir).expect("failed to commit dir");
-    let rendered_dir = tmprepo.render_manifest(Manifest::from(manifest));
+    let manifest = tmprepo.commit_dir(&src_dir).expect("failed to commit dir");
+    let rendered_dir = tmprepo
+        .render_manifest(&Manifest::from(&manifest))
+        .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);
     assert!(
-        rendered_symlink.symlink_metadata().unwrap().mode & libc::S_IFLNK > 0,
+        rendered_symlink.symlink_metadata().unwrap().mode() & libc::S_IFLNK > 0,
         "should be a symlink"
     );
 
     let symlink_entry = manifest
         .get_path(symlink_path)
         .expect("symlink not in manifest");
-    let symlink_blob = tmprepo.build_digest_path(symlink_entry.object);
+    let symlink_blob = tmprepo.payloads.build_digest_path(&symlink_entry.object);
     assert!(
-        symlink_blob.symlink_metadata().unwrap().mode & libc::S_IFLNK == 0,
+        symlink_blob.symlink_metadata().unwrap().mode() & libc::S_IFLNK == 0,
         "stored blob should not be a symlink"
     )
 }

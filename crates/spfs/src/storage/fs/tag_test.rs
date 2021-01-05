@@ -1,78 +1,123 @@
-import pytest
-import py.path
+use std::os::unix::fs::MetadataExt;
 
-from ... import tracking, encoding
-from ._tag import TagStorage
+use rstest::{fixture, rstest};
 
+use crate::storage::{fs::FSRepository, TagStorage};
+use crate::{encoding, tracking};
 
-@pytest.mark.timeout(1)
-def test_tag_stream(tmpdir: py.path.local) -> None:
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new_in("/tmp", module_path!().clone().replace("::", "_").as_ref())
+        .expect("failed to create tempdir for test")
+}
 
-    storage = TagStorage(tmpdir.strpath)
+#[rstest]
+fn test_tag_stream(tmpdir: tempdir::TempDir) {
+    let storage = FSRepository::create(tmpdir).unwrap();
 
-    h = encoding.Hasher()
-    digest1 = h.digest()
-    h.update(b"hello")
-    digest2 = h.digest()
+    let mut h = encoding::Hasher::new();
+    let digest1 = h.digest();
+    h.update(b"hello");
+    let digest2 = h.digest();
 
-    tag1 = storage.push_tag("hello/world", digest1)
-    assert storage.resolve_tag("hello/world") == tag1
-    assert storage.resolve_tag("hello/world~0") == tag1
+    let base = crate::tracking::TagSpec::parse("hello/world").unwrap();
+    let tag1 = storage.push_tag(&base, digest1).unwrap();
+    assert_eq!(storage.resolve_tag(&base).unwrap(), tag1);
+    assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag1);
 
-    tag2 = storage.push_tag("hello/world", digest2)
-    tag2 = storage.push_tag("hello/world", digest2)
-    assert storage.resolve_tag("hello/world") == tag2
-    assert storage.resolve_tag("hello/world~0") == tag2
-    assert storage.resolve_tag("hello/world~1") == tag1
-    assert tuple(storage.find_tags(digest2)) == ("hello/world",)
-    assert tuple(storage.find_tags(digest1)) == ("hello/world~1",)
+    let tag2 = storage.push_tag(&base, digest2).unwrap();
+    let tag3 = storage.push_tag(&base, digest2).unwrap();
+    assert_eq!(storage.resolve_tag(&base).unwrap(), tag2);
+    assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag2);
+    assert_eq!(storage.resolve_tag(&base.with_version(1)).unwrap(), tag1);
+    let found: crate::Result<Vec<_>> = storage.find_tags(&digest2).collect();
+    assert_eq!(found.unwrap(), vec![base]);
+    let found: crate::Result<Vec<_>> = storage.find_tags(&digest1).collect();
+    assert_eq!(found.unwrap(), vec![base.with_version(1)]);
+}
 
+#[rstest]
+fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
+    let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+    let spec = tracking::TagSpec::parse("hello").unwrap();
+    let tag1 = storage
+        .push_tag(&spec, encoding::EMPTY_DIGEST.into())
+        .unwrap();
+    let tag2 = storage
+        .push_tag(&spec, encoding::EMPTY_DIGEST.into())
+        .unwrap();
 
-def test_tag_no_duplication(tmpdir: py.path.local) -> None:
+    assert_eq!(tag1, tag2);
+    let tags: Vec<_> = storage.read_tag(&spec).unwrap().collect();
+    assert_eq!(tags.len(), 1);
+}
 
-    storage = TagStorage(tmpdir.join("tags").strpath)
-    tag1 = storage.push_tag("hello", encoding.EMPTY_DIGEST)
-    tag2 = storage.push_tag("hello", encoding.EMPTY_DIGEST)
+#[rstest]
+fn test_tag_permissions(tmpdir: tempdir::TempDir) {
+    let storage = FSRepository::create(tmpdir.path().join("repo")).unwrap();
+    let spec = tracking::TagSpec::parse("hello").unwrap();
+    storage
+        .push_tag(&spec, encoding::EMPTY_DIGEST.into())
+        .unwrap();
+    assert_eq!(
+        tmpdir
+            .path()
+            .join("repo/tags/hello.tag")
+            .metadata()
+            .unwrap()
+            .mode()
+            & 0o777,
+        0o777
+    );
+}
 
-    assert tag1 == tag2
-    assert len(list(storage.read_tag("hello"))) == 1
-
-
-def test_tag_permissions(tmpdir: py.path.local) -> None:
-
-    storage = TagStorage(tmpdir.join("tags").strpath)
-    storage.push_tag("hello", encoding.EMPTY_DIGEST)
-    assert tmpdir.join("tags", "hello.tag").stat().mode & 0o777 == 0o777
-
-
-def test_ls_tags(tmpdir: py.path.local) -> None:
-
-    storage = TagStorage(tmpdir.join("tags").strpath)
-    for tag in (
+#[rstest]
+fn test_ls_tags(tmpdir: tempdir::TempDir) {
+    let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+    for tag in vec![
         "spi/stable/my_tag",
         "spi/stable/other_tag",
         "spi/stable",
         "spi/latest/my_tag",
-    ):
-        storage.push_tag(tag, encoding.EMPTY_DIGEST)
+    ] {
+        let spec = tracking::TagSpec::parse(tag).unwrap();
+        storage
+            .push_tag(&spec, encoding::EMPTY_DIGEST.into())
+            .unwrap();
+    }
 
-    assert storage.ls_tags("/") == ["spi"]
-    assert storage.ls_tags("/spi") == ["latest", "stable"]
-    assert storage.ls_tags("spi/stable") == ["my_tag", "other_tag"]
+    let mut tags: Vec<_> = storage.ls_tags("/").unwrap().collect();
+    assert_eq!(tags, vec!["spi"]);
+    tags = storage.ls_tags("/spi").unwrap().collect();
+    assert_eq!(tags, vec!["latest", "stable"]);
+    tags = storage.ls_tags("spi/stable").unwrap().collect();
+    assert_eq!(tags, vec!["my_tag", "other_tag"]);
+}
 
-
-def test_rm_tags(tmpdir: py.path.local) -> None:
-
-    storage = TagStorage(tmpdir.join("tags").strpath)
-    for tag in (
+#[rstest]
+fn test_rm_tags(tmpdir: tempdir::TempDir) {
+    let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+    for tag in vec![
         "spi/stable/my_tag",
         "spi/stable/other_tag",
         "spi/latest/my_tag",
-    ):
-        storage.push_tag(tag, encoding.EMPTY_DIGEST)
+    ] {
+        let spec = tracking::TagSpec::parse(tag).unwrap();
+        storage
+            .push_tag(&spec, encoding::EMPTY_DIGEST.into())
+            .unwrap();
+    }
 
-    assert storage.ls_tags("/spi") == ["latest", "stable"]
-    storage.remove_tag_stream("spi/stable/my_tag")
-    assert storage.ls_tags("spi/stable") == ["other_tag"]
-    storage.remove_tag_stream("spi/stable/other_tag")
-    assert storage.ls_tags("spi") == ["latest"]
+    let mut tags: Vec<_> = storage.ls_tags("/spi").unwrap().collect();
+    assert_eq!(tags, vec!["latest", "stable"]);
+    storage
+        .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/my_tag").unwrap())
+        .unwrap();
+    tags = storage.ls_tags("spi/stable").unwrap().collect();
+    assert_eq!(tags, vec!["other_tag"]);
+    storage
+        .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/other_tag").unwrap())
+        .unwrap();
+    tags = storage.ls_tags("spi").unwrap().collect();
+    assert_eq!(tags, vec!["latest"]);
+}

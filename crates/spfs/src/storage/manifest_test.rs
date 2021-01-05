@@ -1,7 +1,7 @@
 use rstest::{fixture, rstest};
 
-use super::fs::FSDatabase;
-use crate::graph::Manifest;
+use crate::graph::{Database, DatabaseView, Manifest, Object};
+use crate::storage::{fs::FSRepository, ManifestStorage};
 use crate::{encoding::Encodable, tracking};
 
 #[fixture]
@@ -12,35 +12,34 @@ fn tmpdir() -> tempdir::TempDir {
 #[rstest]
 fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
-    let storage = FSDatabase::new(tmpdir.join("storage"));
+    let repo = FSRepository::create(tmpdir.join("repo")).unwrap();
 
     std::fs::File::open(tmpdir.join("file.txt")).unwrap();
     let manifest = Manifest::from(&tracking::compute_manifest(&tmpdir).unwrap());
-    storage
-        .db
-        .write_object(manifest)
+    repo.write_object(&manifest.into())
         .expect("failed to write manifest");
 
     std::fs::write(tmpdir.join("file.txt"), "newrootdata").unwrap();
     let manifest2 = Manifest::from(&tracking::compute_manifest(tmpdir).unwrap());
-    storage.db.write_object(manifest).unwrap();
+    repo.write_object(&manifest.into()).unwrap();
 
-    let digests: Vec<_> = storage.db.iter_digests().collect().unwrap();
+    let digests: crate::Result<Vec<_>> = repo.iter_digests().collect();
+    let digests = digests.unwrap();
     assert!(digests.contains(&manifest.digest().unwrap()));
 }
 
 #[rstest]
 fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
-    let storage = FSDatabase::new(tmpdir.join("storage"));
+    let storage = FSRepository::create(tmpdir.join("storage")).unwrap();
 
     std::fs::write(tmpdir.join("dir/file.txt"), "").unwrap();
     let expected = tracking::compute_manifest(&tmpdir).unwrap();
     let storable = Manifest::from(&expected);
-    storage.write_object(storable).unwrap();
-    let out = storage.read_manifest(storable.digest()).unwrap();
+    storage.write_object(&storable.into()).unwrap();
+    let out = storage.read_manifest(&storable.digest().unwrap()).unwrap();
     let actual = out.unlock();
-    let mut diffs = tracking::compute_diff(&expected, actual);
+    let mut diffs = tracking::compute_diff(&expected, &actual);
     diffs = diffs
         .into_iter()
         .filter(|d| !d.mode.is_unchanged())

@@ -5,7 +5,7 @@ pub trait LayerStorage: graph::Database {
     /// Iterate the objects in this storage which are layers.
     fn iter_layers<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, &'db graph::Layer)>> + 'db>
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Layer)>> + 'db>
     where
         Self: Sized,
     {
@@ -28,7 +28,7 @@ pub trait LayerStorage: graph::Database {
     }
 
     /// Return the layer identified by the given digest.
-    fn read_layer<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db graph::Layer> {
+    fn read_layer<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err.into()),

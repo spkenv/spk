@@ -4,7 +4,7 @@ pub trait PlatformStorage: graph::Database {
     /// Iterate the objects in this storage which are platforms.
     fn iter_platforms<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, &'db graph::Platform)>> + 'db>
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Platform)>> + 'db>
     where
         Self: Sized,
     {
@@ -27,7 +27,7 @@ pub trait PlatformStorage: graph::Database {
     }
 
     /// Return the platform identified by the given digest.
-    fn read_platform<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db graph::Platform> {
+    fn read_platform(&self, digest: &encoding::Digest) -> Result<graph::Platform> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err.into()),

@@ -1,11 +1,11 @@
-from ._payloads import FSPayloadStorage
-from ._database import FSDatabase
-from ._renderer import FSManifestViewer
-from ._repository import (
-    FSRepository,
-    read_last_migration_version,
-    MigrationRequiredError,
-)
-from ._tag import TagStorage
+//! Uses a local directory on disk to store the spfs repository.
 
-__all__ = list(locals().keys())
+mod database;
+mod hash_store;
+mod payloads;
+mod renderer;
+mod repository;
+mod tag;
+
+pub use hash_store::FSHashStore;
+pub use repository::{read_last_migration_version, FSRepository};

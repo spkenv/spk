@@ -1,99 +1,72 @@
-from typing import Dict, Type
-import io
-import os
-import uuid
+use std::os::unix::fs::PermissionsExt;
 
-import structlog
+use crate::graph::{Blob, Layer, Manifest, Object, Platform};
+use crate::{encoding, graph, tracking, Error};
+use encoding::Encodable;
+use graph::DatabaseView;
 
-from ... import graph, encoding, tracking
-from .. import (
-    Blob,
-    Layer,
-    Platform,
-    Manifest,
-)
-from ._payloads import FSPayloadStorage
+impl DatabaseView for super::FSRepository {
+    fn read_object<'db>(&'db self, digest: &encoding::Digest) -> graph::Result<graph::Object> {
+        let filepath = self.objects.build_digest_path(&digest);
+        let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
+            std::io::ErrorKind::NotFound => graph::UnknownObjectError::new(&digest),
+            _ => Error::from(err),
+        })?;
+        Object::decode(&mut reader)
+    }
 
-_logger = structlog.get_logger("spfs.storage.fs")
-_OBJECT_HEADER = b"--SPFS--"
-_OBJECT_KINDS: Dict[int, Type[graph.Object]] = {
-    0: Blob,
-    1: Manifest,
-    2: Layer,
-    3: Platform,
+    fn iter_digests<'db>(&'db self) -> Box<dyn Iterator<Item = graph::Result<encoding::Digest>>> {
+        match self.objects.iter() {
+            Ok(iter) => Box::new(iter),
+            Err(err) => Box::new(vec![Err(Error::from(err))].into_iter()),
+        }
+    }
 }
 
+impl graph::Database for super::FSRepository {
+    fn write_object(&mut self, obj: &graph::Object) -> graph::Result<()> {
+        let filepath = self.objects.build_digest_path(&obj.digest()?);
+        if filepath.exists() {
+            return Ok(());
+        }
 
-class FSDatabase(FSPayloadStorage, graph.Database):
-    """An object database implementation that persists data using the local file system."""
+        // we need to use a temporary file here, so that
+        // other processes don't try to read our incomplete
+        // object from the database
+        let working_file = self.root().join(uuid::Uuid::new_v4().to_string());
+        self.objects.ensure_base_dir(&filepath)?;
+        let mut writer = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&working_file)?;
+        obj.encode(&mut writer)?;
+        match std::fs::rename(&working_file, &filepath) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                let _ = std::fs::remove_file(&working_file);
+                match err.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        let _ = std::fs::remove_file(&working_file);
+                        Ok(())
+                    }
+                    _ => Err(err.into()),
+                }
+            }
+        }
+    }
 
-    def read_object(self, digest: encoding.Digest) -> graph.Object:
+    fn remove_object(&mut self, digest: &encoding::Digest) -> crate::Result<()> {
+        let filepath = self.objects.build_digest_path(&digest);
 
-        with self.open_payload(digest) as payload:
-            reader = io.BytesIO(payload.read())
+        // this might fail but we don't consider that fatal just yet
+        let _ = std::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777));
 
-        try:
-            encoding.consume_header(reader, _OBJECT_HEADER)
-            kind = encoding.read_int(reader)
-            if kind not in _OBJECT_KINDS:
-                raise ValueError(f"Object is corrupt: unknown kind {kind} [{digest}]")
-            return _OBJECT_KINDS[kind].decode(reader)
-        finally:
-            reader.close()
-
-    def write_object(self, obj: graph.Object) -> None:
-
-        for kind, cls in _OBJECT_KINDS.items():
-            if isinstance(obj, cls):
-                break
-        else:
-            raise ValueError(f"Unkown object kind, cannot store: {type(obj)}")
-
-        filepath = self._build_digest_path(obj.digest())
-        if os.path.exists(filepath):
-            return
-
-        # we need to use a temporary file here, so that
-        # other processes don't try to read our incomplete
-        # object from the database
-        working_file = os.path.join(self.root, uuid.uuid4().hex)
-        self._ensure_base_dir(filepath)
-        with open(working_file, "xb") as writer:
-            encoding.write_header(writer, _OBJECT_HEADER)
-            encoding.write_int(writer, kind)
-            obj.encode(writer)
-        try:
-            os.rename(working_file, filepath)
-        except FileExistsError:
-            os.remove(working_file)
-        except Exception:
-            os.remove(working_file)
-            raise
-
-    def remove_object(self, digest: encoding.Digest) -> None:
-
-        self.remove_payload(digest)
-
-
-def makedirs_with_perms(dirname: str, perms: int = 0o777) -> None:
-    """Recursively create the given directory with the appropriate permissions."""
-
-    dirnames = os.path.normpath(dirname).split(os.sep)
-    for i in range(2, len(dirnames) + 1):
-        dirname = os.path.join("/", *dirnames[0:i])
-
-        try:
-            # even though checking existance first is not
-            # needed, it is required to trigger the automounter
-            # in cases when the desired path is in that location
-            if not os.path.exists(dirname):
-                os.mkdir(dirname, mode=0o777)
-        except FileExistsError:
-            continue
-
-        try:
-            os.chmod(dirname, perms)
-        except PermissionError:
-            # not fatal, so it's worth allowing things to continue
-            # even though it could cause permission issues later on
-            pass
+        if let Err(err) = std::fs::remove_file(&filepath) {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(()),
+                _ => Err(err.into()),
+            };
+        }
+        Ok(())
+    }
+}

@@ -38,10 +38,10 @@ pub trait Repository: TagStorage + PayloadStorage + graph::Database {
     }
 
     /// Read an object of unknown type by tag or digest.
-    fn read_ref<'a>(&'a self, reference: &str) -> Result<&'a graph::Object> {
+    fn read_ref(&self, reference: &str) -> Result<graph::Object> {
         let reference = reference.as_ref();
         let digest = if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
-            if let Ok(tag) = self.resolve_tag(tag_spec) {
+            if let Ok(tag) = self.resolve_tag(&tag_spec) {
                 tag.target
             } else {
                 self.resolve_full_digest(reference)?

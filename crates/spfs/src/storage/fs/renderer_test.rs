@@ -1,75 +1,112 @@
-import py.path
+use std::os::unix::fs::PermissionsExt;
 
-from ... import tracking
-from .. import Manifest
-from ._database import FSPayloadStorage
-from ._renderer import FSManifestViewer, _was_render_completed, _copy_manifest
-from ._repository import FSRepository
+use rstest::{fixture, rstest};
 
+use super::{copy_manifest, was_render_completed};
+use crate::encoding::Encodable;
+use crate::graph::Manifest;
+use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage, Repository};
+use crate::tracking;
 
-def test_render_manifest(tmpdir: py.path.local) -> None:
+#[rstest]
+fn test_render_manifest(tmpdir: tempdir::TempDir) {
+    let mut storage = FSRepository::create(tmpdir.path().join("storage")).unwrap();
 
-    storage = FSPayloadStorage(tmpdir.join("storage").strpath)
-    viewer = FSManifestViewer(tmpdir.join("renders").strpath, storage)
+    let src_dir = tmpdir.path().join("source");
+    ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
+    ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
+    ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
+    ensure(src_dir.join("file.txt"), "rootdata");
 
-    src_dir = tmpdir.join("source")
-    src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
-    src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
-    src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
-    src_dir.join("file.txt").write("rootdata", ensure=True)
+    let manifest = tracking::compute_manifest(&src_dir).unwrap();
 
-    manifest = tracking.compute_manifest(src_dir.strpath)
+    for node in manifest.walk_abs(&src_dir.to_str().unwrap()) {
+        if node.entry.kind.is_blob() {
+            let mut data = std::fs::File::open(&node.path.to_path("/")).unwrap();
+            storage.write_payload(&mut data).unwrap();
+        }
+    }
 
-    for path, entry in manifest.walk_abs(src_dir.strpath):
-        if entry.kind is tracking.EntryKind.BLOB:
-            with open(path, "rb") as f:
-                storage.write_payload(f)
+    let expected = Manifest::from(&manifest);
+    let rendered_path = storage
+        .render_manifest(&expected)
+        .expect("should successfully rener manfest");
+    let actual = Manifest::from(&tracking::compute_manifest(rendered_path).unwrap());
+    assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
+}
 
-    expected = Manifest(manifest)
-    rendered_path = viewer.render_manifest(expected)
-    actual = Manifest(tracking.compute_manifest(rendered_path))
-    assert actual.digest() == expected.digest()
+#[rstest]
+fn test_copy_manfest(tmpdir: tempdir::TempDir) {
+    let src_dir = tmpdir.path().join("source");
+    ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
+    ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
+    ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
+    std::os::unix::fs::symlink("file.txt", src_dir.join("dir2.0/file2.txt")).unwrap();
+    std::os::unix::fs::symlink(&src_dir, src_dir.join("dir2.0/abssrc")).unwrap();
+    std::fs::set_permissions(
+        src_dir.join("dir2.0"),
+        std::fs::Permissions::from_mode(0o555),
+    )
+    .unwrap();
+    ensure(src_dir.join("file.txt"), "rootdata");
+    std::fs::set_permissions(
+        src_dir.join("file.txt"),
+        std::fs::Permissions::from_mode(0o400),
+    )
+    .unwrap();
 
+    let expected = Manifest::from(&tracking::compute_manifest(&src_dir).unwrap());
 
-def test_copy_manfest(tmpdir: py.path.local) -> None:
+    let dst_dir = tmpdir.path().join("dest");
+    copy_manifest(&expected, &src_dir, &dst_dir).expect("failed to copy manifest");
 
-    src_dir = tmpdir.join("source")
-    src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
-    src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
-    src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
-    src_dir.join("dir2.0/file2.txt").mksymlinkto("file.txt")  # type: ignore
-    src_dir.join("dir2.0/abssrc").mksymlinkto(src_dir.strpath)  # type: ignore
-    src_dir.join("dir2.0").chmod(0o555)
-    src_dir.join("file.txt").write("rootdata", ensure=True)
-    src_dir.join("file.txt").chmod(0o400)
+    let actual = Manifest::from(&tracking::compute_manifest(&dst_dir).unwrap());
 
-    expected = Manifest(tracking.compute_manifest(src_dir.strpath))
+    assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
+}
 
-    dst_dir = tmpdir.join("dest")
-    _copy_manifest(expected, src_dir.strpath, dst_dir.strpath)
+#[rstest]
+fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir, mut tmprepo: FSRepository) {
+    let src_dir = tmpdir.path().join("source");
+    ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
+    ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
+    ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
+    ensure(src_dir.join("file.txt"), "rootdata");
 
-    actual = Manifest(tracking.compute_manifest(dst_dir.strpath))
+    let manifest = Manifest::from(&tmprepo.commit_dir(&src_dir).unwrap());
 
-    assert actual.digest() == expected.digest()
+    let render = tmprepo
+        .renders
+        .build_digest_path(&manifest.digest().unwrap());
+    assert!(!render.exists(), "render should NOT be seen as existing");
+    tmprepo.render_manifest(&manifest).unwrap();
+    assert!(render.exists(), "render should be seen as existing");
+    assert!(was_render_completed(&render));
+    let rendered_manifest = Manifest::from(&tracking::compute_manifest(&render).unwrap());
+    assert_eq!(
+        rendered_manifest.digest().unwrap(),
+        manifest.digest().unwrap()
+    );
+}
 
+fn ensure(path: std::path::PathBuf, data: &str) {
+    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path)
+        .expect("failed to create file");
+    std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
+}
 
-def test_render_manifest_with_repo(
-    tmpdir: py.path.local, tmprepo: FSRepository
-) -> None:
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new_in("/tmp", module_path!().clone().replace("::", "_").as_ref())
+        .expect("failed to create tempdir for test")
+}
 
-    src_dir = tmpdir.join("source")
-    src_dir.join("dir1.0/dir2.0/file.txt").write("somedata", ensure=True)
-    src_dir.join("dir1.0/dir2.1/file.txt").write("someotherdata", ensure=True)
-    src_dir.join("dir2.0/file.txt").write("evenmoredata", ensure=True)
-    src_dir.join("file.txt").write("rootdata", ensure=True)
-
-    manifest = Manifest(tmprepo.commit_dir(src_dir.strpath))
-
-    assert isinstance(tmprepo, FSManifestViewer)
-    render = py.path.local(tmprepo._build_digest_path(manifest.digest()))
-    assert not render.exists()
-    tmprepo.render_manifest(manifest)
-    assert render.exists()
-    assert _was_render_completed(render.strpath)
-    rendered_manifest = Manifest(tracking.compute_manifest(render.strpath))
-    assert rendered_manifest.digest() == manifest.digest()
+#[fixture]
+fn tmprepo(tmpdir: tempdir::TempDir) -> FSRepository {
+    let root = tmpdir.path().join("storage");
+    FSRepository::create(root).expect("failed to create temprepo for test")
+}

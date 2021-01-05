@@ -4,7 +4,7 @@ pub trait BlobStorage: graph::Database {
     /// Iterate the objects in this storage which are blobs."""
     fn iter_blobs<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, &'db graph::Blob)>> + 'db>
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Blob)>> + 'db>
     where
         Self: Sized,
     {
@@ -27,7 +27,7 @@ pub trait BlobStorage: graph::Database {
     }
 
     /// Return the blob identified by the given digest.
-    fn read_blob<'db>(&'db self, digest: &encoding::Digest) -> Result<&'db graph::Blob> {
+    fn read_blob<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Blob> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err.into()),

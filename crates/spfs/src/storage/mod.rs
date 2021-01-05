@@ -6,7 +6,7 @@ mod platform;
 mod repository;
 mod tag;
 
-//pub mod fs;
+pub mod fs;
 //pub mod tar;
 
 pub use blob::BlobStorage;
