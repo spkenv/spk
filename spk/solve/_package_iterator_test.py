@@ -59,7 +59,6 @@ def test_old_release_allowed_if_requested() -> None:
         api.OptionMap(),
     )
     packages = list(it)
-    print(it.history)
     assert len(packages) == 1, "Should return one release per package"
     assert (
         packages[0][0].pkg.version.post["r"] == 1

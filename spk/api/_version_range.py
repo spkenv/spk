@@ -83,12 +83,12 @@ class VersionRange(metaclass=abc.ABCMeta):
         if self_upper and other_lower:
             if self_upper < other_lower:
                 return Compatibility(
-                    f"{other} does not intersect with {self}, all versions too low"
+                    f"{other} does not intersect with {self}, all versions too high"
                 )
         if self_lower and other_upper:
             if self_lower > other_upper:
                 return Compatibility(
-                    f"{other} does not intersect with {self}, all versions too high"
+                    f"{other} does not intersect with {self}, all versions too low"
                 )
 
         return COMPATIBLE

@@ -113,33 +113,30 @@ class Solver:
 
             while True:
                 spec, repo = next(iterator)
-                decision.set_resolved(spec, repo)
                 if spec.pkg.build is None:
                     if self._binary_only:
                         compat = api.Compatibility("Only binary packages are allowed")
                     else:
                         compat = self._resolve_new_build(spec, state)
                     if not compat:
-                        if isinstance(iterator, FilteredPackageIterator):
-                            iterator.history[spec.pkg] = compat
+                        iterator.add_history(spec.pkg, compat)
                         continue
                 elif not spec.pkg.build.is_source():
-                    for dep in spec.install.requirements:
-                        try:
-                            decision.add_request(dep)
-                        except ConflictingRequestsError as e:
-                            if isinstance(iterator, FilteredPackageIterator):
-                                iterator.history[spec.pkg] = api.Compatibility(str(e))
-                            continue
+                    try:
+                        with decision.transaction() as t:
+                            for dep in spec.install.requirements:
+                                t.add_request(dep)
+                    except ConflictingRequestsError as e:
+                        iterator.add_history(spec.pkg, api.Compatibility(str(e)))
+                        continue
                 break
 
+            decision.set_resolved(spec, repo)
+
         except StopIteration:
-            history: Dict[api.Ident, api.Compatibility] = {}
-            if isinstance(iterator, FilteredPackageIterator):
-                history = iterator.history
             err = UnresolvedPackageError(
                 yaml.safe_dump(request.to_dict()).strip(),  # type: ignore
-                history=history,
+                history=iterator.get_history(),
             )
             decision.set_error(err)
             raise err from None

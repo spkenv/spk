@@ -1,6 +1,7 @@
 from typing import List, Dict, Set, Optional, Union, Iterator, Tuple, Iterable
 from collections import defaultdict
 from functools import lru_cache
+from contextlib import contextmanager
 
 import structlog
 
@@ -9,8 +10,8 @@ from ._errors import SolverError, ConflictingRequestsError
 from ._solution import Solution, PackageSource
 from ._package_iterator import (
     PackageIterator,
-    RepositoryPackageIterator,
     FilteredPackageIterator,
+    ListPackageIterator,
 )
 
 _LOGGER = structlog.get_logger("spk.solve")
@@ -43,7 +44,7 @@ class Decision:
         self.branches: List[Decision] = []
         self._requests: Dict[str, List[api.Request]] = {}
         self._resolved: Solution = Solution()
-        self._unresolved: Set[str] = set()
+        self._unresolved: Dict[str, api.Compatibility] = {}
         self._error: Optional[SolverError] = None
         self._iterators: Dict[str, PackageIterator] = {}
         self._options = api.OptionMap()
@@ -59,6 +60,27 @@ class Decision:
             values = list(str(pkg) for pkg in self._requests.values())
             out += f"REQUEST: {', '.join(values)} "
         return out
+
+    @contextmanager
+    def transaction(self) -> Iterator["Decision"]:
+
+        sub = Decision(parent=self)
+        sub.update_options(self._options)
+        yield sub
+
+        for branch in sub.branches:
+            branch.parent = self
+            self.branches.append(branch)
+        for name, reqs in sub._requests.items():
+            self._requests.setdefault(name, [])
+            self._requests[name].extend(reqs)
+        self._resolved.update(sub._resolved)
+        self._unresolved.update(sub._unresolved)
+        self._error = sub._error
+        self._iterators.update(sub._iterators)
+        self._options = sub._options
+        self.unresolved_requests.cache_clear()
+        self.get_all_unresolved_requests.cache_clear()
 
     @lru_cache()
     def level(self) -> int:
@@ -119,7 +141,7 @@ class Decision:
             self._options.setdefault(name, value)
 
         try:
-            self._unresolved.remove(spec.pkg.name)
+            del self._unresolved[spec.pkg.name]
         except KeyError:
             pass
 
@@ -132,14 +154,14 @@ class Decision:
 
         req = api.Request.from_ident(spec.pkg)
         self.add_request(req)
-        self.set_iterator(spec.pkg.name, iter([(spec, source)]))
+        self.set_iterator(spec.pkg.name, ListPackageIterator([(spec, source)]))
 
     def get_resolved(self) -> Solution:
         """Get the set of packages resolved by this decision."""
 
         return self._resolved.clone()
 
-    def set_unresolved(self, name: str) -> None:
+    def set_unresolved(self, name: str, compat: api.Compatibility) -> None:
         """Set the given package as unresolved by this decision.
 
         An unresolved package undoes any previous decision that resolves
@@ -152,12 +174,12 @@ class Decision:
 
         self.unresolved_requests.cache_clear()
         self.get_all_unresolved_requests.cache_clear()
-        self._unresolved.add(name)
+        self._unresolved[name] = compat
 
-    def get_unresolved(self) -> List[str]:
+    def get_unresolved(self) -> Dict[str, api.Compatibility]:
         """Get the set of packages that are unresolved by this decision."""
 
-        return list(self._unresolved)
+        return self._unresolved.copy()
 
     def get_iterator(self, name: str) -> Optional[PackageIterator]:
         """Get the current package iterator for this state.
@@ -170,12 +192,8 @@ class Decision:
         if name not in self._iterators:
             if self.parent is not None:
                 parent_iter = self.parent.get_iterator(name)
-                if isinstance(parent_iter, RepositoryPackageIterator):
+                if parent_iter is not None:
                     self._iterators[name] = parent_iter.clone()
-                elif parent_iter is not None:
-                    dupe = list(parent_iter)
-                    self.parent.set_iterator(name, iter(dupe))
-                    self._iterators[name] = iter(dupe)
 
         return self._iterators.get(name)
 
@@ -203,8 +221,9 @@ class Decision:
 
         try:
             current = self.get_current_solution().get(request.pkg.name)
-            if not request.is_satisfied_by(current.spec):
-                self.set_unresolved(request.pkg.name)
+            compat = request.is_satisfied_by(current.spec)
+            if not compat:
+                self.set_unresolved(request.pkg.name, compat)
         except KeyError:
             pass
 

@@ -40,22 +40,34 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
         if verbosity > 1:
             for _, spec, _ in resolved.items():
                 iterator = decision.get_iterator(spec.pkg.name)
-                if isinstance(iterator, solve.FilteredPackageIterator):
+                if iterator is not None:
                     versions = list(
                         f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(v)} - {c}"
-                        for v, c in iterator.history.items()
+                        for v, c in iterator.get_history().items()
                     )
                     if versions:
                         out += end.join(reversed(versions)) + end
                 out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(spec.pkg)}" + end
+                if verbosity > 2:
+                    opt = spec.build.resolve_all_options(decision.get_options())
+                    if opt:
+                        out += format_options(opt) + end
         else:
             values = list(format_ident(spec.pkg) for _, spec, _ in resolved.items())
             out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {', '.join(values)}" + end
     if requests:
         values = list(format_request(n, pkgs) for n, pkgs in requests.items())
         out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)}" + end
-    if unresolved:
-        out += f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
+    if error is None and unresolved:
+        if verbosity > 1:
+            reasons = list(
+                f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {v} - {c}"
+                for v, c in unresolved.items()
+            )
+            if reasons:
+                out += end.join(reversed(reasons)) + end
+        else:
+            out += f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
 
     if error is not None:
 

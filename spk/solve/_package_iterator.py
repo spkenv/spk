@@ -11,14 +11,51 @@ from ._solution import PackageSource
 _LOGGER = structlog.get_logger("spk.solve")
 
 
-PackageIterator = Iterator[Tuple[api.Spec, PackageSource]]
 Self = TypeVar("Self")
 
 
-@runtime_checkable
-class Cloneable(Protocol):
+class PackageIterator(Iterator[Tuple[api.Spec, PackageSource]], metaclass=ABCMeta):
+    @abstractmethod
+    def get_history(self) -> Dict[api.Ident, api.Compatibility]:
+        ...
+
+    @abstractmethod
+    def add_history(self, ident: api.Ident, compat: api.Compatibility) -> None:
+        ...
+
+    @abstractmethod
     def clone(self: Self) -> Self:
-        pass
+        ...
+
+
+class ListPackageIterator(PackageIterator):
+    def __init__(
+        self,
+        packages: List[Tuple[api.Spec, PackageSource]],
+        history_source: PackageIterator = None,
+    ) -> None:
+        self._packages = iter(packages)
+        self._history_source = history_source
+        self._history: Dict[api.Ident, api.Compatibility] = {}
+
+    def get_history(self) -> Dict[api.Ident, api.Compatibility]:
+        h = self._history.copy()
+        if self._history_source is not None:
+            h.update(self._history_source.get_history())
+        return h
+
+    def add_history(self, ident: api.Ident, compat: api.Compatibility) -> None:
+        self._history[ident] = compat
+
+    def __next__(self) -> Tuple[api.Spec, PackageSource]:
+        return next(self._packages)
+
+    def clone(self) -> "ListPackageIterator":
+        dupe = list(self._packages)
+        self._packages = iter(dupe)
+        it = ListPackageIterator(dupe, self._history_source)
+        it._history = self._history.copy()
+        return it
 
 
 class RepositoryPackageIterator(PackageIterator):
@@ -30,6 +67,13 @@ class RepositoryPackageIterator(PackageIterator):
         self._versions: Optional[Iterator[api.Version]] = None
         self._builds: Iterator[api.Ident] = iter([])
         self._version_map: Dict[api.Version, storage.Repository] = {}
+        self._history: Dict[api.Ident, api.Compatibility] = {}
+
+    def get_history(self) -> Dict[api.Ident, api.Compatibility]:
+        return self._history.copy()
+
+    def add_history(self, ident: api.Ident, compat: api.Compatibility) -> None:
+        self._history[ident] = compat
 
     def _start(self) -> None:
 
@@ -61,6 +105,7 @@ class RepositoryPackageIterator(PackageIterator):
         other._versions = iter(remaining_versions)
         self._versions = iter(remaining_versions)
         self._builds = iter(remaining_builds)
+        other._history = self._history.copy()
         other._version_map = self._version_map.copy()
         other._builds = iter(remaining_builds)
         return other
@@ -113,8 +158,22 @@ class FilteredPackageIterator(PackageIterator):
         self._source = source
         self.request = request
         self.options = options
-        self.history: Dict[api.Ident, api.Compatibility] = {}
+        self._history: Dict[api.Ident, api.Compatibility] = {}
         self._visited_versions: Dict[str, api.Version] = {}
+
+    def get_history(self) -> Dict[api.Ident, api.Compatibility]:
+        h = self._source.get_history()
+        h.update(self._history)
+        return h
+
+    def add_history(self, ident: api.Ident, compat: api.Compatibility) -> None:
+        self._history[ident] = compat
+
+    def clone(self) -> "FilteredPackageIterator":
+
+        it = FilteredPackageIterator(self._source.clone(), self.request, self.options)
+        it._history = self._history.copy()
+        return it
 
     def __next__(self) -> Tuple[api.Spec, PackageSource]:
 
@@ -132,7 +191,7 @@ class FilteredPackageIterator(PackageIterator):
             # check version number without build
             compat = self.request.is_version_applicable(candidate.pkg.version)
             if not compat:
-                self.history[candidate.pkg.with_build(None)] = compat
+                self.add_history(candidate.pkg.with_build(None), compat)
                 continue
 
             # FIXME: loading this for each build is not efficient
@@ -150,23 +209,27 @@ class FilteredPackageIterator(PackageIterator):
                 opts = version_spec.build.resolve_all_options(self.options)
                 compat = version_spec.build.validate_options(opts)
                 if not compat:
-                    self.history[candidate.pkg.with_build(None)] = compat
+                    self.add_history(candidate.pkg.with_build(None), compat)
                     continue
 
                 compat = self.request.pkg.version.is_satisfied_by(version_spec)
                 if not compat:
-                    self.history[candidate.pkg.with_build(None)] = compat
+                    self.add_history(candidate.pkg.with_build(None), compat)
                     continue
 
             if requested_build is not None:
                 if requested_build != candidate.pkg.build:
-                    self.history[candidate.pkg.with_build(None)] = api.Compatibility(
-                        f"Exact build was requested: {candidate.pkg.build} != {requested_build}"
+                    self.add_history(
+                        candidate.pkg.with_build(None),
+                        api.Compatibility(
+                            f"Exact build was requested: {candidate.pkg.build} != {requested_build}"
+                        ),
                     )
                     continue
             if candidate.pkg.build is None:
-                self.history[candidate.pkg] = api.Compatibility(
-                    "Package is corrupt (has no associated build)"
+                self.add_history(
+                    candidate.pkg,
+                    api.Compatibility("Package is corrupt (has no associated build)"),
                 )
                 continue
 
@@ -174,8 +237,11 @@ class FilteredPackageIterator(PackageIterator):
                 if version_spec is not None:
                     spec = version_spec
                 else:
-                    self.history[candidate.pkg] = api.Compatibility(
-                        "No version-level spec, cannot rebuild from source"
+                    self.add_history(
+                        candidate.pkg,
+                        api.Compatibility(
+                            "No version-level spec, cannot rebuild from source"
+                        ),
                     )
                     continue
             else:
@@ -188,7 +254,7 @@ class FilteredPackageIterator(PackageIterator):
 
             compat = self.request.is_satisfied_by(spec)
             if not compat:
-                self.history[candidate.pkg] = compat
+                self.add_history(candidate.pkg, compat)
                 continue
 
             # resolve and update missing options from spec in case there
@@ -199,7 +265,7 @@ class FilteredPackageIterator(PackageIterator):
                 opts.setdefault(name, value)
             compat = spec.build.validate_options(opts)
             if not compat:
-                self.history[candidate.pkg] = compat
+                self.add_history(candidate.pkg, compat)
                 continue
 
             self._visited_versions[candidate.pkg.version.base] = candidate.pkg.version

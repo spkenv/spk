@@ -668,3 +668,41 @@ def test_solver_embedded_package_unsolvable() -> None:
             solver.solve()
         finally:
             print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_some_versions_conflicting_requests() -> None:
+
+    # test when there is a package with some version that have a conflicting dependency
+    # - the solver passes over the one with conflicting
+    # - tthe solver logs compat info for versions with conflicts
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-lib",
+                "install": {
+                    # python 2.7 requirement will conflict with the first (2.1) build of dep
+                    "requirements": [{"pkg": "python/=2.7.5"}, {"pkg": "dep/2"}]
+                },
+            },
+            {
+                "pkg": "dep/2.1.0",
+                "install": {"requirements": [{"pkg": "python/=3.7.3"}]},
+            },
+            {
+                "pkg": "dep/2.0.0",
+                "install": {"requirements": [{"pkg": "python/=2.7.5"}]},
+            },
+            {"pkg": "python/2.7.5"},
+            {"pkg": "python/3.7.3"},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-lib")
+
+    try:
+        solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))

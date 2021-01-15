@@ -29,7 +29,4 @@ class ConflictingRequestsError(SolverError):
 
         self.requests = requests
         message = f"Conflicting requests: {msg}"
-        if requests is not None:
-            req_list = ", ".join(yaml.safe_dump(r.to_dict()).strip() for r in requests)  # type: ignore
-            message += f" - from requests: [{req_list}]"
         super(ConflictingRequestsError, self).__init__(message)
