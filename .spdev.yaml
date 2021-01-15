@@ -1,7 +1,6 @@
-version: 0.16.2
+version: 0.16.3
 release_notes: |
-  * Fix bug where relevant package versions could be ignored when a conflicting request was encountered
-  * Fix bug where package history could be lost and not seen in the solver output
+  * Fix bug where incompatible, embedded packages could be ignored by solver
 
 toolchain:
   - kind: Shell
