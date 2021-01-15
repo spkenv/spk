@@ -32,7 +32,7 @@ components:
     name: rpm
     spec_file: spk.spec
 
-  # bootstrap packages that need to go out with any new features
+    # bootstrap packages that need to go out with any new features
   - kind: SPKPackage
     name: spk-stdfs
     version: 1.0.0
@@ -51,3 +51,9 @@ components:
     project: spk
     deploy:
       enabled: true
+
+  - kind: WordpressReleaseNotes
+    name: wp-release
+    email:
+      sender:
+        name: SPK Team
