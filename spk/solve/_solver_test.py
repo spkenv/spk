@@ -706,3 +706,36 @@ def test_solver_some_versions_conflicting_requests() -> None:
         solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_embedded_request_invalidates() -> None:
+
+    # test when a package is resolved with an incompatible embedded pkg
+    # - the solver tries to resolve the package
+    # - there is a conflict in the embedded request
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-lib",
+                "install": {
+                    # python 2.7 requirement will conflict with the maya embedded one
+                    "requirements": [{"pkg": "python/3.7"}, {"pkg": "maya/2020"}]
+                },
+            },
+            {"pkg": "maya/2020", "install": {"embedded": [{"pkg": "python/2.7.5"}]},},
+            {"pkg": "python/2.7.5"},
+            {"pkg": "python/3.7.3"},
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("python")
+    solver.add_request("my-lib")
+
+    with pytest.raises(UnresolvedPackageError):
+        try:
+            solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))

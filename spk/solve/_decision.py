@@ -233,19 +233,15 @@ class Decision:
         self._requests[request.pkg.name].append(request)
 
         iterator = self.get_iterator(request.pkg.name)
-        if iterator is not None:
-            updated_request = self.get_merged_request(request.pkg.name)
-            assert (
-                updated_request is not None
-            ), "Merged request should be set after appending request!"
-
-            if isinstance(iterator, FilteredPackageIterator):
-                iterator.request = updated_request
-            else:
-                iterator = FilteredPackageIterator(
-                    iterator, updated_request, self._options
-                )
-                self.set_iterator(request.pkg.name, iterator)
+        updated_request = self.get_merged_request(request.pkg.name)
+        assert (
+            updated_request is not None
+        ), "Merged request should be set after appending request!"
+        if isinstance(iterator, FilteredPackageIterator):
+            iterator.request = updated_request
+        elif iterator is not None:
+            iterator = FilteredPackageIterator(iterator, updated_request, self._options)
+            self.set_iterator(request.pkg.name, iterator)
 
     def get_requests(self) -> Dict[str, List[api.Request]]:
         """Get the set of package requests added by this decision."""
