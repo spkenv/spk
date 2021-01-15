@@ -113,6 +113,7 @@ class Solver:
 
             while True:
                 spec, repo = next(iterator)
+                decision.set_resolved(spec, repo)
                 if spec.pkg.build is None:
                     if self._binary_only:
                         compat = api.Compatibility("Only binary packages are allowed")
@@ -124,10 +125,13 @@ class Solver:
                         continue
                 elif not spec.pkg.build.is_source():
                     for dep in spec.install.requirements:
-                        decision.add_request(dep)
+                        try:
+                            decision.add_request(dep)
+                        except ConflictingRequestsError as e:
+                            if isinstance(iterator, FilteredPackageIterator):
+                                iterator.history[spec.pkg] = api.Compatibility(str(e))
+                            continue
                 break
-
-            decision.set_resolved(spec, repo)
 
         except StopIteration:
             history: Dict[api.Ident, api.Compatibility] = {}
