@@ -2,13 +2,13 @@ pkg: gcc/6.3.1
 
 build:
   options:
-  - {var: arch, choices: [x86_64]}
-  - {var: os, choices: [linux]}
-  - {var: centos, choices: [7]}
-  - pkg: stdfs
+    - {var: arch, choices: [x86_64]}
+    - {var: os, choices: [linux]}
+    - {var: centos, choices: [7]}
+    - pkg: stdfs
   script:
-  - mkdir -p $PREFIX/etc/spfs/startup.d/
-  - cp activate-gcc-63.{sh,csh} $PREFIX/etc/spfs/startup.d/
+    - mkdir -p $PREFIX/etc/spfs/startup.d/
+    - cp activate-gcc-63.{sh,csh} $PREFIX/etc/spfs/startup.d/
 install:
   requirements:
-  - pkg: stdfs
+    - pkg: stdfs

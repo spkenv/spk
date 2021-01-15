@@ -1,8 +1,7 @@
-version: 0.16.1
+version: 0.16.2
 release_notes: |
-  * Fix bugs in spcomp2 conversion
-    * Add remote repo for build dependency resolution
-    * Skip versions with no config or actual releases
+  * Fix bug where relevant package versions could be ignored when a conflicting request was encountered
+  * Fix bug where package history could be lost and not seen in the solver output
 
 toolchain:
   - kind: Shell
