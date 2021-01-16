@@ -1,6 +1,6 @@
-version: 0.16.3
+version: 0.16.4
 release_notes: |
-  * Fix bug where incompatible, embedded packages could be ignored by solver
+  * Fix issue where invalid version ranges could spew cryptic errors
 
 toolchain:
   - kind: Shell
