@@ -13,6 +13,16 @@ def test_parse_version_range_carat() -> None:
     assert vr.less_than() == "2.0.0"
 
 
+def test_parse_version_range_tilde() -> None:
+
+    vr = parse_version_range("~1.0.1")
+    assert vr.greater_or_equal_to() == "1.0.1"
+    assert vr.less_than() == "1.1.0"
+
+    with pytest.raises(ValueError):
+        parse_version_range("~2")
+
+
 @pytest.mark.parametrize(
     "range,version,expected",
     [

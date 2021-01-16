@@ -137,7 +137,9 @@ class WildcardRange(VersionRange):
         self._specified = len(minimum.split(VERSION_SEP))
         self._parts = minimum.split(VERSION_SEP)
         if self._parts.count("*") != 1:
-            raise ValueError("Expected exactly one wildcard in version range: {self}")
+            raise ValueError(
+                f"Expected exactly one wildcard in version range, got: {self}"
+            )
 
     def __str__(self) -> str:
 
@@ -185,6 +187,10 @@ class LowestSpecifiedRange(VersionRange):
 
         self._specified = len(minimum.split(VERSION_SEP))
         self._base = parse_version(minimum)
+        if self._specified < 2:
+            raise ValueError(
+                f"Expected at least two digits in version range, got: {self}"
+            )
 
     def __str__(self) -> str:
 
@@ -202,7 +208,8 @@ class LowestSpecifiedRange(VersionRange):
     def less_than(self) -> Optional[Version]:
 
         parts = list(self._base.parts[: self._specified - 1])
-        parts[-1] += 1
+        if parts:
+            parts[-1] += 1
         return parse_version(VERSION_SEP.join(str(p) for p in parts))
 
     def is_satisfied_by(self, spec: "Spec") -> Compatibility:
@@ -540,7 +547,9 @@ def parse_version_range(range: str) -> VersionFilter:
     for rule_str in rules:
         rule: VersionRange
         if not rule_str:
-            raise ValueError("Empty segment not allowed in version range")
+            raise ValueError(
+                f"Empty segment not allowed in version range, got: {range}"
+            )
         elif rule_str.startswith("^"):
             rule = SemverRange(rule_str[1:])
         elif rule_str.startswith("~"):
