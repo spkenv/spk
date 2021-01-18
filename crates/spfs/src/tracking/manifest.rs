@@ -32,7 +32,7 @@ impl Manifest {
     }
 
     /// Return true if this manifest has no contents.
-    pub fn is_empty(self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.root.entries.len() == 0
     }
 

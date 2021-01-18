@@ -8,10 +8,7 @@ pub trait ManifestStorage: graph::Database {
     /// Iterate the objects in this storage which are manifests.
     fn iter_manifests<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Manifest)>> + 'db>
-    where
-        Self: Sized,
-    {
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Manifest)>> + 'db> {
         use graph::Object;
         Box::new(self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
@@ -50,5 +47,5 @@ pub trait ManifestViewer {
     fn render_manifest(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf>;
 
     /// Cleanup a previously rendered manifest from the local disk.
-    fn remove_rendered_manifest(self, digest: &encoding::Digest) -> Result<()>;
+    fn remove_rendered_manifest(&self, digest: &encoding::Digest) -> Result<()>;
 }

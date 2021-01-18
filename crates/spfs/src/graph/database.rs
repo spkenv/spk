@@ -6,24 +6,18 @@ use super::{
 use crate::encoding;
 
 /// Walks an object tree depth-first starting at some root digest
-pub struct DatabaseWalker<'db, DB>
-where
-    DB: DatabaseView + ?Sized,
-{
-    db: &'db DB,
+pub struct DatabaseWalker<'db> {
+    db: Box<&'db dyn DatabaseView>,
     queue: VecDeque<encoding::Digest>,
 }
 
-impl<'db, DB> DatabaseWalker<'db, DB>
-where
-    DB: DatabaseView + ?Sized,
-{
+impl<'db> DatabaseWalker<'db> {
     /// Create an iterator that yields all child objects starting at root
     /// from the given database.
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: &'db DB, root: encoding::Digest) -> Self {
+    pub fn new(db: Box<&'db dyn DatabaseView>, root: encoding::Digest) -> Self {
         let mut queue = VecDeque::new();
         queue.push_back(root);
         DatabaseWalker {
@@ -33,10 +27,7 @@ where
     }
 }
 
-impl<'db, DB> Iterator for DatabaseWalker<'db, DB>
-where
-    DB: DatabaseView + Sized,
-{
+impl<'db> Iterator for DatabaseWalker<'db> {
     type Item = Result<(encoding::Digest, Object)>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -60,35 +51,27 @@ where
 }
 
 /// Iterates all objects in a database, in no particular order
-pub struct DatabaseIterator<'db, DB: ?Sized>
-where
-    DB: DatabaseView,
-{
-    db: &'db DB,
+pub struct DatabaseIterator<'db> {
+    db: Box<&'db dyn DatabaseView>,
     inner: Box<dyn Iterator<Item = Result<encoding::Digest>>>,
 }
 
-impl<'db, DB: ?Sized> DatabaseIterator<'db, DB>
-where
-    DB: DatabaseView,
-{
+impl<'db> DatabaseIterator<'db> {
     /// Create an iterator that yields all child objects starting at root
     /// from the given database.
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: &'db DB) -> Self {
+    pub fn new(db: Box<&'db dyn DatabaseView>) -> Self {
+        let iter = db.iter_digests();
         DatabaseIterator {
             db: db,
-            inner: db.iter_digests(),
+            inner: iter,
         }
     }
 }
 
-impl<'db, DB> Iterator for DatabaseIterator<'db, DB>
-where
-    DB: DatabaseView + Sized,
-{
+impl<'db> Iterator for DatabaseIterator<'db> {
     type Item = Result<(encoding::Digest, Object)>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -130,17 +113,10 @@ pub trait DatabaseView {
     }
 
     /// Iterate all the object in this database.
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db, Self>
-    where
-        Self: Sized,
-    {
-        DatabaseIterator::new(&self)
-    }
+    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db>;
 
     /// Walk all objects connected to the given root object.
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db, Self> {
-        DatabaseWalker::new(self, root.clone())
-    }
+    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db>;
 
     /// Return the shortened version of the given digest.
     ///

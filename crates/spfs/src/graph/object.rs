@@ -107,7 +107,9 @@ impl encoding::Encodable for Object {
             Self::Mask => Ok(()),
         }
     }
+}
 
+impl encoding::Decodable for Object {
     fn decode(mut reader: &mut impl std::io::Read) -> crate::Result<Self> {
         encoding::consume_header(&mut reader, OBJECT_HEADER)?;
         let type_id = encoding::read_uint(&mut reader)?;

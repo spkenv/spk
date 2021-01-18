@@ -137,7 +137,7 @@ def _prune(args: argparse.Namespace, repo: spfs.storage.Repository) -> None:
         repo.tags.remove_tag(tag)
 
 
-def _age_to_date(age: str) -> datetime:
+def _age_to_date(age: &str) -> datetime:
 
     num, postfix = int(age[:-1]), age[-1]
 

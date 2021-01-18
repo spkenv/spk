@@ -1,108 +1,117 @@
-from typing import Optional, List
-import os
-import errno
-import configparser
+use config::{Config as ConfigBase, Environment, File};
 
-import structlog
+use crate::{runtime, storage, Result};
+use std::path::PathBuf;
 
-from . import storage, runtime
+#[cfg(test)]
+#[path = "./config_test.rs"]
+mod config_test;
 
-_DEFAULTS = {"storage": {"root": os.path.expanduser("~/.local/share/spfs")}}
-_CONFIG: Optional["Config"] = None
-_LOGGER = structlog.get_logger("spfs.config")
+static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
+static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
+const CONFIG: Option<Config> = None;
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
+pub struct Storage {
+    pub root: PathBuf,
+}
 
-class Config(configparser.ConfigParser):
-    def __init__(self) -> None:
-        super(Config, self).__init__()
+impl Default for Storage {
+    fn default() -> Self {
+        Self {
+            root: expanduser::expanduser(DEFAULT_STORAGE_ROOT)
+                .unwrap_or_else(|_| PathBuf::from(FALLBACK_STORAGE_ROOT)),
+        }
+    }
+}
 
-    @property
-    def storage_root(self) -> str:
-        """Return the root path of the local repository storage."""
-        return str(self["storage"]["root"])
+impl Storage {
+    /// Return the path to the local runtime storage.
+    pub fn runtime_root(&self) -> PathBuf {
+        self.root.join("runtimes")
+    }
+}
 
-    @property
-    def runtime_storage_root(self) -> str:
-        """Return the path to the local runtime storage."""
-        return os.path.join(self.storage_root, "runtimes")
+#[derive(Clone, Debug, Deserialize)]
+pub struct Remote {
+    pub address: url::Url,
+}
 
-    def list_remote_names(self) -> List[str]:
-        """List the names of all configured remote repositories."""
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct Config {
+    pub storage: Storage,
+    pub remote: std::collections::HashMap<String, Remote>,
+}
 
-        names = []
-        for section in self:
-            if section.startswith("remote."):
-                names.append(section.split(".")[1])
-        return names
+impl Config {
+    pub fn load_string<S: AsRef<str>>(conf: S) -> Result<Self> {
+        let mut s = ConfigBase::new();
+        s.merge(config::File::from_str(
+            conf.as_ref(),
+            config::FileFormat::Ini,
+        ))?;
+        Ok(s.try_into()?)
+    }
 
-    def get_repository(self) -> storage.fs.FSRepository:
-        """Get the local repository instance as configured."""
+    /// List the names of all configured remote repositories.
+    pub fn list_remote_names(&self) -> Vec<String> {
+        self.remote.keys().map(|s| s.to_string()).collect()
+    }
 
-        try:
-            return storage.fs.FSRepository(self.storage_root, create=True)
-        except storage.fs.MigrationRequiredError:
-            _LOGGER.warning(
-                "Your local data is out of date! it will now be upgraded..."
-            )
-            from .storage.fs import migrations
+    /// Get the local repository instance as configured.
+    pub fn get_repository(&self) -> Result<storage::fs::FSRepository> {
+        storage::fs::FSRepository::create(&self.storage.root)
+    }
 
-            migrations.upgrade_repo(self.storage_root)
-        return storage.fs.FSRepository(self.storage_root)
+    /// Get the local runtime storage, as configured.
+    pub fn get_runtime_storage(&self) -> Result<runtime::Storage> {
+        runtime::Storage::new(self.storage.runtime_root())
+    }
 
-    def get_runtime_storage(self) -> runtime.Storage:
-        """Get the local runtime storage, as configured."""
+    /// Get a remote repostory by name or address.
+    pub fn get_remote<S: AsRef<str>>(
+        &self,
+        name_or_address: S,
+    ) -> Result<storage::RepositoryHandle> {
+        let addr = match self.remote.get(name_or_address.as_ref()) {
+            Some(remote) => remote.address.clone(),
+            None => {
+                if let Ok(addr) = url::Url::parse(name_or_address.as_ref()) {
+                    addr
+                } else {
+                    url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())
+                        .map_err(|err| crate::Error::from(format!("{:?}", err)))?
+                }
+            }
+        };
+        storage::open_repository(addr)
+    }
+}
 
-        return runtime.Storage(self.runtime_storage_root)
+/// Get the current configuration, loading it if necessary.
+pub fn get_config() -> Result<Config> {
+    if let None = CONFIG {
+        CONFIG.replace(load_config()?);
+    }
+    Ok(CONFIG.unwrap().clone())
+}
 
-    def get_remote(self, name_or_address: str) -> storage.Repository:
-        """Get a remote repostory by name or address."""
+/// Load the spfs configuration from disk.
+///
+/// This includes the default, user and system configurations, if they exist.
+pub fn load_config() -> Result<Config> {
+    let user_config = expanduser::expanduser("~/.config/spfs/spfs.conf")?;
+    let system_config = PathBuf::from("/etc/spfs.conf");
 
-        try:
-            addr = self[f"remote.{name_or_address}"]["address"]
-        except KeyError:
-            addr = name_or_address
-        try:
-            return storage.open_repository(addr)
-        except Exception as e:
-            raise ValueError(str(e))
-
-
-def get_config() -> Config:
-    """Get the current configuration, loading it if necessary."""
-
-    global _CONFIG
-    if _CONFIG is None:
-        _CONFIG = load_config()
-    return _CONFIG
-
-
-def load_config() -> Config:
-    """Load the spfs configuration from disk.
-
-    This includes the default, user and system configurations, if they exist.
-    """
-
-    user_config = os.path.expanduser("~/.config/spfs/spfs.conf")
-    system_config = "/etc/spfs.conf"
-
-    config = Config()
-    config.read_dict(_DEFAULTS)
-    try:
-        with open(system_config, "r", encoding="utf-8") as f:
-            config.read_file(f, source=system_config)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            raise
-    try:
-        with open(user_config, "r", encoding="utf-8") as f:
-            config.read_file(f, source=user_config)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            raise
-
-    try:
-        config.get_repository()
-        config.get_runtime_storage()
-    except Exception:
-        pass
-    return config
+    let mut s = ConfigBase::new();
+    if let Some(name) = system_config.to_str() {
+        s.merge(File::with_name(name).required(false))?;
+    }
+    if let Some(name) = user_config.to_str() {
+        s.merge(File::with_name(name).required(false))?;
+    }
+    s.merge(Environment::with_prefix("SPFS").separator("_"))?;
+    Ok(s.try_into()?)
+}

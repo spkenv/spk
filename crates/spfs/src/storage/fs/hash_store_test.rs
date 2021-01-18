@@ -1,5 +1,5 @@
 use super::FSHashStore;
-use crate::{encoding, graph};
+use crate::encoding;
 use encoding::Encodable;
 
 struct LargeObj {}
@@ -14,7 +14,9 @@ impl encoding::Encodable for LargeObj {
         std::thread::sleep(std::time::Duration::from_secs(2));
         Ok(())
     }
+}
 
+impl encoding::Decodable for LargeObj {
     fn decode(reader: &mut impl std::io::Read) -> crate::Result<Self> {
         Ok(Self {})
     }

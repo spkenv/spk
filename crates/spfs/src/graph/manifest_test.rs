@@ -4,7 +4,8 @@ use super::Entry;
 use crate::{encoding, tracking};
 
 #[rstest]
-fn test_entry_blobs_compare_name() {
+#[tokio::test]
+async fn test_entry_blobs_compare_name() {
     let a = Entry {
         name: "a".to_string(),
         kind: tracking::EntryKind::Blob,
@@ -24,7 +25,8 @@ fn test_entry_blobs_compare_name() {
 }
 
 #[rstest]
-fn test_entry_trees_compare_name() {
+#[tokio::test]
+async fn test_entry_trees_compare_name() {
     let a = Entry {
         name: "a".to_string(),
         kind: tracking::EntryKind::Tree,
@@ -44,7 +46,8 @@ fn test_entry_trees_compare_name() {
 }
 
 #[rstest]
-fn test_entry_compare_kind() {
+#[tokio::test]
+async fn test_entry_compare_kind() {
     let blob = Entry {
         name: "a".to_string(),
         kind: tracking::EntryKind::Blob,
@@ -64,7 +67,8 @@ fn test_entry_compare_kind() {
 }
 
 #[rstest]
-fn test_entry_compare() {
+#[tokio::test]
+async fn test_entry_compare() {
     let root_file = Entry {
         name: "file".to_string(),
         kind: tracking::EntryKind::Blob,

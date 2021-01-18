@@ -15,13 +15,6 @@ from .. import (
 from ._payloads import TarPayloadStorage
 
 _logger = structlog.get_logger("spfs.storage.tar")
-_OBJECT_HEADER = b"--SPFS--"
-_OBJECT_KINDS: Dict[int, Type[graph.Object]] = {
-    0: Blob,
-    1: Manifest,
-    2: Layer,
-    3: Platform,
-}
 
 
 class TarDatabase(TarPayloadStorage, graph.Database):

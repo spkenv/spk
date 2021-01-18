@@ -56,7 +56,8 @@ impl encoding::Encodable for Entry {
         encoding::write_string(writer, self.name.as_str())?;
         Ok(())
     }
-
+}
+impl encoding::Decodable for Entry {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         Ok(Entry {
             object: encoding::read_digest(&mut reader)?,

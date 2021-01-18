@@ -1,11 +1,23 @@
 use std::io;
 
+use super::commit::NothingToCommitError;
+use super::status::NoRuntimeError;
+use crate::graph;
+
 #[derive(Debug)]
 pub enum Error {
     String(String),
     Nix(nix::Error),
     IO(io::Error),
     JSON(serde_json::Error),
+    Config(config::ConfigError),
+
+    UnknownObject(graph::UnknownObjectError),
+    UnknownReference(graph::UnknownReferenceError),
+    AmbiguousReference(graph::AmbiguousReferenceError),
+    InvalidReference(graph::InvalidReferenceError),
+    NothingToCommit(NothingToCommitError),
+    NoRuntime(NoRuntimeError),
 }
 
 impl Error {
@@ -34,6 +46,14 @@ impl Error {
         }
     }
 }
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
+impl std::error::Error for Error {}
 
 impl From<nix::Error> for Error {
     fn from(err: nix::Error) -> Error {
@@ -73,6 +93,32 @@ impl From<std::path::StripPrefixError> for Error {
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
         Error::JSON(err)
+    }
+}
+impl From<config::ConfigError> for Error {
+    fn from(err: config::ConfigError) -> Self {
+        Error::Config(err)
+    }
+}
+
+impl From<graph::UnknownObjectError> for Error {
+    fn from(err: graph::UnknownObjectError) -> Self {
+        Error::UnknownObject(err)
+    }
+}
+impl From<graph::UnknownReferenceError> for Error {
+    fn from(err: graph::UnknownReferenceError) -> Self {
+        Error::UnknownReference(err)
+    }
+}
+impl From<graph::AmbiguousReferenceError> for Error {
+    fn from(err: graph::AmbiguousReferenceError) -> Self {
+        Error::AmbiguousReference(err)
+    }
+}
+impl From<graph::InvalidReferenceError> for Error {
+    fn from(err: graph::InvalidReferenceError) -> Self {
+        Error::InvalidReference(err)
     }
 }
 

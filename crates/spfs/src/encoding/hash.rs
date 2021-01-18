@@ -72,7 +72,12 @@ where
 
     /// Write this object in binary format.
     fn encode(&self, writer: &mut impl Write) -> Result<()>;
+}
 
+pub trait Decodable
+where
+    Self: Encodable,
+{
     /// Read a previously encoded object from the given binary stream.
     fn decode(reader: &mut impl Read) -> Result<Self>;
 }
@@ -81,7 +86,8 @@ impl Encodable for String {
     fn encode(&self, writer: &mut impl Write) -> Result<()> {
         super::binary::write_string(writer, self)
     }
-
+}
+impl Decodable for String {
     fn decode(reader: &mut impl Read) -> Result<Self> {
         super::binary::read_string(reader)
     }
@@ -100,6 +106,11 @@ impl std::fmt::Debug for Digest {
 impl AsRef<[u8]> for Digest {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+impl AsRef<Digest> for Digest {
+    fn as_ref(&self) -> &Self {
+        &self
     }
 }
 
@@ -209,12 +220,24 @@ impl Encodable for Digest {
         binary::write_digest(&mut writer, self)
     }
 
+    fn digest(&self) -> Result<Digest> {
+        Ok(self.clone())
+    }
+}
+
+impl Decodable for Digest {
     fn decode(mut reader: &mut impl Read) -> Result<Self> {
         binary::read_digest(&mut reader)
     }
+}
+
+impl Encodable for &Digest {
+    fn encode(&self, mut writer: &mut impl Write) -> Result<()> {
+        binary::write_digest(&mut writer, self)
+    }
 
     fn digest(&self) -> Result<Digest> {
-        Ok(self.clone())
+        Ok(self.clone().to_owned())
     }
 }
 

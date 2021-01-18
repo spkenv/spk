@@ -53,7 +53,7 @@ def _init(args: argparse.Namespace) -> None:
     sys.exit(returncode)
 
 
-def _exec_runtime_command(*cmd: str) -> int:
+def _exec_runtime_command(*cmd: &str) -> int:
 
     if not len(cmd) or cmd[0] == "":
         cmd = spfs.build_interactive_shell_cmd()

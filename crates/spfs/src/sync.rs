@@ -1,209 +1,239 @@
-from spfs import encoding
-from typing import Optional, List, Union
-import time
-import queue
-import multiprocessing
-from datetime import datetime
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
 
-import structlog
+use futures::future::{FutureExt, LocalBoxFuture};
 
-from . import storage, tracking, graph
-from ._config import get_config
+use super::config::get_config;
+use crate::prelude::*;
+use crate::{graph, storage, tracking, Error, Result};
 
-_LOGGER = structlog.get_logger(__name__)
-_SYNC_LOG_UPDATE_INTERVAL_SECONDS = 2
-_SYNC_WORKER_COUNT = multiprocessing.cpu_count() * 4
-_SYNC_DONE_COUNTER = multiprocessing.Value("i", 0)
-_SYNC_ERROR_QUEUE: "multiprocessing.Queue[Exception]" = multiprocessing.Queue(10)
-_SYNC_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
+#[cfg(test)]
+#[path = "./sync_test.rs"]
+mod sync_test;
 
+static SYNC_LOG_UPDATE_INTERVAL_SECONDS: std::time::Duration = Duration::from_secs(2);
 
-def push_ref(ref: str, remote: Union[storage.Repository, str]) -> graph.Object:
+pub async fn push_ref<R: AsRef<str>>(
+    reference: R,
+    mut remote: Option<storage::RepositoryHandle>,
+) -> Result<graph::Object> {
+    let config = get_config()?;
+    let local = config.get_repository()?.into();
+    let mut remote = match remote.take() {
+        Some(remote) => remote,
+        None => config.get_remote("origin")?.into(),
+    };
+    sync_ref(reference, &local, &mut remote).await
+}
 
-    config = get_config()
-    local = config.get_repository()
-    if not isinstance(remote, storage.Repository):
-        remote = config.get_remote(remote)
-    return sync_ref(ref, local, remote)
+/// Pull a reference to the local repository, searching all configured remotes.
+///
+/// Args:
+/// - reference: The reference to localize
+///
+/// Errors:
+/// - If the remote reference could not be found
+pub async fn pull_ref<R: AsRef<str>>(reference: R) -> Result<graph::Object> {
+    let config = get_config()?;
+    let mut local = config.get_repository()?.into();
+    let names = config.list_remote_names();
+    for name in names {
+        tracing::debug!(
+            reference = %reference.as_ref(),
+            remote = %name,
+            "looking for reference"
+        );
+        let remote = match config.get_remote(&name) {
+            Ok(remote) => remote,
+            Err(err) => {
+                tracing::warn!(remote = %name, "failed to load remote repository");
+                tracing::warn!(" > {:?}", err);
+                continue;
+            }
+        };
+        if remote.has_ref(reference.as_ref()) {
+            return sync_ref(reference, &remote, &mut local).await;
+        }
+    }
+    Err(graph::UnknownReferenceError::new(reference))
+}
 
+pub async fn sync_ref<R: AsRef<str>>(
+    reference: R,
+    src: &storage::RepositoryHandle,
+    dest: &mut storage::RepositoryHandle,
+) -> Result<graph::Object> {
+    let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
+        match src.resolve_tag(&tag) {
+            Ok(tag) => Some(tag),
+            Err(Error::UnknownObject(_)) => None,
+            Err(err) => return Err(err),
+        }
+    } else {
+        None
+    };
 
-def pull_ref(ref: Union[str, tracking.TagSpec, encoding.Digest]) -> graph.Object:
-    """Pull a reference to the local repository, searching all configured remotes.
+    let obj = src.read_ref(reference.as_ref())?;
+    sync_object(&obj, src, dest).await?;
+    if let Some(tag) = tag {
+        dest.push_raw_tag(&tag)?;
+    }
+    Ok(obj)
+}
 
-    Args:
-        ref (str): The reference to localize
+pub fn sync_object<'a>(
+    obj: &'a graph::Object,
+    src: &'a storage::RepositoryHandle,
+    dest: &'a mut storage::RepositoryHandle,
+) -> futures::future::LocalBoxFuture<'a, Result<()>> {
+    async move {
+        use graph::Object;
+        match obj {
+            Object::Layer(obj) => sync_layer(obj, src, dest).await,
+            Object::Platform(obj) => sync_platform(obj, src, dest).await,
+            Object::Blob(obj) => {
+                tracing::info!(digest = ?obj.digest(), "syncing blob");
+                let mut reader = src.open_payload(&obj.digest())?;
+                dest.commit_blob(Box::new(&mut *reader))?;
+                Ok(())
+            }
+            Object::Mask | Object::Manifest(_) | Object::Tree(_) => Ok(()),
+        }
+    }
+    .boxed_local()
+}
 
-    Raises:
-        ValueError: If the remote ref could not be found
-    """
+pub async fn sync_platform(
+    platform: &graph::Platform,
+    src: &storage::RepositoryHandle,
+    dest: &mut storage::RepositoryHandle,
+) -> Result<()> {
+    let digest = platform.digest()?;
+    if dest.has_platform(&digest) {
+        tracing::debug!(digest = ?digest, "platform already synced");
+        return Ok(());
+    }
+    tracing::info!(digest = ?digest, "syncing platform");
+    for digest in &platform.stack {
+        let obj = src.read_object(&digest)?;
+        sync_object(&obj, src, dest).await?;
+    }
 
-    config = get_config()
-    local = config.get_repository()
-    for name in config.list_remote_names():
-        _LOGGER.debug("looking for ref", ref=ref, remote=name)
-        try:
-            remote = config.get_remote(name)
-        except Exception as e:
-            _LOGGER.warning("failed to load remote repository", remote=name)
-            _LOGGER.warning(" > " + str(e))
-            continue
-        try:
-            remote.read_ref(ref)
-        except ValueError:
-            continue
-        return sync_ref(ref, remote, local)
-    else:
-        raise graph.UnknownReferenceError(f"Unknown ref: {ref}")
+    dest.write_object(&graph::Object::Platform(platform.clone()))
+}
 
+pub async fn sync_layer(
+    layer: &graph::Layer,
+    src: &storage::RepositoryHandle,
+    dest: &mut storage::RepositoryHandle,
+) -> Result<()> {
+    let layer_digest = layer.digest()?;
+    if dest.has_layer(&layer_digest) {
+        tracing::debug!(digest = ?layer_digest, "layer already synced");
+        return Ok(());
+    }
 
-def sync_ref(
-    ref: Union[str, tracking.TagSpec, encoding.Digest],
-    src: storage.Repository,
-    dest: storage.Repository,
-) -> graph.Object:
+    tracing::info!(digest = ?layer_digest, "syncing layer");
+    let manifest = src.read_manifest(&layer.manifest)?;
 
-    try:
-        tag: Optional[tracking.Tag] = src.tags.resolve_tag(str(ref))
-    except (graph.UnknownObjectError, ValueError):
-        tag = None
+    let entries: Vec<_> = manifest
+        .iter_entries()
+        .into_iter()
+        .filter(|e| !e.kind.is_blob())
+        .collect();
+    let spawn_count = entries.len() as u64;
+    let current_count = Arc::new(AtomicU64::new(0));
+    let mut futures: Vec<LocalBoxFuture<Result<()>>> = Vec::new();
+    for entry in entries {
+        let current_count = current_count.clone();
+        let src_address = src.address();
+        let dest_address = dest.address();
+        futures.push(
+            async move {
+                let res = sync_entry(entry, src_address, dest_address).await;
+                current_count.fetch_add(1, Ordering::Relaxed);
+                res
+            }
+            .boxed_local(),
+        )
+    }
 
-    obj = src.read_ref(ref)
-    sync_object(obj, src, dest)
-    if tag is not None:
-        dest.tags.push_raw_tag(tag)
-    return obj
+    futures.push(
+        async move {
+            let mut last_report = Instant::now();
+            while current_count.load(Ordering::Relaxed) < spawn_count {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                let current_count = current_count.load(Ordering::Relaxed);
+                let now = Instant::now();
 
+                if now - last_report > SYNC_LOG_UPDATE_INTERVAL_SECONDS {
+                    let percent_done = (current_count as f64 / spawn_count as f64) * 100.0;
+                    let progress_message =
+                        format!("{:.02}% ({}/{})", percent_done, current_count, spawn_count);
+                    tracing::info!(progress = ?progress_message, "syncing layer data...");
+                    last_report = now;
+                }
+            }
+            Ok(())
+        }
+        .boxed_local(),
+    );
 
-def sync_object(
-    obj: graph.Object, src: storage.Repository, dest: storage.Repository
-) -> None:
+    let results = futures::future::join_all(futures).await;
+    let errors: Vec<_> = results
+        .into_iter()
+        .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
+        .collect();
 
-    if isinstance(obj, storage.Layer):
-        sync_layer(obj, src, dest)
-    elif isinstance(obj, storage.Platform):
-        sync_platform(obj, src, dest)
-    elif isinstance(obj, storage.Blob):
-        _LOGGER.info("syncing blob", digest=obj.digest())
-        dest.commit_blob(src.payloads.open_payload(obj.digest()))
-    else:
-        raise NotImplementedError("Push: Unhandled object of type: " + str(type(obj)))
+    if errors.len() > 0 {
+        return Err(format!(
+            "{:?}, and {} more errors during clean",
+            errors[0],
+            errors.len() - 1
+        )
+        .into());
+    }
 
+    dest.write_object(&graph::Object::Manifest(manifest))?;
+    dest.write_object(&graph::Object::Layer(layer.clone()))?;
+    Ok(())
+}
 
-def sync_platform(
-    platform: storage.Platform, src: storage.Repository, dest: storage.Repository
-) -> None:
+async fn sync_entry<S: AsRef<str>>(
+    entry: &graph::Entry,
+    src_address: S,
+    dest_address: S,
+) -> Result<()> {
+    let src = storage::open_repository(src_address)?;
+    let dest = storage::open_repository(dest_address)?;
+    sync_entry_local(entry, src.to_repo(), dest.to_repo()).await
+}
 
-    if dest.has_platform(platform.digest()):
-        _LOGGER.debug("platform already synced", digest=platform.digest())
-        return
-    _LOGGER.info("syncing platform", digest=platform.digest())
-    for digest in platform.stack:
-        obj = src.objects.read_object(digest)
-        sync_object(obj, src, dest)
+async fn sync_entry_local(
+    entry: &graph::Entry,
+    src: Box<dyn storage::Repository>,
+    mut dest: Box<dyn storage::Repository>,
+) -> Result<()> {
+    if entry.kind.is_blob() {
+        return Ok(());
+    }
 
-    dest.objects.write_object(platform)
+    if !dest.has_object(&entry.object) {
+        let object = src.read_object(&entry.object)?;
+        dest.write_object(&object)?;
+    }
 
-
-def sync_layer(
-    layer: storage.Layer, src: storage.Repository, dest: storage.Repository
-) -> None:
-
-    worker_pool = _get_worker_pool()
-    if dest.has_layer(layer.digest()):
-        _LOGGER.debug("layer already synced", digest=layer.digest())
-        return
-
-    _LOGGER.info("syncing layer", digest=layer.digest())
-    _SYNC_DONE_COUNTER.value = 0
-    errors: List[Exception] = []
-    manifest = src.read_manifest(layer.manifest)
-
-    entries = list(
-        filter(lambda e: e.kind is tracking.EntryKind.BLOB, manifest.iter_entries())
-    )
-    last_report = datetime.now().timestamp()
-    total_count = len(entries)
-    current_count = -1
-    while current_count < total_count:
-        current_count = _SYNC_DONE_COUNTER.value
-        now = datetime.now().timestamp()
-
-        try:
-            entry = entries.pop()
-        except IndexError:
-            time.sleep(0.1)
-        else:
-            if dest.concurrent():
-                worker_pool.apply_async(
-                    _SYNC_ENTRY, (entry, src.address(), dest.address())
-                )
-            else:
-                _SYNC_ENTRY_LOCAL(entry, src, dest)
-
-        if now - last_report > _SYNC_LOG_UPDATE_INTERVAL_SECONDS:
-            percent_done = (current_count / total_count) * 100
-            progress_message = f"{percent_done:.02f}% ({current_count}/{total_count})"
-            _LOGGER.info(f"syncing layer data...", progress=progress_message)
-            last_report = now
-
-        try:
-            while True:
-                errors.append(_SYNC_ERROR_QUEUE.get_nowait())
-        except queue.Empty:
-            pass
-
-    if len(errors) > 0:
-        raise RuntimeError(f"{errors[0]}, and {len(errors)-1} more errors during sync")
-
-    dest.objects.write_object(manifest)
-    dest.objects.write_object(layer)
-
-
-def _SYNC_ENTRY(entry: storage.Entry, src_address: str, dest_address: str) -> None:
-    try:
-        src = storage.open_repository(src_address)
-        dest = storage.open_repository(dest_address)
-    except Exception as e:
-        _SYNC_ERROR_QUEUE.put(e)
-        with _SYNC_DONE_COUNTER.get_lock():
-            # read and subsequent write are not atomic unless lock is held throughout
-            _SYNC_DONE_COUNTER.value += 1
-        return
-    try:
-        _SYNC_ENTRY_LOCAL(entry, src, dest)
-    except Exception as e:
-        _SYNC_ERROR_QUEUE.put(e)
-
-
-def _SYNC_ENTRY_LOCAL(
-    entry: storage.Entry, src: storage.Repository, dest: storage.Repository
-) -> None:
-
-    try:
-
-        if entry.kind is not tracking.EntryKind.BLOB:
-            return
-
-        if not dest.objects.has_object(entry.object):
-            blob = src.objects.read_object(entry.object)
-            dest.objects.write_object(blob)
-
-        if dest.payloads.has_payload(entry.object):
-            _LOGGER.debug("blob payload already synced", digest=entry.object)
-        else:
-            with src.payloads.open_payload(entry.object) as payload:
-                _LOGGER.debug("syncing payload", digest=entry.object)
-                dest.payloads.write_payload(payload)
-
-    finally:
-        with _SYNC_DONE_COUNTER.get_lock():
-            # read and subsequent write are not atomic unless lock is held throughout
-            _SYNC_DONE_COUNTER.value += 1
-
-
-def _get_worker_pool() -> "multiprocessing.pool.Pool":
-
-    global _SYNC_WORKER_POOL
-    if _SYNC_WORKER_POOL is None:
-        _SYNC_WORKER_POOL = multiprocessing.Pool(_SYNC_WORKER_COUNT)
-    return _SYNC_WORKER_POOL
+    if dest.has_payload(&entry.object) {
+        tracing::trace!(digest = ?entry.object, "blob payload already synced");
+    } else {
+        let mut payload = src.open_payload(&entry.object)?;
+        tracing::debug!(digest = ?entry.object, "syncing payload");
+        dest.write_data(Box::new(&mut *payload))?;
+    }
+    Ok(())
+}

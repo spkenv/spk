@@ -10,9 +10,9 @@ mod layer_test;
 /// Layers are considered completely immutable, and are
 /// uniquely identifyable by the computed hash of all
 /// relevant file and metadata.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Layer {
-    manifest: encoding::Digest,
+    pub manifest: encoding::Digest,
 }
 
 impl Layer {
@@ -30,7 +30,9 @@ impl encoding::Encodable for Layer {
     fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(writer, &self.manifest)
     }
+}
 
+impl encoding::Decodable for Layer {
     fn decode(reader: &mut impl std::io::Read) -> Result<Self> {
         Ok(Layer {
             manifest: encoding::read_digest(reader)?,

@@ -46,7 +46,7 @@ impl FSHashStore {
     /// Write all data in the given reader to a file in this storage
     pub fn write_data(
         &mut self,
-        reader: &mut impl std::io::Read,
+        mut reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.root().join(uuid);
@@ -58,7 +58,7 @@ impl FSHashStore {
             .write(true)
             .open(&working_file)?;
         let mut hasher = encoding::Hasher::new().with_target(&mut writer);
-        let copied = std::io::copy(reader, &mut hasher)?;
+        let copied = std::io::copy(&mut reader, &mut hasher)?;
         let digest = hasher.digest();
 
         let path = self.build_digest_path(&digest);

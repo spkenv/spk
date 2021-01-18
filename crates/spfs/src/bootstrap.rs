@@ -1,107 +1,139 @@
-from typing import Tuple, Dict, Optional, List
-import os
-import errno
-import subprocess
+use super::resolve::{resolve_overlay_dirs, which};
+use super::status::{active_runtime, compute_runtime_manifest};
+use crate::{runtime, Result};
+use std::ffi::{OsStr, OsString};
 
-import structlog
+#[cfg(test)]
+#[path = "./bootstrap_test.rs"]
+mod bootstrap_test;
 
-from ._config import get_config
-from ._runtime import active_runtime, compute_runtime_manifest
-from ._resolve import resolve_overlay_dirs, which
-from . import storage, runtime, tracking
+/// Construct a bootstrap command.
+///
+/// The returned command properly calls through the relevant spfs
+/// binaries and runs the desired command in an existing runtime.
+pub fn build_command_for_runtime(
+    runtime: runtime::Runtime,
+    command: OsString,
+    args: &mut Vec<OsString>,
+) -> Result<(OsString, Vec<OsString>)> {
+    match which("spfs") {
+        None => Err("'spfs' not found in PATH".into()),
+        Some(spfs_exe) => {
+            let mut spfs_args = vec![
+                spfs_exe.as_os_str().to_owned(),
+                "init-runtime".into(),
+                runtime.root().into(),
+                command,
+            ];
+            spfs_args.append(args);
+            build_spfs_enter_command(runtime, args)
+        }
+    }
+}
 
-_logger = structlog.get_logger(__name__)
+/// Return a command that initializes and runs an interactive shell
+///
+/// The returned command properly sets up and runs an interactive
+/// shell session in the current runtime.
+pub fn build_interactive_shell_cmd() -> Result<Vec<OsString>> {
+    let rt = active_runtime()?;
+    let shell_path = std::env::var("SHELL").unwrap_or("<not-set>".to_string());
+    let mut shell_name = std::path::Path::new(shell_path.as_str())
+        .file_name()
+        .unwrap_or_else(|| OsStr::new("bash"));
 
+    match shell_name.to_str() {
+        Some("tcsh") => match which("expect") {
+            None => {
+                tracing::error!("'expect' command not found in PATH, falling back to bash");
+            }
+            Some(expect) => {
+                return Ok(vec![
+                    expect.as_os_str().to_owned(),
+                    rt.csh_expect_file.into(),
+                    shell_path.into(),
+                    rt.csh_startup_file.into(),
+                ]);
+            }
+        },
+        Some("bash") => (),
+        _ => {
+            tracing::warn!(
+                "current shell not supported ({:?}) - using bash",
+                shell_name
+            );
+        }
+    }
 
-def build_command_for_runtime(
-    runtime: runtime.Runtime, command: str, *args: str
-) -> Tuple[str, ...]:
-    """Construct a bootstrap command.
+    let shell_path = "/usr/bin/bash";
+    Ok(vec![
+        shell_path.into(),
+        "--init-file".into(),
+        rt.sh_startup_file.into(),
+    ])
+}
 
-    The returned command properly calls through the relevant spfs
-    binaries and runs the desired command in an existing runtime.
-    """
+/// Construct a boostrapping command for initializing through the shell.
+///
+/// The returned command properly calls through a shell which sets up
+/// the current runtime appropriately before calling the desired command.
+pub fn build_shell_initialized_command(
+    command: OsString,
+    args: &mut Vec<OsString>,
+) -> Result<Vec<OsString>> {
+    let runtime = active_runtime()?;
+    let default_shell = which("bash").unwrap_or_default();
+    let desired_shell = std::env::var_os("SHELL").unwrap_or_else(|| default_shell.into());
+    let shell_name = std::path::Path::new(&desired_shell)
+        .file_name()
+        .unwrap_or_else(|| OsStr::new("bash"))
+        .to_string_lossy()
+        .to_string();
+    let startup_file = match shell_name.as_str() {
+        "bash" | "sh" => runtime.sh_startup_file.clone(),
+        "tcsh" | "csh" => runtime.csh_startup_file.clone(),
+        _ => return Err("No supported shell found, or no support for current shell".into()),
+    };
 
-    spfs_exe = which("spfs")
-    if not spfs_exe:
-        raise RuntimeError("'spfs' not found in PATH")
+    let mut cmd = vec![desired_shell, startup_file.into(), command];
+    cmd.append(args);
+    Ok(cmd)
+}
 
-    args = ("init-runtime", runtime.root, command) + args
+fn build_spfs_enter_command(
+    rt: runtime::Runtime,
+    command: &mut Vec<OsString>,
+) -> Result<(OsString, Vec<OsString>)> {
+    let exe = match which("spfs-enter") {
+        None => return Err("'spfs-enter' not found in PATH".into()),
+        Some(exe) => exe,
+    };
 
-    return _build_spfs_enter_command(runtime, spfs_exe, *args)
+    let mut args = vec![];
 
+    let overlay_dirs = resolve_overlay_dirs(&rt)?;
+    for dirpath in overlay_dirs {
+        args.push("-d".into());
+        args.push(dirpath.into());
+    }
 
-def build_interactive_shell_cmd() -> Tuple[str, ...]:
-    """Return a command that initializes and runs an interactive shell
+    if rt.is_editable() {
+        args.push("-e".into());
+    }
 
-    The returned command properly sets up and runs an interactive
-    shell session in the current runtime.
-    """
+    tracing::debug!("computing runtime manifest");
+    let manifest = compute_runtime_manifest(&rt)?;
 
-    rt = active_runtime()
-    shell_path = os.environ.get("SHELL", "<not-set>")
-    shell_name = os.path.basename(shell_path)
+    tracing::debug!("finding files that should be masked");
+    for node in manifest.walk_abs("/spfs") {
+        if node.entry.kind.is_mask() {
+            continue;
+        }
+        args.push("-m".into());
+        args.push(node.path.to_path("/").into());
+    }
 
-    if shell_name in ("tcsh",):
-        expect = which("expect")
-        if expect is None:
-            _logger.error("'expect' command not found in PATH, falling back to bash")
-            shell_name = "bash"
-        else:
-            return (expect, rt.csh_expect_file, shell_path, rt.csh_startup_file)
-
-    if shell_name not in ("bash",):
-        _logger.warning(f"current shell not supported ({shell_path}) - using bash")
-        shell_path = "/usr/bin/bash"
-        shell_name = "bash"
-    return (shell_path, "--init-file", rt.sh_startup_file)
-
-
-def build_shell_initialized_command(command: str, *args: str) -> Tuple[str, ...]:
-    """Construct a boostrapping command for initializing through the shell.
-
-    The returned command properly calls through a shell which sets up
-    the current runtime appropriately before calling the desired command.
-    """
-
-    runtime = active_runtime()
-    default_shell = which("bash") or ""
-    desired_shell = os.environ.get("SHELL", default_shell)
-    shell_name = os.path.basename(desired_shell)
-    if shell_name in ("bash", "sh"):
-        startup_file = runtime.sh_startup_file
-    elif shell_name in ("tcsh", "csh"):
-        startup_file = runtime.csh_startup_file
-    else:
-        raise RuntimeError("No supported shell found, or no support for current shell")
-
-    return (desired_shell, startup_file, command) + args
-
-
-def _build_spfs_enter_command(rt: runtime.Runtime, *command: str) -> Tuple[str, ...]:
-
-    exe = which("spfs-enter")
-    if exe is None:
-        raise RuntimeError("'spfs-enter' not found in PATH")
-
-    args = [exe]
-
-    overlay_dirs = resolve_overlay_dirs(rt)
-    for dirpath in overlay_dirs:
-        args.extend(["-d", dirpath])
-
-    if rt.is_editable():
-        args.append("-e")
-
-    _logger.debug("computing runtime manifest")
-    manifest = compute_runtime_manifest(rt)
-
-    _logger.debug("finding files that should be masked")
-    for path, entry in manifest.walk_abs("/spfs"):
-        if entry.kind != tracking.EntryKind.MASK:
-            continue
-        args.extend(("-m", path))
-
-    args.append("--")
-
-    return tuple(args) + command
+    args.push("--".into());
+    args.append(command);
+    Ok((exe.into(), args))
+}

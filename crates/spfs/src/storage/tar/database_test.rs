@@ -1,17 +1,5 @@
-from typing import Any, BinaryIO, Tuple, Optional
-import time
-import traceback
-import multiprocessing
-import itertools
-from unittest import mock
-
-import pytest
-import py.path
-
-from ... import encoding, graph
-from .. import Blob
-from ._database import TarDatabase, _OBJECT_KINDS
-import random
+use rstest::rstest;
+use super::TarDatabase;
 
 
 class LargeObj(graph.Object):
@@ -27,9 +15,10 @@ class LargeObj(graph.Object):
     @classmethod
     def decode(self, reader: BinaryIO) -> "LargeObj":
         return LargeObj()
+}
 
 
-def try_sync(db: TarDatabase) -> Optional[str]:
+fn try_sync(&mut db: TarDatabase) -> Option<str> {
     try:
         obj = LargeObj()
         if not db.has_object(obj.digest()):
@@ -37,13 +26,16 @@ def try_sync(db: TarDatabase) -> Optional[str]:
     except Exception:
         return traceback.format_exc()
     return None
+}
 
 
-def test_database_race_condition(tmpdir: py.path.local) -> None:
+#[rstest]
+#[tokio::test]
+fn test_database_race_condition(tmpdir: tempdir::TempDir) {
 
     pytest.skip("Tar archives are not concurrent-safe yet")
 
-    db = TarDatabase(tmpdir.join("db.tar").strpath)
+    db = TarDatabase(tmpdir.path().join("db.tar").strpath)
 
     with mock.patch.dict(_OBJECT_KINDS, {99: LargeObj}):
 
@@ -52,3 +44,4 @@ def test_database_race_condition(tmpdir: py.path.local) -> None:
             for err in results:
                 if err is not None:
                     pytest.fail(err)
+}

@@ -26,7 +26,7 @@ pub trait TagStorage {
     /// Then ls_tags("spi") would return
     ///   stable
     ///   latest
-    fn ls_tags<R: AsRef<RelativePath>>(&self, path: R) -> Result<Box<dyn Iterator<Item = String>>>;
+    fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>>;
 
     /// Find tags that point to the given digest.
     fn find_tags(
@@ -59,10 +59,14 @@ pub trait TagStorage {
     fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>>;
 
     /// Push the given tag onto the tag stream.
-    fn push_tag(&self, tag: &tracking::TagSpec, target: encoding::Digest) -> Result<tracking::Tag> {
+    fn push_tag(
+        &mut self,
+        tag: &tracking::TagSpec,
+        target: &encoding::Digest,
+    ) -> Result<tracking::Tag> {
         todo!()
         //     tag_spec = tracking.TagSpec(tag)
-        //     parent: Optional[tracking.Tag] = None
+        //     parent: Option<tracking.Tag> = None
         //     try:
         //         parent = self.resolve_tag(tag)
         //     except ValueError:
@@ -82,13 +86,13 @@ pub trait TagStorage {
     }
 
     /// Push the given tag data to the tag stream, regardless of if it's valid.
-    fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()>;
+    fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()>;
 
     /// Remove an entire tag and all related tag history.
     ///
     /// If the given tag spec contains a version, the version is ignored.
-    fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()>;
+    fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()>;
 
     /// Remove the oldest stored instance of the given tag.
-    fn remove_tag(&self, tag: &tracking::Tag) -> Result<()>;
+    fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()>;
 }

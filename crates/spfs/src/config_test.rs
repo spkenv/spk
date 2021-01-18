@@ -1,37 +1,39 @@
-import pytest
-import py.path
+use rstest::rstest;
 
-from . import storage
-from ._config import Config, get_config, load_config
+use super::Config;
 
+#[rstest]
+#[tokio::test]
+async fn test_config_list_remote_names_empty() {
+    let config = Config::default();
+    assert_eq!(config.list_remote_names().len(), 0)
+}
 
-def test_config_list_remote_names_empty() -> None:
+#[rstest]
+#[tokio::test]
+async fn test_config_list_remote_names() {
+    let config = Config::load_string("[remote.origin]\naddress=http://myaddres").unwrap();
+    assert_eq!(config.list_remote_names(), vec!["origin".to_string()]);
+}
 
-    config = Config()
-    assert config.list_remote_names() == []
+#[rstest]
+#[tokio::test]
+async fn test_config_get_remote_unknown() {
+    let config = Config::default();
+    config
+        .get_remote("unknown")
+        .expect_err("should fail to load unknown config");
+}
 
+#[rstest]
+#[tokio::test]
+async fn test_config_get_remote() {
+    let tmpdir = tempdir::TempDir::new("spfs-test").unwrap();
+    let remote = tmpdir.path().join("remote");
+    std::fs::create_dir(&remote).unwrap();
 
-def test_config_list_remote_names() -> None:
-
-    config = Config()
-    config.read_string("[remote.origin]\naddress=http://myaddres")
-    assert config.list_remote_names() == ["origin"]
-
-
-def test_config_get_remote_unknown() -> None:
-
-    config = Config()
-    with pytest.raises(ValueError):
-        config.get_remote("unknown")
-
-
-def test_config_get_remote(tmpdir: py.path.local) -> None:
-
-    remote = tmpdir.join("remote").ensure(dir=1)
-
-    config = Config()
-    config.read_string(f"[remote.origin]\naddress=file://{remote.strpath}")
-    repo = config.get_remote("origin")
-    assert repo is not None
-    assert isinstance(repo, storage.Repository)
-    assert isinstance(repo, storage.fs.FSRepository)
+    let config =
+        Config::load_string(format!("[remote.origin]\naddress=file://{}", remote)).unwrap();
+    let repo = config.get_remote("origin");
+    assert!(repo.is_some());
+}

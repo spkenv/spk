@@ -14,7 +14,12 @@ path = "src/cli/bin.rs"
 
 [dependencies]
 chrono = "0.4.19"
+colored = "2.0.0"
+config = "0.10.1"
 data-encoding = "2.3.0"
+expanduser = "1.2.1"
+faccess = "0.2.3"
+futures = "0.3.9"
 gitignore = "1.0.7"
 glob = "0.3.0"
 itertools = "0.9.0"
@@ -25,14 +30,17 @@ ring = "0.16.15"
 rstest = "0.6.4"
 sentry = "0.21.0"
 serde = {version = "1.0.117", features = ["derive"]}
+serde_derive = "1.0.118"
 serde_json = "1.0.57"
+structopt = "0.3.21"
+tokio = {version = "1.0.1", features = ["rt", "rt-multi-thread", "time", "macros"]}
 tracing = "0.1.22"
+tracing-subscriber = "0.2.15"
 unicode_reader = "1.0.1"
 url = "2.2.0"
 uuid = {version = "0.8.1", features = ["v4"]}
 walkdir = "2.3.1"
 whoami = "0.9.0"
-structopt = "0.3.21"
 
 [dev-dependencies]
 rand = "0.7.3"

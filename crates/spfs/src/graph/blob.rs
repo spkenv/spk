@@ -16,12 +16,12 @@ impl Blob {
         }
     }
 
-    pub fn digest(self) -> encoding::Digest {
+    pub fn digest(&self) -> encoding::Digest {
         return self.payload;
     }
 
     /// Return the child object of this one in the object DG.
-    pub fn child_objects(self) -> Vec<encoding::Digest> {
+    pub fn child_objects(&self) -> Vec<encoding::Digest> {
         Vec::new()
     }
 }
@@ -31,7 +31,8 @@ impl encoding::Encodable for Blob {
         encoding::write_digest(&mut writer, &self.payload)?;
         encoding::write_uint(writer, self.size)
     }
-
+}
+impl encoding::Decodable for Blob {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         Ok(Blob {
             payload: encoding::read_digest(&mut reader)?,

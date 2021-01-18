@@ -1,116 +1,139 @@
-from typing import Sequence, List, Optional, Mapping
-import os
-import re
+use std::path::Path;
 
-import structlog
+use super::config::get_config;
+use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
-from . import storage, runtime, tracking, graph, encoding
-from ._config import get_config
+#[cfg(test)]
+#[path = "./resolve_test.rs"]
+mod resolve_test;
 
-_LOGGER = structlog.get_logger("spfs")
+pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
+    let config = get_config()?;
+    let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository()?.into()];
+    for name in config.list_remote_names() {
+        match config.get_remote(&name) {
+            Ok(repo) => repos.push(repo),
+            Err(err) => {
+                tracing::warn!(remote = ?name, "failed to load remote repository");
+                tracing::warn!(" > {:?}", err);
+            }
+        }
+    }
 
+    let spec = tracking::TagSpec::parse(reference)?;
+    for repo in repos {
+        match repo.read_ref(spec.to_string().as_str()) {
+            Ok(obj) => return compute_object_manifest(obj, Some(repo)),
+            Err(Error::UnknownObject(_)) => continue,
+            Err(err) => return Err(err),
+        }
+    }
+    Err(graph::UnknownReferenceError::new(spec.to_string()))
+}
 
-def compute_manifest(ref: str) -> tracking.Manifest:
+pub fn compute_object_manifest(
+    obj: graph::Object,
+    repo: Option<storage::RepositoryHandle>,
+) -> Result<tracking::Manifest> {
+    let repo = match repo {
+        Some(repo) => repo,
+        None => {
+            let config = get_config()?;
+            config.get_repository()?.into()
+        }
+    };
 
-    config = get_config()
-    repos: List[storage.Repository] = [config.get_repository()]
-    for name in config.list_remote_names():
-        try:
-            repos.append(config.get_remote(name))
-        except Exception as e:
-            _LOGGER.warning("failed to load remote repository", remote=name)
-            _LOGGER.warning(" > " + str(e))
-            continue
+    match obj {
+        graph::Object::Layer(obj) => Ok(repo.read_manifest(&obj.manifest)?.unlock()),
+        graph::Object::Platform(obj) => {
+            let layers = resolve_stack_to_layers(obj.stack.iter(), Some(&repo))?;
+            let mut manifest = tracking::Manifest::default();
+            for layer in layers.iter().rev() {
+                let layer_manifest = repo.read_manifest(&layer.manifest)?;
+                manifest.update(&layer_manifest.unlock());
+            }
+            Ok(manifest)
+        }
+        obj => Err(format!("Resolve: Unhandled object of type {:?}", obj.kind()).into()),
+    }
+}
 
-    spec = tracking.TagSpec(ref)
-    for repo in repos:
-        try:
-            obj = repo.read_ref(spec)
-        except graph.UnknownObjectError:
-            continue
-        else:
-            return compute_object_manifest(obj, repo)
-    else:
-        raise graph.UnknownReferenceError(spec)
+/// Compile the set of directories to be overlayed for a runtime.
+///
+/// These are returned as a list, from bottom to top.
+pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
+    let config = get_config()?;
+    let repo = config.get_repository()?.into();
+    let mut overlay_dirs = Vec::new();
+    let layers = resolve_stack_to_layers(runtime.get_stack().into_iter(), Some(&repo))?;
+    for layer in layers {
+        let manifest = repo.read_manifest(&layer.manifest)?;
+        let rendered_dir = repo.renders()?.render_manifest(&manifest)?;
+        overlay_dirs.push(rendered_dir);
+    }
 
+    Ok(overlay_dirs)
+}
 
-def compute_object_manifest(
-    obj: graph.Object, repo: storage.Repository = None
-) -> tracking.Manifest:
+/// Given a sequence of tags and digests, resolve to the set of underlying layers.
+pub fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
+    stack: impl Iterator<Item = D>,
+    mut repo: Option<&storage::RepositoryHandle>,
+) -> Result<Vec<graph::Layer>> {
+    let owned_handle;
+    let repo = match repo.take() {
+        Some(repo) => repo,
+        None => {
+            let config = get_config()?;
+            owned_handle = storage::RepositoryHandle::from(config.get_repository()?);
+            &owned_handle
+        }
+    };
 
-    if repo is None:
-        config = get_config()
-        repo = config.get_repository()
+    let mut layers = Vec::new();
+    for reference in stack {
+        let reference = reference.as_ref();
+        let entry = repo.read_ref(reference.to_string().as_str())?;
+        match entry {
+            graph::Object::Layer(layer) => layers.push(layer),
+            graph::Object::Platform(platform) => {
+                let mut expanded =
+                    resolve_stack_to_layers(platform.stack.clone().into_iter(), Some(repo))?;
+                layers.append(&mut expanded);
+            }
+            obj => {
+                return Err(format!(
+                    "Cannot resolve object into a mountable filesystem layer: {:?}",
+                    obj.kind()
+                )
+                .into())
+            }
+        }
+    }
 
-    if isinstance(obj, storage.Layer):
-        return repo.read_manifest(obj.manifest).unlock()
-    elif isinstance(obj, storage.Platform):
-        layers = resolve_stack_to_layers(obj.stack, repo)
-        manifest = tracking.Manifest()
-        for layer in reversed(layers):
-            layer_manifest = repo.read_manifest(layer.manifest)
-            manifest.update(layer_manifest.unlock())
-        return manifest
-    else:
-        raise NotImplementedError(
-            "Resolve: Unhandled object of type: " + str(type(obj))
-        )
+    Ok(layers)
+}
 
+pub fn which(name: &str) -> Option<std::path::PathBuf> {
+    let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
+    let search_paths = path.split(":");
+    for path in search_paths {
+        let filepath = Path::new(path).join(name);
+        if is_exe(&filepath) {
+            return Some(filepath);
+        }
+    }
+    None
+}
 
-def resolve_overlay_dirs(runtime: runtime.Runtime) -> List[str]:
-    """Compile the set of directories to be overlayed for a runtime.
+fn is_exe<P: AsRef<Path>>(filepath: P) -> bool {
+    use faccess::PathExt;
 
-    These are returned as a list, from bottom to top.
-    """
-
-    config = get_config()
-    repo = config.get_repository()
-    overlay_dirs = []
-    layers = resolve_stack_to_layers(runtime.get_stack())
-    for layer in layers:
-        manifest = repo.read_manifest(layer.manifest)
-        rendered_dir = repo.render_manifest(manifest)
-        overlay_dirs.append(rendered_dir)
-
-    return overlay_dirs
-
-
-def resolve_stack_to_layers(
-    stack: Sequence[encoding.Digest], repo: storage.Repository = None
-) -> List[storage.Layer]:
-    """Given a sequence of tags and digests, resolve to the set of underlying layers."""
-
-    if repo is None:
-        config = get_config()
-        repo = config.get_repository()
-
-    layers = []
-    for ref in stack:
-
-        entry = repo.read_ref(ref)
-        if isinstance(entry, storage.Layer):
-            layers.append(entry)
-        elif isinstance(entry, storage.Platform):
-            expanded = resolve_stack_to_layers(entry.stack, repo)
-            layers.extend(expanded)
-        else:
-            raise NotImplementedError(
-                f"Cannot resolve object into a mountable filesystem layer: {type(entry)}"
-            )
-    return layers
-
-
-def which(name: str) -> Optional[str]:
-
-    search_paths = os.getenv("PATH", "").split(os.pathsep)
-    for path in search_paths:
-        filepath = os.path.join(path, name)
-        if _is_exe(filepath):
-            return filepath
-    else:
-        return None
-
-
-def _is_exe(filepath: str) -> bool:
-
-    return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
+    if !filepath.as_ref().is_file() {
+        false
+    } else if filepath.as_ref().executable() {
+        true
+    } else {
+        false
+    }
+}

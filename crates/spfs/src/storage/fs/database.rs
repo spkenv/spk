@@ -1,8 +1,8 @@
 use std::os::unix::fs::PermissionsExt;
 
-use crate::graph::{Blob, Layer, Manifest, Object, Platform};
-use crate::{encoding, graph, tracking, Error};
-use encoding::Encodable;
+use crate::graph::Object;
+use crate::{encoding, graph, Error};
+use encoding::{Decodable, Encodable};
 use graph::DatabaseView;
 
 impl DatabaseView for super::FSRepository {
@@ -20,6 +20,14 @@ impl DatabaseView for super::FSRepository {
             Ok(iter) => Box::new(iter),
             Err(err) => Box::new(vec![Err(Error::from(err))].into_iter()),
         }
+    }
+
+    fn iter_objects<'db>(&'db self) -> graph::DatabaseIterator<'db> {
+        graph::DatabaseIterator::new(Box::new(self))
+    }
+
+    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(Box::new(self), root.clone())
     }
 }
 

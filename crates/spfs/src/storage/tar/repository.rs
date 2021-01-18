@@ -13,7 +13,7 @@ from ._database import TarDatabase, TarPayloadStorage
 class TarRepository(Repository):
     """A pure filesystem-based repository of spfs data."""
 
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: &str):
 
         if filepath.startswith("tar://"):
             filepath = filepath[len("tar://") :]

@@ -15,7 +15,7 @@ class TagStorage:
         self._prefix = "tags/"
         self._tag_cache: Dict[str, bytes] = {}
 
-    def has_tag(self, tag: str) -> bool:
+    def has_tag(self, tag: &str) -> bool:
         """Return true if the given tag exists in this storage."""
 
         if tag in self._tag_cache:
@@ -26,7 +26,7 @@ class TagStorage:
             return False
         return True
 
-    def ls_tags(self, path: str) -> List[str]:
+    def ls_tags(self, path: &str) -> List[str]:
         """List tags and tag directories based on a tag path.
 
         For example, if the repo contains the following tags:
@@ -88,7 +88,7 @@ class TagStorage:
             spec = tracking.TagSpec(tag)
             yield (spec, self.read_tag(tag))
 
-    def read_tag(self, tag: str) -> Iterator[tracking.Tag]:
+    def read_tag(self, tag: &str) -> Iterator[tracking.Tag]:
         """Read the entire tag stream for the given tag.
 
         Raises:
@@ -122,7 +122,7 @@ class TagStorage:
             yield tracking.Tag.decode(cast(BinaryIO, reader))
             reader.seek(-size - encoding.INT_SIZE, os.SEEK_CUR)
 
-    def resolve_tag(self, tag: str) -> tracking.Tag:
+    def resolve_tag(self, tag: &str) -> tracking.Tag:
 
         spec = tracking.TagSpec(tag)
         try:
@@ -135,11 +135,11 @@ class TagStorage:
                 f"tag or tag version does not exist {tag}"
             )
 
-    def push_tag(self, tag: str, target: encoding.Digest) -> tracking.Tag:
+    def push_tag(self, tag: &str, target: encoding.Digest) -> tracking.Tag:
         """Push the given tag onto the tag stream."""
 
         tag_spec = tracking.TagSpec(tag)
-        parent: Optional[tracking.Tag] = None
+        parent: Option<tracking.Tag> = None
         try:
             parent = self.resolve_tag(tag)
         except ValueError:
@@ -181,7 +181,7 @@ class TagStorage:
         self._tar.addfile(info, tag_file)
         self._tag_cache[tag.path] = tag_file.getvalue()
 
-    def remove_tag_stream(self, tag: str) -> None:
+    def remove_tag_stream(self, tag: &str) -> None:
         """Remove an entire tag and all related tag history."""
 
         raise NotImplementedError("Tag removal not supported in tar archives")

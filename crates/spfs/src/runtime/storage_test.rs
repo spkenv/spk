@@ -13,7 +13,8 @@ fn tmpdir() -> tempdir::TempDir {
 }
 
 #[rstest]
-fn test_config_serialization() {
+#[tokio::test]
+async fn test_config_serialization() {
     let expected = Config {
         stack: vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()],
         ..Default::default()
@@ -25,7 +26,8 @@ fn test_config_serialization() {
 }
 
 #[rstest]
-fn test_runtime_properties(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_runtime_properties(tmpdir: tempdir::TempDir) {
     let runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
     assert_eq!(tmpdir.path(), runtime.root);
     assert_eq!(
@@ -35,7 +37,8 @@ fn test_runtime_properties(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
     let mut runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
     assert_eq!(runtime.config, Config::default());
     assert!(runtime.read_config().is_ok());
@@ -43,7 +46,8 @@ fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
     let runtime = ensure_runtime(tmpdir.path().join("root")).expect("failed to ensure runtime");
     assert!(runtime.root.metadata().is_ok(), "root should exist");
     assert!(
@@ -55,7 +59,8 @@ fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
     let runtime = storage
@@ -68,7 +73,8 @@ fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
     assert!(
@@ -83,7 +89,8 @@ fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
 
     let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
@@ -104,7 +111,8 @@ fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_runtime_reset(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
     let mut runtime = storage
         .create_runtime()
@@ -142,7 +150,8 @@ fn test_runtime_reset(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_makedirs_dont_change_existing(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_makedirs_dont_change_existing(tmpdir: tempdir::TempDir) {
     let chkdir = tmpdir.path().join("my_dir");
     ensure(chkdir.join("file"));
     std::fs::set_permissions(&chkdir, std::fs::Permissions::from_mode(0o755)).unwrap();

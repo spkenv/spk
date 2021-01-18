@@ -80,7 +80,8 @@ impl encoding::Encodable for EntryKind {
     fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_string(writer, self.to_string().as_ref())
     }
-
+}
+impl encoding::Decodable for EntryKind {
     fn decode(reader: &mut impl std::io::Read) -> Result<Self> {
         Self::from_str(encoding::read_string(reader)?.as_str())
     }

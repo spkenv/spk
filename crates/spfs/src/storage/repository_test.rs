@@ -16,12 +16,15 @@ fn tmpdir() -> tempdir::TempDir {
 }
 
 #[rstest]
-fn test_find_aliases_fs(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_find_aliases_fs(tmpdir: tempdir::TempDir) {
     let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
     test_find_aliases(repo);
 }
+
 #[rstest]
-fn test_find_aliases_tar(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_find_aliases_tar(tmpdir: tempdir::TempDir) {
     todo!()
     // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
     // test_find_aliases(repo);
@@ -50,7 +53,8 @@ fn test_find_aliases(tmprepo: impl Repository) {
 }
 
 #[rstest]
-fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
     let tmprepo = fs::FSRepository::create(tmpdir.join("repo")).unwrap();
     let datafile_path = "dir1.0/dir2.0/file.txt";
@@ -84,12 +88,14 @@ fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_commit_broken_link_fs(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_commit_broken_link_fs(tmpdir: tempdir::TempDir) {
     let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
     test_commit_broken_link(tmpdir, repo);
 }
 #[rstest]
-fn test_commit_broken_link_tar(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_commit_broken_link_tar(tmpdir: tempdir::TempDir) {
     todo!();
     // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
     // test_commit_broken_link(tmpdir, repo);
@@ -109,12 +115,14 @@ fn test_commit_broken_link(tmpdir: tempdir::TempDir, tmprepo: impl Repository) {
 }
 
 #[rstest]
-fn test_commit_dir_fs(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_commit_dir_fs(tmpdir: tempdir::TempDir) {
     let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
     test_commit_dir(tmpdir, repo);
 }
 #[rstest]
-fn test_commit_dir_tar(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_commit_dir_tar(tmpdir: tempdir::TempDir) {
     todo!();
     // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
     // test_commit_dir(tmpdir, repo);

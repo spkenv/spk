@@ -1,155 +1,124 @@
-from typing import Sequence
-import os
-import sys
-import socket
-import logging
-import getpass
-import argparse
+use sentry::IntoDsn;
+use structopt::StructOpt;
 
-import spops
-import colorama
-import structlog
-import sentry_sdk
-from sentry_sdk.integrations.logging import ignore_logger
+use spfs;
 
-import spfs
-from . import (
-    _cmd_commit,
-    _cmd_check,
-    _cmd_clean,
-    _cmd_diff,
-    _cmd_edit,
-    _cmd_info,
-    _cmd_init,
-    _cmd_layers,
-    _cmd_log,
-    _cmd_ls,
-    _cmd_ls_tags,
-    _cmd_migrate,
-    _cmd_platforms,
-    _cmd_push,
-    _cmd_pull,
-    _cmd_read,
-    _cmd_reset,
-    _cmd_run,
-    _cmd_runtimes,
-    _cmd_search,
-    _cmd_shell,
-    _cmd_tag,
-    _cmd_tags,
-    _cmd_version,
-)
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "spfs",
+    about = "Filesystem isolation, capture and distribution."
+)]
+pub struct Opt {
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    pub verbose: usize,
+    #[structopt(subcommand)]
+    pub cmd: Command,
+}
 
+#[derive(Debug, StructOpt)]
+pub enum Command {
+    #[structopt(about = "print the version of dst")]
+    Version(super::cmd_version::CmdVersion),
+    #[structopt(about = "run a program in a configured environment")]
+    Run(super::cmd_run::CmdRun),
+    #[structopt(about = "enter a subshell in a configured spfs environment")]
+    Shell(super::cmd_shell::CmdShell),
+    // #[structopt(about = "make the current runtime editable")]
+    // Edit(super::cmd_edit::CmdEdit),
+    // #[structopt(about = "commit the current runtime state to storage")]
+    // Commit(super::cmd_commit::CmdCommit),
+    // #[structopt(
+    //     about = "rebuild the current /spfs dir with the requested refs, removing any active changes"
+    // )]
+    // Reset(super::cmd_reset::CmdReset),
+    // #[structopt(about = "tag and object")]
+    // Tag(super::cmd_tag::CmdTag),
+    // #[structopt(about = "push one or more objects to a remote repository")]
+    // Push(super::cmd_push::CmdPush),
+    // #[structopt(about = "pull one or more objects to the local repository")]
+    // Pull(super::cmd_pull::CmdPull),
+    // #[structopt(about = "list the current set of spfs runtimes")]
+    // Runtimes(super::cmd_runtimes::CmdRuntimes),
+    // #[structopt(about = "list all layers in an spfs repository")]
+    // Layers(super::cmd_layers::CmdLayers),
+    // #[structopt(about = "list all platforms in an spfs repository")]
+    // Platforms(super::cmd_platforms::CmdPlatforms),
+    // #[structopt(about = "list all tags in an spfs repository")]
+    // Tags(super::cmd_tags::CmdTags),
+    // #[structopt(about = "display information about the current environment or specific items")]
+    // Info(super::cmd_info::CmdInfo),
+    // #[structopt(about = "log the history of a given tag over time")]
+    // Log(super::cmd_log::CmdLog),
+    // #[structopt(about = "search for available tags by substring")]
+    // Search(super::cmd_search::CmdSearch),
+    // #[structopt(about = "compare two spfs file system states")]
+    // Diff(super::cmd_diff::CmdDiff),
+    // #[structopt(about = "list tags by their path", aliases = ["list-tags"])]
+    // LsTags(super::cmd_ls_tags::Ls_tagsCmd),
+    // #[structopt(about = "list the contents of a committed directory", aliases = ["list-dir", "list"])]
+    // Ls(super::cmd_ls::CmdLs),
+    // #[structopt(about = "migrate the data from and older repository format to the latest one")]
+    // Migrate(super::cmd_migrate::CmdMigrate),
+    // #[structopt(about = "check a repositories internal integrity")]
+    // Check(super::cmd_check::CmdCheck),
+    // #[structopt(about = "clean the repository storage of untracked data")]
+    // Clean(super::cmd_clean::CmdClean),
+    // #[structopt(about = "output the contents of a stored payload to stdout", aliases = ["read-file", "cat", "cat-file"])]
+    // Read(super::cmd_read::CmdRead),
+    // #[structopt(about = "[internal use only] instantiates a raw runtime session")]
+    // Init(super::cmd_init::CmdInit),
+}
 
-def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+pub fn configure_sentry() {
+    let mut opts = sentry::ClientOptions {
+        dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
+            .into_dsn()
+            .unwrap_or(None),
+        environment: Some(
+            std::env::var("SENTRY_ENVIRONMENT")
+                .unwrap_or("production".to_string())
+                .into(),
+        ),
+        // spdev follows sentry recommendation of using the release
+        // tag as the name of the release in sentry
+        release: Some(format!("v{}", spfs::VERSION).into()),
+        ..Default::default()
+    };
+    opts = sentry::apply_defaults(opts);
+    let _guard = sentry::init(opts);
 
-    parser = argparse.ArgumentParser(prog=spfs.__name__, description=spfs.__doc__)
-    parser.add_argument(
-        "--debug",
-        "-d",
-        "--verbose",
-        "-v",
-        action="store_true",
-        default=("SPFS_DEBUG" in os.environ),
-    )
+    sentry::configure_scope(|scope| {
+        let username = whoami::username();
+        scope.set_user(Some(sentry::protocol::User {
+            email: Some(format!("{}@imageworks.com", &username)),
+            username: Some(username),
+            ..Default::default()
+        }))
+    })
+}
 
-    sub_parsers = parser.add_subparsers(dest="command", metavar="COMMAND")
+pub fn configure_spops(_: &Opt) {
+    // TODO: have something for this
+    // try:
+    //     spops.configure(
+    //         {
+    //             "statsd": {"host": "statsd.k8s.spimageworks.com", "port": 30111},
+    //             "labels": {
+    //                 "environment": os.getenv("SENTRY_ENVIRONMENT", "production"),
+    //                 "user": getpass.getuser(),
+    //                 "host": socket.gethostname(),
+    //             },
+    //         },
+    //     )
+    // except Exception as e:
+    //     print(f"failed to initialize spops: {e}", file=sys.stderr)
+}
 
-    _cmd_version.register(sub_parsers)
-
-    _cmd_run.register(sub_parsers)
-    _cmd_shell.register(sub_parsers)
-    _cmd_edit.register(sub_parsers)
-    _cmd_commit.register(sub_parsers)
-    _cmd_reset.register(sub_parsers)
-
-    _cmd_tag.register(sub_parsers)
-    _cmd_push.register(sub_parsers)
-    _cmd_pull.register(sub_parsers)
-
-    _cmd_runtimes.register(sub_parsers)
-    _cmd_layers.register(sub_parsers)
-    _cmd_platforms.register(sub_parsers)
-    _cmd_tags.register(sub_parsers)
-
-    _cmd_info.register(sub_parsers)
-    _cmd_log.register(sub_parsers)
-    _cmd_search.register(sub_parsers)
-    _cmd_diff.register(sub_parsers)
-    _cmd_ls_tags.register(sub_parsers)
-    _cmd_ls.register(sub_parsers)
-
-    _cmd_migrate.register(sub_parsers)
-    _cmd_check.register(sub_parsers)
-    _cmd_clean.register(sub_parsers)
-    _cmd_read.register(sub_parsers)
-    _cmd_init.register(sub_parsers)
-
-    args = parser.parse_args(argv)
-    if args.command is None:
-        parser.print_help(sys.stderr)
-        sys.exit(1)
-    return args
-
-
-def configure_sentry() -> None:
-
-    sentry_sdk.init(
-        "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4",
-        environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
-        release=spfs.__version__,
-    )
-    # the cli uses the logger after capturing errors explicitly,
-    # so in this case we'll ask sentry to ignore all logging errors
-    ignore_logger("cli")
-    with sentry_sdk.configure_scope() as scope:
-        username = getpass.getuser()
-        scope.user = {"email": f"{username}@imageworks.com", "username": username}
-
-
-def configure_spops() -> None:
-
-    try:
-        spops.configure(
-            {
-                "statsd": {"host": "statsd.k8s.spimageworks.com", "port": 30111},
-                "labels": {
-                    "environment": os.getenv("SENTRY_ENVIRONMENT", "production"),
-                    "user": getpass.getuser(),
-                    "host": socket.gethostname(),
-                },
-            },
-        )
-    except Exception as e:
-        print(f"failed to initialize spops: {e}", file=sys.stderr)
-
-
-def configure_logging(args: argparse.Namespace) -> None:
-
-    colorama.init()
-    level = logging.INFO
-    processors = [
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-    ]
-
-    if args.debug:
-        os.environ["SPFS_DEBUG"] = "1"
-        level = logging.DEBUG
-        processors.extend(
-            [
-                structlog.stdlib.add_logger_name,
-                structlog.processors.StackInfoRenderer(),
-                structlog.processors.format_exc_info,
-            ]
-        )
-
-    processors.append(structlog.dev.ConsoleRenderer())
-
-    logging.basicConfig(stream=sys.stdout, format="%(message)s", level=level)
-    structlog.configure(
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-        processors=processors,
-    )
+pub fn configure_logging(_opt: &super::Opt) {
+    use tracing_subscriber::layer::SubscriberExt;
+    let filter = tracing_subscriber::filter::EnvFilter::default();
+    let registry = tracing_subscriber::Registry::default().with(filter);
+    let fmt_layer = tracing_subscriber::fmt::layer().without_time();
+    let sub = registry.with(fmt_layer);
+    tracing::subscriber::set_global_default(sub).unwrap();
+}

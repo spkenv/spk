@@ -89,7 +89,9 @@ impl encoding::Encodable for Tree {
         }
         Ok(())
     }
+}
 
+impl encoding::Decodable for Tree {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let mut tree = Tree {
             entries: Default::default(),

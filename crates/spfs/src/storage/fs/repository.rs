@@ -49,9 +49,15 @@ impl Repository for FSRepository {
     }
 }
 
+impl std::fmt::Debug for FSRepository {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("FSRepository @ {:?}", self.root()))
+    }
+}
+
 // (Repository, FSManifestViewer):
 
-//     def __init__(self, root: str, create: bool = False):
+//     def __init__(self, root: &str, create: bool = False):
 
 //         if root.startswith("file:///"):
 //             root = root[len("file://") :]
@@ -106,7 +112,7 @@ impl Repository for FSRepository {
 
 //         return read_last_migration_version(self.__root)
 
-//     def set_last_migration(self, version: str = None) -> None:
+//     def set_last_migration(self, version: &str = None) -> None:
 
 //         set_last_migration(self.__root, version)
 

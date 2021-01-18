@@ -15,8 +15,9 @@ macro_rules! assert_read_content {
     };
 }
 
-#[test]
-fn test_consume_header() {
+#[rstest]
+#[tokio::test]
+async fn test_consume_header() {
     let mut stream = Cursor::new(Vec::from("HEADER\n".as_bytes()));
     consume_header(&mut stream, "HEADER".as_bytes()).expect("failed to read header");
 
@@ -24,8 +25,9 @@ fn test_consume_header() {
     assert_read_content!(stream, nothing);
 }
 
-#[test]
-fn test_write_read_header() {
+#[rstest]
+#[tokio::test]
+async fn test_write_read_header() {
     let header = b"HEADER";
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_header(&mut stream, header).expect("failed to write header");
@@ -37,7 +39,8 @@ fn test_write_read_header() {
 }
 
 #[rstest(value, case(0), case(1), case(45), case(600))]
-fn test_read_write_int(value: i64) {
+#[tokio::test]
+async fn test_read_write_int(value: i64) {
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_int(&mut stream, value).unwrap();
     stream.write_all(b"postfix").unwrap();
@@ -68,7 +71,8 @@ fn random_word(length: usize) -> String {
     case(9),
     case(10)
 )]
-fn test_read_write_string(i: u64) {
+#[tokio::test]
+async fn test_read_write_string(i: u64) {
     println!("running generated test #{}", i);
     let value = random_word(rand::thread_rng().gen_range(256, 1024));
     let postfix = random_word(rand::thread_rng().gen_range(256, 1024));

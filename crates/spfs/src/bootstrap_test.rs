@@ -1,85 +1,94 @@
-from typing import Any
-import os
-import subprocess
+use rstest::{fixture, rstest};
 
-import pytest
-import py.path
+use super::build_shell_initialized_command;
+use crate::{resolve::which, runtime};
+use std::process::Command;
 
-from . import runtime
-from ._resolve import which
-from ._bootstrap import build_shell_initialized_command
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new("spfs-").expect("failed to create dir for test")
+}
 
+#[rstest(
+    shell,
+    startup_cmd,
+    case("bash", "export TEST_VALUE='spfs-test-value'"),
+    case("tcsh", "setenv TEST_VALUE 'spfs-test-value'")
+)]
+#[tokio::test]
+async fn test_shell_initialization_startup_scripts(
+    shell: &str,
+    startup_cmd: &str,
+    tmpdir: tempdir::TempDir,
+) {
+    let shell_path = match which(shell) {
+        Some(path) => path,
+        None => {
+            println!("{} not available on this system", shell);
+            return;
+        }
+    };
 
-@pytest.mark.parametrize(
-    "shell,startup_cmd",
-    (
-        ("bash", "export TEST_VALUE='spfs-test-value'"),
-        ("tcsh", "setenv TEST_VALUE 'spfs-test-value'"),
-    ),
-)
-def test_shell_initialization_startup_scripts(
-    shell: str, startup_cmd: str, tmpdir: py.path.local, monkeypatch: Any
-) -> None:
+    let storage = runtime::Storage::new(tmpdir.path()).unwrap();
+    let rt = storage.create_runtime().unwrap();
 
-    shell_path = which(shell)
-    if not shell_path:
-        pytest.skip(f"{shell_path} not available on this system")
+    std::env::set_var("SPFS_RUNTIME", rt.root);
+    std::env::set_var("SHELL", shell_path);
 
-    storage = runtime.Storage(tmpdir.strpath)
-    rt = storage.create_runtime("sh-test")
+    let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
+    for startup_script in &[rt.sh_startup_file, rt.csh_startup_file] {
+        let mut cmd = Command::new("sed");
+        cmd.arg("-i");
+        cmd.arg(format!(
+            "s|/spfs/etc/spfs/startup.d|{}|",
+            tmp_startup_dir.strpath
+        ));
+        cmd.arg(startup_script);
+        println!("{}", cmd.output().unwrap());
+    }
 
-    monkeypatch.setenv("SPFS_RUNTIME", rt.root)
-    monkeypatch.setenv("SHELL", shell_path)
+    std::fs::write(tmp_startup_dir.join("test.csh"), startup_cmd).unwrap();
+    std::fs::write(tmp_startup_dir.join("test.sh"), startup_cmd).unwrap();
 
-    tmp_startup_dir = tmpdir.join("startup.d").ensure(dir=True)
-    for startup_script in (rt.sh_startup_file, rt.csh_startup_file):
-        print(
-            subprocess.check_output(
-                [
-                    "sed",
-                    "-i",
-                    f"s|/spfs/etc/spfs/startup.d|{tmp_startup_dir.strpath}|",
-                    startup_script,
-                ]
-            )
-        )
+    let args = build_shell_initialized_command("printenv", vec!["TEST_VALUE"]).unwrap();
+    let mut cmd = Command::new(args[0]);
+    cmd.args(args[1..]);
+    let out = cmd.output().unwrap();
+    assert!(out.stout.endswith("spfs-test-value\n"));
+}
 
-    tmp_startup_dir.join("test.csh").write(startup_cmd, ensure=True)
-    tmp_startup_dir.join("test.sh").write(startup_cmd, ensure=True)
+#[rstest(shell, case("bash"), case("tcsh"))]
+#[tokio::test]
+async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::TempDir) {
+    let shell_path = match which(shell) {
+        Some(path) => path,
+        None => {
+            println!("{} not available on this system", shell);
+            return;
+        }
+    };
 
-    command = build_shell_initialized_command("printenv", "TEST_VALUE")
-    out = subprocess.check_output(command)
-    assert out.decode("utf-8").endswith("spfs-test-value\n")
+    let storage = runtime::Storage::new(tmpdir.path()).unwrap();
+    let rt = storage.create_runtime().unwrap();
 
+    std::env::set_var("SPFS_RUNTIME", rt.root);
+    std::env::set_var("SHELL", shell_path);
 
-@pytest.mark.parametrize("shell", ("bash", "tcsh"))
-def test_shell_initialization_no_startup_scripts(
-    shell: str, tmpdir: py.path.local, monkeypatch: Any
-) -> None:
+    let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
+    for startup_script in &[rt.sh_startup_file, rt.csh_startup_file] {
+        let mut cmd = Command::new("sed");
+        cmd.arg("-i");
+        cmd.arg(format!(
+            "s|/spfs/etc/spfs/startup.d|{}|",
+            tmp_startup_dir.strpath
+        ));
+        cmd.arg(startup_script);
+        println!("{}", cmd.output().unwrap());
+    }
 
-    shell_path = which(shell)
-    if not shell_path:
-        pytest.skip(f"{shell_path} not available on this system")
-
-    storage = runtime.Storage(tmpdir.strpath)
-    rt = storage.create_runtime("sh-test")
-
-    monkeypatch.setenv("SPFS_RUNTIME", rt.root)
-    monkeypatch.setenv("SHELL", shell_path)
-
-    tmp_startup_dir = tmpdir.join("startup.d").ensure(dir=True)
-    for startup_script in (rt.sh_startup_file, rt.csh_startup_file):
-        print(
-            subprocess.check_output(
-                [
-                    "sed",
-                    "-i",
-                    f"s|/spfs/etc/spfs/startup.d|{tmp_startup_dir.strpath}|",
-                    startup_script,
-                ]
-            )
-        )
-
-    command = build_shell_initialized_command("echo")
-    out = subprocess.check_output(command)
-    assert out.decode("utf-8") == "\n"
+    let args = build_shell_initialized_command("echo").unwrap();
+    let mut cmd = Command::new(args[0]);
+    cmd.args(args[1..]);
+    let out = cmd.output().unwrap();
+    assert_eq!(out.stdout, "\n");
+}

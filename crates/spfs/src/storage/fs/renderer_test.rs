@@ -9,7 +9,8 @@ use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage, Repositor
 use crate::tracking;
 
 #[rstest]
-fn test_render_manifest(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_render_manifest(tmpdir: tempdir::TempDir) {
     let mut storage = FSRepository::create(tmpdir.path().join("storage")).unwrap();
 
     let src_dir = tmpdir.path().join("source");
@@ -23,7 +24,7 @@ fn test_render_manifest(tmpdir: tempdir::TempDir) {
     for node in manifest.walk_abs(&src_dir.to_str().unwrap()) {
         if node.entry.kind.is_blob() {
             let mut data = std::fs::File::open(&node.path.to_path("/")).unwrap();
-            storage.write_payload(&mut data).unwrap();
+            storage.write_data(&mut data).unwrap();
         }
     }
 
@@ -36,7 +37,8 @@ fn test_render_manifest(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_copy_manfest(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_copy_manfest(tmpdir: tempdir::TempDir) {
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
@@ -66,7 +68,8 @@ fn test_copy_manfest(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir, mut tmprepo: FSRepository) {
+#[tokio::test]
+async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir, mut tmprepo: FSRepository) {
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");

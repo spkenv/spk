@@ -10,26 +10,29 @@ fn tmpdir() -> tempdir::TempDir {
 }
 
 #[rstest]
-fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
     let repo = FSRepository::create(tmpdir.join("repo")).unwrap();
 
     std::fs::File::open(tmpdir.join("file.txt")).unwrap();
     let manifest = Manifest::from(&tracking::compute_manifest(&tmpdir).unwrap());
+    let expected = manifest.digest().unwrap();
     repo.write_object(&manifest.into())
         .expect("failed to write manifest");
 
     std::fs::write(tmpdir.join("file.txt"), "newrootdata").unwrap();
     let manifest2 = Manifest::from(&tracking::compute_manifest(tmpdir).unwrap());
-    repo.write_object(&manifest.into()).unwrap();
+    repo.write_object(&manifest2.into()).unwrap();
 
     let digests: crate::Result<Vec<_>> = repo.iter_digests().collect();
     let digests = digests.unwrap();
-    assert!(digests.contains(&manifest.digest().unwrap()));
+    assert!(digests.contains(&expected));
 }
 
 #[rstest]
-fn test_manifest_parity(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
     let storage = FSRepository::create(tmpdir.join("storage")).unwrap();
 
@@ -40,7 +43,7 @@ fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let out = storage.read_manifest(&storable.digest().unwrap()).unwrap();
     let actual = out.unlock();
     let mut diffs = tracking::compute_diff(&expected, &actual);
-    diffs = diffs
+    let diffs = diffs
         .into_iter()
         .filter(|d| !d.mode.is_unchanged())
         .collect();

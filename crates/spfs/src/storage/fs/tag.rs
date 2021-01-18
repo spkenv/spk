@@ -1,10 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use relative_path::RelativePath;
 
 use super::FSRepository;
-use crate::runtime::makedirs_with_perms;
-use crate::{encoding, graph, tracking, Result};
+use crate::{encoding, tracking, Result};
 
 #[cfg(test)]
 #[path = "./tag_test.rs"]
@@ -33,8 +32,8 @@ impl crate::storage::TagStorage for FSRepository {
         //         )
     }
 
-    fn ls_tags<R: AsRef<RelativePath>>(&self, path: R) -> Result<Box<dyn Iterator<Item = String>>> {
-        let filepath = path.as_ref().to_path(self.tags_root());
+    fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
+        let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
             Err(err) => match err.kind() {
@@ -117,7 +116,7 @@ impl crate::storage::TagStorage for FSRepository {
         //         raise graph.UnknownReferenceError(f"Unknown tag: {tag}")
     }
 
-    fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         todo!()
         //     filepath = os.path.join(self._root, tag.path + _TAG_EXT)
         //     makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
@@ -143,7 +142,7 @@ impl crate::storage::TagStorage for FSRepository {
         //             pass
     }
 
-    fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
+    fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
         todo!()
         //     tag_spec = tracking.TagSpec(tag)
         //     filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
@@ -163,7 +162,7 @@ impl crate::storage::TagStorage for FSRepository {
         //             break
     }
 
-    fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         todo!()
         //     tag_spec = tracking.TagSpec(tag.path)
         //     filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
@@ -192,7 +191,7 @@ impl crate::storage::TagStorage for FSRepository {
 // _HAVE_LOCK = False
 
 // @contextlib.contextmanager
-// def _tag_lock(filepath: str) -> Iterator[None]:
+// def _tag_lock(filepath: &str) -> Iterator[None]:
 
 //     global _HAVE_LOCK
 //     if _HAVE_LOCK:

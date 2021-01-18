@@ -21,13 +21,3 @@ impl Object {
         empty.into_iter()
     }
 }
-
-impl encoding::Encodable for Object {
-    fn encode(&self, _writer: &mut impl std::io::Write) -> crate::Result<()> {
-        todo!()
-    }
-
-    fn decode(_reader: &mut impl std::io::Read) -> crate::Result<Self> {
-        todo!()
-    }
-}

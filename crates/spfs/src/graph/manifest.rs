@@ -4,6 +4,7 @@ use super::{Entry, Tree};
 use crate::encoding::Encodable;
 use crate::Result;
 use crate::{encoding, tracking};
+use encoding::Decodable;
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
@@ -131,7 +132,9 @@ impl Encodable for Manifest {
         }
         Ok(())
     }
+}
 
+impl Decodable for Manifest {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let mut manifest = Manifest::default();
         manifest.root = encoding::read_digest(&mut reader)?;

@@ -5,7 +5,8 @@ use crate::encoding;
 use crate::encoding::Encodable;
 
 #[rstest]
-fn test_platform_encoding() {
+#[tokio::test]
+async fn test_platform_encoding() {
     let layers: Vec<encoding::Digest> =
         vec![encoding::EMPTY_DIGEST.into(), encoding::NULL_DIGEST.into()];
     let expected = Platform::new(layers).unwrap();

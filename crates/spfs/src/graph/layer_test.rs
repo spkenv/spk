@@ -2,10 +2,11 @@ use rstest::rstest;
 
 use super::Layer;
 use crate::encoding;
-use crate::encoding::Encodable;
+use crate::encoding::prelude::*;
 
 #[rstest]
-fn test_layer_encoding() {
+#[tokio::test]
+async fn test_layer_encoding() {
     let expected = Layer::new(encoding::EMPTY_DIGEST.into());
     let mut stream = Vec::new();
     expected.encode(&mut stream).unwrap();

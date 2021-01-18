@@ -1,4 +1,4 @@
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use super::FSRepository;
@@ -60,7 +60,7 @@ impl ManifestViewer for FSRepository {
     }
 
     /// Remove the identified render from this storage.
-    fn remove_rendered_manifest(self, digest: &crate::encoding::Digest) -> Result<()> {
+    fn remove_rendered_manifest(&self, digest: &crate::encoding::Digest) -> Result<()> {
         let rendered_dirpath = self.renders.build_digest_path(&digest);
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_dirpath = self.root().join(uuid);

@@ -15,8 +15,10 @@ pub trait PayloadStorage {
     }
 
     /// Store the contents of the given stream, returning its digest and size
-    fn write_payload(&mut self, reader: &mut impl std::io::Read)
-        -> Result<(encoding::Digest, u64)>;
+    fn write_data(
+        &mut self,
+        reader: Box<&mut dyn std::io::Read>,
+    ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle to the full content of a payload.
     ///

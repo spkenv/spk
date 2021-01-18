@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::{PayloadStorage, TagStorage};
+use super::ManifestViewer;
 use crate::{encoding, graph, tracking, Result};
 use encoding::Encodable;
 use graph::{Blob, Manifest};
@@ -25,12 +25,31 @@ impl std::string::ToString for Ref {
 }
 
 /// Represents a storage location for spfs data.
-pub trait Repository: TagStorage + PayloadStorage + graph::Database {
+pub trait Repository:
+    super::TagStorage
+    + super::PayloadStorage
+    + super::ManifestStorage
+    + super::BlobStorage
+    + super::LayerStorage
+    + super::PlatformStorage
+    + graph::Database
+    + graph::DatabaseView
+    + std::fmt::Debug
+{
     /// Attempt to open this repository at the given url
     //fn open(address: url::Url) -> Result<Self>;
 
     /// Return the address of this repository.
     fn address(&self) -> url::Url;
+
+    /// If supported, returns the type responsible for locally rendered manifests
+    fn renders(&self) -> Result<Box<dyn ManifestViewer>> {
+        Err(format!(
+            "Repository does not support local renders: {:?}",
+            self.address()
+        )
+        .into())
+    }
 
     /// Return true if this repository contains the given reference.
     fn has_ref(&self, reference: &str) -> bool {
@@ -67,8 +86,8 @@ pub trait Repository: TagStorage + PayloadStorage + graph::Database {
     }
 
     /// Commit the data from 'reader' as a blob in this repository
-    fn commit_blob(&mut self, reader: &mut impl std::io::Read) -> Result<encoding::Digest> {
-        let (digest, size) = self.write_payload(reader)?;
+    fn commit_blob(&mut self, reader: Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> {
+        let (digest, size) = self.write_data(reader)?;
         let blob = Blob::new(digest, size);
         self.write_object(&graph::Object::Blob(blob))?;
         Ok(digest)
@@ -80,7 +99,8 @@ pub trait Repository: TagStorage + PayloadStorage + graph::Database {
     /// render of the manifest for use immediately.
     fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
         let path = std::fs::canonicalize(path)?;
-        let mut builder = tracking::ManifestBuilder::new(|reader| self.commit_blob(reader));
+        let mut builder =
+            tracking::ManifestBuilder::new(|reader| self.commit_blob(Box::new(reader)));
 
         tracing::info!("committing files");
         let manifest = builder.compute_manifest(path)?;

@@ -1,76 +1,121 @@
-from typing import Sequence
-import os
-import sys
-import subprocess
-import argparse
-import traceback
+use structopt::StructOpt;
 
-import logging
-import structlog
-import sentry_sdk
-import spops
+mod args;
+// mod cmd_check;
+// mod cmd_clean;
+// mod cmd_commit;
+// mod cmd_diff;
+// mod cmd_edit;
+// mod cmd_info;
+// mod cmd_init;
+// mod cmd_layers;
+// mod cmd_log;
+// mod cmd_ls;
+// mod cmd_ls_tags;
+// mod cmd_migrate;
+// mod cmd_platforms;
+// mod cmd_pull;
+// mod cmd_push;
+// mod cmd_read;
+// mod cmd_reset;
+mod cmd_run;
+// mod cmd_runtimes;
+// mod cmd_search;
+mod cmd_shell;
+// mod cmd_tag;
+// mod cmd_tags;
+mod cmd_version;
 
-import spfs
+use args::{Command, Opt};
 
-from ._args import parse_args, configure_logging, configure_sentry, configure_spops
+#[tokio::main]
+async fn main() {
+    args::configure_sentry();
 
-_logger = structlog.get_logger("cli")
+    let opt = args::Opt::from_args();
+    match opt.verbose {
+        0 => {
+            if std::env::var("SPFS_DEBUG").is_ok() {
+                std::env::set_var("RUST_LOG", "DEBUG");
+            }
+        }
+        1 => std::env::set_var("RUST_LOG", "DEBUG"),
+        _ => std::env::set_var("RUST_LOG", "TRACE"),
+    }
 
+    args::configure_logging(&opt);
+    args::configure_spops(&opt);
 
-def main() -> None:
-    code = spfs.cli.run(sys.argv[1:])
-    sentry_sdk.flush()
-    sys.exit(code)
+    sentry::configure_scope(|scope| {
+        scope.set_extra("command", format!("{:?}", opt.cmd).into());
+        scope.set_extra("argv", format!("{:?}", std::env::args()).into());
+    });
 
+    // TODO: spops collection
+    // try:
+    //     spops.count("spfs.run_count")
+    //     with spops.timer("spfs.run_time"):
+    //         args.func(args)
 
-def run(argv: Sequence[str]) -> int:
+    // except KeyboardInterrupt:
+    //     pass
 
-    configure_sentry()
+    // except Exception as e:
+    //     capture_if_relevant(e)
+    //     _logger.error(str(e))
+    //     spops.count("spfs.error_count")
+    //     if args.debug:
+    //         traceback.print_exc(file=sys.stderr)
+    //     return 1
 
-    try:
-        args = parse_args(argv)
-    except SystemExit as e:
-        return e.code
+    // return 0
 
-    configure_logging(args)
-    configure_spops()
+    let result = match opt.cmd {
+        Command::Version(cmd) => cmd.run(),
+        Command::Run(mut cmd) => cmd.run().await,
+        Command::Shell(mut cmd) => cmd.run().await,
+        // Command::Edit(cmd) => cmd.run().await,
+        // Command::Commit(cmd) => cmd.run().await,
+        // Command::Reset(cmd) => cmd.run().await,
+        // Command::Tag(cmd) => cmd.run().await,
+        // Command::Push(cmd) => cmd.run().await,
+        // Command::Pull(cmd) => cmd.run().await,
+        // Command::Runtimes(cmd) => cmd.run().await,
+        // Command::Layers(cmd) => cmd.run().await,
+        // Command::Platforms(cmd) => cmd.run().await,
+        // Command::Tags(cmd) => cmd.run().await,
+        // Command::Info(cmd) => cmd.run().await,
+        // Command::Log(cmd) => cmd.run().await,
+        // Command::Search(cmd) => cmd.run().await,
+        // Command::Diff(cmd) => cmd.run().await,
+        // Command::LsTags(cmd) => cmd.run().await,
+        // Command::Ls(cmd) => cmd.run().await,
+        // Command::Migrate(cmd) => cmd.run().await,
+        // Command::Check(cmd) => cmd.run().await,
+        // Command::Clean(cmd) => cmd.run().await,
+        // Command::Read(cmd) => cmd.run().await,
+        // Command::Init(cmd) => cmd.run().await,
+    };
 
-    with sentry_sdk.configure_scope() as scope:
-        scope.set_extra("command", args.command)
-        scope.set_extra("argv", sys.argv)
+    match result {
+        Err(err) => {
+            capture_if_relevant(&err);
+            tracing::error!("{}", err);
+            std::process::exit(1);
+        }
+        Ok(_) => std::process::exit(0),
+    }
+}
 
-    try:
-        spops.count("spfs.run_count")
-        with spops.timer("spfs.run_time"):
-            args.func(args)
-
-    except KeyboardInterrupt:
-        pass
-
-    except Exception as e:
-        _capture_if_relevant(e)
-        _logger.error(str(e))
-        spops.count("spfs.error_count")
-        if args.debug:
-            traceback.print_exc(file=sys.stderr)
-        return 1
-
-    return 0
-
-
-def _capture_if_relevant(e: Exception) -> None:
-
-    if isinstance(e, spfs.NoRuntimeError):
-        return
-    if isinstance(e, spfs.graph.UnknownObjectError):
-        return
-    if isinstance(e, spfs.graph.UnknownReferenceError):
-        return
-    if isinstance(e, spfs.graph.AmbiguousReferenceError):
-        return
-    if isinstance(e, spfs.NothingToCommitError):
-        return
-    sentry_sdk.capture_exception(e)
-
-
-__all__ = list(locals().keys())
+fn capture_if_relevant(err: &spfs::Error) {
+    match err {
+        spfs::Error::NoRuntime(_) => (),
+        spfs::Error::UnknownObject(_) => (),
+        spfs::Error::UnknownReference(_) => (),
+        spfs::Error::AmbiguousReference(_) => (),
+        spfs::Error::NothingToCommit(_) => (),
+        _ => {
+            sentry::capture_error(err);
+        }
+    }
+}

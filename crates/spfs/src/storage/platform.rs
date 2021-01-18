@@ -4,10 +4,7 @@ pub trait PlatformStorage: graph::Database {
     /// Iterate the objects in this storage which are platforms.
     fn iter_platforms<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Platform)>> + 'db>
-    where
-        Self: Sized,
-    {
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Platform)>> + 'db> {
         use graph::Object;
         Box::new(self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
@@ -38,12 +35,8 @@ pub trait PlatformStorage: graph::Database {
 
     /// Create and storage a new platform for the given platform.
     /// Layers are ordered bottom to top.
-    fn create_platform<E, I>(&mut self, layers: I) -> Result<graph::Platform>
-    where
-        E: encoding::Encodable,
-        I: IntoIterator<Item = E>,
-    {
-        let platform = graph::Platform::new(layers)?;
+    fn create_platform(&mut self, layers: Vec<encoding::Digest>) -> Result<graph::Platform> {
+        let platform = graph::Platform::new(layers.into_iter())?;
         let storable = graph::Object::Platform(platform);
         self.write_object(&storable)?;
         if let graph::Object::Platform(platform) = storable {

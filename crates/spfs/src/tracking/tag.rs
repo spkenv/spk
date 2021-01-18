@@ -12,7 +12,7 @@ mod tag_test;
 ///
 /// Much like a commit, tags form a linked-list of entries to track history.
 /// Time should always be in UTC.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Tag {
     org: Option<String>,
     name: String,
@@ -24,13 +24,13 @@ pub struct Tag {
 
 impl Tag {
     pub fn new(
-        org: impl Into<String>,
+        org: Option<String>,
         name: impl Into<String>,
         target: encoding::Digest,
     ) -> Result<Self> {
         // we want to ensure these components
         // can build a valid tag spec
-        let spec = build_tag_spec(org.into(), name.into(), 0)?;
+        let spec = build_tag_spec(org, name.into(), 0)?;
         Ok(Self {
             org: spec.org(),
             name: spec.name(),
@@ -93,7 +93,9 @@ impl Encodable for Tag {
         encoding::write_digest(writer, &self.parent)?;
         Ok(())
     }
+}
 
+impl encoding::Decodable for Tag {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let org = encoding::read_string(&mut reader)?;
         let org = match org.as_str() {
@@ -179,9 +181,9 @@ impl Into<(Option<String>, String, u64)> for TagSpec {
     }
 }
 
-pub fn build_tag_spec(org: String, name: String, version: u64) -> Result<TagSpec> {
+pub fn build_tag_spec(org: Option<String>, name: String, version: u64) -> Result<TagSpec> {
     let mut path = name;
-    if !org.is_empty() {
+    if let Some(org) = org {
         path = org + "/" + &path;
     }
     let mut spec = path;

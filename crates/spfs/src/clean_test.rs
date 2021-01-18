@@ -1,154 +1,237 @@
-from typing import List
-import io
-import os
+use rstest::{fixture, rstest};
 
-import pytest
-import py.path
-
-from . import storage, tracking, graph
-from ._clean import (
-    get_all_attached_objects,
-    get_all_unattached_objects,
+use super::{
+    clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
     get_all_unattached_payloads,
-    clean_untagged_objects,
-)
+};
+use crate::encoding::Encodable;
+use crate::{graph, storage, tracking, Error};
+use std::collections::HashSet;
+use storage::prelude::*;
 
+#[rstest]
+#[tokio::test]
+async fn test_get_attached_objects(mut tmprepo: storage::fs::FSRepository) {
+    let mut reader = "hello, world".as_bytes();
+    let (payload_digest, _) = tmprepo.payloads.write_data(Box::new(&mut reader)).unwrap();
+    let blob = graph::Blob::new(payload_digest, 0);
+    tmprepo.write_blob(blob).unwrap();
 
-def test_get_attached_objects(tmprepo: storage.fs.FSRepository) -> None:
+    assert_eq!(
+        get_all_attached_objects(&tmprepo),
+        Default::default(),
+        "single blob should not be attached"
+    );
+    let mut expected = HashSet::new();
+    expected.insert(blob.digest().unwrap());
+    assert_eq!(
+        get_all_unattached_objects(&tmprepo),
+        expected,
+        "single blob should be unattached"
+    );
+}
 
-    payload_digest = tmprepo.payloads.write_payload(io.BytesIO(b"hello, world"))
-    blob = storage.Blob(payload=payload_digest, size=0)
-    tmprepo.objects.write_object(blob)
+#[rstest]
+#[tokio::test]
+async fn test_get_attached_payloads(mut tmprepo: storage::fs::FSRepository) {
+    let mut reader = "hello, world".as_bytes();
+    let payload_digest = tmprepo.payloads.write_data(Box::new(&mut reader)).unwrap();
+    let mut expected = HashSet::new();
+    expected.insert(payload_digest);
+    assert_eq!(
+        get_all_unattached_payloads(tmprepo),
+        expected,
+        "single payload should be attached when no blob"
+    );
 
-    assert (
-        get_all_attached_objects(tmprepo) == set()
-    ), "single blob should not be attached"
-    assert get_all_unattached_objects(tmprepo) == {
-        blob.digest()
-    }, "single blob should be unattached"
+    let blob = graph::Blob::new(payload_digest, 0);
+    tmprepo.objects.write_blob(blob).unwrap();
 
+    assert_eq!(
+        get_all_unattached_payloads(tmprepo),
+        Default::default(),
+        "single payload should be attached to blob"
+    );
+}
 
-def test_get_attached_payloads(tmprepo: storage.fs.FSRepository) -> None:
+#[rstest]
+#[tokio::test]
+async fn test_get_attached_unattached_objects_blob(
+    tmpdir: tempdir::TempDir,
+    mut tmprepo: storage::fs::FSRepository,
+) {
+    let data_dir = tmpdir.path().join("data");
+    ensure(data_dir.join("file.txt"), "hello, world");
 
-    payload_digest = tmprepo.payloads.write_payload(io.BytesIO(b"hello, world"))
+    let manifest = tmprepo.commit_dir(data_dir.as_path()).unwrap();
+    let layer = tmprepo
+        .create_layer(&graph::Manifest::from(&manifest))
+        .unwrap();
+    let tag = tracking::TagSpec::parse("my_tag").unwrap();
+    tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
+    let blob_digest = manifest
+        .root()
+        .entries
+        .get("file.txt")
+        .expect("file should exist in committed manifest")
+        .object;
 
-    assert get_all_unattached_payloads(tmprepo) == {
-        payload_digest
-    }, "single payload should be attached when no blob"
+    assert!(
+        get_all_attached_objects(tmprepo).contains(blob_digest),
+        "blob in manifest in tag should be attached"
+    );
+    assert!(
+        !get_all_unattached_objects(tmprepo).contains(blob_digest),
+        "blob in manifest in tag should be attached"
+    );
+}
 
-    blob = storage.Blob(payload=payload_digest, size=0)
-    tmprepo.objects.write_object(blob)
+#[rstest]
+#[tokio::test]
+async fn test_clean_untagged_objects(
+    tmpdir: tempdir::TempDir,
+    mut tmprepo: storage::fs::FSRepository,
+) {
+    let data_dir_1 = tmpdir.path().join("data");
+    ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
+    ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
+    ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, world");
+    ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, other");
+    ensure(data_dir_1.join("dir/dir/test.file4"), "1 cleanme");
+    let data_dir_2 = tmpdir.path().join("data2");
+    ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
+    ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
-    assert (
-        get_all_unattached_payloads(tmprepo) == set()
-    ), "single payload should be attached to blob"
+    let manifest1 = tmprepo.commit_dir(data_dir_1.as_path()).unwrap();
 
+    let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).unwrap();
+    let layer = tmprepo
+        .create_layer(&graph::Manifest::from(&manifest2))
+        .unwrap();
+    let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
+    tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
 
-def test_get_attached_unattached_objects_blob(
-    tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
-) -> None:
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean objects");
 
-    data_dir = tmpdir.join("data")
-    data_dir.join("file.txt").write("hello, world", ensure=True)
+    for node in manifest1.walk() {
+        if node.entry.kind.is_blob() {
+            continue;
+        }
+        if let Err(Error::UnknownObject(_)) = tmprepo.open_payload(&node.entry.object) {
+            continue;
+        }
+        panic!("expected object to be cleaned but it was not");
+    }
 
-    manifest = tmprepo.commit_dir(data_dir.strpath)
-    layer = tmprepo.create_layer(storage.Manifest(manifest))
-    tmprepo.tags.push_tag("my_tag", layer.digest())
-    blob_digest = manifest.root["file.txt"].object
-
-    assert blob_digest in get_all_attached_objects(
+    for node in manifest2.walk() {
+        if node.entry.kind.is_blob() {
+            continue;
+        }
         tmprepo
-    ), "blob in manifest in tag should be attached"
-    assert blob_digest not in get_all_unattached_objects(
-        tmprepo
-    ), "blob in manifest in tag should be attached"
+            .open_payload(&node.entry.object)
+            .expect("expected payload not to be cleaned");
+    }
+}
 
+#[rstest]
+#[tokio::test]
+async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::fs::FSRepository) {
+    let manifest = tracking::Manifest::default();
+    let layer = tmprepo
+        .create_layer(&graph::Manifest::from(&manifest))
+        .unwrap();
+    let platform = tmprepo
+        .create_platform(vec![layer.digest().unwrap()])
+        .unwrap();
 
-@pytest.mark.timeout(3)
-def test_clean_untagged_objects(
-    tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
-) -> None:
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean objects");
 
-    data_dir_1 = tmpdir.join("data")
-    data_dir_1.join("dir/dir/test.file").write("1 hello", ensure=True)
-    data_dir_1.join("dir/dir/test.file2").write("1 hello, world", ensure=True)
-    data_dir_1.join("dir/dir/test.file4").write("1 hello, world", ensure=True)
-    data_dir_1.join("dir/dir/test.file4").write("1 hello, other", ensure=True)
-    data_dir_1.join("dir/dir/test.file4").write("1 cleanme", ensure=True)
-    data_dir_2 = tmpdir.join("data2")
-    data_dir_2.join("dir/dir/test.file").write("2 hello", ensure=True)
-    data_dir_2.join("dir/dir/test.file2").write("2 hello, world", ensure=True)
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(layer.digest().unwrap()) {
+        // ok
+    } else {
+        panic!("expected layer to be cleaned")
+    }
 
-    manifest1 = tmprepo.commit_dir(data_dir_1.strpath)
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(platform.digest().unwrap()) {
+        // ok
+    } else {
+        panic!("expected platform to be cleaned")
+    }
+}
 
-    manifest2 = tmprepo.commit_dir(data_dir_2.strpath)
-    layer = tmprepo.create_layer(storage.Manifest(manifest2))
-    tmprepo.tags.push_tag("tagged_manifest", layer.digest())
+#[rstest]
+#[tokio::test]
+async fn test_clean_manifest_renders(
+    tmpdir: tempdir::TempDir,
+    mut tmprepo: storage::fs::FSRepository,
+) {
+    let data_dir = tmpdir.path().join("data");
+    ensure(data_dir.join("dir/dir/file.txt"), "hello");
+    ensure(data_dir.join("dir/name.txt"), "john doe");
 
-    clean_untagged_objects(tmprepo)
+    let manifest = tmprepo.commit_dir(data_dir.as_path()).unwrap();
+    let layer = tmprepo
+        .create_layer(&graph::Manifest::from(&manifest))
+        .unwrap();
+    let platform = tmprepo
+        .create_platform(vec![layer.digest().unwrap()])
+        .unwrap();
+    tmprepo
+        .render_manifest(&graph::Manifest::from(&manifest))
+        .unwrap();
 
-    for _, entry in manifest1.walk():
-        if entry.kind is not tracking.EntryKind.BLOB:
-            continue
-        with pytest.raises(graph.UnknownObjectError):
-            tmprepo.payloads.open_payload(entry.object).close()
+    let files = list_files(tmprepo.root);
+    assert!(files.len() != 0, "should have stored data");
 
-    for _, entry in manifest2.walk():
-        if entry.kind is not tracking.EntryKind.BLOB:
-            continue
-        tmprepo.payloads.open_payload(entry.object).close()
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean repo");
 
+    let files = list_files(tmprepo.root);
+    for filepath in files {
+        let digest = tmprepo.objects.get_digest_from_path(filepath).unwrap();
+        let obj = tmprepo.objects.read_object(digest).unwrap();
+    }
+    assert_eq!(
+        files,
+        vec![tmprepo.root().join("VERSION")],
+        "should remove all created data files"
+    );
+}
 
-def test_clean_untagged_objects_layers_platforms(
-    tmprepo: storage.fs.FSRepository,
-) -> None:
+fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
+    let all_files = Vec::new();
 
-    manifest = tracking.Manifest()
-    layer = tmprepo.create_layer(storage.Manifest(manifest))
-    platform = tmprepo.create_platform([layer.digest()])
+    for entry in walkdir::WalkDir::new(dirname) {
+        let entry = entry.expect("error while listing dir recursively");
+        if entry.metadata().unwrap().is_dir() {
+            continue;
+        }
+        all_files.push(entry.path().to_owned().to_string_lossy().to_string())
+    }
+    return all_files;
+}
 
-    clean_untagged_objects(tmprepo)
+fn ensure(path: std::path::PathBuf, data: &str) {
+    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path)
+        .expect("failed to create file");
+    std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
+}
 
-    with pytest.raises(graph.UnknownObjectError):
-        tmprepo.read_layer(layer.digest())
+#[fixture]
+fn tmprepo(tmpdir: tempdir::TempDir) -> storage::fs::FSRepository {
+    storage::fs::FSRepository::create(tmpdir.path().join("repo")).unwrap()
+}
 
-    with pytest.raises(graph.UnknownObjectError):
-        tmprepo.read_platform(platform.digest())
-
-
-def test_clean_manifest_renders(
-    tmpdir: py.path.local, tmprepo: storage.fs.FSRepository
-) -> None:
-
-    data_dir = tmpdir.join("data")
-    data_dir.join("dir/dir/file.txt").write("hello", ensure=True)
-    data_dir.join("dir/name.txt").write("john doe", ensure=True)
-
-    manifest = tmprepo.commit_dir(data_dir.strpath)
-    layer = tmprepo.create_layer(storage.Manifest(manifest))
-    platform = tmprepo.create_platform([layer.digest()])
-    tmprepo.render_manifest(storage.Manifest(manifest))
-
-    files = _list_files(tmprepo.root)
-    assert len(files) != 0, "should have stored data"
-
-    clean_untagged_objects(tmprepo)
-
-    files = _list_files(tmprepo.root)
-    for filepath in files:
-        try:
-            digest = tmprepo.objects.get_digest_from_path(filepath)  # type: ignore
-            obj = tmprepo.objects.read_object(digest)
-        except:
-            pass
-    assert files == [
-        os.path.join(tmprepo.root, "VERSION")
-    ], "should remove all created data files"
-
-
-def _list_files(dirname: str) -> List[str]:
-
-    all_files: List[str] = []
-    for root, _, files in os.walk(dirname):
-        all_files += [os.path.join(root, f) for f in files]
-    return all_files
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new("spfs-test-").expect("failed to create dir for test")
+}

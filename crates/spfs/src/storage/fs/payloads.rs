@@ -1,7 +1,4 @@
 use std::io::ErrorKind;
-use std::os::unix::fs::PermissionsExt;
-
-use sentry;
 
 use super::FSRepository;
 use crate::{encoding, graph, Result};
@@ -14,9 +11,9 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    fn write_payload(
+    fn write_data(
         &mut self,
-        reader: &mut impl std::io::Read,
+        reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader)
     }

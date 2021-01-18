@@ -1,6 +1,12 @@
-from ._payloads import TarPayloadStorage
-from ._database import TarDatabase
-from ._repository import TarRepository
-from ._tag import TagStorage
+//! An spfs storage implementation where all data is in a single
+//! tar file. This is best used as single write, many read
+//! archive format as modifying the tar in place is slow.
 
-__all__ = list(locals().keys())
+mod payloads;
+pub use payloads::TarPayloadStorage;
+mod database;
+pub use database::TarDatabase;
+mod repository;
+pub use repository::TarRepository;
+mod tag;
+pub use tag::TagStorage;

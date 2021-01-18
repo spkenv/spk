@@ -11,7 +11,7 @@ mod platform_test;
 /// Platforms capture an entire runtime stack of layers or other platforms
 /// as a single, identifiable object which can be applied/installed to
 /// future runtimes.
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct Platform {
     pub stack: Vec<encoding::Digest>,
 }
@@ -20,10 +20,10 @@ impl Platform {
     pub fn new<E, I>(layers: I) -> Result<Self>
     where
         E: encoding::Encodable,
-        I: IntoIterator<Item = E>,
+        I: Iterator<Item = E>,
     {
         let mut platform = Self { stack: Vec::new() };
-        for item in layers.into_iter() {
+        for item in layers {
             platform.stack.push(item.digest()?);
         }
         Ok(platform)
@@ -43,7 +43,9 @@ impl Encodable for Platform {
         }
         Ok(())
     }
+}
 
+impl encoding::Decodable for Platform {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let num_layers = encoding::read_int(&mut reader)?;
         let mut platform = Self {

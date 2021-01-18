@@ -1,17 +1,23 @@
-from unittest import mock
+use rstest::rstest;
 
-import py.path
-import pytest
+use super::{commit_layer, commit_platform};
+use crate::{runtime, Error};
 
-from . import tracking, runtime
-from ._commit import commit_layer, commit_platform, NothingToCommitError
+#[rstest]
+#[tokio::test]
+async fn test_commit_empty() {
+    let tmpdir = tempdir::TempDir::new("spts-test").unwrap();
 
+    let mut rt = runtime::Runtime::new(tmpdir.path()).unwrap();
+    if let Err(Error::NothingToCommit(_)) = commit_layer(&mut rt) {
+        // ok
+    } else {
+        panic!("expected nothing to commit")
+    }
 
-def test_commit_empty(tmpdir: py.path.local) -> None:
-
-    rt = runtime.Runtime(tmpdir.strpath)
-    with pytest.raises(NothingToCommitError):
-        commit_layer(rt)
-
-    with pytest.raises(NothingToCommitError):
-        commit_platform(rt)
+    if let Err(Error::NothingToCommit(_)) = commit_platform(&mut rt) {
+        // ok
+    } else {
+        panic!("expected nothing to commit")
+    }
+}

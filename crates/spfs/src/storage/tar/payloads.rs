@@ -30,7 +30,7 @@ class TarPayloadStorage(PayloadStorage):
         except FileNotFoundError:
             pass
 
-    def write_payload(self, reader: BinaryIO) -> encoding.Digest:
+    def write_data(self, reader: BinaryIO) -> encoding.Digest:
 
         payload = io.BytesIO()
         hasher = encoding.Hasher()
@@ -80,7 +80,7 @@ class TarPayloadStorage(PayloadStorage):
         digest_str = str(digest)
         return os.path.join(self._prefix, digest_str[:2], digest_str[2:])
 
-    def get_digest_from_path(self, path: str) -> encoding.Digest:
+    def get_digest_from_path(self, path: &str) -> encoding.Digest:
         """Given a valid storage path, get the object digest.
 
         This method does not validate the path and will provide
@@ -91,7 +91,7 @@ class TarPayloadStorage(PayloadStorage):
         parts = path.split(os.sep)
         return encoding.parse_digest(parts[-2] + parts[-1])
 
-    def resolve_full_digest(self, short_digest: str) -> encoding.Digest:
+    def resolve_full_digest(self, short_digest: &str) -> encoding.Digest:
         """Resolve the complete object digest from a shortened one.
 
         Raises:

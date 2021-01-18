@@ -1,167 +1,197 @@
-from typing import Set, Optional, List, Iterable
-import time
-import queue
-from datetime import datetime
-import multiprocessing
+use std::{
+    collections::HashSet,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
 
-import structlog
+use futures::future::{FutureExt, LocalBoxFuture};
 
-from . import tracking, storage, graph, encoding
+use crate::{encoding, storage, Error, Result};
+use storage::prelude::*;
 
-_LOGGER = structlog.get_logger("spfs.clean")
+#[cfg(test)]
+#[path = "./clean_test.rs"]
+mod clean_test;
 
-_CLEAN_LOG_UPDATE_INTERVAL_SECONDS = 2
-_CLEAN_WORKER_COUNT = max((1, multiprocessing.cpu_count() - 1))
-_CLEAN_DONE_COUNTER = multiprocessing.Value("i", 0)
-_CLEAN_ERROR_QUEUE: "multiprocessing.Queue[Exception]" = multiprocessing.Queue(10)
-_CLEAN_WORKER_POOL: Optional["multiprocessing.pool.Pool"] = None
+static _CLEAN_LOG_UPDATE_INTERVAL_SECONDS: Duration = Duration::from_secs(2);
 
+/// Clean all untagged objects from the given repo.
+pub async fn clean_untagged_objects(repo: &impl storage::Repository) -> Result<()> {
+    let unattached = get_all_unattached_objects(repo)?;
+    if unattached.len() == 0 {
+        tracing::info!("nothing to clean!");
+    } else {
+        tracing::info!("removing orphaned data...");
+        let count = unattached.len();
+        purge_objects(unattached.into_iter(), repo).await?;
+        tracing::info!("cleaned {} objects", count);
+    }
+    Ok(())
+}
 
-def clean_untagged_objects(repo: storage.Repository) -> None:
-    """Clean all untagged objects from the given repo."""
+/// Remove the identified objects from the given repository.
+pub async fn purge_objects(
+    objects: impl Iterator<Item = encoding::Digest>,
+    repo: &impl storage::Repository,
+) -> Result<()> {
+    let mut spawn_count: u64 = 0;
+    let current_count = Arc::new(AtomicU64::new(0));
+    let mut futures: Vec<LocalBoxFuture<Result<()>>> = Vec::new();
+    for digest in objects {
+        {
+            let current_count = current_count.clone();
+            let fut = async move {
+                let res = clean_object(repo.address(), &digest).await;
+                current_count.fetch_add(1, Ordering::Relaxed);
+                res
+            }
+            .boxed_local();
+            futures.push(fut);
+        }
+        // TODO: this stuff below is not technically objects, and maybe belongs
+        // in a higher level function
+        {
+            let current_count = current_count.clone();
+            let fut = async move {
+                let res = clean_payload(repo.address(), &digest).await;
+                current_count.fetch_add(1, Ordering::Relaxed);
+                res
+            }
+            .boxed_local();
+            futures.push(fut);
+        }
+        {
+            let current_count = current_count.clone();
+            let fut = async move {
+                let res = clean_render(repo.address(), &digest).await;
+                current_count.fetch_add(1, Ordering::Relaxed);
+                res
+            }
+            .boxed_local();
+            futures.push(fut);
+        }
+        spawn_count += 3;
+    }
 
-    unattached = get_all_unattached_objects(repo)
-    if len(unattached) == 0:
-        _LOGGER.info("nothing to clean!")
-        return
+    futures.push(
+        async move {
+            let mut last_report = Instant::now();
+            while current_count.load(Ordering::Relaxed) < spawn_count {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                let current_count = current_count.load(Ordering::Relaxed);
+                let now = Instant::now();
 
-    _LOGGER.info("removing orphaned data...")
-    purge_objects(unattached, repo)
-    _LOGGER.info(f"cleaned {len(unattached)} objects")
+                if now - last_report > _CLEAN_LOG_UPDATE_INTERVAL_SECONDS {
+                    let percent_done = (current_count as f64 / spawn_count as f64) * 100.0;
+                    let progress_message =
+                        format!("{:.02}% ({}/{})", percent_done, current_count, spawn_count);
+                    tracing::info!(progress = %progress_message, "cleaning orphaned data...");
+                    last_report = now;
+                }
+            }
+            Ok(())
+        }
+        .boxed_local(),
+    );
 
+    let results = futures::future::join_all(futures).await;
+    let errors: Vec<_> = results
+        .iter()
+        .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
+        .collect();
 
-def purge_objects(objects: Iterable[encoding.Digest], repo: storage.Repository) -> None:
-    """Remove the identified objects from the given repository."""
+    if errors.len() > 0 {
+        let msg = format!(
+            "{:?}, and {} more errors during clean",
+            errors[0],
+            errors.len() - 1
+        );
+        return Err(msg.into());
+    } else {
+        Ok(())
+    }
+}
 
-    worker_pool = _get_worker_pool()
-    spawn_count = 0
-    _CLEAN_DONE_COUNTER.value = 0
-    results = []
-    for digest in objects:
+async fn clean_object(repo_addr: url::Url, digest: &encoding::Digest) -> Result<()> {
+    let mut repo = storage::open_repository(repo_addr)?;
+    let res = repo.remove_object(&digest);
+    if let Err(Error::UnknownObject(_)) = res {
+        Ok(())
+    } else {
+        res
+    }
+}
 
-        result = worker_pool.apply_async(_clean_object, (repo.address(), digest))
-        results.append(result)
-        # TODO: this stuff below is not technically objects, and maybe belongs
-        # in a higher level function
-        result = worker_pool.apply_async(_clean_payload, (repo.address(), digest))
-        results.append(result)
-        result = worker_pool.apply_async(_clean_render, (repo.address(), digest))
-        results.append(result)
-        spawn_count += 3
+async fn clean_payload(repo_addr: url::Url, digest: &encoding::Digest) -> Result<()> {
+    let mut repo = storage::open_repository(repo_addr)?;
+    let res = repo.remove_payload(&digest);
+    if let Err(Error::UnknownObject(_)) = res {
+        Ok(())
+    } else {
+        res
+    }
+}
 
-    last_report = datetime.now().timestamp()
-    current_count = _CLEAN_DONE_COUNTER.value
-    errors: List[Exception] = []
-    while current_count < spawn_count:
-        time.sleep(0.1)
-        current_count = _CLEAN_DONE_COUNTER.value
-        now = datetime.now().timestamp()
+async fn clean_render(repo_addr: url::Url, digest: &encoding::Digest) -> Result<()> {
+    let repo = storage::open_repository(repo_addr)?;
+    let viewer = repo.renders()?;
+    let res = viewer.remove_rendered_manifest(&digest);
+    if let Err(crate::Error::UnknownObject(_)) = res {
+        Ok(())
+    } else {
+        res
+    }
+}
 
-        if now - last_report > _CLEAN_LOG_UPDATE_INTERVAL_SECONDS:
-            percent_done = (current_count / spawn_count) * 100
-            progress_message = f"{percent_done:.02f}% ({current_count}/{spawn_count})"
-            _LOGGER.info(f"cleaning orphaned data...", progress=progress_message)
-            last_report = now
+pub fn get_all_unattached_objects(
+    repo: &impl storage::Repository,
+) -> Result<HashSet<encoding::Digest>> {
+    tracing::info!("evaluating repository digraph...");
+    let mut digests = HashSet::new();
+    for digest in DatabaseView::iter_digests(repo) {
+        digests.insert(digest?);
+    }
+    Ok(digests
+        .difference(&get_all_attached_objects(repo)?)
+        .map(|d| d.clone())
+        .collect())
+}
 
-        try:
-            while True:
-                errors.append(_CLEAN_ERROR_QUEUE.get_nowait())
-        except queue.Empty:
-            pass
+pub fn get_all_unattached_payloads(
+    repo: &impl storage::Repository,
+) -> Result<HashSet<encoding::Digest>> {
+    let mut orphaned_payloads = HashSet::new();
+    for digest in PayloadStorage::iter_digests(repo) {
+        let digest = digest?;
+        match repo.read_blob(&digest) {
+            Err(Error::UnknownObject(_)) => {
+                orphaned_payloads.insert(digest);
+            }
+            Err(err) => return Err(err.into()),
+            Ok(_) => continue,
+        }
+    }
+    Ok(orphaned_payloads)
+}
 
-    if len(errors) > 0:
-        raise RuntimeError(f"{errors[0]}, and {len(errors)-1} more errors during clean")
+pub fn get_all_attached_objects(
+    repo: &impl storage::Repository,
+) -> Result<HashSet<encoding::Digest>> {
+    let mut tag_targets = HashSet::new();
+    for item in repo.iter_tag_streams() {
+        let (_, stream) = item?;
+        for tag in stream {
+            tag_targets.insert(tag.target);
+        }
+    }
 
+    let mut reachable_objects = HashSet::new();
+    for target in tag_targets {
+        reachable_objects.extend(repo.read_object(&target)?.child_objects());
+    }
 
-def _clean_object(repo_addr: str, digest: encoding.Digest) -> None:
-
-    try:
-        repo = storage.open_repository(repo_addr)
-        try:
-            repo.objects.remove_object(digest)
-            return
-        except graph.UnknownObjectError:
-            pass
-    except Exception as e:
-        _CLEAN_ERROR_QUEUE.put(e)
-    finally:
-        with _CLEAN_DONE_COUNTER.get_lock():
-            # read and subsequent write are not atomic unless lock is held throughout
-            _CLEAN_DONE_COUNTER.value += 1
-
-
-def _clean_payload(repo_addr: str, digest: encoding.Digest) -> None:
-
-    try:
-        repo = storage.open_repository(repo_addr)
-        try:
-            repo.payloads.remove_payload(digest)
-            return
-        except graph.UnknownObjectError:
-            pass
-    except Exception as e:
-        _CLEAN_ERROR_QUEUE.put(e)
-    finally:
-        with _CLEAN_DONE_COUNTER.get_lock():
-            # read and subsequent write are not atomic unless lock is held throughout
-            _CLEAN_DONE_COUNTER.value += 1
-
-
-def _clean_render(repo_addr: str, digest: encoding.Digest) -> None:
-
-    try:
-        repo = storage.open_repository(repo_addr)
-        assert isinstance(repo, storage.ManifestViewer)
-        try:
-            repo.remove_rendered_manifest(digest)
-            return
-        except graph.UnknownObjectError:
-            pass
-    except Exception as e:
-        _CLEAN_ERROR_QUEUE.put(e)
-    finally:
-        with _CLEAN_DONE_COUNTER.get_lock():
-            # read and subsequent write are not atomic unless lock is held throughout
-            _CLEAN_DONE_COUNTER.value += 1
-
-
-def get_all_unattached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
-
-    _LOGGER.info("evaluating repository digraph...")
-    digests: Set[encoding.Digest] = set()
-    for digest in repo.objects.iter_digests():
-        digests.add(digest)
-    return digests ^ get_all_attached_objects(repo)
-
-
-def get_all_unattached_payloads(repo: storage.Repository) -> Set[encoding.Digest]:
-
-    orphaned_payloads: Set[encoding.Digest] = set()
-    for digest in repo.payloads.iter_digests():
-        try:
-            repo.read_blob(digest)
-        except graph.UnknownObjectError:
-            orphaned_payloads.add(digest)
-    return orphaned_payloads
-
-
-def get_all_attached_objects(repo: storage.Repository) -> Set[encoding.Digest]:
-
-    tag_targets: Set[encoding.Digest] = set()
-    for _, stream in repo.tags.iter_tag_streams():
-        for tag in stream:
-            tag_targets.add(tag.target)
-
-    reachable_objects: Set[encoding.Digest] = set()
-    for target in tag_targets:
-        reachable_objects |= repo.objects.get_descendants(target)
-
-    return reachable_objects
-
-
-def _get_worker_pool() -> "multiprocessing.pool.Pool":
-
-    global _CLEAN_WORKER_POOL
-    if _CLEAN_WORKER_POOL is None:
-        _CLEAN_WORKER_POOL = multiprocessing.Pool(_CLEAN_WORKER_COUNT)
-    return _CLEAN_WORKER_POOL
+    Ok(reachable_objects)
+}

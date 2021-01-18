@@ -1,129 +1,182 @@
-import random
-from datetime import datetime
+use chrono::{DateTime, NaiveDate, Utc};
+use rstest::{fixture, rstest};
 
-import pytest
+use super::{get_prunable_tags, prune_tags, PruneParameters};
+use crate::{encoding, graph, storage, tracking, Error};
+use std::collections::HashMap;
 
-from . import storage, tracking, encoding, graph
-from ._prune import prune_tags, get_prunable_tags, PruneParameters
+#[rstest]
+#[tokio::test]
+async fn test_prunable_tags_age(tmprepo: storage::fs::FSRepository) {
+    let mut old =
+        tracking::Tag::new(Some("testing".to_string()), "prune", encoding::NULL_DIGEST).unwrap();
+    old.parent = encoding::NULL_DIGEST;
+    old.time = chrono::Utc::timestamp(10000, 0);
+    let cutoff = chrono::Utc::timestamp(20000, 0);
+    let mut new =
+        tracking::Tag::new(Some("testing".to_string()), "prune", encoding::EMPTY_DIGEST).unwrap();
+    new.parent = encoding::EMPTY_DIGEST;
+    new.time = chrono::Utc::timestamp(30000, 0);
+    tmprepo.tags.push_raw_tag(old).unwrap();
+    tmprepo.tags.push_raw_tag(new).unwrap();
 
-
-def test_prunable_tags_age(tmprepo: storage.fs.FSRepository) -> None:
-
-    old = tracking.Tag(
-        org="testing",
-        name="prune",
-        target=encoding.NULL_DIGEST,
-        parent=encoding.NULL_DIGEST,
-        time=datetime.fromtimestamp(10000),
-    )
-    cutoff = 20000
-    new = tracking.Tag(
-        org="testing",
-        name="prune",
-        target=encoding.EMPTY_DIGEST,
-        parent=encoding.EMPTY_DIGEST,
-        time=datetime.fromtimestamp(30000),
-    )
-    tmprepo.tags.push_raw_tag(old)
-    tmprepo.tags.push_raw_tag(new)
-
-    tags = get_prunable_tags(
+    let tags = get_prunable_tags(
         tmprepo.tags,
-        PruneParameters(prune_if_older_than=datetime.fromtimestamp(cutoff)),
+        PruneParameters {
+            prune_if_older_than: cutoff.clone(),
+            ..Default::default()
+        },
     )
-    assert old in tags
-    assert new not in tags
+    .unwrap();
+    assert!(tags.contains(old));
+    assert!(!tags.contains(new));
 
-    tags = get_prunable_tags(
+    let tags = get_prunable_tags(
         tmprepo.tags,
-        PruneParameters(
-            prune_if_older_than=datetime.fromtimestamp(cutoff),
-            keep_if_newer_than=datetime.fromtimestamp(0),
-        ),
+        PruneParameters {
+            prune_if_older_than: cutoff.clone(),
+            keep_if_newer_than: chrono::Utc::timestamp(0, 0),
+            ..Default::default()
+        },
     )
-    assert old not in tags, "should prefer to keep when ambiguous"
-    assert new not in tags
+    .unwrap();
+    assert!(!tags.contains(old), "should prefer to keep when ambiguous");
+    assert!(!tags.contains(new));
+}
 
+#[rstest]
+#[tokio::test]
+async fn test_prunable_tags_version(tmprepo: storage::fs::FSRepository) {
+    let tag = "testing/versioned";
+    let tag5 = tmprepo
+        .tags
+        .push_tag(&tag, &encoding::EMPTY_DIGEST)
+        .unwrap();
+    let tag4 = tmprepo.tags.push_tag(&tag, &encoding::NULL_DIGEST).unwrap();
+    let tag3 = tmprepo
+        .tags
+        .push_tag(&tag, &encoding::EMPTY_DIGEST)
+        .unwrap();
+    let tag2 = tmprepo.tags.push_tag(&tag, &encoding::NULL_DIGEST).unwrap();
+    let tag1 = tmprepo
+        .tags
+        .push_tag(&tag, &encoding::EMPTY_DIGEST)
+        .unwrap();
+    let tag0 = tmprepo.tags.push_tag(&tag, &encoding::NULL_DIGEST).unwrap();
 
-def test_prunable_tags_version(tmprepo: storage.fs.FSRepository) -> None:
-
-    tag = "testing/versioned"
-    tag5 = tmprepo.tags.push_tag(tag, encoding.EMPTY_DIGEST)
-    tag4 = tmprepo.tags.push_tag(tag, encoding.NULL_DIGEST)
-    tag3 = tmprepo.tags.push_tag(tag, encoding.EMPTY_DIGEST)
-    tag2 = tmprepo.tags.push_tag(tag, encoding.NULL_DIGEST)
-    tag1 = tmprepo.tags.push_tag(tag, encoding.EMPTY_DIGEST)
-    tag0 = tmprepo.tags.push_tag(tag, encoding.NULL_DIGEST)
-
-    tags = get_prunable_tags(
+    let tags = get_prunable_tags(
         tmprepo.tags,
-        PruneParameters(prune_if_version_more_than=2),
+        PruneParameters {
+            prune_if_version_more_than: 2,
+            ..Default::default()
+        },
     )
-    assert tag0 not in tags
-    assert tag1 not in tags
-    assert tag2 not in tags
-    assert tag3 in tags
-    assert tag4 in tags
-    assert tag5 in tags
+    .unwrap();
+    assert!(!tags.contains(tag0));
+    assert!(!tags.contains(tag1));
+    assert!(!tags.contains(tag2));
+    assert!(tags.contains(tag3));
+    assert!(tags.contains(tag4));
+    assert!(tags.contains(tag5));
 
-    tags = get_prunable_tags(
+    let tags = get_prunable_tags(
         tmprepo.tags,
-        PruneParameters(prune_if_version_more_than=2, keep_if_version_less_than=4),
+        PruneParameters {
+            prune_if_version_more_than: 2,
+            keep_if_version_less_than: 4,
+            ..Default::default()
+        },
     )
-    assert tag0 not in tags
-    assert tag1 not in tags
-    assert tag2 not in tags
-    assert tag3 not in tags, "should prefer to keep in ambiguous situation"
-    assert tag4 in tags
-    assert tag5 in tags
+    .unwrap();
+    assert!(!tags.contains(tag0));
+    assert!(!tags.contains(tag1));
+    assert!(!tags.contains(tag2));
+    assert!(
+        !tags.contains(tag3),
+        "should prefer to keep in ambiguous situation"
+    );
+    assert!(tags.contains(tag4));
+    assert!(tags.contains(tag5));
+}
 
+#[rstest]
+#[tokio::test]
+async fn test_prune_tags(tmprepo: storage::fs::FSRepository) {
+    let mut tags = HashMap::new();
 
-def test_prune_tags(tmprepo: storage.fs.FSRepository) -> None:
+    let reset = || {
+        match tmprepo.tags.remove_tag_stream("test/prune") {
+            Ok(_) | Err(Error::UnknownReference(_)) => (),
+            Err(err) => panic!("{:?}", err),
+        }
 
-    tags = {}
+        for year in &[2020, 2021, 2022, 2023, 2024, 2025] {
+            let time = NaiveDate::from_ymd(year, 1, 1);
+            let digest = random_digest();
+            let mut tag = tracking::Tag::new("test", "prune", digest);
+            tag.time = time;
+            tags.insert(year, tag);
+            tmprepo.tags.push_raw_tag(tag).unwrap()
+        }
+    };
 
-    def reset() -> None:
-        try:
-            tmprepo.tags.remove_tag_stream("test/prune")
-        except graph.UnknownReferenceError:
-            pass
-        for year in (2020, 2021, 2022, 2023, 2024, 2025):
-            time = datetime(year=year, month=1, day=1)
-            digest = random_digest()
-            tag = tracking.Tag(org="test", name="prune", target=digest, time=time)
-            tags[year] = tag
-            tmprepo.tags.push_raw_tag(tag)
-
-    reset()
+    reset();
     prune_tags(
         tmprepo.tags,
-        PruneParameters(prune_if_older_than=datetime(day=1, month=1, year=2024)),
+        PruneParameters {
+            prune_if_older_than: NaiveDate::from_ymd(2024, 1, 1),
+            ..Default::default()
+        },
     )
-    for tag in tmprepo.tags.read_tag("test/prune"):
-        assert tag is not tags[2025]
+    .unwrap();
+    for tag in tmprepo.tags.read_tag("test/prune") {
+        assert!(Some(tag) != tags.get(2025));
+    }
 
-    reset()
+    reset();
     prune_tags(
         tmprepo.tags,
-        PruneParameters(prune_if_version_more_than=2),
+        PruneParameters {
+            prune_if_version_more_than: 2,
+            ..Default::default()
+        },
     )
-    for tag in tmprepo.tags.read_tag("test/prune"):
-        assert tag is not tags[2025]
-        assert tag is not tags[2024]
-        assert tag is not tags[2023]
+    .unwrap();
+    for tag in tmprepo.tags.read_tag("test/prune") {
+        assert!(Some(tag) != tags.get(2025));
+        assert!(Some(tag) != tags.get(2024));
+        assert!(Some(tag) != tags.get(2023));
+    }
 
-    reset()
+    reset();
     prune_tags(
         tmprepo.tags,
-        PruneParameters(prune_if_version_more_than=-1),
+        PruneParameters {
+            prune_if_version_more_than: -1,
+            ..Default::default()
+        },
     )
-    with pytest.raises(graph.UnknownReferenceError):
-        for tag in tmprepo.tags.read_tag("test/prune"):
-            print(tag)
+    .unwrap();
+    if let Ok(_) = tmprepo.tags.read_tag("test/prune") {
+        panic!("should not have any pruned tag left")
+    }
+}
 
+fn random_digest() -> encoding::Digest {
+    let mut hasher = encoding::Hasher::new();
+    let mut rng = rand::thread_rng();
+    let mut buf = Vec::new(64);
+    rng.fill(buf.as_mut_slice());
+    hasher.update(&buf.as_slice());
+    hasher.digest()
+}
 
-def random_digest() -> encoding.Digest:
+#[fixture]
+fn tmprepo(tmpdir: tempdir::TempDir) -> storage::fs::FSRepository {
+    storage::fs::FSRepository::create(tmpdir.path().join("repo")).unwrap()
+}
 
-    hasher = encoding.Hasher()
-    hasher.update(bytes([random.randint(0, 255) for _ in range(64)]))
-    return hasher.digest()
+#[fixture]
+fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new("spfs-test-")
+}

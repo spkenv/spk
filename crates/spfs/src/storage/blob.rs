@@ -35,6 +35,11 @@ pub trait BlobStorage: graph::Database {
             Ok(_) => Err(format!("Object is not a blob: {:?}", digest).into()),
         }
     }
+
+    /// Store the given blob
+    fn write_blob(&mut self, blob: graph::Blob) -> Result<()> {
+        self.write_object(&graph::Object::Blob(blob))
+    }
 }
 
 impl<T: graph::Database> BlobStorage for T {}

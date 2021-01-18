@@ -30,11 +30,11 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Runtime {
     root: PathBuf,
-    upper_dir: PathBuf,
-    config_file: PathBuf,
-    sh_startup_file: PathBuf,
-    csh_startup_file: PathBuf,
-    csh_expect_file: PathBuf,
+    pub upper_dir: PathBuf,
+    pub config_file: PathBuf,
+    pub sh_startup_file: PathBuf,
+    pub csh_startup_file: PathBuf,
+    pub csh_expect_file: PathBuf,
     config: Config,
 }
 
@@ -61,6 +61,10 @@ impl Runtime {
         };
         rt.read_config()?;
         Ok(rt)
+    }
+
+    pub fn root<'a>(&'a self) -> &'a Path {
+        self.root.as_ref()
     }
 
     /// Return the identifier for this runtime.
@@ -158,8 +162,8 @@ impl Runtime {
     /// This will update the configuration of the runtime,
     /// and change the overlayfs options, but not update
     /// any currently running environment automatically.
-    pub fn push_digest(&mut self, digest: encoding::Digest) -> Result<()> {
-        let mut stack = vec![digest];
+    pub fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
+        let mut stack = vec![digest.clone()];
         stack.append(&mut self.config.stack);
         self.config = Config {
             stack: stack,

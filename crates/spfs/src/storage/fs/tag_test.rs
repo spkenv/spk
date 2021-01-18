@@ -12,7 +12,8 @@ fn tmpdir() -> tempdir::TempDir {
 }
 
 #[rstest]
-fn test_tag_stream(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_tag_stream(tmpdir: tempdir::TempDir) {
     let storage = FSRepository::create(tmpdir).unwrap();
 
     let mut h = encoding::Hasher::new();
@@ -37,7 +38,8 @@ fn test_tag_stream(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
     let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     let tag1 = storage
@@ -53,7 +55,8 @@ fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_tag_permissions(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
     let storage = FSRepository::create(tmpdir.path().join("repo")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     storage
@@ -72,7 +75,8 @@ fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_ls_tags(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_ls_tags(tmpdir: tempdir::TempDir) {
     let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
         "spi/stable/my_tag",
@@ -95,7 +99,8 @@ fn test_ls_tags(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_rm_tags(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_rm_tags(tmpdir: tempdir::TempDir) {
     let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
         "spi/stable/my_tag",

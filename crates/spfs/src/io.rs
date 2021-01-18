@@ -1,69 +1,89 @@
-from typing import Iterable, Union
-from colorama import Fore, Style
+use colored::*;
 
-from ._config import get_config
-from . import storage, tracking, encoding
+use super::config::get_config;
+use crate::{encoding, storage, tracking, Result};
 
+/// Return a nicely formatted string representation of the given reference.
+pub fn format_digest<R: AsRef<str>>(
+    reference: R,
+    repo: Option<Box<dyn storage::Repository>>,
+) -> Result<String> {
+    let reference = reference.as_ref().to_string();
+    let repo = match repo {
+        Some(repo) => repo,
+        None => {
+            let config = get_config()?;
+            Box::new(config.get_repository()?)
+        }
+    };
 
-def format_digest(
-    ref: Union[str, encoding.Digest], repo: storage.Repository = None
-) -> str:
-    """Return a nicely formatted string representation of the given reference."""
+    let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()) {
+        Ok(aliases) => aliases.into_iter().map(|r| r.to_string()).collect(),
+        Err(crate::Error::InvalidReference(_)) => Default::default(),
+        Err(err) => return Err(err),
+    };
 
-    if repo is None:
-        config = get_config()
-        repo = config.get_repository()
+    let reference = if let Ok(digest) = encoding::parse_digest(&reference) {
+        repo.get_shortened_digest(&digest)
+    } else {
+        reference
+    };
+    let mut all = vec![reference];
+    all.append(&mut aliases);
+    Ok(all.join(" -> "))
+}
 
-    try:
-        aliases = repo.find_aliases(ref)
-    except ValueError:
-        aliases = []
+/// Return a human readable string rendering of the given diffs.
+pub fn format_diffs(diffs: impl Iterator<Item = tracking::Diff>) -> String {
+    let mut outputs = Vec::new();
+    for diff in diffs {
+        let mut abouts = Vec::new();
+        match diff.entries {
+            Some((a, b)) => {
+                if a.mode != b.mode {
+                    abouts.push("mode");
+                }
+                if a.object != b.object {
+                    abouts.push("object");
+                }
+                if a.size != b.size {
+                    abouts.push("size");
+                }
+            }
+            None => (),
+        }
+        let about = if abouts.len() > 0 {
+            format!(" [{}]", abouts.join(", ")).dimmed().to_string()
+        } else {
+            "".to_string()
+        };
+        let mut out = String::new();
+        out += format!("{:>8}", diff.mode).bold().as_ref();
+        out += format!("/spfs{}{}", diff.path, about).as_ref();
+        let out = match diff.mode {
+            tracking::DiffMode::Added => out.green(),
+            tracking::DiffMode::Removed => out.red(),
+            tracking::DiffMode::Changed => out.bright_blue(),
+            _ => out.dimmed(),
+        };
+        outputs.push(out.to_string())
+    }
 
-    if isinstance(ref, encoding.Digest):
-        ref = repo.objects.get_shortened_digest(ref)
-    return " -> ".join([ref] + aliases)
+    outputs.join("\n")
+}
 
+/// Return a string rendering of any given diffs which represent change.
+pub fn format_changes(diffs: impl Iterator<Item = tracking::Diff>) -> String {
+    format_diffs(diffs.filter(|x| if x.mode.is_unchanged() { false } else { true }))
+}
 
-def format_diffs(diffs: Iterable[tracking.Diff]) -> str:
-    """Return a human readable string rendering of the given diffs."""
-
-    outputs = []
-    for diff in diffs:
-        color = Fore.RESET
-        if diff.mode == tracking.DiffMode.added:
-            color = Fore.GREEN
-        elif diff.mode == tracking.DiffMode.removed:
-            color = Fore.RED
-        elif diff.mode == tracking.DiffMode.changed:
-            color = Fore.LIGHTBLUE_EX
-        else:
-            color = Style.DIM
-        abouts = []
-        if diff.entries:
-            for attr in ("mode", "object", "size"):
-                a = getattr(diff.entries[0], attr)  # type: ignore
-                b = getattr(diff.entries[1], attr)  # type: ignore
-                if a != b:
-                    abouts.append(attr)
-        about = f" {Style.DIM}[{','.join(abouts)}]" if abouts else ""
-        outputs.append(
-            f"{color} {Style.BRIGHT}{diff.mode.name:>8} {Style.NORMAL}/spfs{diff.path}{about}{Style.RESET_ALL}"
-        )
-
-    return "\n".join(outputs)
-
-
-def format_changes(diffs: Iterable[tracking.Diff]) -> str:
-    """Return a string rendering of any given diffs which represent change."""
-
-    diffs = filter(lambda x: x.mode is not tracking.DiffMode.unchanged, diffs)
-    return format_diffs(diffs)
-
-
-def format_size(size: float) -> str:
-    """Return a human-readable file size in bytes."""
-    for unit in ["B", "Ki", "Mi", "Gi", "Ti"]:
-        if abs(size) < 1024.0:
-            return f"{size:3.1f} {unit}"
-        size /= 1024.0
-    return f"{size:3.1f} Pi"
+/// Return a human-readable file size in bytes.
+pub fn format_size(mut size: f64) -> String {
+    for unit in &["B", "Ki", "Mi", "Gi", "Ti"] {
+        if size.abs() < 1024.0 {
+            return format!("{:3.1} {}", size, unit);
+        }
+        size /= 1024.0;
+    }
+    format!("{:3.1} Pi", size)
+}
