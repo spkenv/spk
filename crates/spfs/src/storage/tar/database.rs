@@ -1,24 +1,28 @@
-from typing import Dict, Type
-import io
-import os
-import tarfile
+use tar
 
-import structlog
-
-from ... import graph, encoding
-from .. import (
-    Blob,
-    Layer,
-    Platform,
-    Manifest,
-)
-from ._payloads import TarPayloadStorage
-
-_logger = structlog.get_logger("spfs.storage.tar")
+use crate::{graph, encoding, prelude::*};
+use super::payloads::TarPayloadStorage;
 
 
-class TarDatabase(TarPayloadStorage, graph.Database):
-    """An object database implementation that persists data using a local tar file."""
+
+impl graph::DatabaseView for super::TarRepository {
+    fn read_object(&self, digest: &encoding::Digest) -> graph::Result<graph::Object> {
+        self.
+        todo!()
+    }
+
+    fn iter_digests(&self) -> Box<dyn Iterator<Item = graph::Result<encoding::Digest>>> {
+        todo!()
+    }
+
+    fn iter_objects<'db>(&'db self) -> graph::DatabaseIterator<'db> {
+        graph::DatabaseIterator::new(Box::new(self))
+    }
+
+    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(Box::new(self))
+    }
+}
 
     def __init__(self, tar: tarfile.TarFile) -> None:
 

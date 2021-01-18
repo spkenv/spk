@@ -45,9 +45,9 @@ def _commit(args: argparse.Namespace) -> None:
         raise NotImplementedError("commit", args.kind)
 
     _logger.info("created", digest=result.digest())
-    for tag in args.tags or []:
+    for tag in args or []:
 
-        repo.tags.push_tag(tag, result.digest())
+        repo.push_tag(tag, result.digest())
         _logger.info("created", tag=tag)
 
     _logger.info("edit mode disabled")

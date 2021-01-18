@@ -1,4 +1,3 @@
-use super::config::get_config;
 use super::resolve::compute_manifest;
 use super::status::{active_runtime, compute_runtime_manifest};
 use crate::{tracking, Result};

@@ -1,51 +1,35 @@
-import os
-import tarfile
+use std::path::Path;
 
-import semver
+use tar::Archive;
 
-import spfs
+use crate::prelude::*;
+use crate::Result;
 
-from .. import register_scheme, Repository
-from ._tag import TagStorage
-from ._database import TarDatabase, TarPayloadStorage
+/// An spfs repository in a tarball.
+#[derive(Debug)]
+pub struct TarRepository(Archive<std::fs::File>);
 
+impl TarRepository {
+    pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path.as_ref())?;
+        Ok(Self(Archive::new(file)))
+    }
 
-class TarRepository(Repository):
-    """A pure filesystem-based repository of spfs data."""
+    // Open a repository over the given directory, which must already
+    // exist and be a repository
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path.as_ref())?;
+        Ok(Self(Archive::new(file)))
+    }
+}
 
-    def __init__(self, filepath: &str):
-
-        if filepath.startswith("tar://"):
-            filepath = filepath[len("tar://") :]
-        elif filepath.startswith("tar:"):
-            filepath = filepath[len("tar:") :]
-
-        self.__filepath = os.path.abspath(filepath)
-        if os.path.exists(self.__filepath):
-            self._tar = tarfile.open(filepath, "r")
-        else:
-            self._tar = tarfile.open(filepath, "w")
-        self.objects = TarDatabase(self._tar)
-        self.payloads = TarPayloadStorage(self._tar)
-        Repository.__init__(
-            self,
-            tags=TagStorage(self._tar),
-            object_database=self.objects,
-            payload_storage=self.payloads,
-        )
-
-    def __del__(self) -> None:
-        try:
-            self._tar.close()
-        except Exception:
-            pass
-
-    @property
-    def path(self) -> str:
-        return self.__filepath
-
-    def address(self) -> str:
-        return f"tar://{self.__filepath}"
-
-
-register_scheme("tar", TarRepository)
+impl Repository for TarRepository {
+    fn address(&self) -> url::Url {}
+}

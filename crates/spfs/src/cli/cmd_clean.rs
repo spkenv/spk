@@ -112,7 +112,7 @@ def _prune(args: argparse.Namespace, repo: spfs.storage.Repository) -> None:
     _LOGGER.info(f"and leaving tags with version <= {args.keep_if_less_than}")
 
     _LOGGER.info("searching for tags to prune...")
-    to_prune = spfs.get_prunable_tags(repo.tags, params)
+    to_prune = spfs.get_prunable_tags(repo, params)
     if not len(to_prune):
         _LOGGER.info("no tags to prune")
         return
@@ -134,7 +134,7 @@ def _prune(args: argparse.Namespace, repo: spfs.storage.Repository) -> None:
             sys.exit(1)
 
     for tag in to_prune:
-        repo.tags.remove_tag(tag)
+        repo.remove_tag(tag)
 
 
 def _age_to_date(age: &str) -> datetime:

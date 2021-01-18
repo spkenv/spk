@@ -8,7 +8,7 @@ mod tag;
 
 pub mod fs;
 pub mod prelude;
-//pub mod tar;
+pub mod tar;
 
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;

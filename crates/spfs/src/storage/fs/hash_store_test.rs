@@ -27,7 +27,7 @@ fn try_sync(store: &mut FSHashStore) -> Option<crate::Error> {
     let mut buf = Vec::new();
     obj.encode(&mut buf).expect("failed to encode test obj");
     if !store.has_digest(&obj.digest().unwrap()) {
-        match store.write_data(&mut buf.as_slice()) {
+        match store.write_data(Box::new(&mut buf.as_slice())) {
             Ok(_) => None,
             Err(err) => Some(err),
         }

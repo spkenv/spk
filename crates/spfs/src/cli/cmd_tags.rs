@@ -23,5 +23,5 @@ def _tags(args: argparse.Namespace) -> None:
     else:
         repo = config.get_repository()
 
-    for _, tag in repo.tags.iter_tags():
+    for _, tag in repo.iter_tags():
         print(spfs.io.format_digest(tag.target))

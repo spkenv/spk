@@ -27,6 +27,6 @@ def _search(args: argparse.Namespace) -> None:
             _LOGGER.warning("--> " + str(e))
     repos.insert(0, config.get_repository())
     for repo in repos:
-        for spec, _ in repo.tags.iter_tags():
+        for spec, _ in repo.iter_tags():
             if args.term in spec:
                 print(spec)

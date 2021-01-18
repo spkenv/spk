@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::process::Command;
 
 use rstest::{fixture, rstest};
@@ -15,24 +16,31 @@ async fn test_runtime_file_removal(tmpdir: tempdir::TempDir) {
     let filename = "/spfs/message.txt";
     let base_tag = "test/file_removal_base";
     let top_tag = "test/file_removal_top";
-    script.write(
-        vec![
-            format!(
-                "spfs run - bash -c 'echo hello > {} && spfs commit layer -t {}'",
-                filename, base_tag
-            ),
-            format!(
-                "spfs run -e {} -- bash -c 'rm {} && spfs commit platform -t {}'",
-                base_tag, filename, top_tag
-            ),
-            format!("spfs run {} -- test ! -f {}", top_tag, filename),
-        ]
-        .join("\n"),
-    );
-    let cmd = Command::new("bash");
+    std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&script)
+        .unwrap()
+        .write_all(
+            vec![
+                format!(
+                    "spfs run - bash -c 'echo hello > {} && spfs commit layer -t {}'",
+                    filename, base_tag
+                ),
+                format!(
+                    "spfs run -e {} -- bash -c 'rm {} && spfs commit platform -t {}'",
+                    base_tag, filename, top_tag
+                ),
+                format!("spfs run {} -- test ! -f {}", top_tag, filename),
+            ]
+            .join("\n")
+            .as_bytes(),
+        )
+        .unwrap();
+    let mut cmd = Command::new("bash");
     cmd.arg("-ex");
     cmd.arg(script);
-    assert_eq!(cmd.status().unwrap(), 0);
+    assert_eq!(cmd.status().unwrap().code(), Some(0));
 }
 
 #[rstest]
@@ -48,24 +56,31 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir) {
     let to_remain = "/spfs/dir1";
     let base_tag = "test/dir_removal_base";
     let top_tag = "test/dir_removal_top";
-    script.write(
-        vec![
-            format!("spfs run - bash -c 'mkdir -p {} && spfs commit layer -t {}'", dirpath,
-            base_tag),
-            format!("spfs run -e {} -- bash -c 'rm -r {} && spfs commit platform -t {}'", base_tag,
-            to_remove,
-            top_tag),
-            format!("spfs run {} -- test ! -d {}", top_tag,
-            to_remove)
-            format!("spfs run {} -- test -d {}", top_tag,
-            to_remain)
-        ]
-        .join("\n"),
-    );
-    let cmd = Command::new("bash");
+    std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&script)
+        .unwrap()
+        .write_all(
+            vec![
+                format!(
+                    "spfs run - bash -c 'mkdir -p {} && spfs commit layer -t {}'",
+                    dirpath, base_tag
+                ),
+                format!(
+                    "spfs run -e {} -- bash -c 'rm -r {} && spfs commit platform -t {}'",
+                    base_tag, to_remove, top_tag
+                ),
+                format!("spfs run {} -- test ! -d {}", top_tag, to_remove),
+                format!("spfs run {} -- test -d {}", top_tag, to_remain),
+            ]
+            .join("\n")
+            .as_bytes(),
+        );
+    let mut cmd = Command::new("bash");
     cmd.arg("-ex");
     cmd.arg(script);
-    assert_eq!(cmd.status().unwrap(), 0);
+    assert_eq!(cmd.status().unwrap().code(), Some(0));
 }
 
 #[rstest]
@@ -84,7 +99,7 @@ async fn test_runtime_recursion() {
         "spfs edit --off; spfs run - -- echo hello",
     ]);
     let out = cmd.output().unwrap();
-    assert_eq!(out.stdout, "hello\n");
+    assert_eq!(out.stdout, "hello\n".as_bytes());
 }
 
 #[fixture]

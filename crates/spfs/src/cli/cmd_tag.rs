@@ -37,6 +37,6 @@ def _tag(args: argparse.Namespace) -> None:
         repo = config.get_repository()
 
     target = repo.read_ref(args.ref[0]).digest()
-    for tag in args.tags:
-        repo.tags.push_tag(tag, target)
+    for tag in args:
+        repo.push_tag(tag, target)
         _logger.info("created", tag=tag)

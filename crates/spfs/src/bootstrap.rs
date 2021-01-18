@@ -38,7 +38,7 @@ pub fn build_command_for_runtime(
 pub fn build_interactive_shell_cmd() -> Result<Vec<OsString>> {
     let rt = active_runtime()?;
     let shell_path = std::env::var("SHELL").unwrap_or("<not-set>".to_string());
-    let mut shell_name = std::path::Path::new(shell_path.as_str())
+    let shell_name = std::path::Path::new(shell_path.as_str())
         .file_name()
         .unwrap_or_else(|| OsStr::new("bash"));
 

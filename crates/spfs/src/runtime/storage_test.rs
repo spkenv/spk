@@ -29,7 +29,7 @@ async fn test_config_serialization() {
 #[tokio::test]
 async fn test_runtime_properties(tmpdir: tempdir::TempDir) {
     let runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
-    assert_eq!(tmpdir.path(), runtime.root);
+    assert_eq!(tmpdir.path(), runtime.root());
     assert_eq!(
         runtime.config_file.file_name(),
         Some(OsStr::new(Runtime::CONFIG_FILE))
@@ -49,13 +49,13 @@ async fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
 #[tokio::test]
 async fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
     let runtime = ensure_runtime(tmpdir.path().join("root")).expect("failed to ensure runtime");
-    assert!(runtime.root.metadata().is_ok(), "root should exist");
+    assert!(runtime.root().metadata().is_ok(), "root should exist");
     assert!(
         runtime.upper_dir.metadata().is_ok(),
         "upper_dir should exist"
     );
 
-    ensure_runtime(runtime.root).expect("failed to ensure runtime on second call");
+    ensure_runtime(runtime.root()).expect("failed to ensure runtime on second call");
 }
 
 #[rstest]
@@ -67,7 +67,7 @@ async fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
         .create_runtime()
         .expect("failed to create runtime in storage");
     assert!(!runtime.reference().is_empty());
-    assert!(runtime.root.metadata().unwrap().file_type().is_dir());
+    assert!(runtime.root().metadata().unwrap().file_type().is_dir());
 
     assert!(storage.create_named_runtime(runtime.reference()).is_err());
 }

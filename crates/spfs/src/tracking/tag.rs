@@ -128,7 +128,7 @@ impl encoding::Decodable for Tag {
 ///     eg: spi/main   # latest tag in the spi/main stream
 ///         spi/main~0 # latest tag in the spi/main stream
 ///         spi/main~4 # the tag 4 versions behind the latest in the stream
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct TagSpec(Option<String>, String, u64);
 
 impl TagSpec {

@@ -33,7 +33,7 @@ async fn test_config_get_remote() {
     std::fs::create_dir(&remote).unwrap();
 
     let config =
-        Config::load_string(format!("[remote.origin]\naddress=file://{}", remote)).unwrap();
+        Config::load_string(format!("[remote.origin]\naddress=file://{:?}", remote)).unwrap();
     let repo = config.get_remote("origin");
-    assert!(repo.is_some());
+    assert!(repo.is_ok());
 }

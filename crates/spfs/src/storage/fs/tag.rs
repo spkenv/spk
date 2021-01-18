@@ -33,7 +33,7 @@ impl crate::storage::TagStorage for FSRepository {
     }
 
     fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
-        let filepath = path.to_path(self.tags_root());
+        let filepath = path.to_path(self.root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
             Err(err) => match err.kind() {

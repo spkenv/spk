@@ -32,7 +32,7 @@ async fn test_shell_initialization_startup_scripts(
     let storage = runtime::Storage::new(tmpdir.path()).unwrap();
     let rt = storage.create_runtime().unwrap();
 
-    std::env::set_var("SPFS_RUNTIME", rt.root);
+    std::env::set_var("SPFS_RUNTIME", rt.root());
     std::env::set_var("SHELL", shell_path);
 
     let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
@@ -40,11 +40,11 @@ async fn test_shell_initialization_startup_scripts(
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
         cmd.arg(format!(
-            "s|/spfs/etc/spfs/startup.d|{}|",
-            tmp_startup_dir.strpath
+            "s|/spfs/etc/spfs/startup.d|{:?}|",
+            &tmp_startup_dir
         ));
         cmd.arg(startup_script);
-        println!("{}", cmd.output().unwrap());
+        println!("{:?}", cmd.output().unwrap());
     }
 
     std::fs::write(tmp_startup_dir.join("test.csh"), startup_cmd).unwrap();
@@ -54,7 +54,7 @@ async fn test_shell_initialization_startup_scripts(
     let mut cmd = Command::new(args[0]);
     cmd.args(args[1..]);
     let out = cmd.output().unwrap();
-    assert!(out.stout.endswith("spfs-test-value\n"));
+    assert!(out.stdout.endswith("spfs-test-value\n"));
 }
 
 #[rstest(shell, case("bash"), case("tcsh"))]
@@ -71,22 +71,19 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
     let storage = runtime::Storage::new(tmpdir.path()).unwrap();
     let rt = storage.create_runtime().unwrap();
 
-    std::env::set_var("SPFS_RUNTIME", rt.root);
+    std::env::set_var("SPFS_RUNTIME", rt.root());
     std::env::set_var("SHELL", shell_path);
 
     let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
     for startup_script in &[rt.sh_startup_file, rt.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
-        cmd.arg(format!(
-            "s|/spfs/etc/spfs/startup.d|{}|",
-            tmp_startup_dir.strpath
-        ));
+        cmd.arg(format!("s|/spfs/etc/spfs/startup.d|{:?}|", tmp_startup_dir));
         cmd.arg(startup_script);
-        println!("{}", cmd.output().unwrap());
+        println!("{:?}", cmd.output().unwrap());
     }
 
-    let args = build_shell_initialized_command("echo").unwrap();
+    let args = build_shell_initialized_command("echo", Default::default()).unwrap();
     let mut cmd = Command::new(args[0]);
     cmd.args(args[1..]);
     let out = cmd.output().unwrap();

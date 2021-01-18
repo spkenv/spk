@@ -18,14 +18,14 @@ async fn test_get_attached_objects(mut tmprepo: storage::fs::FSRepository) {
     tmprepo.write_blob(blob).unwrap();
 
     assert_eq!(
-        get_all_attached_objects(&tmprepo),
+        get_all_attached_objects(&tmprepo).unwrap(),
         Default::default(),
         "single blob should not be attached"
     );
     let mut expected = HashSet::new();
-    expected.insert(blob.digest().unwrap());
+    expected.insert(blob.digest());
     assert_eq!(
-        get_all_unattached_objects(&tmprepo),
+        get_all_unattached_objects(&tmprepo).unwrap(),
         expected,
         "single blob should be unattached"
     );
@@ -35,20 +35,20 @@ async fn test_get_attached_objects(mut tmprepo: storage::fs::FSRepository) {
 #[tokio::test]
 async fn test_get_attached_payloads(mut tmprepo: storage::fs::FSRepository) {
     let mut reader = "hello, world".as_bytes();
-    let payload_digest = tmprepo.payloads.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.payloads.write_data(Box::new(&mut reader)).unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
-        get_all_unattached_payloads(tmprepo),
+        get_all_unattached_payloads(&tmprepo).unwrap(),
         expected,
         "single payload should be attached when no blob"
     );
 
     let blob = graph::Blob::new(payload_digest, 0);
-    tmprepo.objects.write_blob(blob).unwrap();
+    tmprepo.write_blob(blob).unwrap();
 
     assert_eq!(
-        get_all_unattached_payloads(tmprepo),
+        get_all_unattached_payloads(&tmprepo).unwrap(),
         Default::default(),
         "single payload should be attached to blob"
     );
@@ -77,11 +77,15 @@ async fn test_get_attached_unattached_objects_blob(
         .object;
 
     assert!(
-        get_all_attached_objects(tmprepo).contains(blob_digest),
+        get_all_attached_objects(&tmprepo)
+            .unwrap()
+            .contains(&blob_digest),
         "blob in manifest in tag should be attached"
     );
     assert!(
-        !get_all_unattached_objects(tmprepo).contains(blob_digest),
+        !get_all_unattached_objects(&tmprepo)
+            .unwrap()
+            .contains(&blob_digest),
         "blob in manifest in tag should be attached"
     );
 }
@@ -150,13 +154,13 @@ async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::fs::
         .await
         .expect("failed to clean objects");
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(layer.digest().unwrap()) {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(&layer.digest().unwrap()) {
         // ok
     } else {
         panic!("expected layer to be cleaned")
     }
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(platform.digest().unwrap()) {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(&platform.digest().unwrap()) {
         // ok
     } else {
         panic!("expected platform to be cleaned")
@@ -184,21 +188,22 @@ async fn test_clean_manifest_renders(
         .render_manifest(&graph::Manifest::from(&manifest))
         .unwrap();
 
-    let files = list_files(tmprepo.root);
+    let files = list_files(tmprepo.root());
     assert!(files.len() != 0, "should have stored data");
 
     clean_untagged_objects(&tmprepo)
         .await
         .expect("failed to clean repo");
 
-    let files = list_files(tmprepo.root);
-    for filepath in files {
+    let files = list_files(tmprepo.root());
+    let files = list_files(tmprepo.root());
+    for filepath in files.iter() {
         let digest = tmprepo.objects.get_digest_from_path(filepath).unwrap();
-        let obj = tmprepo.objects.read_object(digest).unwrap();
+        assert!(tmprepo.read_object(&digest).is_ok());
     }
     assert_eq!(
         files,
-        vec![tmprepo.root().join("VERSION")],
+        vec![tmprepo.root().join("VERSION").to_string_lossy().to_string()],
         "should remove all created data files"
     );
 }

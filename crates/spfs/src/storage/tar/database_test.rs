@@ -29,7 +29,7 @@ fn try_sync(&mut db: TarDatabase) -> Option<str> {
 }
 
 
-#[rstest]
+// #[test]
 #[tokio::test]
 fn test_database_race_condition(tmpdir: tempdir::TempDir) {
 

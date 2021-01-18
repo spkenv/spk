@@ -97,6 +97,12 @@ impl Decodable for String {
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub struct Digest([u8; DIGEST_SIZE]);
 
+impl Default for Digest {
+    fn default() -> Self {
+        NULL_DIGEST.into()
+    }
+}
+
 impl std::fmt::Debug for Digest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.to_string().as_ref())
