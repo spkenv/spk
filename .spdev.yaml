@@ -1,6 +1,6 @@
-version: 0.16.5
+version: 0.16.6
 release_notes: |
-  * Fix bug where package options (eg mypackage.debug=on) were not always used in solves and binary builds
+  * Fix bug where default option value was not used if building multiple variants
 
 toolchain:
   - kind: Shell
