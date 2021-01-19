@@ -739,3 +739,34 @@ def test_solver_embedded_request_invalidates() -> None:
             solver.solve()
         finally:
             print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_unknown_package_options() -> None:
+
+    # test when a package is rrequested with specific options (eg: pkg.opt)
+    # - the solver ignores versions that don't define the option
+    # - the solver resolves versions that do define the option
+
+    repo = make_repo([{"pkg": "my-lib/2.0.0",},])
+
+    # this option is specific to the my-lib package and is not known by the package
+    options = api.OptionMap({"my-lib.something": "value"})
+    solver = Solver(options)
+    solver.add_repository(repo)
+    solver.add_request("my-lib")
+
+    with pytest.raises(UnresolvedPackageError):
+        try:
+            solver.solve()
+        finally:
+            print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    # this time we don't request that option, and it should be ok
+    options = api.OptionMap()
+    solver = Solver(options)
+    solver.add_repository(repo)
+    solver.add_request("my-lib")
+    try:
+        solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))

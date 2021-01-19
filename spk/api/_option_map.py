@@ -43,14 +43,21 @@ class OptionMap(SortedDict):
 
         return OptionMap(o for o in self.items() if "." not in o[0])
 
-    def package_options(self, name: str) -> "OptionMap":
-        """Return the set of options relevant to the named package."""
+    def package_options_without_global(self, name: str) -> "OptionMap":
+        """Return the set of options given for the specific named package."""
 
         prefix = name + "."
-        options = self.global_options()
+        options = OptionMap()
         for key, value in self.items():
             if key.startswith(prefix):
                 options[key[len(prefix) :]] = value
+        return options
+
+    def package_options(self, name: str) -> "OptionMap":
+        """Return the set of options relevant to the named package."""
+
+        options = self.global_options()
+        options.update(self.package_options_without_global(name))
         return options
 
     @staticmethod

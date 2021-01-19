@@ -79,11 +79,24 @@ class BuildSpec:
         if not isinstance(given_options, OptionMap):
             given_options = OptionMap(given_options.items())
 
+        must_exist = given_options.package_options_without_global(package_name)
         given_options = given_options.package_options(package_name)
         for option in self.options:
             compat = option.validate(given_options.get(option.name()))
             if not compat:
                 return compat
+
+            try:
+                del must_exist[option.name()]
+            except KeyError:
+                pass
+
+        missing = list(must_exist.keys())
+        if missing:
+            missing = list(name for name in missing)
+            return Compatibility(
+                f"Package does not define requested build options: {missing}"
+            )
 
         return COMPATIBLE
 
