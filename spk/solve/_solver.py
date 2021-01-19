@@ -131,7 +131,6 @@ class Solver:
                         continue
                 break
 
-            print("ok", spec.pkg)
             decision.set_resolved(spec, repo)
 
         except StopIteration:
