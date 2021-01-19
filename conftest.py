@@ -34,6 +34,7 @@ def spfs_editable(tmpspfs: None) -> None:
         runtime = spfs.active_runtime()
     except spfs.NoRuntimeError:
         pytest.fail("Tests must be run in an spfs environment")
+        return
 
     runtime.reset_stack()
     runtime.set_editable(True)
@@ -42,7 +43,7 @@ def spfs_editable(tmpspfs: None) -> None:
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py._path.local.LocalPath) -> spfs.storage.fs.FSRepository:
+def tmpspfs(tmpdir: py.path.local) -> spfs.storage.fs.FSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath

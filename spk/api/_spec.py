@@ -113,8 +113,7 @@ class Spec:
         if not isinstance(given, OptionMap):
             given = OptionMap(given)
 
-        given = given.package_options(self.pkg.name)
-        return self.build.resolve_all_options(given)
+        return self.build.resolve_all_options(self.pkg.name, given)
 
     def sastisfies_request(self, request: Request) -> bool:
         """Return true if this package spec satisfies the given request."""

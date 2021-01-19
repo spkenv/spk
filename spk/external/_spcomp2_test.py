@@ -121,7 +121,7 @@ def test_build_to_options(build: str, expected: api.OptionMap) -> None:
 
     actual = _build_to_options(build)
     spec = api.BuildSpec(options=actual)
-    compat = spec.validate_options(expected)
+    compat = spec.validate_options("", expected)
     assert compat, compat
 
 

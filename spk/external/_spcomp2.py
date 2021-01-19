@@ -65,8 +65,8 @@ def import_spcomp2(
     root = Path(install_root)
     for build_str in iter_spcomp2_builds(name):
         build_spec = api.BuildSpec(options=_build_to_options(build_str))
-        build_opts = build_spec.resolve_all_options(options)
-        compat = build_spec.validate_options(build_opts)
+        build_opts = build_spec.resolve_all_options(name, options)
+        compat = build_spec.validate_options(name, build_opts)
         if not compat:
             _LOGGER.debug(
                 "skipping incompatible build", build=build_str, error=str(compat)

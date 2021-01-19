@@ -49,7 +49,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
                         out += end.join(reversed(versions)) + end
                 out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(spec.pkg)}" + end
                 if verbosity > 2:
-                    opt = spec.build.resolve_all_options(decision.get_options())
+                    opt = spec.resolve_all_options(decision.get_options())
                     if opt:
                         out += format_options(opt) + end
         else:

@@ -53,9 +53,15 @@ class BuildSpec:
     options: List[Option] = field(default_factory=list)
     variants: List[OptionMap] = field(default_factory=lambda: [OptionMap()])
 
-    def resolve_all_options(self, given: Union[Dict, OptionMap] = {}) -> OptionMap:
+    def resolve_all_options(
+        self, package_name: str, given: Union[Dict, OptionMap] = {}
+    ) -> OptionMap:
+
+        if not isinstance(given, OptionMap):
+            given = OptionMap(given.items())
 
         resolved = OptionMap()
+        given = given.package_options(package_name)
         for opt in self.options:
 
             name = opt.name()
@@ -65,9 +71,15 @@ class BuildSpec:
 
         return resolved
 
-    def validate_options(self, given_options: OptionMap) -> Compatibility:
+    def validate_options(
+        self, package_name: str, given_options: Union[Dict, OptionMap]
+    ) -> Compatibility:
         """Validate the given options against the options in this spec."""
 
+        if not isinstance(given_options, OptionMap):
+            given_options = OptionMap(given_options.items())
+
+        given_options = given_options.package_options(package_name)
         for option in self.options:
             compat = option.validate(given_options.get(option.name(), ""))
             if not compat:

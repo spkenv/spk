@@ -206,8 +206,10 @@ class FilteredPackageIterator(PackageIterator):
 
             # check option compatibility of entire version, if applicable
             if version_spec is not None:
-                opts = version_spec.build.resolve_all_options(self.options)
-                compat = version_spec.build.validate_options(opts)
+                opts = version_spec.resolve_all_options(self.options)
+                compat = version_spec.build.validate_options(
+                    version_spec.pkg.name, opts
+                )
                 if not compat:
                     self.add_history(candidate.pkg.with_build(None), compat)
                     continue
@@ -261,9 +263,9 @@ class FilteredPackageIterator(PackageIterator):
             # are options with a default value that need to be set before
             # validating
             opts = self.options.copy()
-            for name, value in spec.build.resolve_all_options(opts).items():
+            for name, value in spec.resolve_all_options(opts).items():
                 opts.setdefault(name, value)
-            compat = spec.build.validate_options(opts)
+            compat = spec.build.validate_options(spec.pkg.name, self.options)
             if not compat:
                 self.add_history(candidate.pkg, compat)
                 continue

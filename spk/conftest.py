@@ -34,6 +34,7 @@ def spfs_editable(tmpspfs: None) -> None:
         runtime = spfs.active_runtime()
     except spfs.NoRuntimeError:
         pytest.fail("Tests must be run in an spfs environment")
+        return
 
     runtime.reset_stack()
     runtime.set_editable(True)

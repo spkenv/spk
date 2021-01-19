@@ -169,7 +169,7 @@ def _convert_spcomp2s(args: argparse.Namespace) -> None:
     print("\nThe following packages were converted:\n")
     for spec in specs:
         print(f"  {spk.io.format_ident(spec.pkg)} ", end="")
-        print(spk.io.format_options(spec.build.resolve_all_options({})))
+        print(spk.io.format_options(spec.resolve_all_options({})))
     print("")
 
     if args.publish is None:
@@ -209,7 +209,7 @@ def _convert_pip_packages(args: argparse.Namespace) -> None:
     print("\nThe following packages were converted:\n")
     for spec in specs:
         print(f"  {spk.io.format_ident(spec.pkg)} ", end="")
-        print(spk.io.format_options(spec.build.resolve_all_options({})))
+        print(spk.io.format_options(spec.resolve_all_options({})))
     print("")
 
     if args.publish is None:
