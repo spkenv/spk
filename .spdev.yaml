@@ -1,6 +1,6 @@
-version: 0.16.4
+version: 0.16.5
 release_notes: |
-  * Fix issue where invalid version ranges could spew cryptic errors
+  * Fix bug where package options (eg mypackage.debug=on) were not always used in solves and binary builds
 
 toolchain:
   - kind: Shell
