@@ -1,6 +1,12 @@
-version: 0.16.6
+version: 0.17.0
 release_notes: |
-  * Fix bug where default option value was not used if building multiple variants
+  * Update solver to ignore packages that lack specifically requested options.
+    For example, requesting `-o python.unicode=ucs4` will ingore any version
+    of the python package that does not specify a `unicode` build option. This
+    reduces errors where the user may have mispelles something or where older
+    versions of a package may not include newly added build options. In either
+    case it is more helpful to the developer to ensure that the option is used
+    rather than to risk resolving a package with no opinion that may be incompatible.
 
 toolchain:
   - kind: Shell
