@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Union, Set
+from typing import Dict, List, Any, Optional, Union, Set
 import os
 import abc
 from dataclasses import dataclass, field
@@ -18,7 +18,7 @@ class Option(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def validate(self, value: str) -> Compatibility:
+    def validate(self, value: Optional[str]) -> Compatibility:
         pass
 
     @abc.abstractmethod
@@ -81,7 +81,7 @@ class BuildSpec:
 
         given_options = given_options.package_options(package_name)
         for option in self.options:
-            compat = option.validate(given_options.get(option.name(), ""))
+            compat = option.validate(given_options.get(option.name()))
             if not compat:
                 return compat
 
@@ -193,7 +193,10 @@ class VarOpt(Option):
             )
         super(VarOpt, self).set_value(value)
 
-    def validate(self, value: str) -> Compatibility:
+    def validate(self, value: Optional[str]) -> Compatibility:
+
+        if value is None:
+            value = self.default
 
         assigned = super(VarOpt, self).get_value()
         if assigned:
@@ -282,7 +285,10 @@ class PkgOpt(Option):
             )
         super(PkgOpt, self).set_value(value)
 
-    def validate(self, value: str) -> Compatibility:
+    def validate(self, value: Optional[str]) -> Compatibility:
+
+        if value is None:
+            value = ""
 
         # skip any default that might exist since
         # that does not represent a definitive range
