@@ -10,6 +10,7 @@ from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter, ExactVersion
 from ._compat import Compatibility, COMPATIBLE
+from ._option_map import OptionMap
 
 if TYPE_CHECKING:
     from ._spec import Spec
@@ -149,11 +150,6 @@ class Request(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
-        """Return true if the given package spec satisfies this request."""
-        pass
-
-    @abc.abstractmethod
     def clone(self: Self) -> Self:
         """Return a copy of this request instance."""
         pass
@@ -181,33 +177,75 @@ class VarRequest(Request):
 
     var: str
     value: str
+    pin: bool = False
+
+    def package(self) -> Optional[str]:
+        """Return the name of the package that this var refers to (if any)"""
+        if "." in self.var:
+            return self.var.split(".", 1)[0]
+        return None
 
     def name(self) -> str:
         """Return the canonical name of this requirement."""
         return self.var
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
-        """Return true if the given package spec satisfies this request."""
-        raise NotImplementedError("VarRequest.is_satisfied_by")
+    def is_satisfied_by(self, options: OptionMap) -> Compatibility:
+        """Return true if the given options satisfy this request."""
+
+        exact = options.get(self.var)
+        if exact is not None and exact != self.value:
+            return Compatibility(
+                f"incompatible build option '{self.var}': '{exact}' != '{self.value}'"
+            )
+
+        if "." not in self.var:
+            return COMPATIBLE
+
+        _, name = self.var.split(".", 1)
+        global_value = options.get(name)
+        print(self.var, name, global_value)
+        if global_value is not None and global_value != self.value:
+            return Compatibility(
+                f"incompatible global build option '{name}': '{global_value}' != '{self.value}'"
+            )
+
+        return COMPATIBLE
 
     def clone(self) -> "VarRequest":
         """Return a copy of this request instance."""
         return VarRequest.from_dict(self.to_dict())
 
+    def render_pin(self, value: str) -> "VarRequest":
+        """Create a copy of this request with it's pin rendered out using 'var'."""
+
+        if not self.pin:
+            raise RuntimeError("Request has no pin to be rendered")
+
+        new = self.clone()
+        new.pin = False
+        new.value = value
+        return new
+
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
 
-        return {"var": f"{self.var}={self.value}"}
+        if self.pin:
+            return {"var": f"{self.var}", "fromBuildEnv": True}
+        else:
+            return {"var": f"{self.var}/{self.value}"}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "VarRequest":
 
         var = data.pop("var")
-        if "=" not in var:
-            raise ValueError(f"var request must be in the form name=value, got '{var}'")
+        value = ""
+        pin = data.pop("fromBuildEnv", False)
+        if "/" not in var and not pin:
+            raise ValueError(f"var request must be in the form name/value, got '{var}'")
 
-        var, value = var.split("=", 1)
-        request = VarRequest(var=var, value=value)
+        if not pin:
+            var, value = var.split("/", 1)
+        request = VarRequest(var=var, value=value, pin=pin)
 
         if len(data):
             raise ValueError(

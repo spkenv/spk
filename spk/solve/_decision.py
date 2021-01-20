@@ -138,7 +138,7 @@ class Decision:
         self._resolved.add(request, spec, source)
 
         for name, value in spec.resolve_all_options({}).items():
-            self._options.setdefault(name, value)
+            self._options.setdefault(f"{spec.pkg.name}.{name}", value)
 
         try:
             del self._unresolved[spec.pkg.name]
@@ -221,20 +221,31 @@ class Decision:
             request = api.PkgRequest.from_dict({"pkg": request})
 
         if isinstance(request, api.VarRequest):
-            try:
-                assert self._options[request.var] == request.value
-            except KeyError:
-                pass
-            except AssertionError:
-                raise ConflictingRequestsError(
-                    "Var requests are incompatible", [request]
-                )
+            compat = request.is_satisfied_by(self._options)
+            if not compat:
+                package = request.package()
+                if package:
+                    self.set_unresolved(package, compat)
+                else:
+                    raise ConflictingRequestsError(
+                        "Var requests are incompatible", [request]
+                    )
+
+            # unfortunately we need to revalidate any existing solution item
+            # the case of a global value being added
+            if request.package() is None:
+                for item in self.get_current_solution().items():
+                    opts = item.spec.resolve_all_options(self._options)
+                    compat = request.is_satisfied_by(opts)
+                    if not compat:
+                        self.set_unresolved(item.spec.pkg.name, compat)
+
             self._options = self._options.copy()
             self._options[request.var] = request.value
             return
 
         if not isinstance(request, api.PkgRequest):
-            raise NotImplementedError(f"TODO: Unahandled request type {type(request)}")
+            raise NotImplementedError(f"TODO: Unhandled request type {type(request)}")
 
         try:
             current = self.get_current_solution().get(request.pkg.name)
