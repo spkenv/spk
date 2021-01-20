@@ -10,7 +10,7 @@ PackageSource = Union[storage.Repository, api.Spec]
 class SolvedRequest(NamedTuple):
     """Represents a package request that has been resolved."""
 
-    request: api.Request
+    request: api.PkgRequest
     spec: api.Spec
     source: PackageSource
 
@@ -21,12 +21,12 @@ class Solution:
     def __init__(self, options: api.OptionMap = None) -> None:
 
         self._options = api.OptionMap(options or {})
-        self._resolved: Dict[api.Request, Tuple[api.Spec, PackageSource]] = {}
+        self._resolved: Dict[api.PkgRequest, Tuple[api.Spec, PackageSource]] = {}
 
     def __bool__(self) -> bool:
         return bool(self._resolved)
 
-    def __contains__(self, other: api.Request) -> bool:
+    def __contains__(self, other: api.PkgRequest) -> bool:
 
         return other in self._resolved
 
@@ -55,7 +55,7 @@ class Solution:
         return other
 
     def add(
-        self, request: api.Request, package: api.Spec, source: PackageSource,
+        self, request: api.PkgRequest, package: api.Spec, source: PackageSource,
     ) -> None:
 
         self._resolved[request] = (package, source)

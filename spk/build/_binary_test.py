@@ -126,7 +126,59 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     )
 
     spec = tmprepo.read_spec(spec.pkg)
-    assert str(spec.install.requirements[0].pkg) == "dep/~1.0"
+    req = spec.install.requirements[0]
+    assert isinstance(req, api.PkgRequest)
+    assert str(req.pkg) == "dep/~1.0"
+
+
+def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
+
+    dep_spec = api.Spec.from_dict(
+        {
+            "pkg": "dep/1.0.0",
+            "build": {
+                "script": "touch /spfs/dep-file",
+                "options": [{"var": "depvar", "default": "depvalue"}],
+            },
+        }
+    )
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "top/1.0.0",
+            "build": {
+                "script": ["touch /spfs/top-file",],
+                "options": [
+                    {"pkg": "dep", "default": "1.0.0"},
+                    {"var": "topvar", "default": "topvalue"},
+                ],
+            },
+            "install": {
+                "requirements": [
+                    {"var": "topvar", "fromBuildEnv": True},
+                    {"var": "dep.depvar", "fromBuildEnv": True},
+                ]
+            },
+        }
+    )
+
+    tmprepo.publish_spec(dep_spec)
+    BinaryPackageBuilder.from_spec(dep_spec).with_source(os.getcwd()).with_repository(
+        tmprepo
+    ).build()
+    spec = (
+        BinaryPackageBuilder.from_spec(spec)
+        .with_source(os.getcwd())
+        .with_repository(tmprepo)
+        .build()
+    )
+
+    spec = tmprepo.read_spec(spec.pkg)
+    topreq = spec.install.requirements[0]
+    assert isinstance(topreq, api.VarRequest)
+    assert str(topreq.value) == "topvalue"
+    depreq = spec.install.requirements[1]
+    assert isinstance(depreq, api.VarRequest)
+    assert str(depreq.value) == "depvalue"
 
 
 def test_build_bad_options() -> None:

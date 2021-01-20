@@ -101,7 +101,7 @@ class Solver:
         solution = state.get_current_solution()
         return solution
 
-    def _solve_request(self, state: Decision, request: api.Request) -> Decision:
+    def _solve_request(self, state: Decision, request: api.PkgRequest) -> Decision:
 
         decision = state.add_branch()
         iterator = state.get_iterator(request.pkg.name)
@@ -147,7 +147,7 @@ class Solver:
         return decision
 
     def _make_iterator(
-        self, state: Decision, request: api.Request
+        self, state: Decision, request: api.PkgRequest
     ) -> FilteredPackageIterator:
 
         assert len(self._repos), "No configured package repositories."

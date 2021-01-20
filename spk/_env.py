@@ -33,7 +33,7 @@ def current_env() -> solve.Solution:
             for pkg in runtime.list_package_builds(name + "/" + version):
 
                 spec = runtime.read_spec(pkg)
-                request = api.Request(
+                request = api.PkgRequest(
                     api.parse_ident_range(f"{pkg.name}/={pkg.version}/{pkg.build}"),
                     prerelease_policy=api.PreReleasePolicy.IncludeAll,
                 )

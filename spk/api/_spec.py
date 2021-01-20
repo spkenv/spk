@@ -1,3 +1,4 @@
+from spk import api
 from typing import List, Any, Dict, Union, IO, Iterable
 from dataclasses import dataclass, field
 import os
@@ -5,11 +6,10 @@ import os
 import structlog
 from ruamel import yaml
 
-
 from ._build import EMBEDDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
-from ._request import Request
+from ._request import Request, PkgRequest, VarRequest
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec, PkgOpt
 from ._source_spec import SourceSpec, LocalSource
@@ -28,11 +28,11 @@ class InstallSpec:
     def upsert_requirement(self, request: Request) -> None:
         """Add or update a requirement to the set of installation requirements.
 
-        If a request exists for the same package, it is replaced with the given
+        If a request exists for the same name, it is replaced with the given
         one. Otherwise the new request is appended to the list.
         """
         for i, other in enumerate(self.requirements):
-            if other.pkg.name == request.pkg.name:
+            if other.name == request.name:
                 self.requirements[i] = request
                 return
         else:
@@ -46,19 +46,36 @@ class InstallSpec:
             data["embedded"] = list(r.to_dict() for r in self.embedded)
         return data
 
-    def render_all_pins(self, resolved: Iterable[Ident]) -> None:
+    def render_all_pins(self, options: OptionMap, resolved: Iterable[Ident]) -> None:
         """Render all requests with a package pin using the given resolved packages."""
 
         by_name = dict((pkg.name, pkg) for pkg in resolved)
         for i, request in enumerate(self.requirements):
-            if not request.pin:
-                continue
-            if request.pkg.name not in by_name:
-                raise ValueError(
-                    f"Cannot resolve fromBuildEnv, package not present: {request.pkg.name}\n"
-                    "Is it missing from your package build options?"
-                )
-            self.requirements[i] = request.render_pin(by_name[request.pkg.name])
+
+            if isinstance(request, PkgRequest):
+                if not request.pin:
+                    continue
+                if request.pkg.name not in by_name:
+                    raise ValueError(
+                        f"Cannot resolve fromBuildEnv, package not present: {request.pkg.name}\n"
+                        "Is it missing from your package build options?"
+                    )
+                self.requirements[i] = request.render_pin(by_name[request.pkg.name])
+
+            if isinstance(request, VarRequest):
+                if not request.pin:
+                    continue
+                var = request.var
+                opts = options
+                if "." in var:
+                    package, var = var.split(".", 1)
+                    opts = options.package_options(package)
+                if var not in opts:
+                    raise ValueError(
+                        f"Cannot resolve fromBuildEnv, variable not set: {request.var}\n"
+                        "Is it missing from the package build options?"
+                    )
+                self.requirements[i] = request.render_pin(opts[var])
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "InstallSpec":
@@ -68,6 +85,11 @@ class InstallSpec:
         requirements = data.pop("requirements", [])
         if requirements:
             spec.requirements = list(Request.from_dict(r) for r in requirements)
+        request_names = list(r.name for r in spec.requirements)
+        while request_names:
+            name = request_names.pop()
+            if name in request_names:
+                raise ValueError(f"found multiple install requirements for '{name}'")
 
         embedded = data.pop(
             "embedded", data.pop("embeded", [])  # legacy support of misspelling
@@ -115,7 +137,7 @@ class Spec:
 
         return self.build.resolve_all_options(self.pkg.name, given)
 
-    def sastisfies_request(self, request: Request) -> bool:
+    def sastisfies_request(self, request: PkgRequest) -> bool:
         """Return true if this package spec satisfies the given request."""
 
         if request.pkg.name != self.pkg.name:
@@ -132,7 +154,7 @@ class Spec:
     def update_for_build(self, options: OptionMap, resolved: List["Spec"]) -> None:
         """Update this spec to represent a specific binary package build."""
 
-        self.install.render_all_pins(s.pkg for s in resolved)
+        self.install.render_all_pins(options, (spec.pkg for spec in resolved))
 
         specs = dict((s.pkg.name, s) for s in resolved)
 

@@ -126,12 +126,13 @@ class BinaryPackageBuilder:
             solution = self._resolve_source_package()
             exec.configure_runtime(runtime, solution)
         solution = self._resolve_build_environment()
+        self._all_options.update(solution.options())
         exec.configure_runtime(runtime, solution)
         runtime.set_editable(True)
         spfs.remount_runtime(runtime)
 
         specs = list(s for _, s, _ in solution.items())
-        self._spec.update_for_build(self._pkg_options, specs)
+        self._spec.update_for_build(self._all_options, specs)
         layer = self._build_and_commit_artifacts(solution.to_environment())
         storage.local_repository().publish_package(self._spec, layer.digest())
         return self._spec
@@ -150,7 +151,7 @@ class BinaryPackageBuilder:
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
-            request = api.Request(ident_range, api.PreReleasePolicy.IncludeAll)
+            request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
             self._solver.add_request(request)
 
         return self._solver.solve()

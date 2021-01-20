@@ -14,6 +14,8 @@ from ._build_spec import BuildSpec, opt_from_dict, VarOpt, PkgOpt, Option
 from ._source_spec import SourceSpec, LocalSource, GitSource, TarSource
 from ._request import (
     Request,
+    PkgRequest,
+    VarRequest,
     parse_ident_range,
     PreReleasePolicy,
     InclusionPolicy,

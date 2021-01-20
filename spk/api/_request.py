@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Union, Optional, Set, TYPE_CHECKING
+from typing import Dict, List, Any, Union, Optional, Set, TypeVar, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc
 import enum
@@ -10,9 +10,12 @@ from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter, ExactVersion
 from ._compat import Compatibility, COMPATIBLE
+from ._option_map import OptionMap
 
 if TYPE_CHECKING:
     from ._spec import Spec
+
+Self = TypeVar("Self")
 
 
 @dataclass
@@ -138,8 +141,122 @@ class InclusionPolicy(enum.IntEnum):
     IfAlreadyPresent = enum.auto()
 
 
+class Request(metaclass=abc.ABCMeta):
+    """Represents a contraint added to a resolved environment."""
+
+    @abc.abstractproperty
+    def name(self) -> str:
+        """Return the canonical name of this requirement."""
+        pass
+
+    @abc.abstractmethod
+    def clone(self: Self) -> Self:
+        """Return a copy of this request instance."""
+        pass
+
+    @abc.abstractmethod
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a serializable dict copy of this request."""
+        pass
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "Request":
+        """Construct a request from it's dictionary representation."""
+
+        if "pkg" in data:
+            return PkgRequest.from_dict(data)
+        if "var" in data:
+            return VarRequest.from_dict(data)
+
+        raise ValueError(f"Incomprehensible request definition: {data}")
+
+
 @dataclass
-class Request:
+class VarRequest(Request):
+    """A set of restrictions placed on selected packages' build options."""
+
+    var: str
+    value: str
+    pin: bool = False
+
+    def package(self) -> Optional[str]:
+        """Return the name of the package that this var refers to (if any)"""
+        if "." in self.var:
+            return self.var.split(".", 1)[0]
+        return None
+
+    def name(self) -> str:
+        """Return the canonical name of this requirement."""
+        return self.var
+
+    def is_satisfied_by(self, options: OptionMap) -> Compatibility:
+        """Return true if the given options satisfy this request."""
+
+        exact = options.get(self.var)
+        if exact is not None and exact != self.value:
+            return Compatibility(
+                f"incompatible build option '{self.var}': '{exact}' != '{self.value}'"
+            )
+
+        if "." not in self.var:
+            return COMPATIBLE
+
+        _, name = self.var.split(".", 1)
+        global_value = options.get(name)
+        print(self.var, name, global_value)
+        if global_value is not None and global_value != self.value:
+            return Compatibility(
+                f"incompatible global build option '{name}': '{global_value}' != '{self.value}'"
+            )
+
+        return COMPATIBLE
+
+    def clone(self) -> "VarRequest":
+        """Return a copy of this request instance."""
+        return VarRequest.from_dict(self.to_dict())
+
+    def render_pin(self, value: str) -> "VarRequest":
+        """Create a copy of this request with it's pin rendered out using 'var'."""
+
+        if not self.pin:
+            raise RuntimeError("Request has no pin to be rendered")
+
+        new = self.clone()
+        new.pin = False
+        new.value = value
+        return new
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a serializable dict copy of this request."""
+
+        if self.pin:
+            return {"var": f"{self.var}", "fromBuildEnv": True}
+        else:
+            return {"var": f"{self.var}/{self.value}"}
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "VarRequest":
+
+        var = data.pop("var")
+        value = ""
+        pin = data.pop("fromBuildEnv", False)
+        if "/" not in var and not pin:
+            raise ValueError(f"var request must be in the form name/value, got '{var}'")
+
+        if not pin:
+            var, value = var.split("/", 1)
+        request = VarRequest(var=var, value=value, pin=pin)
+
+        if len(data):
+            raise ValueError(
+                f"unrecognized fields in var request: {', '.join(data.keys())}"
+            )
+
+        return request
+
+
+@dataclass
+class PkgRequest(Request):
     """A desired package and set of restrictions on how it's selected."""
 
     pkg: RangeIdent
@@ -157,11 +274,15 @@ class Request:
             return bool(str(self) == other)
         return self.__hash__() == other.__hash__()
 
-    def clone(self) -> "Request":
+    @property
+    def name(self) -> str:
+        return self.pkg.name
 
-        return Request.from_dict(self.to_dict())
+    def clone(self) -> "PkgRequest":
 
-    def render_pin(self, pkg: Ident) -> "Request":
+        return PkgRequest.from_dict(self.to_dict())
+
+    def render_pin(self, pkg: Ident) -> "PkgRequest":
         """Create a copy of this request with it's pin rendered out using 'pkg'."""
 
         if not self.pin:
@@ -215,7 +336,7 @@ class Request:
 
         return self.pkg.is_satisfied_by(spec)
 
-    def restrict(self, other: "Request") -> None:
+    def restrict(self, other: "PkgRequest") -> None:
         """Reduce the scope of this request to the intersection with another."""
 
         self.prerelease_policy = PreReleasePolicy(
@@ -243,14 +364,14 @@ class Request:
             version=VersionFilter({ExactVersion(pkg.version),}),
             build=pkg.build,
         )
-        return Request(ri)
+        return PkgRequest(ri)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "Request":
+    def from_dict(data: Dict[str, Any]) -> "PkgRequest":
         """Construct a request from it's dictionary representation."""
 
         try:
-            req = Request(parse_ident_range(data.pop("pkg")))
+            req = PkgRequest(parse_ident_range(data.pop("pkg")))
         except KeyError as e:
             raise ValueError(f"Missing required key in package request: {e}")
 

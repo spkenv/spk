@@ -95,6 +95,17 @@ An option map is a key-value mapping of option names to option values. In practi
 
 ### Request
 
+A build option can be one of [VariableRequest](#variablerequest), or [PackageRequest](#packagerequest).
+
+#### VariableRequest
+
+| Field        | Type   | Description                                                                                                                                                                  |
+| ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| var          | _str_  | The requested value of a package build variable in the form `name=value`, this can reference a specific package or the global variable (eg `debug=on`, or `python.abi=cp37`) |
+| fromBuildEnv | _bool_ | If true, replace the requested value of this variable with the value used in the build environment                                                                           |
+
+#### PackageRequest
+
 | Field            | Type                                    | Description                                                                                                                                                                                                                                                                                                                         |
 | ---------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pkg              | RangeIdentifier                         | Like an [Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning)                                                                                                                                                                                                            |

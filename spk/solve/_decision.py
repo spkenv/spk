@@ -42,7 +42,7 @@ class Decision:
     def __init__(self, parent: "Decision" = None) -> None:
         self.parent = parent
         self.branches: List[Decision] = []
-        self._requests: Dict[str, List[api.Request]] = {}
+        self._requests: Dict[str, List[api.PkgRequest]] = {}
         self._resolved: Solution = Solution()
         self._unresolved: Dict[str, api.Compatibility] = {}
         self._error: Optional[SolverError] = None
@@ -132,13 +132,13 @@ class Decision:
                 )
 
     def force_set_resolved(
-        self, request: api.Request, spec: api.Spec, source: PackageSource
+        self, request: api.PkgRequest, spec: api.Spec, source: PackageSource
     ) -> None:
 
         self._resolved.add(request, spec, source)
 
         for name, value in spec.resolve_all_options({}).items():
-            self._options.setdefault(name, value)
+            self._options.setdefault(f"{spec.pkg.name}.{name}", value)
 
         try:
             del self._unresolved[spec.pkg.name]
@@ -152,7 +152,7 @@ class Decision:
         given spec exaclty - so that it can be properly tracked in the solution
         """
 
-        req = api.Request.from_ident(spec.pkg)
+        req = api.PkgRequest.from_ident(spec.pkg)
         self.add_request(req)
         self.set_iterator(spec.pkg.name, ListPackageIterator([(spec, source)]))
 
@@ -216,8 +216,36 @@ class Decision:
 
         if isinstance(request, api.Ident):
             request = str(request)
+
         if not isinstance(request, api.Request):
-            request = api.Request.from_dict({"pkg": request})
+            request = api.PkgRequest.from_dict({"pkg": request})
+
+        if isinstance(request, api.VarRequest):
+            compat = request.is_satisfied_by(self._options)
+            if not compat:
+                package = request.package()
+                if package:
+                    self.set_unresolved(package, compat)
+                else:
+                    raise ConflictingRequestsError(
+                        "Var requests are incompatible", [request]
+                    )
+
+            # unfortunately we need to revalidate any existing solution item
+            # the case of a global value being added
+            if request.package() is None:
+                for item in self.get_current_solution().items():
+                    opts = item.spec.resolve_all_options(self._options)
+                    compat = request.is_satisfied_by(opts)
+                    if not compat:
+                        self.set_unresolved(item.spec.pkg.name, compat)
+
+            self._options = self._options.copy()
+            self._options[request.var] = request.value
+            return
+
+        if not isinstance(request, api.PkgRequest):
+            raise NotImplementedError(f"TODO: Unhandled request type {type(request)}")
 
         try:
             current = self.get_current_solution().get(request.pkg.name)
@@ -243,7 +271,7 @@ class Decision:
             iterator = FilteredPackageIterator(iterator, updated_request, self._options)
             self.set_iterator(request.pkg.name, iterator)
 
-    def get_requests(self) -> Dict[str, List[api.Request]]:
+    def get_requests(self) -> Dict[str, List[api.PkgRequest]]:
         """Get the set of package requests added by this decision."""
 
         copy = {}
@@ -280,7 +308,7 @@ class Decision:
 
         return len(self.unresolved_requests()) != 0
 
-    def next_request(self) -> Optional[api.Request]:
+    def next_request(self) -> Optional[api.PkgRequest]:
         """Return the next package request to be resolved in this state."""
 
         unresolved = self.get_all_unresolved_requests()
@@ -296,7 +324,7 @@ class Decision:
         return None
 
     @lru_cache()
-    def unresolved_requests(self) -> Dict[str, List[api.Request]]:
+    def unresolved_requests(self) -> Dict[str, List[api.PkgRequest]]:
         """Return the set of unresolved requests for this decision."""
 
         resolved = self.get_current_solution()
@@ -311,7 +339,7 @@ class Decision:
         return unresolved
 
     @lru_cache()
-    def get_all_unresolved_requests(self) -> Dict[str, List[api.Request]]:
+    def get_all_unresolved_requests(self) -> Dict[str, List[api.PkgRequest]]:
         """Return the complete set of unresolved requests for this solver state."""
 
         resolved = self.get_current_solution()
@@ -325,10 +353,10 @@ class Decision:
 
         return unresolved
 
-    def get_all_package_requests(self) -> Dict[str, List[api.Request]]:
+    def get_all_package_requests(self) -> Dict[str, List[api.PkgRequest]]:
         """Get the set of all package requests at this state, solved or not."""
 
-        base: Dict[str, List[api.Request]] = defaultdict(list)
+        base: Dict[str, List[api.PkgRequest]] = defaultdict(list)
         if self.parent is not None:
             base.update(self.parent.get_all_package_requests())
 
@@ -337,7 +365,7 @@ class Decision:
 
         return base
 
-    def get_package_requests(self, name: str) -> List[api.Request]:
+    def get_package_requests(self, name: str) -> List[api.PkgRequest]:
         """Get the set of requests in this state for the named package."""
 
         requests = []
@@ -346,7 +374,7 @@ class Decision:
         requests.extend(self._requests.get(name, []))
         return requests
 
-    def get_merged_request(self, name: str) -> Optional[api.Request]:
+    def get_merged_request(self, name: str) -> Optional[api.PkgRequest]:
         """Get a single request for the named package which satisfies all current requests for that package."""
 
         requests = self.get_package_requests(name)

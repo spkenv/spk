@@ -743,7 +743,7 @@ def test_solver_embedded_request_invalidates() -> None:
 
 def test_solver_unknown_package_options() -> None:
 
-    # test when a package is rrequested with specific options (eg: pkg.opt)
+    # test when a package is requested with specific options (eg: pkg.opt)
     # - the solver ignores versions that don't define the option
     # - the solver resolves versions that do define the option
 
@@ -770,3 +770,120 @@ def test_solver_unknown_package_options() -> None:
         solver.solve()
     finally:
         print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+
+def test_solver_var_requirements() -> None:
+
+    # test what happens when a dependency is added which is incompatible
+    # with an existing request in the stack
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/2.7.5",
+                "build": {"options": [{"var": "abi", "static": "cp27"}]},
+            },
+            {
+                "pkg": "python/3.7.3",
+                "build": {"options": [{"var": "abi", "static": "cp37"}]},
+            },
+            {
+                "pkg": "my-app/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
+                },
+            },
+            {
+                "pkg": "my-app/2.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp37"}]
+                },
+            },
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-app/2")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("my-app").spec.pkg.version == "2.0.0"
+    assert solution.get("python").spec.pkg.version == "3.7.3"
+
+    # requesting the older version of my-app should force old python abi
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-app/1")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("python").spec.pkg.version == "2.7.5"
+
+
+def test_solver_var_requirements_unresolve() -> None:
+
+    # test when a package is resolved that conflicts in var requirements
+    #  - the solver should unresolve the solved package
+    #  - the solver should resolve a new version of the package with the right version
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/2.7.5",
+                "build": {"options": [{"var": "abi", "static": "cp27"}]},
+            },
+            {
+                "pkg": "python/3.7.3",
+                "build": {"options": [{"var": "abi", "static": "cp37"}]},
+            },
+            {
+                "pkg": "my-app/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
+                },
+            },
+            {
+                "pkg": "my-app/2.0.0",
+                "install": {"requirements": [{"pkg": "python"}, {"var": "abi/cp27"}]},
+            },
+        ]
+    )
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    # python is resolved first to get 3.7
+    solver.add_request("python")
+    # the addition of this app constrains the python.abi to 2.7
+    solver.add_request("my-app/1")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("my-app").spec.pkg.version == "1.0.0"
+    assert (
+        solution.get("python").spec.pkg.version == "2.7.5"
+    ), "should re-resolve python"
+
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    # python is resolved first to get 3.7
+    solver.add_request("python")
+    # the addition of this app constrains the global abi to 2.7
+    solver.add_request("my-app/2")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("my-app").spec.pkg.version == "2.0.0"
+    assert (
+        solution.get("python").spec.pkg.version == "2.7.5"
+    ), "should re-resolve python"

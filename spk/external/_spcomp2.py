@@ -119,11 +119,11 @@ def import_spcomp2(
             version_range = api.parse_ident_range(
                 f"{_to_spk_name(dep_name)}/{dep_version.lstrip('v')}"
             )
-            spec.install.requirements.append(api.Request(version_range))
+            spec.install.requirements.append(api.PkgRequest(version_range))
 
         # stdfs is required for the general include/lib configuration
         spec.install.requirements.append(
-            api.Request(pkg=api.parse_ident_range("stdfs"))
+            api.PkgRequest(pkg=api.parse_ident_range("stdfs"))
         )
 
         _LOGGER.info("building", pkg=spec.pkg)
