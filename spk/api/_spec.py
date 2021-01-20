@@ -1,3 +1,4 @@
+from spk import api
 from typing import List, Any, Dict, Union, IO, Iterable
 from dataclasses import dataclass, field
 import os
@@ -5,11 +6,10 @@ import os
 import structlog
 from ruamel import yaml
 
-
 from ._build import EMBEDDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
-from ._request import Request, PkgRequest
+from ._request import Request, PkgRequest, VarRequest
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec, PkgOpt
 from ._source_spec import SourceSpec, LocalSource
@@ -46,21 +46,36 @@ class InstallSpec:
             data["embedded"] = list(r.to_dict() for r in self.embedded)
         return data
 
-    def render_all_pins(self, resolved: Iterable[Ident]) -> None:
+    def render_all_pins(self, options: OptionMap, resolved: Iterable[Ident]) -> None:
         """Render all requests with a package pin using the given resolved packages."""
 
         by_name = dict((pkg.name, pkg) for pkg in resolved)
         for i, request in enumerate(self.requirements):
-            if not isinstance(request, PkgRequest):
-                continue
-            if not request.pin:
-                continue
-            if request.pkg.name not in by_name:
-                raise ValueError(
-                    f"Cannot resolve fromBuildEnv, package not present: {request.pkg.name}\n"
-                    "Is it missing from your package build options?"
-                )
-            self.requirements[i] = request.render_pin(by_name[request.pkg.name])
+
+            if isinstance(request, PkgRequest):
+                if not request.pin:
+                    continue
+                if request.pkg.name not in by_name:
+                    raise ValueError(
+                        f"Cannot resolve fromBuildEnv, package not present: {request.pkg.name}\n"
+                        "Is it missing from your package build options?"
+                    )
+                self.requirements[i] = request.render_pin(by_name[request.pkg.name])
+
+            if isinstance(request, VarRequest):
+                if not request.pin:
+                    continue
+                var = request.var
+                opts = options
+                if "." in var:
+                    package, var = var.split(".", 1)
+                    opts = options.package_options(package)
+                if var not in opts:
+                    raise ValueError(
+                        f"Cannot resolve fromBuildEnv, variable not set: {request.var}\n"
+                        "Is it missing from the package build options?"
+                    )
+                self.requirements[i] = request.render_pin(opts[var])
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "InstallSpec":
@@ -139,7 +154,7 @@ class Spec:
     def update_for_build(self, options: OptionMap, resolved: List["Spec"]) -> None:
         """Update this spec to represent a specific binary package build."""
 
-        self.install.render_all_pins(s.pkg for s in resolved)
+        self.install.render_all_pins(options, (spec.pkg for spec in resolved))
 
         specs = dict((s.pkg.name, s) for s in resolved)
 
