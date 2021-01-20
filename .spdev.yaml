@@ -1,12 +1,25 @@
-version: 0.17.0
+version: 0.18.0
 release_notes: |
-  * Update solver to ignore packages that lack specifically requested options.
-    For example, requesting `-o python.unicode=ucs4` will ingore any version
-    of the python package that does not specify a `unicode` build option. This
-    reduces errors where the user may have mispelles something or where older
-    versions of a package may not include newly added build options. In either
-    case it is more helpful to the developer to ensure that the option is used
-    rather than to risk resolving a package with no opinion that may be incompatible.
+  Add the ability to use build variables as installation requirements
+
+  Previously, only packages could be added as installation requirements,
+  but this ignores the extended compatibility implications of each package's
+  defined build options. With this update, you can also add build variables
+  to you package's installation requirements. The most immediate example
+  of this feature is to allow packages to build against specific python abi and
+  unicode widths, eg:
+
+  ```yaml
+  build:
+    options:
+    - pkg: python
+  install:
+    requirements:
+    - pkg: python
+      fromBuildEnv: x.x
+    - var: python.abi
+      fromBuildEnv: true
+  ```
 
 toolchain:
   - kind: Shell
