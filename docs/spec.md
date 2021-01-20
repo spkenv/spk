@@ -207,6 +207,24 @@ In this example, we might get two build envrionments, one with `python/2.7.5` an
 Install requirements can also be updated in the command line: `spk install --save @install build-dependency/1.0`
 {{% /notice %}}
 
+##### Build Variable Requirements
+
+You can also place constraints on specific build options at install time. This is most useful for identifying stricter compatibility requirements for your package dependencies. For example, native python modules generally require that the version of python being used have the same binary interface as the one which the module was built against. In such an example, the `abi` build option from the python package can be constrained as a requirement:
+
+```yaml
+install:
+  requirements:
+    - pkg: python
+      fromBuildEnv: x.x
+    # require that the same python abi be used at install time
+    - var: python.abi
+      fromBuildEnv: true
+```
+
+{{% notice tip %}}
+Variable requirements can also be specified statically in the form `name/value` (eg `- var: python.abi/cp37`)
+{{% /notice %}}
+
 ##### Optional Requirements
 
 Sometimes, you're package does not directly require another package, but would like to impose a constraint _if_ that package is required by something else. An example of this might be a cpp library with python bindings. The cpp library can be used without python, but if python exists in the environment, then we want to make sure it's of a compatible version.
