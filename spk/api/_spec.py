@@ -1,4 +1,3 @@
-from spk import api
 from typing import List, Any, Dict, Union, IO, Iterable
 from dataclasses import dataclass, field
 import os
