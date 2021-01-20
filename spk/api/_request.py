@@ -197,16 +197,16 @@ class VarRequest(Request):
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable dict copy of this request."""
 
-        return {"var": f"{self.var}/{self.value}"}
+        return {"var": f"{self.var}={self.value}"}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "VarRequest":
 
         var = data.pop("var")
-        if "/" not in var:
-            raise ValueError(f"var request must be in the form name/value, got '{var}'")
+        if "=" not in var:
+            raise ValueError(f"var request must be in the form name=value, got '{var}'")
 
-        var, value = var.split("/", 1)
+        var, value = var.split("=", 1)
         request = VarRequest(var=var, value=value)
 
         if len(data):

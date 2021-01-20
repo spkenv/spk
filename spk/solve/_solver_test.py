@@ -789,7 +789,13 @@ def test_solver_var_requirements() -> None:
             {
                 "pkg": "my-app/1.0.0",
                 "install": {
-                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi=cp27"}]
+                },
+            },
+            {
+                "pkg": "my-app/2.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi=cp37"}]
                 },
             },
         ]
@@ -797,7 +803,20 @@ def test_solver_var_requirements() -> None:
 
     solver = Solver(api.OptionMap())
     solver.add_repository(repo)
-    solver.add_request("my-app")
+    solver.add_request("my-app/2")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_decision_tree(solver.decision_tree, verbosity=100))
+
+    assert solution.get("my-app").spec.pkg.version == "2.0.0"
+    assert solution.get("python").spec.pkg.version == "3.7.3"
+
+    # requesting the older version of my-app should force old python abi
+    solver = Solver(api.OptionMap())
+    solver.add_repository(repo)
+    solver.add_request("my-app/1")
 
     try:
         solution = solver.solve()
