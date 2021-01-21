@@ -95,7 +95,8 @@ class InstallSpec:
         )
         for e in embedded:
             if "build" in e:
-                raise ValueError("embedded packages cannot specify the build field")
+                if tuple(e["build"].keys()) != ("options",):
+                    raise ValueError("embedded packages can only specify build.options")
             if "install" in e:
                 raise ValueError("embedded packages cannot specify the install field")
             es = Spec.from_dict(e)
@@ -103,6 +104,8 @@ class InstallSpec:
                 raise ValueError(
                     f"embedded package should not specify a build, got: {es.pkg}"
                 )
+            for opt in es.build.options:
+                opt.to_dict
             es.pkg.set_build(EMBEDDED)
             spec.embedded.append(es)
 

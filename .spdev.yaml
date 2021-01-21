@@ -1,6 +1,8 @@
 version: 0.18.2
 release_notes: |
   * Update solver to be less noisy on the command line
+  * Allow embedded packages to define build option values, this
+    enables package maintainers to specify compatibility for embeded packages
 
 toolchain:
   - kind: Shell

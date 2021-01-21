@@ -252,3 +252,17 @@ install:
   embedded:
     - pkg: qt/5.12.6
 ```
+
+Embedded packages can also define build options where compatibility with some existing package of the same name is desired, for example:
+
+```yaml
+pkg: maya/2019.2.0
+---
+install:
+  embedded:
+    - pkg: python/2.7.11
+      build:
+        options:
+          - { var: unicode, static: ucs4 }
+          - { var: abi, static: cp27 }
+```

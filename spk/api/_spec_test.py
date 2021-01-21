@@ -1,8 +1,10 @@
 import io
 
+import pytest
+
 from ._ident import Ident
 from ._build_spec import BuildSpec
-from ._spec import Spec, read_spec
+from ._spec import Spec, read_spec, InstallSpec
 
 from ruamel import yaml
 
@@ -22,3 +24,40 @@ def test_spec_from_dict() -> None:
 def test_empty_spec_is_valid() -> None:
 
     spec = read_spec(io.StringIO())
+
+
+def test_install____embedded_build_options() -> None:
+
+    InstallSpec.from_dict(
+        {
+            "embedded": [
+                {
+                    "pkg": "embedded/1.0.0",
+                    "build": {"options": [{"var": "python.abi", "static": "cp37"}]},
+                }
+            ]
+        }
+    )
+
+    with pytest.raises(ValueError):
+        InstallSpec.from_dict(
+            {
+                "embedded": [
+                    {"pkg": "embedded/1.0.0", "build": {"script": "echo hello"},}
+                ]
+            }
+        )
+
+    with pytest.raises(ValueError):
+        InstallSpec.from_dict(
+            {
+                "embedded": [
+                    {
+                        "pkg": "embedded/1.0.0",
+                        "build": {
+                            "options": [{"var": "python.abi", "default": "cp37"}]
+                        },
+                    }
+                ]
+            }
+        )
