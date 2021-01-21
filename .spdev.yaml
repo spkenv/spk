@@ -4,6 +4,7 @@ release_notes: |
   * Allow embedded packages to define build option values, this
     enables package maintainers to specify compatibility for embeded packages
   * Add sanity check to ensure that all provided variants produce unique builds
+  * Add recursive flag to ls command for getting all builds recursively
 
 toolchain:
   - kind: Shell
