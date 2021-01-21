@@ -96,10 +96,10 @@ def _list_recursively(
 ) -> None:
 
     for repo_name, repo in repos.items():
-        if args.package:
-            packages = [args.package]
-        else:
+        if not args.package:
             packages = repo.list_packages()
+        else:
+            packages = [args.package]
         for package in packages:
             if "/" in package:
                 versions = [package]
