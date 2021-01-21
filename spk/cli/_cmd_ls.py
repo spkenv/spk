@@ -1,10 +1,7 @@
-from typing import Callable, Any
+from typing import Any, Dict
 import argparse
-import os
 import sys
-import termios
 
-import spfs
 import structlog
 from colorama import Fore, Style
 
@@ -29,6 +26,11 @@ def register(
         nargs="?",
         help="Given a name, list versions. Given a name/version list builds",
     )
+    ls_cmd.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Recursively list all package versions and builds",
+    )
     _flags.add_repo_flags(ls_cmd)
     ls_cmd.set_defaults(func=_ls)
     return ls_cmd
@@ -50,6 +52,9 @@ def _ls(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    if args.recursive:
+        return _list_recursively(prefix, end, repos, args)
 
     if not args.package:
         for repo_name, repo in repos.items():
@@ -81,3 +86,41 @@ def _ls(args: argparse.Namespace) -> None:
                     )
                 else:
                     print(spk.io.format_ident(build), end=end)
+
+
+def _list_recursively(
+    prefix: str,
+    end: str,
+    repos: Dict[str, spk.storage.Repository],
+    args: argparse.Namespace,
+) -> None:
+
+    for repo_name, repo in repos.items():
+        if args.package:
+            packages = [args.package]
+        else:
+            packages = repo.list_packages()
+        for package in packages:
+            if "/" in package:
+                versions = [package]
+            else:
+                versions = [
+                    f"{package}/{v}" for v in repo.list_package_versions(package)
+                ]
+            for version in versions:
+                pkg = spk.api.parse_ident(version)
+                for build in repo.list_package_builds(pkg):
+                    if not build.build or build.build.is_source():
+                        print(spk.io.format_ident(build), end=end)
+                        continue
+
+                    if args.verbose:
+                        spec = repo.read_spec(build)
+                        options = spec.resolve_all_options(spk.api.OptionMap({}))
+                        print(
+                            spk.io.format_ident(build),
+                            spk.io.format_options(options),
+                            end=end,
+                        )
+                    else:
+                        print(spk.io.format_ident(build), end=end)

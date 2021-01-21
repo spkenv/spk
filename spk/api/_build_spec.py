@@ -1,4 +1,5 @@
-from typing import Dict, List, Any, Optional, Union, Set
+from enum import unique
+from typing import Dict, List, Any, Optional, Tuple, Union, Set
 import os
 import abc
 from dataclasses import dataclass, field
@@ -128,23 +129,45 @@ class BuildSpec:
         return spec
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "BuildSpec":
-        """Construct a BuildSpec from a dictionary config."""
-
+    def from_dict_unsafe(data: Dict[str, Any]) -> "BuildSpec":
+        """Construct a BuildSpec from a dictionary config without checking validation rules."""
         bs = BuildSpec()
         if "script" in data:
-            script = data.pop("script")
+            script = data.get("script", "")
             if isinstance(script, list):
                 script = "\n".join(script)
             bs.script = script
 
-        options = data.pop("options", [])
+        options = data.get("options", [])
         if options:
             bs.options = list(opt_from_dict(opt) for opt in options)
 
-        variants = data.pop("variants", [])
+        variants = data.get("variants", [])
         if variants:
             bs.variants = list(OptionMap.from_dict(v) for v in variants)
+        return bs
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "BuildSpec":
+        """Construct a BuildSpec from a dictionary config."""
+
+        bs = BuildSpec.from_dict_unsafe(data)
+        data.pop("script", None)
+        data.pop("options", None)
+        variants = data.pop("variants", [])
+
+        variant_builds: List[Tuple[str, OptionMap]] = []
+        unique_variants = set()
+        for variant in variants:
+            build_opts = bs.resolve_all_options("", variant)
+            digest = build_opts.digest()
+            variant_builds.append((digest, variant))
+            unique_variants.add(digest)
+        if len(unique_variants) < len(variant_builds):
+            raise ValueError(
+                "Multiple variants would produce the same build:\n"
+                + "\n".join(f"- {o} ({h})" for (h, o) in variant_builds)
+            )
 
         if len(data):
             raise ValueError(
@@ -252,7 +275,7 @@ class VarOpt(Option):
             raise ValueError("missing required key for VarOpt: var")
 
         opt = VarOpt(var)
-        opt.default = data.pop("default", "")
+        opt.default = str(data.pop("default", ""))
         opt.choices = set(str(c) for c in data.pop("choices", []))
         opt.set_value(str(data.pop("static", "")))
 

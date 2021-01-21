@@ -188,7 +188,12 @@ class Spec:
             spec.deprecated = bool(data.pop("deprecated"))
         for src in data.pop("sources", [{"path": "."}]):
             spec.sources.append(SourceSpec.from_dict(src))
-        spec.build = BuildSpec.from_dict(data.pop("build", {}))
+        if pkg.build is not None:
+            # if the build is set, we assume that this is a rendered spec
+            # and we do not want to make an existing rendered build spec unloadable
+            spec.build = BuildSpec.from_dict_unsafe(data.pop("build", {}))
+        else:
+            spec.build = BuildSpec.from_dict(data.pop("build", {}))
         spec.install = InstallSpec.from_dict(data.pop("install", {}))
 
         if len(data):

@@ -1,7 +1,7 @@
 from typing import Dict, Type
 import pytest
 
-from ._build_spec import Option, PkgOpt, VarOpt
+from ._build_spec import Option, PkgOpt, VarOpt, BuildSpec
 
 
 @pytest.mark.parametrize(
@@ -38,3 +38,13 @@ def test_var_opt_validation(spec: Dict, value: str, err: Type[Exception]) -> Non
         return
     with pytest.raises(err):
         opt.set_value(value)
+
+
+def test_variants_must_be_unique() -> None:
+
+    with pytest.raises(ValueError):
+
+        # unreconized variant values may be different but have no effect on build hash
+        BuildSpec.from_dict(
+            {"variants": [{"unknown": "any-value"}, {"unknown": "any_other_value"}]}
+        )

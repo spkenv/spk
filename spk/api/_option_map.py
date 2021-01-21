@@ -33,7 +33,7 @@ class OptionMap(SortedDict):
         for name, value in self.items():
             hasher.update(name.encode())
             hasher.update(b"=")
-            hasher.update(value.encode())
+            hasher.update(str(value).encode())
             hasher.update(bytes([0]))
 
         digest = hasher.digest()
