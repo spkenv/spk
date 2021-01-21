@@ -26,7 +26,7 @@ def test_empty_spec_is_valid() -> None:
     spec = read_spec(io.StringIO())
 
 
-def test_install____embedded_build_options() -> None:
+def test_install_embedded_build_options() -> None:
 
     InstallSpec.from_dict(
         {
@@ -44,20 +44,6 @@ def test_install____embedded_build_options() -> None:
             {
                 "embedded": [
                     {"pkg": "embedded/1.0.0", "build": {"script": "echo hello"},}
-                ]
-            }
-        )
-
-    with pytest.raises(ValueError):
-        InstallSpec.from_dict(
-            {
-                "embedded": [
-                    {
-                        "pkg": "embedded/1.0.0",
-                        "build": {
-                            "options": [{"var": "python.abi", "default": "cp37"}]
-                        },
-                    }
                 ]
             }
         )
