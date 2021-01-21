@@ -1,6 +1,6 @@
-version: 0.18.1
+version: 0.18.2
 release_notes: |
-  * Fix bug where some cli commands immediately fail
+  * Update solver to be less noisy on the command line
 
 toolchain:
   - kind: Shell
