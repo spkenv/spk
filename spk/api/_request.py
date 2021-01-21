@@ -203,7 +203,6 @@ class VarRequest(Request):
 
         _, name = self.var.split(".", 1)
         global_value = options.get(name)
-        print(self.var, name, global_value)
         if global_value is not None and global_value != self.value:
             return Compatibility(
                 f"incompatible global build option '{name}': '{global_value}' != '{self.value}'"
