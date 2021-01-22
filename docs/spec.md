@@ -30,6 +30,57 @@ compat: x.a.b
 
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
 
+### Sources
+
+The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be overriden with a number of different sources.
+
+#### Local Source
+
+Local directories and files are simply copied into the source area. Paths here can be absolute, or relative to the location of the spec file. Git repositories (`.git`) and other source control files are automatically excluded, using the rsync `--cvs-exclude` flag. Furthermore, if a `.gitignore` file is found in the identified directory, then it will be used to further filter the files being copied.
+
+```yaml
+sources:
+  # copy the src directory next to this spec file
+  - path: ./src
+  # copy a single file from the config directory
+  # into the root of the source area
+  - path: ./config/my_config.json
+```
+
+#### Git Source
+
+Git sources are cloned into the source area, and can take an optional ref (tag, branch name, commit) to be checked out.
+
+```yaml
+sources:
+  - git: https://github.com/qt/qt5
+    ref: v5.12.9
+```
+
+#### Tar Source
+
+Tar sources can reference both local tar files and remote ones, which will be downloaded first to a temporary location. The tar file is extraced automatically into the source area for use during the build.
+
+```yaml
+sources:
+  - tar: https://github.com/qt/qt5/archive/v5.12.9.tar.gz
+```
+
+#### Multiple Sources
+
+You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package. Some sources can be intermixed into the same location (such as local sources) but others require their own location (such as git sources).
+
+```yaml
+sources:
+  # clones this git repo into the 'someproject' subdirectory
+  - git: https://gitlab.spimageworks.com/someproject
+    ref: master
+    subdir: someproject
+    # copies the contents of the spec file's location into the 'src' subdirectory
+  - path: ./
+    subdir: src
+```
+
 ### Build Configuration
 
 The build section of the package spec tells spk how to properly compile and cature your software as a package.
@@ -57,7 +108,7 @@ Best practice for defining boolean options is to follow the cmake convention of 
 {{% /notice %}}
 
 {{% notice tip %}}
-Best practice for package requrements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itselfrather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
+Best practice for package requrements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itself rather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
 {{% /notice %}}
 
 ##### Common Build Options
@@ -120,57 +171,6 @@ Make sure that you have defined a build option for whatever you specify in your 
 {{% notice tip %}}
 Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
 {{% /notice %}}
-
-### Sources
-
-The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be overriden with a number of different sources.
-
-#### Local Source
-
-Local directories and files are simply copied into the source area. Paths here can be absolute, or relative to the location of the spec file. Git repositories (`.git`) and other source control files are automatically excluded, using the rsync `--cvs-exclude` flag. Furthermore, if a `.gitignore` file is found in the identified directory, then it will be used to further filter the files being copied.
-
-```yaml
-sources:
-  # copy the src directory next to this spec file
-  - path: ./src
-  # copy a single file from the config directory
-  # into the root of the source area
-  - path: ./config/my_config.json
-```
-
-#### Git Source
-
-Git sources are cloned into the source area, and can take an optional ref (tag, branch name, commit) to be checked out.
-
-```yaml
-sources:
-  - git: https://github.com/qt/qt5
-    ref: v5.12.9
-```
-
-#### Tar Source
-
-Tar sources can reference both local tar files and remote ones, which will be downloaded first to a temporary location. The tar file is extraced automatically into the source area for use during the build.
-
-```yaml
-sources:
-  - tar: https://github.com/qt/qt5/archive/v5.12.9.tar.gz
-```
-
-#### Multiple Sources
-
-You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package. Some sources can be intermixed into the same location (such as local sources) but others require their own location (such as git sources).
-
-```yaml
-sources:
-  # clones this git repo into the 'someproject' subdirectory
-  - git: https://gitlab.spimageworks.com/someproject
-    ref: master
-    subdir: someproject
-    # copies the contents of the spec file's location into the 'src' subdirectory
-  - path: ./
-    subdir: src
-```
 
 ### Install Configuration
 
@@ -247,7 +247,6 @@ Some software, like Maya or other DCC applications, come bundled with their own 
 
 ```yaml
 pkg: maya/2019.2.0
----
 install:
   embedded:
     - pkg: qt/5.12.6
@@ -257,12 +256,10 @@ Embedded packages can also define build options where compatibility with some ex
 
 ```yaml
 pkg: maya/2019.2.0
----
 install:
   embedded:
     - pkg: python/2.7.11
       build:
         options:
-          - { var: unicode, static: ucs4 }
-          - { var: abi, static: cp27 }
+          - { var: abi, static: cp27m }
 ```

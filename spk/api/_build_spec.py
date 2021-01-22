@@ -1,7 +1,7 @@
-from enum import unique
 from typing import Dict, List, Any, Optional, Tuple, Union, Set
 import os
 import abc
+import enum
 from dataclasses import dataclass, field
 
 from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
@@ -156,6 +156,12 @@ class BuildSpec:
         data.pop("options", None)
         variants = data.pop("variants", [])
 
+        unique_options = set()
+        for opt in bs.options:
+            if opt.name() in unique_options:
+                raise ValueError(f"Build option specified more than once: {opt.name()}")
+            unique_options.add(opt.name())
+
         variant_builds: List[Tuple[str, OptionMap]] = []
         unique_variants = set()
         for variant in variants:
@@ -200,11 +206,23 @@ def opt_from_request(request: Request) -> "PkgOpt":
     raise ValueError(f"Cannot convert {type(request)} to option")
 
 
+class Inheritance(enum.Enum):
+    """Defines the way in which a build option in inherited by downstream packages."""
+
+    # the default value, not inherited by downstream packages unless redefined
+    weak = "Weak"
+    # inherited by downstream packages as a build option only
+    strong_build_only = "StrongForBuildOnly"
+    # inherited by downstream packages as both build options and install requirement
+    strong = "Strong"
+
+
 class VarOpt(Option):
     def __init__(self, var: str, default: str = "", choices: Set[str] = None) -> None:
         self.var = var
         self.default = default
         self.choices = choices if choices else set()
+        self.inheritance = Inheritance.weak
         super(VarOpt, self).__init__()
 
     def __repr__(self) -> str:
@@ -264,6 +282,10 @@ class VarOpt(Option):
         base_value = super(VarOpt, self).get_value()
         if base_value:
             spec["static"] = base_value
+
+        if self.inheritance is not Inheritance.weak:
+            spec["inheritance"] = self.inheritance.value
+
         return spec
 
     @staticmethod
@@ -278,6 +300,9 @@ class VarOpt(Option):
         opt.default = str(data.pop("default", ""))
         opt.choices = set(str(c) for c in data.pop("choices", []))
         opt.set_value(str(data.pop("static", "")))
+
+        inheritance = str(data.pop("inheritance", Inheritance.weak.value))
+        opt.inheritance = Inheritance(inheritance)
 
         if len(data):
             raise ValueError(f"unrecognized fields in var: {', '.join(data.keys())}")

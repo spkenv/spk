@@ -237,3 +237,48 @@ def test_build_package_source_cleanup(tmprepo: storage.SpFSRepository) -> None:
 
     source_dir_files = manifest.list_dir(data_path(src_pkg, prefix=""))
     assert not source_dir_files, "no files should be committed from source path"
+
+
+def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) -> None:
+
+    base_spec = api.Spec.from_dict(
+        {
+            "pkg": "base/1.0.0",
+            "sources": [],
+            "build": {
+                "options": [{"var": "inherited", "inheritance": "Strong"}],
+                "script": "echo building...",
+            },
+        }
+    )
+    top_spec = api.Spec.from_dict(
+        {
+            "pkg": "top/1.0.0",
+            "sources": [],
+            "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
+        }
+    )
+    tmprepo.publish_spec(base_spec)
+    tmprepo.publish_spec(top_spec)
+
+    SourcePackageBuilder.from_spec(base_spec).with_target_repository(tmprepo).build()
+    base_pkg = (
+        BinaryPackageBuilder.from_spec(base_spec).with_repository(tmprepo).build()
+    )
+
+    SourcePackageBuilder.from_spec(top_spec).with_target_repository(tmprepo).build()
+    top_pkg = BinaryPackageBuilder.from_spec(top_spec).with_repository(tmprepo).build()
+
+    assert len(top_pkg.build.options) == 2, "should get option added"
+    opt = top_pkg.build.options[1]
+    assert isinstance(opt, api.VarOpt), "should be given inherited option"
+    assert opt.var == "base.inherited", "should be inherited as package option"
+    assert (
+        opt.inheritance is api.Inheritance.weak
+    ), "inherited option should have weak inheritance"
+
+    assert len(top_pkg.install.requirements) == 1, "should get install requirement"
+    req = top_pkg.install.requirements[0]
+    assert isinstance(req, api.VarRequest), "should be given var request"
+    assert req.var == "base.inherited", "should be inherited with package namespace"
+    assert req.pin, "should be a pinned var requirement"

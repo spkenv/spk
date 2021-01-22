@@ -10,7 +10,7 @@ from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request, PkgRequest, VarRequest
 from ._option_map import OptionMap
-from ._build_spec import BuildSpec, PkgOpt
+from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance
 from ._source_spec import SourceSpec, LocalSource
 
 
@@ -159,6 +159,23 @@ class Spec:
         self.install.render_all_pins(options, (spec.pkg for spec in resolved))
 
         specs = dict((s.pkg.name, s) for s in resolved)
+        for dep_name, dep_spec in specs.items():
+            for opt in dep_spec.build.options:
+                if not isinstance(opt, VarOpt):
+                    continue
+                if opt.inheritance is Inheritance.weak:
+                    continue
+                inherited_opt = VarOpt.from_dict(opt.to_dict())
+                if "." not in inherited_opt.var:
+                    inherited_opt.var = f"{dep_name}.{opt.var}"
+                inherited_opt.inheritance = Inheritance.weak
+                _LOGGER.debug(
+                    "inheriting option from build dependency", var=inherited_opt.var
+                )
+                self.build.upsert_opt(inherited_opt)
+                if opt.inheritance is Inheritance.strong:
+                    req = VarRequest(inherited_opt.var, pin=True)
+                    self.install.upsert_requirement(req)
 
         build_options = list(self.build.options)
         for e in self.install.embedded:
