@@ -10,7 +10,7 @@ from ._ident import Ident, parse_ident
 from ._compat import Compat, parse_compat
 from ._request import Request, PkgRequest, VarRequest
 from ._option_map import OptionMap
-from ._build_spec import BuildSpec, PkgOpt
+from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance
 from ._source_spec import SourceSpec, LocalSource
 
 
@@ -159,6 +159,17 @@ class Spec:
         self.install.render_all_pins(options, (spec.pkg for spec in resolved))
 
         specs = dict((s.pkg.name, s) for s in resolved)
+        for pkg_name, spec in specs.items():
+            for opt in spec.build.options:
+                if not isinstance(opt, VarOpt):
+                    continue
+                if opt.inheritance is not Inheritance.strong:
+                    continue
+                opt = VarOpt.from_dict(opt.to_dict())
+                if "." not in opt.var:
+                    opt.var = f"{pkg_name}.{opt.var}"
+                opt.inheritance = Inheritance.weak
+                self.build.options.append(opt)
 
         build_options = list(self.build.options)
         for e in self.install.embedded:

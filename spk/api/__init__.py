@@ -10,7 +10,7 @@ from ._version_range import (
     VERSION_RANGE_SEP,
     parse_version_range,
 )
-from ._build_spec import BuildSpec, opt_from_dict, VarOpt, PkgOpt, Option
+from ._build_spec import BuildSpec, opt_from_dict, VarOpt, PkgOpt, Option, Inheritance
 from ._source_spec import SourceSpec, LocalSource, GitSource, TarSource
 from ._request import (
     Request,
