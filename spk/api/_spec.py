@@ -11,6 +11,7 @@ from ._compat import Compat, parse_compat
 from ._request import Request, PkgRequest, VarRequest
 from ._option_map import OptionMap
 from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance
+from ._test_spec import TestSpec
 from ._source_spec import SourceSpec, LocalSource
 
 
@@ -126,6 +127,7 @@ class Spec:
     deprecated: bool = False
     sources: List[SourceSpec] = field(default_factory=list)
     build: BuildSpec = field(default_factory=BuildSpec)
+    tests: List[TestSpec] = field(default_factory=list)
     install: InstallSpec = field(default_factory=InstallSpec)
 
     def clone(self) -> "Spec":
@@ -205,6 +207,8 @@ class Spec:
             spec.deprecated = bool(data.pop("deprecated"))
         for src in data.pop("sources", [{"path": "."}]):
             spec.sources.append(SourceSpec.from_dict(src))
+        for test in data.pop("tests", []):
+            spec.tests.append(TestSpec.from_dict(test))
         if pkg.build is not None:
             # if the build is set, we assume that this is a rendered spec
             # and we do not want to make an existing rendered build spec unloadable
@@ -227,6 +231,9 @@ class Spec:
             spec["compat"] = str(self.compat)
         if self.deprecated:
             spec["deprecated"] = self.deprecated
+
+        spec["sources"] = [src.to_dict() for src in self.sources]
+        spec["tests"] = [test.to_dict() for test in self.tests]
 
         build = self.build.to_dict()
         if build:
