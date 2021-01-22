@@ -156,6 +156,12 @@ class BuildSpec:
         data.pop("options", None)
         variants = data.pop("variants", [])
 
+        unique_options = set()
+        for opt in bs.options:
+            if opt.name() in unique_options:
+                raise ValueError(f"Build option specified more than once: {opt.name()}")
+            unique_options.add(opt.name())
+
         variant_builds: List[Tuple[str, OptionMap]] = []
         unique_variants = set()
         for variant in variants:
