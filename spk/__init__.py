@@ -2,7 +2,7 @@
 
 __version__ = "0.19.0"
 
-from . import api, storage, solve, build, exec
+from . import api, storage, solve, build, exec, test
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError
 from ._publish import Publisher

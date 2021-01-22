@@ -44,9 +44,18 @@ def _test(args: argparse.Namespace) -> None:
         spec, filename = _flags.find_package_spec(name)
 
         for stage in stages:
-            if stage not in _VALID_STAGES:
+
+            _LOGGER.info(f"Testing {filename}@{stage}...")
+
+            if stage == "sources":
+                tester = spk.test.PackageSourceTester(spec)
+            elif stage == "build":
+                tester = spk.test.PackageBuildTester(spec)
+            elif stage == "install":
+                tester = spk.test.PackageInstallTester(spec)
+            else:
                 raise ValueError(
                     f"Untestable stage '{stage}', must be one of {_VALID_STAGES}"
                 )
 
-            _LOGGER.info(f"Testing {filename}@{stage}...")
+            tester.test()
