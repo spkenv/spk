@@ -176,7 +176,7 @@ class VarRequest(Request):
     """A set of restrictions placed on selected packages' build options."""
 
     var: str
-    value: str
+    value: str = ""
     pin: bool = False
 
     def package(self) -> Optional[str]:

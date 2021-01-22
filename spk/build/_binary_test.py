@@ -270,9 +270,15 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
     top_pkg = BinaryPackageBuilder.from_spec(top_spec).with_repository(tmprepo).build()
 
     assert len(top_pkg.build.options) == 2, "should get option added"
-    req = top_pkg.build.options[1]
-    assert isinstance(req, api.VarOpt), "should be given inherited option"
-    assert req.var == "base.inherited", "should be inherited as package option"
+    opt = top_pkg.build.options[1]
+    assert isinstance(opt, api.VarOpt), "should be given inherited option"
+    assert opt.var == "base.inherited", "should be inherited as package option"
     assert (
-        req.inheritance is api.Inheritance.weak
+        opt.inheritance is api.Inheritance.weak
     ), "inherited option should have weak inheritance"
+
+    assert len(top_pkg.install.requirements) == 1, "should get install requirement"
+    req = top_pkg.install.requirements[0]
+    assert isinstance(req, api.VarRequest), "should be given var request"
+    assert req.var == "base.inherited", "should be inherited with package namespace"
+    assert req.pin, "should be a pinned var requirement"

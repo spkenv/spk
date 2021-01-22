@@ -209,7 +209,11 @@ def opt_from_request(request: Request) -> "PkgOpt":
 class Inheritance(enum.Enum):
     """Defines the way in which a build option in inherited by downstream packages."""
 
+    # the default value, not inherited by downstream packages unless redefined
     weak = "Weak"
+    # inherited by downstream packages as a build option only
+    strong_build_only = "StrongForBuildOnly"
+    # inherited by downstream packages as both build options and install requirement
     strong = "Strong"
 
 
