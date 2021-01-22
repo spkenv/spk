@@ -55,14 +55,15 @@ class BuildSpec:
     variants: List[OptionMap] = field(default_factory=lambda: [OptionMap()])
 
     def resolve_all_options(
-        self, package_name: str, given: Union[Dict, OptionMap] = {}
+        self, package_name: str = None, given: Union[Dict, OptionMap] = {}
     ) -> OptionMap:
 
         if not isinstance(given, OptionMap):
             given = OptionMap(given.items())
 
         resolved = OptionMap()
-        given = given.package_options(package_name)
+        if package_name is not None:
+            given = given.package_options(package_name)
         for opt in self.options:
 
             name = opt.name()
@@ -165,7 +166,7 @@ class BuildSpec:
         variant_builds: List[Tuple[str, OptionMap]] = []
         unique_variants = set()
         for variant in variants:
-            build_opts = bs.resolve_all_options("", variant)
+            build_opts = bs.resolve_all_options(None, variant)
             digest = build_opts.digest()
             variant_builds.append((digest, variant))
             unique_variants.add(digest)
