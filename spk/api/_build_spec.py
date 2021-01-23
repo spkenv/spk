@@ -254,7 +254,7 @@ class VarOpt(Option):
     def validate(self, value: Optional[str]) -> Compatibility:
 
         if value is None:
-            value = self.default
+            value = self.get_value(None)
 
         assigned = super(VarOpt, self).get_value()
         if assigned:

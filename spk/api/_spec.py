@@ -62,7 +62,7 @@ class InstallSpec:
                     )
                 self.requirements[i] = request.render_pin(by_name[request.pkg.name])
 
-            if isinstance(request, VarRequest):
+            elif isinstance(request, VarRequest):
                 if not request.pin:
                     continue
                 var = request.var
@@ -158,8 +158,6 @@ class Spec:
     def update_for_build(self, options: OptionMap, resolved: List["Spec"]) -> None:
         """Update this spec to represent a specific binary package build."""
 
-        self.install.render_all_pins(options, (spec.pkg for spec in resolved))
-
         specs = dict((s.pkg.name, s) for s in resolved)
         for dep_name, dep_spec in specs.items():
             for opt in dep_spec.build.options:
@@ -194,6 +192,7 @@ class Spec:
 
             opt.set_value(str(spec.compat.render(spec.pkg.version)))
 
+        self.install.render_all_pins(options, (spec.pkg for spec in resolved))
         self.pkg.set_build(self.resolve_all_options(options).digest())
 
     @staticmethod
