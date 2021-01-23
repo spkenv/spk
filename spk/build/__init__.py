@@ -5,4 +5,6 @@ from ._binary import (
     build_options_path,
     build_script_path,
     build_spec_path,
+    source_package_path,
+    get_package_build_env,
 )
