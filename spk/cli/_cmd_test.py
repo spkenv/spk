@@ -39,7 +39,10 @@ def register(
         metavar="FILE|PKG[@STAGE] ...",
         nargs="*",
         default=[""],
-        help=f"The package(s) to test. If stage is given is should be one of: {', '.join(_VALID_STAGES)}",
+        help=(
+            "The package(s) to test. Can be a file name or <name>/<version> of an existing package. "
+            f"If stage is given is should be one of: {', '.join(_VALID_STAGES)}"
+        ),
     )
     _flags.add_repo_flags(test_cmd, default_local=True)
     _flags.add_option_flags(test_cmd)
@@ -64,7 +67,19 @@ def _test(args: argparse.Namespace) -> None:
         name, *stages = package.split("@", 1)
         stages = stages or _VALID_STAGES
 
-        spec, filename = _flags.find_package_spec(name)
+        try:
+            spec, filename = _flags.find_package_spec(name)
+        except FileNotFoundError:
+            filename = package
+            pkg = spk.api.parse_ident(package)
+            for repo in repos.values():
+                try:
+                    spec = repo.read_spec(pkg)
+                    break
+                except spk.storage.PackageNotFoundError:
+                    continue
+            else:
+                raise spk.storage.PackageNotFoundError(package)
 
         for stage in stages:
             _LOGGER.info(f"Testing {filename}@{stage}...")
