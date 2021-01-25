@@ -166,7 +166,8 @@ class BuildSpec:
         variant_builds: List[Tuple[str, OptionMap]] = []
         unique_variants = set()
         for variant in variants:
-            build_opts = bs.resolve_all_options(None, variant)
+            build_opts = OptionMap(variant)
+            build_opts.update(bs.resolve_all_options(None, variant))
             digest = build_opts.digest()
             variant_builds.append((digest, variant))
             unique_variants.add(digest)

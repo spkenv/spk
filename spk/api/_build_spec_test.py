@@ -44,7 +44,18 @@ def test_variants_must_be_unique() -> None:
 
     with pytest.raises(ValueError):
 
-        # unreconized variant values may be different but have no effect on build hash
+        # two variants end up resolving to the same set of options
         BuildSpec.from_dict(
-            {"variants": [{"unknown": "any-value"}, {"unknown": "any_other_value"}]}
+            {
+                "options": [{"var": "my-opt", "default": "any-value"}],
+                "variants": [{"my-opt": "any-value"}, {}],
+            },
         )
+
+
+def test_variants_must_be_unique_unknown_ok() -> None:
+
+    # unreconized variant values are ok if they are unique still
+    BuildSpec.from_dict(
+        {"variants": [{"unknown": "any-value"}, {"unknown": "any_other_value"}]}
+    )
