@@ -67,6 +67,7 @@ def _test(args: argparse.Namespace) -> None:
         spec, filename = _flags.find_package_spec(name)
 
         for stage in stages:
+            _LOGGER.info(f"Testing {filename}@{stage}...")
 
             tested = set()
             for variant in spec.build.variants:
@@ -86,9 +87,19 @@ def _test(args: argparse.Namespace) -> None:
                 for index, test in enumerate(spec.tests):
                     if test.stage != stage:
                         continue
-                    _LOGGER.info(
-                        f"Testing {filename}@{stage}...", index=index, variant=opts
-                    )
+
+                    for selector in test.selectors:
+                        selected_opts = opts.copy()
+                        selected_opts.update(selector)
+                        if selected_opts.digest() == digest:
+                            break
+                    else:
+                        if test.selectors:
+                            _LOGGER.info(
+                                "SKIP: variant not selected", test=index, variant=opts
+                            )
+                            continue
+                    _LOGGER.info("Running test", test=index, variant=opts)
 
                     tester: Union[
                         spk.test.PackageSourceTester,

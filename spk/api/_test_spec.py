@@ -4,10 +4,7 @@ import abc
 import enum
 from dataclasses import dataclass, field
 
-from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
 from ._option_map import OptionMap
-from ._name import validate_name
-from ._compat import Compatibility, COMPATIBLE
 
 
 @dataclass
@@ -16,12 +13,15 @@ class TestSpec:
 
     stage: str
     script: str
+    selectors: List[OptionMap] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         spec: Dict[str, Any] = {
             "stage": self.stage,
             "script": self.script.splitlines(),
         }
+        if self.selectors:
+            spec["selectors"] = [s.to_dict() for s in self.selectors]
         return spec
 
     @staticmethod
@@ -34,6 +34,7 @@ class TestSpec:
             script = "\n".join(script)
 
         ts = TestSpec(stage, script)
+        ts.selectors = [OptionMap(**data) for data in data.pop("selectors", [])]
 
         if len(data):
             raise ValueError(
