@@ -246,7 +246,9 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
             "pkg": "base/1.0.0",
             "sources": [],
             "build": {
-                "options": [{"var": "inherited", "inheritance": "Strong"}],
+                "options": [
+                    {"var": "inherited", "default": "val", "inheritance": "Strong"}
+                ],
                 "script": "echo building...",
             },
         }
@@ -281,4 +283,5 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
     req = top_pkg.install.requirements[0]
     assert isinstance(req, api.VarRequest), "should be given var request"
     assert req.var == "base.inherited", "should be inherited with package namespace"
-    assert req.pin, "should be a pinned var requirement"
+    assert not req.pin, "should not be pinned after build"
+    assert req.value == "val", "should be rendered to build time var"

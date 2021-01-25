@@ -34,9 +34,9 @@ def tmpspfs() -> spfs.storage.fs.FSRepository:
 
 
 @pytest.mark.parametrize(
-    "stage,spec_file", itertools.product(("mks", "mkb"), testable_examples)
+    "stage,spec_file", itertools.product(("mks", "mkb", "test"), testable_examples)
 )
-def test_build_package(stage: str, spec_file: str) -> None:
+def test_example(stage: str, spec_file: str) -> None:
 
     subprocess.check_call(
         [os.path.dirname(sys.executable) + "/spk", stage, "-vv", spec_file]

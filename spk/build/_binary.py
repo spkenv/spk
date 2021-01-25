@@ -230,7 +230,7 @@ class BinaryPackageBuilder:
         env["PREFIX"] = self._prefix
 
         if isinstance(self._source, api.Ident):
-            source_dir = data_path(self._source, prefix=self._prefix)
+            source_dir = source_package_path(self._source, self._prefix)
         else:
             source_dir = os.path.abspath(self._source)
 
@@ -273,6 +273,11 @@ def get_package_build_env(spec: api.Spec) -> Dict[str, str]:
             api.VERSION_SEP.join(str(p) for p in spec.pkg.version.parts)
         ),
     }
+
+
+def source_package_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
+    """Return the file path for the given source package's files."""
+    return data_path(pkg, prefix=prefix)
 
 
 def build_spec_path(pkg: api.Ident, prefix: str = "/spfs") -> str:

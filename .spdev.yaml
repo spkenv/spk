@@ -1,7 +1,15 @@
-version: 0.19.0
+version: 0.20.0
 release_notes: |
-  * Add option inheritance, which allows var options to be passed up
-    from build-time dependencies to the built package.
+  ## Package Testing
+
+  Adds `spk test` command and `tests` section to the package
+  spec file which supports first class definition of tests
+  for packages. Supports unit and integration-type testing
+  as well as validation of source packages.
+
+  ## Fixes
+  - Fix bug where build spec could be seen as having duplicant variants even when that's not true
+  - Fix bug where packages did not properly receive pinned inherited var
 
 toolchain:
   - kind: Shell

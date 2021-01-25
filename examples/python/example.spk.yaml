@@ -1,15 +1,21 @@
 pkg: python-example/0.1.0
 
 build:
-
   options:
     - pkg: python
   variants:
-    - {python: 2}
-    - {python: 3}
-
+    - { python: 2 }
+    - { python: 3 }
   script:
     - /spfs/bin/python -EBs setup.py install
+
+tests:
+  - stage: build
+    selectors:
+      - { python: 3 }
+    script: python -m "unittest"
+  - stage: install
+    script: python -m "python_example" --help
 
 install:
   requirements:

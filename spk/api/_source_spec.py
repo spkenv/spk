@@ -40,6 +40,10 @@ class SourceSpec(metaclass=abc.ABCMeta):
         else:
             raise ValueError("Cannot determine type of source specifier")
 
+    @abc.abstractmethod
+    def to_dict(self) -> Dict[str, Any]:
+        ...
+
 
 @dataclass
 class LocalSource(SourceSpec):

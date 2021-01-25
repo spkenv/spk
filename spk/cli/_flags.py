@@ -191,15 +191,27 @@ def find_package_spec(package: str) -> Tuple[spk.api.Spec, str]:
 
 
 def add_repo_flags(
-    parser: argparse.ArgumentParser, defaults: List[str] = ["origin"]
+    parser: argparse.ArgumentParser,
+    defaults: List[str] = ["origin"],
+    default_local: bool = False,
 ) -> None:
 
-    parser.add_argument(
-        "--local-repo",
-        "-l",
-        action="store_true",
-        help="Enable resolving packages from the local repository",
-    )
+    if not default_local:
+        parser.add_argument(
+            "--local-repo",
+            "-l",
+            action="store_true",
+            help="Enable resolving packages from the local repository",
+        )
+    else:
+        parser.add_argument(
+            "--no-local-repo",
+            "-nl",
+            dest="local_repo",
+            action="store_false",
+            default=True,
+            help="Disable resolving packages from the local repository",
+        )
     parser.add_argument(
         "--enable-repo",
         "-r",
