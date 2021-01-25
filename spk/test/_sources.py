@@ -16,6 +16,7 @@ class PackageSourceTester:
         self._script = script
         self._repos: List[storage.Repository] = []
         self._options = api.OptionMap()
+        self._source: Optional[str] = None
         self._solver: Optional[solve.Solver] = None
 
     def get_test_env_decision_tree(self) -> solve.DecisionTree:
@@ -53,6 +54,11 @@ class PackageSourceTester:
         self._repos.extend(repos)
         return self
 
+    def with_source(self, source: str) -> "PackageSourceTester":
+
+        self._source = source
+        return self
+
     def test(self) -> None:
 
         runtime = spfs.active_runtime()
@@ -75,9 +81,12 @@ class PackageSourceTester:
         env = solution.to_environment() or {}
         env["PREFIX"] = self._prefix
 
-        source_dir = build.source_package_path(
-            self._spec.pkg.with_build(api.SRC), self._prefix
-        )
+        if self._source is not None:
+            source_dir = self._source
+        else:
+            source_dir = build.source_package_path(
+                self._spec.pkg.with_build(api.SRC), self._prefix
+            )
         with tempfile.NamedTemporaryFile("w+") as script_file:
             script_file.write(self._script)
             script_file.flush()

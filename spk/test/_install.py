@@ -16,6 +16,7 @@ class PackageInstallTester:
         self._script = script
         self._repos: List[storage.Repository] = []
         self._options = api.OptionMap()
+        self._source: Optional[str] = None
         self._solver: Optional[solve.Solver] = None
 
     def get_test_env_decision_tree(self) -> solve.DecisionTree:
@@ -53,6 +54,11 @@ class PackageInstallTester:
         self._repos.extend(repos)
         return self
 
+    def with_source(self, source: str) -> "PackageInstallTester":
+
+        self._source = source
+        return self
+
     def test(self) -> None:
 
         runtime = spfs.active_runtime()
@@ -75,6 +81,10 @@ class PackageInstallTester:
         env = solution.to_environment() or {}
         env["PREFIX"] = self._prefix
 
+        source_dir = "."
+        if self._source is not None:
+            source_dir = self._source
+
         with tempfile.NamedTemporaryFile("w+") as script_file:
             script_file.write(self._script)
             script_file.flush()
@@ -83,7 +93,7 @@ class PackageInstallTester:
                 "/bin/sh", "-ex", script_file.name
             )
 
-            proc = subprocess.Popen(cmd, env=env)
+            proc = subprocess.Popen(cmd, env=env, cwd=source_dir)
             proc.wait()
             if proc.returncode != 0:
                 raise TestError(

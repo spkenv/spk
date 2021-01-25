@@ -12,6 +12,7 @@ from spk.io import format_decision
 from . import _flags
 
 _LOGGER = structlog.get_logger("cli")
+_VALID_STAGES = ("sources", "build", "install")
 
 
 def register(
@@ -23,21 +24,26 @@ def register(
         "--no-runtime",
         "-nr",
         action="store_true",
-        help="Do not build in a new spfs runtime (useful for speed and debugging)",
+        help="Do not setup a new spfs runtime (useful for speed and debugging)",
+    )
+    test_cmd.add_argument(
+        "--here",
+        action="store_true",
+        help=(
+            "Test in the current directory, instead of the source package "
+            "(mostly relevant when testing source and build stages)"
+        ),
     )
     test_cmd.add_argument(
         "packages",
         metavar="FILE|PKG[@STAGE] ...",
         nargs="*",
         default=[""],
-        help="The package(s) to test",
+        help=f"The package(s) to test. If stage is given is should be one of: {', '.join(_VALID_STAGES)}",
     )
     _flags.add_repo_flags(test_cmd, default_local=True)
     test_cmd.set_defaults(func=_test)
     return test_cmd
-
-
-_VALID_STAGES = ("sources", "build", "install")
 
 
 def _test(args: argparse.Namespace) -> None:
@@ -84,6 +90,8 @@ def _test(args: argparse.Namespace) -> None:
                 tester = tester.with_options(spk.api.host_options()).with_repositories(
                     repos.values()
                 )
+                if args.here:
+                    tester = tester.with_source(args.here)
                 try:
                     tester.test()
                 except spk.SolverError:

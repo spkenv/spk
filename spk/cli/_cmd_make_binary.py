@@ -33,10 +33,7 @@ def register(
     mkb_cmd.add_argument(
         "--here",
         action="store_true",
-        help=(
-            "Build from the current directory, instead of a source package "
-            "(only relevant when building from a source package, not yaml spec files)"
-        ),
+        help=("Build from the current directory, instead of a source package "),
     )
     mkb_cmd.add_argument(
         "--interactive",

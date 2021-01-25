@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Union
 import os
 import signal
 import subprocess
@@ -22,6 +22,7 @@ class PackageBuildTester:
         self._script = script
         self._repos: List[storage.Repository] = []
         self._options = api.OptionMap()
+        self._source: Union[str, api.Ident] = spec.pkg.with_build(api.SRC)
         self._solver: Optional[solve.Solver] = None
 
     def get_test_env_decision_tree(self) -> solve.DecisionTree:
@@ -50,6 +51,11 @@ class PackageBuildTester:
     def with_repository(self, repo: storage.Repository) -> "PackageBuildTester":
 
         self._repos.append(repo)
+        return self
+
+    def with_source(self, source: Union[str, api.Ident]) -> "PackageBuildTester":
+
+        self._source = source
         return self
 
     def with_repositories(
@@ -125,9 +131,12 @@ class PackageBuildTester:
                 # local repo is always injected first, and duplicates are redundant
                 continue
             self._solver.add_repository(repo)
-        ident_range = api.parse_ident_range(
-            f"{self._spec.pkg.name}/={self._spec.pkg.version}/{api.SRC}"
-        )
-        request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
-        self._solver.add_request(request)
+
+        if isinstance(self._source, api.Ident):
+            ident_range = api.parse_ident_range(
+                f"{self._source.name}/={self._source.version}/{self._source.build}"
+            )
+            request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
+            self._solver.add_request(request)
+
         return self._solver.solve()
