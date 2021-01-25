@@ -231,8 +231,10 @@ class Spec:
         if self.deprecated:
             spec["deprecated"] = self.deprecated
 
-        spec["sources"] = [src.to_dict() for src in self.sources]
-        spec["tests"] = [test.to_dict() for test in self.tests]
+        if self.sources:
+            spec["sources"] = [src.to_dict() for src in self.sources]
+        if self.tests:
+            spec["tests"] = [test.to_dict() for test in self.tests]
 
         build = self.build.to_dict()
         if build:
