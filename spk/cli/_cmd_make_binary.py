@@ -65,6 +65,8 @@ def _make_binary(args: argparse.Namespace) -> None:
     else:
         runtime = spfs.active_runtime()
 
+    options = _flags.get_options_from_flags(args)
+    repos = _flags.get_repos_from_repo_flags(args).values()
     for package in args.packages:
         if os.path.isfile(package):
             spec = spk.api.read_spec_file(package)
@@ -73,8 +75,6 @@ def _make_binary(args: argparse.Namespace) -> None:
         else:
             spec = spk.load_spec(package)
 
-        options = _flags.get_options_from_flags(args)
-        repos = _flags.get_repos_from_repo_flags(args).values()
         _LOGGER.info("building binary package", pkg=spec.pkg)
         built = set()
         for variant in spec.build.variants:
