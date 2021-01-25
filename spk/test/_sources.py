@@ -95,8 +95,9 @@ class PackageSourceTester:
                 "/bin/sh", "-ex", script_file.name
             )
 
-            proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
-            proc.wait()
+            with build.deferred_signals():
+                proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
+                proc.wait()
             if proc.returncode != 0:
                 raise TestError(
                     f"Test script returned non-zero exit status: {proc.returncode}"

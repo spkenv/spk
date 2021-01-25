@@ -8,3 +8,5 @@ from ._binary import (
     source_package_path,
     get_package_build_env,
 )
+
+from ._env import deferred_signals

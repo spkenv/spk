@@ -1,5 +1,7 @@
-from typing import Optional, Pattern, Mapping
+from typing import Iterator, Optional, Pattern, Mapping
 import re
+import signal
+from contextlib import contextmanager
 
 from .. import api
 
@@ -76,3 +78,17 @@ def expand_vars(value: str, vars: Mapping[str, str]) -> str:
         i = len(value)
         value += tail
     return value
+
+
+@contextmanager
+def deferred_signals() -> Iterator[None]:
+
+    # do not react to os signals while the subprocess is running,
+    # these should be handled by the underlying process instead
+    signal.signal(signal.SIGINT, lambda *_: None)
+    signal.signal(signal.SIGTERM, lambda *_: None)
+    try:
+        yield None
+    finally:
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)

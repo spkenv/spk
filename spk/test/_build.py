@@ -107,20 +107,13 @@ class PackageBuildTester:
                 "/bin/sh", "-ex", script_file.name
             )
 
-            # do not react to os signals while the subprocess is running,
-            # these should be handled by the underlying process instead
-            signal.signal(signal.SIGINT, lambda *_: None)
-            signal.signal(signal.SIGTERM, lambda *_: None)
-            try:
+            with build.deferred_signals():
                 proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
                 proc.wait()
-                if proc.returncode != 0:
-                    raise TestError(
-                        f"Test script returned non-zero exit status: {proc.returncode}"
-                    )
-            finally:
-                signal.signal(signal.SIGINT, signal.SIG_DFL)
-                signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            if proc.returncode != 0:
+                raise TestError(
+                    f"Test script returned non-zero exit status: {proc.returncode}"
+                )
 
     def _resolve_source_package(self) -> solve.Solution:
 

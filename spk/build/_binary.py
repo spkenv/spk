@@ -8,7 +8,7 @@ import structlog
 import spfs
 
 from .. import api, storage, solve, exec
-from ._env import data_path
+from ._env import data_path, deferred_signals
 
 _LOGGER = structlog.get_logger("spk.build")
 
@@ -250,8 +250,9 @@ class BinaryPackageBuilder:
         else:
             os.environ["SHELL"] = "sh"
             cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
-        proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
-        proc.wait()
+        with deferred_signals():
+            proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
+            proc.wait()
         if proc.returncode != 0:
             raise BuildError(
                 f"Build script returned non-zero exit status: {proc.returncode}"

@@ -5,7 +5,7 @@ from typing import Iterable, List, Optional
 
 import spfs
 
-from .. import api, storage, solve, exec
+from .. import api, storage, solve, exec, build
 from ._build import TestError
 
 
@@ -93,8 +93,9 @@ class PackageInstallTester:
                 "/bin/sh", "-ex", script_file.name
             )
 
-            proc = subprocess.Popen(cmd, env=env, cwd=source_dir)
-            proc.wait()
+            with build.deferred_signals():
+                proc = subprocess.Popen(cmd, env=env, cwd=source_dir)
+                proc.wait()
             if proc.returncode != 0:
                 raise TestError(
                     f"Test script returned non-zero exit status: {proc.returncode}"

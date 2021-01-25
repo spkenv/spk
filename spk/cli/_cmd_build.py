@@ -1,3 +1,4 @@
+from spk import build
 from typing import Any
 import argparse
 import os
@@ -50,8 +51,9 @@ def _build(args: argparse.Namespace) -> None:
 
         cmd = ["spk", "make-source", filename, *common_args]
         _LOGGER.info(" ".join(cmd))
-        proc = subprocess.Popen(cmd)
-        proc.wait()
+        with build.deferred_signals():
+            proc = subprocess.Popen(cmd)
+            proc.wait()
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
         binary_flags = []
@@ -67,7 +69,8 @@ def _build(args: argparse.Namespace) -> None:
             binary_flags.append("-i")
         cmd = ["spk", "make-binary", filename, *common_args, *binary_flags]
         _LOGGER.info(" ".join(cmd))
-        proc = subprocess.Popen(cmd)
-        proc.wait()
+        with build.deferred_signals():
+            proc = subprocess.Popen(cmd)
+            proc.wait()
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
