@@ -21,7 +21,7 @@ class TestSpec:
             "script": self.script.splitlines(),
         }
         if self.selectors:
-            spec["selectors"] = [s.to_dict() for s in self.selectors]
+            spec["selectors"] = [dict(s) for s in self.selectors]
         return spec
 
     @staticmethod
