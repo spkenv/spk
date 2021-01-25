@@ -85,6 +85,7 @@ def register(
     pip_cmd.add_argument(
         "--python-version", default="3.7", help="The version of python to install for"
     )
+    pip_cmd.add_argument("--python-abi", help="The python abi to target")
     pip_cmd.add_argument(
         "--target-repo",
         "-r",
@@ -202,7 +203,11 @@ def _convert_pip_packages(args: argparse.Namespace) -> None:
 
         specs.extend(
             spk.external.import_pip(
-                name, version, python_version=args.python_version, recursive=args.deps
+                name,
+                version,
+                python_version=args.python_version,
+                python_abi=args.python_abi,
+                recursive=args.deps,
             )
         )
 

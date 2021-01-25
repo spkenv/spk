@@ -7,6 +7,9 @@ release_notes: |
   for packages. Supports unit and integration-type testing
   as well as validation of source packages.
 
+  ## Updates
+  - Add --python-abi flag for pip package conversion
+
   ## Fixes
   - Fix bug where build spec could be seen as having duplicant variants even when that's not true
   - Fix bug where packages did not properly receive pinned inherited var

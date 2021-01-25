@@ -1,5 +1,5 @@
 from os import sysconf
-from typing import List, Iterable, Set
+from typing import List, Iterable, Optional, Set
 import re
 import tempfile
 import subprocess
@@ -18,13 +18,19 @@ BAKED_PYTHON_PACKAGES = ("setuptools", "pip", "wheel")
 
 
 def import_pip(
-    name: str, version: str = "", python_version: str = "3", recursive: bool = True
+    name: str,
+    version: str = "",
+    python_version: str = "3",
+    python_abi: str = None,
+    recursive: bool = True,
 ) -> List[api.Spec]:
     """Import an SpComp2 into the spk ecosystem.
 
     Args:
       name (str): the name of the pip to import
       version (str): the version of the pip package to import
+      python_version (str): the version of python to import for
+      python_abi (str): the exact python abi to import for
       recursive (bool): if true, also import all required dependencies
 
     Returns:
@@ -34,6 +40,7 @@ def import_pip(
     return (
         PipImporter()
         .with_python_version(python_version)
+        .with_python_abi(python_abi)
         .recursive(recursive)
         .import_package(name, version)
     )
@@ -43,6 +50,7 @@ class PipImporter:
     def __init__(self) -> None:
 
         self._python_version = "3.7"
+        self._python_abi: Optional[str] = None
         self._follow_deps = True
         self._visited: Set[str] = set()
 
@@ -52,6 +60,11 @@ class PipImporter:
             re.match(r"\d+.\d+", version) is not None
         ), "python version must be in the form x.x"
         self._python_version = version
+        return self
+
+    def with_python_abi(self, version: Optional[str]) -> "PipImporter":
+
+        self._python_abi = version
         return self
 
     def recursive(self, recursive: bool) -> "PipImporter":
@@ -72,7 +85,10 @@ class PipImporter:
         with tempfile.TemporaryDirectory() as _tmpdir:
 
             tmpdir = Path(_tmpdir)
-            env_command = ["spk", "env", f"python/{self._python_version}"]
+            env_command = ["spk", "env"]
+            if self._python_abi is not None:
+                env_command += ["-o", "python.abi=" + self._python_abi]
+            env_command += [f"python/{self._python_version}"]
             pip_command = [
                 "pip",
                 "download",
@@ -182,6 +198,8 @@ class PipImporter:
 
         repo = storage.local_repository()
         options = api.host_options()
+        if self._python_abi is not None:
+            options["python.abi"] = self._python_abi
         _LOGGER.info("building generated package spec...", pkg=spec.pkg)
         builder = build.BinaryPackageBuilder().from_spec(spec)
         try:
