@@ -10,6 +10,7 @@ release_notes: |
   ## Fixes
   - Fix bug where build spec could be seen as having duplicant variants even when that's not true
   - Fix bug where packages did not properly receive pinned inherited var
+  - Allow variants to unclude options for dependencies and still be considered unique
 
 toolchain:
   - kind: Shell
