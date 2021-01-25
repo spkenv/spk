@@ -8,12 +8,13 @@ weight: 110
 
 | Field      | Type                              | Description                                                                                                                                           |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pkg        | [Identifier](#identifier)         | The name and version number of this package                                                                                                           |
-| compat     | [Compat](#compat)                 | The compatibility semantics of this packages versioning scheme                                                                                        |
+| pkg        | _[Identifier](#identifier)_       | The name and version number of this package                                                                                                           |
+| compat     | _[Compat](#compat)_               | The compatibility semantics of this packages versioning scheme                                                                                        |
 | deprecated | _boolean_                         | True if this package has been deprecated, this is usually reserved for internal use only and should not generally be specified directly in spec files |
 | sources    | _List[[SourceSpec](#sourcespec)]_ | Specifies where to get source files for building this package                                                                                         |
-| build      | [BuildSpec](#buildspec)           | Specifies how the package is to be built                                                                                                              |
-| install    | [InstallSpec](#installspec)       | Specifies how the package is to be installed                                                                                                          |
+| build      | _[BuildSpec](#buildspec)_         | Specifies how the package is to be built                                                                                                              |
+| tests      | _List[[TestSpec](#testspec)]_     | Specifies any number of tests to validate the package and software                                                                                    |
+| install    | _[InstallSpec](#installspec)_     | Specifies how the package is to be installed                                                                                                          |
 
 ## SourceSpec
 
@@ -26,7 +27,7 @@ Defines a local directory to collect sources from. This process will also automa
 | Field   | Type        | Description                                                                                  |
 | ------- | ----------- | -------------------------------------------------------------------------------------------- |
 | path    | _str_       | The relative or absolute path to a local directory                                           |
-| exclude | List[_str_] | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/") |
+| exclude | _List[str]_ | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/") |
 | subdir  | _str_       | An alternative path to place these files in the source package                               |
 
 ### GitSource
@@ -86,6 +87,16 @@ Package options define a package that is required at build time.
 ### OptionMap
 
 An option map is a key-value mapping of option names to option values. In practice, this is just a dictionary: `{debug: on, python: 2.7}`. Any values that are not strings are converted to strings in the normal python fashion.
+
+## TestSpec
+
+A test spec defines one test script that should be run against the package to validate it. Each test script can run against one stage of the package, meaning that you can define test processes for the source package, build environment (unit tests), or install environment (integration tests).
+
+| Field     | Type                            | Description                                                                                                                        |
+| --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| stage     | _str_                           | The stage that this test validates, one of: **sources**, **build**, **install**                                                    |
+| selectors | _List[[OptionMap](#optionmap)]_ | Identifies which variants this test should be executed against. Variants must match one of the selectors in this list to be tested |
+| script    | _str_ or _List[str]_            | The sh script which tests the package                                                                                              |
 
 ## InstallSpec
 
