@@ -299,7 +299,10 @@ class Decision:
         packages.update(self._resolved)
 
         for name in self._unresolved:
-            packages.remove(name)
+            try:
+                packages.remove(name)
+            except KeyError:
+                pass
 
         return packages
 
