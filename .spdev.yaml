@@ -1,20 +1,7 @@
-version: 0.20.0
+version: 0.20.1
 release_notes: |
-  ## Package Testing
-
-  Adds `spk test` command and `tests` section to the package
-  spec file which supports first class definition of tests
-  for packages. Supports unit and integration-type testing
-  as well as validation of source packages.
-
-  ## Updates
-  - Add --python-abi flag for pip package conversion
-
-  ## Fixes
-  - Fix bug where build spec could be seen as having duplicant variants even when that's not true
-  - Fix bug where packages did not properly receive pinned inherited var
-  - Allow variants to unclude options for dependencies and still be considered unique
-  - Fix issue that caused spk processes to linger if builds were killed
+  - Fix bug where solver could throw an uncaut key error
+    - This error was actually non-fatal and should have been handled
 
 toolchain:
   - kind: Shell
