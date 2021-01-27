@@ -1,7 +1,7 @@
-version: 0.20.1
+version: 0.20.2
 release_notes: |
-  - Fix bug where solver could throw an uncaut key error
-    - This error was actually non-fatal and should have been handled
+  - Fix bug where static build options would not be rendered into final package
+  - Fix bug where some options did not show up in the final environment variables
 
 toolchain:
   - kind: Shell
