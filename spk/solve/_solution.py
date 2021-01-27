@@ -111,4 +111,5 @@ class Solution:
                 str(p) for p in spec.pkg.version.parts
             )
 
+        base.update(self.options().to_environment())
         return base

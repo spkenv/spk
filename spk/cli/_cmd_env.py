@@ -108,7 +108,6 @@ def _env(args: argparse.Namespace) -> None:
     solution = spk.build_required_packages(solution)
     spk.setup_current_runtime(solution)
     os.environ.update(solution.to_environment())
-    os.environ.update(options.to_environment())
     if not command:
         cmd = spfs.build_interactive_shell_cmd()
     else:
