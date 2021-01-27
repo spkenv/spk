@@ -183,7 +183,7 @@ class Spec:
 
         for opt in build_options:
             if not isinstance(opt, PkgOpt):
-                opt.set_value(options.get(opt.name(), ""))
+                opt.set_value(options.get(opt.name(), opt.get_value()))
                 continue
 
             spec = specs.get(opt.pkg)
