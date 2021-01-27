@@ -22,6 +22,7 @@ class Solution:
 
         self._options = api.OptionMap(options or {})
         self._resolved: Dict[api.PkgRequest, Tuple[api.Spec, PackageSource]] = {}
+        self._by_name: Dict[str, api.Spec] = {}
 
     def __bool__(self) -> bool:
         return bool(self._resolved)
@@ -59,6 +60,7 @@ class Solution:
     ) -> None:
 
         self._resolved[request] = (package, source)
+        self._by_name[request.pkg.name] = package
 
     def update(self, other: "Solution") -> None:
         for request, spec, source in other.items():
@@ -78,6 +80,10 @@ class Solution:
             raise KeyError(name)
 
         del self._resolved[request]
+        del self._by_name[request.pkg.name]
+
+    def get_spec(self, name: str) -> api.Spec:
+        return self._by_name[name]
 
     def get(self, name: str) -> SolvedRequest:
 

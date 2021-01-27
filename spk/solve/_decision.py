@@ -170,10 +170,17 @@ class Decision:
         This usually only makes sense if the decision introduces a new
         request which is not satisfied by the previous resolve, and will
         be called automatically in this case when Decision.add_request is called
+
+        Raises:
+          ValueError: if the given package has not been resolved
         """
 
         self.unresolved_requests.cache_clear()
         self.get_all_unresolved_requests.cache_clear()
+        try:
+            self.get_current_solution().get_spec(name)
+        except KeyError as e:
+            raise ValueError(f"Cannot unresolve package that was not resolved: {name}")
         self._unresolved[name] = compat
 
     def get_unresolved(self) -> Dict[str, api.Compatibility]:
@@ -225,7 +232,12 @@ class Decision:
             if not compat:
                 package = request.package()
                 if package:
-                    self.set_unresolved(package, compat)
+                    try:
+                        self.set_unresolved(package, compat)
+                    except ValueError:
+                        raise ConflictingRequestsError(
+                            "Var requests are incompatible", [request]
+                        )
                 else:
                     raise ConflictingRequestsError(
                         "Var requests are incompatible", [request]
@@ -248,8 +260,8 @@ class Decision:
             raise NotImplementedError(f"TODO: Unhandled request type {type(request)}")
 
         try:
-            current = self.get_current_solution().get(request.pkg.name)
-            compat = request.is_satisfied_by(current.spec)
+            current = self.get_current_solution().get_spec(request.pkg.name)
+            compat = request.is_satisfied_by(current)
             if not compat:
                 self.set_unresolved(request.pkg.name, compat)
         except KeyError:
