@@ -1,7 +1,9 @@
-version: 0.20.2
+version: 0.20.3
 release_notes: |
-  - Fix bug where static build options would not be rendered into final package
-  - Fix bug where some options did not show up in the final environment variables
+  - Fix bug where embedded packages could cause incorrect solves
+    - The solver was taking the wrong action when an embedded package
+      introduced an incompatible request that caused the incompatibility
+      to be ignored and a bad environment to be created
 
 toolchain:
   - kind: Shell
