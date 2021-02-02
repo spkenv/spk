@@ -208,15 +208,15 @@ class FilteredPackageIterator(PackageIterator):
 
             # check option compatibility of entire version, if applicable
             if version_spec is not None:
-                opts = version_spec.resolve_all_options(self.options)
-                compat = version_spec.build.validate_options(
-                    version_spec.pkg.name, opts
-                )
+                compat = self.request.pkg.version.is_satisfied_by(version_spec)
                 if not compat:
                     self.add_history(candidate.pkg.with_build(None), compat)
                     continue
 
-                compat = self.request.pkg.version.is_satisfied_by(version_spec)
+                opts = version_spec.resolve_all_options(self.options)
+                compat = version_spec.build.validate_options(
+                    version_spec.pkg.name, opts
+                )
                 if not compat:
                     self.add_history(candidate.pkg.with_build(None), compat)
                     continue
