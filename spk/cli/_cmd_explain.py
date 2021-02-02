@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 import argparse
 
 from ruamel import yaml
@@ -42,8 +42,13 @@ def _explain(args: argparse.Namespace) -> None:
         solver.add_request(request)
 
     try:
-        solver.solve()
+        solution: Optional[spk.solve.Solution] = solver.solve()
     except spk.SolverError:
+        solution = None
         pass
 
     print(spk.io.format_decision_tree(solver.decision_tree, args.verbose + 1))
+
+    if solution is not None:
+        print()
+        print(spk.io.format_solution(solution, args.verbose))
