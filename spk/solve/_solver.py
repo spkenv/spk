@@ -1,4 +1,4 @@
-from typing import List, Union, Dict
+from typing import List, Optional, Union, Dict
 
 from ruamel import yaml
 import structlog
@@ -8,6 +8,7 @@ from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterato
 from ._decision import Decision, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
 from ._solution import Solution
+from . import graph
 
 _LOGGER = structlog.get_logger("spk.solve")
 
@@ -178,3 +179,58 @@ class Solver:
                 return api.Compatibility(str(err))
 
         return api.COMPATIBLE
+
+
+class GraphSolver:
+    def __init__(self) -> None:
+
+        self._repos: List[storage.Repository] = []
+        self._requests: List[graph.Change] = []
+
+    def add_repository(self, repo: storage.Repository) -> None:
+        """Add a repository where the solver can get packages."""
+
+        self._repos.append(repo)
+
+    def add_request(
+        self, request: Union[str, api.Ident, api.Request, graph.Change]
+    ) -> None:
+        """Add a request to this solver."""
+
+        if isinstance(request, api.Ident):
+            request = str(request)
+
+        if isinstance(request, str):
+            request = api.PkgRequest.from_dict({"pkg": request})
+            request = graph.RequestPackage(request)
+
+        if isinstance(request, api.VarRequest):
+            request = graph.RequestVar(request)
+
+        if not isinstance(request, graph.Change):
+            raise NotImplementedError(f"unhandled request type: {type(request)}")
+
+        self._requests.append(request)
+
+    def solve(self) -> Solution:
+
+        initial_state = graph.State.default()
+        solve_graph = graph.Graph(initial_state)
+
+        stack = [initial_state]
+        current_state = initial_state
+
+        decision: Optional[graph.Decision] = graph.Decision(self._requests)
+        while decision is not None:
+            next_state = decision.apply(current_state)
+            current_state = next_state
+            stack.append(current_state)
+            decision = self.step_state(solve_graph, current_state)
+
+        return Solution.from_state(current_state)
+
+    def step_state(
+        self, solve_graph: graph.Graph, state: graph.State
+    ) -> Optional[graph.Decision]:
+
+        return None

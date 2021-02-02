@@ -4,6 +4,7 @@ from ._errors import (
     UnresolvedPackageError,
     PackageNotFoundError,
 )
+from . import graph
 from ._solution import Solution, SolvedRequest
 from ._package_iterator import (
     PackageIterator,
