@@ -29,6 +29,14 @@ class Solver:
         self._complete = False
         self._binary_only = False
 
+    def reset(self) -> None:
+
+        self._repos = []
+        self.decision_tree = DecisionTree()
+        self._running = False
+        self._complete = False
+        self._binary_only = False
+
     def set_binary_only(self, binary_only: bool) -> None:
         """If true, only solve pre-built binary packages.
 
@@ -39,6 +47,10 @@ class Solver:
         build environments are fully resolved and dependencies included
         """
         self._binary_only = binary_only
+
+    def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
+
+        self.decision_tree.root.update_options(options)
 
     def add_repository(self, repo: storage.Repository) -> None:
         """Add a repository where the solver can get packages."""
@@ -189,8 +201,14 @@ class GraphSolver:
     def __init__(self) -> None:
 
         self._repos: List[storage.Repository] = []
-        self._requests: List[graph.Change] = []
+        self._initial_state_builders: List[graph.Change] = []
         self._validators: List[validation.Validator] = []
+
+    def reset(self) -> None:
+
+        self._repos.clear()
+        self._initial_state_builders.clear()
+        self._validators.clear()
 
     def add_repository(self, repo: storage.Repository) -> None:
         """Add a repository where the solver can get packages."""
@@ -215,7 +233,7 @@ class GraphSolver:
         if not isinstance(request, graph.Change):
             raise NotImplementedError(f"unhandled request type: {type(request)}")
 
-        self._requests.append(request)
+        self._initial_state_builders.append(request)
 
     def set_binary_only(self, binary_only: bool) -> None:
         """If true, only solve pre-built binary packages.
@@ -232,14 +250,20 @@ class GraphSolver:
         if binary_only:
             self._validators.insert(0, validation.BinaryOnly())
 
-    def solve(self) -> Solution:
+    def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
+        for name, value in options.items():
+            self._initial_state_builders.append(graph.SetOption(name, value))
+
+    def solve(self, options: api.OptionMap = api.OptionMap()) -> Solution:
 
         initial_state = graph.State.default()
         solve_graph = graph.Graph(initial_state)
 
         history = []
         current_node = solve_graph.root
-        decision: Optional[graph.Decision] = graph.Decision(self._requests)
+        decision: Optional[graph.Decision] = graph.Decision(
+            self._initial_state_builders
+        )
         while decision is not None:
             next_node = solve_graph.add_branch(current_node.id, decision)
             current_node = next_node

@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Sequence, Union
 from colorama import Fore, Style
 
 from . import api, solve
@@ -12,6 +12,15 @@ def format_ident(pkg: api.Ident) -> str:
     if pkg.build is not None:
         out += f"/{format_build(pkg.build)}"
     return out
+
+
+def format_resolve(
+    solver: Union[solve.Solver, solve.GraphSolver], verbosity: int = 1
+) -> str:
+    if isinstance(solver, solve.Solver):
+        return format_decision_tree(solver.decision_tree, verbosity)
+    else:
+        return "TODO: graph solver formatting"
 
 
 def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:

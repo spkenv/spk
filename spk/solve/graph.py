@@ -16,7 +16,7 @@ class Graph:
     def __init__(self, initial_state: "State") -> None:
 
         self._root = Node(initial_state)
-        self._nodes: Dict[int, "Node"] = {}
+        self._nodes: Dict[int, "Node"] = {self._root.id: self._root}
 
     @property
     def root(self) -> "Node":
