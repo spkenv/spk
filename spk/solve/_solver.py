@@ -4,11 +4,15 @@ from ruamel import yaml
 import structlog
 
 from .. import api, storage
-from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterator
+from ._package_iterator import (
+    RepositoryPackageIterator,
+    FilteredPackageIterator,
+    PackageIterator,
+)
 from ._decision import Decision, DecisionTree
 from ._errors import SolverError, UnresolvedPackageError, ConflictingRequestsError
 from ._solution import Solution
-from . import graph
+from . import graph, validation
 
 _LOGGER = structlog.get_logger("spk.solve")
 
@@ -186,6 +190,7 @@ class GraphSolver:
 
         self._repos: List[storage.Repository] = []
         self._requests: List[graph.Change] = []
+        self._validators: List[validation.Validator] = []
 
     def add_repository(self, repo: storage.Repository) -> None:
         """Add a repository where the solver can get packages."""
@@ -212,25 +217,97 @@ class GraphSolver:
 
         self._requests.append(request)
 
+    def set_binary_only(self, binary_only: bool) -> None:
+        """If true, only solve pre-built binary packages.
+
+        When false, the solver may return packages where the build is not set.
+        These packages are known to have a source package available, and the requested
+        options are valid for a new build of that source package.
+        These packages are not actually built as part of the solver process but their
+        build environments are fully resolved and dependencies included
+        """
+        self._validators = list(
+            filter(lambda v: not isinstance(v, validation.BinaryOnly), self._validators)
+        )
+        if binary_only:
+            self._validators.insert(0, validation.BinaryOnly())
+
     def solve(self) -> Solution:
 
         initial_state = graph.State.default()
         solve_graph = graph.Graph(initial_state)
 
-        stack = [initial_state]
-        current_state = initial_state
-
+        history = []
+        current_node = solve_graph.root
         decision: Optional[graph.Decision] = graph.Decision(self._requests)
         while decision is not None:
-            next_state = decision.apply(current_state)
-            current_state = next_state
-            stack.append(current_state)
-            decision = self.step_state(solve_graph, current_state)
+            next_node = solve_graph.add_branch(current_node.id, decision)
+            current_node = next_node
+            try:
+                decision = self.step_state(solve_graph, current_node)
+                history.append(current_node)
+            except SolverError as err:
+                previous = history.pop().state if len(history) else None
+                decision = graph.StepBack(err, previous).as_decision()
 
-        return Solution.from_state(current_state)
+        return current_node.state.as_solution()
 
     def step_state(
-        self, solve_graph: graph.Graph, state: graph.State
+        self, solve_graph: graph.Graph, node: graph.Node
     ) -> Optional[graph.Decision]:
 
-        return None
+        if not len(node.state.pkg_requests):
+            return None
+
+        request = node.state.pkg_requests[0]
+        iterator = self._get_iterator(node, request.pkg.name)
+
+        for spec, repo in iterator:
+            compat = self._validate(node.state, spec)
+            if not compat:
+                iterator.add_history(spec.pkg, compat)
+                continue
+            changes: List[graph.Change] = [graph.ResolvePackage(spec, repo)]
+            for req in spec.install.requirements:
+                if isinstance(req, api.PkgRequest):
+                    changes.append(graph.RequestPackage(req))
+                elif isinstance(req, api.VarRequest):
+                    changes.append(graph.RequestVar(req))
+                else:
+                    iterator.add_history(
+                        spec.pkg,
+                        api.Compatibility(
+                            f"unsupported install requirement {type(req)}"
+                        ),
+                    )
+            for opt in spec.build.options:
+                # FIXME: downgrade to package var options if var option
+                changes.append(graph.SetOption(opt.name(), opt.get_value()))
+
+        raise UnresolvedPackageError(
+            yaml.safe_dump(request.to_dict()).strip(),  # type: ignore
+            history=iterator.get_history(),
+        )
+
+    def _validate(self, node: graph.State, spec: api.Spec) -> api.Compatibility:
+
+        for validator in self._validators:
+            compat = validator.validate(node, spec)
+            if not compat:
+                return compat
+
+        return api.COMPATIBLE
+
+    def _get_iterator(self, node: graph.Node, package_name: str) -> PackageIterator:
+
+        iterator = node.get_iterator(package_name)
+        if iterator is None:
+            iterator = self._make_iterator(package_name)
+            node.set_iterator(package_name, iterator)
+
+        return iterator
+
+    def _make_iterator(self, package_name: str) -> RepositoryPackageIterator:
+
+        assert len(self._repos), "No configured package repositories."
+        return RepositoryPackageIterator(package_name, self._repos)

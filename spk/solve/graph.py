@@ -1,7 +1,9 @@
 import abc
-from typing import Dict, Iterable, List, NamedTuple, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from .. import api
+from ._solution import PackageSource, Solution
+from ._package_iterator import PackageIterator
 
 
 class Graph:
@@ -13,8 +15,22 @@ class Graph:
 
     def __init__(self, initial_state: "State") -> None:
 
-        self._initial_state = initial_state
-        self._nodes = Dict[int, "Node"]
+        self._root = Node(initial_state)
+        self._nodes: Dict[int, "Node"] = {}
+
+    @property
+    def root(self) -> "Node":
+        return self._root
+
+    def add_branch(self, source_id: int, decision: "Decision") -> "Node":
+
+        old_node = self._nodes[source_id]
+        new_state = decision.apply(old_node.state)
+        new_node = Node(new_state)
+        new_node = self._nodes.setdefault(new_node.id, new_node)
+        old_node.add_output(decision)
+        new_node.add_input(decision)
+        return new_node
 
 
 class Node:
@@ -25,6 +41,27 @@ class Node:
         self._inputs: List[Decision] = []
         self._outputs: List[Decision] = []
         self._state = state
+        self._iterators: Dict[str, PackageIterator] = {}
+
+    @property
+    def id(self) -> int:
+        return hash(self._state)
+
+    @property
+    def state(self) -> "State":
+        return self._state
+
+    def add_output(self, decision: "Decision") -> None:
+        self._outputs.append(decision)
+
+    def add_input(self, decision: "Decision") -> None:
+        self._inputs.append(decision)
+
+    def get_iterator(self, package_name: str) -> Optional[PackageIterator]:
+        return self._iterators.get(package_name)
+
+    def set_iterator(self, package_name: str, iterator: PackageIterator) -> None:
+        self._iterators[package_name] = iterator
 
 
 class State(NamedTuple):
@@ -35,11 +72,15 @@ class State(NamedTuple):
 
     pkg_requests: Tuple[api.PkgRequest, ...]
     var_requests: Tuple[api.VarRequest, ...]
+    options: Tuple[Tuple[str, str], ...]
 
     @staticmethod
     def default() -> "State":
 
-        return State(pkg_requests=tuple(), var_requests=tuple(),)
+        return State(pkg_requests=tuple(), var_requests=tuple(), options=tuple())
+
+    def as_solution(self) -> Solution:
+        raise NotImplementedError("State.current_solution")
 
 
 class Decision:
@@ -63,12 +104,19 @@ class Decision:
 class Change(metaclass=abc.ABCMeta):
     """A single change made to a state."""
 
+    def as_decision(self) -> Decision:
+        return Decision([self])
+
     @abc.abstractmethod
     def apply(self, base: State) -> State:
         ...
 
 
 class ResolvePackage(Change):
+    def __init__(self, spec: api.Spec, source: PackageSource) -> None:
+        self._spec = spec
+        self._source = source
+
     def apply(self, base: State) -> State:
         raise NotImplementedError("ResolvePackage.apply")
 
@@ -87,6 +135,7 @@ class RequestVar(Change):
         return State(
             pkg_requests=base.pkg_requests,
             var_requests=base.var_requests + (self._request,),
+            options=base.options,
         )
 
 
@@ -99,4 +148,33 @@ class RequestPackage(Change):
         return State(
             pkg_requests=base.pkg_requests + (self._request,),
             var_requests=base.var_requests,
+            options=base.options,
+        )
+
+
+class StepBack(Change):
+    """Identifies the solver reaching an impass and needing to revert a previous decision."""
+
+    def __init__(self, cause: Exception, to: State = None) -> None:
+        self.cause = cause
+        self._destination = to
+
+    def apply(self, base: State) -> State:
+        if self._destination is None:
+            raise self.cause
+        return self._destination
+
+
+class SetOption(Change):
+    def __init__(self, name: str, value: str) -> None:
+        self._name = name
+        self._value = value
+
+    def apply(self, base: State) -> State:
+        options = dict(base.options)
+        options[self._name] = self._value
+        return State(
+            pkg_requests=base.pkg_requests,
+            var_requests=base.var_requests,
+            options=tuple(options.items()),
         )

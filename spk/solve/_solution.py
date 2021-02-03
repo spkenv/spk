@@ -2,7 +2,6 @@ from typing import Tuple, Iterator, Dict, List, NamedTuple, Union
 import os
 
 from .. import api, storage
-from . import graph
 
 
 PackageSource = Union[storage.Repository, api.Spec]
@@ -24,11 +23,6 @@ class Solution:
         self._options = api.OptionMap(options or {})
         self._resolved: Dict[api.PkgRequest, Tuple[api.Spec, PackageSource]] = {}
         self._by_name: Dict[str, api.Spec] = {}
-
-    @staticmethod
-    def from_state(state: graph.State) -> "Solution":
-
-        raise NotImplementedError("Solution.from_state")
 
     def __bool__(self) -> bool:
         return bool(self._resolved)
