@@ -130,6 +130,9 @@ class Spec:
     tests: List[TestSpec] = field(default_factory=list)
     install: InstallSpec = field(default_factory=InstallSpec)
 
+    def __hash__(self) -> int:
+        return hash(self.pkg)
+
     def clone(self) -> "Spec":
         return Spec.from_dict(self.to_dict())
 

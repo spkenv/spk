@@ -1,9 +1,13 @@
 import abc
-from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple
+
+import structlog
 
 from .. import api
 from ._solution import PackageSource, Solution
 from ._package_iterator import PackageIterator
+
+_LOGGER = structlog.get_logger("spk.solve")
 
 
 class Graph:
@@ -21,6 +25,22 @@ class Graph:
     @property
     def root(self) -> "Node":
         return self._root
+
+    def walk(self) -> Iterator[Tuple["Node", "Decision"]]:
+
+        node_outputs: Dict[int, List[Decision]] = {}
+
+        def iter_node(node: Node) -> Iterator[Tuple[Node, Decision]]:
+
+            outs = node_outputs.setdefault(node.id, list(node.iter_outputs()))
+            while outs:
+                decision = outs.pop(0)
+                yield (node, decision)
+                next_state = decision.apply(node.state)
+                next_node = self._nodes[next_state.id]
+                yield from iter_node(next_node)
+
+        return iter_node(self._root)
 
     def add_branch(self, source_id: int, decision: "Decision") -> "Node":
 
@@ -45,7 +65,7 @@ class Node:
 
     @property
     def id(self) -> int:
-        return hash(self._state)
+        return self._state.id
 
     @property
     def state(self) -> "State":
@@ -54,8 +74,14 @@ class Node:
     def add_output(self, decision: "Decision") -> None:
         self._outputs.append(decision)
 
+    def iter_outputs(self) -> Iterator["Decision"]:
+        return iter(self._outputs)
+
     def add_input(self, decision: "Decision") -> None:
         self._inputs.append(decision)
+
+    def iter_inputs(self) -> Iterator["Decision"]:
+        return iter(self._inputs)
 
     def get_iterator(self, package_name: str) -> Optional[PackageIterator]:
         return self._iterators.get(package_name)
@@ -72,15 +98,71 @@ class State(NamedTuple):
 
     pkg_requests: Tuple[api.PkgRequest, ...]
     var_requests: Tuple[api.VarRequest, ...]
+    packages: Tuple[api.Spec, ...]
     options: Tuple[Tuple[str, str], ...]
+
+    @property
+    def id(self) -> int:
+        return hash(self)
 
     @staticmethod
     def default() -> "State":
 
-        return State(pkg_requests=tuple(), var_requests=tuple(), options=tuple())
+        return State(
+            pkg_requests=tuple(),
+            var_requests=tuple(),
+            options=tuple(),
+            packages=tuple(),
+        )
+
+    def get_next_request(self) -> Optional[api.PkgRequest]:
+
+        packages = set(s.pkg.name for s in self.packages)
+        next_request: Optional[api.PkgRequest] = None
+        requests = iter(self.pkg_requests)
+        while next_request is None:
+            try:
+                request = next(requests)
+            except StopIteration:
+                return None
+            if request.pkg.name in packages:
+                continue
+            next_request = request.clone()
+
+        for request in requests:
+            if request.pkg.name != next_request.pkg.name:
+                continue
+            request.restrict(request)
+
+        return next_request
+
+    def get_merged_request(self, name: str) -> api.PkgRequest:
+
+        merged: Optional[api.PkgRequest] = None
+        requests = iter(self.pkg_requests)
+        while merged is None:
+            try:
+                request = next(requests)
+            except StopIteration:
+                raise KeyError(f"No requests for '{name}'")
+            if request.pkg.name != name:
+                continue
+            merged = request.clone()
+
+        for request in requests:
+            if request.pkg.name != merged.pkg.name:
+                continue
+            request.restrict(request)
+
+        return merged
 
     def as_solution(self) -> Solution:
-        raise NotImplementedError("State.current_solution")
+        solution = Solution(api.OptionMap(self.options))
+        for spec in self.packages:
+            req = self.get_merged_request(spec.pkg.name)
+            solution.add(req, spec, None)  # type: ignore
+
+        return solution
 
 
 class Decision:
@@ -93,10 +175,13 @@ class Decision:
 
         self._changes: List[Change] = list(changes)
 
+    def iter_changes(self) -> Iterator["Change"]:
+        return iter(self._changes)
+
     def apply(self, base: State) -> State:
 
         state = base
-        for change in self._changes:
+        for change in self.iter_changes():
             state = change.apply(state)
         return state
 
@@ -112,43 +197,67 @@ class Change(metaclass=abc.ABCMeta):
         ...
 
 
-class ResolvePackage(Change):
+class ResolvePackage(Decision):
     def __init__(self, spec: api.Spec, source: PackageSource) -> None:
-        self._spec = spec
-        self._source = source
+        self.spec = spec
+        self.source = source
 
-    def apply(self, base: State) -> State:
-        raise NotImplementedError("ResolvePackage.apply")
+    def iter_changes(self) -> Iterator["Change"]:
+
+        yield SetPackage(self.spec, self.source)
+        for req in self.spec.install.requirements:
+            if isinstance(req, api.PkgRequest):
+                yield RequestPackage(req)
+            elif isinstance(req, api.VarRequest):
+                yield RequestVar(req)
+            else:
+                _LOGGER.warning(f"unhandled install requirement {type(req)}")
+
+        for opt in self.spec.build.options:
+            # FIXME: downgrade to package var options if var option
+            yield SetOption(opt.name(), opt.get_value())
 
 
 class UnresolvePackage(Change):
+    def __init__(self, pkg: api.Ident, cause: str) -> None:
+        self.pkg = pkg
+        self.cause = cause
+
     def apply(self, base: State) -> State:
-        raise NotImplementedError("UnresolvePackage.apply")
+        packages = filter(lambda spec: spec.pkg.name != self.pkg.name, base.packages)
+        return State(
+            pkg_requests=base.pkg_requests,
+            var_requests=base.var_requests,
+            packages=tuple(packages),
+            options=base.options,
+        )
 
 
 class RequestVar(Change):
     def __init__(self, request: api.VarRequest) -> None:
-        self._request = request
+        self.request = request
 
     def apply(self, base: State) -> State:
 
         return State(
             pkg_requests=base.pkg_requests,
-            var_requests=base.var_requests + (self._request,),
+            var_requests=base.var_requests + (self.request,),
             options=base.options,
+            packages=base.packages,
         )
 
 
 class RequestPackage(Change):
     def __init__(self, request: api.PkgRequest) -> None:
-        self._request = request
+        self.request = request
 
     def apply(self, base: State) -> State:
 
         return State(
-            pkg_requests=base.pkg_requests + (self._request,),
+            pkg_requests=base.pkg_requests + (self.request,),
             var_requests=base.var_requests,
             options=base.options,
+            packages=base.packages,
         )
 
 
@@ -157,24 +266,39 @@ class StepBack(Change):
 
     def __init__(self, cause: Exception, to: State = None) -> None:
         self.cause = cause
-        self._destination = to
+        self.destination = to
 
     def apply(self, base: State) -> State:
-        if self._destination is None:
+        if self.destination is None:
             raise self.cause
-        return self._destination
+        return self.destination
+
+
+class SetPackage(Change):
+    def __init__(self, spec: api.Spec, source: PackageSource) -> None:
+        self.spec = spec
+        self.source = source
+
+    def apply(self, base: State) -> State:
+        return State(
+            pkg_requests=base.pkg_requests,
+            var_requests=base.var_requests,
+            packages=base.packages + (self.spec,),
+            options=base.options,
+        )
 
 
 class SetOption(Change):
     def __init__(self, name: str, value: str) -> None:
-        self._name = name
-        self._value = value
+        self.name = name
+        self.value = value
 
     def apply(self, base: State) -> State:
         options = dict(base.options)
-        options[self._name] = self._value
+        options[self.name] = self.value
         return State(
             pkg_requests=base.pkg_requests,
             var_requests=base.var_requests,
             options=tuple(options.items()),
+            packages=base.packages,
         )

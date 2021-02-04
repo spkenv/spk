@@ -203,6 +203,7 @@ class GraphSolver:
         self._repos: List[storage.Repository] = []
         self._initial_state_builders: List[graph.Change] = []
         self._validators: List[validation.Validator] = []
+        self._last_graph = graph.Graph(graph.State.default())
 
     def reset(self) -> None:
 
@@ -254,10 +255,14 @@ class GraphSolver:
         for name, value in options.items():
             self._initial_state_builders.append(graph.SetOption(name, value))
 
+    def get_last_solve_graph(self) -> graph.Graph:
+        return self._last_graph
+
     def solve(self, options: api.OptionMap = api.OptionMap()) -> Solution:
 
         initial_state = graph.State.default()
         solve_graph = graph.Graph(initial_state)
+        self._last_graph = solve_graph
 
         history = []
         current_node = solve_graph.root
@@ -280,33 +285,17 @@ class GraphSolver:
         self, solve_graph: graph.Graph, node: graph.Node
     ) -> Optional[graph.Decision]:
 
-        if not len(node.state.pkg_requests):
+        request = node.state.get_next_request()
+        if request is None:
             return None
 
-        request = node.state.pkg_requests[0]
         iterator = self._get_iterator(node, request.pkg.name)
-
         for spec, repo in iterator:
             compat = self._validate(node.state, spec)
             if not compat:
                 iterator.add_history(spec.pkg, compat)
                 continue
-            changes: List[graph.Change] = [graph.ResolvePackage(spec, repo)]
-            for req in spec.install.requirements:
-                if isinstance(req, api.PkgRequest):
-                    changes.append(graph.RequestPackage(req))
-                elif isinstance(req, api.VarRequest):
-                    changes.append(graph.RequestVar(req))
-                else:
-                    iterator.add_history(
-                        spec.pkg,
-                        api.Compatibility(
-                            f"unsupported install requirement {type(req)}"
-                        ),
-                    )
-            for opt in spec.build.options:
-                # FIXME: downgrade to package var options if var option
-                changes.append(graph.SetOption(opt.name(), opt.get_value()))
+            return graph.ResolvePackage(spec, repo)
 
         raise UnresolvedPackageError(
             yaml.safe_dump(request.to_dict()).strip(),  # type: ignore

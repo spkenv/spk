@@ -1,4 +1,4 @@
-from typing import List, Sequence, Union
+from typing import List, Sequence, Set, Union
 from colorama import Fore, Style
 
 from . import api, solve
@@ -20,7 +20,18 @@ def format_resolve(
     if isinstance(solver, solve.Solver):
         return format_decision_tree(solver.decision_tree, verbosity)
     else:
-        return "TODO: graph solver formatting"
+        graph = solver.get_last_solve_graph()
+        out = ""
+        seen: Set[int] = set()
+        for node, decision in graph.walk():
+            if node.id in seen:
+                out += f"repeat {node.id}\n"
+                continue
+            out += f"{node.id}\n"
+            for change in decision.iter_changes():
+                out += f"  - {format_change(change)}\n"
+
+        return out
 
 
 def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:
@@ -34,6 +45,23 @@ def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:
             out += "." * decision.level()
             out += " " + line + "\n"
     return out[:-1]
+
+
+def format_change(change: solve.graph.Change, verbosity: int = 1) -> str:
+
+    out = ""
+    if isinstance(change, solve.graph.RequestPackage):
+        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
+    elif isinstance(change, solve.graph.RequestVar):
+        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.name(): change.request.value}))}"
+    elif isinstance(change, solve.graph.SetPackage):
+        return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
+    elif isinstance(change, solve.graph.SetOption):
+        return f"{Fore.CYAN}SET{Fore.RESET} {format_options(api.OptionMap({change.name: change.value}))}"
+    elif isinstance(change, solve.graph.UnresolvePackage):
+        return f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {format_ident(change.pkg)}"
+    else:
+        return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
 
 
 def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
