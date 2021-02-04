@@ -119,23 +119,16 @@ class State(NamedTuple):
     def get_next_request(self) -> Optional[api.PkgRequest]:
 
         packages = set(s.pkg.name for s in self.packages)
-        next_request: Optional[api.PkgRequest] = None
-        requests = iter(self.pkg_requests)
-        while next_request is None:
-            try:
-                request = next(requests)
-            except StopIteration:
-                return None
+        for request in self.pkg_requests:
             if request.pkg.name in packages:
                 continue
-            next_request = request.clone()
-
-        for request in requests:
-            if request.pkg.name != next_request.pkg.name:
+            if request.inclusion_policy is api.InclusionPolicy.IfAlreadyPresent:
                 continue
-            request.restrict(request)
+            break
+        else:
+            return None
 
-        return next_request
+        return self.get_merged_request(request.pkg.name)
 
     def get_merged_request(self, name: str) -> api.PkgRequest:
 

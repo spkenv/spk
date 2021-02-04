@@ -265,11 +265,11 @@ def test_solver_dependency_reopen_solvable(solver: Union[Solver, GraphSolver]) -
         packages = solver.solve()
     finally:
         print(io.format_resolve(solver, verbosity=100))
-    assert list(s.spec.pkg.name for s in packages.items()) == [
+    assert set(s.spec.pkg.name for s in packages.items()) == {
         "my-plugin",
         "some-library",
         "maya",
-    ]
+    }
     assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
@@ -301,7 +301,7 @@ def test_solver_dependency_reopen_unsolvable(
     )
     solver.add_repository(repo)
     solver.add_request("pkg-top")
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         packages = solver.solve()
         print(packages)
 
