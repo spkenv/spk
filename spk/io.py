@@ -21,17 +21,32 @@ def format_resolve(
         return format_decision_tree(solver.decision_tree, verbosity)
     else:
         graph = solver.get_last_solve_graph()
-        out = ""
-        seen: Set[int] = set()
-        for node, decision in graph.walk():
-            if node.id in seen:
-                out += f"repeat {node.id}\n"
-                continue
-            out += f"{node.id}\n"
-            for change in decision.iter_changes():
-                out += f"  - {format_change(change)}\n"
+        return format_solve_graph(graph, verbosity)
 
-        return out
+
+def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
+    out = ""
+    level = 0
+    for node, decision in graph.walk():
+        if verbosity > 1:
+            for note in decision.iter_notes():
+                out += f"{'.'*level} {format_note(note)}\n"
+
+        for change in decision.iter_changes():
+            if isinstance(change, solve.graph.SetPackage):
+                fill = ">"
+                prefix = " "
+                level += 1
+            elif isinstance(change, solve.graph.StepBack):
+                fill = "<"
+                prefix = "< "
+                level -= 1
+            else:
+                fill = "."
+                prefix = " "
+            out += f"{fill*level}{prefix}{format_change(change)}\n"
+
+    return out
 
 
 def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:
@@ -60,8 +75,18 @@ def format_change(change: solve.graph.Change, verbosity: int = 1) -> str:
         return f"{Fore.CYAN}SET{Fore.RESET} {format_options(api.OptionMap({change.name: change.value}))}"
     elif isinstance(change, solve.graph.UnresolvePackage):
         return f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {format_ident(change.pkg)}"
+    elif isinstance(change, solve.graph.StepBack):
+        return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
     else:
         return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
+
+
+def format_note(note: solve.graph.Note) -> str:
+
+    if isinstance(note, solve.graph.SkipPackageNote):
+        return f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(note.pkg)} - {note.reason}"
+    else:
+        return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
 
 
 def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:

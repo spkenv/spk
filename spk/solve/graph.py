@@ -4,6 +4,7 @@ from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple
 import structlog
 
 from .. import api
+from ._errors import SolverError
 from ._solution import PackageSource, Solution
 from ._package_iterator import PackageIterator
 
@@ -156,6 +157,13 @@ class State(NamedTuple):
 
         return merged
 
+    def get_current_resolve(self, name: str) -> api.Spec:
+
+        for spec in self.packages:
+            if spec.pkg.name == name:
+                return spec
+        raise KeyError(f"Has not been resolved: '{name}'")
+
     def as_solution(self) -> Solution:
         solution = Solution(api.OptionMap(self.options))
         for spec in self.packages:
@@ -171,9 +179,18 @@ class Decision:
     Each decision connects one state to another in the graph.
     """
 
-    def __init__(self, changes: Iterable["Change"] = []) -> None:
+    def __init__(
+        self, changes: Iterable["Change"], notes: Iterable["Note"] = []
+    ) -> None:
 
-        self._changes: List[Change] = list(changes)
+        self._changes = list(changes)
+        self._notes = list(notes)
+
+    def add_notes(self, notes: Iterable["Note"]) -> None:
+        self._notes.extend(notes)
+
+    def iter_notes(self) -> Iterator["Note"]:
+        return iter(self._notes)
 
     def iter_changes(self) -> Iterator["Change"]:
         return iter(self._changes)
@@ -186,23 +203,14 @@ class Decision:
         return state
 
 
-class Change(metaclass=abc.ABCMeta):
-    """A single change made to a state."""
-
-    def as_decision(self) -> Decision:
-        return Decision([self])
-
-    @abc.abstractmethod
-    def apply(self, base: State) -> State:
-        ...
-
-
 class ResolvePackage(Decision):
-    def __init__(self, spec: api.Spec, source: PackageSource) -> None:
+    def __init__(self, spec: api.Spec, source: PackageSource,) -> None:
+
         self.spec = spec
         self.source = source
+        super(ResolvePackage, self).__init__(self._generate_changes())
 
-    def iter_changes(self) -> Iterator["Change"]:
+    def _generate_changes(self) -> Iterator["Change"]:
 
         yield SetPackage(self.spec, self.source)
         for req in self.spec.install.requirements:
@@ -216,6 +224,17 @@ class ResolvePackage(Decision):
         for opt in self.spec.build.options:
             # FIXME: downgrade to package var options if var option
             yield SetOption(opt.name(), opt.get_value())
+
+
+class Change(metaclass=abc.ABCMeta):
+    """A single change made to a state."""
+
+    def as_decision(self) -> Decision:
+        return Decision([self])
+
+    @abc.abstractmethod
+    def apply(self, base: State) -> State:
+        ...
 
 
 class UnresolvePackage(Change):
@@ -264,13 +283,13 @@ class RequestPackage(Change):
 class StepBack(Change):
     """Identifies the solver reaching an impass and needing to revert a previous decision."""
 
-    def __init__(self, cause: Exception, to: State = None) -> None:
+    def __init__(self, cause: str, to: State = None) -> None:
         self.cause = cause
         self.destination = to
 
     def apply(self, base: State) -> State:
         if self.destination is None:
-            raise self.cause
+            raise SolverError(self.cause)
         return self.destination
 
 
@@ -302,3 +321,18 @@ class SetOption(Change):
             options=tuple(options.items()),
             packages=base.packages,
         )
+
+
+class Note(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def __str__(self) -> str:
+        ...
+
+
+class SkipPackageNote(Note):
+    def __init__(self, pkg: api.Ident, reason: str) -> None:
+        self.pkg = pkg
+        self.reason = reason
+
+    def __str__(self) -> str:
+        return f"Skipped {self.pkg} - {self.reason}"

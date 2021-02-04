@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, Dict
+from typing import Iterable, List, Optional, Union, Dict
 
 from ruamel import yaml
 import structlog
@@ -198,18 +198,22 @@ class Solver:
 
 
 class GraphSolver:
+    class OutOfOptions(SolverError):
+        def __init__(self, notes: Iterable[graph.Note] = []) -> None:
+            self.notes = list(notes)
+
     def __init__(self) -> None:
 
         self._repos: List[storage.Repository] = []
         self._initial_state_builders: List[graph.Change] = []
-        self._validators: List[validation.Validator] = []
+        self._validators: List[validation.Validator] = validation.default_validators()
         self._last_graph = graph.Graph(graph.State.default())
 
     def reset(self) -> None:
 
         self._repos.clear()
         self._initial_state_builders.clear()
-        self._validators.clear()
+        self._validators = validation.default_validators()
 
     def add_repository(self, repo: storage.Repository) -> None:
         """Add a repository where the solver can get packages."""
@@ -275,9 +279,10 @@ class GraphSolver:
             try:
                 decision = self.step_state(solve_graph, current_node)
                 history.append(current_node)
-            except SolverError as err:
+            except GraphSolver.OutOfOptions as err:
                 previous = history.pop().state if len(history) else None
-                decision = graph.StepBack(err, previous).as_decision()
+                decision = graph.StepBack("no more versions", previous).as_decision()
+                decision.add_notes(err.notes)
 
         return current_node.state.as_solution()
 
@@ -285,6 +290,7 @@ class GraphSolver:
         self, solve_graph: graph.Graph, node: graph.Node
     ) -> Optional[graph.Decision]:
 
+        notes = []
         request = node.state.get_next_request()
         if request is None:
             return None
@@ -293,14 +299,13 @@ class GraphSolver:
         for spec, repo in iterator:
             compat = self._validate(node.state, spec)
             if not compat:
-                iterator.add_history(spec.pkg, compat)
+                notes.append(graph.SkipPackageNote(spec.pkg, compat))
                 continue
-            return graph.ResolvePackage(spec, repo)
+            decision = graph.ResolvePackage(spec, repo)
+            decision.add_notes(notes)
+            return decision
 
-        raise UnresolvedPackageError(
-            yaml.safe_dump(request.to_dict()).strip(),  # type: ignore
-            history=iterator.get_history(),
-        )
+        raise GraphSolver.OutOfOptions(notes)
 
     def _validate(self, node: graph.State, spec: api.Spec) -> api.Compatibility:
 
