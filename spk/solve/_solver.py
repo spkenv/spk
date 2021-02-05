@@ -109,6 +109,10 @@ class Solver:
 
     def solve(self, options: api.OptionMap = api.OptionMap()) -> Solution:
 
+        initial_state = self.get_initial_state()
+        if not initial_state.pkg_requests:
+            return initial_state.as_solution()
+
         initial_state = graph.State.default()
         solve_graph = graph.Graph(initial_state)
         self._last_graph = solve_graph

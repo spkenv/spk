@@ -92,7 +92,7 @@ class RepositoryPackageIterator(PackageIterator):
         builds = list(repo.list_package_builds(api.Ident(self._package_name, version)))
         # source packages must come last to ensure that building
         # from source is the last option under normal circumstances
-        builds.sort(key=lambda pkg: bool(pkg.build and pkg.build.is_source()))
+        builds.sort(key=lambda pkg: pkg.is_source())
         self._builds = iter(builds)
 
         return next(self)

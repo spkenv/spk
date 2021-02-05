@@ -242,6 +242,7 @@ class ResolvePackage(Decision):
             yield SetPackage(embedded, self.spec)
 
         opts = api.OptionMap()
+        opts[self.spec.pkg.name] = str(self.spec.pkg.version)
         for opt in self.spec.build.options:
             name = opt.namespaced_name(self.spec.pkg.name)
             opts[name] = opt.get_value()

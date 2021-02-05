@@ -56,6 +56,11 @@ def make_build(
     return spec
 
 
+def test_solver_no_requests(solver: Union[Solver, legacy.Solver]) -> None:
+
+    solver.solve()
+
+
 def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> None:
 
     repo = storage.MemRepository()
