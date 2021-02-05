@@ -76,7 +76,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    with pytest.raises(PackageNotFoundError):
+    with pytest.raises((PackageNotFoundError, SolverError)): # type: ignore
         solver.solve()
 
 
