@@ -7,6 +7,7 @@ from . import graph
 
 def default_validators() -> List["Validator"]:
     return [
+        DeprecationValidator(),
         PkgRequestsValidator(),
         VarRequirementsValidator(),
         PkgRequirementsValidator(),
@@ -20,15 +21,27 @@ class Validator(metaclass=abc.ABCMeta):
         """Check if the given package is appropriate for the provided state."""
         ...
 
+class DeprecationValidator(Validator):
+    """Ensures that deprecated packages are not included unless specifically requested."""
+
+    def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
+        if not spec.deprecated:
+            return api.COMPATIBLE
+        request = state.get_merged_request(spec.pkg.name)
+        if request.build == spec.pkg.build:
+            return api.COMPATIBLE
+        return api.Compatibility("Build is deprecated and was not specifically requested")
 
 class BinaryOnly(Validator):
     """Enforces the resolution of binary packages only, denying new builds from source."""
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
-        if spec.pkg.build is not None:
-            return api.COMPATIBLE
-        else:
+        if spec.pkg.build is None:
             return api.Compatibility("Only binary packages are allowed")
+        request = state.get_merged_request(spec.pkg.name)
+        if spec.pkg.build.is_source() and request.pkg.build != spec.pkg.build:
+            return api.Compatibility("Only binary packages are allowed")
+        return api.COMPATIBLE
 
 
 class PkgRequestsValidator(Validator):
@@ -47,8 +60,7 @@ class OptionsValidator(Validator):
     """Ensures that a package is compatible with all defined and requested options."""
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
-        options = api.OptionMap(state.options)
-        compat = spec.build.validate_options(spec.pkg.name, options)
+        compat = spec.build.validate_options(spec.pkg.name, state.get_option_map())
         if not compat:
             return compat
 
@@ -90,7 +102,7 @@ class VarRequirementsValidator(Validator):
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
 
-        options = api.OptionMap(state.options)
+        options = state.get_option_map()
         for request in spec.install.requirements:
             if not isinstance(request, api.VarRequest):
                 continue
