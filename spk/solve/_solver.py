@@ -19,7 +19,8 @@ class Solver:
     """Solver is the main entrypoint for resolving a set of packages."""
 
     class OutOfOptions(SolverError):
-        def __init__(self, notes: Iterable[graph.Note] = []) -> None:
+        def __init__(self, package_name: str, notes: Iterable[graph.Note] = []) -> None:
+            self.package = package_name
             self.notes = list(notes)
 
     def __init__(self) -> None:
@@ -120,13 +121,23 @@ class Solver:
         while decision is not None:
             next_node = solve_graph.add_branch(current_node.id, decision)
             current_node = next_node
+            if current_node is graph.DEAD_STATE:
+                break
             try:
                 decision = self._step_state(solve_graph, current_node)
                 history.append(current_node)
             except Solver.OutOfOptions as err:
                 previous = history.pop().state if len(history) else None
-                decision = graph.StepBack("no more versions", previous).as_decision()
+                decision = graph.StepBack(
+                    f"failed to resolve '{err.package}'", previous
+                ).as_decision()
                 decision.add_notes(err.notes)
+            except Exception as err:
+                previous = history.pop().state if len(history) else None
+                decision = graph.StepBack(f"{err}", previous).as_decision()
+
+        if current_node.state in (initial_state, graph.DEAD_STATE):
+            raise SolverError("Failed to resolve")
 
         return current_node.state.as_solution()
 
@@ -182,7 +193,7 @@ class Solver:
             decision.add_notes(notes)
             return decision
 
-        raise Solver.OutOfOptions(notes)
+        raise Solver.OutOfOptions(request.pkg.name, notes)
 
     def _validate(self, node: graph.State, spec: api.Spec) -> api.Compatibility:
 

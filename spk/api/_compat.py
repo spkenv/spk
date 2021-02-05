@@ -90,13 +90,13 @@ class Compat:
                 if CompatRule.NONE.value == char:
                     if a != b:
                         return Compatibility(
-                            f"Not compatible: {base} ({self}) [at pos {i}]"
+                            f"Not compatible with {base} [{self} at pos {i}]"
                         )
                     continue
 
                 if char <= required.value and b < a:
                     return Compatibility(
-                        f"Not {required.name} compatible: {base} ({self}) [at pos {i}]"
+                        f"Not {required.name} compatible with {base} [{self} at pos {i}]"
                     )
                 if char >= required.value:
                     return COMPATIBLE

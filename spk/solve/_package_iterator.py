@@ -39,7 +39,7 @@ class RepositoryPackageIterator(PackageIterator):
                 version = api.parse_version(version_str)
                 self._version_map[version] = repo
 
-        if not len(self._version_map):
+        if len(self._version_map) == 0:
             raise PackageNotFoundError(self._package_name)
 
         versions = list(self._version_map.keys())

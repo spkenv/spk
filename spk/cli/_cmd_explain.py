@@ -3,6 +3,7 @@ import argparse
 
 from ruamel import yaml
 import structlog
+from colorama import Fore
 
 import spfs
 import spk
@@ -41,14 +42,16 @@ def _explain(args: argparse.Namespace) -> None:
     for request in _flags.parse_requests_using_flags(args, *args.packages):
         solver.add_request(request)
 
+    solution: Optional[spk.Solution] = None
+    err: Optional[Exception] = None
     try:
-        solution: Optional[spk.solve.Solution] = solver.solve()
-    except spk.SolverError:
-        solution = None
-        pass
+        solution = solver.solve()
+    except spk.SolverError as e:
+        err = e
 
     print(spk.io.format_resolve(solver, args.verbose + 1))
 
     if solution is not None:
-        print()
         print(spk.io.format_solution(solution, args.verbose))
+    if err is not None:
+        raise SystemExit(1)

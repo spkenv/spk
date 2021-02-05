@@ -8,8 +8,8 @@ from . import graph
 def default_validators() -> List["Validator"]:
     return [
         DeprecationValidator(),
-        OptionsValidator(),
         PkgRequestsValidator(),
+        OptionsValidator(),
         VarRequirementsValidator(),
         PkgRequirementsValidator(),
         EmbeddedPackageValidator(),
@@ -60,7 +60,12 @@ class PkgRequestsValidator(Validator):
             request = state.get_merged_request(spec.pkg.name)
         except KeyError:
             return api.Compatibility("package was not requested [INTERNAL ERROR]")
-        return request.is_satisfied_by(spec)
+        # the initial check is more general and provides more user
+        # friendly error messages that we'd like to get
+        compat = request.is_version_applicable(spec.pkg.version)
+        if compat:
+            compat = request.is_satisfied_by(spec)
+        return compat
 
 
 class OptionsValidator(Validator):

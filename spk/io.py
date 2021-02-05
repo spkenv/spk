@@ -32,19 +32,24 @@ def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
             for note in decision.iter_notes():
                 out += f"{'.'*level} {format_note(note)}\n"
 
+        level_change = 1
         for change in decision.iter_changes():
             if isinstance(change, solve.graph.SetPackage):
-                fill = ">"
-                prefix = " "
-                level += 1
+                if change.spec.pkg.build == api.Build(api.EMBEDDED):
+                    fill = "."
+                    prefix = " "
+                else:
+                    fill = ">"
+                    prefix = " "
             elif isinstance(change, solve.graph.StepBack):
-                fill = "<"
-                prefix = "< "
-                level -= 1
+                fill = "!"
+                prefix = " "
+                level_change = -1
             else:
                 fill = "."
                 prefix = " "
             out += f"{fill*level}{prefix}{format_change(change)}\n"
+        level += level_change
 
     return out
 

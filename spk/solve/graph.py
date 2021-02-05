@@ -48,6 +48,9 @@ class Graph:
         old_node = self._nodes[source_id]
         new_state = decision.apply(old_node.state)
         new_node = Node(new_state)
+        for name, iterator in old_node._iterators.items():
+            new_node.set_iterator(name, iterator.clone())
+
         new_node = self._nodes.setdefault(new_node.id, new_node)
         old_node.add_output(decision)
         new_node.add_input(decision)
@@ -63,6 +66,14 @@ class Node:
         self._outputs: List[Decision] = []
         self._state = state
         self._iterators: Dict[str, PackageIterator] = {}
+
+    def __str__(self) -> str:
+        return f"<Node {self.id}>"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Node):
+            return self.id == other.id
+        return False
 
     @property
     def id(self) -> int:
@@ -174,6 +185,9 @@ class State(NamedTuple):
             solution.add(req, spec, source)
 
         return solution
+
+
+DEAD_STATE = State.default()
 
 
 class Decision:
@@ -318,7 +332,7 @@ class StepBack(Change):
 
     def apply(self, base: State) -> State:
         if self.destination is None:
-            raise SolverError(self.cause)
+            return DEAD_STATE
         return self.destination
 
 
