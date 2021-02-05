@@ -1,12 +1,7 @@
-version: 0.21.0
+version: 0.21.1
 release_notes: |
-  # Solver 2.0
-
-  This update rebuilds the solver to solve bugs that could not
-  be fixed due to limitation in the previous architecture. This
-  new iteration also cleans up the codebase, capturing validation
-  and decision logic in bite-sized, purpose built classes. This
-  makes the solver code much easier to read, maintain, extend, and test.
+  - Fix bug where solver could overly restrict the resolve after one package was decided
+  - Fix but where solver could fail ungracefully when a package was not found
 
 toolchain:
   - kind: Shell
