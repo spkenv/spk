@@ -35,6 +35,10 @@ class RangeIdent:
             out += "/" + self.build.digest
         return out
 
+    def is_source(self) -> bool:
+        """Return true if this ident requests a source package."""
+        return self.build is not None and self.build.is_source()
+
     def is_applicable(self, pkg: Union[str, Ident]) -> bool:
         """Return true if the given package version is applicable to this range.
 
@@ -178,6 +182,10 @@ class VarRequest(Request):
     var: str
     value: str = ""
     pin: bool = False
+
+    def __hash__(self) -> int:
+
+        return hash(f"{self.var}={self.value}")
 
     def package(self) -> Optional[str]:
         """Return the name of the package that this var refers to (if any)"""

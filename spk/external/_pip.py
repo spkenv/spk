@@ -211,11 +211,7 @@ class PipImporter:
                 .build()
             )
         except solve.SolverError:
-            print(
-                io.format_decision_tree(
-                    builder.get_build_env_decision_tree(), verbosity=100
-                )
-            )
+            print(io.format_solve_graph(builder.get_solve_graph(), verbosity=100))
             raise
         builds.insert(0, created)
 

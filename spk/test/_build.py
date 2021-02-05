@@ -23,20 +23,18 @@ class PackageBuildTester:
         self._repos: List[storage.Repository] = []
         self._options = api.OptionMap()
         self._source: Union[str, api.Ident] = spec.pkg.with_build(api.SRC)
-        self._solver: Optional[solve.Solver] = None
+        self._solver = solve.Solver()
 
-    def get_test_env_decision_tree(self) -> solve.DecisionTree:
-        """Return the solver decision tree for the test environment.
+    def get_solve_graph(self) -> solve.Graph:
+        """Return the solver graph for the test environment.
 
         This is most useful for debugging test environments that failed to resolve,
         and test that failed with a SolverError.
 
-        If the tester has not run, return an empty tree.
+        If the tester has not run, returns an incomplete.
         """
 
-        if self._solver is None:
-            return solve.DecisionTree()
-        return self._solver.decision_tree
+        return self._solver.get_last_solve_graph()
 
     def with_option(self, name: str, value: str) -> "PackageBuildTester":
 
@@ -78,7 +76,8 @@ class PackageBuildTester:
         solution = self._resolve_source_package()
         exec.configure_runtime(runtime, solution)
 
-        self._solver = solve.Solver(self._options)
+        self._solver.reset()
+        self._solver.update_options(self._options)
         for repo in self._repos:
             self._solver.add_repository(repo)
         solution = self._solver.solve_build_environment(self._spec)
@@ -117,7 +116,8 @@ class PackageBuildTester:
 
     def _resolve_source_package(self) -> solve.Solution:
 
-        self._solver = solve.Solver(self._options)
+        self._solver.reset()
+        self._solver.update_options(self._options)
         self._solver.add_repository(storage.local_repository())
         for repo in self._repos:
             if repo == storage.local_repository():

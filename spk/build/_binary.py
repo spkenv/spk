@@ -42,7 +42,7 @@ class BinaryPackageBuilder:
         self._all_options = api.OptionMap()
         self._pkg_options = api.OptionMap()
         self._source: Union[str, api.Ident] = "."
-        self._solver: Optional[solve.Solver] = None
+        self._solver = solve.Solver()
         self._repos: List[storage.Repository] = []
         self._interactive = False
 
@@ -54,18 +54,16 @@ class BinaryPackageBuilder:
         builder._source = spec.pkg.with_build(api.SRC)
         return builder
 
-    def get_build_env_decision_tree(self) -> solve.DecisionTree:
-        """Return the solver decision tree for the build environment.
+    def get_solve_graph(self) -> solve.Graph:
+        """Return the resolve graph from the build environment.
 
         This is most useful for debugging build environments that failed to resolve,
         and builds that failed with a SolverError.
 
-        If the builder has not run, return an empty tree.
+        If the builder has not run, return an incomplete graph.
         """
 
-        if self._solver is None:
-            return solve.DecisionTree()
-        return self._solver.decision_tree
+        return self._solver.get_last_solve_graph()
 
     def with_option(self, name: str, value: str) -> "BinaryPackageBuilder":
 
@@ -115,6 +113,7 @@ class BinaryPackageBuilder:
         spfs.remount_runtime(runtime)
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
+        _LOGGER.debug("package options", options=self._pkg_options)
         compat = self._spec.build.validate_options(
             self._spec.pkg.name, self._all_options
         )
@@ -139,7 +138,8 @@ class BinaryPackageBuilder:
 
     def _resolve_source_package(self) -> solve.Solution:
 
-        self._solver = solve.Solver(self._all_options)
+        self._solver.reset()
+        self._solver.update_options(self._all_options)
         self._solver.add_repository(storage.local_repository())
         for repo in self._repos:
             if repo == storage.local_repository():
@@ -158,7 +158,8 @@ class BinaryPackageBuilder:
 
     def _resolve_build_environment(self) -> solve.Solution:
 
-        self._solver = solve.Solver(self._all_options)
+        self._solver.reset()
+        self._solver.update_options(self._all_options)
         self._solver.set_binary_only(True)
         for repo in self._repos:
             self._solver.add_repository(repo)

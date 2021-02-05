@@ -72,7 +72,6 @@ class Compat:
 
     def render(self, version: Version) -> str:
 
-        # FIXME: is it reasonable to know about this here?
         parts = version.parts[: len(self.parts)]
         return f"~{VERSION_SEP.join(str(i) for i in parts)}"
 
@@ -91,13 +90,13 @@ class Compat:
                 if CompatRule.NONE.value == char:
                     if a != b:
                         return Compatibility(
-                            f"Not compatible: {base} ({self}) [at pos {i}]"
+                            f"Not compatible with {base} [{self} at pos {i}]"
                         )
                     continue
 
                 if char <= required.value and b < a:
                     return Compatibility(
-                        f"Not {required.name} compatible: {base} ({self}) [at pos {i}]"
+                        f"Not {required.name} compatible with {base} [{self} at pos {i}]"
                     )
                 if char >= required.value:
                     return COMPATIBLE

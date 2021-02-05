@@ -33,7 +33,7 @@ def register(
     mkb_cmd.add_argument(
         "--here",
         action="store_true",
-        help=("Build from the current directory, instead of a source package "),
+        help=("Build from the current directory, instead of a source package"),
     )
     mkb_cmd.add_argument(
         "--interactive",
@@ -101,11 +101,11 @@ def _make_binary(args: argparse.Namespace) -> None:
             builder.set_interactive(args.interactive)
             try:
                 out = builder.build()
-            except spk.SolverError:
+            except (ValueError, spk.SolverError):
                 _LOGGER.error("build failed", variant=opts)
                 if args.verbose:
-                    tree = builder.get_build_env_decision_tree()
-                    print(spk.io.format_decision_tree(tree, verbosity=args.verbose))
+                    graph = builder.get_solve_graph()
+                    print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
                 raise
             else:
                 _LOGGER.info("created", pkg=out.pkg)

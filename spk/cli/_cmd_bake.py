@@ -58,11 +58,8 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> spfs.runtime.Runti
     except spk.SolverError as e:
         print(f"{Fore.RED}{e}{Fore.RESET}")
         if args.verbose:
-            print(
-                spk.io.format_decision_tree(
-                    solver.decision_tree, verbosity=args.verbose
-                )
-            )
+            graph = solver.get_last_solve_graph()
+            print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
         if args.verbose == 0:
             print(
                 f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Style.RESET_ALL}",

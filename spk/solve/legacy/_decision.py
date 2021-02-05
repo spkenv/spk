@@ -5,9 +5,9 @@ from contextlib import contextmanager
 
 import structlog
 
-from .. import api, storage
+from ... import api, storage
 from ._errors import SolverError, ConflictingRequestsError
-from ._solution import Solution, PackageSource
+from .. import Solution, PackageSource
 from ._package_iterator import (
     PackageIterator,
     FilteredPackageIterator,

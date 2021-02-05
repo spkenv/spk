@@ -18,6 +18,9 @@ class Option(metaclass=abc.ABCMeta):
     def name(self) -> str:
         pass
 
+    def namespaced_name(self, pkg: str) -> str:
+        return self.name()
+
     @abc.abstractmethod
     def validate(self, value: Optional[str]) -> Compatibility:
         pass
@@ -86,7 +89,7 @@ class BuildSpec:
         for option in self.options:
             compat = option.validate(given_options.get(option.name()))
             if not compat:
-                return compat
+                return Compatibility(f"invalid value for {option.name()}: {compat}")
 
             try:
                 del must_exist[option.name()]
@@ -231,6 +234,11 @@ class VarOpt(Option):
         return f"VarOpt({self.to_dict()})"
 
     def name(self) -> str:
+        return self.var
+
+    def namespaced_name(self, pkg: str) -> str:
+        if "." not in self.var:
+            return f"{pkg}.{self.var}"
         return self.var
 
     def get_value(self, given: str = None) -> str:

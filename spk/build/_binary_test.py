@@ -92,6 +92,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
         .with_option("top.dep", "1.0.0")  # specific option takes precendence
         .build()
     )
+
     build_options = tmprepo.read_spec(spec.pkg).resolve_all_options(
         api.OptionMap({"dep": "7"})  # given value should be ignored after build
     )

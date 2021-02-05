@@ -1,6 +1,6 @@
 import spfs
 
-from .. import storage, api
+from ... import storage, api
 from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterator
 
 

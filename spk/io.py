@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Sequence, Set, Union
 from colorama import Fore, Style
 
 from . import api, solve
@@ -14,7 +14,47 @@ def format_ident(pkg: api.Ident) -> str:
     return out
 
 
-def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:
+def format_resolve(
+    solver: Union[solve.Solver, solve.legacy.Solver], verbosity: int = 1
+) -> str:
+    if isinstance(solver, solve.legacy.Solver):
+        return format_decision_tree(solver.decision_tree, verbosity)
+    else:
+        graph = solver.get_last_solve_graph()
+        return format_solve_graph(graph, verbosity)
+
+
+def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
+    out = ""
+    level = 0
+    for node, decision in graph.walk():
+        if verbosity > 1:
+            for note in decision.iter_notes():
+                out += f"{'.'*level} {format_note(note)}\n"
+
+        level_change = 1
+        for change in decision.iter_changes():
+            if isinstance(change, solve.graph.SetPackage):
+                if change.spec.pkg.build == api.Build(api.EMBEDDED):
+                    fill = "."
+                    prefix = " "
+                else:
+                    fill = ">"
+                    prefix = " "
+            elif isinstance(change, solve.graph.StepBack):
+                fill = "!"
+                prefix = " "
+                level_change = -1
+            else:
+                fill = "."
+                prefix = " "
+            out += f"{fill*level}{prefix}{format_change(change)}\n"
+        level += level_change
+
+    return out
+
+
+def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) -> str:
 
     out = ""
     for decision in tree.walk():
@@ -27,7 +67,32 @@ def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:
     return out[:-1]
 
 
-def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
+def format_change(change: solve.graph.Change, verbosity: int = 1) -> str:
+
+    out = ""
+    if isinstance(change, solve.graph.RequestPackage):
+        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
+    elif isinstance(change, solve.graph.RequestVar):
+        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.name(): change.request.value}))}"
+    elif isinstance(change, solve.graph.SetPackage):
+        return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
+    elif isinstance(change, solve.graph.SetOptions):
+        return f"{Fore.CYAN}DEFINE{Fore.RESET} {format_options(change.options)}"
+    elif isinstance(change, solve.graph.StepBack):
+        return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
+    else:
+        return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
+
+
+def format_note(note: solve.graph.Note) -> str:
+
+    if isinstance(note, solve.graph.SkipPackageNote):
+        return f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(note.pkg)} - {note.reason}"
+    else:
+        return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
+
+
+def format_decision(decision: solve.legacy.Decision, verbosity: int = 1) -> str:
 
     end = "\n" if verbosity > 1 else " "
     out = ""
@@ -71,7 +136,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
 
     if error is not None:
 
-        if not isinstance(error, solve.UnresolvedPackageError):
+        if not isinstance(error, solve.legacy.UnresolvedPackageError):
             out += f"{Fore.RED}BLOCKED{Fore.RESET} {error}"
         else:
             if verbosity > 1:

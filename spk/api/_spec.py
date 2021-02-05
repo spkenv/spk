@@ -130,6 +130,9 @@ class Spec:
     tests: List[TestSpec] = field(default_factory=list)
     install: InstallSpec = field(default_factory=InstallSpec)
 
+    def __hash__(self) -> int:
+        return hash(self.pkg)
+
     def clone(self) -> "Spec":
         return Spec.from_dict(self.to_dict())
 
@@ -155,7 +158,7 @@ class Spec:
 
         return request.pkg.build == self.pkg.build
 
-    def update_for_build(self, options: OptionMap, resolved: List["Spec"]) -> None:
+    def update_for_build(self, options: OptionMap, resolved: Iterable["Spec"]) -> None:
         """Update this spec to represent a specific binary package build."""
 
         specs = dict((s.pkg.name, s) for s in resolved)
