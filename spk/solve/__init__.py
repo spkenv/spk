@@ -1,18 +1,14 @@
 from ._errors import (
     SolverError,
-    ConflictingRequestsError,
-    UnresolvedPackageError,
     PackageNotFoundError,
 )
-from ._solution import Solution, SolvedRequest
+from ._solution import Solution, SolvedRequest, PackageSource
 from ._package_iterator import (
     PackageIterator,
     RepositoryPackageIterator,
-    FilteredPackageIterator,
 )
-from . import graph, validation
+from . import graph, validation, legacy
 from .graph import Graph
-from ._decision import Decision, DecisionTree
-from ._solver import Solver, LegacySolver
+from ._solver import Solver
 
 __all__ = list(locals().keys())

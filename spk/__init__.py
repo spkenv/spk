@@ -11,11 +11,7 @@ from ._publish import Publisher
 from .solve import (
     Solver,
     Solution,
-    UnresolvedPackageError,
-    ConflictingRequestsError,
     SolverError,
-    DecisionTree,
-    Decision,
 )
 from .api import read_spec_file
 from .build import (

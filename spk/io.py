@@ -15,9 +15,9 @@ def format_ident(pkg: api.Ident) -> str:
 
 
 def format_resolve(
-    solver: Union[solve.Solver, solve.LegacySolver], verbosity: int = 1
+    solver: Union[solve.Solver, solve.legacy.Solver], verbosity: int = 1
 ) -> str:
-    if isinstance(solver, solve.LegacySolver):
+    if isinstance(solver, solve.legacy.Solver):
         return format_decision_tree(solver.decision_tree, verbosity)
     else:
         graph = solver.get_last_solve_graph()
@@ -49,7 +49,7 @@ def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
     return out
 
 
-def format_decision_tree(tree: solve.DecisionTree, verbosity: int = 1) -> str:
+def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) -> str:
 
     out = ""
     for decision in tree.walk():
@@ -87,7 +87,7 @@ def format_note(note: solve.graph.Note) -> str:
         return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
 
 
-def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
+def format_decision(decision: solve.legacy.Decision, verbosity: int = 1) -> str:
 
     end = "\n" if verbosity > 1 else " "
     out = ""
@@ -131,7 +131,7 @@ def format_decision(decision: solve.Decision, verbosity: int = 1) -> str:
 
     if error is not None:
 
-        if not isinstance(error, solve.UnresolvedPackageError):
+        if not isinstance(error, solve.legacy.UnresolvedPackageError):
             out += f"{Fore.RED}BLOCKED{Fore.RESET} {error}"
         else:
             if verbosity > 1:
