@@ -99,12 +99,17 @@ class State(NamedTuple):
 
     pkg_requests: Tuple[api.PkgRequest, ...]
     var_requests: Tuple[api.VarRequest, ...]
-    packages: Tuple[api.Spec, ...]
+    packages: Tuple[Tuple[api.Spec, PackageSource], ...]
     options: Tuple[Tuple[str, str], ...]
 
     @property
     def id(self) -> int:
-        return hash(self)
+        hashes: List[int] = []
+        hashes.extend(hash(pr) for pr in self.pkg_requests)
+        hashes.extend(hash(vr) for vr in self.var_requests)
+        hashes.extend(hash(p) for p, _ in self.packages)
+        hashes.extend(hash(o) for o in self.options)
+        return hash(tuple(hashes))
 
     @staticmethod
     def default() -> "State":
@@ -122,7 +127,7 @@ class State(NamedTuple):
 
     def get_next_request(self) -> Optional[api.PkgRequest]:
 
-        packages = set(s.pkg.name for s in self.packages)
+        packages = set(spec.pkg.name for spec, _ in self.packages)
         for request in self.pkg_requests:
             if request.pkg.name in packages:
                 continue
@@ -157,16 +162,16 @@ class State(NamedTuple):
 
     def get_current_resolve(self, name: str) -> api.Spec:
 
-        for spec in self.packages:
+        for spec, _ in self.packages:
             if spec.pkg.name == name:
                 return spec
         raise KeyError(f"Has not been resolved: '{name}'")
 
     def as_solution(self) -> Solution:
         solution = Solution(api.OptionMap(self.options))
-        for spec in self.packages:
+        for spec, source in self.packages:
             req = self.get_merged_request(spec.pkg.name)
-            solution.add(req, spec, None)  # type: ignore
+            solution.add(req, spec, source)
 
         return solution
 
@@ -326,7 +331,7 @@ class SetPackage(Change):
         return State(
             pkg_requests=base.pkg_requests,
             var_requests=base.var_requests,
-            packages=base.packages + (self.spec,),
+            packages=base.packages + ((self.spec, self.source),),
             options=base.options,
         )
 

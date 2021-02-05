@@ -59,12 +59,6 @@ def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
     else:
         opts = spk.api.host_options()
 
-    for name, value in os.environ.items():
-
-        match = OPTION_VAR_RE.match(name)
-        if match:
-            opts[match.group(1)] = value
-
     for pair in getattr(args, "opt", []):
 
         pair = pair.strip()

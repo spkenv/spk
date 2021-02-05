@@ -113,6 +113,7 @@ class BinaryPackageBuilder:
         spfs.remount_runtime(runtime)
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
+        _LOGGER.debug("package options", options=self._pkg_options)
         compat = self._spec.build.validate_options(
             self._spec.pkg.name, self._all_options
         )
