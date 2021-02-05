@@ -1,9 +1,12 @@
-version: 0.20.3
+version: 0.21.0
 release_notes: |
-  - Fix bug where embedded packages could cause incorrect solves
-    - The solver was taking the wrong action when an embedded package
-      introduced an incompatible request that caused the incompatibility
-      to be ignored and a bad environment to be created
+  # Solver 2.0
+
+  This update rebuilds the solver to solve bugs that could not
+  be fixed due to limitation in the previous architecture. This
+  new iteration also cleans up the codebase, capturing validation
+  and decision logic in bite-sized, purpose built classes. This
+  makes the solver code much easier to read, maintain, extend, and test.
 
 toolchain:
   - kind: Shell
