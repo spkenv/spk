@@ -231,8 +231,10 @@ class GraphSolver:
         if isinstance(request, str):
             request = api.PkgRequest.from_dict({"pkg": request})
             request = graph.RequestPackage(request)
-
-        if isinstance(request, api.VarRequest):
+        
+        if isinstance(request, api.PkgRequest):
+            request = graph.RequestPackage(request)
+        elif isinstance(request, api.VarRequest):
             request = graph.RequestVar(request)
 
         if not isinstance(request, graph.Change):
@@ -262,6 +264,23 @@ class GraphSolver:
     def get_last_solve_graph(self) -> graph.Graph:
         return self._last_graph
 
+    def solve_build_environment(self, spec: api.Spec) -> Solution:
+        """Adds requests for all build requirements and solves"""
+
+        state = graph.State.default()
+        for change in self._initial_state_builders:
+            state = change.apply(state)
+
+        build_options = spec.resolve_all_options(state.get_option_map())
+        for option in spec.build.options:
+            if not isinstance(option, api.PkgOpt):
+                continue
+            given = build_options.get(option.name())
+            request = option.to_request(given)
+            self.add_request(request)
+
+        return self.solve()
+
     def solve(self, options: api.OptionMap = api.OptionMap()) -> Solution:
 
         initial_state = graph.State.default()
@@ -277,7 +296,7 @@ class GraphSolver:
             next_node = solve_graph.add_branch(current_node.id, decision)
             current_node = next_node
             try:
-                decision = self.step_state(solve_graph, current_node)
+                decision = self._step_state(solve_graph, current_node)
                 history.append(current_node)
             except GraphSolver.OutOfOptions as err:
                 previous = history.pop().state if len(history) else None
@@ -286,7 +305,7 @@ class GraphSolver:
 
         return current_node.state.as_solution()
 
-    def step_state(
+    def _step_state(
         self, solve_graph: graph.Graph, node: graph.Node
     ) -> Optional[graph.Decision]:
 
@@ -301,7 +320,21 @@ class GraphSolver:
             if not compat:
                 notes.append(graph.SkipPackageNote(spec.pkg, compat))
                 continue
-            decision = graph.ResolvePackage(spec, repo)
+            build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
+            if build_from_source:
+                spec = spec.clone()
+                spec.pkg.set_build(None)
+                try:
+                    build_env = self._resolve_new_build(spec, node.state)
+                except SolverError as err:
+                    note = graph.SkipPackageNote(
+                        spec.pkg, f"failed to resolve build env: {err}"
+                    )
+                    notes.append(note)
+                    continue
+                decision = graph.BuildPackage(spec, repo, build_env)
+            else:
+                decision = graph.ResolvePackage(spec, repo)
             decision.add_notes(notes)
             return decision
 
@@ -329,3 +362,11 @@ class GraphSolver:
 
         assert len(self._repos), "No configured package repositories."
         return RepositoryPackageIterator(package_name, self._repos)
+
+    def _resolve_new_build(self, spec: api.Spec, state: graph.State) -> Solution:
+
+        opts = state.get_option_map()
+        solver = GraphSolver()
+        solver._repos = self._repos
+        solver.update_options(opts)
+        return solver.solve_build_environment(spec)

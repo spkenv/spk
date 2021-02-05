@@ -116,6 +116,10 @@ class State(NamedTuple):
             packages=tuple(),
         )
 
+    def get_option_map(self) -> api.OptionMap:
+
+        return api.OptionMap(self.options)
+
     def get_next_request(self) -> Optional[api.PkgRequest]:
 
         packages = set(s.pkg.name for s in self.packages)
@@ -142,11 +146,12 @@ class State(NamedTuple):
             if request.pkg.name != name:
                 continue
             merged = request.clone()
+            break
 
         for request in requests:
             if request.pkg.name != merged.pkg.name:
                 continue
-            request.restrict(request)
+            merged.restrict(request)
 
         return merged
 
@@ -197,7 +202,7 @@ class Decision:
 
 
 class ResolvePackage(Decision):
-    def __init__(self, spec: api.Spec, source: PackageSource,) -> None:
+    def __init__(self, spec: api.Spec, source: PackageSource) -> None:
 
         self.spec = spec
         self.source = source
@@ -215,6 +220,37 @@ class ResolvePackage(Decision):
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
         for opt in self.spec.build.options:
+            # FIXME: downgrade to package var options if var option
+            yield SetOption(opt.name(), opt.get_value())
+
+
+class BuildPackage(Decision):
+    def __init__(
+        self, spec: api.Spec, source: PackageSource, build_env: Solution
+    ) -> None:
+
+        self.spec = spec
+        self.source = source
+        self.env = build_env
+        super(BuildPackage, self).__init__(self._generate_changes())
+
+    def _generate_changes(self) -> Iterator["Change"]:
+
+        specs = tuple(s.spec for s in self.env.items())
+        options = self.env.options()
+        spec = self.spec.clone()
+        spec.update_for_build(options, specs)
+
+        yield SetPackage(self.spec, self.source)
+        for req in spec.install.requirements:
+            if isinstance(req, api.PkgRequest):
+                yield RequestPackage(req)
+            elif isinstance(req, api.VarRequest):
+                yield RequestVar(req)
+            else:
+                _LOGGER.warning(f"unhandled install requirement {type(req)}")
+
+        for opt in spec.build.options:
             # FIXME: downgrade to package var options if var option
             yield SetOption(opt.name(), opt.get_value())
 

@@ -86,7 +86,7 @@ class BuildSpec:
         for option in self.options:
             compat = option.validate(given_options.get(option.name()))
             if not compat:
-                return compat
+                return Compatibility(f"invalid value for {option.name()}: {compat}")
 
             try:
                 del must_exist[option.name()]

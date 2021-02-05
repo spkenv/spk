@@ -478,7 +478,7 @@ def test_solver_build_from_source(solver: Union[Solver, GraphSolver]) -> None:
     solver.add_repository(repo)
     solver.add_request("my-tool")
     solver.set_binary_only(True)
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         # Should fail when binary-only is specified
         try:
             solver.solve()
@@ -513,13 +513,13 @@ def test_solver_build_from_source_unsolvable(
         api.OptionMap(gcc="4.8"),
     )
 
-    # the new option value should disqulify the existing build
+    # the new option value should disqualify the existing build
     # and there is no 6.3 that can be resolved for this request
     solver.update_options(api.OptionMap(gcc="6.3"))
     solver.add_repository(repo)
     solver.add_request("my-tool")
 
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         try:
             solver.solve()
         finally:
