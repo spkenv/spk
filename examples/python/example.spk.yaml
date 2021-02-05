@@ -13,7 +13,9 @@ tests:
   - stage: build
     selectors:
       - { python: 3 }
-    script: python -m "unittest"
+    requirements:
+      - pkg: pytest
+    script: pytest
   - stage: install
     script: python -m "python_example" --help
 

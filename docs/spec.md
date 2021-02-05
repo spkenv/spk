@@ -317,3 +317,20 @@ The test is executed if the variant in question matches at least one of the sele
 {{% notice info %}}
 Selectors must match exactly the build option values from the build variants. For example: a `python: 2.7` selector will not match a `python: 2` build variant.
 {{% /notice %}}
+
+#### Requirements
+
+You can specfiy additional requirements for any defined test. These requirements are merged with those of test environment so be sure that they do not conflict with what you are testing.
+
+```yaml
+build:
+  options:
+    - { pkg: python, default: 3 }
+
+tests:
+  - stage: install
+    requirements:
+      - pkg: pytest
+    script:
+      - pytest
+```

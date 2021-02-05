@@ -132,13 +132,17 @@ def _test(args: argparse.Namespace) -> None:
                             f"Untestable stage '{stage}', must be one of {_VALID_STAGES}"
                         )
 
-                    tester = tester.with_options(opts).with_repositories(repos.values())
+                    tester = (
+                        tester.with_options(opts)
+                        .with_repositories(repos.values())
+                        .with_requirements(test.requirements)
+                    )
                     if args.here:
-                        tester = tester.with_source(args.here)
+                        tester = tester.with_source(".")
                     try:
                         tester.test()
                     except spk.SolverError:
-                        _LOGGER.error("test failed")
+                        _LOGGER.error("failed to resolve test environment")
                         if args.verbose:
                             graph = tester.get_solve_graph()
                             print(

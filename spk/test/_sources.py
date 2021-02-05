@@ -16,6 +16,7 @@ class PackageSourceTester:
         self._script = script
         self._repos: List[storage.Repository] = []
         self._options = api.OptionMap()
+        self._additional_requirements: List[api.Request] = []
         self._source: Optional[str] = None
         self._solver = solve.Solver()
 
@@ -57,6 +58,13 @@ class PackageSourceTester:
         self._source = source
         return self
 
+    def with_requirements(
+        self, requests: Iterable[api.Request]
+    ) -> "PackageSourceTester":
+
+        self._additional_requirements = list(requests)
+        return self
+
     def test(self) -> None:
 
         runtime = spfs.active_runtime()
@@ -68,6 +76,8 @@ class PackageSourceTester:
         spfs.remount_runtime(runtime)
 
         self._solver.reset()
+        for request in self._additional_requirements:
+            self._solver.add_request(request)
         self._solver.update_options(self._options)
         for repo in self._repos:
             self._solver.add_repository(repo)

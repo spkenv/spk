@@ -1,9 +1,7 @@
-from typing import Dict, List, Any, Optional, Tuple, Union, Set
-import os
-import abc
-import enum
+from typing import Dict, List, Any
 from dataclasses import dataclass, field
 
+from ._request import Request
 from ._option_map import OptionMap
 
 
@@ -14,6 +12,7 @@ class TestSpec:
     stage: str
     script: str
     selectors: List[OptionMap] = field(default_factory=list)
+    requirements: List[Request] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         spec: Dict[str, Any] = {
@@ -22,6 +21,8 @@ class TestSpec:
         }
         if self.selectors:
             spec["selectors"] = [dict(s) for s in self.selectors]
+        if self.requirements:
+            spec["requirements"] = [r.to_dict() for r in self.requirements]
         return spec
 
     @staticmethod
@@ -34,7 +35,18 @@ class TestSpec:
             script = "\n".join(script)
 
         ts = TestSpec(stage, script)
-        ts.selectors = [OptionMap(**data) for data in data.pop("selectors", [])]
+
+        selectors = data.pop("selectors", [])
+        if not isinstance(selectors, list):
+            raise ValueError(f"test.selectors must be a list, got {type(selectors)}")
+        ts.selectors = [OptionMap(**data) for data in selectors]
+
+        requirements = data.pop("requirements", [])
+        if not isinstance(requirements, list):
+            raise ValueError(
+                f"test.requirements must be a list, got {type(requirements)}"
+            )
+        ts.requirements = [Request.from_dict(r) for r in requirements]
 
         if len(data):
             raise ValueError(

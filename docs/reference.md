@@ -92,11 +92,12 @@ An option map is a key-value mapping of option names to option values. In practi
 
 A test spec defines one test script that should be run against the package to validate it. Each test script can run against one stage of the package, meaning that you can define test processes for the source package, build environment (unit tests), or install environment (integration tests).
 
-| Field     | Type                            | Description                                                                                                                        |
-| --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| stage     | _str_                           | The stage that this test validates, one of: **sources**, **build**, **install**                                                    |
-| selectors | _List[[OptionMap](#optionmap)]_ | Identifies which variants this test should be executed against. Variants must match one of the selectors in this list to be tested |
-| script    | _str_ or _List[str]_            | The sh script which tests the package                                                                                              |
+| Field        | Type                            | Description                                                                                                                        |
+| ------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| stage        | _str_                           | The stage that this test validates, one of: **sources**, **build**, **install**                                                    |
+| selectors    | _List[[OptionMap](#optionmap)]_ | Identifies which variants this test should be executed against. Variants must match one of the selectors in this list to be tested |
+| requirements | _List[[Request](#request)]_     | Additional packages required in the test environment                                                                               |
+| script       | _str_ or _List[str]_            | The sh script which tests the package                                                                                              |
 
 ## InstallSpec
 
