@@ -18,8 +18,9 @@ To help understand the decision tree and what can go wrong let's look at some ex
 
 ```bash
 $ spk explain -v doesntexist
-REQUEST doesntexist/*
-> BLOCKED Package not found: doesntexist
+ DEFINE {arch=x86_64, centos=7, distro=centos, os=linux}
+ REQUEST doesntexist/*
+!BLOCKED Package not found: doesntexist
 ```
 
 This error is one of the most obvious - but knowing when and why it can appear helps with understanding other issues. This error happens when the package that was requested simple doesn't exist in and of the enabled repositories.
@@ -36,9 +37,11 @@ This error is one of the most obvious - but knowing when and why it can appear h
 ```bash
 $ spk explain -v gcc/3.*
  REQUEST gcc/3.*
-> TRY 6.3.1 - Out of range: 3.* [at pos 0]
-. TRY 4.8.5 - Out of range: 3.* [at pos 0]
-. BLOCKED Failed to resolve: {'pkg': 'gcc/3.*', 'prereleasePolicy': 'ExcludeAll'}
+ DEFINE {arch=x86_64, centos=7, distro=centos, os=linux}
+ REQUEST gcc/3.*
+. TRY gcc/6.3.1 - Out of range: 3.* [at pos 0]
+. TRY gcc/4.8.5 - Out of range: 3.* [at pos 0]
+!BLOCKED failed to resolve 'gcc'
 ```
 
 In this case, the package exists but still failed to resolve. We can see that the solver looked at the existing versions of the `gcc` package but found that none of them were applicable to the requested version range.
@@ -58,10 +61,11 @@ In these cases, the additional use of the `--verbose (-v)` flag is extremely hel
 
 ```bash
 $ spk explain -v gcc/6 -o os=darwin
- REQUEST gcc/4.0.0
-> TRY gcc/6.3.1/NQWIGWXA - Incompatible option: wanted 'darwin', got 'linux'
-. TRY gcc/4.8.5 - version too low
-. BLOCKED Failed to resolve: {pkg: gcc/4.0.0, prereleasePolicy: ExcludeAll}
+ DEFINE {arch=x86_64, centos=7, distro=centos, os=darwin}
+ REQUEST gcc/6.0.0
+. TRY gcc/6.3.1 - invalid value for os: Invalid value 'darwin' for option 'os', must be one of {'linux'}
+. TRY gcc/4.8.5 - Not compatible with 6.0.0 [x.a.b at pos 0]
+!BLOCKED failed to resolve 'gcc'
 ```
 
 In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/6.3.1` package available that it was build for `os: linux`, which is not what we requested.
@@ -81,13 +85,14 @@ In most cases, the solver will encouter multiple issues as it tries to find an a
 
 ```bash
 $ spk explain -v my-plugin/1, maya/2020
- REQUEST my-plugin/1.0.0, maya/2019.0.0
+ REQUEST my-plugin/1.0.0
+ REQUEST maya/2019.0.0
 > RESOLVE my-plugin/1.0.0/3I42H3S6
 . REQUEST maya/2020.0.0
->> TRY 2020.0.0 - Not compatible: 2019.0.0 (x.a.b) [at pos 0]
-.. TRY 2019.0.0 - version too low
-.. BLOCKED Failed to resolve: {'pkg': 'maya/2020.0.0,2019.0.0', 'prereleasePolicy': 'ExcludeAll'}
-> BLOCKED Failed to resolve: {'pkg': 'my-plugin/1.0.0', 'prereleasePolicy': 'ExcludeAll'}
+.. TRY maya/2020.0.0/3I42H3S6 - Not compatible with 2019.0.0 [x.a.b at pos 0]
+.. TRY maya/2019.0.0/3I42H3S6 - version too low
+!!BLOCKED failed to resolve 'maya'
+!BLOCKED failed to resolve 'my-plugin'
 ```
 
 In this example, we've requested my-plugin version 1 and maya 2020. The solver resolved `my-plugin/1.0.0` but this package has it's own dependency on `maya/2019`, as denoted by the additional `REQUEST` which is added. The solver combines the two requests into one, and then cannot find a version that satisfies both the `2019` and `2020` request.
@@ -98,16 +103,17 @@ The last line of this output is the unwinding of the solver stack. When the firs
 
 ```bash
 $ spk explain -v my-plugin/1 maya/2019
- REQUEST my-plugin/1.0.0, maya/2019.0.0
+ REQUEST my-plugin/1.0.0
+ REQUEST maya/2019.0.0
 > RESOLVE my-plugin/1.1.0/3I42H3S6
 . REQUEST maya/2020.0.0
->> TRY 2020.0.0 - Not compatible: 2019.0.0 (x.a.b) [at pos 0]
-.. TRY 2019.0.0 - version too low
-.. BLOCKED Failed to resolve: {'pkg': 'maya/2019.0.0,2020.0.0', 'prereleasePolicy': 'ExcludeAll'}
+.. TRY maya/2020.0.0/3I42H3S6 - Not compatible with 2019.0.0 [x.a.b at pos 0]
+.. TRY maya/2019.0.0/3I42H3S6 - version too low
+!! BLOCKED failed to resolve 'maya'
 > RESOLVE my-plugin/1.0.0/3I42H3S6
 . REQUEST maya/2019.0.0
->> TRY maya/2020.0.0 - Not compatible: 2019.0.0 (x.a.b) [at pos 0]
-.. RESOLVE maya/2019.0.0/3I42H3S6
+.. TRY maya/2020.0.0/3I42H3S6 - Not compatible with 2019.0.0 [x.a.b at pos 0]
+>> RESOLVE maya/2019.0.0/3I42H3S6
 ```
 
 Similar to above, `my-plugin/1.1.0` has a dependency on `maya/2020` which conflicts with the original request for maya 2019. In this case, the solver backed out and tried an older version of `my-plugin`, which requested maya 2019 instead and so the resolve was completed.
@@ -118,24 +124,26 @@ Similar to above, `my-plugin/1.1.0` has a dependency on `maya/2020` which confli
 $ spk explain -v my-plugin
  REQUEST my-plugin/*
 > RESOLVE my-plugin/1.0.0/3I42H3S6
-. REQUEST maya/2019.0.0, some-library/1.0.0
+. REQUEST maya/2019.0.0
+. REQUEST some-library/1.0.0
 >> RESOLVE maya/2019.2.0/3I42H3S6
+... TRY some-library/1.0.0/3I42H3S6 - Conflicting install requirement: 'maya' version too high
+!!! BLOCKED failed to resolve 'some-library'
+>> RESOLVE maya/2019.0.0/3I42H3S6
 >>> RESOLVE some-library/1.0.0/3I42H3S6
 ... REQUEST maya/~2019.0.0
-... UNRESOLVE maya
->>>> RESOLVE maya/2019.0.0/3I42H3S6
 ```
 
-In this example, `my-plugin` has two dependencies. The first maya dependency is resolved to `2019.2` but then when `some-library` is resolved, it adds a new request for `maya/~2019.0.0` for which `2019.2` is not applicable. The solver re-opens the request, denoting this by the `UNRESOLVE` statement above, and then manges to find an older version of maya that works for both requests.
+In this example, `my-plugin` has two dependencies. The first maya dependency is resolved to `2019.2` but then when `some-library` is resolved, it adds a new request for `maya/~2019.0.0` for which `2019.2` is not applicable. Similar to above, the solver steps back and tries again with an older version of maya which ends up being applicable to both requirements.
 
-#### Depreacted Packages
+#### Deprecated Packages
 
 ```
 $ spk explain -v my-tool
  REQUEST my-tool/*
-> TRY my-tool/1.2.0/STLY6HNC - Build is deprecated and was not specifically requested
-. TRY my-tool/1.2.0/src - Build is deprecated and was not specifically requested
-. BLOCKED Failed to resolve: {pkg: my-tool, prereleasePolicy: ExcludeAll}
+. TRY my-tool/1.2.0/STLY6HNC - Build is deprecated and was not specifically requested
+. TRY my-tool/1.2.0 - Package version is deprecated
+! BLOCKED failed to resolve 'my-tool'
 ```
 
 Packages can be deprecated by package owners when an issue is found or an older version is no longer fit for use. Deprecated packages should not be used under normal circumstances, but there are ways to use the packages if absolutely required.
@@ -150,12 +158,11 @@ Packages can be deprecated by package owners when an issue is found or an older 
 Some package, especially DCC packages, are bundled with other software/packages. Package maintainers should include these packages as _embedded_ packages, so that the solver understands what's in the bundle. The solver will show embedded packages being requested and resolved, always with the `embedded` build string.
 
 ```
- REQUEST qt/*, maya/*
+ REQUEST qt/*
+ REQUEST maya/*
 > RESOLVE qt/5.13.0/3I42H3S6
 >> RESOLVE maya/2019.2.0/3I42H3S6
-.. REQUEST qt/=5.12.6/embedded
-.. UNRESOLVE qt
->>> RESOLVE qt/5.12.6/embedded
+.. RESOLVE qt/5.12.6/embedded
 ```
 
-In this case, `qt` was resolved to version 5.13 first, but maya brought in it's own embedded version of qt, which replaced the initially resolved external package. The solver will always show the same `REQUEST` and `RESOLVE` pattern for embedded packages, but embedded packages can only ever resolve to the one bundled with the original requester.
+In this case, `qt` was resolved to version 5.13 first, but maya brought in it's own embedded version of qt, which replaced the initially resolved external package. The solver will always show the same `RESOLVE` message for embedded packages, but embedded packages can only ever resolve to the one bundled with the package in question.
