@@ -28,7 +28,8 @@ def add_solver_flags(parser: argparse.ArgumentParser) -> None:
 def get_solver_from_flags(args: argparse.Namespace) -> spk.Solver:
 
     options = get_options_from_flags(args)
-    solver = spk.Solver(options)
+    solver = spk.Solver()
+    solver.update_options(options)
     configure_solver_with_repo_flags(args, solver)
     solver.set_binary_only(args.binary_only)
     return solver

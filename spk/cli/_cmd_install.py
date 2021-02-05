@@ -87,9 +87,8 @@ def _install(args: argparse.Namespace) -> None:
             return
 
     for solved in env.items():
-        solver.decision_tree.root.force_set_resolved(
-            solved.request, solved.spec, solved.source
-        )
+        solver.add_request(solved.request)
+        solver.add_request(spk.solve.graph.SetPackage(solved.spec, solved.source))
     for request in requests:
         solver.add_request(request)
 
@@ -98,11 +97,8 @@ def _install(args: argparse.Namespace) -> None:
     except spk.SolverError as e:
         print(f"{Fore.RED}{e}{Fore.RESET}")
         if args.verbose:
-            print(
-                spk.io.format_decision_tree(
-                    solver.decision_tree, verbosity=args.verbose
-                )
-            )
+            graph = solver.get_last_solve_graph()
+            print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
         if args.verbose == 0:
             print(
                 f"{Fore.YELLOW}{Style.DIM}try '--verbose/-v' for more info{Style.RESET_ALL}",
@@ -120,7 +116,7 @@ def _install(args: argparse.Namespace) -> None:
         return
 
     print("The following packages will be modified:\n")
-    requested = solver.decision_tree.root.get_requests()
+    requested = set(r.pkg.name for r in solver.get_initial_state().pkg_requests)
     primary, tertiary = [], []
     for req, spec, _ in packages.items():
         if spec.pkg.name in requested:

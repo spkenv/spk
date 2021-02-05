@@ -104,8 +104,8 @@ def _make_binary(args: argparse.Namespace) -> None:
             except spk.SolverError:
                 _LOGGER.error("build failed", variant=opts)
                 if args.verbose:
-                    tree = builder.get_build_env_decision_tree()
-                    print(spk.io.format_decision_tree(tree, verbosity=args.verbose))
+                    graph = builder.get_solve_graph()
+                    print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
                 raise
             else:
                 _LOGGER.info("created", pkg=out.pkg)

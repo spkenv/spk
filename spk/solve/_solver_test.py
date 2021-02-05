@@ -7,20 +7,19 @@ import pytest
 from .. import api, storage, io
 from ._errors import (
     UnresolvedPackageError,
-    ConflictingRequestsError,
     SolverError,
     PackageNotFoundError,
 )
-from ._solver import Solver, GraphSolver
+from ._solver import Solver, LegacySolver
 
 
-@pytest.fixture(params=[True, False])
-def solver(request: Any) -> Union[Solver, GraphSolver]:
+@pytest.fixture(params=["legacy", "graph"])
+def solver(request: Any) -> Union[LegacySolver, Solver]:
 
-    if request.param:
-        return Solver({})
+    if request.param == "legacy":
+        return LegacySolver({})
     else:
-        return GraphSolver()
+        return Solver()
 
 
 def make_repo(
@@ -57,7 +56,7 @@ def make_build(
     return spec
 
 
-def test_solver_package_with_no_spec(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_package_with_no_spec(solver: Union[Solver, LegacySolver]) -> None:
 
     repo = storage.MemRepository()
 
@@ -76,7 +75,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, GraphSolver]) -> None
         solver.solve()
 
 
-def test_solver_single_package_no_deps(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_single_package_no_deps(solver: Union[Solver, LegacySolver]) -> None:
 
     options = api.OptionMap()
     repo = make_repo([{"pkg": "my-pkg/1.0.0"}], options)
@@ -95,7 +94,7 @@ def test_solver_single_package_no_deps(solver: Union[Solver, GraphSolver]) -> No
     assert packages.get("my-pkg").spec.pkg.build.digest != api.SRC  # type: ignore
 
 
-def test_solver_single_package_simple_deps(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_single_package_simple_deps(solver: Union[Solver, LegacySolver]) -> None:
 
     options = api.OptionMap()
     repo = make_repo(
@@ -123,7 +122,7 @@ def test_solver_single_package_simple_deps(solver: Union[Solver, GraphSolver]) -
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
 
 
-def test_solver_dependency_incompatible(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_dependency_incompatible(solver: Union[Solver, LegacySolver]) -> None:
 
     # test what happens when a dependency is added which is incompatible
     # with an existing request in the stack
@@ -138,27 +137,19 @@ def test_solver_dependency_incompatible(solver: Union[Solver, GraphSolver]) -> N
         ]
     )
 
-    solver = Solver(api.OptionMap())
     solver.add_repository(repo)
     solver.add_request("my-plugin/1")
     # this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request("maya/2019")
 
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         solver.solve()
 
     print(io.format_resolve(solver, verbosity=100))
-    for decision in solver.decision_tree.walk():
-        err = decision.get_error()
-        if err is not None:
-            assert isinstance(err, UnresolvedPackageError)
-            break
-    else:
-        pytest.fail("expected to find problem with conflicting requests")
 
 
 def test_solver_dependency_incompatible_stepback(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test what happens when a dependency is added which is incompatible
@@ -180,7 +171,6 @@ def test_solver_dependency_incompatible_stepback(
         ]
     )
 
-    solver = Solver(api.OptionMap())
     solver.add_repository(repo)
     solver.add_request("my-plugin/1")
     # this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
@@ -195,7 +185,7 @@ def test_solver_dependency_incompatible_stepback(
 
 
 def test_solver_dependency_already_satisfied(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test what happens when a dependency is added which represents
@@ -217,7 +207,6 @@ def test_solver_dependency_already_satisfied(
             {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1/1"}]}},
         ]
     )
-    solver = Solver(api.OptionMap())
     solver.add_repository(repo)
     solver.add_request("pkg-top")
     try:
@@ -233,7 +222,7 @@ def test_solver_dependency_already_satisfied(
     assert packages.get("dep-1").spec.pkg.version == "1.0.0"
 
 
-def test_solver_dependency_reopen_solvable(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_dependency_reopen_solvable(solver: Union[Solver, LegacySolver]) -> None:
 
     # test what happens when a dependency is added which represents
     # a package which has already been resolved
@@ -274,7 +263,7 @@ def test_solver_dependency_reopen_solvable(solver: Union[Solver, GraphSolver]) -
 
 
 def test_solver_dependency_reopen_unsolvable(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test what happens when a dependency is added which represents
@@ -306,7 +295,7 @@ def test_solver_dependency_reopen_unsolvable(
         print(packages)
 
 
-def test_solver_pre_release_config(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_pre_release_config(solver: Union[Solver, LegacySolver]) -> None:
 
     repo = make_repo(
         [
@@ -325,7 +314,7 @@ def test_solver_pre_release_config(solver: Union[Solver, GraphSolver]) -> None:
         solution.get("my-pkg").spec.pkg.version == "0.9.0"
     ), "should not resolve pre-release by default"
 
-    solver = Solver(api.OptionMap())
+    solver.reset()
     solver.add_repository(repo)
     solver.add_request(
         api.Request.from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
@@ -335,7 +324,7 @@ def test_solver_pre_release_config(solver: Union[Solver, GraphSolver]) -> None:
     assert solution.get("my-pkg").spec.pkg.version == "1.0.0-pre.2"
 
 
-def test_solver_constraint_only(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_constraint_only(solver: Union[Solver, LegacySolver]) -> None:
 
     # test what happens when a dependency is marked as a constraint/optional
     # and no other request is added
@@ -362,7 +351,7 @@ def test_solver_constraint_only(solver: Union[Solver, GraphSolver]) -> None:
         solution.get("python")
 
 
-def test_solver_constraint_and_request(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_constraint_and_request(solver: Union[Solver, LegacySolver]) -> None:
 
     # test what happens when a dependency is marked as a constraint/optional
     # and also requested by another package
@@ -395,7 +384,7 @@ def test_solver_constraint_and_request(solver: Union[Solver, GraphSolver]) -> No
     assert solution.get("python").spec.pkg.version == "3.7.3"
 
 
-def test_solver_option_compatibility(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_option_compatibility(solver: Union[Solver, LegacySolver]) -> None:
 
     # test what happens when an option is given in the solver
     # - the options for each build are checked
@@ -436,7 +425,7 @@ def test_solver_option_compatibility(solver: Union[Solver, GraphSolver]) -> None
         )
 
 
-def test_solver_build_from_source(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_build_from_source(solver: Union[Solver, LegacySolver]) -> None:
 
     # test when no appropriate build exists but the source is available
     # - the build is skipped
@@ -487,7 +476,7 @@ def test_solver_build_from_source(solver: Union[Solver, GraphSolver]) -> None:
 
 
 def test_solver_build_from_source_unsolvable(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test when no appropriate build exists but the source is available
@@ -526,7 +515,7 @@ def test_solver_build_from_source_unsolvable(
             print(io.format_resolve(solver, verbosity=100))
 
 
-def test_solver_deprecated_build(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_deprecated_build(solver: Union[Solver, LegacySolver]) -> None:
 
     specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0"}]
     deprecated = make_build({"pkg": "my-pkg/1.0.0", "deprecated": True})
@@ -556,7 +545,7 @@ def test_solver_deprecated_build(solver: Union[Solver, GraphSolver]) -> None:
     ), "should be able to resolve exact deprecated build"
 
 
-def test_solver_deprecated_version(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_deprecated_version(solver: Union[Solver, LegacySolver]) -> None:
 
     specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
     deprecated = make_build({"pkg": "my-pkg/1.0.0"})
@@ -588,7 +577,7 @@ def test_solver_deprecated_version(solver: Union[Solver, GraphSolver]) -> None:
 
 
 def test_solver_build_from_source_deprecated(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test when no appropriate build exists and the main package
@@ -620,7 +609,7 @@ def test_solver_build_from_source_deprecated(
             print(io.format_resolve(solver, verbosity=100))
 
 
-def test_solver_embedded_package_solvable(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_embedded_package_solvable(solver: Union[Solver, LegacySolver]) -> None:
 
     # test when there is an embedded package
     # - the embedded package is added to the solution
@@ -651,7 +640,9 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, GraphSolver]) ->
     assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
 
 
-def test_solver_embedded_package_unsolvable(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_embedded_package_unsolvable(
+    solver: Union[Solver, LegacySolver]
+) -> None:
 
     # test when there is an embedded package
     # - the embedded package is added to the solution
@@ -684,7 +675,7 @@ def test_solver_embedded_package_unsolvable(solver: Union[Solver, GraphSolver]) 
 
 
 def test_solver_some_versions_conflicting_requests(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test when there is a package with some version that have a conflicting dependency
@@ -723,7 +714,7 @@ def test_solver_some_versions_conflicting_requests(
 
 
 def test_solver_embedded_request_invalidates(
-    solver: Union[Solver, GraphSolver]
+    solver: Union[Solver, LegacySolver]
 ) -> None:
 
     # test when a package is resolved with an incompatible embedded pkg
@@ -756,7 +747,7 @@ def test_solver_embedded_request_invalidates(
             print(io.format_resolve(solver, verbosity=100))
 
 
-def test_solver_unknown_package_options(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_unknown_package_options(solver: Union[Solver, LegacySolver]) -> None:
 
     # test when a package is requested with specific options (eg: pkg.opt)
     # - the solver ignores versions that don't define the option
@@ -786,7 +777,7 @@ def test_solver_unknown_package_options(solver: Union[Solver, GraphSolver]) -> N
         print(io.format_resolve(solver, verbosity=100))
 
 
-def test_solver_var_requirements(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_var_requirements(solver: Union[Solver, LegacySolver]) -> None:
 
     # test what happens when a dependency is added which is incompatible
     # with an existing request in the stack
@@ -839,7 +830,7 @@ def test_solver_var_requirements(solver: Union[Solver, GraphSolver]) -> None:
     assert solution.get("python").spec.pkg.version == "2.7.5"
 
 
-def test_solver_var_requirements_unresolve(solver: Union[Solver, GraphSolver]) -> None:
+def test_solver_var_requirements_unresolve(solver: Union[Solver, LegacySolver]) -> None:
 
     # test when a package is resolved that conflicts in var requirements
     #  - the solver should unresolve the solved package

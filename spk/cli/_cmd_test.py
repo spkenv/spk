@@ -140,10 +140,8 @@ def _test(args: argparse.Namespace) -> None:
                     except spk.SolverError:
                         _LOGGER.error("test failed")
                         if args.verbose:
-                            tree = tester.get_test_env_decision_tree()
+                            graph = tester.get_solve_graph()
                             print(
-                                spk.io.format_decision_tree(
-                                    tree, verbosity=args.verbose
-                                )
+                                spk.io.format_solve_graph(graph, verbosity=args.verbose)
                             )
                         raise

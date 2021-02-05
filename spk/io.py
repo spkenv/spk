@@ -15,9 +15,9 @@ def format_ident(pkg: api.Ident) -> str:
 
 
 def format_resolve(
-    solver: Union[solve.Solver, solve.GraphSolver], verbosity: int = 1
+    solver: Union[solve.Solver, solve.LegacySolver], verbosity: int = 1
 ) -> str:
-    if isinstance(solver, solve.Solver):
+    if isinstance(solver, solve.LegacySolver):
         return format_decision_tree(solver.decision_tree, verbosity)
     else:
         graph = solver.get_last_solve_graph()

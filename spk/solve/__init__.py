@@ -13,6 +13,6 @@ from ._package_iterator import (
 from . import graph, validation
 from .graph import Graph
 from ._decision import Decision, DecisionTree
-from ._solver import Solver, GraphSolver
+from ._solver import Solver, LegacySolver
 
 __all__ = list(locals().keys())

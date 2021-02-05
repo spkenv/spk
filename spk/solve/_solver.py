@@ -17,7 +17,7 @@ from . import graph, validation
 _LOGGER = structlog.get_logger("spk.solve")
 
 
-class Solver:
+class LegacySolver:
     """Solver is the main entrypoint for resolving a set of packages."""
 
     def __init__(self, options: Union[api.OptionMap, Dict[str, str]]) -> None:
@@ -177,7 +177,7 @@ class Solver:
     def _resolve_new_build(self, spec: api.Spec, state: Decision) -> api.Compatibility:
 
         opts = state.get_options()
-        solver = Solver(opts)
+        solver = LegacySolver(opts)
         for repo in self._repos:
             solver.add_repository(repo)
 
@@ -197,7 +197,9 @@ class Solver:
         return api.COMPATIBLE
 
 
-class GraphSolver:
+class Solver:
+    """Solver is the main entrypoint for resolving a set of packages."""
+
     class OutOfOptions(SolverError):
         def __init__(self, notes: Iterable[graph.Note] = []) -> None:
             self.notes = list(notes)
@@ -262,15 +264,19 @@ class GraphSolver:
             graph.SetOptions(api.OptionMap(options.items()))
         )
 
+    def get_initial_state(self) -> graph.State:
+        state = graph.State.default()
+        for change in self._initial_state_builders:
+            state = change.apply(state)
+        return state
+
     def get_last_solve_graph(self) -> graph.Graph:
         return self._last_graph
 
     def solve_build_environment(self, spec: api.Spec) -> Solution:
         """Adds requests for all build requirements and solves"""
 
-        state = graph.State.default()
-        for change in self._initial_state_builders:
-            state = change.apply(state)
+        state = self.get_initial_state()
 
         build_options = spec.resolve_all_options(state.get_option_map())
         for option in spec.build.options:
@@ -299,7 +305,7 @@ class GraphSolver:
             try:
                 decision = self._step_state(solve_graph, current_node)
                 history.append(current_node)
-            except GraphSolver.OutOfOptions as err:
+            except Solver.OutOfOptions as err:
                 previous = history.pop().state if len(history) else None
                 decision = graph.StepBack("no more versions", previous).as_decision()
                 decision.add_notes(err.notes)
@@ -358,7 +364,7 @@ class GraphSolver:
             decision.add_notes(notes)
             return decision
 
-        raise GraphSolver.OutOfOptions(notes)
+        raise Solver.OutOfOptions(notes)
 
     def _validate(self, node: graph.State, spec: api.Spec) -> api.Compatibility:
 
@@ -386,7 +392,7 @@ class GraphSolver:
     def _resolve_new_build(self, spec: api.Spec, state: graph.State) -> Solution:
 
         opts = state.get_option_map()
-        solver = GraphSolver()
+        solver = Solver()
         solver._repos = self._repos
         solver.update_options(opts)
         return solver.solve_build_environment(spec)

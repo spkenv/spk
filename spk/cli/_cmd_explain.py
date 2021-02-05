@@ -47,7 +47,7 @@ def _explain(args: argparse.Namespace) -> None:
         solution = None
         pass
 
-    print(spk.io.format_decision_tree(solver.decision_tree, args.verbose + 1))
+    print(spk.io.format_resolve(solver, args.verbose + 1))
 
     if solution is not None:
         print()
