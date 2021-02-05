@@ -560,6 +560,7 @@ def test_solver_deprecated_version(solver: Union[Solver, GraphSolver]) -> None:
 
     specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
     deprecated = make_build({"pkg": "my-pkg/1.0.0"})
+    deprecated.deprecated = True
     repo = make_repo(specs + [deprecated])  # type: ignore
 
     solver.add_repository(repo)
@@ -612,7 +613,7 @@ def test_solver_build_from_source_deprecated(
     solver.add_repository(repo)
     solver.add_request("my-tool")
 
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         try:
             solver.solve()
         finally:

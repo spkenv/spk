@@ -21,6 +21,7 @@ class Validator(metaclass=abc.ABCMeta):
         """Check if the given package is appropriate for the provided state."""
         ...
 
+
 class DeprecationValidator(Validator):
     """Ensures that deprecated packages are not included unless specifically requested."""
 
@@ -28,9 +29,14 @@ class DeprecationValidator(Validator):
         if not spec.deprecated:
             return api.COMPATIBLE
         request = state.get_merged_request(spec.pkg.name)
-        if request.build == spec.pkg.build:
+        if spec.pkg.build is None and spec.deprecated:
+            return api.Compatibility("Package version is deprecated")
+        if request.pkg.build == spec.pkg.build:
             return api.COMPATIBLE
-        return api.Compatibility("Build is deprecated and was not specifically requested")
+        return api.Compatibility(
+            "Build is deprecated and was not specifically requested"
+        )
+
 
 class BinaryOnly(Validator):
     """Enforces the resolution of binary packages only, denying new builds from source."""

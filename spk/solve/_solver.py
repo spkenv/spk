@@ -231,7 +231,7 @@ class GraphSolver:
         if isinstance(request, str):
             request = api.PkgRequest.from_dict({"pkg": request})
             request = graph.RequestPackage(request)
-        
+
         if isinstance(request, api.PkgRequest):
             request = graph.RequestPackage(request)
         elif isinstance(request, api.VarRequest):
@@ -316,14 +316,22 @@ class GraphSolver:
 
         iterator = self._get_iterator(node, request.pkg.name)
         for spec, repo in iterator:
+            print(spec.pkg, spec.deprecated)
+            build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
+            if build_from_source:
+                try:
+                    spec = repo.read_spec(spec.pkg.with_build(None))
+                except storage.PackageNotFoundError:
+                    graph.SkipPackageNote(
+                        spec.pkg, "cannot build from source, version spec not available"
+                    )
+
             compat = self._validate(node.state, spec)
             if not compat:
                 notes.append(graph.SkipPackageNote(spec.pkg, compat))
                 continue
-            build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
+
             if build_from_source:
-                spec = spec.clone()
-                spec.pkg.set_build(None)
                 try:
                     build_env = self._resolve_new_build(spec, node.state)
                 except SolverError as err:
