@@ -52,7 +52,7 @@ class Ident:
     def is_source(self) -> bool:
         """Return true if this identifier is for a source package."""
 
-        return self.build and self.build.is_source()
+        return bool(self.build and self.build.is_source())
 
     def set_build(self, build: Union[Build, str, None]) -> None:
         """Set the build component of this package identifier."""

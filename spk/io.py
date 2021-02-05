@@ -71,10 +71,8 @@ def format_change(change: solve.graph.Change, verbosity: int = 1) -> str:
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.name(): change.request.value}))}"
     elif isinstance(change, solve.graph.SetPackage):
         return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, solve.graph.SetOption):
-        return f"{Fore.CYAN}SET{Fore.RESET} {format_options(api.OptionMap({change.name: change.value}))}"
-    elif isinstance(change, solve.graph.UnresolvePackage):
-        return f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {format_ident(change.pkg)}"
+    elif isinstance(change, solve.graph.SetOptions):
+        return f"{Fore.CYAN}DEFINE{Fore.RESET} {format_options(change.options)}"
     elif isinstance(change, solve.graph.StepBack):
         return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
     else:

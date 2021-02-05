@@ -18,6 +18,9 @@ class Option(metaclass=abc.ABCMeta):
     def name(self) -> str:
         pass
 
+    def namespaced_name(self, pkg: str) -> str:
+        return self.name()
+
     @abc.abstractmethod
     def validate(self, value: Optional[str]) -> Compatibility:
         pass
@@ -231,6 +234,11 @@ class VarOpt(Option):
         return f"VarOpt({self.to_dict()})"
 
     def name(self) -> str:
+        return self.var
+
+    def namespaced_name(self, pkg: str) -> str:
+        if "." not in self.var:
+            return f"{pkg}.{self.var}"
         return self.var
 
     def get_value(self, given: str = None) -> str:

@@ -8,10 +8,11 @@ from . import graph
 def default_validators() -> List["Validator"]:
     return [
         DeprecationValidator(),
+        OptionsValidator(),
         PkgRequestsValidator(),
         VarRequirementsValidator(),
         PkgRequirementsValidator(),
-        OptionsValidator(),
+        EmbeddedPackageValidator(),
     ]
 
 
@@ -108,17 +109,37 @@ class VarRequirementsValidator(Validator):
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
 
+        print("check", spec.pkg.name)
         options = state.get_option_map()
+        print(options)
         for request in spec.install.requirements:
             if not isinstance(request, api.VarRequest):
                 continue
 
-            if request.var not in options:
+            for name, value in options.items():
+                if name != request.var and not name.endswith("." + request.var):
+                    continue
+                if request.value != value:
+                    return api.Compatibility(
+                        "conflicting var install requirement: "
+                        f"wanted {request.var}={request.value}, found {name}={value}"
+                    )
+        return api.COMPATIBLE
+
+
+class EmbeddedPackageValidator(Validator):
+    def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
+
+        for embedded in spec.install.embedded:
+            try:
+                existing = state.get_merged_request(embedded.pkg.name)
+            except KeyError:
                 continue
 
-            current = options[request.var]
-            if request.value != current:
+            compat = existing.is_satisfied_by(embedded)
+            if not compat:
                 return api.Compatibility(
-                    f"Conflicting var install requirement '{request.var}': wanted '{request.value}', found '{current}'"
+                    f"embedded package '{embedded.pkg}' is incompatible: {compat}"
                 )
+
         return api.COMPATIBLE

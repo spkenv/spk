@@ -258,8 +258,9 @@ class GraphSolver:
             self._validators.insert(0, validation.BinaryOnly())
 
     def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
-        for name, value in options.items():
-            self._initial_state_builders.append(graph.SetOption(name, value))
+        self._initial_state_builders.append(
+            graph.SetOptions(api.OptionMap(options.items()))
+        )
 
     def get_last_solve_graph(self) -> graph.Graph:
         return self._last_graph
@@ -314,17 +315,28 @@ class GraphSolver:
         if request is None:
             return None
 
+        decision: graph.Decision
         iterator = self._get_iterator(node, request.pkg.name)
         for spec, repo in iterator:
-            print(spec.pkg, spec.deprecated)
             build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
             if build_from_source:
+                if isinstance(repo, api.Spec):
+                    notes.append(
+                        graph.SkipPackageNote(
+                            spec.pkg, "cannot build embedded source package"
+                        )
+                    )
+                    continue
                 try:
                     spec = repo.read_spec(spec.pkg.with_build(None))
                 except storage.PackageNotFoundError:
-                    graph.SkipPackageNote(
-                        spec.pkg, "cannot build from source, version spec not available"
+                    notes.append(
+                        graph.SkipPackageNote(
+                            spec.pkg,
+                            "cannot build from source, version spec not available",
+                        )
                     )
+                    continue
 
             compat = self._validate(node.state, spec)
             if not compat:

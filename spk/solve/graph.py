@@ -219,9 +219,15 @@ class ResolvePackage(Decision):
             else:
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
+        for embedded in self.spec.install.embedded:
+            yield SetPackage(embedded, self.spec)
+
+        opts = api.OptionMap()
         for opt in self.spec.build.options:
-            # FIXME: downgrade to package var options if var option
-            yield SetOption(opt.name(), opt.get_value())
+            name = opt.namespaced_name(self.spec.pkg.name)
+            opts[name] = opt.get_value()
+        if opts:
+            yield SetOptions(opts)
 
 
 class BuildPackage(Decision):
@@ -250,9 +256,12 @@ class BuildPackage(Decision):
             else:
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
-        for opt in spec.build.options:
-            # FIXME: downgrade to package var options if var option
-            yield SetOption(opt.name(), opt.get_value())
+        opts = api.OptionMap()
+        for opt in self.spec.build.options:
+            name = opt.namespaced_name(self.spec.pkg.name)
+            opts[name] = opt.get_value()
+        if opts:
+            yield SetOptions(opts)
 
 
 class Change(metaclass=abc.ABCMeta):
@@ -266,31 +275,17 @@ class Change(metaclass=abc.ABCMeta):
         ...
 
 
-class UnresolvePackage(Change):
-    def __init__(self, pkg: api.Ident, cause: str) -> None:
-        self.pkg = pkg
-        self.cause = cause
-
-    def apply(self, base: State) -> State:
-        packages = filter(lambda spec: spec.pkg.name != self.pkg.name, base.packages)
-        return State(
-            pkg_requests=base.pkg_requests,
-            var_requests=base.var_requests,
-            packages=tuple(packages),
-            options=base.options,
-        )
-
-
 class RequestVar(Change):
     def __init__(self, request: api.VarRequest) -> None:
         self.request = request
 
     def apply(self, base: State) -> State:
 
+        options = filter(lambda o: o[0] != self.request.var, base.options)
         return State(
             pkg_requests=base.pkg_requests,
             var_requests=base.var_requests + (self.request,),
-            options=base.options,
+            options=tuple(options) + ((self.request.var, self.request.value),),
             packages=base.packages,
         )
 
@@ -336,14 +331,13 @@ class SetPackage(Change):
         )
 
 
-class SetOption(Change):
-    def __init__(self, name: str, value: str) -> None:
-        self.name = name
-        self.value = value
+class SetOptions(Change):
+    def __init__(self, options: api.OptionMap) -> None:
+        self.options = options
 
     def apply(self, base: State) -> State:
         options = dict(base.options)
-        options[self.name] = self.value
+        options.update(self.options)
         return State(
             pkg_requests=base.pkg_requests,
             var_requests=base.var_requests,

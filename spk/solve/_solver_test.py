@@ -676,7 +676,7 @@ def test_solver_embedded_package_unsolvable(solver: Union[Solver, GraphSolver]) 
     solver.add_repository(repo)
     solver.add_request("my-plugin")
 
-    with pytest.raises(ConflictingRequestsError):
+    with pytest.raises(SolverError):
         try:
             solver.solve()
         finally:
@@ -749,7 +749,7 @@ def test_solver_embedded_request_invalidates(
     solver.add_request("python")
     solver.add_request("my-lib")
 
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         try:
             solver.solve()
         finally:
@@ -762,7 +762,7 @@ def test_solver_unknown_package_options(solver: Union[Solver, GraphSolver]) -> N
     # - the solver ignores versions that don't define the option
     # - the solver resolves versions that do define the option
 
-    repo = make_repo([{"pkg": "my-lib/2.0.0",},])
+    repo = make_repo([{"pkg": "my-lib/2.0.0"}])
 
     # this option is specific to the my-lib package and is not known by the package
     options = api.OptionMap({"my-lib.something": "value"})
@@ -770,15 +770,14 @@ def test_solver_unknown_package_options(solver: Union[Solver, GraphSolver]) -> N
     solver.add_repository(repo)
     solver.add_request("my-lib")
 
-    with pytest.raises(UnresolvedPackageError):
+    with pytest.raises(SolverError):
         try:
             solver.solve()
         finally:
             print(io.format_resolve(solver, verbosity=100))
 
     # this time we don't request that option, and it should be ok
-    options = api.OptionMap()
-    solver.update_options(options)
+    solver.reset()
     solver.add_repository(repo)
     solver.add_request("my-lib")
     try:
@@ -795,22 +794,22 @@ def test_solver_var_requirements(solver: Union[Solver, GraphSolver]) -> None:
         [
             {
                 "pkg": "python/2.7.5",
-                "build": {"options": [{"var": "abi", "static": "cp27"}]},
+                "build": {"options": [{"var": "abi", "static": "cp27mu"}]},
             },
             {
                 "pkg": "python/3.7.3",
-                "build": {"options": [{"var": "abi", "static": "cp37"}]},
+                "build": {"options": [{"var": "abi", "static": "cp37m"}]},
             },
             {
                 "pkg": "my-app/1.0.0",
                 "install": {
-                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27mu"}]
                 },
             },
             {
                 "pkg": "my-app/2.0.0",
                 "install": {
-                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp37"}]
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp37m"}]
                 },
             },
         ]

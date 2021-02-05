@@ -183,6 +183,10 @@ class VarRequest(Request):
     value: str = ""
     pin: bool = False
 
+    def __hash__(self) -> int:
+
+        return hash(f"{self.var}={self.value}")
+
     def package(self) -> Optional[str]:
         """Return the name of the package that this var refers to (if any)"""
         if "." in self.var:
