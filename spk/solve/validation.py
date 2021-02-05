@@ -109,9 +109,7 @@ class VarRequirementsValidator(Validator):
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
 
-        print("check", spec.pkg.name)
         options = state.get_option_map()
-        print(options)
         for request in spec.install.requirements:
             if not isinstance(request, api.VarRequest):
                 continue
