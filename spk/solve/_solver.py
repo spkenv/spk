@@ -122,13 +122,12 @@ class Solver:
         decision: Optional[graph.Decision] = graph.Decision(
             self._initial_state_builders
         )
-        while decision is not None:
-            next_node = solve_graph.add_branch(current_node.id, decision)
-            current_node = next_node
-            if current_node is graph.DEAD_STATE:
-                break
+        while decision is not None and current_node is not graph.DEAD_STATE:
+
             try:
-                decision = self._step_state(solve_graph, current_node)
+                next_node = solve_graph.add_branch(current_node.id, decision)
+                current_node = next_node
+                decision = self._step_state(current_node)
                 history.append(current_node)
             except Solver.OutOfOptions as err:
                 previous = history.pop().state if len(history) else None
@@ -137,7 +136,7 @@ class Solver:
                 ).as_decision()
                 decision.add_notes(err.notes)
             except Exception as err:
-                previous = history.pop().state if len(history) else None
+                previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
         if current_node.state in (initial_state, graph.DEAD_STATE):
@@ -145,9 +144,7 @@ class Solver:
 
         return current_node.state.as_solution()
 
-    def _step_state(
-        self, solve_graph: graph.Graph, node: graph.Node
-    ) -> Optional[graph.Decision]:
+    def _step_state(self, node: graph.Node) -> Optional[graph.Decision]:
 
         notes = []
         request = node.state.get_next_request()

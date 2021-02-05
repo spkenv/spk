@@ -52,7 +52,10 @@ class RepositoryPackageIterator(PackageIterator):
         """Create a copy of this iterator, with the cursor at the same point."""
 
         if self._versions is None:
-            self._start()
+            try:
+                self._start()
+            except PackageNotFoundError:
+                return RepositoryPackageIterator(self._package_name, self._repos)
 
         other = RepositoryPackageIterator(self._package_name, self._repos)
         remaining_versions = list(self._versions or [])
