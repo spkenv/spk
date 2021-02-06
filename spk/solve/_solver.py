@@ -15,12 +15,20 @@ from . import graph, validation
 _LOGGER = structlog.get_logger("spk.solve")
 
 
+class SolverFailedError(SolverError):
+    def __init__(self, graph: "graph.Graph") -> None:
+        self.graph = graph
+        super(SolverFailedError, self).__init__("Failed to resolve")
+
+
 class Solver:
     """Solver is the main entrypoint for resolving a set of packages."""
 
     class OutOfOptions(SolverError):
-        def __init__(self, package_name: str, notes: Iterable[graph.Note] = []) -> None:
-            self.package = package_name
+        def __init__(
+            self, request: api.PkgRequest, notes: Iterable[graph.Note] = []
+        ) -> None:
+            self.request = request
             self.notes = list(notes)
 
     def __init__(self) -> None:
@@ -132,15 +140,16 @@ class Solver:
             except Solver.OutOfOptions as err:
                 previous = history.pop().state if len(history) else None
                 decision = graph.StepBack(
-                    f"failed to resolve '{err.package}'", previous
+                    f"could not satisfy '{err.request.pkg}'", previous
                 ).as_decision()
                 decision.add_notes(err.notes)
             except Exception as err:
+                _LOGGER.debug(err)
                 previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
         if current_node.state in (initial_state, graph.DEAD_STATE):
-            raise SolverError("Failed to resolve")
+            raise SolverFailedError(solve_graph)
 
         return current_node.state.as_solution()
 
@@ -194,7 +203,7 @@ class Solver:
             decision.add_notes(notes)
             return decision
 
-        raise Solver.OutOfOptions(request.pkg.name, notes)
+        raise Solver.OutOfOptions(request, notes)
 
     def _validate(self, node: graph.State, spec: api.Spec) -> api.Compatibility:
 

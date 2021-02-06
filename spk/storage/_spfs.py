@@ -3,6 +3,7 @@ from typing import Iterable, Union
 import io
 import json
 import posixpath
+from functools import lru_cache
 
 import spfs
 import structlog
@@ -25,11 +26,13 @@ class SpFSRepository(Repository):
     def as_spfs_repo(self) -> spfs.storage.Repository:
         return self._repo
 
+    @lru_cache()
     def list_packages(self) -> Iterable[str]:
 
         path = "spk/spec"
         return list(self._repo.tags.ls_tags(path))
 
+    @lru_cache()
     def list_package_versions(self, name: str) -> Iterable[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
@@ -38,6 +41,7 @@ class SpFSRepository(Repository):
         versions = list(v.replace("..", "+") for v in versions)
         return versions
 
+    @lru_cache()
     def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
 
         if not isinstance(pkg, api.Ident):
@@ -62,6 +66,9 @@ class SpFSRepository(Repository):
         blob = spfs.storage.Blob(payload=digest, size=len(spec_data))
         self._repo.objects.write_object(blob)
         self._repo.tags.push_tag(meta_tag, digest)
+        self.list_packages.cache_clear()
+        self.list_package_versions.cache_clear()
+        self.list_package_builds.cache_clear()
 
     def publish_spec(self, spec: api.Spec) -> None:
 
@@ -73,6 +80,7 @@ class SpFSRepository(Repository):
             raise VersionExistsError(spec.pkg)
         self.force_publish_spec(spec)
 
+    @lru_cache()
     def read_spec(self, pkg: api.Ident) -> api.Spec:
 
         tag_str = self.build_spec_tag(pkg)
@@ -119,6 +127,9 @@ class SpFSRepository(Repository):
             self._repo.tags.remove_tag_stream(tag_str)
         except spfs.graph.UnknownReferenceError:
             raise PackageNotFoundError(pkg) from None
+        self.list_packages.cache_clear()
+        self.list_package_versions.cache_clear()
+        self.list_package_builds.cache_clear()
 
     def build_package_tag(self, pkg: api.Ident) -> str:
         """Construct an spfs tag string to represent a binary package layer."""

@@ -9,6 +9,6 @@ from ._package_iterator import (
 )
 from . import graph, validation, legacy
 from .graph import Graph
-from ._solver import Solver
+from ._solver import Solver, SolverFailedError
 
 __all__ = list(locals().keys())

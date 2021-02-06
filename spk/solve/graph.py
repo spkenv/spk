@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 
 import structlog
 
@@ -43,6 +43,28 @@ class Graph:
 
         return iter_node(self._root)
 
+    def find_deepest_errors(self) -> Optional[List[str]]:
+
+        errors_by_level: Dict[int, List[str]] = {}
+        level = 0
+        for node, decision in self.walk():
+            delta = 0
+            for change in decision.iter_changes():
+                if isinstance(change, SetPackage):
+                    delta = 1
+                if isinstance(change, StepBack):
+                    errors_by_level.setdefault(level, []).append(change.cause)
+                    delta = -1
+                    break
+            level += delta
+
+        levels_with_errors = list(errors_by_level.keys())
+        if not levels_with_errors:
+            return None
+        highest = max(levels_with_errors)
+        causes = errors_by_level[highest]
+        return causes
+
     def add_branch(self, source_id: int, decision: "Decision") -> "Node":
 
         old_node = self._nodes[source_id]
@@ -52,8 +74,8 @@ class Graph:
             new_node.set_iterator(name, iterator.clone())
 
         new_node = self._nodes.setdefault(new_node.id, new_node)
-        old_node.add_output(decision)
-        new_node.add_input(decision)
+        old_node.add_output(decision, new_node.state)
+        new_node.add_input(old_node.state, decision)
         return new_node
 
 
@@ -62,18 +84,21 @@ class Node:
 
     def __init__(self, state: "State") -> None:
 
-        self._inputs: List[Decision] = []
-        self._outputs: List[Decision] = []
+        self._inputs: Dict[int, Decision] = {}
+        self._outputs: Dict[int, Decision] = {}
         self._state = state
         self._iterators: Dict[str, PackageIterator] = {}
 
     def __str__(self) -> str:
-        return f"<Node {self.id}>"
+        return f"<Node {hex(self.id)}>"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Node):
             return self.id == other.id
         return False
+
+    def __hash__(self) -> int:
+        return hash(self._state)
 
     @property
     def id(self) -> int:
@@ -83,22 +108,26 @@ class Node:
     def state(self) -> "State":
         return self._state
 
-    def add_output(self, decision: "Decision") -> None:
-        self._outputs.append(decision)
+    def add_output(self, decision: "Decision", state: "State") -> None:
+        if state.id in self._outputs:
+            raise RecursionError("Decision tree has already been attempted")
+        self._outputs[state.id] = decision
 
     def iter_outputs(self) -> Iterator["Decision"]:
-        return iter(self._outputs)
+        return iter(self._outputs.values())
 
-    def add_input(self, decision: "Decision") -> None:
-        self._inputs.append(decision)
+    def add_input(self, state: "State", decision: "Decision") -> None:
+        self._inputs.setdefault(state.id, decision)
 
     def iter_inputs(self) -> Iterator["Decision"]:
-        return iter(self._inputs)
+        return iter(self._inputs.values())
 
     def get_iterator(self, package_name: str) -> Optional[PackageIterator]:
         return self._iterators.get(package_name)
 
     def set_iterator(self, package_name: str, iterator: PackageIterator) -> None:
+        if package_name in self._iterators:
+            raise ValueError("already exists")
         self._iterators[package_name] = iterator
 
 

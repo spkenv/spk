@@ -198,3 +198,16 @@ def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
         else:
             out += f"  {format_ident(spec.pkg)}\n"
     return out
+
+
+def format_error(err: Exception) -> str:
+
+    msg = str(err)
+    if isinstance(err, solve.SolverFailedError):
+        errors = err.graph.find_deepest_errors()
+        if errors:
+            msg += ", possible culprits:\n - " + ("\n - ".join(errors))
+    if isinstance(err, solve.SolverError):
+        msg += "\n * For more info, use increased verbosity (-vv)"
+        msg += "\n   and inspect the solver's debug output"
+    return f"{Fore.RED}{msg}{Fore.RESET}"

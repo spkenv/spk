@@ -54,4 +54,5 @@ def _explain(args: argparse.Namespace) -> None:
     if solution is not None:
         print(spk.io.format_solution(solution, args.verbose))
     if err is not None:
+        print(f"{Fore.RED}{err}{Fore.RESET}")
         raise SystemExit(1)

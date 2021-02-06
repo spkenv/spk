@@ -65,7 +65,7 @@ def run(argv: Sequence[str]) -> int:
     except Exception as e:
         _capture_if_relevant(e)
         spops.count("spk.error_count", command=args.command)
-        print(f"{Fore.RED}{e}{Fore.RESET}", file=sys.stderr)
+        print(f"{spk.io.format_error(e)}", file=sys.stderr)
         if args.verbose > 2:
             print(f"{Fore.RED}{traceback.format_exc()}{Fore.RESET}", file=sys.stderr)
         return 1
