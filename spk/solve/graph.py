@@ -70,8 +70,10 @@ class Graph:
         old_node = self._nodes[source_id]
         new_state = decision.apply(old_node.state)
         new_node = Node(new_state)
-        for name, iterator in old_node._iterators.items():
-            new_node.set_iterator(name, iterator.clone())
+
+        if new_node.id not in self._nodes:
+            for name, iterator in old_node._iterators.items():
+                new_node.set_iterator(name, iterator.clone())
 
         new_node = self._nodes.setdefault(new_node.id, new_node)
         old_node.add_output(decision, new_node.state)
@@ -127,8 +129,8 @@ class Node:
 
     def set_iterator(self, package_name: str, iterator: PackageIterator) -> None:
         if package_name in self._iterators:
-            raise ValueError("already exists")
-        self._iterators[package_name] = iterator
+            raise ValueError("iterator already exists [INTERNAL ERROR]")
+        self._iterators[package_name] = iterator.clone()
 
 
 class State(NamedTuple):

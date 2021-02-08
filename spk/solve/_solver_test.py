@@ -271,6 +271,45 @@ def test_solver_dependency_reopen_solvable(
     assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
+def test_solver_dependency_reiterate(solver: Union[Solver, legacy.Solver]) -> None:
+
+    # test what happens when a package iterator must be run through twice
+    # - walking back up the solve graph should reset the iterator to where it was
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "my-plugin/1.0.0",
+                "install": {"requirements": [{"pkg": "some-library/1"}]},
+            },
+            {"pkg": "maya/2019.2.0"},
+            {"pkg": "maya/2019.0.0"},
+            # asking for a maya version that doesn't exist will run out the iterator
+            {
+                "pkg": "some-library/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/~2018.0.0"}]},
+            },
+            # the second attempt at some-library will find maya 2019 properly
+            {
+                "pkg": "some-library/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/~2019.0.0"}]},
+            },
+        ]
+    )
+    solver.add_repository(repo)
+    solver.add_request("my-plugin")
+    try:
+        packages = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
+    assert set(s.spec.pkg.name for s in packages.items()) == {
+        "my-plugin",
+        "some-library",
+        "maya",
+    }
+    assert packages.get("maya").spec.pkg.version == "2019.0.0"
+
+
 def test_solver_dependency_reopen_unsolvable(
     solver: Union[Solver, legacy.Solver]
 ) -> None:

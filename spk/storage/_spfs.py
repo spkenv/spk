@@ -99,6 +99,9 @@ class SpFSRepository(Repository):
             self._repo.tags.remove_tag_stream(tag_str)
         except spfs.graph.UnknownReferenceError:
             raise PackageNotFoundError(pkg) from None
+        self.list_packages.cache_clear()
+        self.list_package_versions.cache_clear()
+        self.list_package_builds.cache_clear()
 
     def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
 
