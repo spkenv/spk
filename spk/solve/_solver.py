@@ -36,7 +36,7 @@ class Solver:
         self._repos: List[storage.Repository] = []
         self._initial_state_builders: List[graph.Change] = []
         self._validators: List[validation.Validator] = validation.default_validators()
-        self._last_graph = graph.Graph(graph.State.default())
+        self._last_graph = graph.Graph()
 
     def reset(self) -> None:
 
@@ -121,8 +121,7 @@ class Solver:
         if not initial_state.pkg_requests:
             return initial_state.as_solution()
 
-        initial_state = graph.State.default()
-        solve_graph = graph.Graph(initial_state)
+        solve_graph = graph.Graph()
         self._last_graph = solve_graph
 
         history = []
@@ -138,7 +137,7 @@ class Solver:
                 decision = self._step_state(current_node)
                 history.append(current_node)
             except Solver.OutOfOptions as err:
-                previous = history.pop().state if len(history) else None
+                previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(
                     f"could not satisfy '{err.request.pkg}'", previous
                 ).as_decision()

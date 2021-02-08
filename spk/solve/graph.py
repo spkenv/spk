@@ -1,5 +1,6 @@
-import abc
 from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
+import abc
+import base64
 
 import structlog
 
@@ -18,9 +19,9 @@ class Graph:
     that the solver goes through while it resolves a set of packages.
     """
 
-    def __init__(self, initial_state: "State") -> None:
+    def __init__(self) -> None:
 
-        self._root = Node(initial_state)
+        self._root = Node(DEAD_STATE)
         self._nodes: Dict[int, "Node"] = {self._root.id: self._root}
 
     @property
@@ -62,7 +63,15 @@ class Graph:
         if not levels_with_errors:
             return None
         highest = max(levels_with_errors)
-        causes = errors_by_level[highest]
+
+        # we want to deduplicate but maintain order
+        seen = set()
+        causes = []
+        for cause in errors_by_level[highest]:
+            if cause not in seen:
+                causes.append(cause)
+                seen.add(cause)
+
         return causes
 
     def add_branch(self, source_id: int, decision: "Decision") -> "Node":
@@ -72,10 +81,12 @@ class Graph:
         new_node = Node(new_state)
 
         if new_node.id not in self._nodes:
+            self._nodes[new_node.id] = new_node
             for name, iterator in old_node._iterators.items():
                 new_node.set_iterator(name, iterator.clone())
+        else:
+            new_node = self._nodes[new_node.id]
 
-        new_node = self._nodes.setdefault(new_node.id, new_node)
         old_node.add_output(decision, new_node.state)
         new_node.add_input(old_node.state, decision)
         return new_node
@@ -92,7 +103,13 @@ class Node:
         self._iterators: Dict[str, PackageIterator] = {}
 
     def __str__(self) -> str:
-        return f"<Node {hex(self.id)}>"
+        encoded_id = base64.b64encode(str(self.id).encode())
+        short_id = encoded_id[:6].decode()
+        if self is DEAD_STATE:
+            short_id = "DEAD"
+        return f"Node({short_id})"
+
+    __repr__ = __str__
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Node):
@@ -119,7 +136,9 @@ class Node:
         return iter(self._outputs.values())
 
     def add_input(self, state: "State", decision: "Decision") -> None:
-        self._inputs.setdefault(state.id, decision)
+        if state.id in self._inputs:
+            raise RecursionError("Decision tree has already been attempted")
+        self._inputs[state.id] = decision
 
     def iter_inputs(self) -> Iterator["Decision"]:
         return iter(self._inputs.values())
@@ -261,6 +280,11 @@ class ResolvePackage(Decision):
     def _generate_changes(self) -> Iterator["Change"]:
 
         yield SetPackage(self.spec, self.source)
+
+        # installation options are not relevant for source packages
+        if self.spec.pkg.is_source():
+            return
+
         for req in self.spec.install.requirements:
             if isinstance(req, api.PkgRequest):
                 yield RequestPackage(req)
@@ -358,13 +382,11 @@ class RequestPackage(Change):
 class StepBack(Change):
     """Identifies the solver reaching an impass and needing to revert a previous decision."""
 
-    def __init__(self, cause: str, to: State = None) -> None:
+    def __init__(self, cause: str, to: State = DEAD_STATE) -> None:
         self.cause = cause
         self.destination = to
 
     def apply(self, base: State) -> State:
-        if self.destination is None:
-            return DEAD_STATE
         return self.destination
 
 

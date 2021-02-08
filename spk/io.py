@@ -208,6 +208,6 @@ def format_error(err: Exception) -> str:
         if errors:
             msg += ", possible culprits:\n - " + ("\n - ".join(errors))
     if isinstance(err, solve.SolverError):
-        msg += "\n * For more info, use increased verbosity (-vv)"
+        msg += "\n * For more info, use increased verbosity (-v, -vv, ...)"
         msg += "\n   and inspect the solver's debug output"
     return f"{Fore.RED}{msg}{Fore.RESET}"

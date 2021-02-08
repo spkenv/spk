@@ -132,6 +132,26 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     assert str(req.pkg) == "dep/~1.0"
 
 
+def test_build_package_missing_deps(tmprepo: storage.SpFSRepository) -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "dep/1.0.0",
+            "build": {"script": "touch /spfs/dep-file"},
+            "install": {"requirements": [{"pkg": "does-not-exist"}]},
+        }
+    )
+
+    # should not fail to resolve build env and build even though
+    # runtime dependency is missing in the current repos
+    spec = (
+        BinaryPackageBuilder.from_spec(spec)
+        .with_source(os.getcwd())
+        .with_repository(tmprepo)
+        .build()
+    )
+
+
 def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
 
     dep_spec = api.Spec.from_dict(
