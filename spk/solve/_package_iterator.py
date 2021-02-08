@@ -51,20 +51,20 @@ class RepositoryPackageIterator(PackageIterator):
     def clone(self) -> "RepositoryPackageIterator":
         """Create a copy of this iterator, with the cursor at the same point."""
 
+        other = RepositoryPackageIterator(self._package_name, self._repos)
         if self._versions is None:
             try:
                 self._start()
             except PackageNotFoundError:
-                return RepositoryPackageIterator(self._package_name, self._repos)
+                return other
 
-        other = RepositoryPackageIterator(self._package_name, self._repos)
         remaining_versions = list(self._versions or [])
         remaining_builds = list(self._builds or [])
         other._versions = iter(remaining_versions)
         self._versions = iter(remaining_versions)
+        other._builds = iter(remaining_builds)
         self._builds = iter(remaining_builds)
         other._version_map = self._version_map.copy()
-        other._builds = iter(remaining_builds)
         return other
 
     def __next__(self) -> Tuple[api.Spec, PackageSource]:
