@@ -50,10 +50,14 @@ class SpFSRepository(Repository):
         pkg = pkg.with_build(api.SRC)
         base = posixpath.dirname(self.build_package_tag(pkg))
         try:
-            for build in self._repo.tags.ls_tags(base):
-                yield pkg.with_build(build)
+            build_tags = self._repo.tags.ls_tags(base)
         except KeyError:
             return []
+
+        builds = []
+        for build in build_tags:
+            builds.append(pkg.with_build(build))
+        return builds
 
     def force_publish_spec(self, spec: api.Spec) -> None:
 
