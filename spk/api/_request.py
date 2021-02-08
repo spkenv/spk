@@ -364,7 +364,7 @@ class PkgRequest(Request):
         return out
 
     @staticmethod
-    def from_ident(pkg: Ident) -> "Request":
+    def from_ident(pkg: Ident) -> "PkgRequest":
 
         ri = RangeIdent(
             name=pkg.name,

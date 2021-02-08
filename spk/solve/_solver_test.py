@@ -657,6 +657,37 @@ def test_solver_build_from_source_deprecated(
             print(io.format_resolve(solver, verbosity=100))
 
 
+def test_solver_embedded_package_adds_request(
+    solver: Union[Solver, legacy.Solver]
+) -> None:
+
+    # test when there is an embedded package
+    # - the embedded package is added to the solution
+    # - the embedded package is also added as a request in the resolve
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+        ]
+    )
+
+    solver.add_repository(repo)
+    solver.add_request("maya")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
+
+    assert solution.get("qt").request.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").spec.pkg.version == "5.12.6"
+    assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
+
+
 def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) -> None:
 
     # test when there is an embedded package

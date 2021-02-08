@@ -294,6 +294,7 @@ class ResolvePackage(Decision):
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
         for embedded in self.spec.install.embedded:
+            yield RequestPackage(api.PkgRequest.from_ident(embedded.pkg))
             yield SetPackage(embedded, self.spec)
 
         opts = api.OptionMap()

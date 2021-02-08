@@ -1,10 +1,6 @@
-version: 0.21.2
+version: 0.21.3
 release_notes: |
-  - Fix bug where solver could fail to resolve because it would only consider each
-    package exactly once, even under different circumstances
-  - Fix bug where source package environments included all binary package installation
-    requirements
-  - Fix bug where building a binary package could put the solver into an infinite loop
+  - Fix bug where embedded packages were not creating requests in the final resolve
 
 toolchain:
   - kind: Shell
