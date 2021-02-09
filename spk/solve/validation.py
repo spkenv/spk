@@ -31,12 +31,10 @@ class DeprecationValidator(Validator):
             return api.COMPATIBLE
         request = state.get_merged_request(spec.pkg.name)
         if spec.pkg.build is None and spec.deprecated:
-            return api.Compatibility("Package version is deprecated")
+            return api.Compatibility("package version is deprecated")
         if request.pkg.build == spec.pkg.build:
             return api.COMPATIBLE
-        return api.Compatibility(
-            "Build is deprecated and was not specifically requested"
-        )
+        return api.Compatibility("build is deprecated (and not requested exactly)")
 
 
 class BinaryOnly(Validator):
@@ -44,10 +42,10 @@ class BinaryOnly(Validator):
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
         if spec.pkg.build is None:
-            return api.Compatibility("Only binary packages are allowed")
+            return api.Compatibility("only binary packages are allowed")
         request = state.get_merged_request(spec.pkg.name)
         if spec.pkg.build.is_source() and request.pkg.build != spec.pkg.build:
-            return api.Compatibility("Only binary packages are allowed")
+            return api.Compatibility("only binary packages are allowed")
         return api.COMPATIBLE
 
 
@@ -94,7 +92,7 @@ class PkgRequirementsValidator(Validator):
             except KeyError:
                 continue
             except ValueError as err:
-                return api.Compatibility(f"Conflicting install requirement: {err}")
+                return api.Compatibility(f"conflicting requirement: {err}")
 
             try:
                 resolved = state.get_current_resolve(request.pkg.name)
@@ -103,7 +101,7 @@ class PkgRequirementsValidator(Validator):
             compat = request.is_satisfied_by(resolved)
             if not compat:
                 return api.Compatibility(
-                    f"Conflicting install requirement: '{request.pkg.name}' {compat}"
+                    f"conflicting requirement: '{request.pkg.name}' {compat}"
                 )
 
         return api.COMPATIBLE
@@ -124,8 +122,7 @@ class VarRequirementsValidator(Validator):
                     continue
                 if request.value != value:
                     return api.Compatibility(
-                        "conflicting var install requirement: "
-                        f"wanted {request.var}={request.value}, found {name}={value}"
+                        f"package wants {request.var}={request.value}, resolve has {name}={value}"
                     )
         return api.COMPATIBLE
 
