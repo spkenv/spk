@@ -1,6 +1,9 @@
-version: 0.21.3
+version: 0.21.4
 release_notes: |
-  - Fix bug where embedded packages were not creating requests in the final resolve
+  - Update solver to not set empty option values in the solution environment
+  - Improve error messages from the solver to more clearly state problems
+  - Fix bug where the solver failed because it was applying unnecessary global options
+  - Allow walking of infinitely large solver trees (fix max recursion error)
 
 toolchain:
   - kind: Shell
