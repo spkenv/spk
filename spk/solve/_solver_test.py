@@ -473,6 +473,50 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
         )
 
 
+def test_solver_option_injection() -> None:
+
+    # test the options that are defined when a package is resolved
+    # - options are namespaced and added to the environment
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "vnp3/2.0.0",
+            "build": {
+                "options": [
+                    {"pkg": "python"},
+                    {"var": "python.abi", "default": "cp27mu"},
+                    {"var": "debug", "default": "on"},
+                    {"var": "special"},
+                ],
+            },
+        }
+    )
+    pybuild = make_build(
+        {
+            "pkg": "python/2.7.5",
+            "build": {"options": [{"var": "abi", "default": "cp27mu"}]},
+        }
+    )
+    repo = make_repo([make_build(spec.to_dict(), [pybuild])])
+    repo.publish_spec(spec)
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("vnp3")
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
+
+    opts = solution.options()
+    assert opts["vnp3"] == "~2.0.0"
+    assert opts["vnp3.python"] == "~2.7.5"
+    assert opts["vnp3.debug"] == "on"
+    assert opts["python.abi"] == "cp27mu"
+    assert "vnp3.special" not in opts, "should not define empty values"
+    assert len(opts) == 4, "expected no more options"
+
+
 def test_solver_build_from_source(solver: Union[Solver, legacy.Solver]) -> None:
 
     # test when no appropriate build exists but the source is available

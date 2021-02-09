@@ -19,7 +19,7 @@ class Option(metaclass=abc.ABCMeta):
         pass
 
     def namespaced_name(self, pkg: str) -> str:
-        return self.name()
+        return f"{pkg}.{self.name()}"
 
     @abc.abstractmethod
     def validate(self, value: Optional[str]) -> Compatibility:
@@ -237,9 +237,9 @@ class VarOpt(Option):
         return self.var
 
     def namespaced_name(self, pkg: str) -> str:
-        if "." not in self.var:
-            return f"{pkg}.{self.var}"
-        return self.var
+        if "." in self.var:
+            return self.var
+        return super(VarOpt, self).namespaced_name(pkg)
 
     def get_value(self, given: str = None) -> str:
 

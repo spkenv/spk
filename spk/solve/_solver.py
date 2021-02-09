@@ -143,7 +143,6 @@ class Solver:
                 ).as_decision()
                 decision.add_notes(err.notes)
             except Exception as err:
-                _LOGGER.debug(err)
                 previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
@@ -192,7 +191,7 @@ class Solver:
                     build_env = self._resolve_new_build(spec, node.state)
                 except SolverError as err:
                     note = graph.SkipPackageNote(
-                        spec.pkg, f"failed to resolve build env: {err}"
+                        spec.pkg, f"cannot resolve build env: {err}"
                     )
                     notes.append(note)
                     continue
@@ -230,6 +229,10 @@ class Solver:
     def _resolve_new_build(self, spec: api.Spec, state: graph.State) -> Solution:
 
         opts = state.get_option_map()
+        for pkg_request in state.pkg_requests:
+            opts.setdefault(pkg_request.pkg.name, str(pkg_request.pkg.version))
+        for var_request in state.var_requests:
+            opts.setdefault(var_request.var, var_request.value)
         solver = Solver()
         solver._repos = self._repos
         solver.update_options(opts)

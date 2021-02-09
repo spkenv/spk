@@ -172,9 +172,6 @@ class Spec:
                 if "." not in inherited_opt.var:
                     inherited_opt.var = f"{dep_name}.{opt.var}"
                 inherited_opt.inheritance = Inheritance.weak
-                _LOGGER.debug(
-                    "inheriting option from build dependency", var=inherited_opt.var
-                )
                 self.build.upsert_opt(inherited_opt)
                 if opt.inheritance is Inheritance.strong:
                     req = VarRequest(inherited_opt.var, pin=True)

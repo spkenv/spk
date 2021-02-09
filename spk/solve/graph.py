@@ -147,16 +147,12 @@ class Node:
         return self._state
 
     def add_output(self, decision: "Decision", state: "State") -> None:
-        if state.id in self._outputs:
-            raise RecursionError("Decision tree has already been attempted")
         self._outputs[state.id] = decision
 
     def iter_outputs(self) -> Iterator["Decision"]:
         return iter(self._outputs.values())
 
     def add_input(self, state: "State", decision: "Decision") -> None:
-        if state.id in self._inputs:
-            raise RecursionError("Decision tree has already been attempted")
         self._inputs[state.id] = decision
 
     def iter_inputs(self) -> Iterator["Decision"]:
@@ -356,7 +352,9 @@ class BuildPackage(Decision):
         opts = api.OptionMap()
         for opt in self.spec.build.options:
             name = opt.namespaced_name(self.spec.pkg.name)
-            opts[name] = opt.get_value()
+            value = opt.get_value()
+            if value:
+                opts[name] = value
         if opts:
             yield SetOptions(opts)
 
