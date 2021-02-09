@@ -199,14 +199,16 @@ def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
     return out
 
 
-def format_error(err: Exception) -> str:
+def format_error(err: Exception, verbosity: int = 0) -> str:
 
     msg = str(err)
     if isinstance(err, solve.SolverFailedError):
         errors = err.graph.find_deepest_errors()
         if errors:
-            msg += ", possible culprits:\n - " + ("\n - ".join(errors))
+            msg += ", likely suspects:\n - " + ("\n - ".join(errors))
     if isinstance(err, solve.SolverError):
-        msg += "\n * For more info, use increased verbosity (-v, -vv, ...)"
-        msg += "\n   and inspect the solver's debug output"
-    return f"{Fore.RED}{msg}{Fore.RESET}"
+        if verbosity == 0:
+            msg += f"{Fore.YELLOW}{Style.DIM}\n * try '--verbose/-v' for more info"
+        elif verbosity < 2:
+            msg += f"{Fore.YELLOW}{Style.DIM}\n * try '-vv' for even more info"
+    return f"{Fore.RED}{msg}{Style.RESET_ALL}"

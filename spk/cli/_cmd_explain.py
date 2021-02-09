@@ -1,5 +1,6 @@
 from typing import Any, Optional
 import argparse
+import sys
 
 from ruamel import yaml
 import structlog
@@ -54,5 +55,5 @@ def _explain(args: argparse.Namespace) -> None:
     if solution is not None:
         print(spk.io.format_solution(solution, args.verbose))
     if err is not None:
-        print(f"{Fore.RED}{err}{Fore.RESET}")
+        print(spk.io.format_error(err, args.verbose), file=sys.stderr)
         raise SystemExit(1)
