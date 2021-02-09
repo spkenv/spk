@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional, Union, Dict
+from typing import Generator, Iterable, Iterator, List, Optional, Tuple, Union, Dict
 
 from ruamel import yaml
 import structlog
@@ -19,6 +19,17 @@ class SolverFailedError(SolverError):
     def __init__(self, graph: "graph.Graph") -> None:
         self.graph = graph
         super(SolverFailedError, self).__init__("Failed to resolve")
+
+
+SolutionGenerator = Generator[Tuple[graph.Node, graph.Decision], None, Solution]
+
+
+class SolverRuntime(Iterable[Tuple[graph.Node, graph.Decision]]):
+    def __init__(self, generator: SolutionGenerator) -> None:
+        self._generator = generator
+
+    def __iter__(self) -> Iterator[Tuple[graph.Node, graph.Decision]]:
+        self.solution = yield from self._generator
 
 
 class Solver:
@@ -117,9 +128,15 @@ class Solver:
 
     def solve(self, options: api.OptionMap = api.OptionMap()) -> Solution:
 
-        initial_state = self.get_initial_state()
-        if not initial_state.pkg_requests:
-            return initial_state.as_solution()
+        runtime = self.run(options)
+        for _ in runtime:
+            pass
+        return runtime.solution
+
+    def run(self, options: api.OptionMap = api.OptionMap()) -> SolverRuntime:
+        return SolverRuntime(self._run(options))
+
+    def _run(self, options: api.OptionMap) -> SolutionGenerator:
 
         solve_graph = graph.Graph()
         self._last_graph = solve_graph
@@ -131,6 +148,7 @@ class Solver:
         )
         while decision is not None and current_node is not graph.DEAD_STATE:
 
+            yield (current_node, decision)
             try:
                 next_node = solve_graph.add_branch(current_node.id, decision)
                 current_node = next_node
@@ -146,7 +164,7 @@ class Solver:
                 previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
-        if current_node.state in (initial_state, graph.DEAD_STATE):
+        if current_node.state in (solve_graph.root, graph.DEAD_STATE):
             raise SolverFailedError(solve_graph)
 
         return current_node.state.as_solution()

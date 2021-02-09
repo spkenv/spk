@@ -46,14 +46,14 @@ def _explain(args: argparse.Namespace) -> None:
     solution: Optional[spk.Solution] = None
     err: Optional[Exception] = None
     try:
-        solution = solver.solve()
+        generator = solver.run()
+        spk.io.format_decisions(generator, sys.stdout, args.verbose + 1)
+        solution = generator.solution
     except spk.SolverError as e:
         err = e
 
-    print(spk.io.format_resolve(solver, args.verbose + 1))
-
     if solution is not None:
-        print(spk.io.format_solution(solution, args.verbose))
+        print("\n", spk.io.format_solution(solution, args.verbose))
     if err is not None:
         print(spk.io.format_error(err, args.verbose), file=sys.stderr)
         raise SystemExit(1)

@@ -83,17 +83,15 @@ def _env(args: argparse.Namespace) -> None:
         solver.add_request(request)
 
     try:
-        solution = solver.solve()
+        generator = solver.run()
+        spk.io.format_decisions(generator, sys.stdout, args.verbose)
+        solution = generator.solution
     except spk.SolverError as e:
-        if args.verbose:
-            graph = solver.get_last_solve_graph()
-            print(
-                spk.io.format_solve_graph(graph, verbosity=args.verbose),
-                file=sys.stderr,
-            )
         print(spk.io.format_error(e, args.verbose), file=sys.stderr)
-
         sys.exit(1)
+
+    if args.verbose > 1:
+        print(spk.io.format_solution(solution, args.verbose))
 
     solution = spk.build_required_packages(solution)
     spk.setup_current_runtime(solution)

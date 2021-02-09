@@ -1,6 +1,7 @@
 from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 import abc
 import base64
+from functools import lru_cache
 
 import structlog
 
@@ -121,6 +122,7 @@ class Node:
         self._state = state
         self._iterators: Dict[str, PackageIterator] = {}
 
+    @lru_cache()
     def __str__(self) -> str:
         encoded_id = base64.b64encode(str(self.id).encode())
         short_id = encoded_id[:6].decode()
@@ -140,13 +142,15 @@ class Node:
 
     @property
     def id(self) -> int:
-        return self._state.id
+        return hash(self)
 
     @property
     def state(self) -> "State":
         return self._state
 
     def add_output(self, decision: "Decision", state: "State") -> None:
+        if state.id in self._outputs:
+            raise RecursionError("Branch already attempted")
         self._outputs[state.id] = decision
 
     def iter_outputs(self) -> Iterator["Decision"]:
@@ -179,7 +183,11 @@ class State(NamedTuple):
     options: Tuple[Tuple[str, str], ...]
 
     @property
+    @lru_cache()
     def id(self) -> int:
+        return hash(self)
+
+    def __hash__(self) -> int:
         hashes: List[int] = []
         hashes.extend(hash(pr) for pr in self.pkg_requests)
         hashes.extend(hash(vr) for vr in self.var_requests)

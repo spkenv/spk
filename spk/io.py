@@ -1,5 +1,18 @@
-from typing import Dict, List, Sequence, Set, Union
+from spk.solve.graph import Graph, RequestPackage, StepBack
+from typing import (
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Sequence,
+    Set,
+    Text,
+    TextIO,
+    Tuple,
+    Union,
+)
 from colorama import Fore, Style
+import io
 
 from . import api, solve
 
@@ -25,15 +38,26 @@ def format_resolve(
 
 
 def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
-    out = ""
+
+    out = io.StringIO()
+    format_decisions(graph.walk(), out, verbosity)
+    return out.getvalue()
+
+
+def format_decisions(
+    decisions: Iterable[Tuple[solve.graph.Node, solve.graph.Decision]],
+    out: TextIO,
+    verbosity: int = 1,
+) -> None:
     level = 0
-    for node, decision in graph.walk():
+    for _, decision in decisions:
         if verbosity > 1:
             for note in decision.iter_notes():
-                out += f"{'.'*level} {format_note(note)}\n"
+                out.write(f"{'.'*level} {format_note(note)}\n")
 
         level_change = 1
         for change in decision.iter_changes():
+
             if isinstance(change, solve.graph.SetPackage):
                 if change.spec.pkg.build == api.Build(api.EMBEDDED):
                     fill = "."
@@ -45,10 +69,27 @@ def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
             else:
                 fill = "."
 
-            out += f"{fill*level} {format_change(change)}\n"
+            if not change_is_relevant_at_verbosity(change, verbosity):
+                continue
+
+            out.write(f"{fill*level} {format_change(change, verbosity)}\n")
         level += level_change
 
-    return out
+
+def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) -> bool:
+
+    levels = {
+        solve.graph.SetPackage: 1,
+        solve.graph.StepBack: 1,
+        solve.graph.RequestPackage: 2,
+        solve.graph.RequestVar: 2,
+        solve.graph.SetOptions: 3,
+    }
+
+    for kind, level in levels.items():
+        if isinstance(change, kind):
+            return bool(verbosity >= level)
+    return bool(verbosity >= 2)
 
 
 def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) -> str:
@@ -211,4 +252,6 @@ def format_error(err: Exception, verbosity: int = 0) -> str:
             msg += f"{Fore.YELLOW}{Style.DIM}\n * try '--verbose/-v' for more info"
         elif verbosity < 2:
             msg += f"{Fore.YELLOW}{Style.DIM}\n * try '-vv' for even more info"
+        elif verbosity < 3:
+            msg += f"{Fore.YELLOW}{Style.DIM}\n * try '-vvv' for even more info"
     return f"{Fore.RED}{msg}{Style.RESET_ALL}"
