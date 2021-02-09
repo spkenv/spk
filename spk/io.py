@@ -1,4 +1,4 @@
-from typing import List, Sequence, Set, Union
+from typing import Dict, List, Sequence, Set, Union
 from colorama import Fore, Style
 
 from . import api, solve
@@ -37,18 +37,15 @@ def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
             if isinstance(change, solve.graph.SetPackage):
                 if change.spec.pkg.build == api.Build(api.EMBEDDED):
                     fill = "."
-                    prefix = " "
                 else:
                     fill = ">"
-                    prefix = " "
             elif isinstance(change, solve.graph.StepBack):
                 fill = "!"
-                prefix = " "
                 level_change = -1
             else:
                 fill = "."
-                prefix = " "
-            out += f"{fill*level}{prefix}{format_change(change)}\n"
+
+            out += f"{fill*level} {format_change(change)}\n"
         level += level_change
 
     return out
@@ -69,13 +66,15 @@ def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) ->
 
 def format_change(change: solve.graph.Change, verbosity: int = 1) -> str:
 
-    out = ""
     if isinstance(change, solve.graph.RequestPackage):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
     elif isinstance(change, solve.graph.RequestVar):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.name(): change.request.value}))}"
     elif isinstance(change, solve.graph.SetPackage):
-        return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
+        if change.spec.pkg.build is None:
+            return f"{Fore.YELLOW}BUILD{Fore.RESET} {format_ident(change.spec.pkg)}"
+        else:
+            return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
     elif isinstance(change, solve.graph.SetOptions):
         return f"{Fore.CYAN}DEFINE{Fore.RESET} {format_options(change.options)}"
     elif isinstance(change, solve.graph.StepBack):
