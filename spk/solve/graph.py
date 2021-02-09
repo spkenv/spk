@@ -319,8 +319,10 @@ class ResolvePackage(Decision):
         opts = api.OptionMap()
         opts[self.spec.pkg.name] = self.spec.compat.render(self.spec.pkg.version)
         for opt in self.spec.build.options:
-            name = opt.namespaced_name(self.spec.pkg.name)
-            opts[name] = opt.get_value()
+            value = opt.get_value()
+            if value:
+                name = opt.namespaced_name(self.spec.pkg.name)
+                opts[name] = value
         if opts:
             yield SetOptions(opts)
 
