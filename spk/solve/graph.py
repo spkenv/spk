@@ -32,9 +32,28 @@ class Graph:
 
         node_outputs: Dict[int, List[Decision]] = {}
 
+        to_process = [self.root]
+        while to_process:
+            node = to_process.pop(0)
+
+            if node.id not in node_outputs:
+                node_outputs[node.id] = list(node.iter_outputs())
+                # the children of this node must be processed
+                # before anything else (depth-first)
+                for decision in reversed(list(node.iter_outputs())):
+                    destination = decision.apply(node.state)
+                    to_process.insert(0, self._nodes[destination.id])
+
+            outs = node_outputs[node.id]
+            if not len(outs):
+                continue
+
+            to_process.append(node)
+            decision = outs.pop(0)
+            yield (node, decision)
+
         def iter_node(node: Node) -> Iterator[Tuple[Node, Decision]]:
 
-            outs = node_outputs.setdefault(node.id, list(node.iter_outputs()))
             while outs:
                 decision = outs.pop(0)
                 yield (node, decision)
@@ -208,7 +227,7 @@ class State(NamedTuple):
             try:
                 request = next(requests)
             except StopIteration:
-                raise KeyError(f"No requests for '{name}'")
+                raise KeyError(f"No requests for '{name}' [INTERNAL ERROR]")
             if request.pkg.name != name:
                 continue
             merged = request.clone()
