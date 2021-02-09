@@ -1,9 +1,13 @@
-version: 0.21.4
+version: 0.22.0
 release_notes: |
-  - Update solver to not set empty option values in the solution environment
-  - Improve error messages from the solver to more clearly state problems
-  - Fix bug where the solver failed because it was applying unnecessary global options
-  - Allow walking of infinitely large solver trees (fix max recursion error)
+  ## Realtime Output
+  - Update solver debug output to stream in real-time for `spk env` and `spk explain`
+    commands. This makes it much easier to debug long running resolves as usually the
+    issue can be spotted in the first few attempts by the solver.
+
+  ## Improvements
+  - Update solver to not try and build packages from source when the result
+    would be a binary package that already exists and is not applicable
 
 toolchain:
   - kind: Shell

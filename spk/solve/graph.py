@@ -183,7 +183,6 @@ class State(NamedTuple):
     options: Tuple[Tuple[str, str], ...]
 
     @property
-    @lru_cache()
     def id(self) -> int:
         return hash(self)
 
