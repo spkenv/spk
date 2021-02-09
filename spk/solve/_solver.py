@@ -164,7 +164,9 @@ class Solver:
                 previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
-        if current_node.state in (solve_graph.root, graph.DEAD_STATE):
+        is_dead = current_node.state in (solve_graph.root.state, graph.DEAD_STATE)
+        is_empty = len(self.get_initial_state().pkg_requests) == 0
+        if is_dead and not is_empty:
             raise SolverFailedError(solve_graph)
 
         return current_node.state.as_solution()

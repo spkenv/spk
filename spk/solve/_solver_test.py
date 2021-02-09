@@ -11,6 +11,7 @@ from ._errors import (
     PackageNotFoundError,
 )
 from ._solver import Solver
+from spk import solve
 
 
 @pytest.fixture(params=["legacy", "graph"])
@@ -78,6 +79,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
 
     with pytest.raises((PackageNotFoundError, SolverError)):  # type: ignore
         solver.solve()
+        print(io.format_resolve(solver, 999))
 
 
 def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> None:
@@ -517,7 +519,7 @@ def test_solver_option_injection() -> None:
     assert len(opts) == 4, "expected no more options"
 
 
-def test_solver_build_from_source(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_build_from_source() -> None:
 
     # test when no appropriate build exists but the source is available
     # - the build is skipped
@@ -539,6 +541,7 @@ def test_solver_build_from_source(solver: Union[Solver, legacy.Solver]) -> None:
         api.OptionMap(debug="off"),
     )
 
+    solver = Solver()
     # the new option value should disqulify the existing build
     # but a new one should be generated for this set of options
     solver.update_options(api.OptionMap(debug="on"))
@@ -550,9 +553,9 @@ def test_solver_build_from_source(solver: Union[Solver, legacy.Solver]) -> None:
     finally:
         print(io.format_resolve(solver, verbosity=100))
 
-    assert (
-        solution.get("my-tool").spec.pkg.build is None
-    ), "Should return unbuilt package"
+    assert solution.get(
+        "my-tool"
+    ).is_source_build(), "Should set unbuilt spec as source"
 
     solver.reset()
     solver.update_options(api.OptionMap(debug="on"))

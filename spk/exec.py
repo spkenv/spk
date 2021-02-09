@@ -1,7 +1,7 @@
 import spfs
 import structlog
 
-from . import solve, storage, io, build
+from . import solve, storage, io, build, api
 
 _LOGGER = structlog.get_logger("spk.exec")
 
@@ -17,15 +17,17 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
     repos = solution.repositories()
     options = solution.options()
     compiled_solution = solve.Solution(options)
-    for req, spec, repo in solution.items():
-        if spec.pkg.build is not None:
-            compiled_solution.add(req, spec, repo)
+    for item in solution.items():
+        if not item.is_source_build():
+            compiled_solution.add(*item)
             continue
+
+        req, spec, source = item
         _LOGGER.info(
             f"Building: {io.format_ident(spec.pkg)} for {io.format_options(options)}"
         )
         spec = (
-            build.BinaryPackageBuilder.from_spec(spec)
+            build.BinaryPackageBuilder.from_spec(source)  # type: ignore
             .with_repositories(repos)
             .with_options(options)
             .build()
@@ -56,10 +58,11 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
     local_repo = storage.local_repository()
     for _, spec, source in solution.items():
 
-        if spec.pkg.build is None:
-            raise ValueError(
-                f"Solution includes package that needs building: {spec.pkg}"
-            )
+        if isinstance(source, api.Spec):
+            if source.pkg == spec.pkg.with_build(None):
+                raise ValueError(
+                    f"Solution includes package that needs building: {spec.pkg}"
+                )
 
         if not isinstance(source, storage.Repository):
             continue

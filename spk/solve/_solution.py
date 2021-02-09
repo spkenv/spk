@@ -14,6 +14,12 @@ class SolvedRequest(NamedTuple):
     spec: api.Spec
     source: PackageSource
 
+    def is_source_build(self) -> bool:
+
+        if not isinstance(self.source, api.Spec):
+            return False
+        return self.source.pkg == self.spec.pkg.with_build(None)
+
 
 class Solution:
     """Represents a set of resolved packages."""

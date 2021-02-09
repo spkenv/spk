@@ -348,7 +348,7 @@ class BuildPackage(Decision):
         spec = self.spec.clone()
         spec.update_for_build(options, specs)
 
-        yield SetPackage(self.spec, self.source)
+        yield SetPackageBuild(spec, self.spec)
         for req in spec.install.requirements:
             if isinstance(req, api.PkgRequest):
                 yield RequestPackage(req)
@@ -358,8 +358,9 @@ class BuildPackage(Decision):
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
         opts = api.OptionMap()
-        for opt in self.spec.build.options:
-            name = opt.namespaced_name(self.spec.pkg.name)
+        opts[self.spec.pkg.name] = self.spec.compat.render(self.spec.pkg.version)
+        for opt in spec.build.options:
+            name = opt.namespaced_name(spec.pkg.name)
             value = opt.get_value()
             if value:
                 opts[name] = value
@@ -430,6 +431,13 @@ class SetPackage(Change):
             packages=base.packages + ((self.spec, self.source),),
             options=base.options,
         )
+
+
+class SetPackageBuild(SetPackage):
+    """Sets a package in the resolve, denoting is as a new build."""
+
+    def __init__(self, spec: api.Spec, source: api.Spec) -> None:
+        super().__init__(spec, source)
 
 
 class SetOptions(Change):
