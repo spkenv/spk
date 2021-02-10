@@ -269,7 +269,7 @@ def save_spec_file(filepath: str, spec: Spec) -> None:
 
     try:
         with open(filepath, "r") as reader:
-            original_data = yaml.round_trip_load(reader)
+            original_data = yaml.round_trip_load(reader) or {}
     except (FileNotFoundError, yaml.YAMLError):
         original_data = {}
 
