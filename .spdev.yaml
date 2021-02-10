@@ -1,13 +1,6 @@
-version: 0.22.0
+version: 0.22.1
 release_notes: |
-  ## Realtime Output
-  - Update solver debug output to stream in real-time for `spk env` and `spk explain`
-    commands. This makes it much easier to debug long running resolves as usually the
-    issue can be spotted in the first few attempts by the solver.
-
-  ## Improvements
-  - Update solver to not try and build packages from source when the result
-    would be a binary package that already exists and is not applicable
+  - Update dependency versions (namely spfs) to latest
 
 toolchain:
   - kind: Shell
