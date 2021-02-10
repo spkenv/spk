@@ -13,10 +13,10 @@ from ._name import validate_name, InvalidNameError
 class Ident:
     """Ident represents a package identifier.
 
-	The identifier is either a specific package or
-	range of package versions/releases depending on the
-	syntax and context
-	"""
+    The identifier is either a specific package or
+    range of package versions/releases depending on the
+    syntax and context
+    """
 
     name: str = ""
     version: Version = field(default_factory=Version)

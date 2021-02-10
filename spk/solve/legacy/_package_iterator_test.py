@@ -11,17 +11,20 @@ def test_only_latest_release_is_given() -> None:
     repo.publish_spec(spec)
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
-        spec, spfs.encoding.EMPTY_DIGEST,
+        spec,
+        spfs.encoding.EMPTY_DIGEST,
     )
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.2"})
     repo.publish_spec(spec)
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
-        spec, spfs.encoding.EMPTY_DIGEST,
+        spec,
+        spfs.encoding.EMPTY_DIGEST,
     )
     spec.pkg.set_build("BVOFAV57")
     repo.publish_package(
-        spec, spfs.encoding.EMPTY_DIGEST,
+        spec,
+        spfs.encoding.EMPTY_DIGEST,
     )
 
     it = FilteredPackageIterator(
@@ -44,13 +47,15 @@ def test_old_release_allowed_if_requested() -> None:
     repo.publish_spec(spec)
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
-        spec, spfs.encoding.EMPTY_DIGEST,
+        spec,
+        spfs.encoding.EMPTY_DIGEST,
     )
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.2"})
     repo.publish_spec(spec)
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
-        spec, spfs.encoding.EMPTY_DIGEST,
+        spec,
+        spfs.encoding.EMPTY_DIGEST,
     )
 
     it = FilteredPackageIterator(

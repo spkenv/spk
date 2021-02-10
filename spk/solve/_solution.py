@@ -62,7 +62,10 @@ class Solution:
         return other
 
     def add(
-        self, request: api.PkgRequest, package: api.Spec, source: PackageSource,
+        self,
+        request: api.PkgRequest,
+        package: api.Spec,
+        source: PackageSource,
     ) -> None:
 
         self._resolved[request] = (package, source)

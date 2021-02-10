@@ -749,7 +749,10 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
                 "build": {"script": "echo BUILD"},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
-            {"pkg": "qt/5.13.0", "build": {"script": "echo BUILD"},},
+            {
+                "pkg": "qt/5.13.0",
+                "build": {"script": "echo BUILD"},
+            },
         ]
     )
 
@@ -786,7 +789,10 @@ def test_solver_embedded_package_unsolvable(
                 "build": {"script": "echo BUILD"},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
-            {"pkg": "qt/5.13.0", "build": {"script": "echo BUILD"},},
+            {
+                "pkg": "qt/5.13.0",
+                "build": {"script": "echo BUILD"},
+            },
         ]
     )
 
@@ -856,7 +862,10 @@ def test_solver_embedded_request_invalidates(
                     "requirements": [{"pkg": "python/3.7"}, {"pkg": "maya/2020"}]
                 },
             },
-            {"pkg": "maya/2020", "install": {"embedded": [{"pkg": "python/2.7.5"}]},},
+            {
+                "pkg": "maya/2020",
+                "install": {"embedded": [{"pkg": "python/2.7.5"}]},
+            },
             {"pkg": "python/2.7.5"},
             {"pkg": "python/3.7.3"},
         ]

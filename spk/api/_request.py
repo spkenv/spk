@@ -368,7 +368,11 @@ class PkgRequest(Request):
 
         ri = RangeIdent(
             name=pkg.name,
-            version=VersionFilter({ExactVersion(pkg.version),}),
+            version=VersionFilter(
+                {
+                    ExactVersion(pkg.version),
+                }
+            ),
             build=pkg.build,
         )
         return PkgRequest(ri)

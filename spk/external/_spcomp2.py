@@ -88,7 +88,11 @@ def import_spcomp2(
         if latest is None:
             continue
         spec = api.Spec(
-            pkg=api.Ident(spk_name, latest, build=api.Build(build_opts.digest()),),
+            pkg=api.Ident(
+                spk_name,
+                latest,
+                build=api.Build(build_opts.digest()),
+            ),
             compat=api.parse_compat("x.ab"),
             build=build_spec,
         )

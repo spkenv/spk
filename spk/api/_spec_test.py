@@ -43,7 +43,10 @@ def test_install_embedded_build_options() -> None:
         InstallSpec.from_dict(
             {
                 "embedded": [
-                    {"pkg": "embedded/1.0.0", "build": {"script": "echo hello"},}
+                    {
+                        "pkg": "embedded/1.0.0",
+                        "build": {"script": "echo hello"},
+                    }
                 ]
             }
         )

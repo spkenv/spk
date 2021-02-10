@@ -61,7 +61,11 @@ class ListPackageIterator(PackageIterator):
 class RepositoryPackageIterator(PackageIterator):
     """A stateful cursor yielding package builds from a set of repositories."""
 
-    def __init__(self, package_name: str, repos: List[storage.Repository],) -> None:
+    def __init__(
+        self,
+        package_name: str,
+        repos: List[storage.Repository],
+    ) -> None:
         self._package_name = package_name
         self._repos = repos
         self._versions: Optional[Iterator[api.Version]] = None
@@ -153,7 +157,10 @@ class FilteredPackageIterator(PackageIterator):
     """
 
     def __init__(
-        self, source: PackageIterator, request: api.PkgRequest, options: api.OptionMap,
+        self,
+        source: PackageIterator,
+        request: api.PkgRequest,
+        options: api.OptionMap,
     ) -> None:
         self._source = source
         self.request = request

@@ -128,7 +128,8 @@ class Decision:
                 self._set_embedded(embedded, spec)
             except ConflictingRequestsError as err:
                 raise ConflictingRequestsError(
-                    f"embedded package '{embedded.pkg}' is incompatible", err.requests,
+                    f"embedded package '{embedded.pkg}' is incompatible",
+                    err.requests,
                 )
 
     def force_set_resolved(
