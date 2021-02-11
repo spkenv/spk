@@ -2,11 +2,10 @@
 //! tar file. This is best used as single write, many read
 //! archive format as modifying the tar in place is slow.
 
-mod payloads;
-pub use payloads::TarPayloadStorage;
-mod database;
-pub use database::TarDatabase;
+// mod payloads;
+// pub use payloads::TarPayloadStorage;
+// mod database;
+// pub use database::TarDatabase;
 mod repository;
-pub use repository::TarRepository;
 mod tag;
-pub use tag::TagStorage;
+pub use repository::TarRepository;

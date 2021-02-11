@@ -17,6 +17,7 @@ pub struct FSRepository {
 }
 
 impl FSRepository {
+    /// Establish a new filesystem repository
     pub fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
         makedirs_with_perms(root.as_ref(), 0o777)?;
         makedirs_with_perms(root.as_ref().join("tags"), 0o777)?;
