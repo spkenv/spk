@@ -1,6 +1,8 @@
-version: 0.22.1
+version: 0.22.2
 release_notes: |
-  - Update dependency versions (namely spfs) to latest
+  - Fix issue where source packages could fail to
+    resolve in build environments if install requirements conflicted
+    with the build env (which should be irrelevant)
 
 toolchain:
   - kind: Shell

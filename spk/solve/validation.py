@@ -82,6 +82,10 @@ class PkgRequirementsValidator(Validator):
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
 
+        if spec.pkg.is_source():
+            # source packages are not being "installed" so requests don't matter
+            return api.COMPATIBLE
+
         for request in spec.install.requirements:
             if not isinstance(request, api.PkgRequest):
                 continue
@@ -112,6 +116,10 @@ class VarRequirementsValidator(Validator):
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
 
+        if spec.pkg.is_source():
+            # source packages are not being "installed" so requests don't matter
+            return api.COMPATIBLE
+
         options = state.get_option_map()
         for request in spec.install.requirements:
             if not isinstance(request, api.VarRequest):
@@ -129,6 +137,10 @@ class VarRequirementsValidator(Validator):
 
 class EmbeddedPackageValidator(Validator):
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
+
+        if spec.pkg.is_source():
+            # source packages are not being "installed" so embedded pkgs are not relevant
+            return api.COMPATIBLE
 
         for embedded in spec.install.embedded:
             try:
