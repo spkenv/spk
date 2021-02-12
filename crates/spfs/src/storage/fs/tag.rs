@@ -1,15 +1,32 @@
-use std::path::PathBuf;
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
 
 use relative_path::RelativePath;
 
 use super::FSRepository;
 use crate::{encoding, tracking, Result};
+use encoding::Decodable;
 
 #[cfg(test)]
 #[path = "./tag_test.rs"]
 mod tag_test;
 
-const TAG_EXT: &str = ".tag";
+const TAG_EXT: &str = "tag";
+
+pub trait TagExt {
+    fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf;
+}
+
+impl TagExt for tracking::TagSpec {
+    fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf {
+        let mut filepath = root.as_ref().join(self.path());
+        let new_name = self.name() + "." + TAG_EXT;
+        filepath.set_file_name(new_name);
+        filepath
+    }
+}
 
 impl FSRepository {
     fn tags_root(&self) -> PathBuf {
@@ -33,7 +50,7 @@ impl crate::storage::TagStorage for FSRepository {
     }
 
     fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
-        let filepath = path.to_path(self.root());
+        let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
             Err(err) => match err.kind() {
@@ -45,12 +62,11 @@ impl crate::storage::TagStorage for FSRepository {
         let mut entries = Vec::new();
         for entry in read_dir {
             let entry = entry?;
-            let name = entry.file_name().to_string_lossy().to_string();
-            entries.push(
-                name.strip_suffix(TAG_EXT)
-                    .unwrap_or(name.as_str())
-                    .to_string(),
-            );
+            let path = entry.path();
+            match path.file_stem() {
+                None => continue,
+                Some(tag_name) => entries.push(tag_name.to_string_lossy().to_string()),
+            }
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -80,40 +96,18 @@ impl crate::storage::TagStorage for FSRepository {
     ) -> Box<
         dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
     > {
-        todo!()
-        // for root, _, files in os.walk(self._root):
-
-        //     for filename in files:
-        //         if not filename.endswith(_TAG_EXT):
-        //             continue
-        //         filepath = os.path.join(root, filename)
-        //         tag = os.path.relpath(filepath[: -len(_TAG_EXT)], self._root)
-        //         spec = tracking.TagSpec(tag)
-        //         yield (spec, self.read_tag(tag))
+        Box::new(TagStreamIter::new(&self.tags_root()))
     }
 
     fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
-        todo!()
-        //     spec = tracking.TagSpec(tag)
-        //     filepath = os.path.join(self._root, spec.path + _TAG_EXT)
-        //     try:
-        //         blocks = []
-        //         with open(filepath, "rb") as f:
-        //             while True:
-        //                 try:
-        //                     size = encoding.read_int(f)
-        //                 except EOFError:
-        //                     break
-        //                 blocks.append(size)
-        //                 f.seek(size, os.SEEK_CUR)
-
-        //             for size in reversed(blocks):
-        //                 f.seek(-size, os.SEEK_CUR)
-        //                 yield tracking.Tag.decode(f)
-        //                 f.seek(-size - encoding.INT_SIZE, os.SEEK_CUR)
-
-        //     except FileNotFoundError:
-        //         raise graph.UnknownReferenceError(f"Unknown tag: {tag}")
+        let path = tag.to_path(self.tags_root());
+        match read_tag_file(path) {
+            Err(err) => Err(err),
+            Ok(iter) => {
+                let tags: Result<Vec<_>> = iter.into_iter().collect();
+                Ok(Box::new(tags?.into_iter().rev()))
+            }
+        }
     }
 
     fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
@@ -185,6 +179,91 @@ impl crate::storage::TagStorage for FSRepository {
         //             raise
         //         else:
         //             os.remove(backup_path)
+    }
+}
+
+struct TagStreamIter {
+    root: PathBuf,
+    inner: walkdir::IntoIter,
+}
+
+impl TagStreamIter {
+    fn new<P: AsRef<std::path::Path>>(root: P) -> Self {
+        Self {
+            root: root.as_ref().to_path_buf(),
+            inner: walkdir::WalkDir::new(root).into_iter(),
+        }
+    }
+}
+
+impl Iterator for TagStreamIter {
+    type Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let entry = self.inner.next();
+            match entry {
+                None => break None,
+                Some(Err(err)) => break Some(Err(err.into())),
+                Some(Ok(entry)) => {
+                    if !entry.file_type().is_file() {
+                        continue;
+                    }
+                    let path = entry.path();
+                    if path.extension() != Some(OsStr::new(TAG_EXT)) {
+                        continue;
+                    }
+                    let filepath = entry.path().strip_prefix(&self.root).unwrap();
+                    let spec = match tracking::TagSpec::parse(&filepath.to_string_lossy()) {
+                        Err(err) => return Some(Err(err)),
+                        Ok(spec) => spec,
+                    };
+                    let tags: Result<Vec<_>> = match read_tag_file(spec.to_path(&self.root)) {
+                        Err(err) => return Some(Err(err)),
+                        Ok(stream) => stream.into_iter().collect(),
+                    };
+                    break match tags {
+                        Err(err) => Some(Err(err)),
+                        Ok(tags) => Some(Ok((spec, Box::new(tags.into_iter().rev())))),
+                    };
+                }
+            }
+        }
+    }
+}
+
+/// Return an iterator over all tags in the identified tag file
+///
+/// This iterator outputs tags from earliest to latest, as stored
+/// in the file starting at the beginning
+fn read_tag_file<P: AsRef<Path>>(path: P) -> Result<TagIter<std::fs::File>> {
+    let reader = std::fs::File::open(path.as_ref())?;
+    Ok(TagIter::new(reader))
+}
+
+struct TagIter<R: std::io::Read + std::io::Seek>(R);
+
+impl<R: std::io::Read + std::io::Seek> TagIter<R> {
+    fn new(reader: R) -> Self {
+        Self(reader)
+    }
+}
+
+impl<R: std::io::Read + std::io::Seek> Iterator for TagIter<R> {
+    type Item = Result<tracking::Tag>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let _size = match encoding::read_int(&mut self.0) {
+            Ok(size) => size,
+            Err(err) => match err.raw_os_error() {
+                Some(libc::EOF) => return None,
+                _ => return Some(Err(err)),
+            },
+        };
+        match tracking::Tag::decode(&mut self.0) {
+            Err(err) => Some(Err(err)),
+            Ok(tag) => Some(Ok(tag)),
+        }
     }
 }
 
