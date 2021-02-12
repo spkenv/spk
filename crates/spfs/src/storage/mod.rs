@@ -21,13 +21,14 @@ pub use tag::TagStorage;
 #[derive(Debug)]
 pub enum RepositoryHandle {
     FS(fs::FSRepository),
-    //Tar(tar::TarRepository),
+    Tar(tar::TarRepository),
 }
 
 impl RepositoryHandle {
     pub fn to_repo(self) -> Box<dyn Repository> {
         match self {
             Self::FS(repo) => Box::new(repo),
+            Self::Tar(repo) => Box::new(repo),
         }
     }
 }
@@ -37,7 +38,8 @@ impl std::ops::Deref for RepositoryHandle {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            RepositoryHandle::FS(fs) => fs,
+            RepositoryHandle::FS(repo) => repo,
+            RepositoryHandle::Tar(repo) => repo,
         }
     }
 }
@@ -45,7 +47,8 @@ impl std::ops::Deref for RepositoryHandle {
 impl std::ops::DerefMut for RepositoryHandle {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            RepositoryHandle::FS(fs) => fs,
+            RepositoryHandle::FS(repo) => repo,
+            RepositoryHandle::Tar(repo) => repo,
         }
     }
 }
@@ -53,6 +56,11 @@ impl std::ops::DerefMut for RepositoryHandle {
 impl From<fs::FSRepository> for RepositoryHandle {
     fn from(repo: fs::FSRepository) -> Self {
         RepositoryHandle::FS(repo)
+    }
+}
+impl From<tar::TarRepository> for RepositoryHandle {
+    fn from(repo: tar::TarRepository) -> Self {
+        RepositoryHandle::Tar(repo)
     }
 }
 
@@ -65,6 +73,13 @@ pub fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHan
     };
 
     match url.scheme() {
-        _ => todo!("open_repository"),
+        "file" | "" => {
+            if url.path().ends_with(".tar") {
+                Ok(tar::TarRepository::open(url.path())?.into())
+            } else {
+                Ok(fs::FSRepository::open(url.path())?.into())
+            }
+        }
+        scheme => Err(format!("Unsupported repository scheme: '{}'", scheme).into()),
     }
 }
