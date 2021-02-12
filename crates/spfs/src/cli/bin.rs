@@ -5,7 +5,7 @@ mod args;
 // mod cmd_clean;
 // mod cmd_commit;
 // mod cmd_diff;
-// mod cmd_edit;
+mod cmd_edit;
 // mod cmd_info;
 // mod cmd_init;
 // mod cmd_layers;
@@ -21,7 +21,6 @@ mod args;
 mod cmd_run;
 // mod cmd_runtimes;
 // mod cmd_search;
-// mod cmd_shell;
 // mod cmd_tag;
 // mod cmd_tags;
 mod cmd_version;
@@ -82,27 +81,27 @@ async fn main() {
         Command::Version(cmd) => cmd.run(),
         Command::Run(mut cmd) => cmd.run(&config).await,
         Command::Shell(mut cmd) => cmd.run(&config).await,
-        // Command::Edit(cmd) => cmd.run().await,
-        // Command::Commit(cmd) => cmd.run().await,
-        // Command::Reset(cmd) => cmd.run().await,
-        // Command::Tag(cmd) => cmd.run().await,
-        // Command::Push(cmd) => cmd.run().await,
-        // Command::Pull(cmd) => cmd.run().await,
-        // Command::Runtimes(cmd) => cmd.run().await,
-        // Command::Layers(cmd) => cmd.run().await,
-        // Command::Platforms(cmd) => cmd.run().await,
-        // Command::Tags(cmd) => cmd.run().await,
-        // Command::Info(cmd) => cmd.run().await,
-        // Command::Log(cmd) => cmd.run().await,
-        // Command::Search(cmd) => cmd.run().await,
-        // Command::Diff(cmd) => cmd.run().await,
-        // Command::LsTags(cmd) => cmd.run().await,
-        // Command::Ls(cmd) => cmd.run().await,
-        // Command::Migrate(cmd) => cmd.run().await,
-        // Command::Check(cmd) => cmd.run().await,
-        // Command::Clean(cmd) => cmd.run().await,
-        // Command::Read(cmd) => cmd.run().await,
-        // Command::Init(cmd) => cmd.run().await,
+        Command::Edit(mut cmd) => cmd.run(&config).await,
+        // Command::Commit(mut cmd) => cmd.run(&config).await,
+        // Command::Reset(mut cmd) => cmd.run(&config).await,
+        // Command::Tag(mut cmd) => cmd.run(&config).await,
+        // Command::Push(mut cmd) => cmd.run(&config).await,
+        // Command::Pull(mut cmd) => cmd.run(&config).await,
+        // Command::Runtimes(mut cmd) => cmd.run(&config).await,
+        // Command::Layers(mut cmd) => cmd.run(&config).await,
+        // Command::Platforms(mut cmd) => cmd.run(&config).await,
+        // Command::Tags(mut cmd) => cmd.run(&config).await,
+        // Command::Info(mut cmd) => cmd.run(&config).await,
+        // Command::Log(mut cmd) => cmd.run(&config).await,
+        // Command::Search(mut cmd) => cmd.run(&config).await,
+        // Command::Diff(mut cmd) => cmd.run(&config).await,
+        // Command::LsTags(mut cmd) => cmd.run(&config).await,
+        // Command::Ls(mut cmd) => cmd.run(&config).await,
+        // Command::Migrate(mut cmd) => cmd.run(&config).await,
+        // Command::Check(mut cmd) => cmd.run(&config).await,
+        // Command::Clean(mut cmd) => cmd.run(&config).await,
+        // Command::Read(mut cmd) => cmd.run(&config).await,
+        // Command::Init(mut cmd) => cmd.run(&config).await,
     };
 
     match result {

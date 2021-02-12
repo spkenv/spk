@@ -23,8 +23,8 @@ pub enum Command {
     Run(super::cmd_run::CmdRun),
     #[structopt(about = "enter a subshell in a configured spfs environment")]
     Shell(super::cmd_run::CmdShell),
-    // #[structopt(about = "make the current runtime editable")]
-    // Edit(super::cmd_edit::CmdEdit),
+    #[structopt(about = "make the current runtime editable")]
+    Edit(super::cmd_edit::CmdEdit),
     // #[structopt(about = "commit the current runtime state to storage")]
     // Commit(super::cmd_commit::CmdCommit),
     // #[structopt(

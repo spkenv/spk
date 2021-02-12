@@ -1,40 +1,27 @@
-import os
-import argparse
+use structopt::StructOpt;
 
-import structlog
+use spfs;
 
-import spfs
+#[derive(Debug, StructOpt)]
+pub struct CmdEdit {
+    #[structopt(long = "off", about = "Disable edit mode instead")]
+    off: bool,
+}
 
-_logger = structlog.get_logger("cli")
-
-
-def register(sub_parsers: argparse._SubParsersAction) -> None:
-
-    edit_cmd = sub_parsers.add_parser("edit", help=_edit.__doc__)
-    edit_cmd.add_argument(
-        "--off",
-        action="store_true",
-        default=False,
-        help="Disable edit mode instead",
-    )
-    edit_cmd.set_defaults(func=_edit)
-
-
-def _edit(args: argparse.Namespace) -> None:
-    """Make the current runtime editable."""
-
-    if not args.off:
-        try:
-            spfs.make_active_runtime_editable()
-        except ValueError as err:
-            _logger.info(str(err))
-        else:
-            _logger.info("edit mode enabled")
-    else:
-        rt = spfs.active_runtime()
-        rt.set_editable(False)
-        try:
-            spfs.remount_runtime(rt)
-        except:
-            rt.set_editable(True)
-            raise
+impl CmdEdit {
+    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<()> {
+        if !self.off {
+            spfs::make_active_runtime_editable()?;
+            tracing::info!("edit mode enabled");
+        } else {
+            let mut rt = spfs::active_runtime()?;
+            rt.set_editable(false)?;
+            if let Err(err) = spfs::remount_runtime(&rt) {
+                rt.set_editable(true)?;
+                return Err(err);
+            }
+            tracing::info!("edit mode disabled");
+        }
+        Ok(())
+    }
+}
