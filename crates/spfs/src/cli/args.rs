@@ -59,10 +59,10 @@ pub enum Command {
     // Ls(super::cmd_ls::CmdLs),
     // #[structopt(about = "migrate the data from and older repository format to the latest one")]
     // Migrate(super::cmd_migrate::CmdMigrate),
-    // #[structopt(about = "check a repositories internal integrity")]
-    // Check(super::cmd_check::CmdCheck),
-    // #[structopt(about = "clean the repository storage of untracked data")]
-    // Clean(super::cmd_clean::CmdClean),
+    #[structopt(about = "check a repositories internal integrity")]
+    Check(super::cmd_check::CmdCheck),
+    #[structopt(about = "clean the repository storage of untracked data")]
+    Clean(super::cmd_clean::CmdClean),
     // #[structopt(about = "output the contents of a stored payload to stdout", aliases = ["read-file", "cat", "cat-file"])]
     // Read(super::cmd_read::CmdRead),
     // #[structopt(about = "[internal use only] instantiates a raw runtime session")]
@@ -114,11 +114,14 @@ pub fn configure_spops(_: &Opt) {
     //     print(f"failed to initialize spops: {e}", file=sys.stderr)
 }
 
-pub fn configure_logging(_opt: &super::Opt) {
+pub fn configure_logging(opt: &super::Opt) {
     use tracing_subscriber::layer::SubscriberExt;
     let filter = tracing_subscriber::filter::EnvFilter::from_default_env();
     let registry = tracing_subscriber::Registry::default().with(filter);
-    let fmt_layer = tracing_subscriber::fmt::layer().without_time();
+    let mut fmt_layer = tracing_subscriber::fmt::layer().without_time();
+    if opt.verbose < 3 {
+        fmt_layer = fmt_layer.with_target(false);
+    }
     let sub = registry.with(fmt_layer);
     tracing::subscriber::set_global_default(sub).unwrap();
 }

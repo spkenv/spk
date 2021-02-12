@@ -1,8 +1,8 @@
 use structopt::StructOpt;
 
 mod args;
-// mod cmd_check;
-// mod cmd_clean;
+mod cmd_check;
+mod cmd_clean;
 // mod cmd_commit;
 // mod cmd_diff;
 mod cmd_edit;
@@ -33,11 +33,10 @@ async fn main() {
 
     let opt = args::Opt::from_args();
     match opt.verbose {
-        0 => {
-            if std::env::var("SPFS_DEBUG").is_ok() {
-                std::env::set_var("RUST_LOG", "DEBUG");
-            }
+        0 if std::env::var("SPFS_DEBUG").is_ok() => {
+            std::env::set_var("RUST_LOG", "DEBUG");
         }
+        0 => std::env::set_var("RUST_LOG", "spfs=INFO"),
         1 => std::env::set_var("RUST_LOG", "DEBUG"),
         _ => std::env::set_var("RUST_LOG", "TRACE"),
     }
@@ -98,8 +97,8 @@ async fn main() {
         // Command::LsTags(mut cmd) => cmd.run(&config).await,
         // Command::Ls(mut cmd) => cmd.run(&config).await,
         // Command::Migrate(mut cmd) => cmd.run(&config).await,
-        // Command::Check(mut cmd) => cmd.run(&config).await,
-        // Command::Clean(mut cmd) => cmd.run(&config).await,
+        Command::Check(mut cmd) => cmd.run(&config).await,
+        Command::Clean(mut cmd) => cmd.run(&config).await,
         // Command::Read(mut cmd) => cmd.run(&config).await,
         // Command::Init(mut cmd) => cmd.run(&config).await,
     };
