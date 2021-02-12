@@ -1,4 +1,4 @@
-use super::config::get_config;
+use super::config::load_config;
 use super::storage::prelude::*;
 use crate::Result;
 
@@ -14,7 +14,7 @@ use crate::Result;
 pub fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
 ) -> Result<Box<dyn Iterator<Item = String>>> {
-    let config = get_config()?;
+    let config = load_config()?;
     let repo = config.get_repository()?;
     match path {
         Some(path) => Ok(repo.ls_tags(path.as_ref())?),

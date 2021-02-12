@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::config::get_config;
+use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -8,7 +8,7 @@ use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 mod resolve_test;
 
 pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
-    let config = get_config()?;
+    let config = load_config()?;
     let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository()?.into()];
     for name in config.list_remote_names() {
         match config.get_remote(&name) {
@@ -38,7 +38,7 @@ pub fn compute_object_manifest(
     let repo = match repo {
         Some(repo) => repo,
         None => {
-            let config = get_config()?;
+            let config = load_config()?;
             config.get_repository()?.into()
         }
     };
@@ -62,7 +62,7 @@ pub fn compute_object_manifest(
 ///
 /// These are returned as a list, from bottom to top.
 pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
-    let config = get_config()?;
+    let config = load_config()?;
     let repo = config.get_repository()?.into();
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().into_iter(), Some(&repo))?;
@@ -84,7 +84,7 @@ pub fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
     let repo = match repo.take() {
         Some(repo) => repo,
         None => {
-            let config = get_config()?;
+            let config = load_config()?;
             owned_handle = storage::RepositoryHandle::from(config.get_repository()?);
             &owned_handle
         }

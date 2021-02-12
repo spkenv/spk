@@ -1,4 +1,4 @@
-use super::config::get_config;
+use super::config::load_config;
 use super::status::remount_runtime;
 use crate::prelude::*;
 use crate::{graph, runtime, Error, Result};
@@ -23,7 +23,7 @@ impl NothingToCommitError {
 
 /// Commit the working file changes of a runtime to a new layer.
 pub fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
-    let config = get_config()?;
+    let config = load_config()?;
     let mut repo = config.get_repository()?;
     let manifest = repo.commit_dir(runtime.upper_dir.as_path())?;
     if manifest.is_empty() {
@@ -38,7 +38,7 @@ pub fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
 
 /// Commit the full layer stack and working files to a new platform.
 pub fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
-    let config = get_config()?;
+    let config = load_config()?;
     let mut repo = config.get_repository()?;
 
     match commit_layer(runtime) {

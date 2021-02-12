@@ -21,7 +21,7 @@ mod args;
 mod cmd_run;
 // mod cmd_runtimes;
 // mod cmd_search;
-mod cmd_shell;
+// mod cmd_shell;
 // mod cmd_tag;
 // mod cmd_tags;
 mod cmd_version;
@@ -70,10 +70,18 @@ async fn main() {
 
     // return 0
 
+    let config = match spfs::load_config() {
+        Err(err) => {
+            tracing::error!(err = ?err, "failed to load config");
+            std::process::exit(1);
+        }
+        Ok(config) => config,
+    };
+
     let result = match opt.cmd {
         Command::Version(cmd) => cmd.run(),
-        Command::Run(mut cmd) => cmd.run().await,
-        Command::Shell(mut cmd) => cmd.run().await,
+        Command::Run(mut cmd) => cmd.run(&config).await,
+        Command::Shell(mut cmd) => cmd.run(&config).await,
         // Command::Edit(cmd) => cmd.run().await,
         // Command::Commit(cmd) => cmd.run().await,
         // Command::Reset(cmd) => cmd.run().await,

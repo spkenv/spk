@@ -22,7 +22,7 @@ pub enum Command {
     #[structopt(about = "run a program in a configured environment")]
     Run(super::cmd_run::CmdRun),
     #[structopt(about = "enter a subshell in a configured spfs environment")]
-    Shell(super::cmd_shell::CmdShell),
+    Shell(super::cmd_run::CmdShell),
     // #[structopt(about = "make the current runtime editable")]
     // Edit(super::cmd_edit::CmdEdit),
     // #[structopt(about = "commit the current runtime state to storage")]
@@ -116,7 +116,7 @@ pub fn configure_spops(_: &Opt) {
 
 pub fn configure_logging(_opt: &super::Opt) {
     use tracing_subscriber::layer::SubscriberExt;
-    let filter = tracing_subscriber::filter::EnvFilter::default();
+    let filter = tracing_subscriber::filter::EnvFilter::from_default_env();
     let registry = tracing_subscriber::Registry::default().with(filter);
     let fmt_layer = tracing_subscriber::fmt::layer().without_time();
     let sub = registry.with(fmt_layer);

@@ -8,7 +8,7 @@ use std::{
 
 use futures::future::{FutureExt, LocalBoxFuture};
 
-use super::config::get_config;
+use super::config::load_config;
 use crate::prelude::*;
 use crate::{graph, storage, tracking, Error, Result};
 
@@ -22,7 +22,7 @@ pub async fn push_ref<R: AsRef<str>>(
     reference: R,
     mut remote: Option<storage::RepositoryHandle>,
 ) -> Result<graph::Object> {
-    let config = get_config()?;
+    let config = load_config()?;
     let local = config.get_repository()?.into();
     let mut remote = match remote.take() {
         Some(remote) => remote,
@@ -39,7 +39,7 @@ pub async fn push_ref<R: AsRef<str>>(
 /// Errors:
 /// - If the remote reference could not be found
 pub async fn pull_ref<R: AsRef<str>>(reference: R) -> Result<graph::Object> {
-    let config = get_config()?;
+    let config = load_config()?;
     let mut local = config.get_repository()?.into();
     let names = config.list_remote_names();
     for name in names {

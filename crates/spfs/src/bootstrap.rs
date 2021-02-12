@@ -26,7 +26,7 @@ pub fn build_command_for_runtime(
                 command,
             ];
             spfs_args.append(args);
-            build_spfs_enter_command(runtime, args)
+            build_spfs_enter_command(runtime, &mut spfs_args)
         }
     }
 }

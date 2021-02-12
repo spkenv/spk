@@ -1,4 +1,4 @@
-use super::config::get_config;
+use super::config::load_config;
 use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers, which};
 use crate::{prelude::*, runtime, tracking, Error, Result};
 use std::ffi::OsString;
@@ -64,7 +64,7 @@ pub fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
 ///
 /// The returned manifest DOES NOT include any active changes to the runtime.
 pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
-    let config = get_config()?;
+    let config = load_config()?;
     let repo = config.get_repository()?;
 
     let stack = rt.get_stack();

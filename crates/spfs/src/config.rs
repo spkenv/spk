@@ -9,7 +9,6 @@ mod config_test;
 
 static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
 static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
-const CONFIG: Option<Config> = None;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
@@ -88,14 +87,6 @@ impl Config {
         };
         storage::open_repository(addr)
     }
-}
-
-/// Get the current configuration, loading it if necessary.
-pub fn get_config() -> Result<Config> {
-    if let None = CONFIG {
-        CONFIG.replace(load_config()?);
-    }
-    Ok(CONFIG.unwrap().clone())
 }
 
 /// Load the spfs configuration from disk.

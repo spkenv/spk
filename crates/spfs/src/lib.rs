@@ -17,7 +17,7 @@ mod error;
 pub use error::{Error, Result};
 
 mod config;
-pub use self::config::{get_config, load_config, Config};
+pub use self::config::{load_config, Config};
 mod resolve;
 pub use resolve::{compute_manifest, compute_object_manifest};
 mod status;

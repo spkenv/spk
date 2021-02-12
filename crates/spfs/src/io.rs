@@ -1,6 +1,6 @@
 use colored::*;
 
-use super::config::get_config;
+use super::config::load_config;
 use crate::{encoding, storage, tracking, Result};
 
 /// Return a nicely formatted string representation of the given reference.
@@ -12,7 +12,7 @@ pub fn format_digest<R: AsRef<str>>(
     let repo = match repo {
         Some(repo) => repo,
         None => {
-            let config = get_config()?;
+            let config = load_config()?;
             Box::new(config.get_repository()?)
         }
     };
