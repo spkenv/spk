@@ -1,13 +1,10 @@
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::build_shell_initialized_command;
 use crate::{resolve::which, runtime};
-use std::process::Command;
+use std::{ffi::OsString, process::Command};
 
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spfs-").expect("failed to create dir for test")
-}
+fixtures!();
 
 #[rstest(
     shell,
@@ -35,7 +32,8 @@ async fn test_shell_initialization_startup_scripts(
     std::env::set_var("SPFS_RUNTIME", rt.root());
     std::env::set_var("SHELL", shell_path);
 
-    let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
+    let tmp_startup_dir = tmpdir.path().join("startup.d");
+    std::fs::create_dir(&tmp_startup_dir).unwrap();
     for startup_script in &[rt.sh_startup_file, rt.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
@@ -50,11 +48,15 @@ async fn test_shell_initialization_startup_scripts(
     std::fs::write(tmp_startup_dir.join("test.csh"), startup_cmd).unwrap();
     std::fs::write(tmp_startup_dir.join("test.sh"), startup_cmd).unwrap();
 
-    let args = build_shell_initialized_command("printenv", vec!["TEST_VALUE"]).unwrap();
-    let mut cmd = Command::new(args[0]);
-    cmd.args(args[1..]);
+    let args = build_shell_initialized_command(
+        OsString::from("printenv"),
+        &mut vec![OsString::from("TEST_VALUE")],
+    )
+    .unwrap();
+    let mut cmd = Command::new(args.get(0).unwrap());
+    cmd.args(args[1..].iter());
     let out = cmd.output().unwrap();
-    assert!(out.stdout.endswith("spfs-test-value\n"));
+    assert!(out.stdout.ends_with("spfs-test-value\n".as_bytes()));
 }
 
 #[rstest(shell, case("bash"), case("tcsh"))]
@@ -83,9 +85,9 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
         println!("{:?}", cmd.output().unwrap());
     }
 
-    let args = build_shell_initialized_command("echo", Default::default()).unwrap();
-    let mut cmd = Command::new(args[0]);
-    cmd.args(args[1..]);
+    let args = build_shell_initialized_command(OsString::from("echo"), &mut Vec::new()).unwrap();
+    let mut cmd = Command::new(args.get(0).unwrap());
+    cmd.args(args[1..].iter());
     let out = cmd.output().unwrap();
-    assert_eq!(out.stdout, "\n");
+    assert_eq!(out.stdout, "\n".as_bytes());
 }

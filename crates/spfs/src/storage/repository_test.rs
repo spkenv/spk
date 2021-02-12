@@ -3,32 +3,18 @@ use std::iter::FromIterator;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::{Ref, Repository};
 use crate::graph::Manifest;
 use crate::storage::{fs, prelude::*};
 use crate::{encoding::Encodable, tracking::TagSpec};
 
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spfs-test-").unwrap()
-}
+fixtures!();
 
-// #[test]
-fn test_find_aliases_fs(tmpdir: tempdir::TempDir) {
-    let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
-    test_find_aliases(repo);
-}
-
-// #[test]
-fn test_find_aliases_tar(tmpdir: tempdir::TempDir) {
-    todo!()
-    // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
-    // test_find_aliases(repo);
-}
-
-fn test_find_aliases(tmprepo: impl Repository) {
+#[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
+#[tokio::test]
+async fn test_find_aliases(mut tmprepo: super::super::RepositoryHandle) {
     tmprepo
         .find_aliases("not-existant")
         .expect_err("should error when ref is not found");
@@ -50,8 +36,9 @@ fn test_find_aliases(tmprepo: impl Repository) {
     assert_eq!(actual, expected);
 }
 
-// #[test]
-fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
+#[rstest]
+#[tokio::test]
+async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
     let mut tmprepo = fs::FSRepository::create(tmpdir.join("repo")).unwrap();
     let datafile_path = "dir1.0/dir2.0/file.txt";
@@ -62,7 +49,7 @@ fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     let link_dest = src_dir.join(datafile_path);
     std::fs::write(&link_dest, "somedata").unwrap();
     std::os::unix::fs::symlink(&src_dir.join(symlink_path), &link_dest).unwrap();
-    std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444));
+    std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444)).unwrap();
 
     let manifest = tmprepo.commit_dir(&src_dir).expect("failed to commit dir");
     let rendered_dir = tmprepo
@@ -84,19 +71,12 @@ fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     )
 }
 
-// #[test]
-fn test_commit_broken_link_fs(tmpdir: tempdir::TempDir) {
-    let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
-    test_commit_broken_link(tmpdir, repo);
-}
-// #[test]
-fn test_commit_broken_link_tar(tmpdir: tempdir::TempDir) {
-    todo!();
-    // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
-    // test_commit_broken_link(tmpdir, repo);
-}
-
-fn test_commit_broken_link(tmpdir: tempdir::TempDir, tmprepo: impl Repository) {
+#[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
+#[tokio::test]
+async fn test_commit_broken_link(
+    tmpdir: tempdir::TempDir,
+    mut tmprepo: super::super::RepositoryHandle,
+) {
     let src_dir = tmpdir.path().join("source");
     std::fs::create_dir_all(&src_dir).unwrap();
     std::os::unix::fs::symlink(
@@ -109,19 +89,9 @@ fn test_commit_broken_link(tmpdir: tempdir::TempDir, tmprepo: impl Repository) {
     assert!(manifest.get_path("broken-link").is_some());
 }
 
-// #[test]
-fn test_commit_dir_fs(tmpdir: tempdir::TempDir) {
-    let repo = fs::FSRepository::create(tmpdir.path().join("repo")).unwrap();
-    test_commit_dir(tmpdir, repo);
-}
-// #[test]
-fn test_commit_dir_tar(tmpdir: tempdir::TempDir) {
-    todo!();
-    // let repo = fs::FSRepository::create(tmpdir.path().join("repo.tar")).unwrap();
-    // test_commit_dir(tmpdir, repo);
-}
-
-fn test_commit_dir(tmpdir: tempdir::TempDir, tmprepo: impl Repository) {
+#[rstest(tmprepo, case::fs(tmprepo("fs")), case::fs(tmprepo("tar")))]
+#[tokio::test]
+async fn test_commit_dir(tmpdir: tempdir::TempDir, mut tmprepo: super::super::RepositoryHandle) {
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");

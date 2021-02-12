@@ -9,7 +9,7 @@ impl encoding::Encodable for LargeObj {
         Ok(encoding::NULL_DIGEST.into())
     }
 
-    fn encode(&self, writer: &mut impl std::io::Write) -> crate::Result<()> {
+    fn encode(&self, _writer: &mut impl std::io::Write) -> crate::Result<()> {
         // simlulate a long write process
         std::thread::sleep(std::time::Duration::from_secs(2));
         Ok(())
@@ -17,7 +17,7 @@ impl encoding::Encodable for LargeObj {
 }
 
 impl encoding::Decodable for LargeObj {
-    fn decode(reader: &mut impl std::io::Read) -> crate::Result<Self> {
+    fn decode(_reader: &mut impl std::io::Read) -> crate::Result<Self> {
         Ok(Self {})
     }
 }

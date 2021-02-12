@@ -1,10 +1,12 @@
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::{push_ref, sync_ref};
 use crate::config::Config;
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error};
 use storage::RepositoryHandle;
+
+fixtures!();
 
 #[rstest]
 #[tokio::test]
@@ -123,16 +125,13 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
 
     sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
-    let repo_tar = storage::tar::TarRepository::open(tmpdir.join("repo.tar")).unwrap();
+    let repo_tar = storage::tar::TarRepository::open(tmpdir.join("repo.tar"))
+        .unwrap()
+        .into();
     sync_ref("testing", &repo_tar, &mut repo_b).await.unwrap();
 
     assert!(repo_b.read_ref("testing").is_ok());
     assert!(repo_b.has_layer(&layer.digest().unwrap()));
-}
-
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spfs-sync-test").unwrap()
 }
 
 #[fixture]

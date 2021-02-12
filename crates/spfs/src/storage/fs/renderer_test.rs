@@ -1,12 +1,14 @@
 use std::os::unix::fs::PermissionsExt;
 
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::{copy_manifest, was_render_completed};
 use crate::encoding::Encodable;
 use crate::graph::Manifest;
 use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage, Repository};
 use crate::tracking;
+
+fixtures!();
 
 #[rstest]
 #[tokio::test]
@@ -69,7 +71,8 @@ async fn test_copy_manfest(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir, mut tmprepo: FSRepository) {
+async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
+    let mut tmprepo = FSRepository::create(tmpdir.path().join("repo")).unwrap();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
@@ -100,16 +103,4 @@ fn ensure(path: std::path::PathBuf, data: &str) {
         .open(path)
         .expect("failed to create file");
     std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
-}
-
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new_in("/tmp", module_path!().clone().replace("::", "_").as_ref())
-        .expect("failed to create tempdir for test")
-}
-
-#[fixture]
-fn tmprepo(tmpdir: tempdir::TempDir) -> FSRepository {
-    let root = tmpdir.path().join("storage");
-    FSRepository::create(root).expect("failed to create temprepo for test")
 }

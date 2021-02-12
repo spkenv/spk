@@ -1,19 +1,22 @@
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::{
     clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
     get_all_unattached_payloads,
 };
+
 use crate::encoding::Encodable;
 use crate::{graph, storage, tracking, Error};
 use std::collections::HashSet;
 use storage::prelude::*;
 
+fixtures!();
+
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_objects(mut tmprepo: storage::fs::FSRepository) {
+async fn test_get_attached_objects(mut tmprepo: storage::RepositoryHandle) {
     let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.payloads.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
     tmprepo.write_blob(blob).unwrap();
 
@@ -23,7 +26,7 @@ async fn test_get_attached_objects(mut tmprepo: storage::fs::FSRepository) {
         "single blob should not be attached"
     );
     let mut expected = HashSet::new();
-    expected.insert(blob.digest());
+    expected.insert(payload_digest);
     assert_eq!(
         get_all_unattached_objects(&tmprepo).unwrap(),
         expected,
@@ -33,9 +36,9 @@ async fn test_get_attached_objects(mut tmprepo: storage::fs::FSRepository) {
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_payloads(mut tmprepo: storage::fs::FSRepository) {
+async fn test_get_attached_payloads(mut tmprepo: storage::RepositoryHandle) {
     let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.payloads.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
@@ -58,7 +61,7 @@ async fn test_get_attached_payloads(mut tmprepo: storage::fs::FSRepository) {
 #[tokio::test]
 async fn test_get_attached_unattached_objects_blob(
     tmpdir: tempdir::TempDir,
-    mut tmprepo: storage::fs::FSRepository,
+    mut tmprepo: storage::RepositoryHandle,
 ) {
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
@@ -92,10 +95,8 @@ async fn test_get_attached_unattached_objects_blob(
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects(
-    tmpdir: tempdir::TempDir,
-    mut tmprepo: storage::fs::FSRepository,
-) {
+async fn test_clean_untagged_objects(tmpdir: tempdir::TempDir, tmprepo: storage::RepositoryHandle) {
+    let mut tmprepo: RepositoryHandle = tmprepo.into();
     let data_dir_1 = tmpdir.path().join("data");
     ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
     ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
@@ -141,7 +142,7 @@ async fn test_clean_untagged_objects(
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::fs::FSRepository) {
+async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::RepositoryHandle) {
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
@@ -169,10 +170,15 @@ async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::fs::
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_manifest_renders(
-    tmpdir: tempdir::TempDir,
-    mut tmprepo: storage::fs::FSRepository,
-) {
+async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir, tmprepo: storage::RepositoryHandle) {
+    let mut tmprepo = match tmprepo {
+        storage::RepositoryHandle::FS(repo) => repo,
+        _ => {
+            println!("Unsupported repo for this test");
+            return;
+        }
+    };
+
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
     ensure(data_dir.join("dir/name.txt"), "john doe");
@@ -191,7 +197,7 @@ async fn test_clean_manifest_renders(
     let files = list_files(tmprepo.root());
     assert!(files.len() != 0, "should have stored data");
 
-    clean_untagged_objects(&tmprepo)
+    clean_untagged_objects(&tmprepo.clone().into())
         .await
         .expect("failed to clean repo");
 
@@ -209,7 +215,7 @@ async fn test_clean_manifest_renders(
 }
 
 fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
-    let all_files = Vec::new();
+    let mut all_files = Vec::new();
 
     for entry in walkdir::WalkDir::new(dirname) {
         let entry = entry.expect("error while listing dir recursively");
@@ -229,14 +235,4 @@ fn ensure(path: std::path::PathBuf, data: &str) {
         .open(path)
         .expect("failed to create file");
     std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
-}
-
-#[fixture]
-fn tmprepo(tmpdir: tempdir::TempDir) -> storage::fs::FSRepository {
-    storage::fs::FSRepository::create(tmpdir.path().join("repo")).unwrap()
-}
-
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spfs-test-").expect("failed to create dir for test")
 }

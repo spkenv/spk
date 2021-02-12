@@ -1,16 +1,13 @@
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use crate::graph::{Database, DatabaseView, Manifest};
 use crate::storage::{fs::FSRepository, ManifestStorage};
 use crate::{encoding::Encodable, tracking};
 
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spfs-storage-").expect("failed to create dir for test")
-}
-
-// #[test]
-fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
+fixtures!();
+#[rstest]
+#[tokio::test]
+async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
     let mut repo = FSRepository::create(tmpdir.join("repo")).unwrap();
 
@@ -29,8 +26,9 @@ fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     assert!(digests.contains(&expected));
 }
 
-// #[test]
-fn test_manifest_parity(tmpdir: tempdir::TempDir) {
+#[rstest]
+#[tokio::test]
+async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let tmpdir = tmpdir.path();
     let mut storage = FSRepository::create(tmpdir.join("storage")).unwrap();
 

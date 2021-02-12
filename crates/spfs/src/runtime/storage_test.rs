@@ -1,16 +1,12 @@
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::{ensure_runtime, makedirs_with_perms, Config, Runtime, Storage};
 use crate::encoding;
 
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new_in("/tmp", module_path!().clone().replace("::", "_").as_ref())
-        .expect("failed to create tempdir for test")
-}
+fixtures!();
 
 #[rstest]
 #[tokio::test]

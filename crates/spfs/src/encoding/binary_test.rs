@@ -5,27 +5,27 @@ use rstest::rstest;
 
 use super::{consume_header, read_int, read_string, write_header, write_int, write_string};
 
-macro_rules! assert_read_content {
-    ($stream:expr, $expected:expr) => {
-        let mut buf: Vec<u8> = Vec::new();
-        $stream
-            .read_to_end(&mut buf)
-            .expect("failed to read rest of stream");
-        assert_eq!(buf.as_slice(), $expected);
-    };
+fn assert_read_content(stream: &mut impl Read, expected: &[u8]) {
+    let mut buf: Vec<u8> = Vec::new();
+    stream
+        .read_to_end(&mut buf)
+        .expect("failed to read rest of stream");
+    assert_eq!(buf.as_slice(), expected);
 }
 
-// #[test]
-fn test_consume_header() {
+#[rstest]
+#[tokio::test]
+async fn test_consume_header() {
     let mut stream = Cursor::new(Vec::from("HEADER\n".as_bytes()));
     consume_header(&mut stream, "HEADER".as_bytes()).expect("failed to read header");
 
     let nothing: &[u8] = &[];
-    assert_read_content!(stream, nothing);
+    assert_read_content(&mut stream, nothing);
 }
 
-// #[test]
-fn test_write_read_header() {
+#[rstest]
+#[tokio::test]
+async fn test_write_read_header() {
     let header = b"HEADER";
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_header(&mut stream, header).expect("failed to write header");

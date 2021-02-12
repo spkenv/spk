@@ -4,8 +4,9 @@ use super::Layer;
 use crate::encoding;
 use crate::encoding::prelude::*;
 
-// #[test]
-fn test_layer_encoding() {
+#[rstest]
+#[tokio::test]
+async fn test_layer_encoding() {
     let expected = Layer::new(encoding::EMPTY_DIGEST.into());
     let mut stream = Vec::new();
     expected.encode(&mut stream).unwrap();

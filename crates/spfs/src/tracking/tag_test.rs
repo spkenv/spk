@@ -37,8 +37,9 @@ fn test_tag_spec_split(raw: &str, expected: (Option<&str>, &str, u64)) {
     assert_eq!(actual.version(), expected.2);
 }
 
-// #[test]
-fn test_tag_spec_class() {
+#[rstest]
+#[tokio::test]
+async fn test_tag_spec_class() {
     let src = "org/name~1";
     let spec = TagSpec::parse(src).expect("failed to create tag");
     assert_eq!(format!("{}", spec), src.to_string());
@@ -47,8 +48,9 @@ fn test_tag_spec_class() {
     assert_eq!(spec.version(), 1);
 }
 
-// #[test]
-fn test_tag_spec_path() {
+#[rstest]
+#[tokio::test]
+async fn test_tag_spec_path() {
     let spec = TagSpec::parse("one_part").expect("failed to parse tag");
     assert_eq!(spec.path(), "one_part");
 
@@ -56,8 +58,9 @@ fn test_tag_spec_path() {
     assert_eq!(spec.path(), "two/parts");
 }
 
-// #[test]
-fn test_tag_spec_validation() {
+#[rstest]
+#[tokio::test]
+async fn test_tag_spec_validation() {
     TagSpec::parse("").expect_err("should fail when empty");
     TagSpec::parse("name~-1").expect_err("should fail with negative version");
     TagSpec::parse("name~1.23").expect_err("should fail with float");

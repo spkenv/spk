@@ -30,10 +30,13 @@ async fn test_config_get_remote_unknown() {
 async fn test_config_get_remote() {
     let tmpdir = tempdir::TempDir::new("spfs-test").unwrap();
     let remote = tmpdir.path().join("remote");
-    std::fs::create_dir(&remote).unwrap();
+    let _ = crate::storage::fs::FSRepository::create(&remote).unwrap();
 
-    let config =
-        Config::load_string(format!("[remote.origin]\naddress=file://{:?}", remote)).unwrap();
+    let config = Config::load_string(format!(
+        "[remote.origin]\naddress=file://{}",
+        &remote.to_string_lossy()
+    ))
+    .unwrap();
     let repo = config.get_remote("origin");
     assert!(repo.is_ok());
 }

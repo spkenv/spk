@@ -1,23 +1,20 @@
 use std::os::unix::fs::MetadataExt;
 
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use crate::storage::{fs::FSRepository, TagStorage};
 use crate::{encoding, tracking};
 use relative_path::RelativePathBuf;
 
-#[fixture]
-fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new_in("/tmp", module_path!().clone().replace("::", "_").as_ref())
-        .expect("failed to create tempdir for test")
-}
+fixtures!();
 
-// #[rstest]
-fn test_tag_stream(tmpdir: tempdir::TempDir) {
+#[rstest]
+#[tokio::test]
+async fn test_tag_stream(tmpdir: tempdir::TempDir) {
     let mut storage = FSRepository::create(tmpdir).unwrap();
 
     let digest1 = encoding::Hasher::new().digest();
-    let h = encoding::Hasher::new();
+    let mut h = encoding::Hasher::new();
     h.update(b"hello");
     let digest2 = h.digest();
 
@@ -27,7 +24,7 @@ fn test_tag_stream(tmpdir: tempdir::TempDir) {
     assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag1);
 
     let tag2 = storage.push_tag(&base, &digest2).unwrap();
-    let tag3 = storage.push_tag(&base, &digest2).unwrap();
+    let _tag3 = storage.push_tag(&base, &digest2).unwrap();
     assert_eq!(storage.resolve_tag(&base).unwrap(), tag2);
     assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag2);
     assert_eq!(storage.resolve_tag(&base.with_version(1)).unwrap(), tag1);
@@ -37,8 +34,9 @@ fn test_tag_stream(tmpdir: tempdir::TempDir) {
     assert_eq!(found.unwrap(), vec![base.with_version(1)]);
 }
 
-// #[rstest]
-fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
+#[rstest]
+#[tokio::test]
+async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     let tag1 = storage
@@ -53,8 +51,9 @@ fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
     assert_eq!(tags.len(), 1);
 }
 
-// #[rstest]
-fn test_tag_permissions(tmpdir: tempdir::TempDir) {
+#[rstest]
+#[tokio::test]
+async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
     let mut storage = FSRepository::create(tmpdir.path().join("repo")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     storage
@@ -72,9 +71,10 @@ fn test_tag_permissions(tmpdir: tempdir::TempDir) {
     );
 }
 
-// #[rstest]
-fn test_ls_tags(tmpdir: tempdir::TempDir) {
-    let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+#[rstest]
+#[tokio::test]
+async fn test_ls_tags(tmpdir: tempdir::TempDir) {
+    let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
         "spi/stable/my_tag",
         "spi/stable/other_tag",
@@ -104,9 +104,10 @@ fn test_ls_tags(tmpdir: tempdir::TempDir) {
     assert_eq!(tags, vec!["my_tag".to_string(), "other_tag".to_string()]);
 }
 
-// #[rstest]
-fn test_rm_tags(tmpdir: tempdir::TempDir) {
-    let storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+#[rstest]
+#[tokio::test]
+async fn test_rm_tags(tmpdir: tempdir::TempDir) {
+    let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
         "spi/stable/my_tag",
         "spi/stable/other_tag",
