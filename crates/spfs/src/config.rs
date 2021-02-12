@@ -98,10 +98,18 @@ pub fn load_config() -> Result<Config> {
 
     let mut s = ConfigBase::new();
     if let Some(name) = system_config.to_str() {
-        s.merge(File::with_name(name).required(false))?;
+        s.merge(
+            File::with_name(name)
+                .format(config::FileFormat::Ini)
+                .required(false),
+        )?;
     }
     if let Some(name) = user_config.to_str() {
-        s.merge(File::with_name(name).required(false))?;
+        s.merge(
+            File::with_name(name)
+                .format(config::FileFormat::Ini)
+                .required(false),
+        )?;
     }
     s.merge(Environment::with_prefix("SPFS").separator("_"))?;
     Ok(s.try_into()?)
