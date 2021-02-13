@@ -127,5 +127,14 @@ impl From<graph::InvalidReferenceError> for Error {
         Error::InvalidReference(err)
     }
 }
+impl From<walkdir::Error> for Error {
+    fn from(err: walkdir::Error) -> Self {
+        let msg = err.to_string();
+        match err.into_io_error() {
+            Some(err) => err.into(),
+            None => msg.into(),
+        }
+    }
+}
 
 pub type Result<T> = std::result::Result<T, Error>;

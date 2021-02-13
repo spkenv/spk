@@ -336,11 +336,3 @@ impl From<gitignore::Error> for Error {
         Self::new(format!("invalid glob pattern: {:?}", err))
     }
 }
-impl From<walkdir::Error> for Error {
-    fn from(err: walkdir::Error) -> Self {
-        match err.into_io_error() {
-            Some(err) => Self::from(err),
-            None => Self::new(format!("walkdir failed because of infinite symlink loop")),
-        }
-    }
-}
