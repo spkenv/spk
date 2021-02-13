@@ -3,6 +3,18 @@ macro_rules! fixtures {
         use rstest::fixture;
         use tempdir::TempDir;
 
+        #[allow(dead_code)]
+        fn init_logging() {
+            let sub = tracing_subscriber::FmtSubscriber::builder()
+                .with_max_level(tracing::Level::TRACE)
+                .without_time()
+                .with_test_writer()
+                .finish();
+            tracing::subscriber::set_global_default(sub)
+                .or::<Result<(), ()>>(Ok(()))
+                .unwrap();
+        }
+
         use crate as spfs;
         #[fixture]
         fn tmpdir() -> TempDir {
