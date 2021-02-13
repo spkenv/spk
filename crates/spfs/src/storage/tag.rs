@@ -1,4 +1,5 @@
 use crate::{encoding, tracking, Result};
+use encoding::Encodable;
 use relative_path::RelativePath;
 
 /// A location where tags are tracked and persisted.
@@ -64,25 +65,23 @@ pub trait TagStorage {
         tag: &tracking::TagSpec,
         target: &encoding::Digest,
     ) -> Result<tracking::Tag> {
-        todo!()
-        //     tag_spec = tracking.TagSpec(tag)
-        //     parent: Option<tracking.Tag> = None
-        //     try:
-        //         parent = self.resolve_tag(tag)
-        //     except ValueError:
-        //         pass
+        let parent = self.resolve_tag(&tag).ok();
+        let parent_ref = match parent {
+            Some(parent) => {
+                // do not push redundant/unchanged head tag
+                if &parent.target == target {
+                    return Ok(parent);
+                }
+                parent.digest()?
+            }
+            None => encoding::NULL_DIGEST.into(),
+        };
 
-        //     parent_ref = encoding.NULL_DIGEST
-        //     if parent is not None:
-        //         if parent.target == target:
-        //             return parent
-        //         parent_ref = parent.digest()
+        let mut new_tag = tracking::Tag::new(tag.org(), tag.name(), target.clone())?;
+        new_tag.parent = parent_ref;
 
-        //     new_tag = tracking.Tag(
-        //         org=tag_spec.org, name=tag_spec.name, target=target, parent=parent_ref
-        //     )
-        //     self.push_raw_tag(new_tag)
-        //     return new_tag
+        self.push_raw_tag(&new_tag)?;
+        Ok(new_tag)
     }
 
     /// Push the given tag data to the tag stream, regardless of if it's valid.

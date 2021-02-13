@@ -11,7 +11,9 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_tag_stream(tmpdir: tempdir::TempDir) {
-    let mut storage = FSRepository::create(tmpdir).unwrap();
+    init_logging();
+
+    let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
 
     let digest1 = encoding::Hasher::new().digest();
     let mut h = encoding::Hasher::new();
@@ -19,12 +21,18 @@ async fn test_tag_stream(tmpdir: tempdir::TempDir) {
     let digest2 = h.digest();
 
     let base = crate::tracking::TagSpec::parse("hello/world").unwrap();
-    let tag1 = storage.push_tag(&base, &digest1).unwrap();
+    let tag1 = storage
+        .push_tag(&base, &digest1)
+        .expect("failed to push tag");
     assert_eq!(storage.resolve_tag(&base).unwrap(), tag1);
     assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag1);
 
-    let tag2 = storage.push_tag(&base, &digest2).unwrap();
-    let _tag3 = storage.push_tag(&base, &digest2).unwrap();
+    let tag2 = storage
+        .push_tag(&base, &digest2)
+        .expect("failed to push tag");
+    let _tag3 = storage
+        .push_tag(&base, &digest2)
+        .expect("failed to push tag");
     assert_eq!(storage.resolve_tag(&base).unwrap(), tag2);
     assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag2);
     assert_eq!(storage.resolve_tag(&base.with_version(1)).unwrap(), tag1);
@@ -37,6 +45,8 @@ async fn test_tag_stream(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
+    init_logging();
+
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     let tag1 = storage
@@ -74,6 +84,8 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_ls_tags(tmpdir: tempdir::TempDir) {
+    init_logging();
+
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
         "spi/stable/my_tag",
@@ -96,17 +108,21 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
         .ls_tags(&RelativePathBuf::from("/spi"))
         .unwrap()
         .collect();
+    tags.sort();
     assert_eq!(tags, vec!["latest".to_string(), "stable".to_string()]);
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi/stable"))
         .unwrap()
         .collect();
+    tags.sort();
     assert_eq!(tags, vec!["my_tag".to_string(), "other_tag".to_string()]);
 }
 
 #[rstest]
 #[tokio::test]
 async fn test_rm_tags(tmpdir: tempdir::TempDir) {
+    init_logging();
+
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
         "spi/stable/my_tag",
@@ -123,6 +139,7 @@ async fn test_rm_tags(tmpdir: tempdir::TempDir) {
         .ls_tags(&RelativePathBuf::from("/spi"))
         .unwrap()
         .collect();
+    tags.sort();
     assert_eq!(tags, vec!["latest", "stable"]);
     storage
         .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/my_tag").unwrap())
@@ -139,5 +156,9 @@ async fn test_rm_tags(tmpdir: tempdir::TempDir) {
         .ls_tags(&RelativePathBuf::from("spi"))
         .unwrap()
         .collect();
-    assert_eq!(tags, vec!["latest"]);
+    assert_eq!(
+        tags,
+        vec!["latest"],
+        "should remove empty tag folders during cleanup"
+    );
 }

@@ -19,11 +19,12 @@ pub struct FSRepository {
 impl FSRepository {
     /// Establish a new filesystem repository
     pub fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
-        makedirs_with_perms(root.as_ref(), 0o777)?;
-        makedirs_with_perms(root.as_ref().join("tags"), 0o777)?;
-        makedirs_with_perms(root.as_ref().join("objects"), 0o777)?;
-        makedirs_with_perms(root.as_ref().join("payloads"), 0o777)?;
-        makedirs_with_perms(root.as_ref().join("renders"), 0o777)?;
+        makedirs_with_perms(&root, 0o777)?;
+        let root = root.as_ref().canonicalize()?;
+        makedirs_with_perms(root.join("tags"), 0o777)?;
+        makedirs_with_perms(root.join("objects"), 0o777)?;
+        makedirs_with_perms(root.join("payloads"), 0o777)?;
+        makedirs_with_perms(root.join("renders"), 0o777)?;
         Self::open(root)
     }
 

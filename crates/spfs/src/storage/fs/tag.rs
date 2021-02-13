@@ -1,13 +1,14 @@
 use std::{
     ffi::OsStr,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
 
 use relative_path::RelativePath;
 
 use super::FSRepository;
-use crate::{encoding, tracking, Result};
-use encoding::Decodable;
+use crate::{encoding, graph, storage::TagStorage, tracking, Result};
+use encoding::{Decodable, Encodable};
 
 #[cfg(test)]
 #[path = "./tag_test.rs"]
@@ -21,19 +22,16 @@ impl FSRepository {
     }
 }
 
-impl crate::storage::TagStorage for FSRepository {
+impl TagStorage for FSRepository {
     fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        todo!()
-        //     spec = tracking.TagSpec(tag)
-        //     try:
-        //         stream = self.read_tag(tag)
-        //         for _ in range(spec.version):
-        //             next(stream)
-        //         return next(stream)
-        //     except StopIteration:
-        //         raise graph.UnknownReferenceError(
-        //             f"tag or tag version does not exist {tag}"
-        //         )
+        let version = self
+            .read_tag(&tag_spec)?
+            .skip(tag_spec.version() as usize)
+            .next();
+        match version {
+            Some(version) => Ok(version),
+            None => Err(graph::UnknownReferenceError::new(tag_spec.to_string())),
+        }
     }
 
     fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
@@ -46,13 +44,15 @@ impl crate::storage::TagStorage for FSRepository {
             },
         };
 
-        let mut entries = Vec::new();
+        let mut entries = std::collections::HashSet::new();
         for entry in read_dir {
             let entry = entry?;
             let path = entry.path();
             match path.file_stem() {
                 None => continue,
-                Some(tag_name) => entries.push(tag_name.to_string_lossy().to_string()),
+                Some(tag_name) => {
+                    entries.insert(tag_name.to_string_lossy().to_string());
+                }
             }
         }
         Ok(Box::new(entries.into_iter()))
@@ -66,15 +66,22 @@ impl crate::storage::TagStorage for FSRepository {
         &self,
         digest: &encoding::Digest,
     ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>> {
-        todo!()
-        // for (spec, stream) in self.iter_tag_streams() {
-        //     i = -1
-        //     for tag in stream:
-        //         i += 1
-        //         if tag.target != digest:
-        //             continue
-        //         yield tracking.build_tag_spec(name=spec.name, org=spec.org, version=i)
-        // }
+        let mut found = Vec::new();
+        for res in self.iter_tag_streams() {
+            let (spec, stream) = match res {
+                Ok(res) => res,
+                Err(err) => {
+                    found.push(Err(err));
+                    continue;
+                }
+            };
+            for (i, tag) in stream.into_iter().enumerate() {
+                if &tag.target == digest {
+                    found.push(Ok(spec.with_version(i as u64)));
+                }
+            }
+        }
+        Box::new(found.into_iter())
     }
 
     /// Iterate through the available tags in this storage.
@@ -89,7 +96,10 @@ impl crate::storage::TagStorage for FSRepository {
     fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
         let path = tag.to_path(self.tags_root());
         match read_tag_file(path) {
-            Err(err) => Err(err),
+            Err(err) => match err.raw_os_error() {
+                Some(libc::ENOENT) => Err(graph::UnknownReferenceError::new(tag.to_string())),
+                _ => Err(err),
+            },
             Ok(iter) => {
                 let tags: Result<Vec<_>> = iter.into_iter().collect();
                 Ok(Box::new(tags?.into_iter().rev()))
@@ -98,74 +108,89 @@ impl crate::storage::TagStorage for FSRepository {
     }
 
     fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        todo!()
-        //     filepath = os.path.join(self._root, tag.path + _TAG_EXT)
-        //     makedirs_with_perms(os.path.dirname(filepath), perms=0o777)
+        let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
 
-        //     stream = io.BytesIO()
-        //     tag.encode(stream)
-        //     encoded_tag = stream.getvalue()
-        //     size = len(encoded_tag)
+        let mut buf = Vec::new();
+        tag.encode(&mut buf)?;
+        let size = buf.len();
 
-        //     with _tag_lock(filepath):
-        //         tag_file_fd = os.open(
-        //             filepath, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode=0o777
-        //         )
-        //         with os.fdopen(tag_file_fd, "ab") as tag_file:
-        //             encoding.write_int(tag_file, size)
-        //             tag_file.write(encoded_tag)
-        //         try:
-        //             os.chmod(filepath, 0o777)
-        //         except Exception as err:
-        //             _LOGGER.error(
-        //                 "Failed to set tag permissions", err=str(err), filepath=filepath
-        //             )
-        //             pass
+        let filepath = tag_spec.to_path(self.tags_root());
+        crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
+        let _lock = lock_tag(&filepath)?;
+
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(&filepath)?;
+        encoding::write_int(&mut file, size as i64)?;
+        std::io::copy(&mut buf.as_slice(), &mut file)?;
+
+        let perms = std::fs::Permissions::from_mode(0o777);
+        if let Err(err) = std::fs::set_permissions(&filepath, perms) {
+            tracing::warn!(err = ?err, filepath = ?filepath,"Failed to set tag permissions");
+        }
+        Ok(())
     }
 
     fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
-        todo!()
-        //     tag_spec = tracking.TagSpec(tag)
-        //     filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
-        //     try:
-        //         with _tag_lock(filepath):
-        //             os.remove(filepath)
-        //     except (RuntimeError, FileNotFoundError):
-        //         raise graph.UnknownReferenceError("Unknown tag: " + tag)
-        //     head = os.path.dirname(filepath)
-        //     while head != self._root:
-        //         try:
-        //             os.rmdir(head)
-        //             head = os.path.dirname(head)
-        //         except OSError as e:
-        //             if e.errno != errno.ENOTEMPTY:
-        //                 raise
-        //             break
+        let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
+        let filepath = tag_spec.to_path(self.tags_root());
+        let lock = lock_tag(&filepath)?;
+        match std::fs::remove_file(&filepath) {
+            Ok(_) => (),
+            Err(err) => {
+                return match err.raw_os_error() {
+                    Some(libc::ENOENT) => Err(graph::UnknownReferenceError::new(tag.to_string())),
+                    _ => Err(err.into()),
+                }
+            }
+        }
+        // the lock file needs to be removed if the directory has any hope of being empty
+        drop(lock);
+
+        let mut filepath = filepath.as_path();
+        while filepath.starts_with(self.tags_root()) {
+            if let Some(parent) = filepath.parent() {
+                tracing::trace!(parent = ?parent, "seeing if parent needs removing");
+                match std::fs::remove_dir(self.tags_root().join(parent)) {
+                    Ok(_) => {
+                        tracing::debug!(path = ?parent, "removed tag parent dir");
+                        filepath = parent;
+                    }
+                    Err(err) => match err.raw_os_error() {
+                        Some(libc::ENOTEMPTY) => return Ok(()),
+                        _ => return Err(err.into()),
+                    },
+                }
+            }
+        }
+        Ok(())
     }
 
     fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        todo!()
-        //     tag_spec = tracking.TagSpec(tag.path)
-        //     filepath = os.path.join(self._root, tag_spec.path + _TAG_EXT)
-        //     with _tag_lock(filepath):
-
-        //         all_versions = reversed(list(self.read_tag(tag_spec)))
-        //         backup_path = filepath + ".backup"
-        //         os.rename(filepath, backup_path)
-        //         try:
-        //             for version in all_versions:
-        //                 if version == tag:
-        //                     continue
-        //                 self.push_raw_tag(version)
-        //         except Exception as e:
-        //             try:
-        //                 os.remove(filepath)
-        //             except:
-        //                 pass
-        //             os.rename(backup_path, filepath)
-        //             raise
-        //         else:
-        //             os.remove(backup_path)
+        let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
+        let filepath = tag_spec.to_path(self.tags_root());
+        let _lock = lock_tag(&filepath)?;
+        let tags: Vec<_> = self
+            .read_tag(&tag_spec)?
+            .filter(|version| version != tag)
+            .collect();
+        let backup_path = &filepath.with_extension("tag.backup");
+        std::fs::rename(&filepath, &backup_path)?;
+        let res: Result<Vec<_>> = tags
+            .iter()
+            .map(|version| self.push_raw_tag(version))
+            .collect();
+        if let Err(err) = res {
+            std::fs::rename(&backup_path, &filepath)?;
+            Err(err)
+        } else if let Err(err) = std::fs::remove_file(&backup_path) {
+            tracing::warn!(err = ?err, "failed to cleanup tag backup file");
+            Ok(())
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -278,25 +303,28 @@ impl TagExt for tracking::TagSpec {
     }
 }
 
-// _HAVE_LOCK = False
+fn lock_tag<P: AsRef<Path>>(tag_file: P) -> Result<TagLockGuard> {
+    let mut lock_file = tag_file.as_ref().to_path_buf();
+    lock_file.set_extension("tag.lock");
+    match std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&lock_file)
+    {
+        Ok(_file) => Ok(TagLockGuard(lock_file)),
+        Err(err) => match err.raw_os_error() {
+            Some(libc::EEXIST) => Err("Tag already locked, cannot edit".into()),
+            _ => Err(err.into()),
+        },
+    }
+}
 
-// @contextlib.contextmanager
-// def _tag_lock(filepath: &str) -> Iterator[None]:
+struct TagLockGuard(PathBuf);
 
-//     global _HAVE_LOCK
-//     if _HAVE_LOCK:
-//         yield
-//         return
-
-//     try:
-//         open(filepath + ".lock", "xb").close()
-//     except FileExistsError:
-//         raise RuntimeError(f"Tag already locked [{filepath}]")
-//     except Exception as e:
-//         raise RuntimeError(f"Cannot lock tag: {str(e)} [{filepath}]")
-//     try:
-//         _HAVE_LOCK = True
-//         yield
-//     finally:
-//         _HAVE_LOCK = False
-//         os.remove(filepath + ".lock")
+impl Drop for TagLockGuard {
+    fn drop(&mut self) {
+        if let Err(err) = std::fs::remove_file(&self.0) {
+            tracing::warn!(err = ?err, "Failed to remove tag lock file");
+        }
+    }
+}
