@@ -95,6 +95,17 @@ impl ObjectKind {
 const OBJECT_HEADER: &[u8] = "--SPFS--".as_bytes();
 
 impl encoding::Encodable for Object {
+    fn digest(&self) -> crate::Result<encoding::Digest> {
+        match self {
+            Self::Platform(obj) => obj.digest(),
+            Self::Layer(obj) => obj.digest(),
+            Self::Manifest(obj) => obj.digest(),
+            Self::Tree(obj) => obj.digest(),
+            Self::Blob(obj) => Ok(obj.digest()),
+            Self::Mask => Ok(encoding::EMPTY_DIGEST.into()),
+        }
+    }
+
     fn encode(&self, mut writer: &mut impl std::io::Write) -> crate::Result<()> {
         encoding::write_header(&mut writer, OBJECT_HEADER)?;
         encoding::write_uint(&mut writer, self.kind() as u64)?;

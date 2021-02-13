@@ -33,10 +33,13 @@ impl DatabaseView for super::FSRepository {
 
 impl graph::Database for super::FSRepository {
     fn write_object(&mut self, obj: &graph::Object) -> graph::Result<()> {
-        let filepath = self.objects.build_digest_path(&obj.digest()?);
+        let digest = obj.digest()?;
+        let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {
+            tracing::trace!(digest = ?digest, "object already existed");
             return Ok(());
         }
+        tracing::trace!(digest = ?digest, "writing object to database");
 
         // we need to use a temporary file here, so that
         // other processes don't try to read our incomplete

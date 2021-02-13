@@ -29,6 +29,8 @@ async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
+    init_logging();
+
     let dir = tmpdir.path();
     let mut storage = FSRepository::create(dir.join("storage")).expect("failed to make repo");
 
@@ -37,8 +39,12 @@ async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let expected = tracking::compute_manifest(&dir).unwrap();
     let storable = Manifest::from(&expected);
     let digest = storable.digest().unwrap();
-    storage.write_object(&storable.into()).unwrap();
-    let out = storage.read_manifest(&digest).unwrap();
+    storage
+        .write_object(&storable.into())
+        .expect("failed to store manifest object");
+    let out = storage
+        .read_manifest(&digest)
+        .expect("stored manifest was not written");
     let actual = out.unlock();
     let mut diffs = tracking::compute_diff(&expected, &actual);
     diffs = diffs
