@@ -44,6 +44,11 @@ impl<'t> std::ops::Deref for Hasher<'t> {
         &self.ctx
     }
 }
+impl<'t> std::ops::DerefMut for Hasher<'t> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ctx
+    }
+}
 
 impl<'t> Write for Hasher<'t> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {

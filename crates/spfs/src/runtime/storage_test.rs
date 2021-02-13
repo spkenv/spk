@@ -25,7 +25,7 @@ async fn test_config_serialization() {
 #[tokio::test]
 async fn test_runtime_properties(tmpdir: tempdir::TempDir) {
     let runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
-    assert_eq!(tmpdir.path(), runtime.root());
+    assert_eq!(tmpdir.path().canonicalize().unwrap(), runtime.root());
     assert_eq!(
         runtime.config_file.file_name(),
         Some(OsStr::new(Runtime::CONFIG_FILE))

@@ -50,4 +50,4 @@ pub trait LayerStorage: graph::Database {
     }
 }
 
-impl<T: graph::Database> LayerStorage for T {}
+impl<T: LayerStorage> LayerStorage for &T {}

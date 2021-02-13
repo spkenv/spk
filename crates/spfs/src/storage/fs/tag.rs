@@ -15,19 +15,6 @@ mod tag_test;
 
 const TAG_EXT: &str = "tag";
 
-pub trait TagExt {
-    fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf;
-}
-
-impl TagExt for tracking::TagSpec {
-    fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf {
-        let mut filepath = root.as_ref().join(self.path());
-        let new_name = self.name() + "." + TAG_EXT;
-        filepath.set_file_name(new_name);
-        filepath
-    }
-}
-
 impl FSRepository {
     fn tags_root(&self) -> PathBuf {
         self.root().join("tags")
@@ -213,12 +200,11 @@ impl Iterator for TagStreamIter {
                     if path.extension() != Some(OsStr::new(TAG_EXT)) {
                         continue;
                     }
-                    let filepath = entry.path().strip_prefix(&self.root).unwrap();
-                    let spec = match tracking::TagSpec::parse(&filepath.to_string_lossy()) {
+                    let spec = match tag_from_path(&path, &self.root) {
                         Err(err) => return Some(Err(err)),
                         Ok(spec) => spec,
                     };
-                    let tags: Result<Vec<_>> = match read_tag_file(spec.to_path(&self.root)) {
+                    let tags: Result<Vec<_>> = match read_tag_file(&path) {
                         Err(err) => return Some(Err(err)),
                         Ok(stream) => stream.into_iter().collect(),
                     };
@@ -264,6 +250,31 @@ impl<R: std::io::Read + std::io::Seek> Iterator for TagIter<R> {
             Err(err) => Some(Err(err)),
             Ok(tag) => Some(Ok(tag)),
         }
+    }
+}
+
+fn tag_from_path<P: AsRef<Path>, R: AsRef<Path>>(path: P, root: R) -> Result<tracking::TagSpec> {
+    let mut path = path.as_ref().to_path_buf();
+    let filename = match path.file_stem() {
+        Some(stem) => stem.to_owned(),
+        None => {
+            return Err(format!("Path must end with '.{}' to be considered a tag", TAG_EXT).into())
+        }
+    };
+    path.set_file_name(filename);
+    let path = path.strip_prefix(root)?;
+    tracking::TagSpec::parse(path.to_string_lossy())
+}
+pub trait TagExt {
+    fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf;
+}
+
+impl TagExt for tracking::TagSpec {
+    fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf {
+        let mut filepath = root.as_ref().join(self.path());
+        let new_name = self.name() + "." + TAG_EXT;
+        filepath.set_file_name(new_name);
+        filepath
     }
 }
 

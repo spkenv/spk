@@ -38,7 +38,7 @@ pub trait ManifestStorage: graph::Database {
     }
 }
 
-impl<T: graph::Database> ManifestStorage for T {}
+impl<T: ManifestStorage> ManifestStorage for &T {}
 
 pub trait ManifestViewer {
     /// Create a rendered view of the given manifest on the local disk.

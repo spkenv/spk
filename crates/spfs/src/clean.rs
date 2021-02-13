@@ -10,7 +10,6 @@ use std::{
 use futures::future::{FutureExt, LocalBoxFuture};
 
 use crate::{encoding, storage, Error, Result};
-use storage::prelude::*;
 
 #[cfg(test)]
 #[path = "./clean_test.rs"]
@@ -19,14 +18,14 @@ mod clean_test;
 static _CLEAN_LOG_UPDATE_INTERVAL_SECONDS: Duration = Duration::from_secs(2);
 
 /// Clean all untagged objects from the given repo.
-pub async fn clean_untagged_objects(repo: &impl storage::Repository) -> Result<()> {
+pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
     let unattached = get_all_unattached_objects(repo)?;
     if unattached.len() == 0 {
         tracing::info!("nothing to clean!");
     } else {
         tracing::info!("removing orphaned data...");
         let count = unattached.len();
-        purge_objects(unattached.into_iter(), repo).await?;
+        purge_objects(unattached.iter(), repo).await?;
         tracing::info!("cleaned {} objects", count);
     }
     Ok(())
@@ -34,8 +33,8 @@ pub async fn clean_untagged_objects(repo: &impl storage::Repository) -> Result<(
 
 /// Remove the identified objects from the given repository.
 pub async fn purge_objects(
-    objects: impl Iterator<Item = encoding::Digest>,
-    repo: &impl storage::Repository,
+    objects: impl Iterator<Item = &encoding::Digest>,
+    repo: &storage::RepositoryHandle,
 ) -> Result<()> {
     let mut spawn_count: u64 = 0;
     let current_count = Arc::new(AtomicU64::new(0));
@@ -147,11 +146,11 @@ async fn clean_render(repo_addr: url::Url, digest: &encoding::Digest) -> Result<
 }
 
 pub fn get_all_unattached_objects(
-    repo: &impl storage::Repository,
+    repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     tracing::info!("evaluating repository digraph...");
     let mut digests = HashSet::new();
-    for digest in DatabaseView::iter_digests(repo) {
+    for digest in repo.iter_digests() {
         digests.insert(digest?);
     }
     Ok(digests
@@ -161,10 +160,10 @@ pub fn get_all_unattached_objects(
 }
 
 pub fn get_all_unattached_payloads(
-    repo: &impl storage::Repository,
+    repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     let mut orphaned_payloads = HashSet::new();
-    for digest in PayloadStorage::iter_digests(repo) {
+    for digest in repo.iter_payload_digests() {
         let digest = digest?;
         match repo.read_blob(&digest) {
             Err(Error::UnknownObject(_)) => {
@@ -178,7 +177,7 @@ pub fn get_all_unattached_payloads(
 }
 
 pub fn get_all_attached_objects(
-    repo: &impl storage::Repository,
+    repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     let mut tag_targets = HashSet::new();
     for item in repo.iter_tag_streams() {

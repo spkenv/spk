@@ -3,8 +3,8 @@ use crate::Result;
 
 /// Stores arbitrary binary data payloads using their content digest.
 pub trait PayloadStorage {
-    /// Iterate all the object in this database.
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>>;
+    /// Iterate all the payloads in this storage.
+    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>>;
 
     /// Return true if the identified payload exists.
     fn has_payload(&self, digest: &encoding::Digest) -> bool {
@@ -31,4 +31,25 @@ pub trait PayloadStorage {
     /// Errors:
     /// - [`spfs::graph::UnknownObjectError`]: if the payload does not exist in this storage
     fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()>;
+}
+
+impl<T: PayloadStorage> PayloadStorage for &T {
+    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+        (*self).iter_payload_digests()
+    }
+
+    fn write_data(
+        &mut self,
+        reader: Box<&mut dyn std::io::Read>,
+    ) -> Result<(encoding::Digest, u64)> {
+        (*self).write_data(reader)
+    }
+
+    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
+        (*self).open_payload(digest)
+    }
+
+    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
+        (*self).remove_payload(digest)
+    }
 }

@@ -34,7 +34,13 @@ impl Error {
 
     pub fn raw_os_error(&self) -> Option<i32> {
         match self {
-            Error::IO(err) => err.raw_os_error(),
+            Error::IO(err) => match err.raw_os_error() {
+                Some(errno) => Some(errno),
+                None => match err.kind() {
+                    std::io::ErrorKind::UnexpectedEof => Some(libc::EOF),
+                    _ => None,
+                },
+            },
             Error::Nix(err) => {
                 let errno = err.as_errno();
                 if let Some(e) = errno {

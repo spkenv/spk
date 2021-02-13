@@ -45,12 +45,13 @@ impl PruneParameters {
 }
 
 pub fn get_prunable_tags(
-    tags: &mut impl storage::TagStorage,
-    params: PruneParameters,
+    tags: &storage::RepositoryHandle,
+    params: &PruneParameters,
 ) -> Result<HashSet<tracking::Tag>> {
     let mut to_prune = HashSet::new();
     for res in tags.iter_tag_streams() {
         let (spec, stream) = res?;
+        tracing::trace!("searching for history to prune in {}", spec.to_string());
         let mut version = 0;
         for tag in stream {
             let versioned_spec = tracking::build_tag_spec(spec.org(), spec.name(), version)?;
@@ -65,12 +66,12 @@ pub fn get_prunable_tags(
 }
 
 pub fn prune_tags(
-    tags: &mut impl storage::TagStorage,
-    params: PruneParameters,
+    repo: &mut storage::RepositoryHandle,
+    params: &PruneParameters,
 ) -> Result<HashSet<tracking::Tag>> {
-    let to_prune = get_prunable_tags(tags, params)?;
+    let to_prune = get_prunable_tags(&repo, &params)?;
     for tag in to_prune.iter() {
-        tags.remove_tag(tag)?;
+        repo.remove_tag(tag)?;
     }
     Ok(to_prune)
 }

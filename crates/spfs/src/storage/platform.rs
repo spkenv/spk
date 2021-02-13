@@ -47,4 +47,4 @@ pub trait PlatformStorage: graph::Database {
     }
 }
 
-impl<T: graph::Database> PlatformStorage for T {}
+impl<T: PlatformStorage> PlatformStorage for &T {}

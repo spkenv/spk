@@ -18,12 +18,16 @@ pub struct FSHashStore {
 }
 
 impl FSHashStore {
-    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
-        Ok(Self {
-            root: std::fs::canonicalize(root)?,
+    pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
+        Ok(Self::open_unchecked(root.as_ref().canonicalize()?))
+    }
+
+    pub fn open_unchecked<P: AsRef<Path>>(root: P) -> Self {
+        Self {
+            root: root.as_ref().to_path_buf(),
             directory_permissions: 0o777,
             file_permissions: 0o444,
-        })
+        }
     }
 
     /// Return the root directory of this storage.
@@ -237,42 +241,50 @@ impl Iterator for FSHashStoreIter {
     type Item = Result<encoding::Digest>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.active_readdir.as_mut() {
-            None => {
-                let next_dir = match self.root_readdir.next() {
-                    Some(Ok(res)) => res,
-                    Some(Err(err)) => return Some(Err(err.into())),
-                    None => return None,
-                };
-                let prefix = next_dir.file_name();
-                let path = self.root.join(&prefix);
-                match std::fs::read_dir(&path) {
-                    Ok(read_dir) => {
-                        self.active_readdir.replace((prefix, read_dir));
-                    }
-                    Err(err) => return Some(Err(err.into())),
-                }
-                self.next()
-            }
-            Some((prefix, read_dir)) => match read_dir.next() {
+        loop {
+            match self.active_readdir.as_mut() {
                 None => {
-                    self.active_readdir.take();
-                    self.next()
-                }
-                Some(Err(err)) => Some(Err(err.into())),
-                Some(Ok(entry)) => {
-                    let mut digest_str = prefix.to_string_lossy().to_string();
-                    digest_str.push_str(entry.file_name().to_string_lossy().as_ref());
-                    match encoding::parse_digest(&digest_str) {
-                        Ok(digest) => Some(Ok(digest)),
-                        Err(err) => Some(Err(format!(
-                            "invalid digest in file storage: {:?} [{:?}]",
-                            err, digest_str
-                        )
-                        .into())),
+                    let next_dir = match self.root_readdir.next() {
+                        Some(Ok(res)) => res,
+                        Some(Err(err)) => return Some(Err(err.into())),
+                        None => return None,
+                    };
+                    let prefix = next_dir.file_name();
+                    let path = self.root.join(&prefix);
+                    match std::fs::read_dir(&path) {
+                        Ok(read_dir) => {
+                            self.active_readdir.replace((prefix, read_dir));
+                        }
+                        Err(err) => match err.raw_os_error() {
+                            Some(libc::ENOTDIR) => {
+                                tracing::debug!(path = ?path, "found non-directory in hash storage");
+                                continue;
+                            }
+                            _ => break Some(Err(err.into())),
+                        },
                     }
+                    continue;
                 }
-            },
+                Some((prefix, read_dir)) => match read_dir.next() {
+                    None => {
+                        self.active_readdir.take();
+                        continue;
+                    }
+                    Some(Err(err)) => break Some(Err(err.into())),
+                    Some(Ok(entry)) => {
+                        let mut digest_str = prefix.to_string_lossy().to_string();
+                        digest_str.push_str(entry.file_name().to_string_lossy().as_ref());
+                        break match encoding::parse_digest(&digest_str) {
+                            Ok(digest) => Some(Ok(digest)),
+                            Err(err) => Some(Err(format!(
+                                "invalid digest in file storage: {:?} [{:?}]",
+                                err, digest_str
+                            )
+                            .into())),
+                        };
+                    }
+                },
+            }
         }
     }
 }

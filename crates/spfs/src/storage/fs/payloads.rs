@@ -4,7 +4,7 @@ use super::FSRepository;
 use crate::{encoding, graph, Result};
 
 impl crate::storage::PayloadStorage for FSRepository {
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
         match self.payloads.iter() {
             Ok(iter) => Box::new(iter),
             Err(err) => Box::new(vec![Err(err)].into_iter()),

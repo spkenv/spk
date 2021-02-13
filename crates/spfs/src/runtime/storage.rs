@@ -11,7 +11,7 @@ use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
-mod diff_test;
+mod storage_test;
 
 /// The location in spfs where shell files can be placed be sourced at startup
 pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
@@ -322,12 +322,11 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
             Ok(_) => {}
             Err(_) => {
                 std::fs::create_dir(&path)?;
+                // not fatal, so it's worth allowing things to continue
+                // even though it could cause permission issues later on
+                let _ = std::fs::set_permissions(&path, perms.clone());
             }
         }
-
-        // not fatal, so it's worth allowing things to continue
-        // even though it could cause permission issues later on
-        let _ = std::fs::set_permissions(&path, perms.clone());
     }
     Ok(())
 }

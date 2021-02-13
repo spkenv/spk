@@ -120,3 +120,9 @@ pub trait Repository:
         Ok(manifest)
     }
 }
+
+impl<T: Repository> Repository for &T {
+    fn address(&self) -> url::Url {
+        (*self).address()
+    }
+}

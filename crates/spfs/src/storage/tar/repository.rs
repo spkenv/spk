@@ -27,7 +27,7 @@ impl TarRepository {
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         Ok(Self {
             path: path.as_ref().canonicalize()?,
         })
@@ -66,7 +66,7 @@ impl graph::Database for TarRepository {
     }
 }
 impl PayloadStorage for TarRepository {
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<crate::encoding::Digest>>> {
+    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<crate::encoding::Digest>>> {
         todo!()
     }
 
@@ -85,6 +85,11 @@ impl PayloadStorage for TarRepository {
         todo!()
     }
 }
+
+impl BlobStorage for TarRepository {}
+impl ManifestStorage for TarRepository {}
+impl LayerStorage for TarRepository {}
+impl PlatformStorage for TarRepository {}
 impl Repository for TarRepository {
     fn address(&self) -> url::Url {
         url::Url::from_file_path(&self.path).expect("unexpected failure creating url")

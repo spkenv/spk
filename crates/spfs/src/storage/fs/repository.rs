@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use super::FSHashStore;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::Repository;
+use crate::storage::prelude::*;
 use crate::Result;
 
 /// A pure filesystem-based repository of spfs data.
@@ -24,17 +24,17 @@ impl FSRepository {
         makedirs_with_perms(root.as_ref().join("objects"), 0o777)?;
         makedirs_with_perms(root.as_ref().join("payloads"), 0o777)?;
         makedirs_with_perms(root.as_ref().join("renders"), 0o777)?;
-        Self::new(root)
+        Self::open(root)
     }
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = std::fs::canonicalize(root)?;
         Ok(Self {
-            objects: FSHashStore::new(root.join("objects"))?,
-            payloads: FSHashStore::new(root.join("payloads"))?,
-            renders: FSHashStore::new(root.join("renders"))?,
+            objects: FSHashStore::open(root.join("objects"))?,
+            payloads: FSHashStore::open(root.join("payloads"))?,
+            renders: FSHashStore::open(root.join("renders"))?,
             root: root,
         })
     }
@@ -44,6 +44,22 @@ impl FSRepository {
     }
 }
 
+impl Clone for FSRepository {
+    fn clone(&self) -> Self {
+        let root = self.root.clone();
+        Self {
+            objects: FSHashStore::open_unchecked(root.join("objects")),
+            payloads: FSHashStore::open_unchecked(root.join("payloads")),
+            renders: FSHashStore::open_unchecked(root.join("renders")),
+            root: root,
+        }
+    }
+}
+
+impl BlobStorage for FSRepository {}
+impl ManifestStorage for FSRepository {}
+impl LayerStorage for FSRepository {}
+impl PlatformStorage for FSRepository {}
 impl Repository for FSRepository {
     fn address(&self) -> url::Url {
         todo!()
