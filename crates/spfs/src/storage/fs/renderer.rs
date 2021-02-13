@@ -177,7 +177,7 @@ fn copy_manifest<P: AsRef<Path>>(manifest: &Manifest, src_root: P, dst_root: P) 
             continue;
         }
         let src_path = node.path.to_path(&src_root);
-        let dst_path = node.path.to_path(&src_root);
+        let dst_path = node.path.to_path(&dst_root);
         let meta = src_path.symlink_metadata()?;
         if let Some(parent) = dst_path.parent() {
             std::fs::create_dir_all(parent)?;

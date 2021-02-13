@@ -276,6 +276,7 @@ impl<'h> ManifestBuilder<'h> {
 
     /// Build a manifest that describes a directorie's contents.
     pub fn compute_manifest<P: AsRef<std::path::Path>>(&mut self, path: P) -> Result<Manifest> {
+        tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
         self.compute_tree_node(path, &mut manifest.root)?;
         Ok(manifest)
