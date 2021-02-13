@@ -25,13 +25,13 @@ async fn test_compute_manifest() {
 #[rstest]
 #[tokio::test]
 async fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path();
-    ensure(tmpdir.join("dir1.0/dir2.0/file.txt"), "somedata");
-    ensure(tmpdir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
-    ensure(tmpdir.join("dir2.0/file.txt"), "evenmoredata");
-    ensure(tmpdir.join("a_file.txt"), "rootdata");
+    let dir = tmpdir.path();
+    ensure(dir.join("dir1.0/dir2.0/file.txt"), "somedata");
+    ensure(dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
+    ensure(dir.join("dir2.0/file.txt"), "evenmoredata");
+    ensure(dir.join("a_file.txt"), "rootdata");
 
-    let manifest = compute_manifest(tmpdir).unwrap();
+    let manifest = compute_manifest(dir).unwrap();
     assert!(
         manifest.list_dir("/").is_some(),
         "should be able to list root"
@@ -42,15 +42,15 @@ async fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_manifest_sorting(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path().join("data");
-    ensure(tmpdir.join("dir1.0/dir2.0/file.txt"), "somedata");
-    ensure(tmpdir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
-    ensure(tmpdir.join("dir1.0/file.txt"), "thebestdata");
-    ensure(tmpdir.join("dir2.0/file.txt"), "evenmoredata");
-    ensure(tmpdir.join("a_file.txt"), "rootdata");
-    ensure(tmpdir.join("z_file.txt"), "rootdata");
+    let dir = tmpdir.path().join("data");
+    ensure(dir.join("dir1.0/dir2.0/file.txt"), "somedata");
+    ensure(dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
+    ensure(dir.join("dir1.0/file.txt"), "thebestdata");
+    ensure(dir.join("dir2.0/file.txt"), "evenmoredata");
+    ensure(dir.join("a_file.txt"), "rootdata");
+    ensure(dir.join("z_file.txt"), "rootdata");
 
-    let manifest = compute_manifest(tmpdir).unwrap();
+    let manifest = compute_manifest(dir).unwrap();
 
     let mut actual: Vec<_> = manifest.walk().collect();
     actual.sort();

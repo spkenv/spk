@@ -31,13 +31,13 @@ async fn test_compute_diff_empty() {
 #[rstest]
 #[tokio::test]
 async fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path();
-    std::fs::create_dir_all(tmpdir.join("dir/dir")).unwrap();
-    std::fs::write(tmpdir.join("dir/dir/file"), "data").unwrap();
-    std::fs::write(tmpdir.join("dir/file"), "more").unwrap();
-    std::fs::write(tmpdir.join("file"), "otherdata").unwrap();
+    let dir = tmpdir.path();
+    std::fs::create_dir_all(dir.join("dir/dir")).unwrap();
+    std::fs::write(dir.join("dir/dir/file"), "data").unwrap();
+    std::fs::write(dir.join("dir/file"), "more").unwrap();
+    std::fs::write(dir.join("file"), "otherdata").unwrap();
 
-    let manifest = compute_manifest(&tmpdir).unwrap();
+    let manifest = compute_manifest(&dir).unwrap();
     let diffs = compute_diff(&manifest, &manifest);
     for diff in diffs {
         assert_eq!(diff.mode, DiffMode::Unchanged);
@@ -47,10 +47,10 @@ async fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path();
-    let a_dir = tmpdir.join("a");
+    let dir = tmpdir.path();
+    let a_dir = dir.join("a");
     std::fs::create_dir_all(&a_dir).unwrap();
-    let b_dir = tmpdir.join("b");
+    let b_dir = dir.join("b");
     std::fs::create_dir_all(&b_dir).unwrap();
     std::fs::create_dir_all(b_dir.join("dir/dir")).unwrap();
     std::fs::write(b_dir.join("dir/dir/file"), "data").unwrap();
@@ -81,10 +81,10 @@ async fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_compute_diff_removed(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path();
-    let a_dir = tmpdir.join("a");
+    let dir = tmpdir.path();
+    let a_dir = dir.join("a");
     std::fs::create_dir_all(&a_dir).unwrap();
-    let b_dir = tmpdir.join("b");
+    let b_dir = dir.join("b");
     std::fs::create_dir_all(&b_dir).unwrap();
     std::fs::create_dir_all(a_dir.join("dir/dir")).unwrap();
     std::fs::write(a_dir.join("dir/dir/file"), "data").unwrap();

@@ -32,8 +32,8 @@ impl PartialOrd for EntryKind {
 impl Ord for EntryKind {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self.is_tree(), other.is_tree()) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
             _ => std::cmp::Ordering::Equal,
         }
     }

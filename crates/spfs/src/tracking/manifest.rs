@@ -366,7 +366,7 @@ impl<'a> Ord for ManifestNode<'a> {
                         };
                         // let the entry type take precedence over any name
                         // - this is to ensure directories are sorted first
-                        let cmp = match kinds.0.cmp(&kinds.1) {
+                        let cmp = match kinds.1.cmp(&kinds.0) {
                             Ordering::Equal => left.cmp(right),
                             cmp => cmp,
                         };

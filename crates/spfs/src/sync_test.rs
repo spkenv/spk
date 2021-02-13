@@ -97,20 +97,19 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path();
-    let src_dir = tmpdir.join("source");
+    let dir = tmpdir.path();
+    let src_dir = dir.join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let mut repo_a: RepositoryHandle = storage::fs::FSRepository::create(tmpdir.join("repo_a"))
+    let mut repo_a: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_a"))
         .unwrap()
         .into();
-    let mut repo_tar: RepositoryHandle =
-        storage::tar::TarRepository::create(tmpdir.join("repo.tar"))
-            .unwrap()
-            .into();
-    let mut repo_b: RepositoryHandle = storage::fs::FSRepository::create(tmpdir.join("repo_b"))
+    let mut repo_tar: RepositoryHandle = storage::tar::TarRepository::create(dir.join("repo.tar"))
+        .unwrap()
+        .into();
+    let mut repo_b: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_b"))
         .unwrap()
         .into();
 
@@ -125,7 +124,7 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
 
     sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
-    let repo_tar = storage::tar::TarRepository::open(tmpdir.join("repo.tar"))
+    let repo_tar = storage::tar::TarRepository::open(dir.join("repo.tar"))
         .unwrap()
         .into();
     sync_ref("testing", &repo_tar, &mut repo_b).await.unwrap();

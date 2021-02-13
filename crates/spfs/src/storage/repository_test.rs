@@ -39,13 +39,13 @@ async fn test_find_aliases(mut tmprepo: super::super::RepositoryHandle) {
 #[rstest]
 #[tokio::test]
 async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
-    let tmpdir = tmpdir.path();
-    let mut tmprepo = fs::FSRepository::create(tmpdir.join("repo")).unwrap();
+    let dir = tmpdir.path();
+    let mut tmprepo = fs::FSRepository::create(dir.join("repo")).unwrap();
     let datafile_path = "dir1.0/dir2.0/file.txt";
     let symlink_path = "dir1.0/dir2.0/file2.txt";
 
-    let src_dir = tmpdir.join("source");
-    std::fs::create_dir_all(tmpdir.join("dir1.0/dir2.0")).unwrap();
+    let src_dir = dir.join("source");
+    std::fs::create_dir_all(dir.join("dir1.0/dir2.0")).unwrap();
     let link_dest = src_dir.join(datafile_path);
     std::fs::write(&link_dest, "somedata").unwrap();
     std::os::unix::fs::symlink(&src_dir.join(symlink_path), &link_dest).unwrap();
