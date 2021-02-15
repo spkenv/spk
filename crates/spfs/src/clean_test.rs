@@ -14,7 +14,8 @@ fixtures!();
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_objects(mut tmprepo: storage::RepositoryHandle) {
+async fn test_get_attached_objects(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
     let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
@@ -36,7 +37,8 @@ async fn test_get_attached_objects(mut tmprepo: storage::RepositoryHandle) {
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_payloads(mut tmprepo: storage::RepositoryHandle) {
+async fn test_get_attached_payloads(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
     let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
     let mut expected = HashSet::new();
@@ -59,10 +61,8 @@ async fn test_get_attached_payloads(mut tmprepo: storage::RepositoryHandle) {
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_unattached_objects_blob(
-    tmpdir: tempdir::TempDir,
-    mut tmprepo: storage::RepositoryHandle,
-) {
+async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
+    let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
 
@@ -95,8 +95,8 @@ async fn test_get_attached_unattached_objects_blob(
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects(tmpdir: tempdir::TempDir, tmprepo: storage::RepositoryHandle) {
-    let mut tmprepo: RepositoryHandle = tmprepo.into();
+async fn test_clean_untagged_objects(tmprepo: TempRepo) {
+    let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir_1 = tmpdir.path().join("data");
     ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
     ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
@@ -142,7 +142,8 @@ async fn test_clean_untagged_objects(tmpdir: tempdir::TempDir, tmprepo: storage:
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::RepositoryHandle) {
+async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
@@ -170,7 +171,8 @@ async fn test_clean_untagged_objects_layers_platforms(mut tmprepo: storage::Repo
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir, tmprepo: storage::RepositoryHandle) {
+async fn test_clean_manifest_renders(tmprepo: TempRepo) {
+    let (tmpdir, tmprepo) = tmprepo;
     let mut tmprepo = match tmprepo {
         storage::RepositoryHandle::FS(repo) => repo,
         _ => {
@@ -190,11 +192,12 @@ async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir, tmprepo: storage:
     let platform = tmprepo
         .create_platform(vec![layer.digest().unwrap()])
         .unwrap();
+
     tmprepo
         .render_manifest(&graph::Manifest::from(&manifest))
         .unwrap();
 
-    let files = list_files(tmprepo.root());
+    let files = list_files(tmprepo.objects.root());
     assert!(files.len() != 0, "should have stored data");
 
     clean_untagged_objects(&tmprepo.clone().into())
@@ -202,16 +205,11 @@ async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir, tmprepo: storage:
         .expect("failed to clean repo");
 
     let files = list_files(tmprepo.root());
-    let files = list_files(tmprepo.root());
     for filepath in files.iter() {
         let digest = tmprepo.objects.get_digest_from_path(filepath).unwrap();
         assert!(tmprepo.read_object(&digest).is_ok());
     }
-    assert_eq!(
-        files,
-        vec![tmprepo.root().join("VERSION").to_string_lossy().to_string()],
-        "should remove all created data files"
-    );
+    assert!(files.len() == 0, "should remove all created data files");
 }
 
 fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {

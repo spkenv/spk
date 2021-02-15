@@ -63,7 +63,10 @@ impl LayerStorage for FSRepository {}
 impl PlatformStorage for FSRepository {}
 impl Repository for FSRepository {
     fn address(&self) -> url::Url {
-        todo!()
+        url::Url::from_directory_path(self.root()).unwrap()
+    }
+    fn renders(&self) -> Result<Box<dyn ManifestViewer>> {
+        Ok(Box::new(self.clone()))
     }
 }
 

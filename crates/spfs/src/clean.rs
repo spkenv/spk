@@ -153,10 +153,8 @@ pub fn get_all_unattached_objects(
     for digest in repo.iter_digests() {
         digests.insert(digest?);
     }
-    Ok(digests
-        .difference(&get_all_attached_objects(repo)?)
-        .map(|d| d.clone())
-        .collect())
+    let attached = &get_all_attached_objects(repo)?;
+    Ok(digests.difference(&attached).map(|d| d.clone()).collect())
 }
 
 pub fn get_all_unattached_payloads(

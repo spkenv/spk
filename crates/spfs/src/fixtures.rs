@@ -3,6 +3,8 @@ macro_rules! fixtures {
         use rstest::fixture;
         use tempdir::TempDir;
 
+        type TempRepo = (TempDir, spfs::storage::RepositoryHandle);
+
         #[allow(dead_code)]
         fn init_logging() {
             let sub = tracing_subscriber::FmtSubscriber::builder()
@@ -22,9 +24,9 @@ macro_rules! fixtures {
         }
 
         #[fixture(kind = "fs")]
-        fn tmprepo(kind: &str) -> spfs::storage::RepositoryHandle {
+        fn tmprepo(kind: &str) -> (tempdir::TempDir, spfs::storage::RepositoryHandle) {
             let tmpdir = tmpdir();
-            match kind {
+            let repo = match kind {
                 "fs" => spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
                     .unwrap()
                     .into(),
@@ -32,7 +34,8 @@ macro_rules! fixtures {
                     .unwrap()
                     .into(),
                 _ => panic!("unknown repo kind '{}'", kind),
-            }
+            };
+            (tmpdir, repo)
         }
     };
 }

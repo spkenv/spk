@@ -9,7 +9,8 @@ fixtures!();
 
 #[rstest]
 #[tokio::test]
-async fn test_prunable_tags_age(mut tmprepo: storage::RepositoryHandle) {
+async fn test_prunable_tags_age(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     let mut old = tracking::Tag::new(
         Some("testing".to_string()),
         "prune",
@@ -56,7 +57,8 @@ async fn test_prunable_tags_age(mut tmprepo: storage::RepositoryHandle) {
 
 #[rstest]
 #[tokio::test]
-async fn test_prunable_tags_version(mut tmprepo: storage::RepositoryHandle) {
+async fn test_prunable_tags_version(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("testing/versioned").unwrap();
     let tag5 = tmprepo
         .push_tag(&tag, &encoding::EMPTY_DIGEST.into())
@@ -114,7 +116,8 @@ async fn test_prunable_tags_version(mut tmprepo: storage::RepositoryHandle) {
 
 #[rstest]
 #[tokio::test]
-async fn test_prune_tags(mut tmprepo: storage::RepositoryHandle) {
+async fn test_prune_tags(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();
 
     fn reset(tmprepo: &mut storage::RepositoryHandle) -> HashMap<i32, tracking::Tag> {

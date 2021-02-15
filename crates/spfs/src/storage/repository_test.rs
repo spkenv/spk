@@ -14,7 +14,8 @@ fixtures!();
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
 #[tokio::test]
-async fn test_find_aliases(mut tmprepo: super::super::RepositoryHandle) {
+async fn test_find_aliases(tmprepo: TempRepo) {
+    let (_, mut tmprepo) = tmprepo;
     tmprepo
         .find_aliases("not-existant")
         .expect_err("should error when ref is not found");
@@ -57,7 +58,7 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
         .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);
     assert!(
-        rendered_symlink.symlink_metadata().unwrap().mode() & libc::S_IFLNK > 0,
+        rendered_symlink.symlink_metadata().unwrap().mode() & libc::S_IFLNK != 0,
         "should be a symlink"
     );
 
@@ -73,10 +74,8 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
 #[tokio::test]
-async fn test_commit_broken_link(
-    tmpdir: tempdir::TempDir,
-    mut tmprepo: super::super::RepositoryHandle,
-) {
+async fn test_commit_broken_link(tmprepo: TempRepo) {
+    let (tmpdir, mut tmprepo) = tmprepo;
     let src_dir = tmpdir.path().join("source");
     std::fs::create_dir_all(&src_dir).unwrap();
     std::os::unix::fs::symlink(
@@ -91,7 +90,8 @@ async fn test_commit_broken_link(
 
 #[rstest(tmprepo, case::fs(tmprepo("fs")), case::fs(tmprepo("tar")))]
 #[tokio::test]
-async fn test_commit_dir(tmpdir: tempdir::TempDir, mut tmprepo: super::super::RepositoryHandle) {
+async fn test_commit_dir(tmprepo: TempRepo) {
+    let (tmpdir, mut tmprepo) = tmprepo;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
