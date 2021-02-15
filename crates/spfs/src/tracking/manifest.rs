@@ -85,16 +85,6 @@ impl Manifest {
         self.walk().with_prefix(root)
     }
 
-    /// Walk the contents of this manifest bottom-up and depth-first.
-    pub fn walk_up<'m>(&'m self) -> ManifestWalker<'m> {
-        self.walk().set_upwards(true)
-    }
-
-    /// Same as walk_up(), but joins all entry paths to the given root.
-    pub fn walk_up_abs<'m, P: AsRef<str>>(&'m self, root: P) -> ManifestWalker<'m> {
-        self.walk_abs(root).set_upwards(true)
-    }
-
     /// Add a new directory entry to this manifest
     pub fn mkdir<'m, P: AsRef<str>>(&'m mut self, path: P) -> Result<&'m mut Entry> {
         let entry = Entry::default();
@@ -191,7 +181,6 @@ impl Manifest {
 
 /// Walks all entries in a manifest depth-first
 pub struct ManifestWalker<'m> {
-    upwards: bool,
     prefix: RelativePathBuf,
     children: std::collections::hash_map::Iter<'m, String, Entry>,
     active_child: Option<Box<ManifestWalker<'m>>>,
@@ -200,18 +189,10 @@ pub struct ManifestWalker<'m> {
 impl<'m> ManifestWalker<'m> {
     fn new(root: &'m Entry) -> Self {
         ManifestWalker {
-            upwards: false,
             prefix: RelativePathBuf::from("/"),
             children: root.entries.iter(),
             active_child: None,
         }
-    }
-
-    /// Makes this walker walk upwards, yielding parent directories only after
-    /// visiting all children
-    fn set_upwards(mut self, upwards: bool) -> Self {
-        self.upwards = upwards;
-        self
     }
 
     fn with_prefix<P: AsRef<str>>(mut self, prefix: P) -> Self {
@@ -310,6 +291,8 @@ impl<'h> ManifestBuilder<'h> {
 
         entry.mode = stat_result.mode();
         entry.size = stat_result.size();
+
+        tracing::error!("read entry {:?} {:#06o}", &path.as_ref(), entry.mode);
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {

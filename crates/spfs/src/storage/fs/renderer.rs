@@ -22,8 +22,10 @@ impl ManifestViewer for FSRepository {
     fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
         let rendered_dirpath = self.renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath) {
+            tracing::trace!(path = ?rendered_dirpath, "render already completed");
             return Ok(rendered_dirpath);
         }
+        tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
 
         self.renders.ensure_base_dir(&rendered_dirpath)?;
         makedirs_with_perms(&rendered_dirpath, 0o777)?;
@@ -46,13 +48,13 @@ impl ManifestViewer for FSRepository {
             if node.entry.kind.is_mask() {
                 continue;
             }
-            if libc::S_IFLNK & node.entry.mode != 0 {
+            if node.entry.is_symlink() {
                 continue;
             }
             std::fs::set_permissions(
                 &node.path.to_path("/"),
                 std::fs::Permissions::from_mode(node.entry.mode),
-            )?
+            )?;
         }
 
         mark_render_completed(&rendered_dirpath)?;
@@ -96,29 +98,27 @@ impl ManifestViewer for FSRepository {
 
 impl FSRepository {
     fn render_blob<P: AsRef<Path>>(&self, rendered_path: P, entry: &tracking::Entry) -> Result<()> {
-        if libc::S_IFLNK & entry.mode != 0 {
+        if entry.is_symlink() {
             let mut reader = self.open_payload(&entry.object)?;
             let mut target = String::new();
             reader.read_to_string(&mut target)?;
-            if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
+            return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
                     _ => Err(err.into()),
                 }
             } else {
                 Ok(())
-            }
-        } else {
-            let committed_path = self.payloads.build_digest_path(&entry.object);
-            if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
-                match err.kind() {
-                    std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(err.into()),
-                }
-            } else {
-                Ok(())
+            };
+        }
+        let committed_path = self.payloads.build_digest_path(&entry.object);
+        if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
+            match err.kind() {
+                std::io::ErrorKind::AlreadyExists => (),
+                _ => return Err(err.into()),
             }
         }
+        Ok(())
     }
 }
 
@@ -171,25 +171,32 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
 /// Copy manifest contents from one directory to another.
 fn copy_manifest<P: AsRef<Path>>(manifest: &Manifest, src_root: P, dst_root: P) -> Result<()> {
     let unlocked = manifest.unlock();
+    let entries: Vec<_> = unlocked.walk().collect();
 
-    for node in unlocked.walk_up() {
+    for node in entries.iter() {
         if node.entry.kind.is_mask() {
             continue;
         }
         let src_path = node.path.to_path(&src_root);
         let dst_path = node.path.to_path(&dst_root);
         let meta = src_path.symlink_metadata()?;
-        if let Some(parent) = dst_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         if meta.file_type().is_symlink() {
             let target = std::fs::read_link(&src_path)?;
             std::os::unix::fs::symlink(&target, &dst_path)?;
         } else if meta.is_dir() {
-            std::fs::set_permissions(&dst_path, meta.permissions())?;
+            std::fs::create_dir_all(&dst_path)?;
         } else {
-            std::fs::copy(src_path, dst_path)?;
+            std::fs::copy(&src_path, &dst_path)?;
         }
+    }
+
+    for node in entries.iter().rev() {
+        if node.entry.kind.is_mask() {
+            continue;
+        }
+        let dst_path = node.path.to_path(&dst_root);
+        let perms = std::fs::Permissions::from_mode(node.entry.mode);
+        std::fs::set_permissions(dst_path, perms)?;
     }
     Ok(())
 }

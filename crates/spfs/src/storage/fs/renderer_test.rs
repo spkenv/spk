@@ -61,14 +61,22 @@ async fn test_copy_manfest(tmpdir: tempdir::TempDir) {
     )
     .unwrap();
 
-    let expected = Manifest::from(&tracking::compute_manifest(&src_dir).unwrap());
+    let expected = tracking::compute_manifest(&src_dir).unwrap();
+    let manifest = Manifest::from(&expected);
 
     let dst_dir = tmpdir.path().join("dest");
-    copy_manifest(&expected, &src_dir, &dst_dir).expect("failed to copy manifest");
+    std::fs::create_dir(&dst_dir).unwrap();
+    copy_manifest(&manifest, &src_dir, &dst_dir).expect("failed to copy manifest");
 
-    let actual = Manifest::from(&tracking::compute_manifest(&dst_dir).unwrap());
+    let actual = tracking::compute_manifest(&dst_dir).unwrap();
 
-    assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
+    let diffs = tracking::compute_diff(&expected, &actual);
+    println!("DIFFS:");
+    println!("{}", crate::io::format_diffs(diffs.into_iter()));
+    assert_eq!(
+        manifest.digest().unwrap(),
+        Manifest::from(&actual).digest().unwrap()
+    );
 }
 
 #[rstest]
@@ -81,7 +89,8 @@ async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let manifest = Manifest::from(&tmprepo.commit_dir(&src_dir).unwrap());
+    let expected_manifest = tmprepo.commit_dir(&src_dir).unwrap();
+    let manifest = Manifest::from(&expected_manifest);
 
     let render = tmprepo
         .renders
@@ -90,10 +99,13 @@ async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
     tmprepo.render_manifest(&manifest).unwrap();
     assert!(render.exists(), "render should be seen as existing");
     assert!(was_render_completed(&render));
-    let rendered_manifest = Manifest::from(&tracking::compute_manifest(&render).unwrap());
+    let rendered_manifest = tracking::compute_manifest(&render).unwrap();
+    let diffs = tracking::compute_diff(&expected_manifest, &rendered_manifest);
+    println!("DIFFS:");
+    println!("{}", crate::io::format_diffs(diffs.into_iter()));
     assert_eq!(
-        rendered_manifest.digest().unwrap(),
-        manifest.digest().unwrap()
+        Manifest::from(&expected_manifest).digest().unwrap(),
+        Manifest::from(&rendered_manifest).digest().unwrap()
     );
 }
 

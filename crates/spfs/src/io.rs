@@ -41,13 +41,13 @@ pub fn format_diffs(diffs: impl Iterator<Item = tracking::Diff>) -> String {
         match diff.entries {
             Some((a, b)) => {
                 if a.mode != b.mode {
-                    abouts.push("mode");
+                    abouts.push(format!("mode {{{:06o}=>{:06o}}}", a.mode, b.mode));
                 }
                 if a.object != b.object {
-                    abouts.push("object");
+                    abouts.push(format!("object"));
                 }
                 if a.size != b.size {
-                    abouts.push("size");
+                    abouts.push(format!("size {{{}=>{}}}", a.size, b.size));
                 }
             }
             None => (),
