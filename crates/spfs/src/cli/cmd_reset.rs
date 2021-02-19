@@ -1,78 +1,66 @@
-from typing import List
-import sys
-import argparse
+use spfs::prelude::*;
+use structopt::StructOpt;
 
-import spfs
+#[derive(StructOpt, Debug)]
+pub struct CmdReset {
+    #[structopt(
+        long = "edit",
+        short = "e",
+        about = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
+    )]
+    edit: bool,
+    #[structopt(
+        long = "ref",
+        short = "r",
+        about = "The tag or id of the desired runtime, or the current runtime if not given. \
+                Use '-' or an empty string to request an empty environment. Only valid \
+                if no paths are given"
+    )]
+    reference: Option<String>,
+    #[structopt(
+        min_values = 0,
+        about = "Paths under /spfs to reset, or all paths if none given"
+    )]
+    paths: Vec<String>,
+}
 
-from colorama import Fore
+impl CmdReset {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        let mut runtime = spfs::active_runtime()?;
+        let repo = config.get_repository()?;
+        if let Some(reference) = &self.reference {
+            runtime.reset::<&str>(&[])?;
+            runtime.reset_stack()?;
+            match reference.as_str() {
+                "" | "-" => self.edit = true,
+                _ => {
+                    let env_spec = spfs::tracking::parse_env_spec(reference)?;
+                    for target in env_spec.iter() {
+                        let obj = repo.read_ref(target.to_string().as_ref())?;
+                        runtime.push_digest(&obj.digest()?)?;
+                    }
+                }
+            }
+        } else {
+            let paths = strip_spfs_prefix(&self.paths);
+            runtime.reset(paths.as_slice())?;
+        }
 
+        if self.edit {
+            runtime.set_editable(true)?;
+        }
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
+        spfs::remount_runtime(&runtime)
+    }
+}
 
-    reset_cmd = sub_parsers.add_parser("reset", help=_reset.__doc__)
-    reset_cmd.add_argument(
-        "--edit",
-        "-e",
-        action="store_true",
-        help="mount the /spfs filesystem in edit mode (true if REF is empty or not given)",
-    )
-    reset_cmd.add_argument(
-        "--ref",
-        "-r",
-        metavar="REF",
-        help=(
-            "The tag or id of the desired runtime, or the current runtime if not given."
-            " Use '-' or an empty string to request an empty environment. Only valid"
-            " if no paths are given"
-        ),
-    )
-    reset_cmd.add_argument(
-        "paths",
-        metavar="PATH",
-        nargs="*",
-        help="Paths under /spfs to reset, or all paths if none given",
-    )
-    reset_cmd.set_defaults(func=_reset)
-
-
-def _reset(args: argparse.Namespace) -> None:
-    """Rebuild the current /spfs dir with the requested refs, removing any active changes."""
-
-    config = spfs.get_config()
-    repo = config.get_repository()
-    runtime = spfs.active_runtime()
-    if args.ref:
-
-        if args.paths:
-            print(
-                f"{Fore.RED}Cannot specify both --ref and PATHs{Fore.RESET}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        runtime.reset()
-        runtime.reset_stack()
-        if args.ref in ("-", ""):
-            args.edit = True
-        else:
-            env_spec = spfs.tracking.EnvSpec(args.ref)
-            for target in env_spec.items:
-                obj = repo.read_ref(target)
-                runtime.push_digest(obj.digest())
-    else:
-        paths = _strip_spfs_prefix(args.paths)
-        runtime.reset(*paths)
-
-    if args.edit:
-        runtime.set_editable(args.edit)
-
-    spfs.remount_runtime(runtime)
-
-
-def _strip_spfs_prefix(paths: List[str]) -> List[str]:
-    out = []
-    for path in paths:
-        if path.startswith("/spfs"):
-            path = path[len("/spfs") :]
-        out.append(path)
-    return out
+fn strip_spfs_prefix(paths: &Vec<String>) -> Vec<String> {
+    paths
+        .into_iter()
+        .map(|path| {
+            path.strip_prefix("/spfs")
+                .unwrap_or(path.as_ref())
+                .to_owned()
+        })
+        .collect()
+}

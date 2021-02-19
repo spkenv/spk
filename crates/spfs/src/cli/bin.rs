@@ -17,7 +17,7 @@ mod cmd_edit;
 // mod cmd_pull;
 // mod cmd_push;
 // mod cmd_read;
-// mod cmd_reset;
+mod cmd_reset;
 mod cmd_run;
 // mod cmd_runtimes;
 // mod cmd_search;
@@ -82,7 +82,7 @@ async fn main() {
         Command::Shell(mut cmd) => cmd.run(&config).await,
         Command::Edit(mut cmd) => cmd.run(&config).await,
         Command::Commit(mut cmd) => cmd.run(&config).await,
-        // Command::Reset(mut cmd) => cmd.run(&config).await,
+        Command::Reset(mut cmd) => cmd.run(&config).await,
         // Command::Tag(mut cmd) => cmd.run(&config).await,
         // Command::Push(mut cmd) => cmd.run(&config).await,
         // Command::Pull(mut cmd) => cmd.run(&config).await,

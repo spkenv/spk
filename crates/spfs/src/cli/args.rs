@@ -27,10 +27,10 @@ pub enum Command {
     Edit(super::cmd_edit::CmdEdit),
     #[structopt(about = "commit the current runtime state to storage")]
     Commit(super::cmd_commit::CmdCommit),
-    // #[structopt(
-    //     about = "rebuild the current /spfs dir with the requested refs, removing any active changes"
-    // )]
-    // Reset(super::cmd_reset::CmdReset),
+    #[structopt(
+        about = "rebuild the current /spfs dir with the requested refs, removing any active changes"
+    )]
+    Reset(super::cmd_reset::CmdReset),
     // #[structopt(about = "tag and object")]
     // Tag(super::cmd_tag::CmdTag),
     // #[structopt(about = "push one or more objects to a remote repository")]
