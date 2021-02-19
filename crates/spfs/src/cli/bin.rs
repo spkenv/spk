@@ -7,7 +7,7 @@ mod cmd_commit;
 // mod cmd_diff;
 mod cmd_edit;
 // mod cmd_info;
-// mod cmd_init;
+mod cmd_init;
 // mod cmd_layers;
 // mod cmd_log;
 // mod cmd_ls;
@@ -100,7 +100,7 @@ async fn main() {
         Command::Check(mut cmd) => cmd.run(&config).await,
         Command::Clean(mut cmd) => cmd.run(&config).await,
         // Command::Read(mut cmd) => cmd.run(&config).await,
-        // Command::Init(mut cmd) => cmd.run(&config).await,
+        Command::InitRuntime(mut cmd) => cmd.run(&config).await,
     };
 
     match result {

@@ -65,8 +65,8 @@ pub enum Command {
     Clean(super::cmd_clean::CmdClean),
     // #[structopt(about = "output the contents of a stored payload to stdout", aliases = ["read-file", "cat", "cat-file"])]
     // Read(super::cmd_read::CmdRead),
-    // #[structopt(about = "[internal use only] instantiates a raw runtime session")]
-    // Init(super::cmd_init::CmdInit),
+    #[structopt(about = "[internal use only] instantiates a raw runtime session")]
+    InitRuntime(super::cmd_init::CmdInit),
 }
 
 pub fn configure_sentry() {
