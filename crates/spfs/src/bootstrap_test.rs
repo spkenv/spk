@@ -38,10 +38,11 @@ async fn test_shell_initialization_startup_scripts(
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
         cmd.arg(format!(
-            "s|/spfs/etc/spfs/startup.d|{:?}|",
-            &tmp_startup_dir
+            "s|/spfs/etc/spfs/startup.d|{}|",
+            tmp_startup_dir.to_string_lossy()
         ));
         cmd.arg(startup_script);
+        println!("{:?}", cmd);
         println!("{:?}", cmd.output().unwrap());
     }
 
@@ -55,7 +56,9 @@ async fn test_shell_initialization_startup_scripts(
     .unwrap();
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());
+    println!("{:?}", cmd);
     let out = cmd.output().unwrap();
+    println!("{:?}", out);
     assert!(out.stdout.ends_with("spfs-test-value\n".as_bytes()));
 }
 
