@@ -11,7 +11,7 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_tag_stream(tmpdir: tempdir::TempDir) {
-    init_logging();
+    let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
 
@@ -45,7 +45,7 @@ async fn test_tag_stream(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
-    init_logging();
+    let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
@@ -84,7 +84,7 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_ls_tags(tmpdir: tempdir::TempDir) {
-    init_logging();
+    let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
@@ -121,7 +121,7 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_rm_tags(tmpdir: tempdir::TempDir) {
-    init_logging();
+    let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
     for tag in vec![
