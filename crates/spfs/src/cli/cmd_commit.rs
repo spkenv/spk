@@ -1,54 +1,56 @@
-import sys
-import argparse
+use structopt::StructOpt;
 
-import structlog
+use spfs::{encoding::Encodable, storage::TagStorage};
 
-import spfs
+#[derive(Debug, StructOpt)]
+pub struct CmdCommit {
+    #[structopt(
+        long = "tag",
+        short = "t",
+        about = "Can be given many times: human-readable tags to update with the resulting object"
+    )]
+    tags: Vec<String>,
+    #[structopt(
+        possible_values = &["layer", "platform"],
+        about = "The desired object type to create"
+    )]
+    kind: String,
+}
 
-_logger = structlog.get_logger("cli")
+impl CmdCommit {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        let mut runtime = spfs::active_runtime()?;
 
+        if !runtime.is_editable() {
+            tracing::error!("Active runtime is not editable, nothing to commmit");
+            std::process::exit(1)
+        }
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
+        let mut repo = config.get_repository()?;
 
-    commit_cmd = sub_parsers.add_parser("commit", help=_commit.__doc__)
-    commit_cmd.add_argument(
-        "kind", choices=["layer", "platform"], help="The desired object type to create"
-    )
-    commit_cmd.add_argument(
-        "--tag",
-        "-t",
-        dest="tags",
-        action="append",
-        help="Can be given many times: human-readable tags to update with the resulting object",
-    )
-    commit_cmd.set_defaults(func=_commit)
+        let result: spfs::graph::Object = match self.kind.as_str() {
+            "layer" => spfs::commit_layer(&mut runtime)?.into(),
+            "platform" => spfs::commit_platform(&mut runtime)?.into(),
+            _ => {
+                tracing::error!("cannot commit {}", self.kind);
+                std::process::exit(1);
+            }
+        };
 
+        tracing::info!(digest = ?result.digest(), "created");
+        for tag in self.tags.iter() {
+            let tag_spec = match spfs::tracking::TagSpec::parse(tag) {
+                Ok(tag_spec) => tag_spec,
+                Err(err) => {
+                    tracing::warn!("cannot set invalid tag '{}': {:?}", tag, err);
+                    continue;
+                }
+            };
+            repo.push_tag(&tag_spec, &result.digest()?)?;
+            tracing::info!(tag = ?tag, "created");
+        }
 
-def _commit(args: argparse.Namespace) -> None:
-    """Commit the current runtime state to storage."""
-
-    runtime = spfs.active_runtime()
-
-    if not runtime.is_editable():
-        _logger.error("Active runtime is not editable, nothing to commmit")
-        sys.exit(1)
-
-    config = spfs.get_config()
-    repo = config.get_repository()
-
-    result: spfs.graph.Object
-    if args.kind == "layer":
-        result = spfs.commit_layer(runtime)
-    elif args.kind == "platform":
-        result = spfs.commit_platform(runtime)
-    else:
-        raise NotImplementedError("commit", args.kind)
-
-    _logger.info("created", digest=result.digest())
-    for tag in args or []:
-
-        repo.push_tag(tag, result.digest())
-        _logger.info("created", tag=tag)
-
-    _logger.info("edit mode disabled")
-    return
+        tracing::info!("edit mode disabled");
+        Ok(())
+    }
+}

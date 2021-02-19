@@ -25,8 +25,8 @@ pub enum Command {
     Shell(super::cmd_run::CmdShell),
     #[structopt(about = "make the current runtime editable")]
     Edit(super::cmd_edit::CmdEdit),
-    // #[structopt(about = "commit the current runtime state to storage")]
-    // Commit(super::cmd_commit::CmdCommit),
+    #[structopt(about = "commit the current runtime state to storage")]
+    Commit(super::cmd_commit::CmdCommit),
     // #[structopt(
     //     about = "rebuild the current /spfs dir with the requested refs, removing any active changes"
     // )]

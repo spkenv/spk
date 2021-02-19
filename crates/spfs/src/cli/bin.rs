@@ -3,7 +3,7 @@ use structopt::StructOpt;
 mod args;
 mod cmd_check;
 mod cmd_clean;
-// mod cmd_commit;
+mod cmd_commit;
 // mod cmd_diff;
 mod cmd_edit;
 // mod cmd_info;
@@ -81,7 +81,7 @@ async fn main() {
         Command::Run(mut cmd) => cmd.run(&config).await,
         Command::Shell(mut cmd) => cmd.run(&config).await,
         Command::Edit(mut cmd) => cmd.run(&config).await,
-        // Command::Commit(mut cmd) => cmd.run(&config).await,
+        Command::Commit(mut cmd) => cmd.run(&config).await,
         // Command::Reset(mut cmd) => cmd.run(&config).await,
         // Command::Tag(mut cmd) => cmd.run(&config).await,
         // Command::Push(mut cmd) => cmd.run(&config).await,
