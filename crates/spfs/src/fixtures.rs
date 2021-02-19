@@ -17,6 +17,27 @@ macro_rules! fixtures {
                 .unwrap();
         }
 
+        #[fixture]
+        fn spfs_binary() -> std::path::PathBuf {
+            let mut path = std::env::current_exe().expect("test must have current binary path");
+            loop {
+                {
+                    let parent = path.parent();
+                    if parent.is_none() {
+                        panic!("cannot find spfs binary to test}");
+                    }
+                    let parent = parent.unwrap();
+                    if parent.is_dir() && parent.file_name().unwrap() == "target" {
+                        break;
+                    }
+                }
+                path.pop();
+            }
+
+            path.push(env!("CARGO_PKG_NAME").to_string());
+            path
+        }
+
         use crate as spfs;
         #[fixture]
         fn tmpdir() -> TempDir {

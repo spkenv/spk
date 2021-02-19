@@ -9,25 +9,24 @@ fixtures!();
 
 #[rstest]
 #[tokio::test]
-async fn test_runtime_file_removal(tmpdir: tempdir::TempDir) {
-    if let None = which("spfs") {
-        println!("spfs must be installed for this test");
-    }
-
+async fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
     let script = tmpdir.path().join("script.sh");
     let filename = "/spfs/message.txt";
     let base_tag = "test/file_removal_base";
     let top_tag = "test/file_removal_top";
     let lines: Vec<String> = vec![
         format!(
-            "spfs run - bash -c 'echo hello > {} && spfs commit layer -t {}'",
-            filename, base_tag
+            "{:?} run - bash -c 'echo hello > {} && {:?} commit layer -t {}'",
+            &spfs_binary, filename, &spfs_binary, base_tag
         ),
         format!(
-            "spfs run -e {} -- bash -c 'rm {} && spfs commit platform -t {}'",
-            base_tag, filename, top_tag
+            "{:?} run -e {} -- bash -c 'rm {} && {:?} commit platform -t {}'",
+            &spfs_binary, base_tag, filename, &spfs_binary, top_tag
         ),
-        format!("spfs run {} -- test ! -f {}", top_tag, filename),
+        format!(
+            "{:?} run {} -- test ! -f {}",
+            &spfs_binary, top_tag, filename
+        ),
     ];
     std::fs::OpenOptions::new()
         .create(true)
@@ -44,11 +43,7 @@ async fn test_runtime_file_removal(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir) {
-    if let None = which("spfs") {
-        println!("spfs must be installed for this test");
-    }
-
+async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
     let script = tmpdir.path().join("script.sh");
     let dirpath = "/spfs/dir1/dir2/dir3";
     let to_remove = "/spfs/dir1/dir2";
@@ -57,15 +52,21 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir) {
     let top_tag = "test/dir_removal_top";
     let lines: Vec<String> = vec![
         format!(
-            "spfs run - bash -c 'mkdir -p {} && spfs commit layer -t {}'",
-            dirpath, base_tag
+            "{:?} run - bash -c 'mkdir -p {} && {:?} commit layer -t {}'",
+            &spfs_binary, dirpath, &spfs_binary, base_tag
         ),
         format!(
-            "spfs run -e {} -- bash -c 'rm -r {} && spfs commit platform -t {}'",
-            base_tag, to_remove, top_tag
+            "{:?} run -e {} -- bash -c 'rm -r {} && {:?} commit platform -t {}'",
+            &spfs_binary, base_tag, to_remove, &spfs_binary, top_tag
         ),
-        format!("spfs run {} -- test ! -d {}", top_tag, to_remove),
-        format!("spfs run {} -- test -d {}", top_tag, to_remain),
+        format!(
+            "{:?} run {} -- test ! -d {}",
+            &spfs_binary, top_tag, to_remove
+        ),
+        format!(
+            "{:?} run {} -- test -d {}",
+            &spfs_binary, top_tag, to_remain
+        ),
     ];
     std::fs::OpenOptions::new()
         .create(true)
@@ -81,19 +82,13 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_runtime_recursion() {
-    if let None = which("spfs") {
-        println!("spfs must be installed for this test");
-    }
-    let mut cmd = Command::new("spfs");
-    cmd.args(&[
-        "run",
-        "",
-        "--",
-        "sh",
-        "-c",
-        "spfs edit --off; spfs run - -- echo hello",
-    ]);
+async fn test_runtime_recursion(spfs_binary: std::path::PathBuf) {
+    let mut cmd = Command::new(&spfs_binary);
+    cmd.args(&["run", "", "--", "sh", "-c"]);
+    cmd.arg(format!(
+        "{:?} edit --off; {:?} run - -- echo hello",
+        &spfs_binary, &spfs_binary
+    ));
     let out = cmd.output().unwrap();
     assert_eq!(out.stdout, "hello\n".as_bytes());
 }
