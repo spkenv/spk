@@ -1,33 +1,25 @@
-import sys
-import shutil
-import argparse
+use structopt::StructOpt;
 
-from colorama import Fore, Style
+use spfs::{self, prelude::*};
 
-import spfs
+#[derive(Debug, StructOpt)]
+pub struct CmdLsTags {
+    #[structopt(
+        default_value = "/",
+        about = "The tag path to list under, defaults to the root ('/')"
+    )]
+    path: String,
+}
 
+impl CmdLsTags {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        let repo = config.get_repository()?;
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
-
-    ls_cmd = sub_parsers.add_parser(
-        "ls-tags", aliases=["list-tags"], help=_ls_tags.__doc__
-    )
-    ls_cmd.add_argument(
-        "path",
-        metavar="PATH",
-        nargs="?",
-        default="/",
-        help="The tag path to list under, defaults to the root ('/')",
-    )
-    ls_cmd.set_defaults(func=_ls_tags)
-
-
-def _ls_tags(args: argparse.Namespace) -> None:
-    """List tags by their path."""
-
-    config = spfs.get_config()
-    repo = config.get_repository()
-
-    names = spfs.ls_tags(args.path)
-    for name in names:
-        print(name)
+        let path = relative_path::RelativePathBuf::from(&self.path);
+        let names = repo.ls_tags(&path)?;
+        for name in names {
+            println!("{}", name);
+        }
+        Ok(())
+    }
+}

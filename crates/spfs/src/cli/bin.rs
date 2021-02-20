@@ -4,18 +4,18 @@ mod args;
 mod cmd_check;
 mod cmd_clean;
 mod cmd_commit;
-// mod cmd_diff;
+mod cmd_diff;
 mod cmd_edit;
-// mod cmd_info;
+mod cmd_info;
 mod cmd_init;
-// mod cmd_layers;
-// mod cmd_log;
-// mod cmd_ls;
-// mod cmd_ls_tags;
+mod cmd_layers;
+mod cmd_log;
+mod cmd_ls;
+mod cmd_ls_tags;
 // mod cmd_migrate;
-// mod cmd_platforms;
-// mod cmd_pull;
-// mod cmd_push;
+mod cmd_platforms;
+mod cmd_pull;
+mod cmd_push;
 // mod cmd_read;
 mod cmd_reset;
 mod cmd_run;
@@ -34,11 +34,11 @@ async fn main() {
     let opt = args::Opt::from_args();
     match opt.verbose {
         0 if std::env::var("SPFS_DEBUG").is_ok() => {
-            std::env::set_var("RUST_LOG", "DEBUG");
+            std::env::set_var("RUST_LOG", "spfs=debug");
         }
-        0 => std::env::set_var("RUST_LOG", "spfs=INFO"),
-        1 => std::env::set_var("RUST_LOG", "DEBUG"),
-        _ => std::env::set_var("RUST_LOG", "TRACE"),
+        0 => std::env::set_var("RUST_LOG", "spfs=info"),
+        1 => std::env::set_var("RUST_LOG", "spfs=debug"),
+        _ => std::env::set_var("RUST_LOG", "spfs=trace"),
     }
 
     args::configure_logging(&opt);
@@ -84,18 +84,18 @@ async fn main() {
         Command::Commit(mut cmd) => cmd.run(&config).await,
         Command::Reset(mut cmd) => cmd.run(&config).await,
         // Command::Tag(mut cmd) => cmd.run(&config).await,
-        // Command::Push(mut cmd) => cmd.run(&config).await,
-        // Command::Pull(mut cmd) => cmd.run(&config).await,
+        Command::Push(mut cmd) => cmd.run(&config).await,
+        Command::Pull(mut cmd) => cmd.run(&config).await,
         // Command::Runtimes(mut cmd) => cmd.run(&config).await,
-        // Command::Layers(mut cmd) => cmd.run(&config).await,
-        // Command::Platforms(mut cmd) => cmd.run(&config).await,
+        Command::Layers(mut cmd) => cmd.run(&config).await,
+        Command::Platforms(mut cmd) => cmd.run(&config).await,
         // Command::Tags(mut cmd) => cmd.run(&config).await,
-        // Command::Info(mut cmd) => cmd.run(&config).await,
-        // Command::Log(mut cmd) => cmd.run(&config).await,
+        Command::Info(mut cmd) => cmd.run(opt.verbose, &config).await,
+        Command::Log(mut cmd) => cmd.run(&config).await,
         // Command::Search(mut cmd) => cmd.run(&config).await,
-        // Command::Diff(mut cmd) => cmd.run(&config).await,
-        // Command::LsTags(mut cmd) => cmd.run(&config).await,
-        // Command::Ls(mut cmd) => cmd.run(&config).await,
+        Command::Diff(mut cmd) => cmd.run(&config).await,
+        Command::LsTags(mut cmd) => cmd.run(&config).await,
+        Command::Ls(mut cmd) => cmd.run(&config).await,
         // Command::Migrate(mut cmd) => cmd.run(&config).await,
         Command::Check(mut cmd) => cmd.run(&config).await,
         Command::Clean(mut cmd) => cmd.run(&config).await,

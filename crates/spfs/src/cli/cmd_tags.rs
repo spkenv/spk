@@ -1,6 +1,44 @@
-import argparse
+use structopt::StructOpt;
 
-import spfs
+use spfs;
+
+#[derive(Debug, StructOpt)]
+pub struct CmdTags {
+    #[structopt(
+        long = "remote",
+        short = "r",
+        about = "Show layers from remote repository instead of the local one"
+    )]
+    remote: Option<String>,
+}
+
+impl CmdTags {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        match self.remote {
+            Some(remote) => {
+                let repo = config.get_remote(remote)?;
+                for tag in repo.iter_tags() {
+                    let (_, tag) = tag?;
+                    println!(
+                        "{}",
+                        spfs::io::format_digest(&tag.target.to_string(), Some(&repo))?
+                    );
+                }
+            }
+            None => {
+                let repo = config.get_repository()?.into();
+                for tag in repo.iter_tags() {
+                    let (_, tag) = tag?;
+                    println!(
+                        "{}",
+                        spfs::io::format_digest(&tag.target.to_string(), Some(&repo))?
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:

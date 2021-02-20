@@ -1,26 +1,41 @@
-import argparse
+use structopt::StructOpt;
 
-import spfs
+use spfs::{self, prelude::*};
 
+#[derive(Debug, StructOpt)]
+pub struct CmdLayers {
+    #[structopt(
+        long = "remote",
+        short = "r",
+        about = "Show layers from remote repository instead of the local one"
+    )]
+    remote: Option<String>,
+}
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
-
-    layers_cmd = sub_parsers.add_parser("layers", help=_layers.__doc__)
-    layers_cmd.add_argument(
-        "--remote",
-        "-r",
-        help="Show layers from remote repository instead of the local one",
-    )
-    layers_cmd.set_defaults(func=_layers)
-
-
-def _layers(args: argparse.Namespace) -> None:
-    """List all layers in an spfs repository."""
-
-    config = spfs.get_config()
-    if args.remote is not None:
-        repo = config.get_remote(args.remote)
-    else:
-        repo = config.get_repository()
-    for layer in repo.iter_layers():
-        print(spfs.io.format_digest(layer.digest()))
+impl CmdLayers {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        match &self.remote {
+            Some(remote) => {
+                let repo = config.get_remote(remote)?;
+                for layer in repo.iter_layers() {
+                    let (digest, _) = layer?;
+                    println!(
+                        "{}",
+                        spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+                    );
+                }
+            }
+            None => {
+                let repo: RepositoryHandle = config.get_repository()?.into();
+                for layer in repo.iter_layers() {
+                    let (digest, _) = layer?;
+                    println!(
+                        "{}",
+                        spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}

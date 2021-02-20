@@ -1,49 +1,37 @@
-import sys
-import shutil
-import argparse
+use structopt::StructOpt;
 
-from colorama import Fore, Style
+use spfs::{self, prelude::*};
 
-import spfs
+#[derive(Debug, StructOpt)]
+pub struct CmdLs {
+    #[structopt(
+        value_name = "REF",
+        about = "The tag or digest of the file tree to read from"
+    )]
+    reference: String,
+    #[structopt(
+        default_value = "/",
+        about = "The subdirectory to list, defaults to the root ('/spfs')"
+    )]
+    path: String,
+}
 
+impl CmdLs {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        let repo: RepositoryHandle = config.get_repository()?.into();
+        let item = repo.read_ref(self.reference.as_str())?;
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
-
-    ls_cmd = sub_parsers.add_parser(
-        "ls", aliases=["list-dir", "list"], help=_ls.__doc__
-    )
-    ls_cmd.add_argument(
-        "ref",
-        metavar="REF",
-        nargs=1,
-        help="The tag or digest of the file tree to read from",
-    )
-    ls_cmd.add_argument(
-        "path",
-        metavar="PATH",
-        nargs="?",
-        default="/",
-        help="The subdirectory to list, defaults to the root ('/spfs')",
-    )
-    ls_cmd.set_defaults(func=_ls)
-
-
-def _ls(args: argparse.Namespace) -> None:
-    """List the contents of a committed directory."""
-
-    config = spfs.get_config()
-    repo = config.get_repository()
-    item = repo.read_ref(args.ref[0])
-
-    path = args.path
-    if path.startswith("/spfs"):
-        path = path[len("/spfs") :]
-    manifest = spfs.compute_object_manifest(item, repo=repo)
-    try:
-        entries = manifest.list_dir(path)
-    except (FileNotFoundError, NotADirectoryError) as e:
-        print(e)
-        sys.exit(1)
-
-    for name in entries:
-        print(name)
+        let path = relative_path::RelativePathBuf::from(&self.path);
+        let path = path.strip_prefix("/spfs").unwrap_or_else(|_| path.as_ref());
+        let manifest = spfs::compute_object_manifest(item, &repo)?;
+        if let Some(entries) = manifest.list_dir(path.as_str()) {
+            for name in entries {
+                println!("{}", name);
+            }
+        } else {
+            tracing::error!("file not found in manifest");
+            std::process::exit(1);
+        }
+        Ok(())
+    }
+}

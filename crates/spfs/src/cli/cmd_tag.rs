@@ -1,13 +1,25 @@
-from typing import Union
-import os
-import argparse
+use structopt::StructOpt;
 
-import structlog
-from colorama import Fore
+use spfs;
 
-import spfs
+#[derive(Debug, StructOpt)]
+pub struct CmdTag {
+    #[structopt(
+        value_name = "FROM",
+        about = "The tag or id to use as the base of the computed diff, defaults to the current runtime"
+    )]
+    base: Option<String>,
+    #[structopt(
+        value_name = "TO",
+        about = "The tag or id to diff the base against, defaults to the contents of /spfs"
+    )]
+    top: Option<String>,
+}
 
-_logger = structlog.get_logger("cli")
+impl CmdTag {
+    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<()> {
+    }
+}
 
 
 def register(sub_parsers: argparse._SubParsersAction) -> None:

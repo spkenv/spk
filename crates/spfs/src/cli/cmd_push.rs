@@ -1,29 +1,28 @@
-import argparse
+use structopt::StructOpt;
 
-from colorama import Fore
+use spfs;
 
-import spfs
+#[derive(Debug, StructOpt)]
+pub struct CmdPush {
+    #[structopt(
+        long = "remote",
+        short = "r",
+        default_value = "origin",
+        about = "the name or address of the remote server to push to"
+    )]
+    remote: String,
+    #[structopt(value_name = "REF", about = "the reference(s) to push")]
+    refs: Vec<String>,
+}
 
+impl CmdPush {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        let repo = config.get_repository()?.into();
+        let mut remote = config.get_remote(&self.remote)?;
+        for reference in self.refs.iter() {
+            spfs::sync_ref(reference, &repo, &mut remote).await?;
+        }
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
-
-    config = spfs.get_config()
-
-    push_cmd = sub_parsers.add_parser("push", help=_push.__doc__)
-    push_cmd.add_argument(
-        "refs", metavar="REF", nargs="+", help="the references to push"
-    )
-    push_cmd.add_argument(
-        "--remote",
-        "-r",
-        default="origin",
-        help=f"the name or address of the remote repository to push to",
-    )
-    push_cmd.set_defaults(func=_push)
-
-
-def _push(args: argparse.Namespace) -> None:
-    """Push one or more objects to a remote repository."""
-
-    for ref in args.refs:
-        spfs.push_ref(ref, args.remote)
+        Ok(())
+    }
+}

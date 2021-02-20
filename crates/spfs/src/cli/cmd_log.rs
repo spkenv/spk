@@ -1,42 +1,40 @@
-import argparse
+use colored::*;
+use structopt::StructOpt;
 
-import spfs
+use spfs::{self, prelude::*};
 
-from colorama import Fore, Style
+#[derive(Debug, StructOpt)]
+pub struct CmdLog {
+    #[structopt(
+        long = "remote",
+        short = "r",
+        about = "Show layers from remote repository instead of the local one"
+    )]
+    remote: Option<String>,
+    #[structopt(about = "The tag to show history of")]
+    tag: String,
+}
 
+impl CmdLog {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote)?,
+            None => config.get_repository()?.into(),
+        };
 
-def register(sub_parsers: argparse._SubParsersAction) -> None:
-
-    log_cmd = sub_parsers.add_parser("log", help=_log.__doc__)
-    log_cmd.add_argument(
-        "--remote",
-        "-r",
-        help=(
-            "Show the history from the given remote"
-            " repository instead of the local storage"
-        ),
-    )
-    log_cmd.add_argument("tag", metavar="TAG", help="The tag to show history of")
-    log_cmd.set_defaults(func=_log)
-
-
-def _log(args: argparse.Namespace) -> None:
-    """Log the history of a given tag over time."""
-
-    config = spfs.get_config()
-    if args.remote is not None:
-        repo = config.get_remote(args.remote)
-    else:
-        repo = config.get_repository()
-
-    tag_stream = repo.read_tag(args.tag)
-    i = -1
-    for tag in tag_stream:
-        i += 1
-        spec = spfs.tracking.build_tag_spec(tag.name, tag.org, i)
-        spec_str = str(spec).ljust(len(tag.path) + 3)
-        info = f"{Fore.YELLOW}{tag.target.str()[:10]}{Fore.RESET}"
-        info += f" {Style.BRIGHT}{spec_str}{Style.RESET_ALL}"
-        info += f" {Fore.LIGHTBLUE_EX}{tag.user}"
-        info += f' {Fore.GREEN}{tag.time.strftime("%F %R")}{Fore.RESET}'
-        print(info)
+        let tag = spfs::tracking::TagSpec::parse(&self.tag)?;
+        let tag_stream = repo.read_tag(&tag)?;
+        for (i, tag) in tag_stream.into_iter().enumerate() {
+            let spec = spfs::tracking::build_tag_spec(tag.org(), tag.name(), i as u64)?;
+            let spec_str = spec.to_string();
+            println!(
+                "{} {} {} {}",
+                tag.target.to_string()[..10].yellow(),
+                spec_str.bold(),
+                tag.user.bright_blue(),
+                tag.time.to_string().green(),
+            );
+        }
+        Ok(())
+    }
+}

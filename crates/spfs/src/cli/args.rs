@@ -9,7 +9,7 @@ use spfs;
     about = "Filesystem isolation, capture and distribution."
 )]
 pub struct Opt {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(subcommand)]
     pub cmd: Command,
@@ -31,35 +31,35 @@ pub enum Command {
         about = "rebuild the current /spfs dir with the requested refs, removing any active changes"
     )]
     Reset(super::cmd_reset::CmdReset),
-    // #[structopt(about = "tag and object")]
+    #[structopt(about = "tag and object")]
     // Tag(super::cmd_tag::CmdTag),
     // #[structopt(about = "push one or more objects to a remote repository")]
-    // Push(super::cmd_push::CmdPush),
-    // #[structopt(about = "pull one or more objects to the local repository")]
-    // Pull(super::cmd_pull::CmdPull),
+    Push(super::cmd_push::CmdPush),
+    #[structopt(about = "pull one or more objects to the local repository")]
+    Pull(super::cmd_pull::CmdPull),
     // #[structopt(about = "list the current set of spfs runtimes")]
     // Runtimes(super::cmd_runtimes::CmdRuntimes),
-    // #[structopt(about = "list all layers in an spfs repository")]
-    // Layers(super::cmd_layers::CmdLayers),
-    // #[structopt(about = "list all platforms in an spfs repository")]
-    // Platforms(super::cmd_platforms::CmdPlatforms),
+    #[structopt(about = "list all layers in an spfs repository")]
+    Layers(super::cmd_layers::CmdLayers),
+    #[structopt(about = "list all platforms in an spfs repository")]
+    Platforms(super::cmd_platforms::CmdPlatforms),
     // #[structopt(about = "list all tags in an spfs repository")]
     // Tags(super::cmd_tags::CmdTags),
-    // #[structopt(about = "display information about the current environment or specific items")]
-    // Info(super::cmd_info::CmdInfo),
-    // #[structopt(about = "log the history of a given tag over time")]
-    // Log(super::cmd_log::CmdLog),
+    #[structopt(about = "display information about the current environment or specific items")]
+    Info(super::cmd_info::CmdInfo),
+    #[structopt(about = "log the history of a given tag over time")]
+    Log(super::cmd_log::CmdLog),
     // #[structopt(about = "search for available tags by substring")]
     // Search(super::cmd_search::CmdSearch),
-    // #[structopt(about = "compare two spfs file system states")]
-    // Diff(super::cmd_diff::CmdDiff),
-    // #[structopt(about = "list tags by their path", aliases = ["list-tags"])]
-    // LsTags(super::cmd_ls_tags::Ls_tagsCmd),
-    // #[structopt(about = "list the contents of a committed directory", aliases = ["list-dir", "list"])]
-    // Ls(super::cmd_ls::CmdLs),
-    // #[structopt(about = "migrate the data from and older repository format to the latest one")]
+    #[structopt(about = "compare two spfs file system states")]
+    Diff(super::cmd_diff::CmdDiff),
+    #[structopt(about = "list tags by their path", aliases = &["list-tags"])]
+    LsTags(super::cmd_ls_tags::CmdLsTags),
+    #[structopt(about = "list the contents of a committed directory", aliases = &["list-dir", "list"])]
+    Ls(super::cmd_ls::CmdLs),
+    #[structopt(about = "migrate the data from and older repository format to the latest one")]
     // Migrate(super::cmd_migrate::CmdMigrate),
-    #[structopt(about = "check a repositories internal integrity")]
+    // #[structopt(about = "check a repositories internal integrity")]
     Check(super::cmd_check::CmdCheck),
     #[structopt(about = "clean the repository storage of untracked data")]
     Clean(super::cmd_clean::CmdClean),
