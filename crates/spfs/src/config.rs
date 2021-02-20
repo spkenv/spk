@@ -85,6 +85,7 @@ impl Config {
                 }
             }
         };
+        tracing::debug!(addr = ?addr, "opening repository");
         storage::open_repository(addr)
     }
 }

@@ -94,6 +94,8 @@ async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
 
     let render = tmprepo
         .renders
+        .as_ref()
+        .unwrap()
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
     tmprepo.render_manifest(&manifest).unwrap();

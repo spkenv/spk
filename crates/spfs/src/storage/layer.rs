@@ -5,10 +5,7 @@ pub trait LayerStorage: graph::Database {
     /// Iterate the objects in this storage which are layers.
     fn iter_layers<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Layer)>> + 'db>
-    where
-        Self: Sized,
-    {
+    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Layer)>> + 'db> {
         use graph::Object;
         Box::new(self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {

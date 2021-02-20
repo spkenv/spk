@@ -4,8 +4,8 @@ use crate::Result;
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Blob {
-    payload: encoding::Digest,
-    size: u64,
+    pub payload: encoding::Digest,
+    pub size: u64,
 }
 
 impl Blob {

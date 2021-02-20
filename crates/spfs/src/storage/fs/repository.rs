@@ -13,7 +13,7 @@ pub struct FSRepository {
     /// stores all digraph object data for this repo
     pub objects: FSHashStore,
     /// stores rendered file system layers for use in overlayfs
-    pub renders: FSHashStore,
+    pub renders: Option<FSHashStore>,
 }
 
 impl FSRepository {
@@ -35,7 +35,7 @@ impl FSRepository {
         Ok(Self {
             objects: FSHashStore::open(root.join("objects"))?,
             payloads: FSHashStore::open(root.join("payloads"))?,
-            renders: FSHashStore::open(root.join("renders"))?,
+            renders: FSHashStore::open(root.join("renders")).ok(),
             root: root,
         })
     }
@@ -51,7 +51,10 @@ impl Clone for FSRepository {
         Self {
             objects: FSHashStore::open_unchecked(root.join("objects")),
             payloads: FSHashStore::open_unchecked(root.join("payloads")),
-            renders: FSHashStore::open_unchecked(root.join("renders")),
+            renders: match &self.renders {
+                Some(r) => Some(FSHashStore::open_unchecked(r.root())),
+                None => None,
+            },
             root: root,
         }
     }
@@ -66,7 +69,10 @@ impl Repository for FSRepository {
         url::Url::from_directory_path(self.root()).unwrap()
     }
     fn renders(&self) -> Result<Box<dyn ManifestViewer>> {
-        Ok(Box::new(self.clone()))
+        match &self.renders {
+            Some(_) => Ok(Box::new(self.clone())),
+            None => Err("repository has not been setup for rendering manifests".into()),
+        }
     }
 }
 

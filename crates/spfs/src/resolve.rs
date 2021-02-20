@@ -23,7 +23,7 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
     let spec = tracking::TagSpec::parse(reference)?;
     for repo in repos {
         match repo.read_ref(spec.to_string().as_str()) {
-            Ok(obj) => return compute_object_manifest(obj, Some(repo)),
+            Ok(obj) => return compute_object_manifest(obj, &repo),
             Err(Error::UnknownObject(_)) => continue,
             Err(err) => return Err(err),
         }
@@ -33,16 +33,8 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
 
 pub fn compute_object_manifest(
     obj: graph::Object,
-    repo: Option<storage::RepositoryHandle>,
+    repo: &storage::RepositoryHandle,
 ) -> Result<tracking::Manifest> {
-    let repo = match repo {
-        Some(repo) => repo,
-        None => {
-            let config = load_config()?;
-            config.get_repository()?.into()
-        }
-    };
-
     match obj {
         graph::Object::Layer(obj) => Ok(repo.read_manifest(&obj.manifest)?.unlock()),
         graph::Object::Platform(obj) => {

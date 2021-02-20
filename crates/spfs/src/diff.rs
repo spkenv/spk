@@ -9,7 +9,7 @@ use crate::{tracking, Result};
 ///         (defaults to the current runtime)
 /// - **top**: The tag or id to diff the base against
 ///         (defaults to the contents of /spfs)
-pub fn diff(base: Option<String>, top: Option<String>) -> Result<Vec<tracking::Diff>> {
+pub fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tracking::Diff>> {
     let base_manifest = match base {
         None => {
             tracing::debug!("computing runtime manifest as base");

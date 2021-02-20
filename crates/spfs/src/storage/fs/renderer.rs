@@ -20,14 +20,18 @@ impl ManifestViewer for FSRepository {
     /// # Errors:
     /// - if any of the blobs in the manifest are not available in this repo.
     fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
-        let rendered_dirpath = self.renders.build_digest_path(&manifest.digest()?);
+        let renders = match &self.renders {
+            Some(renders) => renders,
+            None => return Err("repository has not been setup for rendering manifests".into()),
+        };
+        let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath) {
             tracing::trace!(path = ?rendered_dirpath, "render already completed");
             return Ok(rendered_dirpath);
         }
         tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
 
-        self.renders.ensure_base_dir(&rendered_dirpath)?;
+        renders.ensure_base_dir(&rendered_dirpath)?;
         makedirs_with_perms(&rendered_dirpath, 0o777)?;
 
         let walkable = manifest.unlock();
@@ -63,7 +67,11 @@ impl ManifestViewer for FSRepository {
 
     /// Remove the identified render from this storage.
     fn remove_rendered_manifest(&self, digest: &crate::encoding::Digest) -> Result<()> {
-        let rendered_dirpath = self.renders.build_digest_path(&digest);
+        let renders = match &self.renders {
+            Some(renders) => renders,
+            None => return Ok(()),
+        };
+        let rendered_dirpath = renders.build_digest_path(&digest);
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_dirpath = self.root().join(uuid);
         if let Err(err) = std::fs::rename(&rendered_dirpath, &working_dirpath) {

@@ -1,35 +1,33 @@
 use colored::*;
 
-use super::config::load_config;
 use crate::{encoding, storage, tracking, Result};
 
 /// Return a nicely formatted string representation of the given reference.
 pub fn format_digest<R: AsRef<str>>(
     reference: R,
-    repo: Option<Box<dyn storage::Repository>>,
+    repo: Option<&storage::RepositoryHandle>,
 ) -> Result<String> {
     let reference = reference.as_ref().to_string();
-    let repo = match repo {
-        Some(repo) => repo,
-        None => {
-            let config = load_config()?;
-            Box::new(config.get_repository()?)
+    let all = match repo {
+        Some(repo) => {
+            let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()) {
+                Ok(aliases) => aliases.into_iter().map(|r| r.to_string()).collect(),
+                Err(crate::Error::InvalidReference(_)) => Default::default(),
+                Err(err) => return Err(err),
+            };
+
+            let reference = if let Ok(digest) = encoding::parse_digest(&reference) {
+                repo.get_shortened_digest(&digest)
+            } else {
+                reference
+            };
+            let mut all = vec![reference];
+            all.append(&mut aliases);
+            all
         }
+        None => vec![reference],
     };
 
-    let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()) {
-        Ok(aliases) => aliases.into_iter().map(|r| r.to_string()).collect(),
-        Err(crate::Error::InvalidReference(_)) => Default::default(),
-        Err(err) => return Err(err),
-    };
-
-    let reference = if let Ok(digest) = encoding::parse_digest(&reference) {
-        repo.get_shortened_digest(&digest)
-    } else {
-        reference
-    };
-    let mut all = vec![reference];
-    all.append(&mut aliases);
     Ok(all.join(" -> "))
 }
 
@@ -78,9 +76,10 @@ pub fn format_changes(diffs: impl Iterator<Item = tracking::Diff>) -> String {
 }
 
 /// Return a human-readable file size in bytes.
-pub fn format_size(mut size: f64) -> String {
+pub fn format_size(mut size: u64) -> String {
+    let mut size = size as f64;
     for unit in &["B", "Ki", "Mi", "Gi", "Ti"] {
-        if size.abs() < 1024.0 {
+        if size < 1024.0 {
             return format!("{:3.1} {}", size, unit);
         }
         size /= 1024.0;
