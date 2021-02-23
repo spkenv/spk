@@ -2,7 +2,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use rstest::rstest;
 
-use super::{copy_manifest, was_render_completed};
+use super::was_render_completed;
 use crate::encoding::Encodable;
 use crate::graph::Manifest;
 use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage, Repository};
@@ -36,47 +36,6 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
         .expect("should successfully rener manfest");
     let actual = Manifest::from(&tracking::compute_manifest(rendered_path).unwrap());
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_copy_manfest(tmpdir: tempdir::TempDir) {
-    let _guard = init_logging();
-
-    let src_dir = tmpdir.path().join("source");
-    ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
-    ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
-    ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
-    std::os::unix::fs::symlink("file.txt", src_dir.join("dir2.0/file2.txt")).unwrap();
-    std::os::unix::fs::symlink(&src_dir, src_dir.join("dir2.0/abssrc")).unwrap();
-    std::fs::set_permissions(
-        src_dir.join("dir2.0"),
-        std::fs::Permissions::from_mode(0o555),
-    )
-    .unwrap();
-    ensure(src_dir.join("file.txt"), "rootdata");
-    std::fs::set_permissions(
-        src_dir.join("file.txt"),
-        std::fs::Permissions::from_mode(0o400),
-    )
-    .unwrap();
-
-    let expected = tracking::compute_manifest(&src_dir).unwrap();
-    let manifest = Manifest::from(&expected);
-
-    let dst_dir = tmpdir.path().join("dest");
-    std::fs::create_dir(&dst_dir).unwrap();
-    copy_manifest(&manifest, &src_dir, &dst_dir).expect("failed to copy manifest");
-
-    let actual = tracking::compute_manifest(&dst_dir).unwrap();
-
-    let diffs = tracking::compute_diff(&expected, &actual);
-    println!("DIFFS:");
-    println!("{}", crate::io::format_diffs(diffs.into_iter()));
-    assert_eq!(
-        manifest.digest().unwrap(),
-        Manifest::from(&actual).digest().unwrap()
-    );
 }
 
 #[rstest]

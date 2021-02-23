@@ -175,36 +175,3 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
         Ok(())
     }
 }
-
-/// Copy manifest contents from one directory to another.
-fn copy_manifest<P: AsRef<Path>>(manifest: &Manifest, src_root: P, dst_root: P) -> Result<()> {
-    let unlocked = manifest.unlock();
-    let entries: Vec<_> = unlocked.walk().collect();
-
-    for node in entries.iter() {
-        if node.entry.kind.is_mask() {
-            continue;
-        }
-        let src_path = node.path.to_path(&src_root);
-        let dst_path = node.path.to_path(&dst_root);
-        let meta = src_path.symlink_metadata()?;
-        if meta.file_type().is_symlink() {
-            let target = std::fs::read_link(&src_path)?;
-            std::os::unix::fs::symlink(&target, &dst_path)?;
-        } else if meta.is_dir() {
-            std::fs::create_dir_all(&dst_path)?;
-        } else {
-            std::fs::copy(&src_path, &dst_path)?;
-        }
-    }
-
-    for node in entries.iter().rev() {
-        if node.entry.kind.is_mask() {
-            continue;
-        }
-        let dst_path = node.path.to_path(&dst_root);
-        let perms = std::fs::Permissions::from_mode(node.entry.mode);
-        std::fs::set_permissions(dst_path, perms)?;
-    }
-    Ok(())
-}

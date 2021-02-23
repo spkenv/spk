@@ -152,6 +152,15 @@ impl Entry {
         (libc::S_IFMT & self.mode) == libc::S_IFREG
     }
 
+    pub fn iter_entries<'a>(&'a self) -> impl Iterator<Item = super::manifest::ManifestNode<'a>> {
+        self.entries
+            .iter()
+            .map(|(name, entry)| super::manifest::ManifestNode {
+                path: name.into(),
+                entry: entry,
+            })
+    }
+
     pub fn update(&mut self, other: &Self) {
         self.kind = other.kind;
         self.object = other.object;

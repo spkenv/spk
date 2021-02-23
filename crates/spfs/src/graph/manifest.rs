@@ -44,10 +44,13 @@ impl From<&tracking::Entry> for Manifest {
     fn from(source: &tracking::Entry) -> Self {
         let mut manifest = Self::default();
         let mut root = Tree::default();
-        for (name, entry) in source.entries.iter() {
-            let converted = match entry.kind {
+
+        let mut entries: Vec<_> = source.iter_entries().collect();
+        entries.sort_unstable();
+        for node in entries {
+            let converted = match node.entry.kind {
                 tracking::EntryKind::Tree => {
-                    let sub = Self::from(entry);
+                    let sub = Self::from(node.entry);
                     for (_, tree) in sub.trees {
                         manifest
                             .insert_tree(tree)
@@ -55,13 +58,13 @@ impl From<&tracking::Entry> for Manifest {
                     }
                     Entry {
                         object: sub.root,
-                        kind: entry.kind,
-                        mode: entry.mode,
-                        size: entry.size,
-                        name: name.clone(),
+                        kind: node.entry.kind,
+                        mode: node.entry.mode,
+                        size: node.entry.size,
+                        name: node.path.to_string(),
                     }
                 }
-                _ => Entry::from(name.clone(), &entry),
+                _ => Entry::from(node.path.to_string(), &node.entry),
             };
             root.entries.insert(converted);
         }
@@ -147,15 +150,8 @@ impl Manifest {
 
 impl Encodable for Manifest {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        let delta = self.trees.len() as i64 - self.tree_order.len() as i64;
-        if delta > 0 {
-            return Err("manifest is internally inconsistent (index < count)".into());
-        } else if delta < 0 {
-            return Err("manifest is internally inconsistent (index > count)".into());
-        }
-
         encoding::write_digest(&mut writer, &self.root)?;
-        encoding::write_uint(&mut writer, self.trees.len() as u64)?;
+        encoding::write_uint(&mut writer, self.tree_order.len() as u64)?;
         for digest in &self.tree_order {
             match self.trees.get(&digest) {
                 Some(tree) => tree.encode(writer)?,
