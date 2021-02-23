@@ -20,6 +20,31 @@ impl FSRepository {
     fn tags_root(&self) -> PathBuf {
         self.root().join("tags")
     }
+
+    fn push_raw_tag_without_lock(&self, tag: &tracking::Tag) -> Result<()> {
+        let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
+        let filepath = tag_spec.to_path(self.tags_root());
+
+        let mut buf = Vec::new();
+        tag.encode(&mut buf)?;
+        let size = buf.len();
+
+        crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
+
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(&filepath)?;
+        encoding::write_int(&mut file, size as i64)?;
+        std::io::copy(&mut buf.as_slice(), &mut file)?;
+
+        let perms = std::fs::Permissions::from_mode(0o777);
+        if let Err(err) = std::fs::set_permissions(&filepath, perms) {
+            tracing::warn!(err = ?err, filepath = ?filepath,"Failed to set tag permissions");
+        }
+        Ok(())
+    }
 }
 
 impl TagStorage for FSRepository {
@@ -109,34 +134,22 @@ impl TagStorage for FSRepository {
 
     fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
-
-        let mut buf = Vec::new();
-        tag.encode(&mut buf)?;
-        let size = buf.len();
-
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
-        let _lock = lock_tag(&filepath)?;
-
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(&filepath)?;
-        encoding::write_int(&mut file, size as i64)?;
-        std::io::copy(&mut buf.as_slice(), &mut file)?;
-
-        let perms = std::fs::Permissions::from_mode(0o777);
-        if let Err(err) = std::fs::set_permissions(&filepath, perms) {
-            tracing::warn!(err = ?err, filepath = ?filepath,"Failed to set tag permissions");
-        }
-        Ok(())
+        let _lock = TagLock::new(&filepath)?;
+        self.push_raw_tag_without_lock(tag)
     }
 
     fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
-        let lock = lock_tag(&filepath)?;
+        let lock = match TagLock::new(&filepath) {
+            Ok(lock) => lock,
+            Err(err) => match err.raw_os_error() {
+                Some(libc::ENOENT) | Some(libc::ENOTDIR) => return Ok(()),
+                _ => return Err(err),
+            },
+        };
         match std::fs::remove_file(&filepath) {
             Ok(_) => (),
             Err(err) => {
@@ -160,6 +173,7 @@ impl TagStorage for FSRepository {
                     }
                     Err(err) => match err.raw_os_error() {
                         Some(libc::ENOTEMPTY) => return Ok(()),
+                        Some(libc::ENOENT) => return Ok(()),
                         _ => return Err(err.into()),
                     },
                 }
@@ -171,7 +185,7 @@ impl TagStorage for FSRepository {
     fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
-        let _lock = lock_tag(&filepath)?;
+        let _lock = TagLock::new(&filepath)?;
         let tags: Vec<_> = self
             .read_tag(&tag_spec)?
             .filter(|version| version != tag)
@@ -180,7 +194,10 @@ impl TagStorage for FSRepository {
         std::fs::rename(&filepath, &backup_path)?;
         let res: Result<Vec<_>> = tags
             .iter()
-            .map(|version| self.push_raw_tag(version))
+            .map(|version| {
+                // we are already holding the lock for this operation
+                self.push_raw_tag_without_lock(version)
+            })
             .collect();
         if let Err(err) = res {
             std::fs::rename(&backup_path, &filepath)?;
@@ -303,25 +320,38 @@ impl TagExt for tracking::TagSpec {
     }
 }
 
-fn lock_tag<P: AsRef<Path>>(tag_file: P) -> Result<TagLockGuard> {
-    let mut lock_file = tag_file.as_ref().to_path_buf();
-    lock_file.set_extension("tag.lock");
-    match std::fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&lock_file)
-    {
-        Ok(_file) => Ok(TagLockGuard(lock_file)),
-        Err(err) => match err.raw_os_error() {
-            Some(libc::EEXIST) => Err("Tag already locked, cannot edit".into()),
-            _ => Err(err.into()),
-        },
+struct TagLock(PathBuf);
+
+impl TagLock {
+    pub fn new<P: AsRef<Path>>(tag_file: P) -> Result<TagLock> {
+        let mut lock_file = tag_file.as_ref().to_path_buf();
+        lock_file.set_extension("tag.lock");
+
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&lock_file)
+            {
+                Ok(_file) => {
+                    break Ok(TagLock(lock_file));
+                }
+                Err(err) => {
+                    if std::time::Instant::now() < timeout {
+                        continue;
+                    }
+                    break match err.raw_os_error() {
+                        Some(libc::EEXIST) => Err("Tag already locked, cannot edit".into()),
+                        _ => Err(err.into()),
+                    };
+                }
+            }
+        }
     }
 }
 
-struct TagLockGuard(PathBuf);
-
-impl Drop for TagLockGuard {
+impl Drop for TagLock {
     fn drop(&mut self) {
         if let Err(err) = std::fs::remove_file(&self.0) {
             tracing::warn!(err = ?err, "Failed to remove tag lock file");

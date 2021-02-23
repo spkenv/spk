@@ -51,7 +51,7 @@ pub fn get_prunable_tags(
     let mut to_prune = HashSet::new();
     for res in tags.iter_tag_streams() {
         let (spec, stream) = res?;
-        tracing::trace!("searching for history to prune in {}", spec.to_string());
+        tracing::debug!("searching for history to prune in {}", spec.to_string());
         let mut version = 0;
         for tag in stream {
             let versioned_spec = tracking::build_tag_spec(spec.org(), spec.name(), version)?;
@@ -71,6 +71,7 @@ pub fn prune_tags(
 ) -> Result<HashSet<tracking::Tag>> {
     let to_prune = get_prunable_tags(&repo, &params)?;
     for tag in to_prune.iter() {
+        tracing::trace!(tag = ?tag, "removing tag");
         repo.remove_tag(tag)?;
     }
     Ok(to_prune)

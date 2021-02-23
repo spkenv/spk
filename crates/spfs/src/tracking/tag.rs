@@ -41,6 +41,10 @@ impl Tag {
         })
     }
 
+    pub fn to_spec(&self, version: u64) -> TagSpec {
+        TagSpec(self.org.clone(), self.name.clone(), version)
+    }
+
     pub fn org(&self) -> Option<String> {
         self.org.clone()
     }

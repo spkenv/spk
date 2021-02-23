@@ -10,7 +10,7 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_prunable_tags_age(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let (_td, mut tmprepo) = tmprepo;
     let mut old = tracking::Tag::new(
         Some("testing".to_string()),
         "prune",
@@ -58,7 +58,7 @@ async fn test_prunable_tags_age(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_prunable_tags_version(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("testing/versioned").unwrap();
     let tag5 = tmprepo
         .push_tag(&tag, &encoding::EMPTY_DIGEST.into())
@@ -117,7 +117,8 @@ async fn test_prunable_tags_version(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_prune_tags(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let _guard = init_logging();
+    let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();
 
     fn reset(tmprepo: &mut storage::RepositoryHandle) -> HashMap<i32, tracking::Tag> {
@@ -143,13 +144,13 @@ async fn test_prune_tags(tmprepo: TempRepo) {
     prune_tags(
         &mut tmprepo,
         &PruneParameters {
-            prune_if_older_than: Some(Utc.ymd(2024, 1, 1).and_hms(0, 0, 0)),
+            prune_if_older_than: Some(Utc.ymd(2025, 1, 1).and_hms(0, 0, 0)),
             ..Default::default()
         },
     )
     .unwrap();
     for tag in tmprepo.read_tag(&tag).unwrap() {
-        assert!(Some(&tag) != tags.get(&2025));
+        assert_eq!(&tag, tags.get(&2025).unwrap(), "should remove all but 2025");
     }
 
     let tags = reset(&mut tmprepo);
@@ -162,16 +163,28 @@ async fn test_prune_tags(tmprepo: TempRepo) {
     )
     .unwrap();
     for tag in tmprepo.read_tag(&tag).unwrap() {
-        assert!(Some(&tag) != tags.get(&2025));
-        assert!(Some(&tag) != tags.get(&2024));
-        assert!(Some(&tag) != tags.get(&2023));
+        assert_ne!(
+            &tag,
+            tags.get(&2020).unwrap(),
+            "should remove 20, 21, and 22"
+        );
+        assert_ne!(
+            &tag,
+            tags.get(&2021).unwrap(),
+            "should remove 20, 21, and 22"
+        );
+        assert_ne!(
+            &tag,
+            tags.get(&2022).unwrap(),
+            "should remove 20, 21, and 22"
+        );
     }
 
     let tags = reset(&mut tmprepo);
     prune_tags(
         &mut tmprepo,
         &PruneParameters {
-            prune_if_version_more_than: None,
+            prune_if_older_than: Some(Utc.ymd(2030, 1, 1).and_hms(0, 0, 0)),
             ..Default::default()
         },
     )

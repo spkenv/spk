@@ -15,7 +15,7 @@ fixtures!();
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
 #[tokio::test]
 async fn test_find_aliases(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let (_td, mut tmprepo) = tmprepo;
     tmprepo
         .find_aliases("not-existant")
         .expect_err("should error when ref is not found");

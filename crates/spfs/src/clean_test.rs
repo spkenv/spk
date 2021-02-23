@@ -15,7 +15,7 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_get_attached_objects(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let (_td, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
     let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
@@ -38,7 +38,7 @@ async fn test_get_attached_objects(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_get_attached_payloads(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let (_td, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
     let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
     let mut expected = HashSet::new();
@@ -153,7 +153,7 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
-    let (_, mut tmprepo) = tmprepo;
+    let (_td, mut tmprepo) = tmprepo;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
