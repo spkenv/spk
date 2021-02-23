@@ -13,6 +13,9 @@ mod manifest_test;
 #[derive(Debug, Eq, PartialEq)]
 pub struct Manifest {
     root: encoding::Digest,
+    // because manifests are encoded - the ordering of trees are important
+    // to maintain in order to create consistent hashing
+    tree_order: Vec<encoding::Digest>,
     trees: BTreeMap<encoding::Digest, Tree>,
 }
 
@@ -21,11 +24,12 @@ impl Default for Manifest {
         let mut manifest = Manifest {
             root: encoding::NULL_DIGEST.into(),
             trees: Default::default(),
+            tree_order: Default::default(),
         };
         // add the default empty tree to make this manifest internally coherent
         manifest
-            .trees
-            .insert(encoding::NULL_DIGEST.into(), Tree::default());
+            .insert_tree(Tree::default())
+            .expect("should never fail on first entry");
         manifest
     }
 }
@@ -43,8 +47,12 @@ impl From<&tracking::Entry> for Manifest {
         for (name, entry) in source.entries.iter() {
             let converted = match entry.kind {
                 tracking::EntryKind::Tree => {
-                    let mut sub = Self::from(entry);
-                    manifest.trees.append(&mut sub.trees);
+                    let sub = Self::from(entry);
+                    for (_, tree) in sub.trees {
+                        manifest
+                            .insert_tree(tree)
+                            .expect("should not fail to insert tree entry");
+                    }
                     Entry {
                         object: sub.root,
                         kind: entry.kind,
@@ -57,8 +65,10 @@ impl From<&tracking::Entry> for Manifest {
             };
             root.entries.insert(converted);
         }
-        manifest.root = root.digest().unwrap();
-        manifest.trees.insert(manifest.root, root);
+        manifest.root = root.digest().expect("failed to hash root entry");
+        manifest
+            .insert_tree(root)
+            .expect("failed to insert final root entry");
         manifest
     }
 }
@@ -72,16 +82,28 @@ impl Manifest {
     }
 
     /// Return the digests of objects that this manifest refers to.
-    pub fn child_objects<'a>(&'a self) -> Vec<&'a encoding::Digest> {
+    pub fn child_objects(&self) -> Vec<encoding::Digest> {
         let mut children = BTreeSet::new();
         for tree in self.trees.values() {
             for entry in tree.entries.iter() {
                 if let tracking::EntryKind::Blob = entry.kind {
-                    children.insert(&entry.object);
+                    children.insert(entry.object.clone());
                 }
             }
         }
         return children.into_iter().collect();
+    }
+
+    /// Add a tree to be tracked in this manifest, returning
+    /// it if the same tree already exists.
+    fn insert_tree(&mut self, tree: Tree) -> Result<Option<Tree>> {
+        let digest = tree.digest()?;
+        if let Some(tree) = self.trees.insert(digest, tree) {
+            Ok(Some(tree))
+        } else {
+            self.tree_order.push(digest);
+            Ok(None)
+        }
     }
 
     /// Iterate all of the entries in this manifest.
@@ -125,10 +147,22 @@ impl Manifest {
 
 impl Encodable for Manifest {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        let delta = self.trees.len() as i64 - self.tree_order.len() as i64;
+        if delta > 0 {
+            return Err("manifest is internally inconsistent (index < count)".into());
+        } else if delta < 0 {
+            return Err("manifest is internally inconsistent (index > count)".into());
+        }
+
         encoding::write_digest(&mut writer, &self.root)?;
         encoding::write_uint(&mut writer, self.trees.len() as u64)?;
-        for tree in self.trees.values() {
-            tree.encode(writer)?;
+        for digest in &self.tree_order {
+            match self.trees.get(&digest) {
+                Some(tree) => tree.encode(writer)?,
+                None => {
+                    return Err("manifest is internally inconsistent (missing indexed tree)".into())
+                }
+            }
         }
         Ok(())
     }
@@ -141,7 +175,7 @@ impl Decodable for Manifest {
         let num_trees = encoding::read_uint(&mut reader)?;
         for _ in 0..num_trees {
             let tree = Tree::decode(reader)?;
-            manifest.trees.insert(tree.digest().unwrap(), tree);
+            manifest.insert_tree(tree)?;
         }
         Ok(manifest)
     }

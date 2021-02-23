@@ -292,8 +292,6 @@ impl<'h> ManifestBuilder<'h> {
         entry.mode = stat_result.mode();
         entry.size = stat_result.size();
 
-        tracing::error!("read entry {:?} {:#06o}", &path.as_ref(), entry.mode);
-
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
             let link_target = std::fs::read_link(&path)?;

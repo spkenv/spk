@@ -62,6 +62,7 @@ async fn test_get_attached_payloads(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
+    let _guard = init_logging();
     let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
@@ -89,13 +90,15 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
         !get_all_unattached_objects(&tmprepo)
             .unwrap()
             .contains(&blob_digest),
-        "blob in manifest in tag should be attached"
+        "blob in manifest in tag should not be unattached"
     );
 }
 
 #[rstest]
 #[tokio::test]
 async fn test_clean_untagged_objects(tmprepo: TempRepo) {
+    let _guard = init_logging();
+
     let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir_1 = tmpdir.path().join("data");
     ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
@@ -121,17 +124,24 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
         .expect("failed to clean objects");
 
     for node in manifest1.walk() {
-        if node.entry.kind.is_blob() {
+        if !node.entry.kind.is_blob() {
             continue;
         }
-        if let Err(Error::UnknownObject(_)) = tmprepo.open_payload(&node.entry.object) {
+        let res = tmprepo.open_payload(&node.entry.object);
+        if let Err(Error::UnknownObject(_)) = res {
             continue;
         }
-        panic!("expected object to be cleaned but it was not");
+        if let Err(err) = res {
+            println!("{:?}", err);
+        }
+        panic!(
+            "expected object to be cleaned but it was not: {:?}",
+            node.entry.object
+        );
     }
 
     for node in manifest2.walk() {
-        if node.entry.kind.is_blob() {
+        if !node.entry.kind.is_blob() {
             continue;
         }
         tmprepo
@@ -223,14 +233,4 @@ fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
         all_files.push(entry.path().to_owned().to_string_lossy().to_string())
     }
     return all_files;
-}
-
-fn ensure(path: std::path::PathBuf, data: &str) {
-    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(path)
-        .expect("failed to create file");
-    std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
 }

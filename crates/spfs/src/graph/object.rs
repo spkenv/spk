@@ -4,7 +4,6 @@ use super::Manifest;
 use super::Platform;
 use super::Tree;
 use crate::encoding;
-use crate::encoding::Encodable;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Object {
@@ -21,7 +20,7 @@ impl Object {
         match self {
             Self::Platform(platform) => platform.child_objects(),
             Self::Layer(layer) => layer.child_objects(),
-            Self::Manifest(manifest) => vec![manifest.root().digest().unwrap()],
+            Self::Manifest(manifest) => manifest.child_objects(),
             Self::Tree(tree) => tree.entries.iter().map(|e| e.object.clone()).collect(),
             Self::Blob(_blob) => Vec::new(),
             Self::Mask => Vec::new(),

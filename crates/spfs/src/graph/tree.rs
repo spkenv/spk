@@ -84,7 +84,9 @@ impl Eq for Tree {}
 impl encoding::Encodable for Tree {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_uint(&mut writer, self.len() as u64)?;
-        for entry in self.entries.iter() {
+        let mut entries: Vec<_> = self.entries.iter().collect();
+        entries.sort_unstable();
+        for entry in entries.into_iter() {
             entry.encode(writer)?;
         }
         Ok(())

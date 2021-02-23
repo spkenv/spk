@@ -45,6 +45,9 @@ pub async fn purge_objects(
             let fut = async move {
                 let res = clean_object(repo.address(), &digest).await;
                 current_count.fetch_add(1, Ordering::Relaxed);
+                if let Ok(_) = res {
+                    tracing::trace!(?digest, "successfully removed object");
+                }
                 res
             }
             .boxed_local();
@@ -57,6 +60,9 @@ pub async fn purge_objects(
             let fut = async move {
                 let res = clean_payload(repo.address(), &digest).await;
                 current_count.fetch_add(1, Ordering::Relaxed);
+                if let Ok(_) = res {
+                    tracing::trace!(?digest, "successfully removed payload");
+                }
                 res
             }
             .boxed_local();
@@ -67,6 +73,9 @@ pub async fn purge_objects(
             let fut = async move {
                 let res = clean_render(repo.address(), &digest).await;
                 current_count.fetch_add(1, Ordering::Relaxed);
+                if let Ok(_) = res {
+                    tracing::trace!(?digest, "successfully removed render");
+                }
                 res
             }
             .boxed_local();
@@ -177,17 +186,28 @@ pub fn get_all_unattached_payloads(
 pub fn get_all_attached_objects(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
-    let mut tag_targets = HashSet::new();
+    let mut to_process = Vec::new();
     for item in repo.iter_tag_streams() {
         let (_, stream) = item?;
         for tag in stream {
-            tag_targets.insert(tag.target);
+            to_process.push(tag.target);
         }
     }
 
     let mut reachable_objects = HashSet::new();
-    for target in tag_targets {
-        reachable_objects.extend(repo.read_object(&target)?.child_objects());
+    loop {
+        match to_process.pop() {
+            None => break,
+            Some(digest) => {
+                if reachable_objects.contains(&digest) {
+                    continue;
+                }
+                tracing::debug!(digest = ?digest, "walking...");
+                let obj = repo.read_object(&digest)?;
+                to_process.extend(obj.child_objects());
+                reachable_objects.insert(digest.clone());
+            }
+        }
     }
 
     Ok(reachable_objects)
