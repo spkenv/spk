@@ -116,12 +116,12 @@ async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
     let upper_dir = tmpdir.path().join("upper");
     runtime.upper_dir = upper_dir.clone();
 
-    ensure(upper_dir.join("file"));
-    ensure(upper_dir.join("dir/file"));
-    ensure(upper_dir.join("dir/dir/dir/file"));
-    ensure(upper_dir.join("dir/dir/dir/file2"));
-    ensure(upper_dir.join("dir/dir/dir1/file"));
-    ensure(upper_dir.join("dir/dir2/dir/file.other"));
+    ensure(upper_dir.join("file"), "file01");
+    ensure(upper_dir.join("dir/file"), "file02");
+    ensure(upper_dir.join("dir/dir/dir/file"), "file03");
+    ensure(upper_dir.join("dir/dir/dir/file2"), "file04");
+    ensure(upper_dir.join("dir/dir/dir1/file"), "file05");
+    ensure(upper_dir.join("dir/dir2/dir/file.other"), "other");
 
     runtime
         .reset(&["file.*"])
@@ -149,7 +149,7 @@ async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
 #[tokio::test]
 async fn test_makedirs_dont_change_existing(tmpdir: tempdir::TempDir) {
     let chkdir = tmpdir.path().join("my_dir");
-    ensure(chkdir.join("file"));
+    ensure(chkdir.join("file"), "data");
     std::fs::set_permissions(&chkdir, std::fs::Permissions::from_mode(0o755)).unwrap();
     let original = std::fs::metadata(&chkdir).unwrap().permissions().mode();
     makedirs_with_perms(chkdir.join("new"), 0o777).expect("makedirs should not fail");
@@ -168,13 +168,4 @@ fn listdir(path: std::path::PathBuf) -> Vec<String> {
                 .to_string()
         })
         .collect()
-}
-
-fn ensure(path: std::path::PathBuf) {
-    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
-    std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(path)
-        .expect("failed to create file");
 }

@@ -140,13 +140,3 @@ fn config(tmpdir: tempdir::TempDir) -> Config {
     conf.storage.root = repo_path;
     conf
 }
-
-fn ensure(path: std::path::PathBuf, data: &str) {
-    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(path)
-        .expect("failed to create file");
-    std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
-}

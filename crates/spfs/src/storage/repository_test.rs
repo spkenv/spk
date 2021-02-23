@@ -102,13 +102,3 @@ async fn test_commit_dir(tmprepo: TempRepo) {
     let manifest2 = Manifest::from(&tmprepo.commit_dir(&src_dir).unwrap());
     assert_eq!(manifest, manifest2);
 }
-
-fn ensure(path: std::path::PathBuf, data: &str) {
-    std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(path)
-        .expect("failed to create file");
-    std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");
-}
