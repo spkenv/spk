@@ -3,8 +3,6 @@ use std::process::Command;
 
 use rstest::rstest;
 
-use crate::resolve::which;
-
 fixtures!();
 
 #[rstest]
@@ -16,7 +14,7 @@ async fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::p
     let top_tag = "test/file_removal_top";
     let lines: Vec<String> = vec![
         format!(
-            "{:?} run - bash -c 'echo hello > {} && {:?} commit layer -t {}'",
+            "{:?} run - -- bash -c 'echo hello > {} && {:?} commit layer -t {}'",
             &spfs_binary, filename, &spfs_binary, base_tag
         ),
         format!(
@@ -52,7 +50,7 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::pa
     let top_tag = "test/dir_removal_top";
     let lines: Vec<String> = vec![
         format!(
-            "{:?} run - bash -c 'mkdir -p {} && {:?} commit layer -t {}'",
+            "{:?} run - -- bash -c 'mkdir -p {} && {:?} commit layer -t {}'",
             &spfs_binary, dirpath, &spfs_binary, base_tag
         ),
         format!(
@@ -90,5 +88,5 @@ async fn test_runtime_recursion(spfs_binary: std::path::PathBuf) {
         &spfs_binary, &spfs_binary
     ));
     let out = cmd.output().unwrap();
-    assert_eq!(out.stdout, "hello\n".as_bytes());
+    assert!(String::from_utf8_lossy(out.stdout.as_slice()).ends_with("hello\n"));
 }

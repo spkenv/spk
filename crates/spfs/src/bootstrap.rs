@@ -23,6 +23,7 @@ pub fn build_command_for_runtime(
                 spfs_exe.as_os_str().to_owned(),
                 "init-runtime".into(),
                 runtime.root().into(),
+                "--".into(),
                 command,
             ];
             spfs_args.append(args);
@@ -130,7 +131,7 @@ fn build_spfs_enter_command(
             continue;
         }
         args.push("-m".into());
-        args.push(node.path.to_path("/").into());
+        args.push(node.path.to_path("").into());
     }
 
     args.push("--".into());
