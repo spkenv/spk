@@ -47,7 +47,7 @@ impl Encodable for Platform {
 
 impl encoding::Decodable for Platform {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        let num_layers = encoding::read_int(&mut reader)?;
+        let num_layers = encoding::read_uint(&mut reader)?;
         let mut platform = Self {
             stack: Vec::with_capacity(num_layers as usize),
         };

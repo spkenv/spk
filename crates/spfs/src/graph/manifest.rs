@@ -12,7 +12,7 @@ mod manifest_test;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Manifest {
-    root: encoding::Digest,
+    root: Tree,
     // because manifests are encoded - the ordering of trees are important
     // to maintain in order to create consistent hashing
     tree_order: Vec<encoding::Digest>,
@@ -21,16 +21,11 @@ pub struct Manifest {
 
 impl Default for Manifest {
     fn default() -> Self {
-        let mut manifest = Manifest {
-            root: encoding::NULL_DIGEST.into(),
+        Manifest {
+            root: Default::default(),
             trees: Default::default(),
             tree_order: Default::default(),
-        };
-        // add the default empty tree to make this manifest internally coherent
-        manifest
-            .insert_tree(Tree::default())
-            .expect("should never fail on first entry");
-        manifest
+        }
     }
 }
 
@@ -57,7 +52,7 @@ impl From<&tracking::Entry> for Manifest {
                             .expect("should not fail to insert tree entry");
                     }
                     Entry {
-                        object: sub.root,
+                        object: sub.root.digest().unwrap(),
                         kind: node.entry.kind,
                         mode: node.entry.mode,
                         size: node.entry.size,
@@ -68,10 +63,7 @@ impl From<&tracking::Entry> for Manifest {
             };
             root.entries.insert(converted);
         }
-        manifest.root = root.digest().expect("failed to hash root entry");
-        manifest
-            .insert_tree(root)
-            .expect("failed to insert final root entry");
+        manifest.root = root;
         manifest
     }
 }
@@ -79,9 +71,7 @@ impl From<&tracking::Entry> for Manifest {
 impl Manifest {
     /// Return the root tree object of this manifest.
     pub fn root<'a>(&'a self) -> &'a Tree {
-        self.trees
-            .get(&self.root)
-            .expect("manifest is internally inconsistent")
+        &self.root
     }
 
     /// Return the digests of objects that this manifest refers to.
@@ -133,7 +123,10 @@ impl Manifest {
                 if let tracking::EntryKind::Tree = entry.kind {
                     iter_tree(
                         source,
-                        source.trees.get(&entry.object).unwrap(),
+                        source
+                            .trees
+                            .get(&entry.object)
+                            .expect("manifest is internally inconsistent (missing child tree)"),
                         &mut new_entry,
                     )
                 } else {
@@ -143,14 +136,14 @@ impl Manifest {
             }
         }
 
-        iter_tree(&self, &self.root(), &mut root);
+        iter_tree(&self, &self.root, &mut root);
         tracking::Manifest::new(root)
     }
 }
 
 impl Encodable for Manifest {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, &self.root)?;
+        self.root().encode(&mut writer)?;
         encoding::write_uint(&mut writer, self.tree_order.len() as u64)?;
         for digest in &self.tree_order {
             match self.trees.get(&digest) {
@@ -167,9 +160,9 @@ impl Encodable for Manifest {
 impl Decodable for Manifest {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let mut manifest = Manifest::default();
-        manifest.root = encoding::read_digest(&mut reader)?;
+        manifest.root = Tree::decode(&mut reader)?;
         let num_trees = encoding::read_uint(&mut reader)?;
-        for _ in 0..num_trees {
+        for i in 0..num_trees {
             let tree = Tree::decode(reader)?;
             manifest.insert_tree(tree)?;
         }

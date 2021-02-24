@@ -72,17 +72,18 @@ fn pretty_print_ref(
                 _ => usize::MAX,
             };
             let mut count = 0;
-            for node in obj.unlock().walk() {
+            for node in obj.unlock().walk_abs("/spfs") {
                 println!(
-                    " {:06o} {} {:?} {}",
+                    " {:06o} {} {} {}",
                     node.entry.mode,
                     node.entry.kind,
-                    node.path,
-                    spfs::io::format_digest(node.entry.object.to_string(), Some(&repo))?
+                    &node.entry.object.to_string()[..10],
+                    node.path.to_string(),
                 );
                 count += 1;
                 if count >= max_entries {
                     println!("{}", "   ...[truncated] use -vv for more".dimmed());
+                    break;
                 }
             }
         }

@@ -281,7 +281,7 @@ impl<R: std::io::Read + std::io::Seek> Iterator for TagIter<R> {
     type Item = Result<tracking::Tag>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let _size = match encoding::read_int(&mut self.0) {
+        let _size = match encoding::read_uint(&mut self.0) {
             Ok(size) => size,
             Err(err) => match err.raw_os_error() {
                 Some(libc::EOF) => return None,

@@ -5,6 +5,10 @@ use crate::encoding;
 use crate::encoding::Encodable;
 use crate::Result;
 
+#[cfg(test)]
+#[path = "./tree_test.rs"]
+mod tree_test;
+
 /// Tree is an ordered collection of entries.
 ///
 /// Only one entry of a given name is allowed at a time.
@@ -85,7 +89,9 @@ impl encoding::Encodable for Tree {
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_uint(&mut writer, self.len() as u64)?;
         let mut entries: Vec<_> = self.entries.iter().collect();
-        entries.sort_unstable();
+        // this is not the default sort mode for entries but
+        // matches the existing compatible encoding order
+        entries.sort_unstable_by_key(|e| &e.name);
         for entry in entries.into_iter() {
             entry.encode(writer)?;
         }
@@ -98,7 +104,7 @@ impl encoding::Decodable for Tree {
         let mut tree = Tree {
             entries: Default::default(),
         };
-        let entry_count = encoding::read_int(&mut reader)?;
+        let entry_count = encoding::read_uint(&mut reader)?;
         for _ in 0..entry_count {
             tree.entries.insert(Entry::decode(reader)?);
         }

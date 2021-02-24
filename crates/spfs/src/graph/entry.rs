@@ -2,6 +2,10 @@ use crate::encoding;
 use crate::tracking;
 use crate::Result;
 
+#[cfg(test)]
+#[path = "./entry_test.rs"]
+mod entry_test;
+
 #[derive(Eq, PartialEq)]
 pub struct Entry {
     pub object: encoding::Digest,

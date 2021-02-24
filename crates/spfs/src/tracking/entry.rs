@@ -18,7 +18,7 @@ impl std::fmt::Display for EntryKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tree => f.write_str("tree"),
-            Self::Blob => f.write_str("blob"),
+            Self::Blob => f.write_str("file"),
             Self::Mask => f.write_str("mask"),
         }
     }
@@ -69,7 +69,7 @@ impl FromStr for EntryKind {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "tree" => Ok(Self::Tree),
-            "blob" => Ok(Self::Blob),
+            "file" => Ok(Self::Blob),
             "mask" => Ok(Self::Mask),
             kind => Err(format!("invalid entry kind: {}", kind).into()),
         }

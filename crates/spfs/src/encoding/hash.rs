@@ -114,6 +114,14 @@ impl std::fmt::Debug for Digest {
     }
 }
 
+impl std::str::FromStr for Digest {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Digest::parse(s)
+    }
+}
+
 impl AsRef<[u8]> for Digest {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
