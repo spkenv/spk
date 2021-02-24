@@ -127,7 +127,7 @@ fn build_spfs_enter_command(
 
     tracing::debug!("finding files that should be masked");
     for node in manifest.walk_abs("/spfs") {
-        if node.entry.kind.is_mask() {
+        if !node.entry.kind.is_mask() {
             continue;
         }
         args.push("-m".into());

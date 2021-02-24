@@ -18,6 +18,11 @@ macro_rules! fixtures {
 
         #[fixture]
         fn spfs_binary() -> std::path::PathBuf {
+            let mut command = std::process::Command::new(std::env::var("CARGO").unwrap());
+            command.arg("build");
+            command
+                .status()
+                .expect("failed to build binary to test with");
             let mut path = std::env::current_exe().expect("test must have current binary path");
             loop {
                 {

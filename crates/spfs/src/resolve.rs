@@ -46,6 +46,7 @@ pub fn compute_object_manifest(
             }
             Ok(manifest)
         }
+        graph::Object::Manifest(obj) => Ok(obj.unlock()),
         obj => Err(format!("Resolve: Unhandled object of type {:?}", obj.kind()).into()),
     }
 }
