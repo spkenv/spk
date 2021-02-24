@@ -71,7 +71,6 @@ pub async fn sync_ref<R: AsRef<str>>(
     let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
         match src.resolve_tag(&tag) {
             Ok(tag) => Some(tag),
-            Err(Error::UnknownObject(_)) => None,
             Err(err) => return Err(err),
         }
     } else {
@@ -81,8 +80,10 @@ pub async fn sync_ref<R: AsRef<str>>(
     let obj = src.read_ref(reference.as_ref())?;
     sync_object(&obj, src, dest).await?;
     if let Some(tag) = tag {
+        tracing::debug!(tag = ?tag.path(), "syncing tag");
         dest.push_raw_tag(&tag)?;
     }
+    tracing::info!(target = ?reference.as_ref(), "sync complete");
     Ok(obj)
 }
 
@@ -192,7 +193,7 @@ pub async fn sync_layer(
 
     if errors.len() > 0 {
         return Err(format!(
-            "{:?}, and {} more errors during clean",
+            "{:?}, and {} more errors during sync",
             errors[0],
             errors.len() - 1
         )
@@ -209,19 +210,12 @@ async fn sync_entry<S: AsRef<str>>(
     src_address: S,
     dest_address: S,
 ) -> Result<()> {
-    let src = storage::open_repository(src_address)?;
-    let dest = storage::open_repository(dest_address)?;
-    sync_entry_local(entry, src.to_repo(), dest.to_repo()).await
-}
-
-async fn sync_entry_local(
-    entry: &graph::Entry,
-    src: Box<dyn storage::Repository>,
-    mut dest: Box<dyn storage::Repository>,
-) -> Result<()> {
-    if entry.kind.is_blob() {
+    if !entry.kind.is_blob() {
         return Ok(());
     }
+
+    let src = storage::open_repository(src_address)?;
+    let mut dest = storage::open_repository(dest_address)?;
 
     if !dest.has_object(&entry.object) {
         let object = src.read_object(&entry.object)?;

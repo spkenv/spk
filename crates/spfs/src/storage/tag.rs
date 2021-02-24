@@ -70,6 +70,7 @@ pub trait TagStorage {
             Some(parent) => {
                 // do not push redundant/unchanged head tag
                 if &parent.target == target {
+                    tracing::debug!("skipping tag that is already set");
                     return Ok(parent);
                 }
                 parent.digest()?

@@ -11,6 +11,7 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_push_ref_unknown() {
+    let _guard = init_logging();
     if let Err(Error::UnknownReference(_)) = push_ref("--test-unknown--", None).await {
         // ok
     } else {
@@ -28,14 +29,16 @@ async fn test_push_ref_unknown() {
 
 #[rstest]
 #[tokio::test]
-async fn test_push_ref(config: Config, tmpdir: tempdir::TempDir) {
+async fn test_push_ref(config: (tempdir::TempDir, Config)) {
+    let _guard = init_logging();
+    let (tmpdir, config) = config;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
     let mut local: RepositoryHandle = config.get_repository().unwrap().into();
-    let remote = config.get_remote("origin").unwrap();
+    let mut remote = config.get_remote("origin").unwrap();
     let manifest = local.commit_dir(src_dir.as_path()).unwrap();
     let layer = local
         .create_layer(&graph::Manifest::from(&manifest))
@@ -43,17 +46,20 @@ async fn test_push_ref(config: Config, tmpdir: tempdir::TempDir) {
     let tag = tracking::TagSpec::parse("testing").unwrap();
     local.push_tag(&tag, &layer.digest().unwrap()).unwrap();
 
-    push_ref(tag.to_string(), None).await.unwrap();
+    sync_ref(tag.to_string(), &local, &mut remote)
+        .await
+        .unwrap();
 
     assert!(remote.read_ref("testing").is_ok());
     assert!(remote.has_layer(&layer.digest().unwrap()));
 
-    assert!(push_ref(tag.to_string(), None).await.is_ok());
+    assert!(sync_ref(tag.to_string(), &local, &mut remote).await.is_ok());
 }
 
 #[rstest]
 #[tokio::test]
 async fn test_sync_ref(tmpdir: tempdir::TempDir) {
+    let _guard = init_logging();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
@@ -97,6 +103,7 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
+    let _guard = init_logging();
     let dir = tmpdir.path();
     let src_dir = dir.join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
@@ -134,9 +141,18 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
 }
 
 #[fixture]
-fn config(tmpdir: tempdir::TempDir) -> Config {
+fn config(tmpdir: tempdir::TempDir) -> (tempdir::TempDir, Config) {
     let repo_path = tmpdir.path().join("repo");
+    crate::storage::fs::FSRepository::create(&repo_path).expect("failed to make repo for test");
+    let origin_path = tmpdir.path().join("origin");
+    crate::storage::fs::FSRepository::create(&origin_path).expect("failed to make repo for test");
     let mut conf = Config::default();
+    conf.remote.insert(
+        "origin".to_string(),
+        crate::config::Remote {
+            address: url::Url::from_file_path(&origin_path).unwrap(),
+        },
+    );
     conf.storage.root = repo_path;
-    conf
+    (tmpdir, conf)
 }

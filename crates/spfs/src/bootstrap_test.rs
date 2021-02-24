@@ -18,6 +18,7 @@ async fn test_shell_initialization_startup_scripts(
     startup_cmd: &str,
     tmpdir: tempdir::TempDir,
 ) {
+    let _guard = init_logging();
     let shell_path = match which(shell) {
         Some(path) => path,
         None => {
@@ -30,11 +31,12 @@ async fn test_shell_initialization_startup_scripts(
     let rt = storage.create_runtime().unwrap();
 
     std::env::set_var("SPFS_RUNTIME", rt.root());
+    std::env::set_var("SPFS_DEBUG", "1");
     std::env::set_var("SHELL", shell_path);
 
     let tmp_startup_dir = tmpdir.path().join("startup.d");
     std::fs::create_dir(&tmp_startup_dir).unwrap();
-    for startup_script in &[rt.sh_startup_file, rt.csh_startup_file] {
+    for startup_script in &[&rt.sh_startup_file, &rt.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
         cmd.arg(format!(
@@ -58,6 +60,7 @@ async fn test_shell_initialization_startup_scripts(
     cmd.args(args[1..].iter());
     println!("{:?}", cmd);
     let out = cmd.output().unwrap();
+    rt.delete().unwrap();
     println!("{:?}", out);
     assert!(out.stdout.ends_with("spfs-test-value\n".as_bytes()));
 }
