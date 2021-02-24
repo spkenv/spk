@@ -16,10 +16,16 @@ pub struct Opt {
 }
 
 #[derive(Debug, StructOpt)]
+#[structopt(setting = structopt::clap::AppSettings::ColoredHelp)]
+#[structopt(setting = structopt::clap::AppSettings::DontDelimitTrailingValues)]
+#[structopt(setting = structopt::clap::AppSettings::TrailingVarArg)]
 pub enum Command {
-    #[structopt(about = "print the version of dst")]
+    #[structopt(about = "print the version of spfs")]
     Version(super::cmd_version::CmdVersion),
-    #[structopt(about = "run a program in a configured environment")]
+    #[structopt(
+        //setting = structopt::clap::AppSettings::TrailingVarArg,
+        about = "run a program in a configured environment"
+    )]
     Run(super::cmd_run::CmdRun),
     #[structopt(about = "enter a subshell in a configured spfs environment")]
     Shell(super::cmd_run::CmdShell),

@@ -18,13 +18,12 @@ pub struct CmdRun {
     )]
     edit: bool,
     #[structopt(
-        long = "ref",
         help = "The tag or id of the desired runtime, use '-' or an empty string to request an empty environment"
     )]
     reference: String,
     #[structopt()]
     cmd: OsString,
-    #[structopt(long = "args")]
+    #[structopt()]
     args: Vec<OsString>,
 }
 
@@ -41,7 +40,7 @@ pub struct CmdShell {
     )]
     edit: bool,
     #[structopt(
-        short = "ref",
+        name = "REF",
         about = "The tag or id of the desired runtime, use '-' or nothing to request an empty environment"
     )]
     reference: Option<String>,
@@ -90,10 +89,11 @@ impl CmdRun {
         tracing::trace!("{:?} {:?}", cmd, args);
         use std::os::unix::ffi::OsStrExt;
         let cmd = std::ffi::CString::new(cmd.as_bytes()).unwrap();
-        let args: Vec<_> = args
+        let mut args: Vec<_> = args
             .into_iter()
             .map(|arg| std::ffi::CString::new(arg.as_bytes()).unwrap())
             .collect();
+        args.insert(0, cmd.clone());
         nix::unistd::execv(cmd.as_ref(), args.as_slice())?;
         Ok(())
     }

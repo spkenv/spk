@@ -36,7 +36,9 @@ async fn main() {
         0 if std::env::var("SPFS_DEBUG").is_ok() => {
             std::env::set_var("RUST_LOG", "spfs=debug");
         }
-        0 => std::env::set_var("RUST_LOG", "spfs=info"),
+        0 if std::env::var("RUST_LOG").is_err() => {
+            std::env::set_var("RUST_LOG", "spfs=info");
+        }
         1 => std::env::set_var("RUST_LOG", "spfs=debug"),
         _ => std::env::set_var("RUST_LOG", "spfs=trace"),
     }
