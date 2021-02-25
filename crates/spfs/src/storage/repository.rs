@@ -109,8 +109,7 @@ pub trait Repository:
     /// render of the manifest for use immediately.
     fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
         let path = std::fs::canonicalize(path)?;
-        let mut builder =
-            tracking::ManifestBuilder::new(|reader| self.commit_blob(Box::new(reader)));
+        let mut builder = tracking::ManifestBuilder::new(|reader| self.commit_blob(reader));
 
         tracing::info!("committing files");
         let manifest = builder.compute_manifest(path)?;

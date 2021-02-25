@@ -40,16 +40,17 @@ async fn test_find_aliases(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
+    let _guard = init_logging();
     let dir = tmpdir.path();
     let mut tmprepo = fs::FSRepository::create(dir.join("repo")).unwrap();
     let datafile_path = "dir1.0/dir2.0/file.txt";
     let symlink_path = "dir1.0/dir2.0/file2.txt";
 
     let src_dir = dir.join("source");
-    std::fs::create_dir_all(dir.join("dir1.0/dir2.0")).unwrap();
+    std::fs::create_dir_all(src_dir.join("dir1.0/dir2.0")).unwrap();
     let link_dest = src_dir.join(datafile_path);
     std::fs::write(&link_dest, "somedata").unwrap();
-    std::os::unix::fs::symlink(&src_dir.join(symlink_path), &link_dest).unwrap();
+    std::os::unix::fs::symlink(&link_dest, &src_dir.join(symlink_path)).unwrap();
     std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444)).unwrap();
 
     let manifest = tmprepo.commit_dir(&src_dir).expect("failed to commit dir");
@@ -57,8 +58,9 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
         .render_manifest(&Manifest::from(&manifest))
         .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);
+    let rendered_mode = rendered_symlink.symlink_metadata().unwrap().mode();
     assert!(
-        rendered_symlink.symlink_metadata().unwrap().mode() & libc::S_IFLNK != 0,
+        (libc::S_IFMT & rendered_mode) == libc::S_IFLNK,
         "should be a symlink"
     );
 
@@ -66,8 +68,9 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
         .get_path(symlink_path)
         .expect("symlink not in manifest");
     let symlink_blob = tmprepo.payloads.build_digest_path(&symlink_entry.object);
+    let blob_mode = symlink_blob.symlink_metadata().unwrap().mode();
     assert!(
-        symlink_blob.symlink_metadata().unwrap().mode() & libc::S_IFLNK == 0,
+        (libc::S_IFMT & blob_mode) != libc::S_IFLNK,
         "stored blob should not be a symlink"
     )
 }

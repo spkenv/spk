@@ -131,6 +131,7 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
 
     sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
+    drop(repo_tar);
     let repo_tar = storage::tar::TarRepository::open(dir.join("repo.tar"))
         .unwrap()
         .into();

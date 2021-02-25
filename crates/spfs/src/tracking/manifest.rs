@@ -239,17 +239,19 @@ pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> 
 }
 
 pub struct ManifestBuilder<'h> {
-    hasher: Box<dyn FnMut(&mut std::fs::File) -> Result<encoding::Digest> + 'h>,
+    hasher: Box<dyn FnMut(Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> + 'h>,
 }
 
 impl<'h> Default for ManifestBuilder<'h> {
     fn default() -> Self {
-        Self::new(encoding::Digest::from_reader)
+        Self::new(|mut reader| encoding::Digest::from_reader(&mut reader))
     }
 }
 
 impl<'h> ManifestBuilder<'h> {
-    pub fn new(hasher: impl FnMut(&mut std::fs::File) -> Result<encoding::Digest> + 'h) -> Self {
+    pub fn new(
+        hasher: impl FnMut(Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> + 'h,
+    ) -> Self {
         Self {
             hasher: Box::new(hasher),
         }
@@ -296,7 +298,7 @@ impl<'h> ManifestBuilder<'h> {
         if file_type.is_symlink() {
             let link_target = std::fs::read_link(&path)?;
             entry.kind = EntryKind::Blob;
-            entry.object = encoding::Digest::from_reader(&mut link_target.as_os_str().as_bytes())?;
+            entry.object = (self.hasher)(Box::new(&mut link_target.as_os_str().as_bytes()))?;
         } else if file_type.is_dir() {
             self.compute_tree_node(path, entry)?;
         } else if runtime::is_removed_entry(&stat_result) {
@@ -307,7 +309,7 @@ impl<'h> ManifestBuilder<'h> {
         } else {
             entry.kind = EntryKind::Blob;
             let mut reader = std::fs::File::open(path)?;
-            entry.object = (self.hasher)(&mut reader)?;
+            entry.object = (self.hasher)(Box::new(&mut reader))?;
         }
         Ok(())
     }

@@ -30,9 +30,10 @@ async fn test_shell_initialization_startup_scripts(
     let storage = runtime::Storage::new(tmpdir.path()).unwrap();
     let rt = storage.create_runtime().unwrap();
 
-    std::env::set_var("SPFS_RUNTIME", rt.root());
-    std::env::set_var("SPFS_DEBUG", "1");
-    std::env::set_var("SHELL", shell_path);
+    let setenv = |cmd: &mut std::process::Command| {
+        cmd.env("SPFS_RUNTIME", rt.root());
+        cmd.env("SPFS_DEBUG", "1");
+    };
 
     let tmp_startup_dir = tmpdir.path().join("startup.d");
     std::fs::create_dir(&tmp_startup_dir).unwrap();
@@ -44,6 +45,7 @@ async fn test_shell_initialization_startup_scripts(
             tmp_startup_dir.to_string_lossy()
         ));
         cmd.arg(startup_script);
+        setenv(&mut cmd);
         println!("{:?}", cmd);
         println!("{:?}", cmd.output().unwrap());
     }
@@ -51,6 +53,8 @@ async fn test_shell_initialization_startup_scripts(
     std::fs::write(tmp_startup_dir.join("test.csh"), startup_cmd).unwrap();
     std::fs::write(tmp_startup_dir.join("test.sh"), startup_cmd).unwrap();
 
+    std::env::set_var("SHELL", &shell_path);
+    std::env::set_var("SPFS_RUNTIME", &rt.root());
     let args = build_shell_initialized_command(
         OsString::from("printenv"),
         &mut vec![OsString::from("TEST_VALUE")],
@@ -58,6 +62,7 @@ async fn test_shell_initialization_startup_scripts(
     .unwrap();
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());
+    setenv(&mut cmd);
     println!("{:?}", cmd);
     let out = cmd.output().unwrap();
     rt.delete().unwrap();
@@ -79,21 +84,27 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
     let storage = runtime::Storage::new(tmpdir.path()).unwrap();
     let rt = storage.create_runtime().unwrap();
 
-    std::env::set_var("SPFS_RUNTIME", rt.root());
-    std::env::set_var("SHELL", shell_path);
+    let setenv = |cmd: &mut std::process::Command| {
+        cmd.env("SPFS_RUNTIME", rt.root());
+        cmd.env("SPFS_DEBUG", "1");
+    };
 
     let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
-    for startup_script in &[rt.sh_startup_file, rt.csh_startup_file] {
+    for startup_script in &[&rt.sh_startup_file, &rt.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
         cmd.arg(format!("s|/spfs/etc/spfs/startup.d|{:?}|", tmp_startup_dir));
         cmd.arg(startup_script);
+        setenv(&mut cmd);
         println!("{:?}", cmd.output().unwrap());
     }
 
+    std::env::set_var("SHELL", &shell_path);
+    std::env::set_var("SPFS_RUNTIME", &rt.root());
     let args = build_shell_initialized_command(OsString::from("echo"), &mut Vec::new()).unwrap();
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());
+    setenv(&mut cmd);
     let out = cmd.output().unwrap();
     assert_eq!(out.stdout, "\n".as_bytes());
 }
