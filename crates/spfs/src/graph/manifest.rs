@@ -46,9 +46,9 @@ impl From<&tracking::Entry> for Manifest {
             let converted = match node.entry.kind {
                 tracking::EntryKind::Tree => {
                     let sub = Self::from(node.entry);
-                    for (_, tree) in sub.trees {
+                    for tree in sub.list_trees().into_iter() {
                         manifest
-                            .insert_tree(tree)
+                            .insert_tree(tree.clone())
                             .expect("should not fail to insert tree entry");
                     }
                     Entry {
@@ -77,13 +77,18 @@ impl Manifest {
     /// Return the digests of objects that this manifest refers to.
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
         let mut children = BTreeSet::new();
-        for tree in self.trees.values() {
+        for tree in self.list_trees().into_iter() {
             for entry in tree.entries.iter() {
                 if let tracking::EntryKind::Blob = entry.kind {
                     children.insert(entry.object.clone());
                 }
             }
         }
+        tracing::warn!(
+            "manifest children {}c {}t",
+            children.len(),
+            self.trees.len()
+        );
         return children.into_iter().collect();
     }
 
@@ -99,10 +104,27 @@ impl Manifest {
         }
     }
 
+    /// Iterate all of the trees in this manifest.
+    ///
+    /// Will panic if this menifest is internally inconsistent, though this
+    /// would point to a programming error or bug.
+    pub fn list_trees<'a>(&'a self) -> Vec<&'a Tree> {
+        let mut trees = vec![&self.root];
+        for digest in &self.tree_order {
+            match self.trees.get(&digest) {
+                Some(tree) => trees.push(tree),
+                None => {
+                    panic!("manifest is internally inconsistent (missing indexed tree)");
+                }
+            }
+        }
+        trees
+    }
+
     /// Iterate all of the entries in this manifest.
-    pub fn iter_entries<'a>(&'a self) -> Vec<&'a Entry> {
+    pub fn list_entries<'a>(&'a self) -> Vec<&'a Entry> {
         let mut children = Vec::new();
-        for tree in self.trees.values() {
+        for tree in self.list_trees().into_iter() {
             for entry in tree.entries.iter() {
                 children.push(entry);
             }

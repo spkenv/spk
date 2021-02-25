@@ -12,7 +12,7 @@ mod tree_test;
 /// Tree is an ordered collection of entries.
 ///
 /// Only one entry of a given name is allowed at a time.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Tree {
     pub entries: BTreeSet<Entry>,
 }

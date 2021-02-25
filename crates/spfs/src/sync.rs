@@ -143,7 +143,7 @@ pub async fn sync_layer(
     let manifest = src.read_manifest(&layer.manifest)?;
 
     let entries: Vec<_> = manifest
-        .iter_entries()
+        .list_entries()
         .into_iter()
         .filter(|e| !e.kind.is_blob())
         .collect();
