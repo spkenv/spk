@@ -11,7 +11,11 @@ pub struct CmdPush {
         about = "the name or address of the remote server to push to"
     )]
     remote: String,
-    #[structopt(value_name = "REF", about = "the reference(s) to push")]
+    #[structopt(
+        value_name = "REF",
+        required = true,
+        about = "the reference(s) to push"
+    )]
     refs: Vec<String>,
 }
 

@@ -38,8 +38,8 @@ pub enum Command {
     )]
     Reset(super::cmd_reset::CmdReset),
     #[structopt(about = "tag and object")]
-    // Tag(super::cmd_tag::CmdTag),
-    // #[structopt(about = "push one or more objects to a remote repository")]
+    Tag(super::cmd_tag::CmdTag),
+    #[structopt(about = "push one or more objects to a remote repository")]
     Push(super::cmd_push::CmdPush),
     #[structopt(about = "pull one or more objects to the local repository")]
     Pull(super::cmd_pull::CmdPull),
@@ -49,8 +49,8 @@ pub enum Command {
     Layers(super::cmd_layers::CmdLayers),
     #[structopt(about = "list all platforms in an spfs repository")]
     Platforms(super::cmd_platforms::CmdPlatforms),
-    // #[structopt(about = "list all tags in an spfs repository")]
-    // Tags(super::cmd_tags::CmdTags),
+    #[structopt(about = "list all tags in an spfs repository")]
+    Tags(super::cmd_tags::CmdTags),
     #[structopt(about = "display information about the current environment or specific items")]
     Info(super::cmd_info::CmdInfo),
     #[structopt(about = "log the history of a given tag over time")]

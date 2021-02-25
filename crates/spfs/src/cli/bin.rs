@@ -21,8 +21,8 @@ mod cmd_reset;
 mod cmd_run;
 // mod cmd_runtimes;
 // mod cmd_search;
-// mod cmd_tag;
-// mod cmd_tags;
+mod cmd_tag;
+mod cmd_tags;
 mod cmd_version;
 
 use args::{Command, Opt};
@@ -86,13 +86,13 @@ async fn main() {
         Command::Edit(mut cmd) => cmd.run(&config).await,
         Command::Commit(mut cmd) => cmd.run(&config).await,
         Command::Reset(mut cmd) => cmd.run(&config).await,
-        // Command::Tag(mut cmd) => cmd.run(&config).await,
+        Command::Tag(mut cmd) => cmd.run(&config).await,
         Command::Push(mut cmd) => cmd.run(&config).await,
         Command::Pull(mut cmd) => cmd.run(&config).await,
         // Command::Runtimes(mut cmd) => cmd.run(&config).await,
         Command::Layers(mut cmd) => cmd.run(&config).await,
         Command::Platforms(mut cmd) => cmd.run(&config).await,
-        // Command::Tags(mut cmd) => cmd.run(&config).await,
+        Command::Tags(mut cmd) => cmd.run(&config).await,
         Command::Info(mut cmd) => cmd.run(opt.verbose, &config).await,
         Command::Log(mut cmd) => cmd.run(&config).await,
         // Command::Search(mut cmd) => cmd.run(&config).await,

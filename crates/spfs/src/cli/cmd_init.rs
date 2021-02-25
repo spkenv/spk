@@ -12,7 +12,7 @@ use structopt::StructOpt;
 pub struct CmdInit {
     #[structopt()]
     runtime_root_dir: String,
-    #[structopt()]
+    #[structopt(required = true)]
     cmd: Vec<OsString>,
 }
 

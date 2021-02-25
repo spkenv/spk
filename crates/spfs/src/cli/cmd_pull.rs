@@ -11,7 +11,11 @@ pub struct CmdPull {
                  defaults to searching all configured remotes"
     )]
     remote: Option<String>,
-    #[structopt(value_name = "REF", about = "the reference(s) to pull/localize")]
+    #[structopt(
+        value_name = "REF",
+        required = true,
+        about = "the reference(s) to pull/localize"
+    )]
     refs: Vec<String>,
 }
 

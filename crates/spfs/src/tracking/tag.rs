@@ -132,8 +132,22 @@ impl encoding::Decodable for Tag {
 ///     eg: spi/main   # latest tag in the spi/main stream
 ///         spi/main~0 # latest tag in the spi/main stream
 ///         spi/main~4 # the tag 4 versions behind the latest in the stream
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[derive(Eq, PartialEq, Hash, Clone)]
 pub struct TagSpec(Option<String>, String, u64);
+
+impl std::fmt::Debug for TagSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.to_string().as_str())
+    }
+}
+
+impl std::str::FromStr for TagSpec {
+    type Err = crate::Error;
+
+    fn from_str(source: &str) -> Result<Self> {
+        TagSpec::parse(source)
+    }
+}
 
 impl TagSpec {
     pub fn parse<S: AsRef<str>>(spec: S) -> Result<Self> {

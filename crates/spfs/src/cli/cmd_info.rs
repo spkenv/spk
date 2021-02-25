@@ -7,7 +7,7 @@ use spfs::{self, prelude::*};
 pub struct CmdInfo {
     #[structopt(
         value_name = "REF",
-        about = "Tag or reference to show information about"
+        about = "Tag or reference to show information about",
     )]
     refs: Vec<String>,
 }

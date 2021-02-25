@@ -14,27 +14,16 @@ pub struct CmdLayers {
 
 impl CmdLayers {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
-        match &self.remote {
-            Some(remote) => {
-                let repo = config.get_remote(remote)?;
-                for layer in repo.iter_layers() {
-                    let (digest, _) = layer?;
-                    println!(
-                        "{}",
-                        spfs::io::format_digest(&digest.to_string(), Some(&repo))?
-                    );
-                }
-            }
-            None => {
-                let repo: RepositoryHandle = config.get_repository()?.into();
-                for layer in repo.iter_layers() {
-                    let (digest, _) = layer?;
-                    println!(
-                        "{}",
-                        spfs::io::format_digest(&digest.to_string(), Some(&repo))?
-                    );
-                }
-            }
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote)?,
+            None => config.get_repository()?.into(),
+        };
+        for layer in repo.iter_layers() {
+            let (digest, _) = layer?;
+            println!(
+                "{}",
+                spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+            );
         }
         Ok(())
     }

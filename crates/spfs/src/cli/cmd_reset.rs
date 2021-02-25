@@ -17,10 +17,7 @@ pub struct CmdReset {
                 if no paths are given"
     )]
     reference: Option<String>,
-    #[structopt(
-        min_values = 0,
-        about = "Paths under /spfs to reset, or all paths if none given"
-    )]
+    #[structopt(about = "Paths under /spfs to reset, or all paths if none given")]
     paths: Vec<String>,
 }
 

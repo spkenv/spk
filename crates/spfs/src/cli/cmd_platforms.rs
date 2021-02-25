@@ -13,27 +13,16 @@ pub struct CmdPlatforms {
 
 impl CmdPlatforms {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
-        match &self.remote {
-            Some(remote) => {
-                let repo = config.get_remote(remote)?;
-                for platform in repo.iter_platforms() {
-                    let (digest, _) = platform?;
-                    println!(
-                        "{}",
-                        spfs::io::format_digest(&digest.to_string(), Some(&repo))?
-                    );
-                }
-            }
-            None => {
-                let repo: spfs::storage::RepositoryHandle = config.get_repository()?.into();
-                for platform in repo.iter_platforms() {
-                    let (digest, _) = platform?;
-                    println!(
-                        "{}",
-                        spfs::io::format_digest(&digest.to_string(), Some(&repo))?
-                    );
-                }
-            }
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote)?,
+            None => config.get_repository()?.into(),
+        };
+        for platform in repo.iter_platforms() {
+            let (digest, _) = platform?;
+            println!(
+                "{}",
+                spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+            );
         }
         Ok(())
     }
