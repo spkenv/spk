@@ -22,10 +22,7 @@ pub struct Opt {
 pub enum Command {
     #[structopt(about = "print the version of spfs")]
     Version(super::cmd_version::CmdVersion),
-    #[structopt(
-        //setting = structopt::clap::AppSettings::TrailingVarArg,
-        about = "run a program in a configured environment"
-    )]
+    #[structopt(about = "run a program in a configured environment")]
     Run(super::cmd_run::CmdRun),
     #[structopt(about = "enter a subshell in a configured spfs environment")]
     Shell(super::cmd_run::CmdShell),
@@ -33,9 +30,7 @@ pub enum Command {
     Edit(super::cmd_edit::CmdEdit),
     #[structopt(about = "commit the current runtime state to storage")]
     Commit(super::cmd_commit::CmdCommit),
-    #[structopt(
-        about = "rebuild the current /spfs dir with the requested refs, removing any active changes"
-    )]
+    #[structopt(about = "rebuild /spfs with the requested refs, removing any active changes")]
     Reset(super::cmd_reset::CmdReset),
     #[structopt(about = "tag and object")]
     Tag(super::cmd_tag::CmdTag),
@@ -43,8 +38,8 @@ pub enum Command {
     Push(super::cmd_push::CmdPush),
     #[structopt(about = "pull one or more objects to the local repository")]
     Pull(super::cmd_pull::CmdPull),
-    // #[structopt(about = "list the current set of spfs runtimes")]
-    // Runtimes(super::cmd_runtimes::CmdRuntimes),
+    #[structopt(about = "list the current set of spfs runtimes")]
+    Runtimes(super::cmd_runtimes::CmdRuntimes),
     #[structopt(about = "list all layers in an spfs repository")]
     Layers(super::cmd_layers::CmdLayers),
     #[structopt(about = "list all platforms in an spfs repository")]

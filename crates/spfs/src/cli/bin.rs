@@ -19,7 +19,7 @@ mod cmd_push;
 // mod cmd_read;
 mod cmd_reset;
 mod cmd_run;
-// mod cmd_runtimes;
+mod cmd_runtimes;
 // mod cmd_search;
 mod cmd_tag;
 mod cmd_tags;
@@ -89,7 +89,7 @@ async fn main() {
         Command::Tag(mut cmd) => cmd.run(&config).await,
         Command::Push(mut cmd) => cmd.run(&config).await,
         Command::Pull(mut cmd) => cmd.run(&config).await,
-        // Command::Runtimes(mut cmd) => cmd.run(&config).await,
+        Command::Runtimes(mut cmd) => cmd.run(&config).await,
         Command::Layers(mut cmd) => cmd.run(&config).await,
         Command::Platforms(mut cmd) => cmd.run(&config).await,
         Command::Tags(mut cmd) => cmd.run(&config).await,
