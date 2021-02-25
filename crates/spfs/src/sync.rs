@@ -156,7 +156,12 @@ pub async fn sync_layer(
         let dest_address = dest.address();
         futures.push(
             async move {
-                let res = sync_entry(entry, src_address, dest_address).await;
+                let res = sync_entry(
+                    entry.clone(),
+                    src_address.to_string(),
+                    dest_address.to_string(),
+                )
+                .await;
                 current_count.fetch_add(1, Ordering::Relaxed);
                 res
             }
@@ -164,7 +169,8 @@ pub async fn sync_layer(
         )
     }
 
-    futures.push(
+    futures.insert(
+        0,
         async move {
             let mut last_report = Instant::now();
             while current_count.load(Ordering::Relaxed) < spawn_count {
@@ -205,29 +211,28 @@ pub async fn sync_layer(
     Ok(())
 }
 
-async fn sync_entry<S: AsRef<str>>(
-    entry: &graph::Entry,
-    src_address: S,
-    dest_address: S,
-) -> Result<()> {
+async fn sync_entry(entry: graph::Entry, src_address: String, dest_address: String) -> Result<()> {
     if !entry.kind.is_blob() {
         return Ok(());
     }
 
-    let src = storage::open_repository(src_address)?;
-    let mut dest = storage::open_repository(dest_address)?;
+    tokio::task::spawn_blocking(move || {
+        let src = storage::open_repository(src_address)?;
+        let mut dest = storage::open_repository(dest_address)?;
 
-    if !dest.has_object(&entry.object) {
-        let object = src.read_object(&entry.object)?;
-        dest.write_object(&object)?;
-    }
+        if !dest.has_object(&entry.object) {
+            let object = src.read_object(&entry.object)?;
+            dest.write_object(&object)?;
+        }
 
-    if dest.has_payload(&entry.object) {
-        tracing::trace!(digest = ?entry.object, "blob payload already synced");
-    } else {
-        let mut payload = src.open_payload(&entry.object)?;
-        tracing::debug!(digest = ?entry.object, "syncing payload");
-        dest.write_data(Box::new(&mut *payload))?;
-    }
-    Ok(())
+        if dest.has_payload(&entry.object) {
+            tracing::trace!(digest = ?entry.object, "blob payload already synced");
+        } else {
+            let mut payload = src.open_payload(&entry.object)?;
+            tracing::debug!(digest = ?entry.object, "syncing payload");
+            dest.write_data(Box::new(&mut *payload))?;
+        }
+        Ok(())
+    })
+    .await?
 }

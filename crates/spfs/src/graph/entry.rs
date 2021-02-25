@@ -6,7 +6,7 @@ use crate::Result;
 #[path = "./entry_test.rs"]
 mod entry_test;
 
-#[derive(Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Entry {
     pub object: encoding::Digest,
     pub kind: tracking::EntryKind,

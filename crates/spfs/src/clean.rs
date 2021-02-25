@@ -43,7 +43,7 @@ pub async fn purge_objects(
         {
             let current_count = current_count.clone();
             let fut = async move {
-                let res = clean_object(repo.address(), &digest).await;
+                let res = clean_object(repo.address(), digest.clone()).await;
                 current_count.fetch_add(1, Ordering::Relaxed);
                 if let Ok(_) = res {
                     tracing::trace!(?digest, "successfully removed object");
@@ -58,7 +58,7 @@ pub async fn purge_objects(
         {
             let current_count = current_count.clone();
             let fut = async move {
-                let res = clean_payload(repo.address(), &digest).await;
+                let res = clean_payload(repo.address(), digest.clone()).await;
                 current_count.fetch_add(1, Ordering::Relaxed);
                 if let Ok(_) = res {
                     tracing::trace!(?digest, "successfully removed payload");
@@ -71,7 +71,7 @@ pub async fn purge_objects(
         {
             let current_count = current_count.clone();
             let fut = async move {
-                let res = clean_render(repo.address(), &digest).await;
+                let res = clean_render(repo.address(), digest.clone()).await;
                 current_count.fetch_add(1, Ordering::Relaxed);
                 if let Ok(_) = res {
                     tracing::trace!(?digest, "successfully removed render");
@@ -84,7 +84,8 @@ pub async fn purge_objects(
         spawn_count += 3;
     }
 
-    futures.push(
+    futures.insert(
+        0,
         async move {
             let mut last_report = Instant::now();
             while current_count.load(Ordering::Relaxed) < spawn_count {
@@ -123,9 +124,9 @@ pub async fn purge_objects(
     }
 }
 
-async fn clean_object(repo_addr: url::Url, digest: &encoding::Digest) -> Result<()> {
+async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_object(&digest);
+    let res = tokio::task::spawn_blocking(move || repo.remove_object(&digest)).await?;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -133,9 +134,9 @@ async fn clean_object(repo_addr: url::Url, digest: &encoding::Digest) -> Result<
     }
 }
 
-async fn clean_payload(repo_addr: url::Url, digest: &encoding::Digest) -> Result<()> {
+async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_payload(&digest);
+    let res = tokio::task::spawn_blocking(move || repo.remove_payload(&digest)).await?;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -143,15 +144,18 @@ async fn clean_payload(repo_addr: url::Url, digest: &encoding::Digest) -> Result
     }
 }
 
-async fn clean_render(repo_addr: url::Url, digest: &encoding::Digest) -> Result<()> {
-    let repo = storage::open_repository(repo_addr)?;
-    let viewer = repo.renders()?;
-    let res = viewer.remove_rendered_manifest(&digest);
-    if let Err(crate::Error::UnknownObject(_)) = res {
-        Ok(())
-    } else {
-        res
-    }
+async fn clean_render(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        let repo = storage::open_repository(repo_addr)?;
+        let viewer = repo.renders()?;
+        let res = viewer.remove_rendered_manifest(&digest);
+        if let Err(crate::Error::UnknownObject(_)) = res {
+            Ok(())
+        } else {
+            res
+        }
+    })
+    .await?
 }
 
 pub fn get_all_unattached_objects(
@@ -203,7 +207,16 @@ pub fn get_all_attached_objects(
                     continue;
                 }
                 tracing::debug!(digest = ?digest, "walking...");
-                let obj = repo.read_object(&digest)?;
+                let obj = match repo.read_object(&digest) {
+                    Ok(obj) => obj,
+                    Err(err) => match err {
+                        crate::Error::UnknownObject(err) => {
+                            tracing::warn!(?err, "child object missing in database");
+                            continue;
+                        }
+                        _ => return Err(err),
+                    },
+                };
                 to_process.extend(obj.child_objects());
                 reachable_objects.insert(digest.clone());
             }
