@@ -101,6 +101,7 @@ impl TagStorage for FSRepository {
                 }
             };
             for (i, tag) in stream.into_iter().enumerate() {
+                println!("{}~{} {:?}, {:?}", tag.path(), i, tag.target, digest);
                 if &tag.target == digest {
                     found.push(Ok(spec.with_version(i as u64)));
                 }

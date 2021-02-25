@@ -9,7 +9,7 @@ use graph::{Blob, Manifest};
 #[path = "./repository_test.rs"]
 mod repository_test;
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub enum Ref {
     Digest(encoding::Digest),
     TagSpec(tracking::TagSpec),
@@ -81,6 +81,16 @@ pub trait Repository:
         }
         if reference != digest.to_string().as_str() {
             aliases.insert(Ref::Digest(digest));
+        }
+        let mut dupe = None;
+        for alias in aliases.iter().collect::<Vec<_>>() {
+            if alias.to_string().as_str() == reference {
+                dupe = Some(alias.clone());
+                break;
+            }
+        }
+        if let Some(r) = dupe {
+            aliases.remove(&r);
         }
         Ok(aliases)
     }
