@@ -15,7 +15,7 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
             Ok(repo) => repos.push(repo),
             Err(err) => {
                 tracing::warn!(remote = ?name, "failed to load remote repository");
-                tracing::warn!(" > {:?}", err);
+                tracing::debug!(" > {:?}", err);
             }
         }
     }

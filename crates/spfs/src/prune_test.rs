@@ -180,7 +180,7 @@ async fn test_prune_tags(tmprepo: TempRepo) {
         );
     }
 
-    let tags = reset(&mut tmprepo);
+    let _tags = reset(&mut tmprepo);
     prune_tags(
         &mut tmprepo,
         &PruneParameters {

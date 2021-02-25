@@ -1,9 +1,9 @@
-use crate::{encoding, graph, prelude::*, tracking, Result};
+use crate::{encoding, prelude::*, tracking, Result};
 
 const TAG_EXT: &str = ".tag";
 
 impl TagStorage for super::TarRepository {
-    fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
+    fn resolve_tag(&self, _tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
         todo!()
         // try:
         //     stream = self.read_tag(tag)
@@ -18,7 +18,7 @@ impl TagStorage for super::TarRepository {
 
     fn ls_tags(
         &self,
-        path: &relative_path::RelativePath,
+        _path: &relative_path::RelativePath,
     ) -> Result<Box<dyn Iterator<Item = String>>> {
         todo!()
         // filepath = os.path.join(self._prefix, path.lstrip(os.sep), "")
@@ -39,7 +39,7 @@ impl TagStorage for super::TarRepository {
 
     fn find_tags(
         &self,
-        digest: &encoding::Digest,
+        _digest: &encoding::Digest,
     ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>> {
         todo!()
         // for spec, stream in self.iter_tag_streams():
@@ -68,7 +68,7 @@ impl TagStorage for super::TarRepository {
         //     yield (spec, self.read_tag(tag))
     }
 
-    fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
+    fn read_tag(&self, _tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
         todo!()
         // spec = tracking.TagSpec(tag)
         // filepath = os.path.join(self._prefix, spec.path + TAG_EXT)
@@ -98,7 +98,7 @@ impl TagStorage for super::TarRepository {
         //     reader.seek(-size - encoding.INT_SIZE, os.SEEK_CUR)
     }
 
-    fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    fn push_raw_tag(&mut self, _tag: &tracking::Tag) -> Result<()> {
         todo!()
         // filepath = os.path.join(self._prefix, tag.path + TAG_EXT)
         // stream = io.BytesIO()
@@ -122,11 +122,11 @@ impl TagStorage for super::TarRepository {
         // self._tag_cache[tag.path] = tag_file.getvalue()
     }
 
-    fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
+    fn remove_tag_stream(&mut self, _tag: &tracking::TagSpec) -> Result<()> {
         Err("Tag removal not supported in tar archives".into())
     }
 
-    fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    fn remove_tag(&mut self, _tag: &tracking::Tag) -> Result<()> {
         Err("Tag removal not supported in tar archives".into())
     }
 }

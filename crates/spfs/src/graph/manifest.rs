@@ -84,11 +84,6 @@ impl Manifest {
                 }
             }
         }
-        tracing::warn!(
-            "manifest children {}c {}t",
-            children.len(),
-            self.trees.len()
-        );
         return children.into_iter().collect();
     }
 
@@ -101,6 +96,19 @@ impl Manifest {
         } else {
             self.tree_order.push(digest);
             Ok(None)
+        }
+    }
+
+    pub fn get_tree<'a>(&'a self, digest: &encoding::Digest) -> Option<&'a Tree> {
+        match self.trees.get(&digest) {
+            None => {
+                if digest == &self.root.digest().unwrap() {
+                    Some(&self.root)
+                } else {
+                    None
+                }
+            }
+            some => some,
         }
     }
 
@@ -146,8 +154,7 @@ impl Manifest {
                     iter_tree(
                         source,
                         source
-                            .trees
-                            .get(&entry.object)
+                            .get_tree(&entry.object)
                             .expect("manifest is internally inconsistent (missing child tree)"),
                         &mut new_entry,
                     )
@@ -184,7 +191,7 @@ impl Decodable for Manifest {
         let mut manifest = Manifest::default();
         manifest.root = Tree::decode(&mut reader)?;
         let num_trees = encoding::read_uint(&mut reader)?;
-        for i in 0..num_trees {
+        for _ in 0..num_trees {
             let tree = Tree::decode(reader)?;
             manifest.insert_tree(tree)?;
         }

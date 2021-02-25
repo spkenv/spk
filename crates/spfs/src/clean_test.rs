@@ -199,7 +199,7 @@ async fn test_clean_manifest_renders(tmprepo: TempRepo) {
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();
-    let platform = tmprepo
+    let _platform = tmprepo
         .create_platform(vec![layer.digest().unwrap()])
         .unwrap();
 

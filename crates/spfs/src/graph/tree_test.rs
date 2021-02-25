@@ -1,5 +1,4 @@
 use rstest::rstest;
-use std::str::FromStr;
 
 use super::{Entry, Tree};
 use crate::encoding::{self, Encodable};

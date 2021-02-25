@@ -1,7 +1,7 @@
 use colored::*;
 use structopt::StructOpt;
 
-use spfs::{self, prelude::*};
+use spfs::{self};
 
 #[derive(Debug, StructOpt)]
 pub struct CmdLog {

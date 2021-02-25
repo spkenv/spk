@@ -131,8 +131,8 @@ pub trait Repository:
     }
 }
 
-impl<T: Repository> Repository for &T {
+impl<T: Repository> Repository for &mut T {
     fn address(&self) -> url::Url {
-        (*self).address()
+        Repository::address(*self)
     }
 }

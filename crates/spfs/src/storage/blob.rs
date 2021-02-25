@@ -42,4 +42,4 @@ pub trait BlobStorage: graph::Database {
     }
 }
 
-impl<T: BlobStorage> BlobStorage for &T {}
+impl<T: BlobStorage> BlobStorage for &mut T {}

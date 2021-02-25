@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use super::FSRepository;
 use crate::{
     encoding::Encodable,
-    graph::Manifest,
     runtime::makedirs_with_perms,
     storage::{ManifestViewer, PayloadStorage},
     tracking, Result,

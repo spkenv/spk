@@ -192,6 +192,24 @@ impl<T: DatabaseView> DatabaseView for &T {
     }
 }
 
+impl<T: DatabaseView> DatabaseView for &mut T {
+    fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
+        DatabaseView::read_object(*self, digest)
+    }
+
+    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+        DatabaseView::iter_digests(*self)
+    }
+
+    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
+        DatabaseView::iter_objects(*self)
+    }
+
+    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db> {
+        DatabaseView::walk_objects(*self, root)
+    }
+}
+
 pub trait Database: DatabaseView {
     /// Write an object to the database, for later retrieval.
     fn write_object(&mut self, obj: &Object) -> Result<()>;
@@ -200,12 +218,12 @@ pub trait Database: DatabaseView {
     fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()>;
 }
 
-impl<T: Database> Database for &T {
+impl<T: Database> Database for &mut T {
     fn write_object(&mut self, obj: &Object) -> Result<()> {
-        (*self).write_object(obj)
+        Database::write_object(&mut **self, obj)
     }
 
     fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
-        (*self).remove_object(digest)
+        Database::remove_object(&mut **self, digest)
     }
 }

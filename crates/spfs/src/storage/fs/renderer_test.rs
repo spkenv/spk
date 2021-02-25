@@ -1,5 +1,3 @@
-use std::os::unix::fs::PermissionsExt;
-
 use rstest::rstest;
 
 use super::was_render_completed;

@@ -40,7 +40,7 @@ impl TarRepository {
 }
 
 impl graph::DatabaseView for TarRepository {
-    fn read_object(&self, digest: &crate::encoding::Digest) -> graph::Result<graph::Object> {
+    fn read_object(&self, _digest: &crate::encoding::Digest) -> graph::Result<graph::Object> {
         todo!()
     }
 
@@ -52,16 +52,16 @@ impl graph::DatabaseView for TarRepository {
         todo!()
     }
 
-    fn walk_objects<'db>(&'db self, root: &crate::encoding::Digest) -> graph::DatabaseWalker<'db> {
+    fn walk_objects<'db>(&'db self, _root: &crate::encoding::Digest) -> graph::DatabaseWalker<'db> {
         todo!()
     }
 }
 impl graph::Database for TarRepository {
-    fn write_object(&mut self, obj: &graph::Object) -> graph::Result<()> {
+    fn write_object(&mut self, _obj: &graph::Object) -> graph::Result<()> {
         todo!()
     }
 
-    fn remove_object(&mut self, digest: &crate::encoding::Digest) -> graph::Result<()> {
+    fn remove_object(&mut self, _digest: &crate::encoding::Digest) -> graph::Result<()> {
         todo!()
     }
 }
@@ -72,16 +72,16 @@ impl PayloadStorage for TarRepository {
 
     fn write_data(
         &mut self,
-        reader: Box<&mut dyn std::io::Read>,
+        _reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(crate::encoding::Digest, u64)> {
         todo!()
     }
 
-    fn open_payload(&self, digest: &crate::encoding::Digest) -> Result<Box<dyn std::io::Read>> {
+    fn open_payload(&self, _digest: &crate::encoding::Digest) -> Result<Box<dyn std::io::Read>> {
         todo!()
     }
 
-    fn remove_payload(&mut self, digest: &crate::encoding::Digest) -> Result<()> {
+    fn remove_payload(&mut self, _digest: &crate::encoding::Digest) -> Result<()> {
         todo!()
     }
 }

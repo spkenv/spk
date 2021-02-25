@@ -47,4 +47,4 @@ pub trait LayerStorage: graph::Database {
     }
 }
 
-impl<T: LayerStorage> LayerStorage for &T {}
+impl<T: LayerStorage> LayerStorage for &mut T {}

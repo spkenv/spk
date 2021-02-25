@@ -1,10 +1,7 @@
 use rstest::rstest;
 
-use super::{Entry, Manifest};
-use crate::{
-    encoding::{self, Encodable},
-    tracking,
-};
+use super::Entry;
+use crate::{encoding, tracking};
 
 fixtures!();
 

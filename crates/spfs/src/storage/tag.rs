@@ -97,20 +97,20 @@ pub trait TagStorage {
     fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()>;
 }
 
-impl<T: TagStorage> TagStorage for &T {
+impl<T: TagStorage> TagStorage for &mut T {
     fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        (*self).resolve_tag(tag_spec)
+        TagStorage::resolve_tag(*self, tag_spec)
     }
 
     fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
-        (*self).ls_tags(path)
+        TagStorage::ls_tags(*self, path)
     }
 
     fn find_tags(
         &self,
         digest: &encoding::Digest,
     ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>> {
-        (*self).find_tags(digest)
+        TagStorage::find_tags(*self, digest)
     }
 
     fn iter_tag_streams(
@@ -118,22 +118,22 @@ impl<T: TagStorage> TagStorage for &T {
     ) -> Box<
         dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
     > {
-        (*self).iter_tag_streams()
+        TagStorage::iter_tag_streams(*self)
     }
 
     fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
-        (*self).read_tag(tag)
+        TagStorage::read_tag(*self, tag)
     }
 
     fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        (*self).push_raw_tag(tag)
+        TagStorage::push_raw_tag(*self, tag)
     }
 
     fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
-        (*self).remove_tag_stream(tag)
+        TagStorage::remove_tag_stream(*self, tag)
     }
 
     fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        (*self).remove_tag(tag)
+        TagStorage::remove_tag(*self, tag)
     }
 }

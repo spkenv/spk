@@ -10,7 +10,7 @@ use futures::future::{FutureExt, LocalBoxFuture};
 
 use super::config::load_config;
 use crate::prelude::*;
-use crate::{graph, storage, tracking, Error, Result};
+use crate::{graph, storage, tracking, Result};
 
 #[cfg(test)]
 #[path = "./sync_test.rs"]
@@ -52,7 +52,7 @@ pub async fn pull_ref<R: AsRef<str>>(reference: R) -> Result<graph::Object> {
             Ok(remote) => remote,
             Err(err) => {
                 tracing::warn!(remote = %name, "failed to load remote repository");
-                tracing::warn!(" > {:?}", err);
+                tracing::debug!(" > {:?}", err);
                 continue;
             }
         };

@@ -76,7 +76,7 @@ pub fn format_changes(diffs: impl Iterator<Item = tracking::Diff>) -> String {
 }
 
 /// Return a human-readable file size in bytes.
-pub fn format_size(mut size: u64) -> String {
+pub fn format_size(size: u64) -> String {
     let mut size = size as f64;
     for unit in &["B", "Ki", "Mi", "Gi", "Ti"] {
         if size < 1024.0 {

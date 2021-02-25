@@ -33,23 +33,23 @@ pub trait PayloadStorage {
     fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()>;
 }
 
-impl<T: PayloadStorage> PayloadStorage for &T {
+impl<T: PayloadStorage> PayloadStorage for &mut T {
     fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
-        (*self).iter_payload_digests()
+        PayloadStorage::iter_payload_digests(*self)
     }
 
     fn write_data(
         &mut self,
         reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(encoding::Digest, u64)> {
-        (*self).write_data(reader)
+        PayloadStorage::write_data(*self, reader)
     }
 
     fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
-        (*self).open_payload(digest)
+        PayloadStorage::open_payload(*self, digest)
     }
 
     fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        (*self).remove_payload(digest)
+        PayloadStorage::remove_payload(*self, digest)
     }
 }

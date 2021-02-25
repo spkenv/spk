@@ -71,7 +71,8 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::pa
         .write(true)
         .open(&script)
         .unwrap()
-        .write_all(lines.join("\n").as_bytes());
+        .write_all(lines.join("\n").as_bytes())
+        .unwrap();
     let mut cmd = Command::new("bash");
     cmd.arg("-ex");
     cmd.arg(script);
