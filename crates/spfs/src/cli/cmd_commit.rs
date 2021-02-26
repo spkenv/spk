@@ -37,7 +37,7 @@ impl CmdCommit {
             }
         };
 
-        tracing::info!(digest = ?result.digest(), "created");
+        tracing::info!(digest = ?result.digest()?, "created");
         for tag in self.tags.iter() {
             let tag_spec = match spfs::tracking::TagSpec::parse(tag) {
                 Ok(tag_spec) => tag_spec,

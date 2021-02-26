@@ -214,11 +214,7 @@ async fn test_clean_manifest_renders(tmprepo: TempRepo) {
         .await
         .expect("failed to clean repo");
 
-    let files = list_files(tmprepo.root());
-    for filepath in files.iter() {
-        let digest = tmprepo.objects.get_digest_from_path(filepath).unwrap();
-        assert!(tmprepo.read_object(&digest).is_ok());
-    }
+    let files = list_files(tmprepo.renders.unwrap().root());
     assert!(files.len() == 0, "should remove all created data files");
 }
 

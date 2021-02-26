@@ -25,6 +25,7 @@ impl FSRepository {
         makedirs_with_perms(root.join("objects"), 0o777)?;
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         makedirs_with_perms(root.join("renders"), 0o777)?;
+        set_last_migration(&root, None)?;
         Self::open(root)
     }
 
@@ -32,16 +33,43 @@ impl FSRepository {
     // exist and be a repository
     pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = std::fs::canonicalize(root)?;
-        Ok(Self {
+        let repo = Self {
             objects: FSHashStore::open(root.join("objects"))?,
             payloads: FSHashStore::open(root.join("payloads"))?,
             renders: FSHashStore::open(root.join("renders")).ok(),
-            root: root,
-        })
+            root: root.clone(),
+        };
+
+        let current_version = semver::Version::parse(crate::VERSION).unwrap();
+        let repo_version = repo.last_migration()?;
+        if repo_version.major > current_version.major {
+            return Err(format!(
+                "Repository requires a newer version of spfs [{:?}]: {:?}",
+                repo_version, root
+            )
+            .into());
+        }
+        if repo_version.major < current_version.major {
+            return Err(format!(
+                "Repository requires a migration, run `spfs migrate {:?}`",
+                repo.address()
+            )
+            .into());
+        }
+
+        Ok(repo)
     }
 
     pub fn root(&self) -> PathBuf {
         self.root.clone()
+    }
+
+    pub fn last_migration(&self) -> Result<semver::Version> {
+        read_last_migration_version(self.root())
+    }
+
+    pub fn set_last_migration(&self, version: semver::Version) -> Result<()> {
+        set_last_migration(self.root(), Some(version))
     }
 }
 
@@ -82,93 +110,28 @@ impl std::fmt::Debug for FSRepository {
     }
 }
 
-// (Repository, FSManifestViewer):
-
-//     def __init__(self, root: &str, create: bool = False):
-
-//         if root.startswith("file:///"):
-//             root = root[len("file://") :]
-//         elif root.startswith("file:"):
-//             root = root[len("file:") :]
-
-//         self.__root = os.path.abspath(root)
-
-//         if not os.path.exists(self.__root) and not create:
-//             raise ValueError("Directory does not exist: " + self.__root)
-//         makedirs_with_perms(self.__root)
-
-//         if len(os.listdir(self.__root)) == 0:
-//             set_last_migration(self.__root, spfs.__version__)
-
-//         self.objects = FSDatabase(os.path.join(self.__root, "objects"))
-//         self.payloads = FSPayloadStorage(os.path.join(self.__root, "payloads"))
-//         FSManifestViewer.__init__(
-//             self,
-//             root=os.path.join(self.__root, "renders"),
-//             payloads=self.payloads,
-//         )
-//         Repository.__init__(
-//             self,
-//             tags=TagStorage(os.path.join(self.__root, "tags")),
-//             object_database=self.objects,
-//             payload_storage=self.payloads,
-//         )
-
-//         self.minimum_compatible_version = "0.16.0"
-//         repo_version = semver.VersionInfo.parse(self.last_migration())
-//         if repo_version.compare(spfs.__version__) > 0:
-//             raise RuntimeError(
-//                 f"Repository requires a newer version of spfs [{repo_version}]: {self.address()}"
-//             )
-//         if repo_version.compare(self.minimum_compatible_version) < 0:
-//             raise MigrationRequiredError(
-//                 str(repo_version), self.minimum_compatible_version
-//             )
-
-//     @property
-//     def root(self) -> str:
-//         return self.__root
-
-//     def concurrent(self) -> bool:
-//         return True
-
-//     def address(self) -> str:
-//         return f"file://{self.root}"
-
-//     def last_migration(self) -> str:
-
-//         return read_last_migration_version(self.__root)
-
-//     def set_last_migration(self, version: &str = None) -> None:
-
-//         set_last_migration(self.__root, version)
-
 // Read the last marked migration version for a repository root path.
-pub fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<String> {
+pub fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Version> {
     let version_file = root.as_ref().join("VERSION");
-    match std::fs::read(version_file) {
-        Ok(data) => {
-            return Ok(String::from_utf8_lossy(data.as_slice()).trim().to_string());
-        }
+    let version = match std::fs::read_to_string(version_file) {
+        Ok(version) => version,
         Err(err) => match err.kind() {
-            std::io::ErrorKind::NotFound => (),
+            std::io::ErrorKind::NotFound => crate::VERSION.to_string(),
             _ => return Err(err.into()),
         },
-    }
+    };
 
-    // versioned repo introduced in 0.13.0
-    // best guess if the repo exists and it's missing
-    // then it predates the creation of this file
-    Ok("0.12.0".to_string())
+    semver::Version::parse(version.as_str())
+        .map_err(|err| crate::Error::String(format!("{:?}", err)))
 }
 
 /// Set the last migration version of the repo with the given root directory.
-pub fn set_last_migration<P: AsRef<Path>>(root: P, version: Option<&str>) -> Result<()> {
+pub fn set_last_migration<P: AsRef<Path>>(root: P, version: Option<semver::Version>) -> Result<()> {
     let version = match version {
         Some(v) => v,
-        None => crate::VERSION,
+        None => semver::Version::parse(crate::VERSION).unwrap(),
     };
     let version_file = root.as_ref().join("VERSION");
-    std::fs::write(version_file, version)?;
+    std::fs::write(version_file, version.to_string())?;
     Ok(())
 }

@@ -36,7 +36,7 @@ macro_rules! fixtures {
                 {
                     let parent = path.parent();
                     if parent.is_none() {
-                        panic!("cannot find spfs binary to test}");
+                        panic!("cannot find spfs binary to test");
                     }
                     let parent = parent.unwrap();
                     if parent.is_dir() && parent.file_name().unwrap() == "target" {
