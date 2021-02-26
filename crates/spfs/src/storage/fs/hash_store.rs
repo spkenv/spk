@@ -5,10 +5,6 @@ use std::path::{Path, PathBuf};
 use crate::runtime::makedirs_with_perms;
 use crate::{encoding, graph, Error, Result};
 
-#[cfg(test)]
-#[path = "./hash_store_test.rs"]
-mod hash_store_test;
-
 pub struct FSHashStore {
     root: PathBuf,
     /// permissions used when creating new directories

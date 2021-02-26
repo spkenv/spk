@@ -3,10 +3,6 @@ use std::path::Path;
 use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
-#[cfg(test)]
-#[path = "./resolve_test.rs"]
-mod resolve_test;
-
 pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
     let config = load_config()?;
     let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository()?.into()];

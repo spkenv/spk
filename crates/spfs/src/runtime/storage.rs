@@ -286,12 +286,10 @@ impl Storage {
                     Err(err) => Err(err.into()),
                 }))
             }
-            Err(err) => {
-                match err.kind() {
-                    std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
-                    _ => return Box::new(vec![Err(err.into())].into_iter()),
-                }
-            }
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
+                _ => return Box::new(vec![Err(err.into())].into_iter()),
+            },
         }
     }
 }

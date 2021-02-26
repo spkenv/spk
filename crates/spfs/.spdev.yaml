@@ -3,24 +3,9 @@ release_notes: |
   * Convert existing spfs python code to rust
 
 toolchain:
-  - kind: Pipenv
-
   - kind: Rust
-components:
-  - name: python
-    kind: PythonPackage
-    lint:
-      python3: false
-      black: true
-      mypy: true
-    test:
-      command: pytest
-    install:
-      enabled: true
-    deploy:
-      rez:
-        enabled: false
 
+components:
   - kind: RustBinary
     name: rust
 
