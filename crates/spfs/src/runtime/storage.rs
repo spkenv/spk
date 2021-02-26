@@ -287,7 +287,6 @@ impl Storage {
                 }))
             }
             Err(err) => {
-                // TODO: check for enoent error
                 match err.kind() {
                     std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
                     _ => return Box::new(vec![Err(err.into())].into_iter()),

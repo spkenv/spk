@@ -53,8 +53,6 @@ pub async fn purge_objects(
             .boxed_local();
             futures.push(fut);
         }
-        // TODO: this stuff below is not technically objects, and maybe belongs
-        // in a higher level function
         {
             let current_count = current_count.clone();
             let fut = async move {
