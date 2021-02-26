@@ -57,7 +57,8 @@ impl CmdClean {
             self.prune(&mut repo)?;
         }
 
-        let unattached = spfs::get_all_unattached_objects(&repo)?;
+        let mut unattached = spfs::get_all_unattached_objects(&repo)?;
+        unattached.extend(spfs::get_all_unattached_payloads(&repo)?);
         if unattached.len() == 0 {
             tracing::info!("no objects to remove");
             return Ok(());

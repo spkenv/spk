@@ -112,7 +112,7 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
     assert_eq!(
         tags,
         vec![
-            "latest".to_string(),
+            "latest/".to_string(),
             "stable".to_string(),
             "stable/".to_string()
         ]
@@ -147,7 +147,7 @@ async fn test_rm_tags(tmpdir: tempdir::TempDir) {
         .unwrap()
         .collect();
     tags.sort();
-    assert_eq!(tags, vec!["latest", "stable"]);
+    assert_eq!(tags, vec!["latest/", "stable/"]);
     storage
         .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/my_tag").unwrap())
         .unwrap();
@@ -165,7 +165,7 @@ async fn test_rm_tags(tmpdir: tempdir::TempDir) {
         .collect();
     assert_eq!(
         tags,
-        vec!["latest"],
+        vec!["latest/"],
         "should remove empty tag folders during cleanup"
     );
 }

@@ -39,7 +39,8 @@ mod commit;
 pub use commit::{commit_layer, commit_platform, NothingToCommitError};
 mod clean;
 pub use clean::{
-    clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects, purge_objects,
+    clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
+    get_all_unattached_payloads, purge_objects,
 };
 mod prune;
 pub use prune::{get_prunable_tags, prune_tags, PruneParameters};
