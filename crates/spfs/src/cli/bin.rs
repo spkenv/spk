@@ -16,11 +16,11 @@ mod cmd_ls_tags;
 mod cmd_platforms;
 mod cmd_pull;
 mod cmd_push;
-// mod cmd_read;
+mod cmd_read;
 mod cmd_reset;
 mod cmd_run;
 mod cmd_runtimes;
-// mod cmd_search;
+mod cmd_search;
 mod cmd_tag;
 mod cmd_tags;
 mod cmd_version;
@@ -95,14 +95,14 @@ async fn main() {
         Command::Tags(mut cmd) => cmd.run(&config).await,
         Command::Info(mut cmd) => cmd.run(opt.verbose, &config).await,
         Command::Log(mut cmd) => cmd.run(&config).await,
-        // Command::Search(mut cmd) => cmd.run(&config).await,
+        Command::Search(mut cmd) => cmd.run(&config).await,
         Command::Diff(mut cmd) => cmd.run(&config).await,
         Command::LsTags(mut cmd) => cmd.run(&config).await,
         Command::Ls(mut cmd) => cmd.run(&config).await,
         // Command::Migrate(mut cmd) => cmd.run(&config).await,
         Command::Check(mut cmd) => cmd.run(&config).await,
         Command::Clean(mut cmd) => cmd.run(&config).await,
-        // Command::Read(mut cmd) => cmd.run(&config).await,
+        Command::Read(mut cmd) => cmd.run(&config).await,
         Command::InitRuntime(mut cmd) => cmd.run(&config).await,
     };
 

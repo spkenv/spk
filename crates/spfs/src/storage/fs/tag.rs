@@ -73,10 +73,20 @@ impl TagStorage for FSRepository {
         for entry in read_dir {
             let entry = entry?;
             let path = entry.path();
-            match path.file_stem() {
-                None => continue,
-                Some(tag_name) => {
-                    entries.insert(tag_name.to_string_lossy().to_string());
+            if path.extension() == Some(&std::ffi::OsStr::new(TAG_EXT)) {
+                match path.file_stem() {
+                    None => continue,
+                    Some(tag_name) => {
+                        entries.insert(tag_name.to_string_lossy().to_string());
+                    }
+                }
+            } else {
+                match path.file_name() {
+                    None => continue,
+                    Some(tag_dir) => {
+                        let dir = tag_dir.to_string_lossy() + "/";
+                        entries.insert(dir.to_string());
+                    }
                 }
             }
         }

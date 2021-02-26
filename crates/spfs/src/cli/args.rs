@@ -50,8 +50,8 @@ pub enum Command {
     Info(super::cmd_info::CmdInfo),
     #[structopt(about = "log the history of a given tag over time")]
     Log(super::cmd_log::CmdLog),
-    // #[structopt(about = "search for available tags by substring")]
-    // Search(super::cmd_search::CmdSearch),
+    #[structopt(about = "search for available tags by substring")]
+    Search(super::cmd_search::CmdSearch),
     #[structopt(about = "compare two spfs file system states")]
     Diff(super::cmd_diff::CmdDiff),
     #[structopt(about = "list tags by their path", aliases = &["list-tags"])]
@@ -64,8 +64,8 @@ pub enum Command {
     Check(super::cmd_check::CmdCheck),
     #[structopt(about = "clean the repository storage of untracked data")]
     Clean(super::cmd_clean::CmdClean),
-    // #[structopt(about = "output the contents of a stored payload to stdout", aliases = ["read-file", "cat", "cat-file"])]
-    // Read(super::cmd_read::CmdRead),
+    #[structopt(about = "output the contents of a stored payload to stdout", aliases = &["read-file", "cat", "cat-file"])]
+    Read(super::cmd_read::CmdRead),
     #[structopt(about = "[internal use only] instantiates a raw runtime session")]
     InitRuntime(super::cmd_init::CmdInit),
 }

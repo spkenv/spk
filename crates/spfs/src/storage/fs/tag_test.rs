@@ -103,13 +103,20 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
         .ls_tags(&RelativePathBuf::from("/"))
         .unwrap()
         .collect();
-    assert_eq!(tags, vec!["spi".to_string()]);
+    assert_eq!(tags, vec!["spi/".to_string()]);
     tags = storage
         .ls_tags(&RelativePathBuf::from("/spi"))
         .unwrap()
         .collect();
     tags.sort();
-    assert_eq!(tags, vec!["latest".to_string(), "stable".to_string()]);
+    assert_eq!(
+        tags,
+        vec![
+            "latest".to_string(),
+            "stable".to_string(),
+            "stable/".to_string()
+        ]
+    );
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi/stable"))
         .unwrap()

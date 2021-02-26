@@ -1,6 +1,6 @@
 use structopt::StructOpt;
 
-use spfs::{self, prelude::*};
+use spfs;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdLayers {

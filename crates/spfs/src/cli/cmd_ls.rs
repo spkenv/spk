@@ -21,15 +21,25 @@ impl CmdLs {
         let repo: RepositoryHandle = config.get_repository()?.into();
         let item = repo.read_ref(self.reference.as_str())?;
 
-        let path = relative_path::RelativePathBuf::from(&self.path);
-        let path = path.strip_prefix("/spfs").unwrap_or_else(|_| path.as_ref());
+        let path = self
+            .path
+            .strip_prefix("/spfs")
+            .unwrap_or(&self.path)
+            .to_string();
         let manifest = spfs::compute_object_manifest(item, &repo)?;
         if let Some(entries) = manifest.list_dir(path.as_str()) {
             for name in entries {
                 println!("{}", name);
             }
         } else {
-            tracing::error!("file not found in manifest");
+            match manifest.get_path(path.as_str()) {
+                None => {
+                    tracing::error!("path not found in manifest: {}", self.path);
+                }
+                Some(_entry) => {
+                    tracing::error!("path is not a directory: {}", self.path);
+                }
+            }
             std::process::exit(1);
         }
         Ok(())
