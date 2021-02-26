@@ -12,7 +12,7 @@ mod cmd_layers;
 mod cmd_log;
 mod cmd_ls;
 mod cmd_ls_tags;
-// mod cmd_migrate;
+mod cmd_migrate;
 mod cmd_platforms;
 mod cmd_pull;
 mod cmd_push;
@@ -99,7 +99,7 @@ async fn main() {
         Command::Diff(mut cmd) => cmd.run(&config).await,
         Command::LsTags(mut cmd) => cmd.run(&config).await,
         Command::Ls(mut cmd) => cmd.run(&config).await,
-        // Command::Migrate(mut cmd) => cmd.run(&config).await,
+        Command::Migrate(mut cmd) => cmd.run(&config).await,
         Command::Check(mut cmd) => cmd.run(&config).await,
         Command::Clean(mut cmd) => cmd.run(&config).await,
         Command::Read(mut cmd) => cmd.run(&config).await,

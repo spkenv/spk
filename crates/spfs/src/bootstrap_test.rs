@@ -8,13 +8,15 @@ fixtures!();
 
 #[rstest(
     shell,
+    startup_script,
     startup_cmd,
-    case("bash", "export TEST_VALUE='spfs-test-value'"),
-    case("tcsh", "setenv TEST_VALUE 'spfs-test-value'")
+    case("bash", "test.sh", "export TEST_VALUE='spfs-test-value'"),
+    case("tcsh", "test.csh", "setenv TEST_VALUE 'spfs-test-value'")
 )]
 #[tokio::test]
 async fn test_shell_initialization_startup_scripts(
     shell: &str,
+    startup_script: &str,
     startup_cmd: &str,
     tmpdir: tempdir::TempDir,
 ) {
@@ -33,6 +35,7 @@ async fn test_shell_initialization_startup_scripts(
     let setenv = |cmd: &mut std::process::Command| {
         cmd.env("SPFS_RUNTIME", rt.root());
         cmd.env("SPFS_DEBUG", "1");
+        cmd.env("SHELL", &shell_path);
     };
 
     let tmp_startup_dir = tmpdir.path().join("startup.d");
@@ -50,8 +53,7 @@ async fn test_shell_initialization_startup_scripts(
         println!("{:?}", cmd.output().unwrap());
     }
 
-    std::fs::write(tmp_startup_dir.join("test.csh"), startup_cmd).unwrap();
-    std::fs::write(tmp_startup_dir.join("test.sh"), startup_cmd).unwrap();
+    std::fs::write(tmp_startup_dir.join(startup_script), startup_cmd).unwrap();
 
     std::env::set_var("SHELL", &shell_path);
     std::env::set_var("SPFS_RUNTIME", &rt.root());
@@ -87,6 +89,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
     let setenv = |cmd: &mut std::process::Command| {
         cmd.env("SPFS_RUNTIME", rt.root());
         cmd.env("SPFS_DEBUG", "1");
+        cmd.env("SHELL", &shell_path);
     };
 
     let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();

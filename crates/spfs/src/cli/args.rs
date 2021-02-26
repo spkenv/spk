@@ -59,8 +59,8 @@ pub enum Command {
     #[structopt(about = "list the contents of a committed directory", aliases = &["list-dir", "list"])]
     Ls(super::cmd_ls::CmdLs),
     #[structopt(about = "migrate the data from and older repository format to the latest one")]
-    // Migrate(super::cmd_migrate::CmdMigrate),
-    // #[structopt(about = "check a repositories internal integrity")]
+    Migrate(super::cmd_migrate::CmdMigrate),
+    #[structopt(about = "check a repositories internal integrity")]
     Check(super::cmd_check::CmdCheck),
     #[structopt(about = "clean the repository storage of untracked data")]
     Clean(super::cmd_clean::CmdClean),
