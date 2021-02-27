@@ -8,6 +8,7 @@ toolchain:
       SENTRY_ENVIRONMENT: development
       PATH: $SPDEV_ENV/bin:$PATH
   - kind: Pipenv
+  - kind: Rust
 
 components:
   - kind: PythonPackage
@@ -23,15 +24,18 @@ components:
     deploy:
       rez.enabled: false
 
+  - kind: RustCrate
+    name: spk
+
   - kind: HugoDocs
     name: docs
     location: docs
 
   - kind: RPMPackage
     name: rpm
-    spec_file: spk.spec
-
-    # bootstrap packages that need to go out with any new features
+    spec_file:
+      spk.spec
+      # bootstrap packages that need to go out with any new features
   - kind: SPKPackage
     name: spk-stdfs
     version: 1.0.0

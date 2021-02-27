@@ -9,6 +9,7 @@ coverage.xml
 .benchmarks
 .coverage
 .coverage.*
+*.so
 
 # spdev
 /build/
@@ -28,3 +29,6 @@ dist/
 # GENERATED FOR spdev:Pipenv
 .venv/
 # END spdev:Pipenv
+# GENERATED FOR spdev:Rust
+target/
+# END spdev:Rust
