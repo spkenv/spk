@@ -12,18 +12,16 @@ fixtures!();
 #[tokio::test]
 async fn test_push_ref_unknown() {
     let _guard = init_logging();
-    if let Err(Error::UnknownReference(_)) = push_ref("--test-unknown--", None).await {
-        // ok
-    } else {
-        panic!("expected unknown reference error");
+    match push_ref("--test-unknown--", None).await {
+        Err(Error::UnknownReference(_)) => (),
+        Err(err) => panic!("expected unknown reference error, got {:?}", err),
+        Ok(_) => panic!("expected unknown reference error, got success"),
     }
 
-    if let Err(Error::UnknownReference(_)) =
-        push_ref(encoding::Digest::default().to_string(), None).await
-    {
-        // ok
-    } else {
-        panic!("expected unknown reference error");
+    match push_ref(encoding::Digest::default().to_string(), None).await {
+        Err(Error::UnknownObject(_)) => (),
+        Err(err) => panic!("expected unknown reference error, got {:?}", err),
+        Ok(_) => panic!("expected unknown reference error, got success"),
     }
 }
 

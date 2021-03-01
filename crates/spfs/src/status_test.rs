@@ -21,7 +21,6 @@ async fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::p
             "{:?} run -e {} -- bash -c 'rm {} && {:?} commit platform -t {}'",
             &spfs_binary, base_tag, filename, &spfs_binary, top_tag
         ),
-        format!("{:?} run {} -- tree /spfs", &spfs_binary, top_tag),
         format!(
             "{:?} run {} -- test ! -f {}",
             &spfs_binary, top_tag, filename
@@ -58,7 +57,6 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::pa
             "{:?} run -e {} -- bash -c 'rm -r {} && {:?} commit platform -t {}'",
             &spfs_binary, base_tag, to_remove, &spfs_binary, top_tag
         ),
-        format!("{:?} run {} -- tree /spfs", &spfs_binary, top_tag),
         format!(
             "{:?} run {} -- test ! -d {}",
             &spfs_binary, top_tag, to_remove
