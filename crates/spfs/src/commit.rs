@@ -10,7 +10,7 @@ mod commit_test;
 /// Denotes that a layer or manifest either is or would be empty.
 #[derive(Debug)]
 pub struct NothingToCommitError {
-    message: String,
+    pub message: String,
 }
 
 impl NothingToCommitError {

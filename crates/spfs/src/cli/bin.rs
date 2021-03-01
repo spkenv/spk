@@ -109,7 +109,7 @@ async fn main() {
     match result {
         Err(err) => {
             capture_if_relevant(&err);
-            tracing::error!("{}", err);
+            tracing::error!("{}", spfs::io::format_error(&err));
             std::process::exit(1);
         }
         Ok(_) => std::process::exit(0),

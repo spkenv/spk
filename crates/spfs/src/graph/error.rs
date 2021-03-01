@@ -3,7 +3,7 @@ use crate::{encoding, Error};
 /// Denotes a missing object or one that is not present in the database.
 #[derive(Debug, Eq, PartialEq)]
 pub struct UnknownObjectError {
-    message: String,
+    pub message: String,
 }
 
 impl UnknownObjectError {
@@ -18,7 +18,7 @@ impl UnknownObjectError {
 /// Denotes a reference that is not known.
 #[derive(Debug, Eq, PartialEq)]
 pub struct UnknownReferenceError {
-    message: String,
+    pub message: String,
 }
 
 impl UnknownReferenceError {
@@ -33,7 +33,7 @@ impl UnknownReferenceError {
 /// Denotes a reference that could refer to more than one object in the storage.
 #[derive(Debug, Eq, PartialEq)]
 pub struct AmbiguousReferenceError {
-    message: String,
+    pub message: String,
 }
 
 impl AmbiguousReferenceError {
@@ -50,7 +50,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Denotes a missing object or one that is not present in the database.
 #[derive(Debug, Eq, PartialEq)]
 pub struct InvalidReferenceError {
-    message: String,
+    pub message: String,
 }
 
 impl InvalidReferenceError {

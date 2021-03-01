@@ -11,7 +11,7 @@ static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 
 #[derive(Debug)]
 pub struct NoRuntimeError {
-    message: String,
+    pub message: String,
 }
 
 impl NoRuntimeError {

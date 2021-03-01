@@ -1,6 +1,6 @@
 use colored::*;
 
-use crate::{encoding, storage, tracking, Result};
+use crate::{encoding, storage, tracking, Error, Result};
 
 /// Return a nicely formatted string representation of the given reference.
 pub fn format_digest<R: AsRef<str>>(
@@ -85,4 +85,21 @@ pub fn format_size(size: u64) -> String {
         size /= 1024.0;
     }
     format!("{:3.1} Pi", size)
+}
+
+/// Return a nicely formatted error string for the given internal error
+pub fn format_error(err: &Error) -> String {
+    match err {
+        Error::InvalidReference(err) => err.message.clone(),
+        Error::UnknownObject(err) => err.message.clone(),
+        Error::UnknownReference(err) => err.message.clone(),
+        Error::AmbiguousReference(err) => err.message.clone(),
+        Error::NoRuntime(err) => err.message.clone(),
+        Error::NothingToCommit(err) => err.message.clone(),
+        Error::String(err) => err.clone(),
+        Error::Config(err) => err.to_string(),
+        Error::Nix(err) => err.to_string(),
+        Error::IO(err) => err.to_string(),
+        Error::JSON(err) => err.to_string(),
+    }
 }
