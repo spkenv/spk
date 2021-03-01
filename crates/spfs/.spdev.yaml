@@ -7,7 +7,7 @@ toolchain:
 
 components:
   - kind: RustBinary
-    name: rust
+    name: spfs
 
   - name: rpm
     kind: RPMPackage
