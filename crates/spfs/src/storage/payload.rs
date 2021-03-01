@@ -35,21 +35,21 @@ pub trait PayloadStorage {
 
 impl<T: PayloadStorage> PayloadStorage for &mut T {
     fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
-        PayloadStorage::iter_payload_digests(*self)
+        PayloadStorage::iter_payload_digests(&**self)
     }
 
     fn write_data(
         &mut self,
         reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(encoding::Digest, u64)> {
-        PayloadStorage::write_data(*self, reader)
+        PayloadStorage::write_data(&mut **self, reader)
     }
 
     fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
-        PayloadStorage::open_payload(*self, digest)
+        PayloadStorage::open_payload(&**self, digest)
     }
 
     fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        PayloadStorage::remove_payload(*self, digest)
+        PayloadStorage::remove_payload(&mut **self, digest)
     }
 }

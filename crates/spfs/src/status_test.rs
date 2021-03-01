@@ -78,6 +78,7 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::pa
     let mut cmd = Command::new("bash");
     cmd.arg("-ex");
     cmd.arg(script);
+    cmd.env("SHELL", "bash");
     assert_eq!(cmd.status().unwrap().code(), Some(0));
 }
 

@@ -158,6 +158,9 @@ pub trait DatabaseView {
         let decoded = data_encoding::BASE32
             .decode(short_digest.as_bytes())
             .map_err(|_| InvalidReferenceError::new(short_digest))?;
+        if decoded.len() == encoding::DIGEST_SIZE {
+            return Ok(encoding::Digest::from_bytes(decoded.as_slice())?);
+        }
         let mut options = Vec::new();
         for digest in self.iter_digests() {
             let digest = digest?;
@@ -176,37 +179,37 @@ pub trait DatabaseView {
 
 impl<T: DatabaseView> DatabaseView for &T {
     fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
-        (*self).read_object(digest)
+        DatabaseView::read_object(&**self, digest)
     }
 
     fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
-        (*self).iter_digests()
+        DatabaseView::iter_digests(&**self)
     }
 
     fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
-        (*self).iter_objects()
+        DatabaseView::iter_objects(&**self)
     }
 
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db> {
-        (*self).walk_objects(root)
+        DatabaseView::walk_objects(&**self, root)
     }
 }
 
 impl<T: DatabaseView> DatabaseView for &mut T {
     fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
-        DatabaseView::read_object(*self, digest)
+        DatabaseView::read_object(&**self, digest)
     }
 
     fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
-        DatabaseView::iter_digests(*self)
+        DatabaseView::iter_digests(&**self)
     }
 
     fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
-        DatabaseView::iter_objects(*self)
+        DatabaseView::iter_objects(&**self)
     }
 
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db> {
-        DatabaseView::walk_objects(*self, root)
+        DatabaseView::walk_objects(&**self, root)
     }
 }
 
