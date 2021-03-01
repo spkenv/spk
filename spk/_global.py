@@ -1,6 +1,6 @@
 from typing import Union
 
-import spfs
+import spkrs
 from . import api, storage
 
 

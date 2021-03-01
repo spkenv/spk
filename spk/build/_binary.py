@@ -5,7 +5,7 @@ import json
 import subprocess
 
 import structlog
-import spfs
+import spkrs
 
 from .. import api, storage, solve, exec
 from ._env import data_path, deferred_signals
@@ -104,13 +104,13 @@ class BinaryPackageBuilder:
             self._spec is not None
         ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
-        runtime = spfs.active_runtime()
+        runtime = spkrs.active_runtime()
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
         runtime.reset("**/*")
         runtime.reset_stack()
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
         _LOGGER.debug("package options", options=self._pkg_options)
@@ -130,7 +130,7 @@ class BinaryPackageBuilder:
         self._all_options = opts
         exec.configure_runtime(runtime, solution)
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         specs = list(s for _, s, _ in solution.items())
         self._spec.update_for_build(self._all_options, specs)
@@ -188,7 +188,7 @@ class BinaryPackageBuilder:
 
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]
-    ) -> spfs.storage.Layer:
+    ) -> spkrs.storage.Layer:
 
         assert self._spec is not None, "Internal Error: spec is None"
 
@@ -196,20 +196,23 @@ class BinaryPackageBuilder:
 
         sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
-        runtime = spfs.active_runtime()
+        runtime = spkrs.active_runtime()
         pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
         _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
         runtime.reset(pattern)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         _LOGGER.info("Calculating package fileset...")
-        diffs = spfs.diff()
+        diffs = spkrs.diff()
         _LOGGER.info("Validating package fileset...")
         validate_build_changeset(diffs, self._prefix)
 
-        return spfs.commit_layer(runtime)
+        return spkrs.commit_layer(runtime)
 
-    def _build_artifacts(self, env: MutableMapping[str, str] = None,) -> None:
+    def _build_artifacts(
+        self,
+        env: MutableMapping[str, str] = None,
+    ) -> None:
 
         assert self._spec is not None
 
@@ -251,10 +254,10 @@ class BinaryPackageBuilder:
             print(" - this package's build script can be run from: " + build_script)
             print(" - to cancel and discard this build, run `exit 1`")
             print(" - to finalize and save the package, run `exit 0`")
-            cmd = spfs.build_interactive_shell_cmd()
+            cmd = spkrs.build_interactive_shell_cmd()
         else:
             os.environ["SHELL"] = "sh"
-            cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
+            cmd = spkrs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
         with deferred_signals():
             proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
             proc.wait()
@@ -314,11 +317,11 @@ def build_script_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
 
 
 def validate_build_changeset(
-    diffs: List[spfs.tracking.Diff], prefix: str = "/spfs"
+    diffs: List[spkrs.tracking.Diff], prefix: str = "/spfs"
 ) -> None:
 
     diffs = list(
-        filter(lambda diff: diff.mode is not spfs.tracking.DiffMode.unchanged, diffs)
+        filter(lambda diff: diff.mode is not spkrs.tracking.DiffMode.unchanged, diffs)
     )
 
     if not diffs:
@@ -330,8 +333,8 @@ def validate_build_changeset(
             a, b = diff.entries
             if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
                 continue
-        if diff.mode is not spfs.tracking.DiffMode.added:
-            if diff.mode is spfs.tracking.DiffMode.changed and diff.entries:
+        if diff.mode is not spkrs.tracking.DiffMode.added:
+            if diff.mode is spkrs.tracking.DiffMode.changed and diff.entries:
                 mode_change = diff.entries[0].mode ^ diff.entries[1].mode
                 nonperm_change = (mode_change | 0o777) ^ 0o777
                 if mode_change and not nonperm_change:
@@ -340,5 +343,5 @@ def validate_build_changeset(
                     os.chmod(prefix + diff.path, diff.entries[0].mode)
                     continue
             raise BuildError(
-                f"Existing file was {diff.mode.name}: {spfs.io.format_diffs([diff])}"
+                f"Existing file was {diff.mode.name}: {spkrs.io.format_diffs([diff])}"
             )

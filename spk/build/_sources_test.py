@@ -3,7 +3,7 @@ import tarfile
 
 import py.path
 import pytest
-import spfs
+import spkrs
 
 from .. import api
 from ._sources import validate_source_changeset, CollectionError, collect_sources
@@ -21,7 +21,11 @@ def test_validate_sources_changeset_not_in_dir() -> None:
     with pytest.raises(CollectionError):
 
         validate_source_changeset(
-            [spfs.tracking.Diff(path="/file.txt", mode=spfs.tracking.DiffMode.changed)],
+            [
+                spkrs.tracking.Diff(
+                    path="/file.txt", mode=spkrs.tracking.DiffMode.changed
+                )
+            ],
             "/some/dir",
         )
 
@@ -30,8 +34,8 @@ def test_validate_sources_changeset_ok() -> None:
 
     validate_source_changeset(
         [
-            spfs.tracking.Diff(
-                path="/some/dir/file.txt", mode=spfs.tracking.DiffMode.added
+            spkrs.tracking.Diff(
+                path="/some/dir/file.txt", mode=spkrs.tracking.DiffMode.added
             )
         ],
         "/some/dir",

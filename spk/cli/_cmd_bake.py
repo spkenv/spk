@@ -6,7 +6,7 @@ import structlog
 from ruamel import yaml
 from colorama import Fore, Style
 
-import spfs
+import spkrs
 import spk
 import spk.io
 
@@ -38,7 +38,7 @@ def _bake(args: argparse.Namespace) -> None:
     if args.package:
         runtime = _solve_and_build_new_runtime(args)
     else:
-        runtime = spfs.active_runtime()
+        runtime = spkrs.active_runtime()
 
     for layer in runtime.get_stack():
         print(layer)
@@ -47,7 +47,7 @@ def _bake(args: argparse.Namespace) -> None:
         runtime.delete()
 
 
-def _solve_and_build_new_runtime(args: argparse.Namespace) -> spfs.runtime.Runtime:
+def _solve_and_build_new_runtime(args: argparse.Namespace) -> spkrs.runtime.Runtime:
 
     solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]
@@ -73,6 +73,6 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> spfs.runtime.Runti
 
         sys.exit(1)
 
-    runtime = spfs.get_config().get_runtime_storage().create_runtime()
+    runtime = spkrs.get_config().get_runtime_storage().create_runtime()
     spk.exec.configure_runtime(runtime, solution)
     return runtime

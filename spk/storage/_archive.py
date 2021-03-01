@@ -3,7 +3,7 @@ from typing import Union
 import os
 import tempfile
 
-import spfs
+import spkrs
 import structlog
 
 from .. import api
@@ -35,14 +35,16 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
 
     tmpdir = tempfile.TemporaryDirectory()
     with tmpdir:
-        tmprepo = SpFSRepository(spfs.storage.fs.FSRepository(tmpdir.name, create=True))
+        tmprepo = SpFSRepository(
+            spkrs.storage.fs.FSRepository(tmpdir.name, create=True)
+        )
 
         for pkg in to_transfer:
             for src_repo in (local_repository(), remote_repository()):
                 try:
                     _copy_package(pkg, src_repo, tmprepo)
                     break
-                except (spfs.graph.UnknownReferenceError, PackageNotFoundError):
+                except (spkrs.graph.UnknownReferenceError, PackageNotFoundError):
                     continue
             else:
                 raise PackageNotFoundError(pkg)
@@ -58,17 +60,17 @@ def import_package(filename: str) -> None:
     # does not exist, but we want to ensure that for importing,
     # the archive is already present
     os.stat(filename)
-    tar_spfs_repo = spfs.storage.tar.TarRepository(filename)
+    tar_spfs_repo = spkrs.storage.tar.TarRepository(filename)
     tmpdir = tempfile.TemporaryDirectory()
     tar = tarfile.open(filename, "r")
     with tmpdir, tar:
         _LOGGER.info("Extracting archive...")
         tar.extractall(tmpdir.name)
-        archive_repo = spfs.storage.fs.FSRepository(tmpdir.name, create=True)
+        archive_repo = spkrs.storage.fs.FSRepository(tmpdir.name, create=True)
         local_repo = local_repository()
         for tag, _ in archive_repo.tags.iter_tags():
             _LOGGER.info("importing", ref=str(tag))
-            spfs.sync_ref(str(tag), archive_repo, local_repo.as_spfs_repo())
+            spkrs.sync_ref(str(tag), archive_repo, local_repo.as_spfs_repo())
 
 
 def _copy_package(
@@ -83,5 +85,5 @@ def _copy_package(
 
     digest = src_repo.get_package(pkg)
     _LOGGER.info("exporting", pkg=str(pkg))
-    spfs.sync_ref(digest.str(), src_repo.as_spfs_repo(), dst_repo.as_spfs_repo())
+    spkrs.sync_ref(digest.str(), src_repo.as_spfs_repo(), dst_repo.as_spfs_repo())
     dst_repo.publish_package(spec, digest)

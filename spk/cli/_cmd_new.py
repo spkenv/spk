@@ -5,7 +5,7 @@ import textwrap
 
 import structlog
 
-import spfs
+import spkrs
 import spk
 
 from spk.io import format_decision

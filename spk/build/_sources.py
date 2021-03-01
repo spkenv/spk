@@ -2,7 +2,7 @@ from typing import List, Optional
 import os
 
 import structlog
-import spfs
+import spkrs
 
 from .. import api, storage
 from ._env import data_path
@@ -69,26 +69,26 @@ class SourcePackageBuilder:
         return spec.pkg
 
 
-def collect_and_commit_sources(spec: api.Spec) -> spfs.storage.Layer:
+def collect_and_commit_sources(spec: api.Spec) -> spkrs.storage.Layer:
     """Collect sources for the given spec and commit them into an spfs layer."""
 
     pkg = spec.pkg.with_build(api.SRC)
 
-    runtime = spfs.active_runtime()
+    runtime = spkrs.active_runtime()
     runtime.set_editable(True)
-    spfs.remount_runtime(runtime)
+    spkrs.remount_runtime(runtime)
     runtime.reset("**/*")
     runtime.reset_stack()
     runtime.set_editable(True)
-    spfs.remount_runtime(runtime)
+    spkrs.remount_runtime(runtime)
 
     source_dir = data_path(pkg)
     collect_sources(spec, source_dir)
 
-    diffs = spfs.diff()
+    diffs = spkrs.diff()
     validate_source_changeset(diffs, source_dir)
 
-    return spfs.commit_layer(runtime)
+    return spkrs.commit_layer(runtime)
 
 
 def collect_sources(spec: api.Spec, source_dir: str) -> None:
@@ -106,7 +106,9 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
         source.collect(target_dir)
 
 
-def validate_source_changeset(diffs: List[spfs.tracking.Diff], source_dir: str) -> None:
+def validate_source_changeset(
+    diffs: List[spkrs.tracking.Diff], source_dir: str
+) -> None:
     """Validate the set of diffs for a source package build.
 
     Raises:
@@ -122,7 +124,7 @@ def validate_source_changeset(diffs: List[spfs.tracking.Diff], source_dir: str) 
     if source_dir.startswith("/spfs"):
         source_dir = source_dir[len("/spfs") :]
     for diff in diffs:
-        if diff.mode is spfs.tracking.DiffMode.unchanged:
+        if diff.mode is spkrs.tracking.DiffMode.unchanged:
             continue
         if diff.path.startswith(source_dir):
             # the change is within the source directory

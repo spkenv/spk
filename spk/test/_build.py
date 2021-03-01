@@ -4,7 +4,7 @@ import signal
 import subprocess
 import tempfile
 
-import spfs
+import spkrs
 
 from .. import api, solve, exec, build, storage
 
@@ -73,13 +73,13 @@ class PackageBuildTester:
 
     def test(self) -> None:
 
-        runtime = spfs.active_runtime()
+        runtime = spkrs.active_runtime()
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
         runtime.reset("**/*")
         runtime.reset_stack()
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         solution = self._resolve_source_package()
         exec.configure_runtime(runtime, solution)
@@ -94,7 +94,7 @@ class PackageBuildTester:
 
         exec.configure_runtime(runtime, solution)
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         specs = list(s for _, s, _ in solution.items())
         self._options.update(solution.options())
@@ -112,7 +112,7 @@ class PackageBuildTester:
             script_file.write(self._script)
             script_file.flush()
             os.environ["SHELL"] = "sh"
-            cmd = spfs.build_shell_initialized_command(
+            cmd = spkrs.build_shell_initialized_command(
                 "/bin/sh", "-ex", script_file.name
             )
 

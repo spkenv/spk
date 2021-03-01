@@ -1,4 +1,4 @@
-import spfs
+import spkrs
 
 from ... import storage, api
 from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterator
@@ -12,19 +12,19 @@ def test_only_latest_release_is_given() -> None:
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
         spec,
-        spfs.encoding.EMPTY_DIGEST,
+        spkrs.encoding.EMPTY_DIGEST,
     )
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.2"})
     repo.publish_spec(spec)
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
         spec,
-        spfs.encoding.EMPTY_DIGEST,
+        spkrs.encoding.EMPTY_DIGEST,
     )
     spec.pkg.set_build("BVOFAV57")
     repo.publish_package(
         spec,
-        spfs.encoding.EMPTY_DIGEST,
+        spkrs.encoding.EMPTY_DIGEST,
     )
 
     it = FilteredPackageIterator(
@@ -48,14 +48,14 @@ def test_old_release_allowed_if_requested() -> None:
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
         spec,
-        spfs.encoding.EMPTY_DIGEST,
+        spkrs.encoding.EMPTY_DIGEST,
     )
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.2"})
     repo.publish_spec(spec)
     spec.pkg.set_build("BGSHW3CN")
     repo.publish_package(
         spec,
-        spfs.encoding.EMPTY_DIGEST,
+        spkrs.encoding.EMPTY_DIGEST,
     )
 
     it = FilteredPackageIterator(

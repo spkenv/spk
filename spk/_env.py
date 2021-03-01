@@ -1,7 +1,7 @@
 from typing import Union
 import os
 
-import spfs
+import spkrs
 import structlog
 
 from . import api, solve, storage
@@ -22,8 +22,8 @@ def current_env() -> solve.Solution:
     """Load the current environment from the spfs file system."""
 
     try:
-        spfs.active_runtime()
-    except spfs.NoRuntimeError:
+        spkrs.active_runtime()
+    except spkrs.NoRuntimeError:
         raise NoEnvironmentError()
 
     runtime = storage.RuntimeRepository()

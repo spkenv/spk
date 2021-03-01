@@ -1,6 +1,6 @@
 import py.path
 import pytest
-import spfs
+import spkrs
 import logging
 
 import structlog
@@ -20,7 +20,7 @@ structlog.configure(
 
 
 @pytest.fixture
-def tmprepo(tmpspfs: spfs.storage.fs.FSRepository) -> spfs.storage.fs.FSRepository:
+def tmprepo(tmpspfs: spkrs.storage.fs.FSRepository) -> spkrs.storage.fs.FSRepository:
 
     from spk import storage
 
@@ -31,27 +31,27 @@ def tmprepo(tmpspfs: spfs.storage.fs.FSRepository) -> spfs.storage.fs.FSReposito
 def spfs_editable(tmpspfs: None) -> None:
 
     try:
-        runtime = spfs.active_runtime()
-    except spfs.NoRuntimeError:
+        runtime = spkrs.active_runtime()
+    except spkrs.NoRuntimeError:
         pytest.fail("Tests must be run in an spfs environment")
         return
 
     runtime.reset_stack()
     runtime.set_editable(True)
-    spfs.remount_runtime(runtime)
+    spkrs.remount_runtime(runtime)
     runtime.reset()
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local) -> spfs.storage.fs.FSRepository:
+def tmpspfs(tmpdir: py.path.local) -> spkrs.storage.fs.FSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath
-    config = spfs.get_config()
+    config = spkrs.get_config()
     config.clear()
     config.add_section("storage")
     config.add_section("remote.origin")
     config.set("storage", "root", root)
     config.set("remote.origin", "address", "file:" + origin_root)
-    spfs.storage.fs.FSRepository(origin_root, create=True)
-    return spfs.storage.fs.FSRepository(root, create=True)
+    spkrs.storage.fs.FSRepository(origin_root, create=True)
+    return spkrs.storage.fs.FSRepository(root, create=True)

@@ -4,7 +4,7 @@ import os
 import sys
 import termios
 
-import spfs
+import spkrs
 import structlog
 from ruamel import yaml
 from colorama import Fore, Style
@@ -48,7 +48,7 @@ def register(
 
 
 def _install(args: argparse.Namespace) -> None:
-    """install a package into spfs."""
+    """install a package into spkrs."""
 
     solver = _flags.get_solver_from_flags(args)
     requests = _flags.parse_requests_using_flags(args, *args.packages)
@@ -82,8 +82,8 @@ def _install(args: argparse.Namespace) -> None:
         spk.api.save_spec_file(filename, spec)
         print(f"{Fore.YELLOW}Updated: {filename}{Fore.RESET}")
         try:
-            spfs.active_runtime()
-        except spfs.NoRuntimeError:
+            spkrs.active_runtime()
+        except spkrs.NoRuntimeError:
             return
 
     for solved in env.items():

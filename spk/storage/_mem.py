@@ -1,7 +1,7 @@
 from typing import Dict, Iterable, Union, Tuple
 import abc
 
-import spfs
+import spkrs
 
 from .. import api
 from ._repository import Repository, VersionExistsError, PackageNotFoundError
@@ -11,7 +11,7 @@ class MemRepository(Repository):
     def __init__(self) -> None:
         self._specs: Dict[str, Dict[str, api.Spec]] = {}
         self._packages: Dict[
-            str, Dict[str, Dict[str, Tuple[api.Spec, spfs.encoding.Digest]]]
+            str, Dict[str, Dict[str, Tuple[api.Spec, spkrs.Digest]]]
         ] = {}
 
     def list_packages(self) -> Iterable[str]:
@@ -48,7 +48,7 @@ class MemRepository(Repository):
         except KeyError:
             raise PackageNotFoundError(pkg)
 
-    def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
+    def get_package(self, pkg: api.Ident) -> spkrs.Digest:
 
         if pkg.build is None:
             raise PackageNotFoundError(pkg)
@@ -85,7 +85,7 @@ class MemRepository(Repository):
         except KeyError:
             raise PackageNotFoundError(pkg)
 
-    def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
+    def publish_package(self, spec: api.Spec, digest: spkrs.Digest) -> None:
 
         if spec.pkg.build is None:
             raise ValueError(

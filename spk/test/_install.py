@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 from typing import Iterable, List, Optional
 
-import spfs
+import spkrs
 
 from .. import api, storage, solve, exec, build
 from ._build import TestError
@@ -67,13 +67,13 @@ class PackageInstallTester:
 
     def test(self) -> None:
 
-        runtime = spfs.active_runtime()
+        runtime = spkrs.active_runtime()
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
         runtime.reset("**/*")
         runtime.reset_stack()
         runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         self._solver.reset()
         for request in self._additional_requirements:
@@ -85,7 +85,7 @@ class PackageInstallTester:
         solution = self._solver.solve()
 
         exec.configure_runtime(runtime, solution)
-        spfs.remount_runtime(runtime)
+        spkrs.remount_runtime(runtime)
 
         env = solution.to_environment() or {}
         env["PREFIX"] = self._prefix
@@ -98,7 +98,7 @@ class PackageInstallTester:
             script_file.write(self._script)
             script_file.flush()
             os.environ["SHELL"] = "sh"
-            cmd = spfs.build_shell_initialized_command(
+            cmd = spkrs.build_shell_initialized_command(
                 "/bin/sh", "-ex", script_file.name
             )
 

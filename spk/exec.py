@@ -1,4 +1,4 @@
-import spfs
+import spkrs
 import structlog
 
 from . import solve, storage, io, build, api
@@ -39,20 +39,20 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
 def setup_current_runtime(solution: solve.Solution) -> None:
     """Modify the active spfs runtime to include exactly the packges in the given solution."""
 
-    runtime = spfs.active_runtime()
+    runtime = spkrs.active_runtime()
     configure_runtime(runtime, solution)
-    spfs.remount_runtime(runtime)
+    spkrs.remount_runtime(runtime)
 
 
-def create_runtime(solution: solve.Solution) -> spfs.runtime.Runtime:
+def create_runtime(solution: solve.Solution) -> spkrs.runtime.Runtime:
     """Create a new runtime properly configured with the given solve."""
 
-    runtime = spfs.get_config().get_runtime_storage().create_runtime()
+    runtime = spkrs.get_config().get_runtime_storage().create_runtime()
     configure_runtime(runtime, solution)
     return runtime
 
 
-def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -> None:
+def configure_runtime(runtime: spkrs.runtime.Runtime, solution: solve.Solution) -> None:
     """Pull the necessary layers and setup the given runtime to have all solution packages."""
 
     local_repo = storage.local_repository()
@@ -76,6 +76,6 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
         if isinstance(repo, storage.SpFSRepository):
             if not local_repo.as_spfs_repo().objects.has_object(digest):
                 _LOGGER.info("collecting " + io.format_ident(spec.pkg))
-            spfs.sync_ref(str(digest), repo.as_spfs_repo(), local_repo.as_spfs_repo())
+            spkrs.sync_ref(str(digest), repo.as_spfs_repo(), local_repo.as_spfs_repo())
 
         runtime.push_digest(digest)

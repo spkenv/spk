@@ -4,7 +4,7 @@ import os
 import pytest
 import py.path
 
-import spfs
+import spkrs
 
 from .. import api, storage
 from ._sources import SourcePackageBuilder, data_path
@@ -28,8 +28,8 @@ def test_validate_build_changeset_modified() -> None:
 
         validate_build_changeset(
             [
-                spfs.tracking.Diff(
-                    path="/spfs/file.txt", mode=spfs.tracking.DiffMode.changed
+                spkrs.tracking.Diff(
+                    path="/spfs/file.txt", mode=spkrs.tracking.DiffMode.changed
                 )
             ]
         )
@@ -108,7 +108,9 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
         {
             "pkg": "top/1.0.0",
             "build": {
-                "script": ["touch /spfs/top-file",],
+                "script": [
+                    "touch /spfs/top-file",
+                ],
                 "options": [{"pkg": "dep", "default": "1.0.0"}],
             },
             "install": {"requirements": [{"pkg": "dep", "fromBuildEnv": "~x.x"}]},
@@ -167,7 +169,9 @@ def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
         {
             "pkg": "top/1.0.0",
             "build": {
-                "script": ["touch /spfs/top-file",],
+                "script": [
+                    "touch /spfs/top-file",
+                ],
                 "options": [
                     {"pkg": "dep", "default": "1.0.0"},
                     {"var": "topvar", "default": "topvalue"},
@@ -208,7 +212,9 @@ def test_build_bad_options() -> None:
         {
             "pkg": "my-package/1.0.0",
             "build": {
-                "script": ["touch /spfs/top-file",],
+                "script": [
+                    "touch /spfs/top-file",
+                ],
                 "options": [{"var": "debug", "choices": ["on", "off"]}],
             },
         }
