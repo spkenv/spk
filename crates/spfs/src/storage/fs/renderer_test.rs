@@ -61,7 +61,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
     let rendered_manifest = tracking::compute_manifest(&render).unwrap();
     let diffs = tracking::compute_diff(&expected_manifest, &rendered_manifest);
     println!("DIFFS:");
-    println!("{}", crate::io::format_diffs(diffs.into_iter()));
+    println!("{}", crate::io::format_diffs(diffs.iter()));
     assert_eq!(
         Manifest::from(&expected_manifest).digest().unwrap(),
         Manifest::from(&rendered_manifest).digest().unwrap()

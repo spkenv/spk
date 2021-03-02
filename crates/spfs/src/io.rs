@@ -32,11 +32,11 @@ pub fn format_digest<R: AsRef<str>>(
 }
 
 /// Return a human readable string rendering of the given diffs.
-pub fn format_diffs(diffs: impl Iterator<Item = tracking::Diff>) -> String {
+pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> String {
     let mut outputs = Vec::new();
     for diff in diffs {
         let mut abouts = Vec::new();
-        match diff.entries {
+        match &diff.entries {
             Some((a, b)) => {
                 if a.mode != b.mode {
                     abouts.push(format!("mode {{{:06o}=>{:06o}}}", a.mode, b.mode));
@@ -71,7 +71,7 @@ pub fn format_diffs(diffs: impl Iterator<Item = tracking::Diff>) -> String {
 }
 
 /// Return a string rendering of any given diffs which represent change.
-pub fn format_changes(diffs: impl Iterator<Item = tracking::Diff>) -> String {
+pub fn format_changes<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> String {
     format_diffs(diffs.filter(|x| if x.mode.is_unchanged() { false } else { true }))
 }
 
