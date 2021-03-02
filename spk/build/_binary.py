@@ -137,7 +137,7 @@ class BinaryPackageBuilder:
         env = solution.to_environment()
         env.update(self._all_options.to_environment())
         layer = self._build_and_commit_artifacts(env)
-        storage.local_repository().publish_package(self._spec, layer.digest())
+        storage.local_repository().publish_package(self._spec, layer)
         return self._spec
 
     def _resolve_source_package(self) -> solve.Solution:
@@ -188,7 +188,7 @@ class BinaryPackageBuilder:
 
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]
-    ) -> spkrs.storage.Layer:
+    ) -> spkrs.Digest:
 
         assert self._spec is not None, "Internal Error: spec is None"
 
@@ -202,12 +202,10 @@ class BinaryPackageBuilder:
         runtime.reset(pattern)
         spkrs.remount_runtime(runtime)
 
-        _LOGGER.info("Calculating package fileset...")
-        diffs = spkrs.diff()
         _LOGGER.info("Validating package fileset...")
-        validate_build_changeset(diffs, self._prefix)
+        spkrs.validate_build_changeset()
 
-        return spkrs.commit_layer(runtime)
+        return spkrs.commit_layer(runtime).digest()
 
     def _build_artifacts(
         self,
@@ -314,34 +312,3 @@ def build_script_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
     script used to build the package contents
     """
     return os.path.join(data_path(pkg, prefix), "build.sh")
-
-
-def validate_build_changeset(
-    diffs: List[spkrs.tracking.Diff], prefix: str = "/spfs"
-) -> None:
-
-    diffs = list(
-        filter(lambda diff: diff.mode is not spkrs.tracking.DiffMode.unchanged, diffs)
-    )
-
-    if not diffs:
-        raise BuildError(f"Build process created no files under {prefix}")
-
-    for diff in diffs:
-        _LOGGER.debug(diff)
-        if diff.entries:
-            a, b = diff.entries
-            if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
-                continue
-        if diff.mode is not spkrs.tracking.DiffMode.added:
-            if diff.mode is spkrs.tracking.DiffMode.changed and diff.entries:
-                mode_change = diff.entries[0].mode ^ diff.entries[1].mode
-                nonperm_change = (mode_change | 0o777) ^ 0o777
-                if mode_change and not nonperm_change:
-                    # NOTE(rbottriell):permission changes are not properly reset by spfs
-                    # so we must deal with them manually for now
-                    os.chmod(prefix + diff.path, diff.entries[0].mode)
-                    continue
-            raise BuildError(
-                f"Existing file was {diff.mode.name}: {spkrs.io.format_diffs([diff])}"
-            )

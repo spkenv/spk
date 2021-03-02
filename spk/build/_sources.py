@@ -65,11 +65,11 @@ class SourcePackageBuilder:
         layer = collect_and_commit_sources(self._spec)
         spec = self._spec.clone()
         spec.pkg.set_build(api.SRC)
-        repo.publish_package(spec, layer.digest())
+        repo.publish_package(spec, layer)
         return spec.pkg
 
 
-def collect_and_commit_sources(spec: api.Spec) -> spkrs.storage.Layer:
+def collect_and_commit_sources(spec: api.Spec) -> spkrs.Digest:
     """Collect sources for the given spec and commit them into an spfs layer."""
 
     pkg = spec.pkg.with_build(api.SRC)
@@ -85,10 +85,10 @@ def collect_and_commit_sources(spec: api.Spec) -> spkrs.storage.Layer:
     source_dir = data_path(pkg)
     collect_sources(spec, source_dir)
 
-    diffs = spkrs.diff()
-    validate_source_changeset(diffs, source_dir)
+    _LOGGER.info("Validating package source files...")
+    spkrs.validate_source_changeset()
 
-    return spkrs.commit_layer(runtime)
+    return spkrs.commit_layer(runtime).digest()
 
 
 def collect_sources(spec: api.Spec, source_dir: str) -> None:
@@ -104,34 +104,3 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
             os.makedirs(target_dir, exist_ok=True)
 
         source.collect(target_dir)
-
-
-def validate_source_changeset(
-    diffs: List[spkrs.tracking.Diff], source_dir: str
-) -> None:
-    """Validate the set of diffs for a source package build.
-
-    Raises:
-      CollectionError: if any issues are identified in the changeset
-    """
-
-    if not diffs:
-        raise CollectionError(
-            "No source files collected, source package would be empty"
-        )
-
-    source_dir = source_dir.rstrip("/") + "/"
-    if source_dir.startswith("/spfs"):
-        source_dir = source_dir[len("/spfs") :]
-    for diff in diffs:
-        if diff.mode is spkrs.tracking.DiffMode.unchanged:
-            continue
-        if diff.path.startswith(source_dir):
-            # the change is within the source directory
-            continue
-        if source_dir.startswith(diff.path):
-            # the path is to a parent directory of the source path
-            continue
-        raise CollectionError(
-            f"Invalid source file path found: {diff.path} (not under {source_dir})"
-        )

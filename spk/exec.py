@@ -44,7 +44,7 @@ def setup_current_runtime(solution: solve.Solution) -> None:
     spkrs.remount_runtime(runtime)
 
 
-def create_runtime(solution: solve.Solution) -> spkrs.runtime.Runtime:
+def create_runtime(solution: solve.Solution) -> spkrs.Runtime:
     """Create a new runtime properly configured with the given solve."""
 
     runtime = spkrs.get_config().get_runtime_storage().create_runtime()
@@ -52,7 +52,7 @@ def create_runtime(solution: solve.Solution) -> spkrs.runtime.Runtime:
     return runtime
 
 
-def configure_runtime(runtime: spkrs.runtime.Runtime, solution: solve.Solution) -> None:
+def configure_runtime(runtime: spkrs.Runtime, solution: solve.Solution) -> None:
     """Pull the necessary layers and setup the given runtime to have all solution packages."""
 
     local_repo = storage.local_repository()
