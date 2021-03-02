@@ -8,8 +8,8 @@ import spkrs
 
 from .. import api, storage
 from ._sources import SourcePackageBuilder, data_path
+from spkrs import validate_build_changeset
 from ._binary import (
-    validate_build_changeset,
     BuildError,
     BinaryPackageBuilder,
 )

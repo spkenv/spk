@@ -6,7 +6,8 @@ import pytest
 import spkrs
 
 from .. import api
-from ._sources import validate_source_changeset, CollectionError, collect_sources
+from spkrs import validate_source_changeset
+from ._sources import CollectionError, collect_sources
 
 
 def test_validate_sources_changeset_nothing() -> None:

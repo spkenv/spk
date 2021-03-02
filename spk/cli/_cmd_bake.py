@@ -47,7 +47,7 @@ def _bake(args: argparse.Namespace) -> None:
         runtime.delete()
 
 
-def _solve_and_build_new_runtime(args: argparse.Namespace) -> spkrs.runtime.Runtime:
+def _solve_and_build_new_runtime(args: argparse.Namespace) -> spkrs.Runtime:
 
     solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]

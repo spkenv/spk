@@ -24,4 +24,4 @@ local_repository = spkrs.local_repository
 
 
 def remote_repository(remote: str = "origin") -> SpFSRepository:
-    spkrs.remote_repository(remote)
+    return spkrs.remote_repository(remote)
