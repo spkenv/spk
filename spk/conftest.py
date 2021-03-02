@@ -24,12 +24,7 @@ structlog.configure(
 def spfs_editable(tmpspfs: None) -> None:
 
     try:
-        runtime = spkrs.active_runtime()
-    except spkrs.NoRuntimeError:
-        pytest.fail("Tests must be run in an spfs environment")
+        spkrs.reconfigure_runtime(reset=True)
+    except Exception as e:
+        pytest.fail("Tests must be run in an spfs environment: " + str(e))
         return
-
-    runtime.reset_stack()
-    runtime.set_editable(True)
-    spkrs.remount_runtime(runtime)
-    runtime.reset()

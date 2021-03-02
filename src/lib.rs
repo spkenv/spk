@@ -49,6 +49,19 @@ fn spkrs(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         Ok(v()?)
     }
+    #[pyfn(m, "reconfigure_runtime")]
+    fn reconfigure_runtime(editable: Option<bool>) -> PyResult<()> {
+        let editable = editable.unwrap_or(false);
+        let v = || -> crate::Result<()> {
+            let mut runtime = spfs::active_runtime()?;
+            runtime.set_editable(editable)?;
+            runtime.reset_all()?;
+            runtime.reset_stack()?;
+            spfs::remount_runtime(&runtime)?;
+            Ok(())
+        };
+        Ok(v()?)
+    }
 
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;

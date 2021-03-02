@@ -15,9 +15,7 @@ _LOGGER = structlog.get_logger("spk.storage.spfs")
 
 
 class SpFSRepository(spkrs.SpFSRepository, Repository):
-    def __init__(self, path: str) -> None:
-        spkrs.SpFSRepository.__init__(self, path)
-        Repository.__init__(self)
+    pass
 
 
 local_repository = spkrs.local_repository

@@ -1,3 +1,4 @@
+from typing import Any
 import py.path
 import pytest
 import spkrs
@@ -45,15 +46,17 @@ def spfs_editable(tmpspfs: None) -> None:
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local) -> spk.storage.SpFSRepository:
+def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spk.storage.SpFSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath
-    config = spkrs.get_config()
-    config.clear()
-    config.add_section("storage")
-    config.add_section("remote.origin")
-    config.set("storage", "root", root)
-    config.set("remote.origin", "address", "file:" + origin_root)
-    spk.storage.SpFSRepository(origin_root)
-    return spk.storage.SpFSRepository(root)
+    monkeypatch.setenv("SPFS_STORAGE_ROOT", root)
+    monkeypatch.setenv("SPFS_REMOTE_ORIGIN_ADDRESS", "file:" + origin_root)
+    for path in [root, origin_root]:
+        r = py.path.local(path)
+        r.join("renders").ensure(dir=True)
+        r.join("objects").ensure(dir=True)
+        r.join("payloads").ensure(dir=True)
+        r.join("tags").ensure(dir=True)
+    spk.storage.SpFSRepository("file:" + origin_root)
+    yield spk.storage.SpFSRepository("file:" + root)
