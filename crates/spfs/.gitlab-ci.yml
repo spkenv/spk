@@ -1,5 +1,5 @@
 include:
-  - project: dev-group/dev-ops/spdev
+  - project: spi/dev/dev-ops/spdev
     file: pipelines/default.yaml
 
 test rpm install:

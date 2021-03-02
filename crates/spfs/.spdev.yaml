@@ -1,26 +1,13 @@
-version: 0.20.12
+version: 0.21.0
 release_notes: |
-  * Update clean command to be faster on large repos
-    * Don't print all ids before cleaning
-    * Fix bug where it tried to clean the same thing many times
+  * Convert existing spfs python code to rust
 
 toolchain:
-  - kind: Pipenv
+  - kind: Rust
 
 components:
-  - name: python
-    kind: PythonPackage
-    lint:
-      python3: false
-      black: true
-      mypy: true
-    test:
-      command: pytest
-    install:
-      enabled: true
-    deploy:
-      rez:
-        enabled: false
+  - kind: RustBinary
+    name: spfs
 
   - name: rpm
     kind: RPMPackage
