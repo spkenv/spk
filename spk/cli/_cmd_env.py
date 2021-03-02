@@ -72,8 +72,10 @@ def _env(args: argparse.Namespace) -> None:
     if not args.no_runtime:
         runtime = spfs.get_config().get_runtime_storage().create_runtime()
         argv = sys.argv
+        argv.insert(0, "--")
         argv.insert(argv.index(args.command) + 1, "--no-runtime")
         cmd = spfs.build_command_for_runtime(runtime, *argv)
+        _LOGGER.debug(cmd)
         os.execv(cmd[0], cmd)
 
     options = _flags.get_options_from_flags(args)

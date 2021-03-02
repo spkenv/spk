@@ -44,7 +44,10 @@ def _make_source(args: argparse.Namespace) -> None:
     if not args.no_runtime:
         runtime = spfs.get_config().get_runtime_storage().create_runtime()
         runtime.set_editable(True)
-        cmd = spfs.build_command_for_runtime(runtime, *sys.argv, "--no-runtime")
+        cmd = list(sys.argv)
+        cmd.insert(0, "--")
+        cmd.append("--no-runtime")
+        cmd = spfs.build_command_for_runtime(runtime, *cmd)
         os.execv(cmd[0], cmd)
 
     for package in args.packages:
