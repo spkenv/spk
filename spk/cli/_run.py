@@ -26,6 +26,11 @@ def main() -> None:
 
 def run(argv: Sequence[str]) -> int:
 
+    import spfs
+
+    # hack to ensure the python spfs can be used during rust transition
+    spfs.__version__ = "0.21.0"
+
     try:
         configure_sentry()
     except Exception as e:

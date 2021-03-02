@@ -1,8 +1,6 @@
-version: 0.22.2
+version: 0.22.3
 release_notes: |
-  - Fix issue where source packages could fail to
-    resolve in build environments if install requirements conflicted
-    with the build env (which should be irrelevant)
+  - Quick fix to allow python and rust implementations of spfs to live together
 
 toolchain:
   - kind: Shell
