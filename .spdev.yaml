@@ -1,6 +1,6 @@
-version: 0.22.3
+version: 0.22.4
 release_notes: |
-  - Quick fix to allow python and rust implementations of spfs to live together
+  - Ensure proper command separation when calling through spfs
 
 toolchain:
   - kind: Shell
