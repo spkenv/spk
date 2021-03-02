@@ -4,6 +4,8 @@ import spkrs
 import logging
 
 import structlog
+import spk
+
 
 logging.getLogger("").setLevel(logging.DEBUG)
 structlog.configure(
@@ -20,7 +22,7 @@ structlog.configure(
 
 
 @pytest.fixture
-def tmprepo(tmpspfs: spkrs.storage.fs.FSRepository) -> spkrs.storage.fs.FSRepository:
+def tmprepo(tmpspfs: spk.storage.SpFSRepository) -> spk.storage.SpFSRepository:
 
     from spk import storage
 
@@ -43,7 +45,7 @@ def spfs_editable(tmpspfs: None) -> None:
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local) -> spkrs.storage.fs.FSRepository:
+def tmpspfs(tmpdir: py.path.local) -> spk.storage.SpFSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath
@@ -53,5 +55,5 @@ def tmpspfs(tmpdir: py.path.local) -> spkrs.storage.fs.FSRepository:
     config.add_section("remote.origin")
     config.set("storage", "root", root)
     config.set("remote.origin", "address", "file:" + origin_root)
-    spkrs.storage.fs.FSRepository(origin_root, create=True)
-    return spkrs.storage.fs.FSRepository(root, create=True)
+    spk.storage.SpFSRepository(origin_root)
+    return spk.storage.SpFSRepository(root)
