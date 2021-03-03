@@ -104,13 +104,8 @@ class BinaryPackageBuilder:
             self._spec is not None
         ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
+        spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
         runtime = spkrs.active_runtime()
-        runtime.set_editable(True)
-        spkrs.remount_runtime(runtime)
-        runtime.reset("**/*")
-        runtime.reset_stack()
-        runtime.set_editable(True)
-        spkrs.remount_runtime(runtime)
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
         _LOGGER.debug("package options", options=self._pkg_options)
@@ -121,16 +116,16 @@ class BinaryPackageBuilder:
             raise ValueError(compat)
         self._all_options.update(self._pkg_options)
 
+        stack = []
         if isinstance(self._source, api.Ident):
             solution = self._resolve_source_package()
-            exec.configure_runtime(runtime, solution)
+            stack = exec.resolve_runtime_layers(solution)
         solution = self._resolve_build_environment()
         opts = solution.options()
         opts.update(self._all_options)
         self._all_options = opts
-        exec.configure_runtime(runtime, solution)
-        runtime.set_editable(True)
-        spkrs.remount_runtime(runtime)
+        stack.extend(exec.resolve_runtime_layers(solution))
+        spkrs.reconfigure_runtime(editable=True, stack=stack)
 
         specs = list(s for _, s, _ in solution.items())
         self._spec.update_for_build(self._all_options, specs)

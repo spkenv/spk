@@ -24,6 +24,23 @@ impl SpFSRepository {
         }
     }
 
+    pub fn has_digest(&self, digest: &Digest) -> bool {
+        self.inner.has_object(&digest.inner)
+    }
+
+    pub fn localize_digest(&self, digest: &Digest) -> Result<()> {
+        let mut local_repo = spfs::load_config()?.get_repository()?.into();
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+            .block_on(spfs::sync_ref(
+                digest.inner.to_string(),
+                &self.inner,
+                &mut local_repo,
+            ))?;
+        Ok(())
+    }
+
     pub fn resolve_tag_to_digest(&self, tag: &str) -> Result<Option<Digest>> {
         let tag = tag.parse()?;
         match self.inner.resolve_tag(&tag) {

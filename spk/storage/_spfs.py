@@ -17,14 +17,14 @@ _LOGGER = structlog.get_logger("spk.storage.spfs")
 class SpFSRepository(Repository):
     def __init__(self, base: spkrs.SpFSRepository) -> None:
         assert isinstance(base, spkrs.SpFSRepository)
-        self._repo = base
+        self.rs = base
 
     @lru_cache()
     def list_packages(self) -> Iterable[str]:
 
         path = "spk/spec"
         pkgs = []
-        for tag in self._repo.ls_tags(path):
+        for tag in self.rs.ls_tags(path):
             if tag.endswith("/"):
                 pkgs.append(tag[:-1])
         return list(pkgs)
@@ -33,7 +33,7 @@ class SpFSRepository(Repository):
     def list_package_versions(self, name: str) -> Iterable[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
-        versions = self._repo.ls_tags(path)
+        versions = self.rs.ls_tags(path)
         versions = filter(lambda v: not v.endswith("/"), versions)
         # undo our encoding of the invalid '+' character in spfs tags
         versions = (v.replace("..", "+") for v in versions)
@@ -48,7 +48,7 @@ class SpFSRepository(Repository):
         pkg = pkg.with_build(api.SRC)
         base = posixpath.dirname(self.build_package_tag(pkg))
         try:
-            build_tags = self._repo.ls_tags(base)
+            build_tags = self.rs.ls_tags(base)
         except KeyError:
             return []
 
@@ -64,7 +64,7 @@ class SpFSRepository(Repository):
         ), "Cannot publish embedded package"
         meta_tag = self.build_spec_tag(spec.pkg)
         spec_data = api.write_spec(spec)
-        self._repo.write_spec(meta_tag, spec_data)
+        self.rs.write_spec(meta_tag, spec_data)
         self.list_packages.cache_clear()
         self.list_package_versions.cache_clear()
         self.list_package_builds.cache_clear()
@@ -73,7 +73,7 @@ class SpFSRepository(Repository):
 
         assert spec.pkg.build is None, "Spec must be published with no build"
         meta_tag = self.build_spec_tag(spec.pkg)
-        if self._repo.has_tag(meta_tag):
+        if self.rs.has_tag(meta_tag):
             # BUG(rbottriell): this creates a race condition but is not super dangerous
             # because of the non-destructive tag history
             raise VersionExistsError(spec.pkg)
@@ -83,18 +83,18 @@ class SpFSRepository(Repository):
     def read_spec(self, pkg: api.Ident) -> api.Spec:
 
         tag_str = self.build_spec_tag(pkg)
-        digest = self._repo.resolve_tag_to_digest(tag_str)
+        digest = self.rs.resolve_tag_to_digest(tag_str)
         if digest is None:
             raise PackageNotFoundError(pkg) from None
 
-        data = self._repo.read_spec(digest)
+        data = self.rs.read_spec(digest)
         return api.read_spec(io.StringIO(data))
 
     def remove_spec(self, pkg: api.Ident) -> None:
 
         tag_str = self.build_spec_tag(pkg)
         try:
-            self._repo.remove_tag_stream(tag_str)
+            self.rs.remove_tag_stream(tag_str)
         except RuntimeError:
             raise PackageNotFoundError(pkg) from None
         self.list_packages.cache_clear()
@@ -111,12 +111,12 @@ class SpFSRepository(Repository):
             )
         tag_string = self.build_package_tag(spec.pkg)
         self.force_publish_spec(spec)
-        self._repo.push_tag(tag_string, digest)
+        self.rs.push_tag(tag_string, digest)
 
     def get_package(self, pkg: api.Ident) -> spkrs.Digest:
 
         tag_str = self.build_package_tag(pkg)
-        digest = self._repo.resolve_tag_to_digest(tag_str)
+        digest = self.rs.resolve_tag_to_digest(tag_str)
         if digest is None:
             raise PackageNotFoundError(tag_str) from None
 
@@ -126,7 +126,7 @@ class SpFSRepository(Repository):
 
         tag_str = self.build_package_tag(pkg)
         try:
-            self._repo.remove_tag_stream(tag_str)
+            self.rs.remove_tag_stream(tag_str)
         except RuntimeError:
             raise PackageNotFoundError(pkg) from None
         self.list_packages.cache_clear()

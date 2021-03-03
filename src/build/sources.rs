@@ -1,5 +1,3 @@
-use std::os::unix::fs::PermissionsExt;
-
 use crate::Result;
 
 /// Denotes an error during the build process.
@@ -21,7 +19,7 @@ impl CollectionError {
 /// # Errors:
 ///   - CollectionError: if any issues are identified in the changeset
 pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
-    mut diffs: Vec<spfs::tracking::Diff>,
+    diffs: Vec<spfs::tracking::Diff>,
     source_dir: P,
 ) -> Result<()> {
     if diffs.len() == 0 {

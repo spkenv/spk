@@ -10,6 +10,7 @@ use pyo3::prelude::*;
 use spfs;
 
 #[pyclass]
+#[derive(Clone)]
 pub struct Digest {
     inner: spfs::encoding::Digest,
 }
@@ -29,6 +30,14 @@ pub struct Runtime {
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     use self::{build, storage};
 
+    #[pyfn(m, "active_runtime")]
+    fn active_runtime(_py: Python) -> PyResult<Runtime> {
+        fn v() -> crate::Result<Runtime> {
+            let rt = spfs::active_runtime()?;
+            Ok(Runtime { inner: rt })
+        }
+        Ok(v()?)
+    }
     #[pyfn(m, "local_repository")]
     fn local_repository(_py: Python) -> PyResult<storage::SpFSRepository> {
         Ok(storage::local_repository()?)
@@ -56,13 +65,25 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Ok(v()?)
     }
     #[pyfn(m, "reconfigure_runtime")]
-    fn reconfigure_runtime(editable: Option<bool>) -> PyResult<()> {
+    fn reconfigure_runtime(
+        editable: Option<bool>,
+        reset: Option<Vec<String>>,
+        stack: Option<Vec<Digest>>,
+    ) -> PyResult<()> {
         let editable = editable.unwrap_or(false);
         let v = || -> crate::Result<()> {
             let mut runtime = spfs::active_runtime()?;
             runtime.set_editable(editable)?;
-            runtime.reset_all()?;
+            match reset {
+                Some(reset) => runtime.reset(reset.as_slice())?,
+                None => runtime.reset_all()?,
+            }
             runtime.reset_stack()?;
+            if let Some(stack) = stack {
+                for digest in stack.iter() {
+                    runtime.push_digest(&digest.inner)?;
+                }
+            }
             spfs::remount_runtime(&runtime)?;
             Ok(())
         };

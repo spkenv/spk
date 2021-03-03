@@ -1932,6 +1932,7 @@ dependencies = [
  "pyo3",
  "relative-path",
  "spfs",
+ "tokio 1.2.0",
  "tracing",
 ]
 
