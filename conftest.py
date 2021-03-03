@@ -34,15 +34,10 @@ def tmprepo(tmpspfs: spk.storage.SpFSRepository) -> spk.storage.SpFSRepository:
 def spfs_editable(tmpspfs: None) -> None:
 
     try:
-        runtime = spkrs.active_runtime()
-    except spkrs.NoRuntimeError:
-        pytest.fail("Tests must be run in an spfs environment")
+        spkrs.reconfigure_runtime(editable=True)
+    except Exception as e:
+        pytest.fail("Tests must be run in an spfs environment: " + str(e))
         return
-
-    runtime.reset_stack()
-    runtime.set_editable(True)
-    spkrs.remount_runtime(runtime)
-    runtime.reset()
 
 
 @pytest.fixture(autouse=True)
@@ -59,4 +54,4 @@ def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spk.storage.SpFSReposito
         r.join("payloads").ensure(dir=True)
         r.join("tags").ensure(dir=True)
     spk.storage.SpFSRepository("file:" + origin_root)
-    yield spk.storage.SpFSRepository("file:" + root)
+    return spk.storage.SpFSRepository("file:" + root)
