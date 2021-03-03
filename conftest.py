@@ -23,7 +23,7 @@ structlog.configure(
 
 
 @pytest.fixture
-def tmprepo(tmpspfs: spk.storage.SpFSRepository) -> spk.storage.SpFSRepository:
+def tmprepo(tmpspfs: spkrs.SpFSRepository) -> spk.storage.SpFSRepository:
 
     from spk import storage
 
@@ -41,7 +41,7 @@ def spfs_editable(tmpspfs: None) -> None:
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spk.storage.SpFSRepository:
+def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.SpFSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath
@@ -53,5 +53,5 @@ def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spk.storage.SpFSReposito
         r.join("objects").ensure(dir=True)
         r.join("payloads").ensure(dir=True)
         r.join("tags").ensure(dir=True)
-    spk.storage.SpFSRepository("file:" + origin_root)
-    return spk.storage.SpFSRepository("file:" + root)
+    spkrs.SpFSRepository("file:" + origin_root)
+    return spkrs.SpFSRepository("file:" + root)

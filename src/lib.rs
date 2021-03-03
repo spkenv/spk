@@ -10,17 +10,23 @@ use pyo3::prelude::*;
 use spfs;
 
 #[pyclass]
-struct Digest {
+pub struct Digest {
     inner: spfs::encoding::Digest,
 }
 
+impl From<spfs::encoding::Digest> for Digest {
+    fn from(inner: spfs::encoding::Digest) -> Self {
+        Self { inner: inner }
+    }
+}
+
 #[pyclass]
-struct Runtime {
+pub struct Runtime {
     inner: spfs::runtime::Runtime,
 }
 
 #[pymodule]
-fn spkrs(_py: Python, m: &PyModule) -> PyResult<()> {
+fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     use self::{build, storage};
 
     #[pyfn(m, "local_repository")]
@@ -66,5 +72,10 @@ fn spkrs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
     m.add_class::<self::storage::SpFSRepository>()?;
+
+    let empty_spfs: spfs::encoding::Digest = spfs::encoding::EMPTY_DIGEST.into();
+    let empty_spk = Digest::from(empty_spfs);
+    m.setattr::<&str, PyObject>("EMPTY_DIGEST", empty_spk.into_py(py))?;
+
     Ok(())
 }
