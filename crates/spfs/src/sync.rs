@@ -83,7 +83,7 @@ pub async fn sync_ref<R: AsRef<str>>(
         tracing::debug!(tag = ?tag.path(), "syncing tag");
         dest.push_raw_tag(&tag)?;
     }
-    tracing::info!(target = ?reference.as_ref(), "sync complete");
+    tracing::debug!(target = ?reference.as_ref(), "sync complete");
     Ok(obj)
 }
 
@@ -98,12 +98,10 @@ pub fn sync_object<'a>(
             Object::Layer(obj) => sync_layer(obj, src, dest).await,
             Object::Platform(obj) => sync_platform(obj, src, dest).await,
             Object::Blob(obj) => {
-                tracing::info!(digest = ?obj.digest(), "syncing blob");
-                let mut reader = src.open_payload(&obj.digest())?;
-                dest.commit_blob(Box::new(&mut *reader))?;
-                Ok(())
+                sync_blob(obj, src.address().to_string(), dest.address().to_string()).await
             }
-            Object::Mask | Object::Manifest(_) | Object::Tree(_) => Ok(()),
+            Object::Manifest(obj) => sync_manifest(obj, src, dest).await,
+            Object::Mask | Object::Tree(_) => Ok(()),
         }
     }
     .boxed_local()
@@ -141,11 +139,27 @@ pub async fn sync_layer(
 
     tracing::info!(digest = ?layer_digest, "syncing layer");
     let manifest = src.read_manifest(&layer.manifest)?;
+    sync_manifest(&manifest, &src, dest).await?;
+    dest.write_object(&graph::Object::Layer(layer.clone()))?;
+    Ok(())
+}
 
+pub async fn sync_manifest(
+    manifest: &graph::Manifest,
+    src: &storage::RepositoryHandle,
+    dest: &mut storage::RepositoryHandle,
+) -> Result<()> {
+    let manifest_digest = manifest.digest()?;
+    if dest.has_manifest(&manifest_digest) {
+        tracing::info!(digest = ?manifest_digest, "manifest already synced");
+        return Ok(());
+    }
+
+    tracing::debug!(digest = ?manifest_digest, "syncing manifest");
     let entries: Vec<_> = manifest
         .list_entries()
         .into_iter()
-        .filter(|e| !e.kind.is_blob())
+        .filter(|e| e.kind.is_blob())
         .collect();
     let spawn_count = entries.len() as u64;
     let current_count = Arc::new(AtomicU64::new(0));
@@ -182,7 +196,7 @@ pub async fn sync_layer(
                     let percent_done = (current_count as f64 / spawn_count as f64) * 100.0;
                     let progress_message =
                         format!("{:.02}% ({}/{})", percent_done, current_count, spawn_count);
-                    tracing::info!(progress = ?progress_message, "syncing layer data...");
+                    tracing::info!(progress = ?progress_message, "syncing manifest data...");
                     last_report = now;
                 }
             }
@@ -206,8 +220,7 @@ pub async fn sync_layer(
         .into());
     }
 
-    dest.write_object(&graph::Object::Manifest(manifest))?;
-    dest.write_object(&graph::Object::Layer(layer.clone()))?;
+    dest.write_object(&graph::Object::Manifest(manifest.clone()))?;
     Ok(())
 }
 
@@ -215,23 +228,27 @@ async fn sync_entry(entry: graph::Entry, src_address: String, dest_address: Stri
     if !entry.kind.is_blob() {
         return Ok(());
     }
+    let blob = graph::Blob {
+        payload: entry.object,
+        size: entry.size,
+    };
+    sync_blob(&blob, src_address, dest_address).await
+}
 
+async fn sync_blob(blob: &graph::Blob, src_address: String, dest_address: String) -> Result<()> {
+    let blob = blob.clone();
     tokio::task::spawn_blocking(move || {
         let src = storage::open_repository(src_address)?;
         let mut dest = storage::open_repository(dest_address)?;
 
-        if !dest.has_object(&entry.object) {
-            let object = src.read_object(&entry.object)?;
-            dest.write_object(&object)?;
-        }
-
-        if dest.has_payload(&entry.object) {
-            tracing::trace!(digest = ?entry.object, "blob payload already synced");
+        if dest.has_payload(&blob.payload) {
+            tracing::trace!(digest = ?blob.payload, "blob payload already synced");
         } else {
-            let mut payload = src.open_payload(&entry.object)?;
-            tracing::debug!(digest = ?entry.object, "syncing payload");
+            let mut payload = src.open_payload(&blob.payload)?;
+            tracing::debug!(digest = ?blob.payload, "syncing payload");
             dest.write_data(Box::new(&mut *payload))?;
         }
+        dest.write_blob(blob)?;
         Ok(())
     })
     .await?

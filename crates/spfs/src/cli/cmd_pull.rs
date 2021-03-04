@@ -23,12 +23,7 @@ impl CmdPull {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let mut repo = config.get_repository()?.into();
         let remote = match &self.remote {
-            None => {
-                for reference in self.refs.iter() {
-                    spfs::pull_ref(reference).await?;
-                }
-                return Ok(());
-            }
+            None => config.get_remote("origin")?,
             Some(remote) => config.get_remote(remote)?,
         };
 

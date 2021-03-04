@@ -10,7 +10,7 @@ use encoding::Decodable;
 #[path = "./manifest_test.rs"]
 mod manifest_test;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Manifest {
     root: Tree,
     // because manifests are encoded - the ordering of trees are important

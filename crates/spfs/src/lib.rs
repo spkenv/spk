@@ -34,7 +34,7 @@ pub use bootstrap::{
     build_command_for_runtime, build_interactive_shell_cmd, build_shell_initialized_command,
 };
 mod sync;
-pub use sync::{pull_ref, push_ref, sync_ref};
+pub use sync::{pull_ref, push_ref, sync_object, sync_ref};
 mod commit;
 pub use commit::{commit_layer, commit_platform, NothingToCommitError};
 mod clean;
