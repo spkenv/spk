@@ -47,19 +47,17 @@ impl graph::Database for super::FSRepository {
         let working_file = self.root().join(uuid::Uuid::new_v4().to_string());
         self.objects.ensure_base_dir(&filepath)?;
         let mut writer = std::fs::OpenOptions::new()
-            .create(true)
+            .create_new(true)
             .write(true)
             .open(&working_file)?;
         obj.encode(&mut writer)?;
         match std::fs::rename(&working_file, &filepath) {
             Ok(_) => Ok(()),
             Err(err) => {
+                println!("{:?}", err.kind());
                 let _ = std::fs::remove_file(&working_file);
                 match err.kind() {
-                    std::io::ErrorKind::AlreadyExists => {
-                        let _ = std::fs::remove_file(&working_file);
-                        Ok(())
-                    }
+                    std::io::ErrorKind::AlreadyExists => Ok(()),
                     _ => Err(err.into()),
                 }
             }

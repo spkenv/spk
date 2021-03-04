@@ -318,7 +318,12 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
         match std::fs::symlink_metadata(&path) {
             Ok(_) => {}
             Err(_) => {
-                std::fs::create_dir(&path)?;
+                if let Err(err) = std::fs::create_dir(&path) {
+                    match err.kind() {
+                        std::io::ErrorKind::AlreadyExists => (),
+                        _ => return Err(err.into()),
+                    }
+                }
                 // not fatal, so it's worth allowing things to continue
                 // even though it could cause permission issues later on
                 let _ = std::fs::set_permissions(&path, perms.clone());

@@ -53,7 +53,7 @@ impl FSHashStore {
 
         self.ensure_base_dir(&working_file)?;
         let mut writer = std::fs::OpenOptions::new()
-            .create(true)
+            .create_new(true)
             .read(true)
             .write(true)
             .open(&working_file)?;
@@ -64,15 +64,13 @@ impl FSHashStore {
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
         match std::fs::rename(&working_file, &path) {
-            Err(err) => match err.kind() {
-                ErrorKind::AlreadyExists => {
-                    std::fs::remove_file(working_file)?;
+            Err(err) => {
+                let _ = std::fs::remove_file(working_file);
+                match err.kind() {
+                    ErrorKind::AlreadyExists => (),
+                    _ => return Err(err.into()),
                 }
-                _ => {
-                    std::fs::remove_file(working_file)?;
-                    return Err(err.into());
-                }
-            },
+            }
             Ok(_) => (),
         }
         if let Err(err) = std::fs::set_permissions(

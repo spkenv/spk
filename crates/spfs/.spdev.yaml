@@ -1,6 +1,7 @@
 version: 0.21.1
 release_notes: |
   * Fix bug where sync process could leave out some files
+  * Fix bug where renders could fail uselessly because a directory already exists
 
 toolchain:
   - kind: Rust
