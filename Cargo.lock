@@ -1883,8 +1883,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.21.0"
-source = "git+https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs?branch=master#48abff31736fc27d9420787384bac780fa2b2430"
+version = "0.21.1"
+source = "git+https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs?branch=master#115806a3cf88c3e5a404ff8ac4d13d86ff140625"
 dependencies = [
  "chrono",
  "colored",
@@ -1927,13 +1927,14 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spk"
-version = "0.1.0"
+version = "0.22.4"
 dependencies = [
  "pyo3",
  "relative-path",
  "spfs",
  "tokio 1.2.0",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

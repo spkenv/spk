@@ -194,13 +194,15 @@ class BinaryPackageBuilder:
         runtime = spkrs.active_runtime()
         pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
         _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
-        runtime.reset(pattern)
-        spkrs.remount_runtime(runtime)
+        spkrs.reconfigure_runtime(reset=[pattern])
 
         _LOGGER.info("Validating package fileset...")
-        spkrs.validate_build_changeset()
+        try:
+            spkrs.validate_build_changeset()
+        except RuntimeError as e:
+            raise BuildError(str(e))
 
-        return spkrs.commit_layer(runtime).digest()
+        return spkrs.commit_layer(runtime)
 
     def _build_artifacts(
         self,
@@ -247,7 +249,7 @@ class BinaryPackageBuilder:
             print(" - this package's build script can be run from: " + build_script)
             print(" - to cancel and discard this build, run `exit 1`")
             print(" - to finalize and save the package, run `exit 0`")
-            cmd = spkrs.build_interactive_shell_cmd()
+            cmd = spkrs.build_interactive_shell_command()
         else:
             os.environ["SHELL"] = "sh"
             cmd = spkrs.build_shell_initialized_command("/bin/sh", "-ex", build_script)

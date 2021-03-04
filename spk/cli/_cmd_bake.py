@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 import argparse
 import sys
 
@@ -36,18 +36,15 @@ def _bake(args: argparse.Namespace) -> None:
     """bake an executable environment from a set of requests or the current environment."""
 
     if args.package:
-        runtime = _solve_and_build_new_runtime(args)
+        layers = _solve_and_build_new_runtime(args)
     else:
-        runtime = spkrs.active_runtime()
+        layers = spkrs.active_runtime().get_stack()
 
-    for layer in runtime.get_stack():
+    for layer in layers:
         print(layer)
 
-    if args.package:
-        runtime.delete()
 
-
-def _solve_and_build_new_runtime(args: argparse.Namespace) -> spkrs.Runtime:
+def _solve_and_build_new_runtime(args: argparse.Namespace) -> List[spkrs.Digest]:
 
     solver = _flags.get_solver_from_flags(args)
     request = _flags.parse_requests_using_flags(args, args.package)[0]
@@ -73,6 +70,4 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> spkrs.Runtime:
 
         sys.exit(1)
 
-    runtime = spkrs.get_config().get_runtime_storage().create_runtime()
-    spk.exec.configure_runtime(runtime, solution)
-    return runtime
+    return spk.exec.resolve_runtime_layers(solution)

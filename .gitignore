@@ -10,6 +10,7 @@ coverage.xml
 .coverage
 .coverage.*
 *.so
+.eggs/
 
 # spdev
 /build/

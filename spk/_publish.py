@@ -77,7 +77,5 @@ class Publisher:
             elif not isinstance(self._to, storage.SpFSRepository):
                 _LOGGER.warn("Target is not an spfs repo, skipping package payload")
             else:
-                spkrs.sync_ref(
-                    str(digest), self._from.as_spfs_repo(), self._to.as_spfs_repo()
-                )
+                self._from.rs.push_digest(digest, self._to.rs)
             self._to.publish_package(spec, digest)

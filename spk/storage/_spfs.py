@@ -26,7 +26,8 @@ class SpFSRepository(Repository):
         pkgs = []
         for tag in self.rs.ls_tags(path):
             if tag.endswith("/"):
-                pkgs.append(tag[:-1])
+                tag = tag[:-1]
+                pkgs.append(tag)
         return list(pkgs)
 
     @lru_cache()
@@ -34,10 +35,10 @@ class SpFSRepository(Repository):
 
         path = self.build_spec_tag(api.parse_ident(name))
         versions = self.rs.ls_tags(path)
-        versions = filter(lambda v: not v.endswith("/"), versions)
+        versions = map(lambda v: v.rstrip("/"), versions)
         # undo our encoding of the invalid '+' character in spfs tags
         versions = (v.replace("..", "+") for v in versions)
-        return list(versions)
+        return sorted(list(set(versions)))
 
     @lru_cache()
     def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:

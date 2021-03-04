@@ -70,7 +70,7 @@ def import_package(filename: str) -> None:
         local_repo = local_repository()
         for tag, _ in archive_repo.tags.iter_tags():
             _LOGGER.info("importing", ref=str(tag))
-            spkrs.sync_ref(str(tag), archive_repo, local_repo.as_spfs_repo())
+            archive_repo.rs.push_ref(str(tag), local_repo)
 
 
 def _copy_package(
@@ -85,5 +85,5 @@ def _copy_package(
 
     digest = src_repo.get_package(pkg)
     _LOGGER.info("exporting", pkg=str(pkg))
-    spkrs.sync_ref(digest.str(), src_repo.as_spfs_repo(), dst_repo.as_spfs_repo())
+    src_repo.rs.push_digest(digest, dst_repo)
     dst_repo.publish_package(spec, digest)

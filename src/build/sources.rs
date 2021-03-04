@@ -1,9 +1,13 @@
 use crate::Result;
 
+#[cfg(test)]
+#[path = "./sources_test.rs"]
+mod sources_test;
+
 /// Denotes an error during the build process.
 #[derive(Debug)]
 pub struct CollectionError {
-    message: String,
+    pub message: String,
 }
 
 impl CollectionError {

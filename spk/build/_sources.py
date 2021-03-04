@@ -73,22 +73,18 @@ def collect_and_commit_sources(spec: api.Spec) -> spkrs.Digest:
     """Collect sources for the given spec and commit them into an spfs layer."""
 
     pkg = spec.pkg.with_build(api.SRC)
-
-    runtime = spkrs.active_runtime()
-    runtime.set_editable(True)
-    spkrs.remount_runtime(runtime)
-    runtime.reset("**/*")
-    runtime.reset_stack()
-    runtime.set_editable(True)
-    spkrs.remount_runtime(runtime)
+    spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
 
     source_dir = data_path(pkg)
     collect_sources(spec, source_dir)
 
     _LOGGER.info("Validating package source files...")
-    spkrs.validate_source_changeset()
+    try:
+        spkrs.validate_source_changeset()
+    except RuntimeError as e:
+        raise CollectionError(str(e))
 
-    return spkrs.commit_layer(runtime).digest()
+    return spkrs.commit_layer(spkrs.active_runtime())
 
 
 def collect_sources(spec: api.Spec, source_dir: str) -> None:

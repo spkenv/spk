@@ -67,13 +67,7 @@ class PackageSourceTester:
 
     def test(self) -> None:
 
-        runtime = spkrs.active_runtime()
-        runtime.set_editable(True)
-        spkrs.remount_runtime(runtime)
-        runtime.reset("**/*")
-        runtime.reset_stack()
-        runtime.set_editable(True)
-        spkrs.remount_runtime(runtime)
+        spkrs.reconfigure_runtime(editable=True, stack=[], reset=["*"])
 
         self._solver.reset()
         for request in self._additional_requirements:
@@ -84,8 +78,8 @@ class PackageSourceTester:
         self._solver.add_request(self._spec.pkg.with_build(api.SRC))
         solution = self._solver.solve()
 
-        exec.configure_runtime(runtime, solution)
-        spkrs.remount_runtime(runtime)
+        layers = exec.resolve_runtime_layers(solution)
+        spkrs.reconfigure_runtime(stack=layers)
 
         env = solution.to_environment() or {}
         env["PREFIX"] = self._prefix

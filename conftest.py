@@ -20,6 +20,7 @@ structlog.configure(
     logger_factory=structlog.stdlib.LoggerFactory(),
     wrapper_class=structlog.stdlib.BoundLogger,
 )
+spkrs.configure_logging(0)
 
 
 @pytest.fixture
@@ -34,7 +35,9 @@ def tmprepo(tmpspfs: spkrs.SpFSRepository) -> spk.storage.SpFSRepository:
 def spfs_editable(tmpspfs: None) -> None:
 
     try:
-        spkrs.reconfigure_runtime(editable=True)
+        spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
+        yield
+        spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
     except Exception as e:
         pytest.fail("Tests must be run in an spfs environment: " + str(e))
         return

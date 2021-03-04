@@ -1,4 +1,5 @@
 from typing import Any
+import subprocess
 import os
 
 import pytest
@@ -8,31 +9,10 @@ import spkrs
 
 from .. import api, storage
 from ._sources import SourcePackageBuilder, data_path
-from spkrs import validate_build_changeset
 from ._binary import (
     BuildError,
     BinaryPackageBuilder,
 )
-
-
-def test_validate_build_changeset_nothing() -> None:
-
-    with pytest.raises(BuildError):
-
-        validate_build_changeset([])
-
-
-def test_validate_build_changeset_modified() -> None:
-
-    with pytest.raises(BuildError):
-
-        validate_build_changeset(
-            [
-                spkrs.tracking.Diff(
-                    path="/spfs/file.txt", mode=spkrs.tracking.DiffMode.changed
-                )
-            ]
-        )
 
 
 def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
@@ -258,12 +238,10 @@ def test_build_package_source_cleanup(tmprepo: storage.SpFSRepository) -> None:
     pkg = BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
 
     digest = storage.local_repository().get_package(pkg.pkg)
-    spfs_repo = storage.local_repository().as_spfs_repo()
-    layer = spfs_repo.read_layer(digest)
-    manifest = spfs_repo.read_manifest(layer.manifest).unlock()
-
-    source_dir_files = manifest.list_dir(data_path(src_pkg, prefix=""))
-    assert not source_dir_files, "no files should be committed from source path"
+    out = subprocess.check_output(
+        ["spfs", "ls", str(digest), data_path(src_pkg, prefix="")]
+    )
+    assert not out, "no files should be committed from source path"
 
 
 def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) -> None:

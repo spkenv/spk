@@ -42,12 +42,7 @@ def register(
 
 def add_env_flags(parser: argparse.ArgumentParser) -> None:
 
-    parser.add_argument(
-        "--no-runtime",
-        "-nr",
-        action="store_true",
-        help="Reconfigure the current spfs runtime (useful for speed and debugging)",
-    )
+    _flags.add_no_runtime_flag(parser)
     _flags.add_solver_flags(parser)
     _flags.add_request_flags(parser)
 
@@ -69,13 +64,7 @@ def _env(args: argparse.Namespace) -> None:
     command = args.args[separator + 1 :] or []
     args, requests = extra_parser.parse_known_args(requests, args)
 
-    if not args.no_runtime:
-        runtime = spkrs.get_config().get_runtime_storage().create_runtime()
-        argv = sys.argv
-        argv.insert(0, "--")
-        argv.insert(argv.index(args.command) + 1, "--no-runtime")
-        cmd = spkrs.build_command_for_runtime(runtime, *argv)
-        os.execv(cmd[0], cmd)
+    _flags.ensure_active_runtime(args)
 
     options = _flags.get_options_from_flags(args)
     solver = _flags.get_solver_from_flags(args)
@@ -98,7 +87,7 @@ def _env(args: argparse.Namespace) -> None:
     spk.setup_current_runtime(solution)
     os.environ.update(solution.to_environment())
     if not command:
-        cmd = spkrs.build_interactive_shell_cmd()
+        cmd = spkrs.build_interactive_shell_command()
     else:
         cmd = spkrs.build_shell_initialized_command(*command)
     os.execv(cmd[0], cmd)

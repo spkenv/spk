@@ -11,8 +11,12 @@ BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: python-pip
 BuildRequires: python37-devel
+BuildRequires: openssl-devel
+BuildRequires: spdev
 Requires: rsync
 Requires: spfs >= 0.20.6
+
+%define debug_package %{nil}
 
 %description
 Package manager for SPFS
@@ -22,8 +26,11 @@ Package manager for SPFS
 
 %build
 mkdir -p ./build
+dev toolchain install Rust
+source ~/.bashrc
 pipenv sync --dev
 source "$(pipenv --venv)/bin/activate"
+python setup.py install
 python -m nuitka \
     --standalone \
     --jobs $(nproc) \

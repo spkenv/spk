@@ -7,40 +7,7 @@ import spkrs
 
 from .. import api
 from spkrs import validate_source_changeset
-from ._sources import CollectionError, collect_sources
-
-
-def test_validate_sources_changeset_nothing() -> None:
-
-    with pytest.raises(CollectionError):
-
-        validate_source_changeset([], "/spfs")
-
-
-def test_validate_sources_changeset_not_in_dir() -> None:
-
-    with pytest.raises(CollectionError):
-
-        validate_source_changeset(
-            [
-                spkrs.tracking.Diff(
-                    path="/file.txt", mode=spkrs.tracking.DiffMode.changed
-                )
-            ],
-            "/some/dir",
-        )
-
-
-def test_validate_sources_changeset_ok() -> None:
-
-    validate_source_changeset(
-        [
-            spkrs.tracking.Diff(
-                path="/some/dir/file.txt", mode=spkrs.tracking.DiffMode.added
-            )
-        ],
-        "/some/dir",
-    )
+from ._sources import collect_sources
 
 
 def test_sources_subdir(tmpdir: py.path.local) -> None:

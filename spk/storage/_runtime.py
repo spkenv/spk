@@ -55,8 +55,7 @@ class RuntimeRepository(Repository):
         """Identify the payload for the identified binary package and build options."""
 
         runtime = spkrs.active_runtime()
-        config = spkrs.get_config()
-        repo = config.get_repository()
+        repo = spkrs.local_repository()
 
         spec_path = os.path.join("/spk/pkg", str(pkg), "spec.yaml")
 

@@ -1,12 +1,10 @@
-from typing import Callable, Any
+from typing import Any
 import argparse
 import os
-import sys
 
-import spkrs
 import structlog
-from colorama import Fore
 
+from . import _flags
 import spk
 
 _LOGGER = structlog.get_logger("spk.cli")
@@ -23,17 +21,12 @@ def register(
         **parser_args,
     )
     make_source_cmd.add_argument(
-        "--no-runtime",
-        "-nr",
-        action="store_true",
-        help="Do not build in a new spfs runtime for debugging (will reset the current runtime)",
-    )
-    make_source_cmd.add_argument(
         "packages",
         metavar="PKG|SPEC_FILE",
         nargs="+",
         help="The packages or yaml specification files to build",
     )
+    _flags.add_no_runtime_flag(make_source_cmd)
     make_source_cmd.set_defaults(func=_make_source)
     return make_source_cmd
 
@@ -41,14 +34,7 @@ def register(
 def _make_source(args: argparse.Namespace) -> None:
     """Build a source package from a spec file."""
 
-    if not args.no_runtime:
-        runtime = spkrs.get_config().get_runtime_storage().create_runtime()
-        runtime.set_editable(True)
-        cmd = list(sys.argv)
-        cmd.insert(0, "--")
-        cmd.append("--no-runtime")
-        cmd = spkrs.build_command_for_runtime(runtime, *cmd)
-        os.execv(cmd[0], cmd)
+    _flags.ensure_active_runtime(args)
 
     for package in args.packages:
         if os.path.isfile(package):

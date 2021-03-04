@@ -2,10 +2,14 @@ use std::os::unix::fs::PermissionsExt;
 
 use crate::Result;
 
+#[cfg(test)]
+#[path = "./binary_test.rs"]
+mod binary_test;
+
 /// Denotes an error during the build process.
 #[derive(Debug)]
 pub struct BuildError {
-    message: String,
+    pub message: String,
 }
 
 impl BuildError {

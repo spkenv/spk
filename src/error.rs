@@ -24,6 +24,12 @@ impl From<spfs::Error> for Error {
 
 impl From<Error> for PyErr {
     fn from(err: Error) -> PyErr {
-        exceptions::PyRuntimeError::new_err(format!("{:?}", err))
+        match err {
+            Error::IO(err) => err.into(),
+            Error::SPFS(spfs::Error::IO(err)) => err.into(),
+            Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
+            Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
+            Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
+        }
     }
 }

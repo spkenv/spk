@@ -70,7 +70,7 @@ def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
         if isinstance(repo, storage.SpFSRepository):
             if not repo.rs.has_digest(digest):
                 _LOGGER.info("collecting " + io.format_ident(spec.pkg))
-            repo.rs.pull_digest(digest)
+            repo.rs.localize_digest(digest)
 
         stack.append(digest)
 
