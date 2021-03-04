@@ -1,6 +1,6 @@
-version: 0.21.0
+version: 0.21.1
 release_notes: |
-  * Convert existing spfs python code to rust
+  * Fix bug where sync process could leave out some files
 
 toolchain:
   - kind: Rust
