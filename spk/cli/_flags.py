@@ -30,7 +30,8 @@ def ensure_active_runtime(args: argparse.Namespace) -> spkrs.Runtime:
         return spkrs.active_runtime()
 
     cmd = sys.argv
-    cmd.append("--no-runtime")
+    cmd_index = cmd.index(args.command)
+    cmd.insert(cmd_index + 1, "--no-runtime")
     cmd = ["spfs", "run", "-", "--"] + cmd
     os.execvp(cmd[0], cmd)
 
