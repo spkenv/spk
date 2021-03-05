@@ -83,7 +83,7 @@ def _install(args: argparse.Namespace) -> None:
         print(f"{Fore.YELLOW}Updated: {filename}{Fore.RESET}")
         try:
             spkrs.active_runtime()
-        except spkrs.NoRuntimeError:
+        except RuntimeError:
             return
 
     for solved in env.items():

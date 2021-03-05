@@ -3,6 +3,7 @@ release_notes: |
   * Update to latest spfs to remove layer cap
   * Fix issue where tar repo could fail to write without error
   * Fix broken messaging when collecting packages, add current / total count
+  * Fix issue where you get cryptic errors if there is no runtime at install time
 
 toolchain:
   - kind: Shell

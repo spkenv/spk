@@ -23,7 +23,7 @@ def current_env() -> solve.Solution:
 
     try:
         spkrs.active_runtime()
-    except spkrs.NoRuntimeError:
+    except RuntimeError:
         raise NoEnvironmentError()
 
     runtime = storage.RuntimeRepository()
