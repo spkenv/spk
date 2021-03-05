@@ -77,6 +77,19 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
         Ok(storage::remote_repository(path)?)
     }
+    #[pyfn(m, "open_tar_repository")]
+    fn open_tar_repository(
+        _py: Python,
+        path: &str,
+        create: Option<bool>,
+    ) -> Result<storage::SpFSRepository> {
+        let repo = match create {
+            Some(true) => spfs::storage::tar::TarRepository::create(path)?,
+            _ => spfs::storage::tar::TarRepository::open(path)?,
+        };
+        let handle: spfs::storage::RepositoryHandle = repo.into();
+        Ok(storage::SpFSRepository::from(handle))
+    }
     #[pyfn(m, "validate_build_changeset")]
     fn validate_build_changeset() -> Result<()> {
         let diffs = spfs::diff(None, None)?;

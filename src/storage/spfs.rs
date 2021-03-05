@@ -8,6 +8,12 @@ pub struct SpFSRepository {
     inner: spfs::storage::RepositoryHandle,
 }
 
+impl From<spfs::storage::RepositoryHandle> for SpFSRepository {
+    fn from(repo: spfs::storage::RepositoryHandle) -> Self {
+        Self { inner: repo }
+    }
+}
+
 #[pymethods]
 impl SpFSRepository {
     #[new]
@@ -57,6 +63,15 @@ impl SpFSRepository {
         let tag = tag.parse()?;
         self.inner.push_tag(&tag, &target.inner)?;
         Ok(())
+    }
+
+    pub fn ls_all_tags(&self) -> Result<Vec<String>> {
+        let tags: spfs::Result<Vec<_>> = self.inner.iter_tags().collect();
+        let tags = tags?
+            .into_iter()
+            .map(|(spec, _)| spec.to_string())
+            .collect();
+        Ok(tags)
     }
 
     pub fn ls_tags(&self, base: &str) -> Result<Vec<String>> {
