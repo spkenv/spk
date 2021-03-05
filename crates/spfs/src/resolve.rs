@@ -60,8 +60,8 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
         .map(|layer| repo.read_manifest(&layer.manifest))
         .collect();
     let mut manifests = manifests?;
-    if manifests.len() > config.runtime.max_layers {
-        let to_flatten = manifests.len() - config.runtime.max_layers as usize;
+    if manifests.len() > config.filesystem.max_layers {
+        let to_flatten = manifests.len() - config.filesystem.max_layers as usize;
         tracing::debug!("flattening {} layers into one...", to_flatten);
         let mut manifest = tracking::Manifest::default();
         for next in manifests.drain(0..to_flatten) {

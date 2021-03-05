@@ -12,6 +12,7 @@ use crate::{encoding, prelude::*, tracking};
 /// and re-packed to an archive on drop. This is not efficient for
 /// large repos and is not safe for multiple reader/writers.
 pub struct TarRepository {
+    up_to_date: bool,
     archive: std::path::PathBuf,
     repo_dir: tempdir::TempDir,
     repo: crate::storage::fs::FSRepository,
@@ -49,13 +50,14 @@ impl TarRepository {
         let repo_path = tmpdir.path().to_path_buf();
         archive.unpack(&repo_path)?;
         Ok(Self {
+            up_to_date: false,
             archive: path,
             repo_dir: tmpdir,
             repo: crate::storage::fs::FSRepository::create(&repo_path)?,
         })
     }
 
-    fn flush(&self) -> Result<()> {
+    pub fn flush(&mut self) -> Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .truncate(true)
@@ -63,12 +65,16 @@ impl TarRepository {
         let mut builder = Builder::new(&mut file);
         builder.append_dir_all(".", self.repo_dir.path())?;
         builder.finish()?;
+        self.up_to_date = true;
         Ok(())
     }
 }
 
 impl Drop for TarRepository {
     fn drop(&mut self) {
+        if self.up_to_date {
+            return;
+        }
         if let Err(err) = self.flush() {
             tracing::error!(
                 ?err,
@@ -105,11 +111,15 @@ impl graph::DatabaseView for TarRepository {
 
 impl graph::Database for TarRepository {
     fn write_object(&mut self, obj: &graph::Object) -> graph::Result<()> {
-        self.repo.write_object(obj)
+        self.repo.write_object(obj)?;
+        self.up_to_date = false;
+        Ok(())
     }
 
     fn remove_object(&mut self, digest: &encoding::Digest) -> graph::Result<()> {
-        self.repo.remove_object(digest)
+        self.repo.remove_object(digest)?;
+        self.up_to_date = false;
+        Ok(())
     }
 }
 
@@ -122,7 +132,9 @@ impl PayloadStorage for TarRepository {
         &mut self,
         reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(encoding::Digest, u64)> {
-        self.repo.write_data(reader)
+        let res = self.repo.write_data(reader)?;
+        self.up_to_date = false;
+        Ok(res)
     }
 
     fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
@@ -130,7 +142,9 @@ impl PayloadStorage for TarRepository {
     }
 
     fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        self.repo.remove_payload(digest)
+        self.repo.remove_payload(digest)?;
+        self.up_to_date = false;
+        Ok(())
     }
 }
 
@@ -166,15 +180,21 @@ impl TagStorage for TarRepository {
     }
 
     fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.push_raw_tag(tag)
+        self.repo.push_raw_tag(tag)?;
+        self.up_to_date = false;
+        Ok(())
     }
 
     fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
-        self.repo.remove_tag_stream(tag)
+        self.repo.remove_tag_stream(tag)?;
+        self.up_to_date = false;
+        Ok(())
     }
 
     fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.remove_tag(tag)
+        self.repo.remove_tag(tag)?;
+        self.up_to_date = false;
+        Ok(())
     }
 }
 

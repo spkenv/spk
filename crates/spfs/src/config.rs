@@ -12,11 +12,11 @@ static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
-pub struct Runtime {
+pub struct Filesystem {
     pub max_layers: usize,
 }
 
-impl Default for Runtime {
+impl Default for Filesystem {
     fn default() -> Self {
         Self { max_layers: 40 }
     }
@@ -53,7 +53,7 @@ pub struct Remote {
 #[serde(default)]
 pub struct Config {
     pub storage: Storage,
-    pub runtime: Runtime,
+    pub filesystem: Filesystem,
     pub remote: std::collections::HashMap<String, Remote>,
 }
 
