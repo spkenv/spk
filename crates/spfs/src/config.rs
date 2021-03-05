@@ -14,11 +14,15 @@ static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 #[serde(default)]
 pub struct Filesystem {
     pub max_layers: usize,
+    pub tmpfs_size: String,
 }
 
 impl Default for Filesystem {
     fn default() -> Self {
-        Self { max_layers: 40 }
+        Self {
+            max_layers: 40,
+            tmpfs_size: "50%".to_string(),
+        }
     }
 }
 

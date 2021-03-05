@@ -105,6 +105,7 @@ fn build_spfs_enter_command(
     rt: runtime::Runtime,
     command: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
+    let config = crate::load_config()?;
     let exe = match which("spfs-enter") {
         None => return Err("'spfs-enter' not found in PATH".into()),
         Some(exe) => exe,
@@ -120,6 +121,8 @@ fn build_spfs_enter_command(
 
     if rt.is_editable() {
         args.push("-e".into());
+        args.push("-t".into());
+        args.push(format!("size={}", config.filesystem.tmpfs_size).into());
     }
 
     tracing::debug!("computing runtime manifest");

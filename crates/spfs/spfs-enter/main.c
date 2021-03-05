@@ -4,12 +4,13 @@
 void print_usage()
 {
     printf("run a command in a configured spfs runtime\n\n");
-    printf("usage: spfs-enter -evsr [-d LOWERDIR ...] COMMAND [ARGS...]\n\n");
+    printf("usage: spfs-enter -evsr [-t TMPFS_OPTS] [-d LOWERDIR ...] COMMAND [ARGS...]\n\n");
     printf("options:\n");
     printf("  -e: Make the mount editable with an in-memory upper and workdir\n");
     printf("  -v: Enable verbose output (can also be specified by setting the SPFS_DEBUG env var)\n");
     printf("  -s: Also virtualize the /shots directory by mounting a tempfs over it\n");
     printf("  -r: Remount the overlay filesystem, don't enter a new namepace\n");
+    printf("  -t TMPFS_OPTS: Options for the tmpfs mount in which all edits live\n");
     printf("  -d LOWERDIR: Include the given directory in the overlay mount\n");
     printf("     (can be specified more than once)\n");
     printf("  -m PATH: mask a filepath so it does not appear in the mounted filesystem\n");
@@ -47,6 +48,9 @@ int main(int argc, char *argv[])
                 size_t required_size = strlen(SPFS_LOWERDIRS) + strlen(optarg);
                 SPFS_LOWERDIRS = malloc(required_size + 2);
                 sprintf(SPFS_LOWERDIRS, "%s:%s", existing, optarg);
+                break;
+            case 't':
+                TMPFS_OPTS = optarg;
                 break;
             case 'm':
                 SPFS_MASKED_PATHS_COUNT++;

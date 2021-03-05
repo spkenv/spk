@@ -28,6 +28,7 @@ int SPFS_REMOUNT_ONLY = 0;
 int SPFS_EDITABLE = 0;
 int SPFS_DEBUG = 0;
 int SPFS_VIRTUALIZE_SHOTS = 0;
+char *TMPFS_OPTS = "size=50%";
 uid_t original_euid = -1;
 uid_t original_uid = -1;
 
@@ -149,7 +150,7 @@ int mount_runtime()
         printf("--> mounting runtime...\n");
     }
     int result;
-    result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, 0);
+    result = mount("none", RUNTIME_DIR, "tmpfs", MS_NOEXEC, TMPFS_OPTS);
     if (result != 0) {
         perror("Failed to mount "RUNTIME_DIR);
         return 1;
@@ -300,7 +301,7 @@ int unlock_runtime()
 {
 
     int flags = MS_REMOUNT;
-    int result = mount("none", RUNTIME_DIR, "tmpfs", flags, NULL);
+    int result = mount("none", RUNTIME_DIR, "tmpfs", flags, TMPFS_OPTS);
     if (result != 0) {
         perror("Failed to unlock runtime");
         return 1;
@@ -316,7 +317,7 @@ int set_runtime_lock()
     if (!SPFS_EDITABLE) {
         flags |= MS_RDONLY;
     }
-    int result = mount("none", RUNTIME_DIR, "tmpfs", flags, NULL);
+    int result = mount("none", RUNTIME_DIR, "tmpfs", flags, TMPFS_OPTS);
     if (result != 0) {
         perror("Failed to set runtime lock");
         return 1;

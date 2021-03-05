@@ -42,8 +42,3 @@ install -p -m 755 %{_builddir}/%{name}-v%{version}/build/bin/spfs-enter %{buildr
 %post
 mkdir -p /spfs
 chmod 777 /spfs
-
-%posttrans
-# must run at the absolute end in case we are updating
-# and the uninstallation of the old version removes the symlink
-ln -sf /usr/local/bin/spfs /usr/local/bin/spfs
