@@ -1,6 +1,8 @@
-version: 0.22.1
+version: 0.22.2
 release_notes: |
-  * Add progress bars for basic feedback while rendering layers
+  * Add logic to flatten layers when over a configured maximum
+    * This happens seamlessly on-the-fly and allows circumventing
+      limits in overlayfs and the operating system
 
 toolchain:
   - kind: Rust
