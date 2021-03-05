@@ -1,9 +1,6 @@
-version: 0.22.2
+version: 0.22.3
 release_notes: |
-  * Add logic to flatten layers when over a configured maximum
-    * This happens seamlessly on-the-fly and allows circumventing
-      limits in overlayfs and the operating system
-  * Improve tar repository api for easier flushing of data to archive
+  * Add configuration option for size of tmpfs mount
 
 toolchain:
   - kind: Rust

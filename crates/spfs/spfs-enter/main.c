@@ -1,6 +1,6 @@
 #include "steps.c"
 
-#define OPT_FLAGS ":vserd:m:"
+#define OPT_FLAGS ":vserd:t:m:"
 void print_usage()
 {
     printf("run a command in a configured spfs runtime\n\n");

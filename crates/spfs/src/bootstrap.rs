@@ -121,8 +121,10 @@ fn build_spfs_enter_command(
 
     if rt.is_editable() {
         args.push("-e".into());
+    }
+    if let Some(size) = config.filesystem.tmpfs_size {
         args.push("-t".into());
-        args.push(format!("size={}", config.filesystem.tmpfs_size).into());
+        args.push(format!("size={}", size).into());
     }
 
     tracing::debug!("computing runtime manifest");
