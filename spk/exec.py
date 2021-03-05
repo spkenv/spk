@@ -1,7 +1,10 @@
 from typing import List
-import spkrs
-import structlog
+import sys
 
+import structlog
+import colorama
+
+import spkrs
 from . import solve, storage, io, build, api
 
 _LOGGER = structlog.get_logger("spk.exec")
@@ -50,6 +53,7 @@ def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
 
     local_repo = storage.local_repository()
     stack = []
+    to_sync = []
     for _, spec, source in solution.items():
 
         if isinstance(source, api.Spec):
@@ -68,10 +72,18 @@ def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
             raise RuntimeError("Resolved package disappeared, please try again")
 
         if isinstance(repo, storage.SpFSRepository):
-            if not repo.rs.has_digest(digest):
-                _LOGGER.info("collecting " + io.format_ident(spec.pkg))
-            repo.rs.localize_digest(digest)
+            if local_repo.rs.has_digest(digest):
+                continue
+            to_sync.append((spec, digest))
 
         stack.append(digest)
+
+    if isinstance(repo, storage.SpFSRepository):
+        for i, (spec, digest) in enumerate(to_sync):
+            print(
+                f"  {colorama.Fore.BLUE}>>>>{colorama.Fore.RESET} collecting {i: 2d} of {len(to_sync)} {io.format_ident(spec.pkg)}",
+                file=sys.stderr,
+            )
+            repo.rs.localize_digest(digest)
 
     return stack

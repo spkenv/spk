@@ -2,6 +2,7 @@ version: 0.23.1
 release_notes: |
   * Update to latest spfs to remove layer cap
   * Fix issue where tar repo could fail to write without error
+  * Fix broken messaging when collecting packages, add current / total count
 
 toolchain:
   - kind: Shell
