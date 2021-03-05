@@ -1,7 +1,7 @@
-version: 0.23.0
+version: 0.23.1
 release_notes: |
-  * Update to use latest rust version of spfs
-  * Inherit progress bars for sync process from rust spfs
+  * Update to latest spfs to remove layer cap
+  * Fix issue where tar repo could fail to write without error
 
 toolchain:
   - kind: Shell
