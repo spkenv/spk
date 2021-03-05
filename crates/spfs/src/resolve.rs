@@ -51,8 +51,6 @@ pub fn compute_object_manifest(
 ///
 /// These are returned as a list, from bottom to top.
 pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
-    static MAX_LAYERS: usize = 40;
-
     let config = load_config()?;
     let repo = config.get_repository()?.into();
     let mut overlay_dirs = Vec::new();
@@ -62,8 +60,8 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
         .map(|layer| repo.read_manifest(&layer.manifest))
         .collect();
     let mut manifests = manifests?;
-    if manifests.len() > MAX_LAYERS {
-        let to_flatten = manifests.len() - MAX_LAYERS;
+    if manifests.len() > config.runtime.max_layers {
+        let to_flatten = manifests.len() - config.runtime.max_layers as usize;
         tracing::debug!("flattening {} layers into one...", to_flatten);
         let mut manifest = tracking::Manifest::default();
         for next in manifests.drain(0..to_flatten) {
