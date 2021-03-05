@@ -1,7 +1,6 @@
-version: 0.22.0
+version: 0.22.1
 release_notes: |
-  * Replace tokio runtime with rayon for parallel processing
-  * Update sync and clean processes to use progress bars instead of logging
+  * Add progress bars for basic feedback while rendering layers
 
 toolchain:
   - kind: Rust
