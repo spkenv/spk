@@ -74,12 +74,12 @@ def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
         if isinstance(repo, storage.SpFSRepository):
             if local_repo.rs.has_digest(digest):
                 continue
-            to_sync.append((spec, digest))
+            to_sync.append((spec, repo, digest))
 
         stack.append(digest)
 
-    if isinstance(repo, storage.SpFSRepository):
-        for i, (spec, digest) in enumerate(to_sync):
+    for i, (spec, repo, digest) in enumerate(to_sync):
+        if isinstance(repo, storage.SpFSRepository):
             print(
                 f"  {colorama.Fore.BLUE}>>>>{colorama.Fore.RESET} collecting {i: 2d} of {len(to_sync)} {io.format_ident(spec.pkg)}",
                 file=sys.stderr,
