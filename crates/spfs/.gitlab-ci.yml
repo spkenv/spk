@@ -2,6 +2,9 @@ include:
   - project: spi/dev/dev-ops/spdev
     file: pipelines/default.yaml
 
+lint-python3k:
+  script: []
+
 test rpm install:
   tags: [docker]
   stage: test

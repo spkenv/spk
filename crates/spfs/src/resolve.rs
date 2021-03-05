@@ -51,12 +51,27 @@ pub fn compute_object_manifest(
 ///
 /// These are returned as a list, from bottom to top.
 pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
+    static MAX_LAYERS: usize = 40;
+
     let config = load_config()?;
     let repo = config.get_repository()?.into();
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().into_iter(), Some(&repo))?;
-    for layer in layers {
-        let manifest = repo.read_manifest(&layer.manifest)?;
+    let manifests: Result<Vec<_>> = layers
+        .into_iter()
+        .map(|layer| repo.read_manifest(&layer.manifest))
+        .collect();
+    let mut manifests = manifests?;
+    if manifests.len() > MAX_LAYERS {
+        let to_flatten = manifests.len() - MAX_LAYERS;
+        tracing::debug!("flattening {} layers into one...", to_flatten);
+        let mut manifest = tracking::Manifest::default();
+        for next in manifests.drain(0..to_flatten) {
+            manifest.update(&next.unlock());
+        }
+        manifests.insert(0, graph::Manifest::from(&manifest));
+    }
+    for manifest in manifests {
         let rendered_dir = repo.renders()?.render_manifest(&manifest)?;
         overlay_dirs.push(rendered_dir);
     }
