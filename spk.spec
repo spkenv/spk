@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.22.4
+Version: 0.23.0
 Release: 1
 Summary: Package manager for SPFS.
 License: NONE

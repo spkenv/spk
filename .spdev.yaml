@@ -1,6 +1,7 @@
-version: 0.22.4
+version: 0.23.0
 release_notes: |
-  - Ensure proper command separation when calling through spfs
+  * Update to use latest rust version of spfs
+  * Inherit progress bars for sync process from rust spfs
 
 toolchain:
   - kind: Shell
