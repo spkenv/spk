@@ -44,6 +44,7 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
             raise PackageNotFoundError(pkg)
 
     _LOGGER.info("building archive", path=filename)
+    target_repo.rs.flush()
 
 
 def import_package(filename: str) -> None:

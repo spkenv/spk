@@ -104,6 +104,13 @@ impl SpFSRepository {
         std::io::copy(&mut payload, &mut buf)?;
         Ok(unsafe { String::from_utf8_unchecked(buf) })
     }
+
+    pub fn flush(&mut self) -> Result<()> {
+        match &mut self.inner {
+            spfs::storage::RepositoryHandle::Tar(tar) => Ok(tar.flush()?),
+            _ => Ok(()),
+        }
+    }
 }
 
 /// Return the local packages repository used for development.

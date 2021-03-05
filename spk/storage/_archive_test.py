@@ -22,13 +22,10 @@ def test_archive_io(tmpdir: py.path.local) -> None:
     filename = tmpdir.join("achive.spk").ensure().strpath
     export_package(spec.pkg, filename)
     actual: List[str] = []
-    while len(actual) == 0:
-        # it can take some time for spfs to finalize/drop the archive
-        time.sleep(0.1)
-        with tarfile.open(filename) as tar:
-            for file in tar:
-                actual.append(file.name)
-            actual.sort()
+    with tarfile.open(filename) as tar:
+        for file in tar:
+            actual.append(file.name)
+    actual.sort()
     assert actual == [
         ".",
         "VERSION",
