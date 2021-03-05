@@ -20,7 +20,7 @@ pub struct CmdPull {
 }
 
 impl CmdPull {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let mut repo = config.get_repository()?.into();
         let remote = match &self.remote {
             None => config.get_remote("origin")?,
@@ -28,7 +28,7 @@ impl CmdPull {
         };
 
         for reference in self.refs.iter() {
-            spfs::sync_ref(reference, &remote, &mut repo).await?;
+            spfs::sync_ref(reference, &remote, &mut repo)?;
         }
 
         Ok(())

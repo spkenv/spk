@@ -6,8 +6,7 @@ use crate::{encoding, tracking};
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_entry_blobs_compare_name() {
+fn test_entry_blobs_compare_name() {
     let a = Entry {
         name: "a".to_string(),
         kind: tracking::EntryKind::Blob,
@@ -27,8 +26,7 @@ async fn test_entry_blobs_compare_name() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_entry_trees_compare_name() {
+fn test_entry_trees_compare_name() {
     let a = Entry {
         name: "a".to_string(),
         kind: tracking::EntryKind::Tree,
@@ -48,8 +46,7 @@ async fn test_entry_trees_compare_name() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_entry_compare_kind() {
+fn test_entry_compare_kind() {
     let blob = Entry {
         name: "a".to_string(),
         kind: tracking::EntryKind::Blob,
@@ -69,8 +66,7 @@ async fn test_entry_compare_kind() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_entry_compare() {
+fn test_entry_compare() {
     let root_file = Entry {
         name: "file".to_string(),
         kind: tracking::EntryKind::Blob,

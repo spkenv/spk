@@ -6,8 +6,7 @@ use crate::tracking::{compute_manifest, Manifest};
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_diff_str() {
+fn test_diff_str() {
     let display = format!(
         "{}",
         Diff {
@@ -20,8 +19,7 @@ async fn test_diff_str() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_compute_diff_empty() {
+fn test_compute_diff_empty() {
     let a = Manifest::default();
     let b = Manifest::default();
 
@@ -29,8 +27,7 @@ async fn test_compute_diff_empty() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
+fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
     std::fs::create_dir_all(dir.join("dir/dir")).unwrap();
     std::fs::write(dir.join("dir/dir/file"), "data").unwrap();
@@ -45,8 +42,7 @@ async fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
+fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
     let a_dir = dir.join("a");
     std::fs::create_dir_all(&a_dir).unwrap();
@@ -79,8 +75,7 @@ async fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_compute_diff_removed(tmpdir: tempdir::TempDir) {
+fn test_compute_diff_removed(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
     let a_dir = dir.join("a");
     std::fs::create_dir_all(&a_dir).unwrap();

@@ -9,8 +9,7 @@ use crate::tracking;
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_render_manifest(tmpdir: tempdir::TempDir) {
+fn test_render_manifest(tmpdir: tempdir::TempDir) {
     let mut storage = FSRepository::create(tmpdir.path().join("storage")).unwrap();
 
     let src_dir = tmpdir.path().join("source");
@@ -37,8 +36,7 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
+fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
     let mut tmprepo = FSRepository::create(tmpdir.path().join("repo")).unwrap();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");

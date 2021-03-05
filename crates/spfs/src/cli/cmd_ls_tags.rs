@@ -12,7 +12,7 @@ pub struct CmdLsTags {
 }
 
 impl CmdLsTags {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let repo = config.get_repository()?;
 
         let path = relative_path::RelativePathBuf::from(&self.path);

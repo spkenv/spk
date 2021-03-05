@@ -13,8 +13,7 @@ fixtures!();
     case("bash", "test.sh", "export TEST_VALUE='spfs-test-value'"),
     case("tcsh", "test.csh", "setenv TEST_VALUE 'spfs-test-value'")
 )]
-#[tokio::test]
-async fn test_shell_initialization_startup_scripts(
+fn test_shell_initialization_startup_scripts(
     shell: &str,
     startup_script: &str,
     startup_cmd: &str,
@@ -73,8 +72,7 @@ async fn test_shell_initialization_startup_scripts(
 }
 
 #[rstest(shell, case("bash"), case("tcsh"))]
-#[tokio::test]
-async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::TempDir) {
+fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::TempDir) {
     let shell_path = match which(shell) {
         Some(path) => path,
         None => {

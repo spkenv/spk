@@ -18,7 +18,7 @@ pub struct CmdCommit {
 }
 
 impl CmdCommit {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let mut runtime = spfs::active_runtime()?;
 
         if !runtime.is_editable() {

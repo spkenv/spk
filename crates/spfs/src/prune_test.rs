@@ -8,8 +8,7 @@ use std::collections::HashMap;
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_prunable_tags_age(tmprepo: TempRepo) {
+fn test_prunable_tags_age(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let mut old = tracking::Tag::new(
         Some("testing".to_string()),
@@ -56,8 +55,7 @@ async fn test_prunable_tags_age(tmprepo: TempRepo) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_prunable_tags_version(tmprepo: TempRepo) {
+fn test_prunable_tags_version(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("testing/versioned").unwrap();
     let tag5 = tmprepo
@@ -115,8 +113,7 @@ async fn test_prunable_tags_version(tmprepo: TempRepo) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_prune_tags(tmprepo: TempRepo) {
+fn test_prune_tags(tmprepo: TempRepo) {
     let _guard = init_logging();
     let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();

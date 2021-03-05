@@ -9,16 +9,15 @@ use storage::RepositoryHandle;
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_push_ref_unknown() {
+fn test_push_ref_unknown() {
     let _guard = init_logging();
-    match push_ref("--test-unknown--", None).await {
+    match push_ref("--test-unknown--", None) {
         Err(Error::UnknownReference(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
         Ok(_) => panic!("expected unknown reference error, got success"),
     }
 
-    match push_ref(encoding::Digest::default().to_string(), None).await {
+    match push_ref(encoding::Digest::default().to_string(), None) {
         Err(Error::UnknownObject(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
         Ok(_) => panic!("expected unknown reference error, got success"),
@@ -26,8 +25,7 @@ async fn test_push_ref_unknown() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_push_ref(config: (tempdir::TempDir, Config)) {
+fn test_push_ref(config: (tempdir::TempDir, Config)) {
     let _guard = init_logging();
     let (tmpdir, config) = config;
     let src_dir = tmpdir.path().join("source");
@@ -44,19 +42,16 @@ async fn test_push_ref(config: (tempdir::TempDir, Config)) {
     let tag = tracking::TagSpec::parse("testing").unwrap();
     local.push_tag(&tag, &layer.digest().unwrap()).unwrap();
 
-    sync_ref(tag.to_string(), &local, &mut remote)
-        .await
-        .unwrap();
+    sync_ref(tag.to_string(), &local, &mut remote).unwrap();
 
     assert!(remote.read_ref("testing").is_ok());
     assert!(remote.has_layer(&layer.digest().unwrap()));
 
-    assert!(sync_ref(tag.to_string(), &local, &mut remote).await.is_ok());
+    assert!(sync_ref(tag.to_string(), &local, &mut remote).is_ok());
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_sync_ref(tmpdir: tempdir::TempDir) {
+fn test_sync_ref(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
@@ -82,25 +77,26 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
     let tag = tracking::TagSpec::parse("testing").unwrap();
     repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
 
-    sync_ref("testing", &repo_a, &mut repo_b)
-        .await
-        .expect("failed to sync ref");
+    sync_ref("testing", &repo_a, &mut repo_b).expect("failed to sync ref");
 
     assert!(repo_b.read_ref("testing").is_ok());
     assert!(repo_b.has_platform(&platform.digest().unwrap()));
     assert!(repo_b.has_layer(&layer.digest().unwrap()));
 
-    std::fs::remove_dir_all(tmpdir.path().join("repo_a")).unwrap();
-    std::fs::create_dir_all(tmpdir.path().join("repo_a")).unwrap();
-    sync_ref("testing", &repo_b, &mut repo_a).await.unwrap();
+    std::fs::remove_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
+    std::fs::remove_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
+    std::fs::remove_dir_all(tmpdir.path().join("repo_a/tags")).unwrap();
+    std::fs::create_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
+    std::fs::create_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
+    std::fs::create_dir_all(tmpdir.path().join("repo_a/tags")).unwrap();
+    sync_ref("testing", &repo_b, &mut repo_a).expect("failed to sync back");
 
     assert!(repo_a.read_ref("testing").is_ok());
     assert!(repo_a.has_layer(&layer.digest().unwrap()));
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
+fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
     let dir = tmpdir.path();
     let src_dir = dir.join("source");
@@ -128,12 +124,12 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     let tag = tracking::TagSpec::parse("testing").unwrap();
     repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
 
-    sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
+    sync_ref("testing", &repo_a, &mut repo_tar).unwrap();
     drop(repo_tar);
     let repo_tar = storage::tar::TarRepository::open(dir.join("repo.tar"))
         .unwrap()
         .into();
-    sync_ref("testing", &repo_tar, &mut repo_b).await.unwrap();
+    sync_ref("testing", &repo_tar, &mut repo_b).unwrap();
 
     assert!(repo_b.read_ref("testing").is_ok());
     assert!(repo_b.has_layer(&layer.digest().unwrap()));

@@ -1,13 +1,7 @@
-use std::{
-    collections::HashSet,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    time::{Duration, Instant},
-};
+use std::collections::HashSet;
 
-use futures::future::{FutureExt, LocalBoxFuture};
+use indicatif::ParallelProgressIterator;
+use rayon::prelude::*;
 
 use crate::{encoding, storage, Error, Result};
 
@@ -15,96 +9,73 @@ use crate::{encoding, storage, Error, Result};
 #[path = "./clean_test.rs"]
 mod clean_test;
 
-static _CLEAN_LOG_UPDATE_INTERVAL_SECONDS: Duration = Duration::from_secs(2);
-
 /// Clean all untagged objects from the given repo.
-pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
+pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
     let unattached = get_all_unattached_objects(repo)?;
     if unattached.len() == 0 {
         tracing::info!("nothing to clean!");
     } else {
-        tracing::info!("removing orphaned data...");
+        tracing::info!("removing orphaned data");
         let count = unattached.len();
-        purge_objects(unattached.iter(), repo).await?;
+        purge_objects(&unattached.iter().collect(), repo)?;
         tracing::info!("cleaned {} objects", count);
     }
     Ok(())
 }
 
 /// Remove the identified objects from the given repository.
-pub async fn purge_objects(
-    objects: impl Iterator<Item = &encoding::Digest>,
+pub fn purge_objects(
+    objects: &Vec<&encoding::Digest>,
     repo: &storage::RepositoryHandle,
 ) -> Result<()> {
-    let mut spawn_count: u64 = 0;
-    let current_count = Arc::new(AtomicU64::new(0));
-    let mut futures: Vec<LocalBoxFuture<Result<()>>> = Vec::new();
-    for digest in objects {
-        {
-            let current_count = current_count.clone();
-            let fut = async move {
-                let res = clean_object(repo.address(), digest.clone()).await;
-                current_count.fetch_add(1, Ordering::Relaxed);
-                if let Ok(_) = res {
-                    tracing::trace!(?digest, "successfully removed object");
-                }
-                res
+    let repo = &repo.address();
+    let style = indicatif::ProgressStyle::default_bar()
+        .template("       {msg:<21} [{bar:40}] {pos:>7}/{len:7}")
+        .progress_chars("=>-");
+    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style.clone());
+    bar.set_message("1/3 cleaning objects");
+    let mut results: Vec<_> = objects
+        .par_iter()
+        .progress_with(bar)
+        .map(|digest| {
+            let res = clean_object(repo, digest.clone());
+            if let Ok(_) = res {
+                tracing::trace!(?digest, "successfully removed object");
             }
-            .boxed_local();
-            futures.push(fut);
-        }
-        {
-            let current_count = current_count.clone();
-            let fut = async move {
-                let res = clean_payload(repo.address(), digest.clone()).await;
-                current_count.fetch_add(1, Ordering::Relaxed);
+            res
+        })
+        .collect();
+    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style.clone());
+    bar.set_message("2/3 cleaning payloads");
+    results.append(
+        &mut objects
+            .par_iter()
+            .progress_with(bar)
+            .map(|digest| {
+                let res = clean_payload(repo, digest.clone());
                 if let Ok(_) = res {
                     tracing::trace!(?digest, "successfully removed payload");
                 }
                 res
-            }
-            .boxed_local();
-            futures.push(fut);
-        }
-        {
-            let current_count = current_count.clone();
-            let fut = async move {
-                let res = clean_render(repo.address(), digest.clone()).await;
-                current_count.fetch_add(1, Ordering::Relaxed);
+            })
+            .collect(),
+    );
+    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style.clone());
+    bar.set_message("3/3 cleaning renders");
+    results.append(
+        &mut objects
+            .par_iter()
+            .progress_with(bar)
+            .map(|digest| {
+                let res = clean_render(repo, digest.clone());
                 if let Ok(_) = res {
                     tracing::trace!(?digest, "successfully removed render");
                 }
                 res
-            }
-            .boxed_local();
-            futures.push(fut);
-        }
-        spawn_count += 3;
-    }
-
-    futures.insert(
-        0,
-        async move {
-            let mut last_report = Instant::now();
-            while current_count.load(Ordering::Relaxed) < spawn_count {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                let current_count = current_count.load(Ordering::Relaxed);
-                let now = Instant::now();
-
-                if now - last_report > _CLEAN_LOG_UPDATE_INTERVAL_SECONDS {
-                    let percent_done = (current_count as f64 / spawn_count as f64) * 100.0;
-                    let progress_message =
-                        format!("{:.02}% ({}/{})", percent_done, current_count, spawn_count);
-                    tracing::info!(progress = %progress_message, "cleaning orphaned data...");
-                    last_report = now;
-                }
-            }
-            Ok(())
-        }
-        .boxed_local(),
+            })
+            .collect(),
     );
 
-    let results = futures::future::join_all(futures).await;
     let errors: Vec<_> = results
         .iter()
         .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
@@ -122,9 +93,9 @@ pub async fn purge_objects(
     }
 }
 
-async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
+fn clean_object(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = tokio::task::spawn_blocking(move || repo.remove_object(&digest)).await?;
+    let res = repo.remove_object(&digest);
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -132,9 +103,9 @@ async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<(
     }
 }
 
-async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
+fn clean_payload(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = tokio::task::spawn_blocking(move || repo.remove_payload(&digest)).await?;
+    let res = repo.remove_payload(&digest);
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -142,24 +113,21 @@ async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<
     }
 }
 
-async fn clean_render(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    tokio::task::spawn_blocking(move || {
-        let repo = storage::open_repository(repo_addr)?;
-        let viewer = repo.renders()?;
-        let res = viewer.remove_rendered_manifest(&digest);
-        if let Err(crate::Error::UnknownObject(_)) = res {
-            Ok(())
-        } else {
-            res
-        }
-    })
-    .await?
+fn clean_render(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
+    let repo = storage::open_repository(repo_addr)?;
+    let viewer = repo.renders()?;
+    let res = viewer.remove_rendered_manifest(&digest);
+    if let Err(crate::Error::UnknownObject(_)) = res {
+        Ok(())
+    } else {
+        res
+    }
 }
 
 pub fn get_all_unattached_objects(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
-    tracing::info!("evaluating repository digraph...");
+    tracing::info!("evaluating repository digraph");
     let mut digests = HashSet::new();
     for digest in repo.iter_digests() {
         digests.insert(digest?);
@@ -171,7 +139,7 @@ pub fn get_all_unattached_objects(
 pub fn get_all_unattached_payloads(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
-    tracing::info!("searching for orphaned payloads...");
+    tracing::info!("searching for orphaned payloads");
     let mut orphaned_payloads = HashSet::new();
     for digest in repo.iter_payload_digests() {
         let digest = digest?;
@@ -205,7 +173,7 @@ pub fn get_all_attached_objects(
                 if reachable_objects.contains(&digest) {
                     continue;
                 }
-                tracing::debug!(digest = ?digest, "walking...");
+                tracing::debug!(digest = ?digest, "walking");
                 let obj = match repo.read_object(&digest) {
                     Ok(obj) => obj,
                     Err(err) => match err {

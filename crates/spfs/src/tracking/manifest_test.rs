@@ -6,16 +6,14 @@ use crate::graph;
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_compute_manifest_determinism() {
+fn test_compute_manifest_determinism() {
     let first = compute_manifest("./src").unwrap();
     let second = compute_manifest("./src").unwrap();
     assert_eq!(first, second);
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_compute_manifest() {
+fn test_compute_manifest() {
     let root = std::fs::canonicalize("./src").unwrap();
     let this = file!().to_string().replace("./", "").replace("src/", "");
     let manifest = compute_manifest(root).unwrap();
@@ -23,8 +21,7 @@ async fn test_compute_manifest() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
+fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
     ensure(dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
@@ -40,8 +37,7 @@ async fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
     assert!(manifest.get_path("dir1.0/dir2.1/file.txt").is_some());
 }
 #[rstest]
-#[tokio::test]
-async fn test_manifest_sorting(tmpdir: tempdir::TempDir) {
+fn test_manifest_sorting(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path().join("data");
     ensure(dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
@@ -70,8 +66,7 @@ async fn test_manifest_sorting(tmpdir: tempdir::TempDir) {
     assert_eq!(actual, expected);
 }
 #[rstest]
-#[tokio::test]
-async fn test_layer_manifests(tmpdir: tempdir::TempDir) {
+fn test_layer_manifests(tmpdir: tempdir::TempDir) {
     let a_dir = tmpdir.path().join("a");
     ensure(a_dir.join("a.txt"), "a");
     ensure(a_dir.join("both.txt"), "a");
@@ -94,8 +89,7 @@ async fn test_layer_manifests(tmpdir: tempdir::TempDir) {
     assert_eq!(graph::Manifest::from(&a), graph::Manifest::from(&both));
 }
 #[rstest]
-#[tokio::test]
-async fn test_layer_manifests_removal() {
+fn test_layer_manifests_removal() {
     let mut a = Manifest::default();
     a.mkfile("a_only").unwrap();
 

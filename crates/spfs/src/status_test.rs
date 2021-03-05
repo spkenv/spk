@@ -6,8 +6,7 @@ use rstest::rstest;
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
+fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
     let script = tmpdir.path().join("script.sh");
     let filename = "/spfs/message.txt";
     let base_tag = "test/file_removal_base";
@@ -40,8 +39,7 @@ async fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::p
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
+fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
     let script = tmpdir.path().join("script.sh");
     let dirpath = "/spfs/dir1/dir2/dir3";
     let to_remove = "/spfs/dir1/dir2";
@@ -81,8 +79,7 @@ async fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::pa
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_runtime_recursion(spfs_binary: std::path::PathBuf) {
+fn test_runtime_recursion(spfs_binary: std::path::PathBuf) {
     let mut cmd = Command::new(&spfs_binary);
     cmd.args(&["run", "", "--", "sh", "-c"]);
     cmd.arg(format!(

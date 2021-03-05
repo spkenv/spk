@@ -13,8 +13,7 @@ use crate::{encoding::Encodable, tracking::TagSpec};
 fixtures!();
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
-#[tokio::test]
-async fn test_find_aliases(tmprepo: TempRepo) {
+fn test_find_aliases(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     tmprepo
         .find_aliases("not-existant")
@@ -38,8 +37,7 @@ async fn test_find_aliases(tmprepo: TempRepo) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
+fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
     let dir = tmpdir.path();
     let mut tmprepo = fs::FSRepository::create(dir.join("repo")).unwrap();
@@ -76,8 +74,7 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
-#[tokio::test]
-async fn test_commit_broken_link(tmprepo: TempRepo) {
+fn test_commit_broken_link(tmprepo: TempRepo) {
     let (tmpdir, mut tmprepo) = tmprepo;
     let src_dir = tmpdir.path().join("source");
     std::fs::create_dir_all(&src_dir).unwrap();
@@ -92,8 +89,7 @@ async fn test_commit_broken_link(tmprepo: TempRepo) {
 }
 
 #[rstest(tmprepo, case::fs(tmprepo("fs")), case::fs(tmprepo("tar")))]
-#[tokio::test]
-async fn test_commit_dir(tmprepo: TempRepo) {
+fn test_commit_dir(tmprepo: TempRepo) {
     let (tmpdir, mut tmprepo) = tmprepo;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");

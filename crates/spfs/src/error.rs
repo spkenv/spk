@@ -136,18 +136,5 @@ impl From<walkdir::Error> for Error {
         }
     }
 }
-impl From<tokio::task::JoinError> for Error {
-    fn from(err: tokio::task::JoinError) -> Self {
-        if err.is_panic() {
-            Error::String(format!("spawned task panic'd [INTERNAL ERROR]"))
-        } else if err.is_cancelled() {
-            Error::String(format!("spawned task was cancelled"))
-        } else {
-            Error::String(format!(
-                "spawned task did not exit cleanly [INTERNAL ERROR]"
-            ))
-        }
-    }
-}
 
 pub type Result<T> = std::result::Result<T, Error>;

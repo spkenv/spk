@@ -27,8 +27,7 @@ mod cmd_version;
 
 use args::{Command, Opt};
 
-#[tokio::main]
-async fn main() {
+fn main() {
     args::configure_sentry();
 
     let opt = args::Opt::from_args();
@@ -81,29 +80,29 @@ async fn main() {
 
     let result = match opt.cmd {
         Command::Version(cmd) => cmd.run(),
-        Command::Run(mut cmd) => cmd.run(&config).await,
-        Command::Shell(mut cmd) => cmd.run(&config).await,
-        Command::Edit(mut cmd) => cmd.run(&config).await,
-        Command::Commit(mut cmd) => cmd.run(&config).await,
-        Command::Reset(mut cmd) => cmd.run(&config).await,
-        Command::Tag(mut cmd) => cmd.run(&config).await,
-        Command::Push(mut cmd) => cmd.run(&config).await,
-        Command::Pull(mut cmd) => cmd.run(&config).await,
-        Command::Runtimes(mut cmd) => cmd.run(&config).await,
-        Command::Layers(mut cmd) => cmd.run(&config).await,
-        Command::Platforms(mut cmd) => cmd.run(&config).await,
-        Command::Tags(mut cmd) => cmd.run(&config).await,
-        Command::Info(mut cmd) => cmd.run(opt.verbose, &config).await,
-        Command::Log(mut cmd) => cmd.run(&config).await,
-        Command::Search(mut cmd) => cmd.run(&config).await,
-        Command::Diff(mut cmd) => cmd.run(&config).await,
-        Command::LsTags(mut cmd) => cmd.run(&config).await,
-        Command::Ls(mut cmd) => cmd.run(&config).await,
-        Command::Migrate(mut cmd) => cmd.run(&config).await,
-        Command::Check(mut cmd) => cmd.run(&config).await,
-        Command::Clean(mut cmd) => cmd.run(&config).await,
-        Command::Read(mut cmd) => cmd.run(&config).await,
-        Command::InitRuntime(mut cmd) => cmd.run(&config).await,
+        Command::Run(mut cmd) => cmd.run(&config),
+        Command::Shell(mut cmd) => cmd.run(&config),
+        Command::Edit(mut cmd) => cmd.run(&config),
+        Command::Commit(mut cmd) => cmd.run(&config),
+        Command::Reset(mut cmd) => cmd.run(&config),
+        Command::Tag(mut cmd) => cmd.run(&config),
+        Command::Push(mut cmd) => cmd.run(&config),
+        Command::Pull(mut cmd) => cmd.run(&config),
+        Command::Runtimes(mut cmd) => cmd.run(&config),
+        Command::Layers(mut cmd) => cmd.run(&config),
+        Command::Platforms(mut cmd) => cmd.run(&config),
+        Command::Tags(mut cmd) => cmd.run(&config),
+        Command::Info(mut cmd) => cmd.run(opt.verbose, &config),
+        Command::Log(mut cmd) => cmd.run(&config),
+        Command::Search(mut cmd) => cmd.run(&config),
+        Command::Diff(mut cmd) => cmd.run(&config),
+        Command::LsTags(mut cmd) => cmd.run(&config),
+        Command::Ls(mut cmd) => cmd.run(&config),
+        Command::Migrate(mut cmd) => cmd.run(&config),
+        Command::Check(mut cmd) => cmd.run(&config),
+        Command::Clean(mut cmd) => cmd.run(&config),
+        Command::Read(mut cmd) => cmd.run(&config),
+        Command::InitRuntime(mut cmd) => cmd.run(&config),
     };
 
     match result {

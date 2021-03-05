@@ -17,7 +17,7 @@ pub struct CmdInit {
 }
 
 impl CmdInit {
-    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<()> {
         tracing::debug!("initializing runtime environment");
         std::env::set_var("SPFS_RUNTIME", self.runtime_root_dir.clone());
         spfs::initialize_runtime()?;

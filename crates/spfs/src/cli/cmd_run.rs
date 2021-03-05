@@ -47,7 +47,7 @@ pub struct CmdShell {
 }
 
 impl CmdShell {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let mut run_cmd = CmdRun {
             pull: self.pull,
             edit: self.edit,
@@ -55,12 +55,12 @@ impl CmdShell {
             cmd: Default::default(),
             args: Default::default(),
         };
-        run_cmd.run(config).await
+        run_cmd.run(config)
     }
 }
 
 impl CmdRun {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let repo = config.get_repository()?;
         let runtimes = config.get_runtime_storage()?;
         let mut runtime = runtimes.create_runtime()?;
@@ -72,7 +72,7 @@ impl CmdRun {
                     let target = target.to_string();
                     let obj = if self.pull || !repo.has_ref(target.as_str()) {
                         tracing::info!(reference = ?target, "pulling target ref");
-                        spfs::pull_ref(target.as_str()).await?
+                        spfs::pull_ref(target.as_str())?
                     } else {
                         repo.read_ref(target.as_str())?
                     };

@@ -43,7 +43,7 @@ pub struct CmdClean {
 }
 
 impl CmdClean {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let mut repo = match &self.remote {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
@@ -65,7 +65,7 @@ impl CmdClean {
         }
         tracing::info!("found {} objects to remove", unattached.len());
         if !self.yes {
-            print!("Do you wish to proceed with the removal of these objects? [y/N]: ");
+            print!("  >--> Do you wish to proceed with the removal of these objects? [y/N]: ");
             let _ = std::io::stdout().flush();
             use std::io::BufRead;
             for line in std::io::stdin().lock().lines() {
@@ -77,7 +77,13 @@ impl CmdClean {
             }
         }
 
-        spfs::purge_objects(unattached.iter(), &repo).await
+        match spfs::purge_objects(&unattached.iter().collect(), &repo) {
+            Err(err) => Err(err),
+            Ok(_) => {
+                tracing::info!("clean successfull");
+                Ok(())
+            }
+        }
     }
 
     fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
@@ -123,7 +129,7 @@ impl CmdClean {
         }
 
         if !self.yes {
-            print!("Do you wish to proceed with the removal of these tag versions? [y/N]: ");
+            print!("  >--> Do you wish to proceed with the removal of these tag versions? [y/N]: ");
             let _ = std::io::stdout().flush();
             use std::io::BufRead;
             for line in std::io::stdin().lock().lines() {

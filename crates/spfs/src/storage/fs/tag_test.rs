@@ -9,8 +9,7 @@ use relative_path::RelativePathBuf;
 fixtures!();
 
 #[rstest]
-#[tokio::test]
-async fn test_tag_stream(tmpdir: tempdir::TempDir) {
+fn test_tag_stream(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
@@ -43,8 +42,7 @@ async fn test_tag_stream(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
+fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
@@ -62,8 +60,7 @@ async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
+fn test_tag_permissions(tmpdir: tempdir::TempDir) {
     let mut storage = FSRepository::create(tmpdir.path().join("repo")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     storage
@@ -82,8 +79,7 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_ls_tags(tmpdir: tempdir::TempDir) {
+fn test_ls_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
@@ -126,8 +122,7 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_rm_tags(tmpdir: tempdir::TempDir) {
+fn test_rm_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();

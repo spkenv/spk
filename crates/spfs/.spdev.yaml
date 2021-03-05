@@ -1,7 +1,7 @@
-version: 0.21.1
+version: 0.22.0
 release_notes: |
-  * Fix bug where sync process could leave out some files
-  * Fix bug where renders could fail uselessly because a directory already exists
+  * Replace tokio runtime with rayon for parallel processing
+  * Update sync and clean processes to use progress bars instead of logging
 
 toolchain:
   - kind: Rust

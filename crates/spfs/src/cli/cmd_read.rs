@@ -17,7 +17,7 @@ pub struct CmdRead {
 }
 
 impl CmdRead {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let repo: RepositoryHandle = config.get_repository()?.into();
         let item = repo.read_ref(self.reference.as_str())?;
         use spfs::graph::Object;

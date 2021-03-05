@@ -24,8 +24,7 @@ fixtures!();
     },
     "GP7DYE22DYLH3I5MB33PW5Z3AZXZIBGOND7MX65KECBMHVMXBUHQ====".parse().unwrap()),
 )]
-#[tokio::test]
-async fn test_entry_encoding_compat(entry: Entry, digest: encoding::Digest) {
+fn test_entry_encoding_compat(entry: Entry, digest: encoding::Digest) {
     let _guard = init_logging();
 
     let actual_digest = entry.digest().unwrap();

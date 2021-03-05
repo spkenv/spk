@@ -22,7 +22,7 @@ pub struct CmdReset {
 }
 
 impl CmdReset {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let mut runtime = spfs::active_runtime()?;
         let repo = config.get_repository()?;
         if let Some(reference) = &self.reference {

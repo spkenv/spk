@@ -50,8 +50,7 @@ fixtures!();
         ],
         "KP7FNGMD5XRT5KGZRDT5R33M3BGFS2SJG5DHFKJV3KKWZG3AGVXA====".parse().unwrap()),
 )]
-#[tokio::test]
-async fn test_tree_encoding_compat(entries: Vec<Entry>, digest: encoding::Digest) {
+fn test_tree_encoding_compat(entries: Vec<Entry>, digest: encoding::Digest) {
     let _guard = init_logging();
 
     let mut tree = Tree::default();

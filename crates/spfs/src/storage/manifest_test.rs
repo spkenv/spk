@@ -6,8 +6,7 @@ use crate::{encoding::Encodable, tracking};
 
 fixtures!();
 #[rstest]
-#[tokio::test]
-async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
+fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
     let mut repo = FSRepository::create(dir.join("repo")).unwrap();
 
@@ -27,8 +26,7 @@ async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
+fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let dir = tmpdir.path();

@@ -13,7 +13,7 @@ pub struct CmdInfo {
 }
 
 impl CmdInfo {
-    pub async fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<()> {
         let repo = config.get_repository()?.into();
         if self.refs.len() == 0 {
             print_global_info(&repo)

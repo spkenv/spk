@@ -5,8 +5,7 @@ use crate::{runtime, Error};
 
 fixtures!();
 #[rstest]
-#[tokio::test]
-async fn test_commit_empty(tmpdir: tempdir::TempDir) {
+fn test_commit_empty(tmpdir: tempdir::TempDir) {
     let mut rt = runtime::Runtime::new(tmpdir.path()).unwrap();
     if let Err(Error::NothingToCommit(_)) = commit_layer(&mut rt) {
         // ok
