@@ -3,7 +3,8 @@ include:
     file: pipelines/default.yaml
 
 lint-python3k:
-  script: []
+  script:
+    - echo "No python code"
 
 test rpm install:
   tags: [docker]
