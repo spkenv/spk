@@ -71,12 +71,12 @@ def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
         except FileNotFoundError:
             raise RuntimeError("Resolved package disappeared, please try again")
 
+        stack.append(digest)
+
         if isinstance(repo, storage.SpFSRepository):
             if local_repo.rs.has_digest(digest):
                 continue
             to_sync.append((spec, repo, digest))
-
-        stack.append(digest)
 
     for i, (spec, repo, digest) in enumerate(to_sync):
         if isinstance(repo, storage.SpFSRepository):
