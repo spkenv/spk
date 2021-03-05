@@ -4,7 +4,7 @@ import signal
 import subprocess
 import tempfile
 
-import spfs
+import spkrs
 
 from .. import api, solve, exec, build, storage
 
@@ -73,16 +73,11 @@ class PackageBuildTester:
 
     def test(self) -> None:
 
-        runtime = spfs.active_runtime()
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
-        runtime.reset("**/*")
-        runtime.reset_stack()
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
 
         solution = self._resolve_source_package()
-        exec.configure_runtime(runtime, solution)
+        stack = exec.resolve_runtime_layers(solution)
+        spkrs.reconfigure_runtime(stack=stack)
 
         self._solver.reset()
         for request in self._additional_requirements:
@@ -90,11 +85,16 @@ class PackageBuildTester:
         self._solver.update_options(self._options)
         for repo in self._repos:
             self._solver.add_repository(repo)
+        if isinstance(self._source, api.Ident):
+            ident_range = api.parse_ident_range(
+                f"{self._source.name}/={self._source.version}/{self._source.build}"
+            )
+            request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
+            self._solver.add_request(request)
         solution = self._solver.solve_build_environment(self._spec)
 
-        exec.configure_runtime(runtime, solution)
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        stack = exec.resolve_runtime_layers(solution)
+        spkrs.reconfigure_runtime(stack=stack)
 
         specs = list(s for _, s, _ in solution.items())
         self._options.update(solution.options())
@@ -112,7 +112,7 @@ class PackageBuildTester:
             script_file.write(self._script)
             script_file.flush()
             os.environ["SHELL"] = "sh"
-            cmd = spfs.build_shell_initialized_command(
+            cmd = spkrs.build_shell_initialized_command(
                 "/bin/sh", "-ex", script_file.name
             )
 

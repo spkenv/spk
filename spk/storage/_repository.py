@@ -1,7 +1,7 @@
 from typing import List, Any, Iterable, Union
 import abc
 
-import spfs
+import spkrs
 
 from .. import api
 
@@ -44,7 +44,7 @@ class Repository(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
+    def get_package(self, pkg: api.Ident) -> spkrs.Digest:
         """Identify the payload for the identified binary package and build options.
 
         The given build options should be resolved using the package spec
@@ -87,7 +87,7 @@ class Repository(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
+    def publish_package(self, spec: api.Spec, digest: spkrs.Digest) -> None:
         """Publish a binary package to this repository.
 
         The published digest is expected to identify an spfs layer which contains

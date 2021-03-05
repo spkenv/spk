@@ -6,7 +6,7 @@ from ruamel import yaml
 import structlog
 from colorama import Fore
 
-import spfs
+import spkrs
 import spk
 
 from spk.io import format_decision

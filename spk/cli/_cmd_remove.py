@@ -4,7 +4,7 @@ import os
 import sys
 import termios
 
-import spfs
+import spkrs
 import structlog
 from ruamel import yaml
 from colorama import Fore, Style

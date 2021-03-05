@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 from typing import Iterable, List, Optional
 
-import spfs
+import spkrs
 
 from .. import api, storage, solve, exec, build
 from ._build import TestError
@@ -67,13 +67,7 @@ class PackageSourceTester:
 
     def test(self) -> None:
 
-        runtime = spfs.active_runtime()
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
-        runtime.reset("**/*")
-        runtime.reset_stack()
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.reconfigure_runtime(editable=True, stack=[], reset=["*"])
 
         self._solver.reset()
         for request in self._additional_requirements:
@@ -84,8 +78,8 @@ class PackageSourceTester:
         self._solver.add_request(self._spec.pkg.with_build(api.SRC))
         solution = self._solver.solve()
 
-        exec.configure_runtime(runtime, solution)
-        spfs.remount_runtime(runtime)
+        layers = exec.resolve_runtime_layers(solution)
+        spkrs.reconfigure_runtime(stack=layers)
 
         env = solution.to_environment() or {}
         env["PREFIX"] = self._prefix
@@ -100,7 +94,7 @@ class PackageSourceTester:
             script_file.write(self._script)
             script_file.flush()
             os.environ["SHELL"] = "sh"
-            cmd = spfs.build_shell_initialized_command(
+            cmd = spkrs.build_shell_initialized_command(
                 "/bin/sh", "-ex", script_file.name
             )
 

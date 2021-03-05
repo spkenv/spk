@@ -11,6 +11,7 @@ import structlog
 import colorama
 
 import spk
+import spkrs
 from . import (
     _cmd_bake,
     _cmd_build,
@@ -105,6 +106,7 @@ def configure_spops() -> None:
 def configure_logging(args: argparse.Namespace) -> None:
 
     colorama.init()
+    spkrs.configure_logging(0)
 
     level = logging.INFO
     processors = [

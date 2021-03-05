@@ -4,7 +4,7 @@ import argparse
 import os
 import sys
 
-import spfs
+import spkrs
 import structlog
 from colorama import Fore
 
@@ -23,12 +23,6 @@ def register(
         aliases=["mkbinary", "mkbin", "mkb"],
         help=_make_binary.__doc__,
         **parser_args
-    )
-    mkb_cmd.add_argument(
-        "--no-runtime",
-        "-nr",
-        action="store_true",
-        help="Do not build in a new spfs runtime (useful for speed and debugging)",
     )
     mkb_cmd.add_argument(
         "--here",
@@ -50,6 +44,7 @@ def register(
     )
     _flags.add_repo_flags(mkb_cmd)
     _flags.add_option_flags(mkb_cmd)
+    _flags.add_no_runtime_flag(mkb_cmd)
     mkb_cmd.set_defaults(func=_make_binary)
     return mkb_cmd
 
@@ -57,16 +52,7 @@ def register(
 def _make_binary(args: argparse.Namespace) -> None:
     """Build a binary package from a spec file or source package."""
 
-    if not args.no_runtime:
-        runtime = spfs.get_config().get_runtime_storage().create_runtime()
-        runtime.set_editable(True)
-        cmd = list(sys.argv)
-        cmd.insert(0, "--")
-        cmd.append("--no-runtime")
-        cmd = spfs.build_command_for_runtime(runtime, *cmd)
-        os.execv(cmd[0], cmd)
-    else:
-        runtime = spfs.active_runtime()
+    runtime = _flags.ensure_active_runtime(args)
 
     options = _flags.get_options_from_flags(args)
     repos = _flags.get_repos_from_repo_flags(args).values()

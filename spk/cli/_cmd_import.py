@@ -2,7 +2,7 @@ import sys
 from typing import Callable, Any
 import os
 import argparse
-import spfs
+import spkrs
 
 import structlog
 from colorama import Fore, Style

@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.22.4
+Version: 0.23.0
 Release: 1
 Summary: Package manager for SPFS.
 License: NONE
@@ -11,8 +11,12 @@ BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: python-pip
 BuildRequires: python37-devel
+BuildRequires: openssl-devel
+BuildRequires: spdev
 Requires: rsync
-Requires: spfs >= 0.20.6
+Requires: spfs >= 0.22.0
+
+%define debug_package %{nil}
 
 %description
 Package manager for SPFS
@@ -22,8 +26,11 @@ Package manager for SPFS
 
 %build
 mkdir -p ./build
+dev toolchain install Rust
+source ~/.bashrc
 pipenv sync --dev
 source "$(pipenv --venv)/bin/activate"
+python setup.py install
 python -m nuitka \
     --standalone \
     --jobs $(nproc) \

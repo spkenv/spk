@@ -1,12 +1,14 @@
-version: 0.22.4
+version: 0.23.0
 release_notes: |
-  - Ensure proper command separation when calling through spfs
+  * Update to use latest rust version of spfs
+  * Inherit progress bars for sync process from rust spfs
 
 toolchain:
   - kind: Shell
     variables:
       SENTRY_ENVIRONMENT: development
       PATH: $SPDEV_ENV/bin:$PATH
+  - kind: Rust
   - kind: Pipenv
 
 components:
@@ -23,15 +25,18 @@ components:
     deploy:
       rez.enabled: false
 
+  - kind: RustCrate
+    name: spk
+
   - kind: HugoDocs
     name: docs
     location: docs
 
   - kind: RPMPackage
     name: rpm
-    spec_file: spk.spec
-
-    # bootstrap packages that need to go out with any new features
+    spec_file:
+      spk.spec
+      # bootstrap packages that need to go out with any new features
   - kind: SPKPackage
     name: spk-stdfs
     version: 1.0.0

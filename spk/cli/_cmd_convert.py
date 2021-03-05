@@ -6,7 +6,7 @@ import os
 import re
 import argparse
 from ruamel.yaml import parser
-import spfs
+import spkrs
 
 import structlog
 from colorama import Fore, Style
@@ -65,12 +65,6 @@ def register(
         default=True,
         help="Do not follow and convert dependencies of the requested spComp2s",
     )
-    spcomp2_cmd.add_argument(
-        "--no-runtime",
-        "-nr",
-        action="store_true",
-        help="Do not build in a new spfs runtime (useful for speed and debugging)",
-    )
     _flags.add_option_flags(spcomp2_cmd)
     spcomp2_cmd.add_argument(
         "packages",
@@ -115,24 +109,21 @@ def register(
         help="Do not follow and convert dependencies of the requested spComp2s",
     )
     pip_cmd.add_argument(
-        "--no-runtime",
-        "-nr",
-        action="store_true",
-        help="Do not build in a new spfs runtime (useful for speed and debugging)",
-    )
-    pip_cmd.add_argument(
         "packages",
         nargs="+",
         metavar="NAME[VERSION]",
         help="The pip packages to import (eg: pytest,  PySide2>=5)",
     )
 
+    _flags.add_no_runtime_flag(convert_cmd)
     convert_cmd.set_defaults(func=_convert)
     return convert_cmd
 
 
 def _convert(args: argparse.Namespace) -> None:
     """Convert a package from an external packaging system for use in spk."""
+
+    _flags.ensure_active_runtime(args)
 
     if args.converter == "spcomp2":
         _convert_spcomp2s(args)
@@ -147,15 +138,6 @@ def _convert(args: argparse.Namespace) -> None:
 
 
 def _convert_spcomp2s(args: argparse.Namespace) -> None:
-
-    if not args.no_runtime:
-        runtime = spfs.get_config().get_runtime_storage().create_runtime()
-        runtime.set_editable(True)
-        cmd = list(sys.argv)
-        cmd.insert(0, "--")
-        cmd.append("--no-runtime")
-        cmd = spfs.build_command_for_runtime(runtime, *cmd)
-        os.execv(cmd[0], cmd)
 
     options = _flags.get_options_from_flags(args)
 
@@ -190,15 +172,6 @@ def _convert_spcomp2s(args: argparse.Namespace) -> None:
 
 
 def _convert_pip_packages(args: argparse.Namespace) -> None:
-
-    if not args.no_runtime:
-        runtime = spfs.get_config().get_runtime_storage().create_runtime()
-        runtime.set_editable(True)
-        cmd = list(sys.argv)
-        cmd.insert(0, "--")
-        cmd.append("--no-runtime")
-        cmd = spfs.build_command_for_runtime(runtime, *cmd)
-        os.execv(cmd[0], cmd)
 
     specs = []
     for name in args.packages:

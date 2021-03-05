@@ -1,4 +1,5 @@
-import spfs
+from typing import List
+import spkrs
 import structlog
 
 from . import solve, storage, io, build, api
@@ -39,23 +40,16 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
 def setup_current_runtime(solution: solve.Solution) -> None:
     """Modify the active spfs runtime to include exactly the packges in the given solution."""
 
-    runtime = spfs.active_runtime()
-    configure_runtime(runtime, solution)
-    spfs.remount_runtime(runtime)
+    runtime = spkrs.active_runtime()
+    stack = resolve_runtime_layers(solution)
+    spkrs.reconfigure_runtime(stack=stack)
 
 
-def create_runtime(solution: solve.Solution) -> spfs.runtime.Runtime:
-    """Create a new runtime properly configured with the given solve."""
-
-    runtime = spfs.get_config().get_runtime_storage().create_runtime()
-    configure_runtime(runtime, solution)
-    return runtime
-
-
-def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -> None:
-    """Pull the necessary layers and setup the given runtime to have all solution packages."""
+def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
+    """Pull and list the necessary layers to have all solution packages."""
 
     local_repo = storage.local_repository()
+    stack = []
     for _, spec, source in solution.items():
 
         if isinstance(source, api.Spec):
@@ -74,8 +68,10 @@ def configure_runtime(runtime: spfs.runtime.Runtime, solution: solve.Solution) -
             raise RuntimeError("Resolved package disappeared, please try again")
 
         if isinstance(repo, storage.SpFSRepository):
-            if not local_repo.as_spfs_repo().objects.has_object(digest):
+            if not repo.rs.has_digest(digest):
                 _LOGGER.info("collecting " + io.format_ident(spec.pkg))
-            spfs.sync_ref(str(digest), repo.as_spfs_repo(), local_repo.as_spfs_repo())
+            repo.rs.localize_digest(digest)
 
-        runtime.push_digest(digest)
+        stack.append(digest)
+
+    return stack

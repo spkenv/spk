@@ -5,7 +5,7 @@ import sys
 
 import structlog
 
-import spfs
+import spkrs
 import spk
 
 from spk.io import format_decision
@@ -20,12 +20,6 @@ def register(
 ) -> argparse.ArgumentParser:
 
     test_cmd = sub_parsers.add_parser("test", help=_test.__doc__, **parser_args)
-    test_cmd.add_argument(
-        "--no-runtime",
-        "-nr",
-        action="store_true",
-        help="Do not setup a new spfs runtime (useful for speed and debugging)",
-    )
     test_cmd.add_argument(
         "--here",
         action="store_true",
@@ -46,6 +40,7 @@ def register(
     )
     _flags.add_repo_flags(test_cmd, default_local=True)
     _flags.add_option_flags(test_cmd)
+    _flags.add_no_runtime_flag(test_cmd)
     test_cmd.set_defaults(func=_test)
     return test_cmd
 
@@ -53,16 +48,7 @@ def register(
 def _test(args: argparse.Namespace) -> None:
     """Run package tests, to run install tests the package must have been built already."""
 
-    if not args.no_runtime:
-        runtime = spfs.get_config().get_runtime_storage().create_runtime()
-        runtime.set_editable(True)
-        cmd = list(sys.argv)
-        cmd.insert(0, "--")
-        cmd.append("--no-runtime")
-        cmd = spfs.build_command_for_runtime(runtime, *cmd)
-        os.execv(cmd[0], cmd)
-    else:
-        runtime = spfs.active_runtime()
+    runtime = _flags.ensure_active_runtime(args)
 
     options = _flags.get_options_from_flags(args)
     repos = _flags.get_repos_from_repo_flags(args)

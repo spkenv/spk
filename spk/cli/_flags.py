@@ -1,3 +1,4 @@
+from spk.exec import _LOGGER
 from typing import Dict, List, Tuple
 import os
 import re
@@ -9,8 +10,29 @@ from collections import OrderedDict
 from colorama import Fore
 from ruamel import yaml
 import spk
+import spkrs
 
 OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
+
+
+def add_no_runtime_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--no-runtime",
+        "-nr",
+        action="store_true",
+        help="Reconfigure the current spfs runtime (useful for speed and debugging)",
+    )
+
+
+def ensure_active_runtime(args: argparse.Namespace) -> spkrs.Runtime:
+
+    if args.no_runtime:
+        return spkrs.active_runtime()
+
+    cmd = sys.argv
+    cmd.append("--no-runtime")
+    cmd = ["spfs", "run", "-", "--"] + cmd
+    os.execvp(cmd[0], cmd)
 
 
 def add_solver_flags(parser: argparse.ArgumentParser) -> None:
@@ -231,7 +253,8 @@ def configure_solver_with_repo_flags(
     args: argparse.Namespace, solver: spk.Solver
 ) -> None:
 
-    for repo in get_repos_from_repo_flags(args).values():
+    for name, repo in get_repos_from_repo_flags(args).items():
+        _LOGGER.debug("using repository", repo=name)
         solver.add_repository(repo)
 
 

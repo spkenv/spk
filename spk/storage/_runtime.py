@@ -1,7 +1,7 @@
 from typing import List, Any, Iterable, Union
 import os
 
-import spfs
+import spkrs
 
 from .. import api
 from ._repository import Repository, PackageNotFoundError
@@ -51,18 +51,17 @@ class RuntimeRepository(Repository):
         except FileNotFoundError:
             raise PackageNotFoundError(pkg)
 
-    def get_package(self, pkg: api.Ident) -> spfs.encoding.Digest:
+    def get_package(self, pkg: api.Ident) -> spkrs.Digest:
         """Identify the payload for the identified binary package and build options."""
 
-        runtime = spfs.active_runtime()
-        config = spfs.get_config()
-        repo = config.get_repository()
+        runtime = spkrs.active_runtime()
+        repo = spkrs.local_repository()
 
         spec_path = os.path.join("/spk/pkg", str(pkg), "spec.yaml")
 
         stack = runtime.get_stack()
-        layers = spfs._resolve.resolve_stack_to_layers(stack)
-        manifest = spfs.tracking.Manifest()
+        layers = spkrs._resolve.resolve_stack_to_layers(stack)
+        manifest = spkrs.tracking.Manifest()
         for layer in reversed(layers):
             manifest = repo.read_manifest(layer.manifest).unlock()
             try:
@@ -82,7 +81,7 @@ class RuntimeRepository(Repository):
     def force_publish_spec(self, spec: api.Spec) -> None:
         raise NotImplementedError("Cannot modify a runtime repository")
 
-    def publish_package(self, spec: api.Spec, digest: spfs.encoding.Digest) -> None:
+    def publish_package(self, spec: api.Spec, digest: spkrs.Digest) -> None:
         raise NotImplementedError("Cannot publish to a runtime repository")
 
     def remove_package(self, pkg: api.Ident) -> None:

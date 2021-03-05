@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Union
 from _pytest.python import Package, show_fixtures_per_test
 
-import spfs
+import spkrs
 import pytest
 
 from .. import api, storage, io
@@ -36,7 +36,7 @@ def make_repo(
             spec.pkg.set_build(None)
             repo.force_publish_spec(spec)
             s = make_build(s.to_dict(), [], opts)
-        repo.publish_package(s, spfs.encoding.EMPTY_DIGEST)
+        repo.publish_package(s, spkrs.EMPTY_DIGEST)
 
     for s in specs:
         add_pkg(s)
@@ -71,7 +71,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     spec.pkg.set_build(options.digest())
 
     # publish package without publishing spec
-    repo.publish_package(spec, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(spec, spkrs.EMPTY_DIGEST)
 
     solver.update_options(options)
     solver.add_repository(repo)

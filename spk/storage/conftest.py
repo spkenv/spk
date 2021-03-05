@@ -2,7 +2,7 @@ from typing import Any
 
 import py.path
 import pytest
-import spfs
+import spkrs
 
 from ._repository import Repository
 from ._spfs import SpFSRepository
@@ -20,9 +20,12 @@ def repo(request: Any, tmpdir: py.path.local) -> Repository:
     if request.param is MemRepository:
         return MemRepository()
     if request.param is SpFSRepository:
-        return SpFSRepository(
-            spfs.storage.fs.FSRepository(tmpdir.join("repo").strpath, create=True)
-        )
+        repo = tmpdir.join("repo")
+        repo.join("renders").ensure_dir()
+        repo.join("objects").ensure_dir()
+        repo.join("payloads").ensure_dir()
+        repo.join("tags").ensure_dir()
+        return SpFSRepository(spkrs.SpFSRepository("file:" + repo.strpath))
 
     raise NotImplementedError(
         "Unknown repository type to be tested: " + str(request.param)

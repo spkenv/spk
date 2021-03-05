@@ -1,7 +1,7 @@
 from typing import List
 import pytest
 
-import spfs
+import spkrs
 
 from .. import api
 from ._repository import Repository, VersionExistsError, PackageNotFoundError
@@ -56,7 +56,7 @@ def test_repo_publish_package(repo: Repository) -> None:
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
     repo.publish_spec(spec)
     spec.pkg.set_build("7CI5R7Y4")
-    repo.publish_package(spec, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(spec, spkrs.EMPTY_DIGEST)
     assert list(repo.list_package_builds(spec.pkg)) == [spec.pkg]
     assert repo.read_spec(spec.pkg) == spec
 
@@ -66,7 +66,7 @@ def test_repo_remove_package(repo: Repository) -> None:
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
     repo.publish_spec(spec)
     spec.pkg.set_build("7CI5R7Y4")
-    repo.publish_package(spec, spfs.encoding.EMPTY_DIGEST)
+    repo.publish_package(spec, spkrs.EMPTY_DIGEST)
     assert list(repo.list_package_builds(spec.pkg)) == [spec.pkg]
     assert repo.read_spec(spec.pkg) == spec
     repo.remove_package(spec.pkg)

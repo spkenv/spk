@@ -8,6 +8,7 @@ enables all of the build, package, dist, install functionality required
 to package this code for all the standard python tools like pip and pipenv
 """
 from setuptools import setup, find_packages
+from setuptools_rust import Binding, RustExtension
 
 try:
     import configparser
@@ -24,10 +25,16 @@ if pipfile.has_section("packages"):
 setup(
     name="spk",
     description="The 'S' Package System: Convenience, clarity and speed.",
-    version="0.22.4",
+    version="0.23.0",
     packages=find_packages(),
     install_requires=install_requires,
     package_data={"": ["Pipfile"]},
     include_package_data=True,
     entry_points={"console_scripts": ["spk=spk.cli:main"]},
+    rust_extensions=[
+        RustExtension(
+            "spkrs",
+            binding=Binding.PyO3,
+        )
+    ],
 )

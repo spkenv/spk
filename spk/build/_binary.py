@@ -5,7 +5,7 @@ import json
 import subprocess
 
 import structlog
-import spfs
+import spkrs
 
 from .. import api, storage, solve, exec
 from ._env import data_path, deferred_signals
@@ -104,13 +104,8 @@ class BinaryPackageBuilder:
             self._spec is not None
         ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
-        runtime = spfs.active_runtime()
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
-        runtime.reset("**/*")
-        runtime.reset_stack()
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
+        runtime = spkrs.active_runtime()
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
         _LOGGER.debug("package options", options=self._pkg_options)
@@ -121,23 +116,23 @@ class BinaryPackageBuilder:
             raise ValueError(compat)
         self._all_options.update(self._pkg_options)
 
+        stack = []
         if isinstance(self._source, api.Ident):
             solution = self._resolve_source_package()
-            exec.configure_runtime(runtime, solution)
+            stack = exec.resolve_runtime_layers(solution)
         solution = self._resolve_build_environment()
         opts = solution.options()
         opts.update(self._all_options)
         self._all_options = opts
-        exec.configure_runtime(runtime, solution)
-        runtime.set_editable(True)
-        spfs.remount_runtime(runtime)
+        stack.extend(exec.resolve_runtime_layers(solution))
+        spkrs.reconfigure_runtime(editable=True, stack=stack)
 
         specs = list(s for _, s, _ in solution.items())
         self._spec.update_for_build(self._all_options, specs)
         env = solution.to_environment()
         env.update(self._all_options.to_environment())
         layer = self._build_and_commit_artifacts(env)
-        storage.local_repository().publish_package(self._spec, layer.digest())
+        storage.local_repository().publish_package(self._spec, layer)
         return self._spec
 
     def _resolve_source_package(self) -> solve.Solution:
@@ -188,7 +183,7 @@ class BinaryPackageBuilder:
 
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]
-    ) -> spfs.storage.Layer:
+    ) -> spkrs.Digest:
 
         assert self._spec is not None, "Internal Error: spec is None"
 
@@ -196,20 +191,23 @@ class BinaryPackageBuilder:
 
         sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
-        runtime = spfs.active_runtime()
+        runtime = spkrs.active_runtime()
         pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
         _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
-        runtime.reset(pattern)
-        spfs.remount_runtime(runtime)
+        spkrs.reconfigure_runtime(reset=[pattern])
 
-        _LOGGER.info("Calculating package fileset...")
-        diffs = spfs.diff()
         _LOGGER.info("Validating package fileset...")
-        validate_build_changeset(diffs, self._prefix)
+        try:
+            spkrs.validate_build_changeset()
+        except RuntimeError as e:
+            raise BuildError(str(e))
 
-        return spfs.commit_layer(runtime)
+        return spkrs.commit_layer(runtime)
 
-    def _build_artifacts(self, env: MutableMapping[str, str] = None,) -> None:
+    def _build_artifacts(
+        self,
+        env: MutableMapping[str, str] = None,
+    ) -> None:
 
         assert self._spec is not None
 
@@ -251,10 +249,10 @@ class BinaryPackageBuilder:
             print(" - this package's build script can be run from: " + build_script)
             print(" - to cancel and discard this build, run `exit 1`")
             print(" - to finalize and save the package, run `exit 0`")
-            cmd = spfs.build_interactive_shell_cmd()
+            cmd = spkrs.build_interactive_shell_command()
         else:
             os.environ["SHELL"] = "sh"
-            cmd = spfs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
+            cmd = spkrs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
         with deferred_signals():
             proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
             proc.wait()
@@ -311,34 +309,3 @@ def build_script_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
     script used to build the package contents
     """
     return os.path.join(data_path(pkg, prefix), "build.sh")
-
-
-def validate_build_changeset(
-    diffs: List[spfs.tracking.Diff], prefix: str = "/spfs"
-) -> None:
-
-    diffs = list(
-        filter(lambda diff: diff.mode is not spfs.tracking.DiffMode.unchanged, diffs)
-    )
-
-    if not diffs:
-        raise BuildError(f"Build process created no files under {prefix}")
-
-    for diff in diffs:
-        _LOGGER.debug(diff)
-        if diff.entries:
-            a, b = diff.entries
-            if stat.S_ISDIR(a.mode) and stat.S_ISDIR(b.mode):
-                continue
-        if diff.mode is not spfs.tracking.DiffMode.added:
-            if diff.mode is spfs.tracking.DiffMode.changed and diff.entries:
-                mode_change = diff.entries[0].mode ^ diff.entries[1].mode
-                nonperm_change = (mode_change | 0o777) ^ 0o777
-                if mode_change and not nonperm_change:
-                    # NOTE(rbottriell):permission changes are not properly reset by spfs
-                    # so we must deal with them manually for now
-                    os.chmod(prefix + diff.path, diff.entries[0].mode)
-                    continue
-            raise BuildError(
-                f"Existing file was {diff.mode.name}: {spfs.io.format_diffs([diff])}"
-            )

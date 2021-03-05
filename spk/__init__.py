@@ -1,6 +1,6 @@
 """SPack - an SpFS Package Manager"""
 
-__version__ = "0.22.4"
+__version__ = "0.23.0"
 
 from . import api, storage, solve, build, exec, test
 from ._global import load_spec, save_spec
@@ -21,6 +21,6 @@ from .build import (
     CollectionError,
 )
 from .storage import export_package, import_package
-from .exec import build_required_packages, setup_current_runtime, create_runtime
+from .exec import build_required_packages, setup_current_runtime
 
 __all__ = list(locals().keys())
