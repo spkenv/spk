@@ -37,6 +37,11 @@ impl ManifestViewer for FSRepository {
         let entries: Vec<_> = walkable
             .walk_abs(&rendered_dirpath.to_string_lossy())
             .collect();
+        let style = indicatif::ProgressStyle::default_bar()
+            .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
+            .progress_chars("=>-");
+        let bar = indicatif::ProgressBar::new(entries.len() as u64 * 2).with_style(style.clone());
+        bar.set_message("rendering layer");
         for node in entries.iter() {
             match node.entry.kind {
                 tracking::EntryKind::Tree => std::fs::create_dir_all(&node.path.to_path("/"))?,
@@ -45,6 +50,7 @@ impl ManifestViewer for FSRepository {
                     self.render_blob(&node.path.to_path("/"), &node.entry)?
                 }
             }
+            bar.inc(1);
         }
 
         for node in entries.iter().rev() {
@@ -58,7 +64,9 @@ impl ManifestViewer for FSRepository {
                 &node.path.to_path("/"),
                 std::fs::Permissions::from_mode(node.entry.mode),
             )?;
+            bar.inc(1);
         }
+        bar.finish_and_clear();
 
         mark_render_completed(&rendered_dirpath)?;
         Ok(rendered_dirpath)
