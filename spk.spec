@@ -14,7 +14,7 @@ BuildRequires: python37-devel
 BuildRequires: openssl-devel
 BuildRequires: spdev
 Requires: rsync
-Requires: spfs >= 0.20.6
+Requires: spfs >= 0.22.0
 
 %define debug_package %{nil}
 

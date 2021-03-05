@@ -29,35 +29,18 @@ impl SpFSRepository {
     }
 
     pub fn push_ref(&self, reference: &str, dest: &mut Self) -> Result<()> {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(spfs::sync_ref(reference, &self.inner, &mut dest.inner))?;
+        spfs::sync_ref(reference, &self.inner, &mut dest.inner)?;
         Ok(())
     }
 
     pub fn push_digest(&self, digest: &Digest, dest: &mut Self) -> Result<()> {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(spfs::sync_ref(
-                digest.inner.to_string(),
-                &self.inner,
-                &mut dest.inner,
-            ))?;
+        spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut dest.inner)?;
         Ok(())
     }
 
     pub fn localize_digest(&self, digest: &Digest) -> Result<()> {
         let mut local_repo = spfs::load_config()?.get_repository()?.into();
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(spfs::sync_ref(
-                digest.inner.to_string(),
-                &self.inner,
-                &mut local_repo,
-            ))?;
+        spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut local_repo)?;
         Ok(())
     }
 
