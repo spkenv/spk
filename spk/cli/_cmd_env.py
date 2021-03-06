@@ -66,6 +66,11 @@ def _env(args: argparse.Namespace) -> None:
 
     _flags.ensure_active_runtime(args)
 
+    # clean out any existing environment to ensure a clean resolve
+    for name in os.environ:
+        if name.startswith("SPK_"):
+            del os.environ[name]
+
     options = _flags.get_options_from_flags(args)
     solver = _flags.get_solver_from_flags(args)
 
