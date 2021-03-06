@@ -1,9 +1,6 @@
-version: 0.23.1
+version: 0.23.2
 release_notes: |
-  * Update to latest spfs to remove layer cap
-  * Fix issue where tar repo could fail to write without error
-  * Fix broken messaging when collecting packages, add current / total count
-  * Fix issue where you get cryptic errors if there is no runtime at install time
+  * Update env command to clear any existing env vars before entering a new one
 
 toolchain:
   - kind: Shell
