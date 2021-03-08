@@ -30,10 +30,24 @@ impl From<spfs::encoding::Digest> for Digest {
         Self { inner: inner }
     }
 }
+impl From<&spfs::encoding::Digest> for Digest {
+    fn from(inner: &spfs::encoding::Digest) -> Self {
+        Self {
+            inner: inner.clone(),
+        }
+    }
+}
 
 #[pyclass]
 pub struct Runtime {
     inner: spfs::runtime::Runtime,
+}
+
+#[pymethods]
+impl Runtime {
+    pub fn get_stack(&self) -> Vec<Digest> {
+        self.inner.get_stack().iter().map(|d| d.into()).collect()
+    }
 }
 
 #[pymodule]

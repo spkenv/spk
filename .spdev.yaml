@@ -6,6 +6,7 @@ release_notes: |
   * Fix bug where solver incorrectly tried to rebuild a dependency for abi
     compatibility when actually the dependent package needed rebuilding
   * Fix bug where exclude field could not be specified for local sources path
+  * Fix bug where installing or baking an existing environment failed with AttributeError
 
 toolchain:
   - kind: Shell
