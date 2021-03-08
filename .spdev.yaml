@@ -1,6 +1,8 @@
 version: 0.23.2
 release_notes: |
   * Update env command to clear any existing env vars before entering a new one
+  * Fix bug where abi compatibility was not being respected by the solver
+  * Fix bug where exclude field could not be specified for local sources path
 
 toolchain:
   - kind: Shell

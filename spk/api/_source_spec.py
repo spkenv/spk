@@ -81,6 +81,8 @@ class LocalSource(SourceSpec):
         out: Dict[str, Any] = {"path": self.path}
         if self.subdir() is not None:
             out["subdir"] = self.subdir()
+        if self.exclude != LocalSource().exclude:
+            out["exclude"] = list(self.exclude)
         return out
 
     @staticmethod
@@ -88,6 +90,12 @@ class LocalSource(SourceSpec):
 
         src = LocalSource(data.pop("path"))
         src._subdir = data.pop("subdir", None)
+
+        if "exclude" in data:
+            src.exclude = data.pop("exclude")
+            assert isinstance(
+                src.exclude, list
+            ), "LocalSource.exclude must be a list of strings"
 
         for name in data:
             raise ValueError(f"Unknown field in LocalSource: '{name}'")
