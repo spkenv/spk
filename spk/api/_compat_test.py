@@ -28,6 +28,8 @@ def test_compat_api(compat: str, a: str, b: str, expected: bool) -> None:
         ("x.x.x", "1.0.0", "1.0.2", False),
         ("x.b", "1.0.0", "1.1.0", True),
         ("x.a", "1.0.0", "1.1.0", False),
+        ("x.a.b", "3.6.5", "3.7.1", False),
+        ("x.a.b", "3.7.1", "3.7.5", True),
     ],
 )
 def test_compat_abi(compat: str, a: str, b: str, expected: bool) -> None:
@@ -35,4 +37,5 @@ def test_compat_abi(compat: str, a: str, b: str, expected: bool) -> None:
     actual = parse_compat(compat).is_binary_compatible(
         parse_version(a), parse_version(b)
     )
+    print(actual)
     assert bool(actual) == expected

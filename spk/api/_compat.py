@@ -85,21 +85,29 @@ class Compat:
         each = list(zip(self.parts, base.parts, other.parts))
         for i, (rule, a, b) in enumerate(each):
 
-            for char in rule:
+            most_strict_char = max(rule)
+            rule = most_strict_char
 
-                if CompatRule.NONE.value == char:
-                    if a != b:
-                        return Compatibility(
-                            f"Not compatible with {base} [{self} at pos {i}]"
-                        )
-                    continue
-
-                if char <= required.value and b < a:
+            if CompatRule.NONE.value == rule:
+                if a != b:
                     return Compatibility(
-                        f"Not {required.name} compatible with {base} [{self} at pos {i}]"
+                        f"Not compatible with {base} [{self} at pos {i}]"
                     )
-                if char >= required.value:
-                    return COMPATIBLE
+                continue
+
+            is_relevant_rule = rule <= required.value
+            if not is_relevant_rule:
+                continue
+            if b < a:
+                return Compatibility(
+                    f"Not {required.name} compatible with {base} [{self} at pos {i}]"
+                )
+            elif rule == required.value:
+                return COMPATIBLE
+            elif b > a:
+                return Compatibility(
+                    f"Not {required.name} compatible with {base} [{self} at pos {i}]"
+                )
 
         return Compatibility(
             f"Not compatible: {base} ({self}) [{required.name} compatibility not specified]"

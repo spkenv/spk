@@ -441,7 +441,7 @@ class CompatRange(VersionRange):
 
     def is_satisfied_by(self, spec: "Spec") -> Compatibility:
 
-        if not spec.pkg.build or spec.pkg.build.is_source():
+        if spec.pkg.build is None or spec.pkg.build.is_source():
             return spec.compat.is_api_compatible(self._base, spec.pkg.version)
 
         return spec.compat.is_binary_compatible(self._base, spec.pkg.version)

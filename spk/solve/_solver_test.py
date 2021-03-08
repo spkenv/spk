@@ -131,6 +131,37 @@ def test_solver_single_package_simple_deps(
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
 
 
+def test_solver_dependency_abi_compat(solver: Union[Solver, legacy.Solver]) -> None:
+
+    options = api.OptionMap()
+    repo = make_repo(
+        [
+            {
+                "pkg": "pkg-b/1.1.0",
+                "install": {"requirements": [{"pkg": "pkg-a/1.1.0"}]},
+            },
+            {"pkg": "pkg-a/2.1.1", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.2.1", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.1.1", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.1.0", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.0.0", "compat": "x.a.b"},
+            {"pkg": "pkg-a/0.9.0", "compat": "x.a.b"},
+        ]
+    )
+
+    solver.update_options(options)
+    solver.add_repository(repo)
+    solver.add_request("pkg-b/1.1")
+
+    try:
+        packages = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
+    assert len(packages) == 2, "expected two resolved packages"
+    assert packages.get("pkg-a").spec.pkg.version == "1.1.0"
+    assert packages.get("pkg-b").spec.pkg.version == "1.1.1"
+
+
 def test_solver_dependency_incompatible(solver: Union[Solver, legacy.Solver]) -> None:
 
     # test what happens when a dependency is added which is incompatible
