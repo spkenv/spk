@@ -9,7 +9,7 @@ from ._version import Version, parse_version, VERSION_SEP
 from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter, ExactVersion
-from ._compat import Compatibility, COMPATIBLE
+from ._compat import Compatibility, COMPATIBLE, CompatRule
 from ._option_map import OptionMap
 
 if TYPE_CHECKING:
@@ -61,13 +61,15 @@ class RangeIdent:
 
         return True
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(
+        self, spec: "Spec", required: CompatRule = CompatRule.ABI
+    ) -> Compatibility:
         """Return true if the given package spec satisfies this request."""
 
         if spec.pkg.name != self.name:
             return Compatibility("different package names")
 
-        c = self.version.is_satisfied_by(spec)
+        c = self.version.is_satisfied_by(spec, required)
         if not c:
             return c
 
@@ -270,6 +272,7 @@ class PkgRequest(Request):
     prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll
     inclusion_policy: InclusionPolicy = InclusionPolicy.Always
     pin: str = ""
+    required_compat: CompatRule = CompatRule.ABI
 
     def __hash__(self) -> int:
 
@@ -287,7 +290,9 @@ class PkgRequest(Request):
 
     def clone(self) -> "PkgRequest":
 
-        return PkgRequest.from_dict(self.to_dict())
+        req = PkgRequest.from_dict(self.to_dict())
+        req.required_compat = self.required_compat
+        return req
 
     def render_pin(self, pkg: Ident) -> "PkgRequest":
         """Create a copy of this request with it's pin rendered out using 'pkg'."""
@@ -341,7 +346,7 @@ class PkgRequest(Request):
         ):
             return Compatibility("prereleases not allowed")
 
-        return self.pkg.is_satisfied_by(spec)
+        return self.pkg.is_satisfied_by(spec, self.required_compat)
 
     def restrict(self, other: "PkgRequest") -> None:
         """Reduce the scope of this request to the intersection with another."""

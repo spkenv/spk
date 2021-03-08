@@ -350,6 +350,8 @@ class BuildPackage(Decision):
         yield SetPackageBuild(spec, self.spec)
         for req in spec.install.requirements:
             if isinstance(req, api.PkgRequest):
+                req = req.clone()
+                req.required_compat = api.CompatRule.API
                 yield RequestPackage(req)
             elif isinstance(req, api.VarRequest):
                 yield RequestVar(req)

@@ -10,8 +10,14 @@ from ._compat import parse_compat
         ("x.x.x", "1.0.0", "1.0.0", True),
         ("x.x.a", "1.0.0", "1.0.2", True),
         ("x.x.x", "1.0.0", "1.0.2", False),
+        # all prior numbers must be equal
+        ("x.b.a", "1.0.0", "1.1.0", False),
+        # compatible regardless of abi specification
         ("x.a", "1.0.0", "1.1.0", True),
-        ("x.b", "1.0.0", "1.1.0", True),
+        # not compatible if api compat is missing
+        ("x.b", "1.0.0", "1.1.0", False),
+        # compatible if both are provided
+        ("x.ba", "1.0.0", "1.1.0", True),
     ],
 )
 def test_compat_api(compat: str, a: str, b: str, expected: bool) -> None:

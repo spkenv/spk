@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
 from ._option_map import OptionMap
 from ._name import validate_name
-from ._compat import Compatibility, COMPATIBLE
+from ._compat import Compatibility, COMPATIBLE, CompatRule
 
 
 class Option(metaclass=abc.ABCMeta):
@@ -385,6 +385,7 @@ class PkgOpt(Option):
         return PkgRequest(
             pkg=parse_ident_range(f"{self.pkg}/{value}"),
             prerelease_policy=self.prerelease_policy,
+            required_compat=CompatRule.API,
         )
 
     def to_dict(self) -> Dict[str, Any]:

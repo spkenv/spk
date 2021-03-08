@@ -83,6 +83,7 @@ class InstallSpec:
         spec = InstallSpec()
 
         requirements = data.pop("requirements", [])
+        assert isinstance(requirements, list), "install.requirements must be a list"
         if requirements:
             spec.requirements = list(Request.from_dict(r) for r in requirements)
         request_names = list(r.name for r in spec.requirements)
@@ -94,6 +95,7 @@ class InstallSpec:
         embedded = data.pop(
             "embedded", data.pop("embeded", [])  # legacy support of misspelling
         )
+        assert isinstance(requirements, list), "install.embedded must be a list"
         for e in embedded:
             if "build" in e:
                 if tuple(e["build"].keys()) != ("options",):

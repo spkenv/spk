@@ -3,7 +3,7 @@ import abc
 from functools import lru_cache
 from dataclasses import dataclass, field
 
-from ._compat import Compatibility, COMPATIBLE
+from ._compat import Compatibility, COMPATIBLE, CompatRule
 from ._version import Version, parse_version, VERSION_SEP
 
 if TYPE_CHECKING:
@@ -48,8 +48,8 @@ class VersionRange(metaclass=abc.ABCMeta):
         return COMPATIBLE
 
     @abc.abstractmethod
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
-        """Return true if the given package spec satisfies this version range."""
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
+        """Return true if the given package spec satisfies this version range with the given compatibility."""
 
         pass
 
@@ -127,7 +127,7 @@ class SemverRange(VersionRange):
 
         return Version.from_parts(*parts)
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
         return self.is_applicable(spec.pkg.version)
 
 
@@ -177,7 +177,7 @@ class WildcardRange(VersionRange):
 
         return COMPATIBLE
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -212,7 +212,7 @@ class LowestSpecifiedRange(VersionRange):
             parts[-1] += 1
         return parse_version(VERSION_SEP.join(str(p) for p in parts))
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
         return self.is_applicable(spec.pkg.version)
 
 
@@ -238,7 +238,7 @@ class GreaterThanRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -269,7 +269,7 @@ class LessThanRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return self._bound
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -300,7 +300,7 @@ class GreaterThanOrEqualToRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -331,7 +331,7 @@ class LessThanOrEqualToRange(VersionRange):
     def less_than(self) -> Optional[Version]:
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -367,7 +367,7 @@ class ExactVersion(VersionRange):
         parts[-1] += 1
         return parse_version(VERSION_SEP.join(str(p) for p in parts))
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         if not self._version.base == spec.pkg.version.base:
             return Compatibility(f"{spec.pkg.version} !! {self} [not equal]")
@@ -413,7 +413,7 @@ class ExcludedVersion(VersionRange):
 
         return COMPATIBLE
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
         return self.is_applicable(spec.pkg.version)
 
@@ -439,12 +439,16 @@ class CompatRange(VersionRange):
 
         return None
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(self, spec: "Spec", required: CompatRule) -> Compatibility:
 
-        if spec.pkg.build is None or spec.pkg.build.is_source():
+        if required is CompatRule.NONE:
+            return COMPATIBLE
+        elif required is CompatRule.API:
             return spec.compat.is_api_compatible(self._base, spec.pkg.version)
-
-        return spec.compat.is_binary_compatible(self._base, spec.pkg.version)
+        elif required is CompatRule.ABI:
+            return spec.compat.is_binary_compatible(self._base, spec.pkg.version)
+        else:
+            raise ValueError(f"Unhandled compatibility specifier: {required}")
 
 
 @dataclass
@@ -485,11 +489,13 @@ class VersionFilter(VersionRange):
 
         return COMPATIBLE
 
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
+    def is_satisfied_by(
+        self, spec: "Spec", required: CompatRule = CompatRule.ABI
+    ) -> Compatibility:
         """Return true if the given package spec satisfies this version range."""
 
         for rule in self.rules:
-            c = rule.is_satisfied_by(spec)
+            c = rule.is_satisfied_by(spec, required)
             if not c:
                 return c
 

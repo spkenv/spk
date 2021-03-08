@@ -66,7 +66,6 @@ def _env(args: argparse.Namespace) -> None:
 
     _flags.ensure_active_runtime(args)
 
-    options = _flags.get_options_from_flags(args)
     solver = _flags.get_solver_from_flags(args)
 
     for request in _flags.parse_requests_using_flags(args, *requests):
