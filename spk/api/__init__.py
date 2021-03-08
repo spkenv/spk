@@ -11,7 +11,7 @@ from ._version_range import (
     parse_version_range,
 )
 from ._build_spec import BuildSpec, opt_from_dict, VarOpt, PkgOpt, Option, Inheritance
-from ._source_spec import SourceSpec, LocalSource, GitSource, TarSource
+from ._source_spec import SourceSpec, LocalSource, GitSource, TarSource, ScriptSource
 from ._test_spec import TestSpec
 from ._request import (
     Request,

@@ -66,6 +66,19 @@ sources:
   - tar: https://github.com/qt/qt5/archive/v5.12.9.tar.gz
 ```
 
+#### Script Source
+
+Script sources allow you to write arbitrary bash script that will collect and arrange sources in the source package. The script is executed with the current working directory as the source package to be built. This means that the script must collect sources into the current working directory.
+
+Any previously listed sources will already exist in the scripts current directory, and so the script source can also be used to arrange and adjust source files fetched through other means.
+
+```yaml
+sources:
+  - script:
+      - touch file.yaml
+      - svn checkout http://myrepo my_repo_svn
+```
+
 #### Multiple Sources
 
 You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package. Some sources can be intermixed into the same location (such as local sources) but others require their own location (such as git sources).

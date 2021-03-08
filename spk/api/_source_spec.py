@@ -37,6 +37,8 @@ class SourceSpec(metaclass=abc.ABCMeta):
             return GitSource.from_dict(data)
         elif "tar" in data:
             return TarSource.from_dict(data)
+        elif "script" in data:
+            return ScriptSource.from_dict(data)
         else:
             raise ValueError("Cannot determine type of source specifier")
 
@@ -196,5 +198,50 @@ class TarSource(SourceSpec):
 
         for name in data:
             raise ValueError(f"Unknown field in TarSource: '{name}'")
+
+        return src
+
+
+@dataclass
+class ScriptSource(SourceSpec):
+    """Package source files collected via arbitrary shell script."""
+
+    script: List[str] = field(default_factory=list)
+
+    def collect(self, dirname: str) -> None:
+
+        script_file = tempfile.NamedTemporaryFile("w")
+        script_file.write("\n".join(self.script))
+        script_file.flush()
+
+        _LOGGER.debug(
+            "running sources script",
+            cmd=" ".join(["bash", "-ex", script_file.name]),
+            cwd=dirname,
+        )
+        proc = subprocess.Popen(["bash", "-ex", script_file.name], cwd=dirname)
+        proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"sources script exited with non-zero status: {proc.returncode}"
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"script": list(self.script)}
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "ScriptSource":
+
+        script = data.pop("script")
+        if isinstance(script, str):
+            script = [script]
+        assert isinstance(
+            script, list
+        ), "sources.script must be a string or list of strings"
+
+        src = ScriptSource(script)
+
+        for name in data:
+            raise ValueError(f"Unknown field in ScriptSource: '{name}'")
 
         return src

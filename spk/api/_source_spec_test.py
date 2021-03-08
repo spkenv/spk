@@ -3,7 +3,7 @@ import os
 
 import py.path
 
-from ._source_spec import GitSource, TarSource, LocalSource
+from ._source_spec import GitSource, TarSource, LocalSource, ScriptSource
 
 
 def test_local_source_dir(tmpdir: py.path.local) -> None:
@@ -46,6 +46,15 @@ def test_tar_sources(tmpdir: py.path.local) -> None:
     tmpdir = tmpdir.join("source").ensure(dir=1)
     spec = {"tar": filename}
     source = TarSource.from_dict(spec)
+    source.collect(tmpdir.strpath)
+
+    assert tmpdir.join("spk", "__init__.py").exists()
+
+
+def test_script_sources(tmpdir: py.path.local) -> None:
+
+    spec = {"script": ["mkdir spk", "touch spk/__init__.py"]}
+    source = ScriptSource.from_dict(spec)
     source.collect(tmpdir.strpath)
 
     assert tmpdir.join("spk", "__init__.py").exists()
