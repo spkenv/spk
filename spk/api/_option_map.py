@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Mapping
 import hashlib
 import base64
 import platform
@@ -68,21 +68,23 @@ class OptionMap(SortedDict):
             opts[name] = str(value)
         return opts
 
-    def to_environment(self, base: Dict[str, str] = None) -> Dict[str, str]:
+    def to_environment(self, base: Mapping[str, str] = None) -> Dict[str, str]:
         """Return the data of these options as environment variables.
 
-        If base is not given, use current os environment.
+        If base is given, also clean any existing, conflicting values.
         """
 
-        if base is None:
-            base = dict(os.environ)
-        else:
-            base = base.copy()
+        out = dict(base) if base else dict()
+
+        for name in tuple(out.keys()):
+            if name.startswith("SPK_OPT_"):
+                del out[name]
 
         for name, value in self.items():
             var_name = f"SPK_OPT_{name}"
-            base[var_name] = value
-        return base
+            out[var_name] = value
+
+        return out
 
 
 def host_options() -> OptionMap:

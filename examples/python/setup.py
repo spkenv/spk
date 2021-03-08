@@ -10,8 +10,6 @@ to package this code for all the standard python tools like pip and pipenv
 from setuptools import setup, find_packages
 
 
-
-
 setup(
     name="python-example",
     description="An example spk package written in python",

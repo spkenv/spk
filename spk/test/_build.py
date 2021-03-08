@@ -100,8 +100,8 @@ class PackageBuildTester:
         self._options.update(solution.options())
         self._spec.update_for_build(self._options, specs)
 
-        env = solution.to_environment() or {}
-        env.update(self._spec.resolve_all_options(solution.options()).to_environment())
+        env = solution.to_environment(os.environ)
+        env = self._spec.resolve_all_options(solution.options()).to_environment(env)
         env.update(build.get_package_build_env(self._spec))
         env["PREFIX"] = self._prefix
 

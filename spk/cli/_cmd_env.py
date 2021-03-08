@@ -66,11 +66,6 @@ def _env(args: argparse.Namespace) -> None:
 
     _flags.ensure_active_runtime(args)
 
-    # clean out any existing environment to ensure a clean resolve
-    for name in os.environ:
-        if name.startswith("SPK_"):
-            del os.environ[name]
-
     options = _flags.get_options_from_flags(args)
     solver = _flags.get_solver_from_flags(args)
 
@@ -90,7 +85,9 @@ def _env(args: argparse.Namespace) -> None:
 
     solution = spk.build_required_packages(solution)
     spk.setup_current_runtime(solution)
-    os.environ.update(solution.to_environment())
+    env = solution.to_environment(os.environ)
+    os.environ.clear()
+    os.environ.update(env)
     if not command:
         cmd = spkrs.build_interactive_shell_command()
     else:

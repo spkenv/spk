@@ -81,7 +81,7 @@ class PackageInstallTester:
         layers = exec.resolve_runtime_layers(solution)
         spkrs.reconfigure_runtime(stack=layers)
 
-        env = solution.to_environment() or {}
+        env = solution.to_environment(os.environ)
         env["PREFIX"] = self._prefix
 
         source_dir = "."

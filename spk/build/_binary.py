@@ -129,8 +129,9 @@ class BinaryPackageBuilder:
 
         specs = list(s for _, s, _ in solution.items())
         self._spec.update_for_build(self._all_options, specs)
-        env = solution.to_environment()
-        env.update(self._all_options.to_environment())
+        env = os.environ.copy()
+        env = solution.to_environment(env)
+        env = self._all_options.to_environment(env)
         layer = self._build_and_commit_artifacts(env)
         storage.local_repository().publish_package(self._spec, layer)
         return self._spec
@@ -228,7 +229,7 @@ class BinaryPackageBuilder:
             json.dump(self._all_options, writer, indent="\t")
 
         env = env or {}
-        env.update(self._all_options.to_environment())
+        env = self._all_options.to_environment(env)
         env.update(get_package_build_env(self._spec))
         env["PREFIX"] = self._prefix
 

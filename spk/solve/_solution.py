@@ -1,4 +1,4 @@
-from typing import Tuple, Iterator, Dict, List, NamedTuple, Union
+from typing import Mapping, Tuple, Iterator, Dict, List, NamedTuple, Union
 import os
 
 from .. import api, storage
@@ -101,30 +101,31 @@ class Solution:
                 return SolvedRequest(request, *self._resolved[request])
         raise KeyError(name)
 
-    def to_environment(self, base: Dict[str, str] = None) -> Dict[str, str]:
+    def to_environment(self, base: Mapping[str, str] = None) -> Dict[str, str]:
         """Return the data of this solution as environment variables.
 
-        If base is not given, use current os environment.
+        If base is given, also clean any existing, conflicting values.
         """
 
-        if base is None:
-            base = dict(os.environ)
-        else:
-            base = base.copy()
+        out = dict(base) if base else dict()
 
-        base["SPK_ACTIVE_PREFIX"] = "/spfs"
+        for name in tuple(out.keys()):
+            if name.startswith("SPK_PKG_"):
+                del out[name]
+
+        out["SPK_ACTIVE_PREFIX"] = "/spfs"
         for solved in self.items():
 
             spec = solved.spec
-            base[f"SPK_PKG_{spec.pkg.name}"] = str(spec.pkg)
-            base[f"SPK_PKG_{spec.pkg.name}_VERSION"] = str(spec.pkg.version)
-            base[f"SPK_PKG_{spec.pkg.name}_BUILD"] = str(spec.pkg.build)
-            base[f"SPK_PKG_{spec.pkg.name}_VERSION_MAJOR"] = str(spec.pkg.version.major)
-            base[f"SPK_PKG_{spec.pkg.name}_VERSION_MINOR"] = str(spec.pkg.version.minor)
-            base[f"SPK_PKG_{spec.pkg.name}_VERSION_PATCH"] = str(spec.pkg.version.patch)
-            base[f"SPK_PKG_{spec.pkg.name}_VERSION_BASE"] = api.VERSION_SEP.join(
+            out[f"SPK_PKG_{spec.pkg.name}"] = str(spec.pkg)
+            out[f"SPK_PKG_{spec.pkg.name}_VERSION"] = str(spec.pkg.version)
+            out[f"SPK_PKG_{spec.pkg.name}_BUILD"] = str(spec.pkg.build)
+            out[f"SPK_PKG_{spec.pkg.name}_VERSION_MAJOR"] = str(spec.pkg.version.major)
+            out[f"SPK_PKG_{spec.pkg.name}_VERSION_MINOR"] = str(spec.pkg.version.minor)
+            out[f"SPK_PKG_{spec.pkg.name}_VERSION_PATCH"] = str(spec.pkg.version.patch)
+            out[f"SPK_PKG_{spec.pkg.name}_VERSION_BASE"] = api.VERSION_SEP.join(
                 str(p) for p in spec.pkg.version.parts
             )
 
-        base.update(self.options().to_environment())
-        return base
+        out = self.options().to_environment(out)
+        return out
