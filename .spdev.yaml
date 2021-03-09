@@ -1,12 +1,9 @@
-version: 0.23.2
+version: 0.23.3
 release_notes: |
-  * Add script sources for collecting files with arbitrary bash scripts
-  * Update env command to clear any existing env vars before entering a new one
-  * Fix bug where abi compatibility was not being respected by the solver
-  * Fix bug where solver incorrectly tried to rebuild a dependency for abi
-    compatibility when actually the dependent package needed rebuilding
-  * Fix bug where exclude field could not be specified for local sources path
-  * Fix bug where installing or baking an existing environment failed with AttributeError
+  * Fix bug where installing a package into an existing environment could fail with an
+    attribute error
+  * Fix bug where listing current installed packages in an environment could fail with
+    an attribute error
 
 toolchain:
   - kind: Shell
