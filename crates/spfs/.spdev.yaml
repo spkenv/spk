@@ -1,6 +1,6 @@
-version: 0.22.3
+version: 0.22.4
 release_notes: |
-  * Add configuration option for size of tmpfs mount
+  * Expose function publicly for downstream use in spk
 
 toolchain:
   - kind: Rust

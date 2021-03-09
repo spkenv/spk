@@ -23,7 +23,7 @@ pub use error::{Error, Result};
 mod config;
 pub use self::config::{load_config, Config};
 mod resolve;
-pub use resolve::{compute_manifest, compute_object_manifest};
+pub use resolve::{compute_manifest, compute_object_manifest, resolve_stack_to_layers};
 mod status;
 pub use status::{
     active_runtime, compute_runtime_manifest, deinitialize_runtime, initialize_runtime,
