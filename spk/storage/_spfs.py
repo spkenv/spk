@@ -1,5 +1,5 @@
 from platform import version
-from typing import Iterable, Union
+from typing import Iterable, Iterator, Union
 import io
 import json
 import posixpath
@@ -34,7 +34,7 @@ class SpFSRepository(Repository):
     def list_package_versions(self, name: str) -> Iterable[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
-        versions = self.rs.ls_tags(path)
+        versions: Iterable[str] = self.rs.ls_tags(path)
         versions = map(lambda v: v.rstrip("/"), versions)
         # undo our encoding of the invalid '+' character in spfs tags
         versions = (v.replace("..", "+") for v in versions)

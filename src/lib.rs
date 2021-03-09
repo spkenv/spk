@@ -15,6 +15,12 @@ pub struct Digest {
     inner: spfs::encoding::Digest,
 }
 
+impl AsRef<spfs::encoding::Digest> for Digest {
+    fn as_ref(&self) -> &spfs::encoding::Digest {
+        &self.inner
+    }
+}
+
 #[pyproto]
 impl pyo3::PyObjectProtocol for Digest {
     fn __str__(&self) -> Result<String> {
@@ -171,6 +177,21 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     fn commit_layer(runtime: &mut Runtime) -> Result<Digest> {
         let layer = spfs::commit_layer(&mut runtime.inner)?;
         Ok(Digest::from(layer.digest()?))
+    }
+    #[pyfn(m, "find_layer_by_filename")]
+    fn find_layer_by_filename(path: &str) -> Result<Digest> {
+        let runtime = spfs::active_runtime()?;
+        let repo = spfs::load_config()?.get_repository()?.into();
+
+        let stack = runtime.get_stack();
+        let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
+        for layer in layers.iter().rev() {
+            let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+            if let Some(_) = manifest.get_path(&path) {
+                return Ok(layer.digest()?.into());
+            }
+        }
+        Err(spfs::graph::UnknownReferenceError::new(path).into())
     }
 
     m.add_class::<Digest>()?;

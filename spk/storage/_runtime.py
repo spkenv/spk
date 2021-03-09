@@ -54,23 +54,11 @@ class RuntimeRepository(Repository):
     def get_package(self, pkg: api.Ident) -> spkrs.Digest:
         """Identify the payload for the identified binary package and build options."""
 
-        runtime = spkrs.active_runtime()
-        repo = spkrs.local_repository()
-
         spec_path = os.path.join("/spk/pkg", str(pkg), "spec.yaml")
-
-        stack = runtime.get_stack()
-        layers = spkrs._resolve.resolve_stack_to_layers(stack)
-        manifest = spkrs.tracking.Manifest()
-        for layer in reversed(layers):
-            manifest = repo.read_manifest(layer.manifest).unlock()
-            try:
-                manifest.get_path(spec_path)
-            except FileNotFoundError:
-                continue
-            return layer.digest()
-
-        raise PackageNotFoundError(pkg)
+        try:
+            return spkrs.find_layer_by_filename(spec_path)
+        except RuntimeError:
+            raise PackageNotFoundError(pkg)
 
     def publish_spec(self, spec: api.Spec) -> None:
         raise NotImplementedError("Cannot publish to a runtime repository")
