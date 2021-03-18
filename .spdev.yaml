@@ -1,9 +1,6 @@
-version: 0.23.3
+version: 0.23.4
 release_notes: |
-  * Fix bug where installing a package into an existing environment could fail with an
-    attribute error
-  * Fix bug where listing current installed packages in an environment could fail with
-    an attribute error
+  * Fix bug where using script sources failed with an attribute error
 
 toolchain:
   - kind: Shell
