@@ -15,12 +15,10 @@ _LOGGER = structlog.get_logger("spk.api")
 
 
 class SourceSpec(metaclass=abc.ABCMeta):
-    def __init__(self) -> None:
-        self._subdir: Optional[str] = None
-
+    @abc.abstractproperty
     def subdir(self) -> Optional[str]:
-
-        return self._subdir
+        """Optional directory under the main source folder to place these sources."""
+        pass
 
     @abc.abstractmethod
     def collect(self, dirname: str) -> None:
@@ -53,6 +51,7 @@ class LocalSource(SourceSpec):
 
     path: str = "."
     exclude: List[str] = field(default_factory=lambda: [".git/", ".svn/"])
+    subdir: Optional[str] = None
 
     def collect(self, dirname: str) -> None:
 
@@ -81,8 +80,8 @@ class LocalSource(SourceSpec):
 
     def to_dict(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {"path": self.path}
-        if self.subdir() is not None:
-            out["subdir"] = self.subdir()
+        if self.subdir is not None:
+            out["subdir"] = self.subdir
         if self.exclude != LocalSource().exclude:
             out["exclude"] = list(self.exclude)
         return out
@@ -91,7 +90,7 @@ class LocalSource(SourceSpec):
     def from_dict(data: Dict[str, Any]) -> "LocalSource":
 
         src = LocalSource(data.pop("path"))
-        src._subdir = data.pop("subdir", None)
+        src.subdir = data.pop("subdir", None)
 
         if "exclude" in data:
             src.exclude = data.pop("exclude")
@@ -112,6 +111,7 @@ class GitSource(SourceSpec):
     git: str
     ref: str = ""
     depth: int = 1
+    subdir: Optional[str] = None
 
     def collect(self, dirname: str) -> None:
 
@@ -142,8 +142,8 @@ class GitSource(SourceSpec):
             out["ref"] = self.ref
         if self.depth != 1:
             out["depth"] = self.depth
-        if self.subdir() is not None:
-            out["subdir"] = self.subdir()
+        if self.subdir is not None:
+            out["subdir"] = self.subdir
 
         return out
 
@@ -155,7 +155,7 @@ class GitSource(SourceSpec):
             ref=str(data.pop("ref", "")),
             depth=int(data.pop("depth", 1)),
         )
-        src._subdir = data.pop("subdir", None)
+        src.subdir = data.pop("subdir", None)
 
         for name in data:
             raise ValueError(f"Unknown field in GitSource: '{name}'")
@@ -168,6 +168,7 @@ class TarSource(SourceSpec):
     """Package source files from a local or remote tar archive."""
 
     tar: str
+    subdir: Optional[str] = None
 
     def collect(self, dirname: str) -> None:
 
@@ -186,15 +187,15 @@ class TarSource(SourceSpec):
 
     def to_dict(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {"tar": self.tar}
-        if self.subdir() is not None:
-            out["subdir"] = self.subdir()
+        if self.subdir is not None:
+            out["subdir"] = self.subdir
         return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "TarSource":
 
         src = TarSource(data.pop("tar"))
-        src._subdir = data.pop("subdir", None)
+        src.subdir = data.pop("subdir", None)
 
         for name in data:
             raise ValueError(f"Unknown field in TarSource: '{name}'")
@@ -207,6 +208,7 @@ class ScriptSource(SourceSpec):
     """Package source files collected via arbitrary shell script."""
 
     script: List[str] = field(default_factory=list)
+    subdir: Optional[str] = None
 
     def collect(self, dirname: str) -> None:
 
@@ -227,7 +229,10 @@ class ScriptSource(SourceSpec):
             )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"script": list(self.script)}
+        out: Dict[str, Any] = {"script": list(self.script)}
+        if self.subdir is not None:
+            out["subdir"] = self.subdir
+        return out
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "ScriptSource":
@@ -240,6 +245,7 @@ class ScriptSource(SourceSpec):
         ), "sources.script must be a string or list of strings"
 
         src = ScriptSource(script)
+        src.subdir = data.pop("subdir", None)
 
         for name in data:
             raise ValueError(f"Unknown field in ScriptSource: '{name}'")

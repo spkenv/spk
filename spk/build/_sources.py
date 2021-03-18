@@ -94,7 +94,7 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
     for source in spec.sources:
 
         target_dir = source_dir
-        subdir = source.subdir()
+        subdir = source.subdir
         if subdir:
             target_dir = os.path.join(source_dir, subdir.lstrip("/"))
             os.makedirs(target_dir, exist_ok=True)
