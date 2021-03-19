@@ -1,4 +1,6 @@
 from abc import ABCMeta, abstractmethod
+from platform import dist, version
+from spkrs import Digest
 from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar, Set
 from typing_extensions import Protocol, runtime_checkable
 
@@ -126,3 +128,67 @@ class RepositoryBuildIterator(BuildIterator):
             spec.pkg.build = build.build
 
         return (spec, self._repo)
+
+
+class SortedBuildIterator(BuildIterator):
+    def __init__(self, options: api.OptionMap, source: BuildIterator) -> None:
+        self._options = options
+        self._source = source
+        self._builds = list(source)
+        self.sort()
+
+    def version(self) -> api.Version:
+        return self._source.version()
+
+    def version_spec(self) -> Optional[api.Spec]:
+        return self._source.version_spec()
+
+    def sort(self) -> None:
+
+        version_spec = self.version_spec()
+        variant_count = len(version_spec.build.variants) if version_spec else 0
+        default_options = (
+            version_spec.resolve_all_options({}) if version_spec else api.OptionMap()
+        )
+
+        def key(entry: Tuple[api.Spec, PackageSource]) -> Tuple[int, str]:
+
+            spec, _ = entry
+            build = str(spec.pkg.build)
+            total_options_count = len(spec.build.options)
+            # source packages must come last to ensure that building
+            # from source is the last option under normal circumstances
+            if spec.pkg.build is None or spec.pkg.build.is_source():
+                return (variant_count + total_options_count + 1, build)
+
+            if version_spec is not None:
+                # if this spec is compatible with the default options, it's the
+                # most valuable
+                if spec.build.validate_options(spec.pkg.name, default_options):
+                    return (-1, build)
+                # then we sort based on the first defined variant that seems valid
+                for (i, variant) in enumerate(version_spec.build.variants):
+                    if spec.build.validate_options(spec.pkg.name, variant):
+                        return (i, build)
+
+            # and then it's the distance from the default option set,
+            # where distance is just the number of differing options
+            current_options = dict(
+                (o, self._options[o])
+                for o in spec.resolve_all_options({})
+                if o in self._options
+            )
+            similar_options_count = len(
+                set(default_options.items()) & set(current_options.items())
+            )
+            distance_from_default = max(0, total_options_count - similar_options_count)
+            return (variant_count + distance_from_default, build)
+
+        self._builds.sort(key=key)
+
+    def __next__(self) -> Tuple[api.Spec, PackageSource]:
+
+        try:
+            return self._builds.pop(0)
+        except IndexError:
+            raise StopIteration

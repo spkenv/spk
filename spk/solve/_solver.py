@@ -7,6 +7,7 @@ from .. import api, storage
 from ._package_iterator import (
     RepositoryPackageIterator,
     PackageIterator,
+    SortedBuildIterator,
 )
 from ._errors import SolverError, PackageNotFoundError
 from ._solution import Solution
@@ -162,6 +163,9 @@ class Solver:
                 ).as_decision()
                 decision.add_notes(err.notes)
             except Exception as err:
+                import traceback
+
+                traceback.print_exc()
                 previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
@@ -188,6 +192,7 @@ class Solver:
                 notes.append(graph.SkipPackageNote(pkg, compat))
                 continue
 
+            builds = SortedBuildIterator(node.state.get_option_map(), builds)
             for spec, repo in builds:
                 build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
                 if build_from_source:

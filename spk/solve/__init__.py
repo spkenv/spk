@@ -7,6 +7,7 @@ from ._package_iterator import (
     PackageIterator,
     BuildIterator,
     RepositoryPackageIterator,
+    SortedBuildIterator,
 )
 from . import graph, validation, legacy
 from .graph import Graph
