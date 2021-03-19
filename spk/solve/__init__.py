@@ -5,6 +5,7 @@ from ._errors import (
 from ._solution import Solution, SolvedRequest, PackageSource
 from ._package_iterator import (
     PackageIterator,
+    BuildIterator,
     RepositoryPackageIterator,
 )
 from . import graph, validation, legacy

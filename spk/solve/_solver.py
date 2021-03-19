@@ -181,46 +181,53 @@ class Solver:
 
         decision: graph.Decision
         iterator = self._get_iterator(node, request.pkg.name)
-        for spec, repo in iterator:
-            build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
-            if build_from_source:
-                if isinstance(repo, api.Spec):
-                    notes.append(
-                        graph.SkipPackageNote(
-                            spec.pkg, "cannot build embedded source package"
-                        )
-                    )
-                    continue
-                try:
-                    spec = repo.read_spec(spec.pkg.with_build(None))
-                except storage.PackageNotFoundError:
-                    notes.append(
-                        graph.SkipPackageNote(
-                            spec.pkg,
-                            "cannot build from source, version spec not available",
-                        )
-                    )
-                    continue
+        for pkg, builds in iterator:
 
-            compat = self._validate(node.state, spec)
+            compat = request.is_version_applicable(pkg.version)
             if not compat:
-                notes.append(graph.SkipPackageNote(spec.pkg, compat))
+                notes.append(graph.SkipPackageNote(pkg, compat))
                 continue
 
-            if build_from_source:
-                try:
-                    build_env = self._resolve_new_build(spec, node.state)
-                except SolverError as err:
-                    note = graph.SkipPackageNote(
-                        spec.pkg, f"cannot resolve build env: {err}"
-                    )
-                    notes.append(note)
+            for spec, repo in builds:
+                build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
+                if build_from_source:
+                    if isinstance(repo, api.Spec):
+                        notes.append(
+                            graph.SkipPackageNote(
+                                spec.pkg, "cannot build embedded source package"
+                            )
+                        )
+                        continue
+                    try:
+                        spec = repo.read_spec(spec.pkg.with_build(None))
+                    except storage.PackageNotFoundError:
+                        notes.append(
+                            graph.SkipPackageNote(
+                                spec.pkg,
+                                "cannot build from source, version spec not available",
+                            )
+                        )
+                        continue
+
+                compat = self._validate(node.state, spec)
+                if not compat:
+                    notes.append(graph.SkipPackageNote(spec.pkg, compat))
                     continue
-                decision = graph.BuildPackage(spec, repo, build_env)
-            else:
-                decision = graph.ResolvePackage(spec, repo)
-            decision.add_notes(notes)
-            return decision
+
+                if build_from_source:
+                    try:
+                        build_env = self._resolve_new_build(spec, node.state)
+                    except SolverError as err:
+                        note = graph.SkipPackageNote(
+                            spec.pkg, f"cannot resolve build env: {err}"
+                        )
+                        notes.append(note)
+                        continue
+                    decision = graph.BuildPackage(spec, repo, build_env)
+                else:
+                    decision = graph.ResolvePackage(spec, repo)
+                decision.add_notes(notes)
+                return decision
 
         raise Solver.OutOfOptions(request, notes)
 

@@ -14,7 +14,16 @@ _LOGGER = structlog.get_logger("spk.solve")
 Self = TypeVar("Self")
 
 
-class PackageIterator(Iterator[Tuple[api.Spec, PackageSource]], metaclass=ABCMeta):
+class BuildIterator(Iterator[Tuple[api.Spec, PackageSource]], metaclass=ABCMeta):
+    @abstractmethod
+    def version(self) -> api.Version:
+        pass
+
+    def version_spec(self) -> Optional[api.Spec]:
+        return None
+
+
+class PackageIterator(Iterator[Tuple[api.Ident, BuildIterator]], metaclass=ABCMeta):
     @abstractmethod
     def clone(self: Self) -> Self:
         ...
@@ -31,7 +40,6 @@ class RepositoryPackageIterator(PackageIterator):
         self._package_name = package_name
         self._repos = repos
         self._versions: Optional[Iterator[api.Version]] = None
-        self._builds: Iterator[api.Ident] = iter([])
         self._version_map: Dict[api.Version, storage.Repository] = {}
 
     def _start(self) -> None:
@@ -50,7 +58,6 @@ class RepositoryPackageIterator(PackageIterator):
         versions.sort()
         versions.reverse()
         self._versions = iter(versions)
-        self._builds = iter([])
 
     def clone(self) -> "RepositoryPackageIterator":
         """Create a copy of this iterator, with the cursor at the same point."""
@@ -63,43 +70,59 @@ class RepositoryPackageIterator(PackageIterator):
                 return other
 
         remaining_versions = list(self._versions or [])
-        remaining_builds = list(self._builds or [])
         other._versions = iter(remaining_versions)
         self._versions = iter(remaining_versions)
-        other._builds = iter(remaining_builds)
-        self._builds = iter(remaining_builds)
         other._version_map = self._version_map.copy()
         return other
 
-    def __next__(self) -> Tuple[api.Spec, PackageSource]:
+    def __next__(self) -> Tuple[api.Ident, BuildIterator]:
 
         if self._versions is None:
             self._start()
 
-        for build in self._builds:
-
-            repo = self._version_map[build.version]
-            try:
-                spec = repo.read_spec(build)
-            except storage.PackageNotFoundError:
-                _LOGGER.warning(
-                    f"Repository listed build with no spec: {build} from {repo}"
-                )
-                continue
-            if spec.pkg.build is None:
-                _LOGGER.debug(
-                    "Published spec is corrupt (has no associated build)", pkg=build
-                )
-                spec.pkg.build = build.build
-
-            return (spec, repo)
-
         version = next(self._versions or iter([]))
         repo = self._version_map[version]
-        builds = list(repo.list_package_builds(api.Ident(self._package_name, version)))
+        pkg = api.Ident(self._package_name, version)
+        return (pkg, RepositoryBuildIterator(pkg, repo))
+
+
+class RepositoryBuildIterator(BuildIterator):
+    def __init__(self, pkg: api.Ident, repo: storage.Repository) -> None:
+        self._pkg = pkg
+        self._repo = repo
+        self._builds = list(repo.list_package_builds(pkg))
+        self._spec: Optional[api.Spec] = None
+        try:
+            self._spec = repo.read_spec(pkg)
+        except storage.PackageNotFoundError:
+            pass
         # source packages must come last to ensure that building
         # from source is the last option under normal circumstances
-        builds.sort(key=lambda pkg: pkg.is_source())
-        self._builds = iter(builds)
+        self._builds.sort(key=lambda pkg: pkg.is_source())
 
-        return next(self)
+    def version(self) -> api.Version:
+        return self._pkg.version
+
+    def version_spec(self) -> Optional[api.Spec]:
+        return self._spec
+
+    def __next__(self) -> Tuple[api.Spec, PackageSource]:
+
+        try:
+            build = self._builds.pop(0)
+        except IndexError:
+            raise StopIteration
+        try:
+            spec = self._repo.read_spec(build)
+        except storage.PackageNotFoundError:
+            _LOGGER.warning(
+                f"Repository listed build with no spec: {build} from {self._repo}"
+            )
+            return next(self)
+        if spec.pkg.build is None:
+            _LOGGER.debug(
+                "Published spec is corrupt (has no associated build)", pkg=build
+            )
+            spec.pkg.build = build.build
+
+        return (spec, self._repo)
