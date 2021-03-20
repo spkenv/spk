@@ -15,7 +15,7 @@ setuptools-rust = "*"
 spk = {path = "./", editable = true}
 
 [packages]
-"ruamel.yaml" = "~=0.16.10"
+"ruamel.yaml" = "~=0.16.13"
 colorama = "~=0.4.3"
 typing-extensions = "~=3.7"
 simplejson = "~=3.17"

@@ -1,16 +1,11 @@
-from typing import Callable, Any
+from typing import Any
 import argparse
-import os
 import sys
-import termios
 
-import spkrs
 import structlog
-from ruamel import yaml
-from colorama import Fore, Style
+from colorama import Fore
 
 import spk
-from spk.io import format_ident
 
 from . import _flags
 

@@ -65,10 +65,9 @@ def _view(args: argparse.Namespace) -> None:
 
         sys.exit(1)
 
-    for _, spec, repo in solution.items():
+    for _, spec, _ in solution.items():
         if spec.pkg.name == request.pkg.name:
-            print(f"{Fore.BLUE}found in:{Fore.RESET} {repo}", file=sys.stderr)
-            yaml.safe_dump(spec.to_dict(), sys.stdout, default_flow_style=False)
+            yaml.round_trip_dump(spec.to_dict(), sys.stdout, default_flow_style=False)
             break
     else:
         raise RuntimeError("Internal Error: requested package was not in solution")

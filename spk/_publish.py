@@ -1,6 +1,5 @@
-from typing import Union, overload
+from typing import Union
 
-import spkrs
 import structlog
 
 from . import storage, api

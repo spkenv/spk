@@ -1,14 +1,10 @@
 from typing import Any, Union
 import argparse
-import os
-import sys
 
 import structlog
 
-import spkrs
 import spk
 
-from spk.io import format_decision
 from . import _flags
 
 _LOGGER = structlog.get_logger("cli")

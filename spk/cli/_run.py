@@ -1,15 +1,9 @@
 from typing import Sequence
-import os
 import sys
-import codecs
-import subprocess
-import argparse
 import traceback
-import logging
 
 import spops
 import sentry_sdk
-from ruamel import yaml
 from colorama import Fore
 
 import spk

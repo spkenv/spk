@@ -1,10 +1,7 @@
-from typing import Dict, Any, List, Sequence
-
-from ruamel import yaml
+from typing import Dict, Any, Sequence
 
 from ... import api
-from ... import storage
-from .. import SolverError, PackageNotFoundError
+from .. import SolverError
 
 
 class UnresolvedPackageError(SolverError):

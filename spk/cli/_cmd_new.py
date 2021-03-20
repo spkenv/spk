@@ -1,14 +1,9 @@
 from typing import Any
 import argparse
-import os
-import textwrap
 
 import structlog
 
-import spkrs
 import spk
-
-from spk.io import format_decision
 
 _LOGGER = structlog.get_logger("cli")
 

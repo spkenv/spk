@@ -1,5 +1,4 @@
 import os
-from os.path import isdir
 
 import pytest
 

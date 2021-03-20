@@ -1,12 +1,10 @@
 from abc import ABCMeta, abstractmethod
-from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar, Set
-from typing_extensions import Protocol, runtime_checkable
+from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar
 
 import structlog
 
 from ... import api, storage
-from ._errors import PackageNotFoundError
-from .. import PackageSource
+from .. import PackageSource, PackageNotFoundError
 
 _LOGGER = structlog.get_logger("spk.solve")
 

@@ -1,6 +1,5 @@
-from typing import Union, Optional, Tuple
+from typing import Union, Optional
 from dataclasses import dataclass, field
-import unicodedata
 
 from ruamel import yaml
 

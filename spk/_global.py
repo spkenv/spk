@@ -1,6 +1,5 @@
 from typing import Union
 
-import spkrs
 from . import api, storage
 
 

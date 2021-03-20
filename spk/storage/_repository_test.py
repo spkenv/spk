@@ -1,11 +1,9 @@
-from typing import List
 import pytest
 
 import spkrs
 
 from .. import api
 from ._repository import Repository, VersionExistsError, PackageNotFoundError
-from ._mem import MemRepository
 
 
 def test_repo_list_emtpy(repo: Repository) -> None:

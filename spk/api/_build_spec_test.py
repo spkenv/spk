@@ -1,7 +1,7 @@
 from typing import Dict, Type
 import pytest
 
-from ._build_spec import Option, PkgOpt, VarOpt, BuildSpec
+from ._build_spec import PkgOpt, VarOpt, BuildSpec
 
 
 @pytest.mark.parametrize(

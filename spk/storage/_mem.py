@@ -1,5 +1,4 @@
 from typing import Dict, Iterable, Union, Tuple
-import abc
 
 import spkrs
 

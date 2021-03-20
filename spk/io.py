@@ -1,16 +1,4 @@
-from spk.solve.graph import Graph, RequestPackage, StepBack
-from typing import (
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Sequence,
-    Set,
-    Text,
-    TextIO,
-    Tuple,
-    Union,
-)
+from typing import Iterable, Sequence, TextIO, Tuple, Union
 from colorama import Fore, Style
 import io
 
@@ -105,7 +93,7 @@ def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) ->
     return out[:-1]
 
 
-def format_change(change: solve.graph.Change, verbosity: int = 1) -> str:
+def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
 
     if isinstance(change, solve.graph.RequestPackage):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"

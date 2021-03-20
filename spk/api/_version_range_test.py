@@ -2,7 +2,7 @@ from typing import Dict
 import pytest
 
 from ._version import parse_version
-from ._version_range import VersionRange, parse_version_range
+from ._version_range import parse_version_range
 from ._spec import Spec
 
 

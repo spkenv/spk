@@ -1,6 +1,5 @@
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple, Union, Dict
 
-from ruamel import yaml
 import structlog
 
 from .. import api, storage
@@ -10,7 +9,7 @@ from ._package_iterator import (
     SortedBuildIterator,
     EmptyBuildIterator,
 )
-from ._errors import SolverError, PackageNotFoundError
+from ._errors import SolverError
 from ._solution import Solution
 from . import graph, validation
 
@@ -129,17 +128,17 @@ class Solver:
 
         return self.solve()
 
-    def solve(self, options: api.OptionMap = api.OptionMap()) -> Solution:
+    def solve(self) -> Solution:
 
-        runtime = self.run(options)
+        runtime = self.run()
         for _ in runtime:
             pass
         return runtime.solution
 
-    def run(self, options: api.OptionMap = api.OptionMap()) -> SolverRuntime:
-        return SolverRuntime(self._run(options))
+    def run(self) -> SolverRuntime:
+        return SolverRuntime(self._run())
 
-    def _run(self, options: api.OptionMap) -> SolutionGenerator:
+    def _run(self) -> SolutionGenerator:
 
         solve_graph = graph.Graph()
         self._last_graph = solve_graph

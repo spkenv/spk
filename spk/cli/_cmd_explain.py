@@ -2,14 +2,9 @@ from typing import Any, Optional
 import argparse
 import sys
 
-from ruamel import yaml
 import structlog
-from colorama import Fore
 
-import spkrs
 import spk
-
-from spk.io import format_decision
 
 from . import _flags
 

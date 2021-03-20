@@ -1,7 +1,6 @@
 from typing import List
 import py.path
 import tarfile
-import time
 
 from .. import build, api, storage
 from ._archive import export_package, import_package

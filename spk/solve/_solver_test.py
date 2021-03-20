@@ -1,5 +1,4 @@
 from typing import Any, Dict, List, Union
-from _pytest.python import Package, show_fixtures_per_test
 
 import spkrs
 import pytest
@@ -11,7 +10,6 @@ from ._errors import (
     PackageNotFoundError,
 )
 from ._solver import Solver
-from spk import solve
 
 
 @pytest.fixture(params=["legacy", "graph"])

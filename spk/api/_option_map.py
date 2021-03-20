@@ -2,10 +2,8 @@ from typing import Dict, Any, Mapping
 import hashlib
 import base64
 import platform
-import os
 
 import distro
-from ruamel import yaml
 from sortedcontainers import SortedDict
 
 # given option digests are namespaced by the package itself,

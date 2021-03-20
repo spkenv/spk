@@ -3,9 +3,8 @@ import argparse
 
 import structlog
 
-import spkrs
 import spk
-from spk.io import format_request, format_ident
+from spk.io import format_ident
 
 from . import _flags
 

@@ -1,12 +1,8 @@
-from collections import defaultdict
-from typing import Callable, Any
+from typing import Any
 import argparse
 import os
-import sys
 
-import spkrs
 import structlog
-from colorama import Fore
 
 import spk
 from . import _flags

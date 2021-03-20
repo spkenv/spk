@@ -6,7 +6,6 @@ import structlog
 from colorama import Fore, Style
 
 import spk
-from spk.io import format_ident
 
 from . import _flags
 
@@ -89,13 +88,13 @@ def _ls(args: argparse.Namespace) -> None:
 
 
 def _list_recursively(
-    prefix: str,
+    _prefix: str,
     end: str,
     repos: Dict[str, spk.storage.Repository],
     args: argparse.Namespace,
 ) -> None:
 
-    for repo_name, repo in repos.items():
+    for _repo_name, repo in repos.items():
         if not args.package:
             packages = repo.list_packages()
         else:

@@ -3,7 +3,6 @@ import argparse
 import sys
 
 import structlog
-from ruamel import yaml
 from colorama import Fore, Style
 
 import spkrs

@@ -1,11 +1,7 @@
-import sys
-from typing import Callable, Any
-import os
+from typing import Any
 import argparse
-import spkrs
 
 import structlog
-from colorama import Fore, Style
 
 import spk
 import spk.external

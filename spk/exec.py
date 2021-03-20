@@ -43,7 +43,7 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
 def setup_current_runtime(solution: solve.Solution) -> None:
     """Modify the active spfs runtime to include exactly the packges in the given solution."""
 
-    runtime = spkrs.active_runtime()
+    _runtime = spkrs.active_runtime()
     stack = resolve_runtime_layers(solution)
     spkrs.reconfigure_runtime(stack=stack)
 

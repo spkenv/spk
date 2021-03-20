@@ -1,9 +1,7 @@
 from typing import Any
 import argparse
-import sys
 
 import structlog
-from colorama import Fore
 
 import spk
 

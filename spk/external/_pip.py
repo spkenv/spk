@@ -1,5 +1,4 @@
-from os import sysconf
-from typing import List, Iterable, Optional, Set
+from typing import List, Optional, Set
 import re
 import tempfile
 import subprocess

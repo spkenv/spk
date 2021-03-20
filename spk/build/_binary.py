@@ -1,6 +1,5 @@
 from typing import List, Iterable, Optional, MutableMapping, Union, Dict
 import os
-import stat
 import json
 import subprocess
 
@@ -105,7 +104,7 @@ class BinaryPackageBuilder:
         ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
         spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
-        runtime = spkrs.active_runtime()
+        _runtime = spkrs.active_runtime()
 
         self._pkg_options = self._spec.resolve_all_options(self._all_options)
         _LOGGER.debug("package options", options=self._pkg_options)

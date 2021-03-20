@@ -1,5 +1,4 @@
 from typing import Mapping, Tuple, Iterator, Dict, List, NamedTuple, Union
-import os
 
 from .. import api, storage
 

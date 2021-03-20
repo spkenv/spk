@@ -1,11 +1,11 @@
-from typing import Dict, List, Any, Union, Optional, Set, TypeVar, TYPE_CHECKING
+from typing import Dict, Any, Union, Optional, TypeVar, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc
 import enum
 import itertools
 
 from ._name import validate_name
-from ._version import Version, parse_version, VERSION_SEP
+from ._version import Version, parse_version
 from ._build import Build, parse_build
 from ._ident import Ident, parse_ident
 from ._version_range import parse_version_range, VersionFilter, ExactVersion

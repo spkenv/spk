@@ -1,4 +1,4 @@
-from typing import List, Any, Iterable, Union
+from typing import Any, Iterable, Union
 import abc
 
 import spkrs

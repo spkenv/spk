@@ -6,9 +6,6 @@ import tempfile
 import subprocess
 from dataclasses import dataclass, field
 
-from ._option_map import OptionMap
-from ._ident import Ident
-
 import structlog
 
 _LOGGER = structlog.get_logger("spk.api")

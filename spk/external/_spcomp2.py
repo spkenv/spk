@@ -1,9 +1,7 @@
-from os import openpty
-from typing import Iterable, List, Iterable, Optional, Tuple, Dict
+from typing import Iterable, List, Iterable, Optional, Tuple
 import os
 import re
 from pathlib import Path
-from packaging.markers import Value
 
 from ruamel import yaml
 

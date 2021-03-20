@@ -1,8 +1,5 @@
+from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar
 from abc import ABCMeta, abstractmethod
-from platform import dist, version
-from spkrs import Digest
-from typing import List, Dict, Optional, Iterator, Tuple, Iterator, Tuple, TypeVar, Set
-from typing_extensions import Protocol, runtime_checkable
 
 import structlog
 

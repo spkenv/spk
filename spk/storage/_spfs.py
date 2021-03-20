@@ -1,7 +1,5 @@
-from platform import version
-from typing import Iterable, Iterator, Union
+from typing import Iterable, Union
 import io
-import json
 import posixpath
 from functools import lru_cache
 

@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Any, MutableMapping
+from typing import Tuple, Any, MutableMapping
 from dataclasses import dataclass, field
 from sortedcontainers import SortedDict
 from functools import total_ordering

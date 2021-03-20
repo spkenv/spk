@@ -1,9 +1,9 @@
-from typing import Callable, Any
+from typing import Any
 import os
 import argparse
 
 import structlog
-from colorama import Fore, Style
+from colorama import Fore
 
 import spk
 

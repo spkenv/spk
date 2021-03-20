@@ -2,11 +2,8 @@ import os
 import tarfile
 
 import py.path
-import pytest
-import spkrs
 
 from .. import api
-from spkrs import validate_source_changeset
 from ._sources import collect_sources
 
 

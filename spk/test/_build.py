@@ -1,6 +1,5 @@
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, List, Union
 import os
-import signal
 import subprocess
 import tempfile
 

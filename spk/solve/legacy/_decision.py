@@ -1,11 +1,11 @@
-from typing import List, Dict, Set, Optional, Union, Iterator, Tuple, Iterable
+from typing import List, Dict, Optional, Union, Iterator, Iterable
 from collections import defaultdict
 from functools import lru_cache
 from contextlib import contextmanager
 
 import structlog
 
-from ... import api, storage
+from ... import api
 from ._errors import SolverError, ConflictingRequestsError
 from .. import Solution, PackageSource
 from ._package_iterator import (

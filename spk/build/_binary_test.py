@@ -5,14 +5,9 @@ import os
 import pytest
 import py.path
 
-import spkrs
-
 from .. import api, storage
 from ._sources import SourcePackageBuilder, data_path
-from ._binary import (
-    BuildError,
-    BinaryPackageBuilder,
-)
+from ._binary import BinaryPackageBuilder
 
 
 def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:

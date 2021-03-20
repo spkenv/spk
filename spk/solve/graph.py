@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
+from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple
 import abc
 import base64
 from functools import lru_cache
@@ -6,7 +6,6 @@ from functools import lru_cache
 import structlog
 
 from .. import api
-from ._errors import SolverError
 from ._solution import PackageSource, Solution
 from ._package_iterator import PackageIterator
 
@@ -68,7 +67,7 @@ class Graph:
 
         errors_by_level: Dict[int, List[str]] = {}
         level = 0
-        for node, decision in self.walk():
+        for _node, decision in self.walk():
             delta = 0
             for change in decision.iter_changes():
                 if isinstance(change, SetPackage):

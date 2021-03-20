@@ -1,15 +1,8 @@
-from platform import python_version
-import sys
-from sys import flags
-from typing import Callable, Any
-import os
+from typing import Any
 import re
 import argparse
-from ruamel.yaml import parser
-import spkrs
 
 import structlog
-from colorama import Fore, Style
 
 import spk
 import spk.external

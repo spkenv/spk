@@ -6,8 +6,6 @@ from ._ident import Ident
 from ._build_spec import BuildSpec
 from ._spec import Spec, read_spec, InstallSpec
 
-from ruamel import yaml
-
 
 def test_spec_from_dict() -> None:
 
@@ -23,7 +21,7 @@ def test_spec_from_dict() -> None:
 
 def test_empty_spec_is_valid() -> None:
 
-    spec = read_spec(io.StringIO())
+    _spec = read_spec(io.StringIO())
 
 
 def test_install_embedded_build_options() -> None:
