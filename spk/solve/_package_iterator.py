@@ -21,13 +21,27 @@ class BuildIterator(Iterator[Tuple[api.Spec, PackageSource]], metaclass=ABCMeta)
     def version(self) -> api.Version:
         pass
 
+    @abstractmethod
+    def is_empty(self) -> bool:
+        pass
+
     def version_spec(self) -> Optional[api.Spec]:
         return None
 
 
 class PackageIterator(Iterator[Tuple[api.Ident, BuildIterator]], metaclass=ABCMeta):
+    """Iterates the versions of a package, yielding stateful iterators for each build.
+
+    Until all builds are iterated, the package iterator should not yield a new version
+    """
+
     @abstractmethod
     def clone(self: Self) -> Self:
+        ...
+
+    @abstractmethod
+    def set_builds(self, version: api.Version, builds: BuildIterator) -> None:
+        """Replaces the internal build iterator for version with the given one."""
         ...
 
 
@@ -43,6 +57,11 @@ class RepositoryPackageIterator(PackageIterator):
         self._repos = repos
         self._versions: Optional[Iterator[api.Version]] = None
         self._version_map: Dict[api.Version, storage.Repository] = {}
+        self._builds_map: Dict[api.Version, BuildIterator] = {}
+        self._active_version: Optional[api.Version] = None
+
+    def set_builds(self, version: api.Version, builds: BuildIterator) -> None:
+        self._builds_map[version] = builds
 
     def _start(self) -> None:
 
@@ -82,10 +101,18 @@ class RepositoryPackageIterator(PackageIterator):
         if self._versions is None:
             self._start()
 
-        version = next(self._versions or iter([]))
+        if self._active_version is None:
+            self._active_version = next(self._versions or iter([]))
+        version = self._active_version
         repo = self._version_map[version]
         pkg = api.Ident(self._package_name, version)
-        return (pkg, RepositoryBuildIterator(pkg, repo))
+        if version not in self._builds_map:
+            self._builds_map[version] = RepositoryBuildIterator(pkg, repo)
+        builds = self._builds_map[version]
+        if builds.is_empty():
+            self._active_version = None
+            return next(self)
+        return (pkg, builds)
 
 
 class RepositoryBuildIterator(BuildIterator):
@@ -100,10 +127,13 @@ class RepositoryBuildIterator(BuildIterator):
             pass
         # source packages must come last to ensure that building
         # from source is the last option under normal circumstances
-        self._builds.sort(key=lambda pkg: pkg.is_source())
+        self._builds.sort(key=lambda pkg: not pkg.is_source())
 
     def version(self) -> api.Version:
         return self._pkg.version
+
+    def is_empty(self) -> bool:
+        return bool(len(self._builds) == 0)
 
     def version_spec(self) -> Optional[api.Spec]:
         return self._spec
@@ -130,6 +160,17 @@ class RepositoryBuildIterator(BuildIterator):
         return (spec, self._repo)
 
 
+class EmptyBuildIterator(BuildIterator):
+    def version(self) -> api.Version:
+        return api.Version()
+
+    def is_empty(self) -> bool:
+        return True
+
+    def __next__(self) -> Tuple[api.Spec, PackageSource]:
+        raise StopIteration
+
+
 class SortedBuildIterator(BuildIterator):
     def __init__(self, options: api.OptionMap, source: BuildIterator) -> None:
         self._options = options
@@ -139,6 +180,9 @@ class SortedBuildIterator(BuildIterator):
 
     def version(self) -> api.Version:
         return self._source.version()
+
+    def is_empty(self) -> bool:
+        return bool(len(self._builds) == 0)
 
     def version_spec(self) -> Optional[api.Spec]:
         return self._source.version_spec()

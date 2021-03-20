@@ -475,7 +475,9 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
         {
             "pkg": "vnp3/2.0.0",
             "build": {
-                "options": [{"pkg": "python"}],
+                # favoritize 2.7, otherwise an option of python=2 doesn't actually
+                # exclude python 3 from being resolved
+                "options": [{"pkg": "python", "default": "~2.7"}],
                 "variants": [{"python": "3.7"}, {"python": "2.7"}],
             },
         }
