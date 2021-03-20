@@ -1,6 +1,9 @@
-version: 0.23.4
+version: 0.24.0
 release_notes: |
-  * Fix bug where using script sources failed with an attribute error
+  * Fix bug where solver was not behaving deterministically
+    * This was the case in previous versions, but was not caught in the rust transition
+  * Update view/info command to respect the --verbose flag and print more information
+    about installed packages when provided
 
 toolchain:
   - kind: Shell
