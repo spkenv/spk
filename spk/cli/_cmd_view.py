@@ -77,4 +77,4 @@ def _view(args: argparse.Namespace) -> None:
 def _print_current_env(args: argparse.Namespace) -> None:
 
     solution = spk.current_env()
-    print(spk.io.format_solution(solution))
+    print(spk.io.format_solution(solution, verbosity=args.verbose))
