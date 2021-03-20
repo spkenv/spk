@@ -22,6 +22,12 @@ def register(
         help="Setup the build, but instead of running the build script start an interactive shell",
     )
     build_cmd.add_argument(
+        "--env",
+        "-e",
+        action="store_true",
+        help="Build the first variant of this package, and then immediately enter a shell environment with it",
+    )
+    build_cmd.add_argument(
         "files",
         metavar="SPEC_FILE",
         nargs="*",
@@ -42,7 +48,7 @@ def _build(args: argparse.Namespace) -> None:
         common_args += ["-" + "v" * args.verbose]
 
     for filename in args.files:
-        spec, filename = _flags.find_package_spec(filename)
+        _spec, filename = _flags.find_package_spec(filename)
 
         cmd = ["spk", "make-source", filename, *common_args]
         _LOGGER.info(" ".join(cmd))
@@ -56,6 +62,8 @@ def _build(args: argparse.Namespace) -> None:
             binary_flags.extend(["-o", option])
         if args.no_host:
             binary_flags.append("--no_host")
+        if args.env:
+            binary_flags.append("-e")
         if args.local_repo:
             binary_flags.append("-l")
         for r in args.enable_repo:

@@ -33,6 +33,12 @@ def register(
         help="Setup the build, but instead of running the build script start an interactive shell",
     )
     mkb_cmd.add_argument(
+        "--env",
+        "-e",
+        action="store_true",
+        help="Build the first variant of this package, and then immediately enter a shell environment with it",
+    )
+    mkb_cmd.add_argument(
         "packages",
         metavar="PKG|SPEC_FILE",
         nargs="+",
@@ -94,3 +100,7 @@ def _make_binary(args: argparse.Namespace) -> None:
                 raise
             else:
                 _LOGGER.info("created", pkg=out.pkg)
+            if args.env:
+                cmd = ["spk", "env", "-l", str(out.pkg)]
+                _LOGGER.info("entering environment of new package", cmd=" ".join(cmd))
+                os.execvp(cmd[0], cmd)
