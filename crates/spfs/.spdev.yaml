@@ -1,6 +1,11 @@
-version: 0.22.4
+version: 0.23.0
 release_notes: |
-  * Expose function publicly for downstream use in spk
+  * Update local renders to be divided by username
+    * This will duplicate renders and use additional inodes, but resolves
+      many permissions issues that could be encountered when users share machines
+  * Update local renders to use a working directory while rendering
+    * This helps to aleviate collisions of mutliple processes rendering a layer
+      at the same time, just like is done when writing all other object types.
 
 toolchain:
   - kind: Rust
