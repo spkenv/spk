@@ -100,6 +100,7 @@ pub fn format_error(err: &Error) -> String {
         Error::Config(err) => err.to_string(),
         Error::Nix(err) => err.to_string(),
         Error::IO(err) => err.to_string(),
+        Error::Errno(err, _) => err.clone(),
         Error::JSON(err) => err.to_string(),
     }
 }

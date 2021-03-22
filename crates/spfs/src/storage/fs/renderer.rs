@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use super::FSRepository;
 use crate::{
-    encoding::Encodable,
+    encoding::{self, Encodable},
     runtime::makedirs_with_perms,
     storage::{ManifestViewer, PayloadStorage},
     tracking, Result,
@@ -14,6 +14,15 @@ use crate::{
 mod renderer_test;
 
 impl ManifestViewer for FSRepository {
+    fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool {
+        let renders = match &self.renders {
+            Some(renders) => renders,
+            None => return false,
+        };
+        let rendered_dir = renders.build_digest_path(&digest);
+        was_render_completed(&rendered_dir)
+    }
+
     /// Create a hard-linked rendering of the given file manifest.
     ///
     /// # Errors:
@@ -30,18 +39,12 @@ impl ManifestViewer for FSRepository {
         }
         tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
 
-        renders.ensure_base_dir(&rendered_dirpath)?;
-        makedirs_with_perms(&rendered_dirpath, 0o777)?;
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let working_dir = renders.root().join(uuid);
+        makedirs_with_perms(&working_dir, 0o777)?;
 
         let walkable = manifest.unlock();
-        let entries: Vec<_> = walkable
-            .walk_abs(&rendered_dirpath.to_string_lossy())
-            .collect();
-        let style = indicatif::ProgressStyle::default_bar()
-            .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
-            .progress_chars("=>-");
-        let bar = indicatif::ProgressBar::new(entries.len() as u64 * 2).with_style(style.clone());
-        bar.set_message("rendering layer");
+        let entries: Vec<_> = walkable.walk_abs(&working_dir.to_string_lossy()).collect();
         for node in entries.iter() {
             match node.entry.kind {
                 tracking::EntryKind::Tree => std::fs::create_dir_all(&node.path.to_path("/"))?,
@@ -50,7 +53,6 @@ impl ManifestViewer for FSRepository {
                     self.render_blob(&node.path.to_path("/"), &node.entry)?
                 }
             }
-            bar.inc(1);
         }
 
         for node in entries.iter().rev() {
@@ -64,9 +66,20 @@ impl ManifestViewer for FSRepository {
                 &node.path.to_path("/"),
                 std::fs::Permissions::from_mode(node.entry.mode),
             )?;
-            bar.inc(1);
         }
-        bar.finish_and_clear();
+
+        renders.ensure_base_dir(&rendered_dirpath)?;
+        match std::fs::rename(&working_dir, &rendered_dirpath) {
+            Ok(_) => (),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::AlreadyExists => {
+                    if let Err(err) = open_perms_and_remove_all(&working_dir) {
+                        tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
+                    }
+                }
+                _ => return Err(err.into()),
+            },
+        }
 
         mark_render_completed(&rendered_dirpath)?;
         Ok(rendered_dirpath)
@@ -89,25 +102,7 @@ impl ManifestViewer for FSRepository {
         }
 
         unmark_render_completed(&rendered_dirpath)?;
-
-        fn remove_dir_all(root: &PathBuf) -> Result<()> {
-            for entry in std::fs::read_dir(&root)? {
-                let entry = entry?;
-                let entry_path = root.join(entry.file_name());
-                let file_type = entry.file_type()?;
-                let _ =
-                    std::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777));
-                if file_type.is_symlink() || file_type.is_file() {
-                    std::fs::remove_file(&entry_path)?;
-                }
-                if file_type.is_dir() {
-                    remove_dir_all(&entry_path)?;
-                }
-            }
-            std::fs::remove_dir(&root)?;
-            Ok(())
-        }
-        remove_dir_all(&working_dirpath)
+        open_perms_and_remove_all(&working_dirpath)
     }
 }
 
@@ -120,7 +115,15 @@ impl FSRepository {
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(err.into()),
+                    _ => Err(crate::Error::new_errno(
+                        err.raw_os_error().unwrap_or(libc::EINVAL),
+                        format!(
+                            "Failed to hardlink {{{:?} => {:?}}}: {:?}",
+                            &target,
+                            &rendered_path.as_ref(),
+                            err,
+                        ),
+                    )),
                 }
             } else {
                 Ok(())
@@ -135,6 +138,30 @@ impl FSRepository {
         }
         Ok(())
     }
+}
+
+/// Walks down a filesystem tree, opening permissions on each file before removing
+/// the entire tree.
+///
+/// This process handles the case when a folder may include files
+/// that need to be removed but on which the user doesn't have enough permissions.
+/// It does assume that the current user owns the file, as it may not be possible to
+/// change permissions before removal otherwise.
+fn open_perms_and_remove_all(root: &PathBuf) -> Result<()> {
+    for entry in std::fs::read_dir(&root)? {
+        let entry = entry?;
+        let entry_path = root.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        let _ = std::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777));
+        if file_type.is_symlink() || file_type.is_file() {
+            std::fs::remove_file(&entry_path)?;
+        }
+        if file_type.is_dir() {
+            open_perms_and_remove_all(&entry_path)?;
+        }
+    }
+    std::fs::remove_dir(&root)?;
+    Ok(())
 }
 
 fn was_render_completed<P: AsRef<Path>>(render_path: P) -> bool {

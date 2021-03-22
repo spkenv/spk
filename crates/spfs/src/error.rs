@@ -9,6 +9,7 @@ pub enum Error {
     String(String),
     Nix(nix::Error),
     IO(io::Error),
+    Errno(String, i32),
     JSON(serde_json::Error),
     Config(config::ConfigError),
 
@@ -22,14 +23,12 @@ pub enum Error {
 
 impl Error {
     pub fn new<S: AsRef<str>>(message: S) -> Error {
-        Error::new_io(io::ErrorKind::Other, message.as_ref())
+        Error::new_errno(libc::EINVAL, message.as_ref())
     }
 
-    pub fn new_io<E: Into<Box<dyn std::error::Error + Send + Sync>>>(
-        kind: io::ErrorKind,
-        e: E,
-    ) -> Error {
-        Error::IO(io::Error::new(kind, e))
+    pub fn new_errno<E: Into<String>>(errno: i32, e: E) -> Error {
+        let msg = e.into();
+        Error::Errno(msg, errno)
     }
 
     pub fn raw_os_error(&self) -> Option<i32> {
@@ -41,6 +40,7 @@ impl Error {
                     _ => None,
                 },
             },
+            Error::Errno(_, errno) => Some(errno.clone()),
             Error::Nix(err) => {
                 let errno = err.as_errno();
                 if let Some(e) = errno {

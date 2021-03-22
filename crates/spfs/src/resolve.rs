@@ -1,7 +1,11 @@
 use std::path::Path;
 
+use indicatif::ParallelProgressIterator;
+use rayon::prelude::*;
+
 use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
+use encoding::Encodable;
 
 pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
     let config = load_config()?;
@@ -56,7 +60,7 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().into_iter(), Some(&repo))?;
     let manifests: Result<Vec<_>> = layers
-        .into_iter()
+        .into_par_iter()
         .map(|layer| repo.read_manifest(&layer.manifest))
         .collect();
     let mut manifests = manifests?;
@@ -69,8 +73,31 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
         }
         manifests.insert(0, graph::Manifest::from(&manifest));
     }
+
+    let renders = repo.renders()?;
+    let to_render: Vec<_> = manifests
+        .iter()
+        .filter(|manifest| !renders.has_rendered_manifest(&manifest.digest().unwrap()))
+        .collect();
+    if to_render.len() > 0 {
+        tracing::info!("{} layers require rendering", to_render.len());
+    }
+    let style = indicatif::ProgressStyle::default_bar()
+        .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
+        .progress_chars("=>-");
+    let bar = indicatif::ProgressBar::new(to_render.len() as u64).with_style(style.clone());
+    bar.set_message("rendering layers");
+    let results: Result<Vec<_>> = to_render
+        .into_par_iter()
+        .progress_with(bar)
+        .map(|manifest| match repo.renders() {
+            Ok(renders) => renders.render_manifest(&manifest),
+            Err(err) => Err(err),
+        })
+        .collect();
+    results?;
     for manifest in manifests {
-        let rendered_dir = repo.renders()?.render_manifest(&manifest)?;
+        let rendered_dir = renders.render_manifest(&manifest)?;
         overlay_dirs.push(rendered_dir);
     }
 

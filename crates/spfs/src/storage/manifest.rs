@@ -41,6 +41,9 @@ pub trait ManifestStorage: graph::Database {
 impl<T: ManifestStorage> ManifestStorage for &mut T {}
 
 pub trait ManifestViewer {
+    /// Returns true if the identified manifest has been rendered already
+    fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool;
+
     /// Create a rendered view of the given manifest on the local disk.
     ///
     /// Returns the local path to the root of the rendered manifest
