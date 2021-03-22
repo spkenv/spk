@@ -283,7 +283,7 @@ class VarOpt(Option):
 
         var = self.var
         if self.default:
-            var += "/" + self.default
+            var += "/" + str(self.default)
 
         spec: Dict[str, Any] = {"var": var}
         if self.choices:
@@ -418,7 +418,7 @@ class PkgOpt(Option):
 
         if "default" in data:
             # the default field is deprecated but we support it for existing packages
-            pkg += "/" + data.pop("default")
+            pkg += "/" + str(data.pop("default", ""))
         pkg = parse_ident_range(pkg)
         opt = PkgOpt(
             pkg.name, default=str(pkg.version) if pkg.version != Version() else ""
