@@ -24,7 +24,8 @@ impl FSRepository {
         makedirs_with_perms(root.join("tags"), 0o777)?;
         makedirs_with_perms(root.join("objects"), 0o777)?;
         makedirs_with_perms(root.join("payloads"), 0o777)?;
-        makedirs_with_perms(root.join("renders"), 0o777)?;
+        let username = whoami::username();
+        makedirs_with_perms(root.join("renders").join(username), 0o777)?;
         set_last_migration(&root, None)?;
         Self::open(root)
     }
