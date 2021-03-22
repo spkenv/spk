@@ -119,7 +119,9 @@ pub fn configure_logging(opt: &super::Opt) {
     use tracing_subscriber::layer::SubscriberExt;
     let filter = tracing_subscriber::filter::EnvFilter::from_default_env();
     let registry = tracing_subscriber::Registry::default().with(filter);
-    let mut fmt_layer = tracing_subscriber::fmt::layer().without_time();
+    let mut fmt_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .without_time();
     if opt.verbose < 3 {
         fmt_layer = fmt_layer.with_target(false);
     }
