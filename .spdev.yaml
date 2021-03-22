@@ -6,6 +6,7 @@ release_notes: |
     about installed packages when provided
   * Update build and make_binary commands to take a -e/--env flag, which will put you
     into the new packages environment immediately after building the first variant
+  * Update 'collecting' messages to not be zero-based, and actually reach the end
 
 toolchain:
   - kind: Shell
