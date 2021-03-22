@@ -1,5 +1,6 @@
 from typing import List
 import py.path
+import getpass
 import tarfile
 
 from .. import build, api, storage
@@ -55,6 +56,7 @@ def test_archive_io(tmpdir: py.path.local) -> None:
         "payloads/Y7",
         "payloads/Y7/5TF2HNNMMJRXZ3HNUVXENZZZOWDQSIBJANAWF6J6WOFRVWEVPA====",
         "renders",
+        f"renders/{getpass.getuser()}",
         "tags",
         "tags/spk",
         "tags/spk/pkg",

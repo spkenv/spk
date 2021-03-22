@@ -3,6 +3,10 @@ release_notes: |
   * Update to latest spfs for improved logging and bugfixes
   * Update logging to use stderr instead of stdio, making it
     much easier to interact with processes launched through spk
+  * Enable the use of '/' notation for default values in build options
+    * This aligns the syntax across the whole file, creating better consistency
+    * The old 'default' field will still be supported for the time being, but
+      removed from the documentation and examples
 
 toolchain:
   - kind: Shell

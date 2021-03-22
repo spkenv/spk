@@ -475,7 +475,7 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
             "build": {
                 # favoritize 2.7, otherwise an option of python=2 doesn't actually
                 # exclude python 3 from being resolved
-                "options": [{"pkg": "python", "default": "~2.7"}],
+                "options": [{"pkg": "python/~2.7"}],
                 "variants": [{"python": "3.7"}, {"python": "2.7"}],
             },
         }
@@ -517,8 +517,8 @@ def test_solver_option_injection() -> None:
             "build": {
                 "options": [
                     {"pkg": "python"},
-                    {"var": "python.abi", "default": "cp27mu"},
-                    {"var": "debug", "default": "on"},
+                    {"var": "python.abi/cp27mu"},
+                    {"var": "debug/on"},
                     {"var": "special"},
                 ],
             },
@@ -527,7 +527,7 @@ def test_solver_option_injection() -> None:
     pybuild = make_build(
         {
             "pkg": "python/2.7.5",
-            "build": {"options": [{"var": "abi", "default": "cp27mu"}]},
+            "build": {"options": [{"var": "abi/cp27mu"}]},
         }
     )
     repo = make_repo([make_build(spec.to_dict(), [pybuild])])

@@ -18,7 +18,7 @@ pkg: my-package/1.0.0
 
 The optional `compat` field of a package specifies the compatibility between versions of this package. The compat field takes a version number, with each digit replaced by one or more characters denoting compatibility (`a` for api compatibility, `b` for binary compatbility and `x` for no compatibility). Multiple characters can be put together if necessary: `x.ab`.
 
-If not specified, the default value for this field is: `x.a.b`.
+If not specified, the default value for this field is: `x.a.b`. This means that at build time and on the command line, when API compatibility is needed, any minor version of this package can be considered compatible (eg `my-package/1.0.0` could resolve any `my-package/1.*`). When resolving dependencies however, when binary compatibility is needed, only the patch version is considered (eg `my-package/1.0.0` could resolve any `my-package/1.0.*`).
 
 ```yaml
 pkg: my-package/1.0.0
@@ -105,11 +105,9 @@ Build options are considered inputs to the build process. There are two types of
 ```yaml
 build:
   options:
-    - var: debug
-      default: off
+    - var: debug/off
       choices: [on, off]
-    - pkg: cmake
-      default: 3.16
+    - pkg: cmake/3.16
 ```
 
 All options that are declared in your package should be used in the build script, otherwise they are not relevant build options and your package may need rebuilding unnecessarily.
@@ -338,7 +336,7 @@ You can specfiy additional requirements for any defined test. These requirements
 ```yaml
 build:
   options:
-    - { pkg: python, default: 3 }
+    - pkg: python/3
 
 tests:
   - stage: install

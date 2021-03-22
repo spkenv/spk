@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
 from ._option_map import OptionMap
-from ._name import validate_name
+from ._version import Version
 from ._compat import Compatibility, COMPATIBLE, CompatRule
 
 
@@ -281,10 +281,11 @@ class VarOpt(Option):
 
     def to_dict(self) -> Dict[str, Any]:
 
-        spec: Dict[str, Any] = {"var": self.var}
+        var = self.var
         if self.default:
-            spec["default"] = self.default
+            var += "/" + self.default
 
+        spec: Dict[str, Any] = {"var": var}
         if self.choices:
             spec["choices"] = list(self.choices)
 
@@ -305,8 +306,14 @@ class VarOpt(Option):
         except KeyError:
             raise ValueError("missing required key for VarOpt: var")
 
-        opt = VarOpt(var)
-        opt.default = str(data.pop("default", ""))
+        if "default" in data:
+            # the default field is deprecated, but we support it for existing packages
+            var += "/" + str(data.pop("default", ""))
+        if "/" not in var:
+            var += "/"
+
+        var, default = var.split("/", 1)
+        opt = VarOpt(var, default=default)
         opt.choices = set(str(c) for c in data.pop("choices", []))
         opt.set_value(str(data.pop("static", "")))
 
@@ -389,9 +396,11 @@ class PkgOpt(Option):
 
     def to_dict(self) -> Dict[str, Any]:
 
-        spec = {"pkg": self.pkg}
+        pkg = self.pkg
         if self.default:
-            spec["default"] = self.default
+            pkg += "/" + self.default
+
+        spec = {"pkg": pkg}
         base_value = super(PkgOpt, self).get_value()
         if base_value:
             spec["static"] = base_value
@@ -407,14 +416,13 @@ class PkgOpt(Option):
         except KeyError:
             raise ValueError("missing required key for PkgOpt: pkg")
 
-        if "/" in pkg:
-            raise ValueError(
-                "Build option for package cannot have version number, use 'default' field instead"
-            )
-        pkg = validate_name(pkg)
-
-        default = str(data.pop("default", ""))
-        opt = PkgOpt(pkg, default=default)
+        if "default" in data:
+            # the default field is deprecated but we support it for existing packages
+            pkg += "/" + data.pop("default")
+        pkg = parse_ident_range(pkg)
+        opt = PkgOpt(
+            pkg.name, default=str(pkg.version) if pkg.version != Version() else ""
+        )
 
         if "prereleasePolicy" in data:
             name = data.pop("prereleasePolicy")

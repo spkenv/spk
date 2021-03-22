@@ -5,7 +5,7 @@ build:
   options:
   - var: os
   - var: arch
-  - {var: debug, default: off}
+  - var: debug/off
   - pkg: gcc
 
   variants:

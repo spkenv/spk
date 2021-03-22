@@ -3,27 +3,25 @@ pkg: spk/0.1.0
 build:
   options:
     - var: arch
-    - var: os
-      choices: [linux]
-    - pkg: python
-      static: 3.7
+    - { var: os, choices: [linux] }
+    - { pkg: python, static: 3.7 }
     - pkg: pytest
     - pkg: mypy
     - { pkg: black, prereleasePolicy: IncludeAll }
-    - { pkg: nuitka, default: =0.6.7 }
+    - pkg: nuitka/=0.6.7
     - pkg: pytest-mypy
     - pkg: pytest-cov
-    - { pkg: spfs, default: 0.20.10 }
-    - { pkg: ruamel-yaml, default: 0.16.10 }
-    - { pkg: colorama, default: 0.4.3 }
-    - { pkg: typing-extensions, default: 3.7 }
-    - { pkg: simplejson, default: 3.17 }
-    - { pkg: semver, default: 2.9 }
-    - { pkg: structlog, default: 19.2 }
-    - { pkg: spops, default: 0.1.11 }
-    - { pkg: sortedcontainers, default: 2.1 }
-    - { pkg: pytz, default: ">=2020" }
-    - { pkg: cerberus, default: 1.3 }
+    - pkg: spfs/0.20.10
+    - pkg: ruamel-yaml/0.16.10
+    - pkg: colorama/0.4.3
+    - pkg: typing-extensions/3.7
+    - pkg: simplejson/3.17
+    - pkg: semver/2.9
+    - pkg: structlog/19.2
+    - pkg: spops/0.1.11
+    - pkg: sortedcontainers/2.1
+    - pkg: pytz/>=2020
+    - pkg: cerberus/1.3
   script:
     - export PYTHONDONTWRITEBYTECODE=1
     - /spfs/bin/python -m pip install --no-deps .

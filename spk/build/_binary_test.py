@@ -86,7 +86,7 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
                 "script": [
                     "touch /spfs/top-file",
                 ],
-                "options": [{"pkg": "dep", "default": "1.0.0"}],
+                "options": [{"pkg": "dep/1.0.0"}],
             },
             "install": {"requirements": [{"pkg": "dep", "fromBuildEnv": "~x.x"}]},
         }
@@ -136,7 +136,7 @@ def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
             "pkg": "dep/1.0.0",
             "build": {
                 "script": "touch /spfs/dep-file",
-                "options": [{"var": "depvar", "default": "depvalue"}],
+                "options": [{"var": "depvar/depvalue"}],
             },
         }
     )
@@ -148,8 +148,8 @@ def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
                     "touch /spfs/top-file",
                 ],
                 "options": [
-                    {"pkg": "dep", "default": "1.0.0"},
-                    {"var": "topvar", "default": "topvalue"},
+                    {"pkg": "dep/1.0.0"},
+                    {"var": "topvar/topvalue"},
                 ],
             },
             "install": {
@@ -246,9 +246,7 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
             "pkg": "base/1.0.0",
             "sources": [],
             "build": {
-                "options": [
-                    {"var": "inherited", "default": "val", "inheritance": "Strong"}
-                ],
+                "options": [{"var": "inherited/val", "inheritance": "Strong"}],
                 "script": "echo building...",
             },
         }

@@ -47,7 +47,7 @@ def test_variants_must_be_unique() -> None:
         # two variants end up resolving to the same set of options
         BuildSpec.from_dict(
             {
-                "options": [{"var": "my-opt", "default": "any-value"}],
+                "options": [{"var": "my-opt/any-value"}],
                 "variants": [{"my-opt": "any-value"}, {}],
             },
         )
