@@ -6,6 +6,7 @@ release_notes: |
   * Update local renders to use a working directory while rendering
     * This helps to aleviate collisions of mutliple processes rendering a layer
       at the same time, just like is done when writing all other object types.
+  * Update spfs command logging to use stderr instead of stdout
 
 toolchain:
   - kind: Rust
