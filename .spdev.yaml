@@ -1,12 +1,8 @@
-version: 0.24.0
+version: 0.25.0
 release_notes: |
-  * Fix bug where solver was not behaving deterministically
-    * This was the case in previous versions, but was not caught in the rust transition
-  * Update view/info command to respect the --verbose flag and print more information
-    about installed packages when provided
-  * Update build and make_binary commands to take a -e/--env flag, which will put you
-    into the new packages environment immediately after building the first variant
-  * Update 'collecting' messages to not be zero-based, and actually reach the end
+  * Update to latest spfs for improved logging and bugfixes
+  * Update logging to use stderr instead of stdio, making it
+    much easier to interact with processes launched through spk
 
 toolchain:
   - kind: Shell
