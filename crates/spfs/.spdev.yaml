@@ -3,6 +3,8 @@ release_notes: |
   * Add new subcommand that can render files into any local directory
     * This is basically a usable export of the spfs file system to be
       archived or used where spfs may not be otherwise available
+  * Fix bug where users sharing machines could get permission errors while
+    rendering layers
 
 toolchain:
   - kind: Rust

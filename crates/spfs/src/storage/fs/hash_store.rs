@@ -21,8 +21,8 @@ impl FSHashStore {
     pub fn open_unchecked<P: AsRef<Path>>(root: P) -> Self {
         Self {
             root: root.as_ref().to_path_buf(),
-            directory_permissions: 0o777,
-            file_permissions: 0o444,
+            directory_permissions: 0o777, // this is a shared store for all users
+            file_permissions: 0o666,      // read+write is required to make hard links
         }
     }
 
@@ -83,7 +83,7 @@ impl FSHashStore {
                 level: sentry::protocol::Level::Warning,
                 ..Default::default()
             });
-            tracing::warn!("Failed to set payload permissions: {:?}", err);
+            tracing::warn!("Failed to set object permissions: {:?}", err);
         }
 
         Ok((digest, copied))
