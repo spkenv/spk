@@ -43,30 +43,7 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.root().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        let walkable = manifest.unlock();
-        let entries: Vec<_> = walkable.walk_abs(&working_dir.to_string_lossy()).collect();
-        for node in entries.iter() {
-            match node.entry.kind {
-                tracking::EntryKind::Tree => std::fs::create_dir_all(&node.path.to_path("/"))?,
-                tracking::EntryKind::Mask => continue,
-                tracking::EntryKind::Blob => {
-                    self.render_blob(&node.path.to_path("/"), &node.entry)?
-                }
-            }
-        }
-
-        for node in entries.iter().rev() {
-            if node.entry.kind.is_mask() {
-                continue;
-            }
-            if node.entry.is_symlink() {
-                continue;
-            }
-            std::fs::set_permissions(
-                &node.path.to_path("/"),
-                std::fs::Permissions::from_mode(node.entry.mode),
-            )?;
-        }
+        self.render_manifest_into_dir(&manifest, &working_dir, |p, e| self.render_blob(p, e))?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
         match std::fs::rename(&working_dir, &rendered_dirpath) {
@@ -107,6 +84,39 @@ impl ManifestViewer for FSRepository {
 }
 
 impl FSRepository {
+    pub fn render_manifest_into_dir(
+        &self,
+        manifest: &crate::graph::Manifest,
+        target_dir: impl AsRef<Path>,
+        render_blob: impl Fn(PathBuf, &tracking::Entry) -> Result<()>,
+    ) -> Result<()> {
+        let walkable = manifest.unlock();
+        let entries: Vec<_> = walkable
+            .walk_abs(&target_dir.as_ref().to_string_lossy())
+            .collect();
+        for node in entries.iter() {
+            match node.entry.kind {
+                tracking::EntryKind::Tree => std::fs::create_dir_all(&node.path.to_path("/"))?,
+                tracking::EntryKind::Mask => continue,
+                tracking::EntryKind::Blob => render_blob(node.path.to_path("/"), &node.entry)?,
+            }
+        }
+
+        for node in entries.iter().rev() {
+            if node.entry.kind.is_mask() {
+                continue;
+            }
+            if node.entry.is_symlink() {
+                continue;
+            }
+            std::fs::set_permissions(
+                &node.path.to_path("/"),
+                std::fs::Permissions::from_mode(node.entry.mode),
+            )?;
+        }
+        Ok(())
+    }
+
     fn render_blob<P: AsRef<Path>>(&self, rendered_path: P, entry: &tracking::Entry) -> Result<()> {
         if entry.is_symlink() {
             let mut reader = self.open_payload(&entry.object)?;

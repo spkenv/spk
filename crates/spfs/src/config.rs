@@ -76,6 +76,11 @@ impl Config {
         self.remote.keys().map(|s| s.to_string()).collect()
     }
 
+    /// Open a connection to all remote repositories
+    pub fn list_remotes(&self) -> Result<Vec<storage::RepositoryHandle>> {
+        self.remote.keys().map(|s| self.get_remote(s)).collect()
+    }
+
     /// Get the local repository instance as configured.
     pub fn get_repository(&self) -> Result<storage::fs::FSRepository> {
         storage::fs::FSRepository::create(&self.storage.root)

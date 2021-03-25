@@ -6,6 +6,37 @@ use rayon::prelude::*;
 use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
+use storage::{ManifestStorage, PayloadStorage, Repository};
+
+pub fn render_into_directory(
+    env_spec: &tracking::EnvSpec,
+    target: impl AsRef<std::path::Path>,
+) -> Result<()> {
+    let repo = load_config()?.get_repository()?;
+    let mut stack = Vec::new();
+    for target in &env_spec.items {
+        let target = target.to_string();
+        let obj = repo.read_ref(target.as_str())?;
+        stack.push(obj.digest()?);
+    }
+    let layers = resolve_stack_to_layers(stack.iter(), None)?;
+    let manifests: Result<Vec<_>> = layers
+        .into_iter()
+        .map(|layer| repo.read_manifest(&layer.manifest))
+        .collect();
+    let manifests = manifests?;
+    let mut manifest = tracking::Manifest::default();
+    for next in manifests.into_iter() {
+        manifest.update(&next.unlock());
+    }
+    let manifest = graph::Manifest::from(&manifest);
+    repo.render_manifest_into_dir(&manifest, &target, |path, entry| {
+        let mut payload = repo.open_payload(&entry.object)?;
+        let mut file = std::fs::File::create(&path)?;
+        std::io::copy(&mut payload, &mut file)?;
+        Ok(())
+    })
+}
 
 pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
     let config = load_config()?;
