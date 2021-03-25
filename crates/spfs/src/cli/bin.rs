@@ -17,6 +17,7 @@ mod cmd_platforms;
 mod cmd_pull;
 mod cmd_push;
 mod cmd_read;
+mod cmd_render;
 mod cmd_reset;
 mod cmd_run;
 mod cmd_runtimes;
@@ -102,6 +103,7 @@ fn main() {
         Command::Check(mut cmd) => cmd.run(&config),
         Command::Clean(mut cmd) => cmd.run(&config),
         Command::Read(mut cmd) => cmd.run(&config),
+        Command::Render(mut cmd) => cmd.run(&config),
         Command::InitRuntime(mut cmd) => cmd.run(&config),
     };
 
