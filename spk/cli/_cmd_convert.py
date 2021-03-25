@@ -99,7 +99,7 @@ def register(
         dest="deps",
         action="store_false",
         default=True,
-        help="Do not follow and convert dependencies of the requested spComp2s",
+        help="Do not follow and convert dependencies of the requested pip packages",
     )
     pip_cmd.add_argument(
         "packages",
