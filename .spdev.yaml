@@ -1,6 +1,6 @@
-version: 0.25.1
+version: 0.26.0
 release_notes: |
-  * Fix bug where type error could be seen for some package specs
+  * Add 'render' command to output an entire envrionment to a local folder
 
 toolchain:
   - kind: Rust
