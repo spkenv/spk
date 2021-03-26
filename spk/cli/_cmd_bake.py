@@ -69,4 +69,12 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> List[spkrs.Digest]
 
         sys.exit(1)
 
-    return spk.exec.resolve_runtime_layers(solution)
+    stack = []
+    for _, spec, source in solution.items():
+        if isinstance(source, spk.api.Spec):
+            raise ValueError(
+                "Cannot bake, solution requires packages that need building"
+            )
+        stack.append(source.get_package(spec.pkg))
+
+    return stack
