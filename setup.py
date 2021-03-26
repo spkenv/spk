@@ -10,26 +10,11 @@ to package this code for all the standard python tools like pip and pipenv
 from setuptools import setup, find_packages
 from setuptools_rust import Binding, RustExtension
 
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
-
-install_requires = []
-pipfile = configparser.ConfigParser()
-pipfile.read("Pipfile")
-if pipfile.has_section("packages"):
-    for name, spec in pipfile.items("packages"):
-        install_requires.append(name.strip("\"'") + spec.strip("\"'"))
-
 setup(
     name="spk",
     description="The 'S' Package System: Convenience, clarity and speed.",
     version="0.25.1",
     packages=find_packages(),
-    install_requires=install_requires,
-    package_data={"": ["Pipfile"]},
-    include_package_data=True,
     entry_points={"console_scripts": ["spk=spk.cli:main"]},
     rust_extensions=[
         RustExtension(

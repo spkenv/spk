@@ -12,7 +12,6 @@ pytest-mypy = "*"
 pytest-cov = "*"
 twine = "*"
 setuptools-rust = "*"
-spk = {path = "./", editable = true}
 
 [packages]
 "ruamel.yaml" = "~=0.16.13"
@@ -26,6 +25,7 @@ sortedcontainers = "~=2.1"
 pytz = ">=2020"
 cerberus = "~=1.3"
 distro = "~=1.5"
+spk = {path = "."}
 
 [requires]
 python_version = "3.7"

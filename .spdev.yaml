@@ -3,12 +3,12 @@ release_notes: |
   * Fix bug where type error could be seen for some package specs
 
 toolchain:
+  - kind: Rust
+  - kind: Pipenv
   - kind: Shell
     variables:
       SENTRY_ENVIRONMENT: development
       PATH: $SPDEV_ENV/bin:$PATH
-  - kind: Rust
-  - kind: Pipenv
 
 components:
   - kind: PythonPackage
@@ -20,7 +20,7 @@ components:
     test:
       command: $SPDEV_ENV/bin/spfs run - pytest
     install:
-      enabled: true
+      enabled: false
     deploy:
       rez.enabled: false
 

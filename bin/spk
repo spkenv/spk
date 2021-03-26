@@ -1,5 +1,6 @@
 #!/bin/sh
 venv="$(pipenv --venv)"
-$venv/bin/pip install -e .
-$venv/bin/spk "$@"
-exit $?
+if [[ ! -f $venv/bin/spk ]]; then
+    $venv/bin/python setup.py develop
+fi
+exec $venv/bin/spk "$@"

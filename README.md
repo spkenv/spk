@@ -14,3 +14,9 @@ As an spdev project, you can build and validate your local clone of spk by enter
 spdev env
 spdev flow
 ```
+
+When making changes to the rust portion of the codebase, it may need to be rebuilt in order to test locally:
+
+```sh
+python setup.py develop
+```
