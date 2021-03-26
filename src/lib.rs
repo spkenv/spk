@@ -196,6 +196,14 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Err(spfs::graph::UnknownReferenceError::new(path).into())
     }
 
+    #[pyfn(m, "render_into_dir")]
+    fn render_into_dir(stack: Vec<Digest>, path: &str) -> Result<()> {
+        let items: Vec<String> = stack.into_iter().map(|d| d.inner.to_string()).collect();
+        let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;
+        spfs::render_into_directory(&env_spec, path)?;
+        Ok(())
+    }
+
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
     m.add_class::<self::storage::SpFSRepository>()?;
