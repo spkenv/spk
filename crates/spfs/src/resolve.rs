@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
-use storage::{ManifestStorage, PayloadStorage, Repository};
+use storage::{ManifestStorage, Repository};
 
 pub fn render_into_directory(
     env_spec: &tracking::EnvSpec,
@@ -30,12 +30,7 @@ pub fn render_into_directory(
         manifest.update(&next.unlock());
     }
     let manifest = graph::Manifest::from(&manifest);
-    repo.render_manifest_into_dir(&manifest, &target, |path, entry| {
-        let mut payload = repo.open_payload(&entry.object)?;
-        let mut file = std::fs::File::create(&path)?;
-        std::io::copy(&mut payload, &mut file)?;
-        Ok(())
-    })
+    repo.render_manifest_into_dir(&manifest, &target, storage::fs::RenderType::Copy)
 }
 
 pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {

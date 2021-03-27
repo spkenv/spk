@@ -13,6 +13,11 @@ use crate::{
 #[path = "./renderer_test.rs"]
 mod renderer_test;
 
+pub enum RenderType {
+    HardLink,
+    Copy,
+}
+
 impl ManifestViewer for FSRepository {
     fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool {
         let renders = match &self.renders {
@@ -43,7 +48,7 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.root().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(&manifest, &working_dir, |p, e| self.render_blob(p, e))?;
+        self.render_manifest_into_dir(&manifest, &working_dir, RenderType::HardLink)?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
         match std::fs::rename(&working_dir, &rendered_dirpath) {
@@ -88,7 +93,7 @@ impl FSRepository {
         &self,
         manifest: &crate::graph::Manifest,
         target_dir: impl AsRef<Path>,
-        render_blob: impl Fn(PathBuf, &tracking::Entry) -> Result<()>,
+        render_type: RenderType,
     ) -> Result<()> {
         let walkable = manifest.unlock();
         let entries: Vec<_> = walkable
@@ -98,7 +103,9 @@ impl FSRepository {
             match node.entry.kind {
                 tracking::EntryKind::Tree => std::fs::create_dir_all(&node.path.to_path("/"))?,
                 tracking::EntryKind::Mask => continue,
-                tracking::EntryKind::Blob => render_blob(node.path.to_path("/"), &node.entry)?,
+                tracking::EntryKind::Blob => {
+                    self.render_blob(node.path.to_path("/"), &node.entry, &render_type)?
+                }
             }
         }
 
@@ -117,7 +124,12 @@ impl FSRepository {
         Ok(())
     }
 
-    fn render_blob<P: AsRef<Path>>(&self, rendered_path: P, entry: &tracking::Entry) -> Result<()> {
+    fn render_blob<P: AsRef<Path>>(
+        &self,
+        rendered_path: P,
+        entry: &tracking::Entry,
+        render_type: &RenderType,
+    ) -> Result<()> {
         if entry.is_symlink() {
             let mut reader = self.open_payload(&entry.object)?;
             let mut target = String::new();
@@ -140,10 +152,17 @@ impl FSRepository {
             };
         }
         let committed_path = self.payloads.build_digest_path(&entry.object);
-        if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
-            match err.kind() {
-                std::io::ErrorKind::AlreadyExists => (),
-                _ => return Err(err.into()),
+        match render_type {
+            RenderType::HardLink => {
+                if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
+                    match err.kind() {
+                        std::io::ErrorKind::AlreadyExists => (),
+                        _ => return Err(err.into()),
+                    }
+                }
+            }
+            RenderType::Copy => {
+                std::fs::copy(&committed_path, &rendered_path)?;
             }
         }
         Ok(())
