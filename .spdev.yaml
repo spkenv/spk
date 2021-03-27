@@ -1,6 +1,6 @@
-version: 0.26.0
+version: 0.26.1
 release_notes: |
-  * Add 'render' command to output an entire envrionment to a local folder
+  * Update to latest spfs patch version
 
 toolchain:
   - kind: Rust

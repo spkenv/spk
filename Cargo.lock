@@ -1991,8 +1991,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.24.0"
-source = "git+https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs?tag=v0.24.0#56c0481cdc7cc459f2f6a51032fe445da6568290"
+version = "0.24.1"
+source = "git+https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs?tag=v0.24.1#2433117eff337d11ced2024b8bd66bc0421b194f"
 dependencies = [
  "chrono",
  "colored",
