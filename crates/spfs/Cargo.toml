@@ -2,7 +2,7 @@
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
 edition = "2018"
 name = "spfs"
-version = "0.24.0"
+version = "0.24.1"
 
 [lib]
 name = "spfs"
