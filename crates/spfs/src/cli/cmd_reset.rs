@@ -4,8 +4,8 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 pub struct CmdReset {
     #[structopt(
-        long = "edit",
         short = "e",
+        long = "edit",
         about = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
     )]
     edit: bool,

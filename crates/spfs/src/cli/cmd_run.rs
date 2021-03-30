@@ -9,11 +9,13 @@ use spfs::prelude::*;
 pub struct CmdRun {
     #[structopt(
         short = "p",
+        long = "pull",
         help = "try to pull the latest iteration of each tag even if it exists locally"
     )]
     pull: bool,
     #[structopt(
         short = "e",
+        long = "edit",
         help = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
     )]
     edit: bool,
@@ -30,12 +32,14 @@ pub struct CmdRun {
 #[derive(Debug, StructOpt)]
 pub struct CmdShell {
     #[structopt(
-        short = "-p",
+        short = "p",
+        long = "pull",
         about = "try to pull the latest iteration of each tag even if it exists locally"
     )]
     pull: bool,
     #[structopt(
         short = "e",
+        long = "edit",
         about = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
     )]
     edit: bool,

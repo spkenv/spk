@@ -1,6 +1,6 @@
 version: 0.24.1
 release_notes: |
-  * Fix bug where render command would not properly create symlinks
+  * Update all cli flags to have short and long forms
 
 toolchain:
   - kind: Rust
