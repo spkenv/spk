@@ -1,6 +1,9 @@
-version: 0.24.1
+version: 0.24.2
 release_notes: |
   * Update all cli flags to have short and long forms
+  * Improve error messages when file permission and other os errors are encountered
+  * Update working file locations to be more contained and cleanable in a "work" directory
+  * Fix bug where an empty VERSION file caused repository to be unloadable
 
 toolchain:
   - kind: Rust
