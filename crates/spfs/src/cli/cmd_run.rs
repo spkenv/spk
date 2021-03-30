@@ -20,6 +20,12 @@ pub struct CmdRun {
     )]
     edit: bool,
     #[structopt(
+        short = "n",
+        long = "name",
+        about = "provide a name for this runtime to make it easier to identify"
+    )]
+    name: Option<String>,
+    #[structopt(
         help = "The tag or id of the desired runtime, use '-' or an empty string to request an empty environment"
     )]
     reference: String,
@@ -44,6 +50,12 @@ pub struct CmdShell {
     )]
     edit: bool,
     #[structopt(
+        short = "n",
+        long = "name",
+        about = "provide a name for this runtime to make it easier to identify"
+    )]
+    name: Option<String>,
+    #[structopt(
         name = "REF",
         about = "The tag or id of the desired runtime, use '-' or nothing to request an empty environment"
     )]
@@ -55,6 +67,7 @@ impl CmdShell {
         let mut run_cmd = CmdRun {
             pull: self.pull,
             edit: self.edit,
+            name: self.name.clone(),
             reference: self.reference.clone().unwrap_or_else(|| "".into()),
             cmd: Default::default(),
             args: Default::default(),
@@ -67,7 +80,10 @@ impl CmdRun {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
         let repo = config.get_repository()?;
         let runtimes = config.get_runtime_storage()?;
-        let mut runtime = runtimes.create_runtime()?;
+        let mut runtime = match &self.name {
+            Some(name) => runtimes.create_named_runtime(name)?,
+            None => runtimes.create_runtime()?,
+        };
         match self.reference.as_str() {
             "-" | "" => self.edit = true,
             reference => {
