@@ -55,7 +55,7 @@ fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
     let runtime = storage
-        .create_runtime()
+        .create_owned_runtime()
         .expect("failed to create runtime in storage");
     assert!(!runtime.reference().is_empty());
     assert!(runtime.root().metadata().unwrap().file_type().is_dir());
@@ -72,7 +72,9 @@ fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
         "should fail to remove non-existant runtime"
     );
 
-    let runtime = storage.create_runtime().expect("failed to create runtime");
+    let runtime = storage
+        .create_owned_runtime()
+        .expect("failed to create runtime");
     storage
         .remove_runtime(runtime.reference())
         .expect("should remove runtime properly");
@@ -86,14 +88,22 @@ fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
     let runtimes = runtimes.expect("unexpected error while listing runtimes");
     assert_eq!(runtimes.len(), 0);
 
-    storage.create_runtime().expect("failed to create runtime");
+    let _rt1 = storage
+        .create_owned_runtime()
+        .expect("failed to create runtime");
     let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
     let runtimes = runtimes.expect("unexpected error while listing runtimes");
     assert_eq!(runtimes.len(), 1);
 
-    storage.create_runtime().expect("failed to create runtime");
-    storage.create_runtime().expect("failed to create runtime");
-    storage.create_runtime().expect("failed to create runtime");
+    let _rt2 = storage
+        .create_owned_runtime()
+        .expect("failed to create runtime");
+    let _rt3 = storage
+        .create_owned_runtime()
+        .expect("failed to create runtime");
+    let _rt4 = storage
+        .create_owned_runtime()
+        .expect("failed to create runtime");
     let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
     let runtimes = runtimes.expect("unexpected error while listing runtimes");
     assert_eq!(runtimes.len(), 4);
@@ -103,7 +113,7 @@ fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
 fn test_runtime_reset(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
     let mut runtime = storage
-        .create_runtime()
+        .create_owned_runtime()
         .expect("failed to create runtime in storage");
     let upper_dir = tmpdir.path().join("upper");
     runtime.upper_dir = upper_dir.clone();

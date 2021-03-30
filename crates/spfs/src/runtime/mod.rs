@@ -7,4 +7,6 @@ mod startup_sh;
 mod storage;
 
 pub use overlayfs::is_removed_entry;
-pub use storage::{makedirs_with_perms, Config, Runtime, Storage, STARTUP_FILES_LOCATION};
+pub use storage::{
+    makedirs_with_perms, Config, OwnedRuntime, Runtime, Storage, STARTUP_FILES_LOCATION,
+};

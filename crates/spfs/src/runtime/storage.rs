@@ -21,6 +21,47 @@ pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 pub struct Config {
     stack: Vec<encoding::Digest>,
     editable: bool,
+    running: bool,
+    pid: Option<u32>,
+}
+
+#[derive(Debug)]
+pub struct OwnedRuntime(Runtime);
+
+impl std::ops::Deref for OwnedRuntime {
+    type Target = Runtime;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for OwnedRuntime {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl OwnedRuntime {
+    pub fn upgrade(mut runtime: Runtime) -> Result<Self> {
+        let pid = std::process::id();
+        if let Some(existing) = runtime.get_pid() {
+            if existing == pid {
+                return Err("Owned runtime was already instantiated in this process".into());
+            } else {
+                return Err("Runtime is already owned by another process".into());
+            }
+        }
+        runtime.set_pid(pid)?;
+        Ok(Self(runtime))
+    }
+}
+
+impl Drop for OwnedRuntime {
+    fn drop(&mut self) {
+        let _ = self.0.set_running(false);
+        if let Err(err) = self.0.delete() {
+            tracing::warn!(?err, "Failed to clean up runtime data")
+        }
+    }
 }
 
 /// Represents an active spfs session.
@@ -90,6 +131,31 @@ impl Runtime {
     /// committed back as layers.
     pub fn is_editable(&self) -> bool {
         return self.config.editable;
+    }
+
+    /// Mark this runtime as currently running or not.
+    fn set_running(&mut self, running: bool) -> Result<()> {
+        self.read_config()?;
+        self.config.running = running;
+        self.write_config()
+    }
+
+    /// Return true if this runtime is currently running.
+    pub fn is_running(&self) -> bool {
+        return self.config.running;
+    }
+
+    /// Mark the process that owns this runtime, this should be the spfs
+    /// init process under which the target process is directly running.
+    fn set_pid(&mut self, pid: u32) -> Result<()> {
+        self.read_config()?;
+        self.config.pid = Some(pid);
+        self.write_config()
+    }
+
+    /// Return the pid of this runtime's init process, if any.
+    pub fn get_pid(&self) -> Option<u32> {
+        return self.config.pid.clone();
     }
 
     /// Reset the config for this runtime to its default state.
@@ -269,11 +335,18 @@ impl Storage {
         }
     }
 
-    // Create a new runtime.
+    /// Create a new runtime.
     pub fn create_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let reference = OsStr::new(&uuid);
         self.create_named_runtime(reference)
+    }
+
+    /// create a new runtime that is owned by this process and
+    /// will be deleted upon drop. This is useful mainly in testing.
+    pub fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
+        let rt = self.create_runtime()?;
+        OwnedRuntime::upgrade(rt)
     }
 
     pub fn create_named_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
