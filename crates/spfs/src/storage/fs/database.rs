@@ -44,17 +44,21 @@ impl graph::Database for super::FSRepository {
         // we need to use a temporary file here, so that
         // other processes don't try to read our incomplete
         // object from the database
-        let working_file = self.root().join(uuid::Uuid::new_v4().to_string());
-        self.objects.ensure_base_dir(&filepath)?;
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let working_file = self.objects.workdir().join(uuid);
+        self.objects.ensure_base_dir(&working_file)?;
         let mut writer = std::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
             .open(&working_file)?;
-        obj.encode(&mut writer)?;
+        if let Err(err) = obj.encode(&mut writer) {
+            let _ = std::fs::remove_file(&working_file);
+            return Err(err.into());
+        }
+        self.objects.ensure_base_dir(&filepath)?;
         match std::fs::rename(&working_file, &filepath) {
             Ok(_) => Ok(()),
             Err(err) => {
-                println!("{:?}", err.kind());
                 let _ = std::fs::remove_file(&working_file);
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),

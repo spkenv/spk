@@ -31,6 +31,19 @@ impl Error {
         Error::Errno(msg, errno)
     }
 
+    pub fn wrap_io<E: Into<String>>(err: std::io::Error, prefix: E) -> Error {
+        let err = Self::from(err);
+        err.wrap(prefix)
+    }
+
+    pub fn wrap<E: Into<String>>(&self, prefix: E) -> Error {
+        let msg = format!("{}: {:?}", prefix.into(), self);
+        match self.raw_os_error() {
+            Some(errno) => Error::new_errno(errno, msg),
+            None => Error::new(msg),
+        }
+    }
+
     pub fn raw_os_error(&self) -> Option<i32> {
         match self {
             Error::IO(err) => match err.raw_os_error() {

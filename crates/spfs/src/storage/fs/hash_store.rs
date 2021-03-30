@@ -1,9 +1,12 @@
+use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use crate::runtime::makedirs_with_perms;
 use crate::{encoding, graph, Error, Result};
+
+static WORK_DIRNAME: &str = "work";
 
 pub struct FSHashStore {
     root: PathBuf,
@@ -31,6 +34,11 @@ impl FSHashStore {
         self.root.as_ref()
     }
 
+    /// The folder in which in-progress data is stored temporarily
+    pub fn workdir(&self) -> PathBuf {
+        self.root.join(&WORK_DIRNAME)
+    }
+
     pub fn iter<'a>(&'a self) -> Result<FSHashStoreIter> {
         FSHashStoreIter::new(&self.root())
     }
@@ -49,7 +57,7 @@ impl FSHashStore {
         mut reader: Box<&mut dyn std::io::Read>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        let working_file = self.root().join(uuid);
+        let working_file = self.workdir().join(uuid);
 
         self.ensure_base_dir(&working_file)?;
         let mut writer = std::fs::OpenOptions::new()
@@ -58,9 +66,15 @@ impl FSHashStore {
             .write(true)
             .open(&working_file)?;
         let mut hasher = encoding::Hasher::new().with_target(&mut writer);
-        let copied = std::io::copy(&mut reader, &mut hasher)?;
-        let digest = hasher.digest();
+        let copied = match std::io::copy(&mut reader, &mut hasher) {
+            Err(err) => {
+                let _ = std::fs::remove_file(working_file);
+                return Err(Error::wrap_io(err, "Failed to write object data"));
+            }
+            Ok(s) => s,
+        };
 
+        let digest = hasher.digest();
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
         match std::fs::rename(&working_file, &path) {
@@ -68,7 +82,7 @@ impl FSHashStore {
                 let _ = std::fs::remove_file(working_file);
                 match err.kind() {
                     ErrorKind::AlreadyExists => (),
-                    _ => return Err(err.into()),
+                    _ => return Err(Error::wrap_io(err, "Failed to store object")),
                 }
             }
             Ok(_) => (),
@@ -244,6 +258,9 @@ impl Iterator for FSHashStoreIter {
                         None => return None,
                     };
                     let prefix = next_dir.file_name();
+                    if prefix.as_os_str() == OsStr::new(WORK_DIRNAME) {
+                        continue;
+                    }
                     let path = self.root.join(&prefix);
                     match std::fs::read_dir(&path) {
                         Ok(read_dir) => {

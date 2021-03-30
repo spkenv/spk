@@ -6,7 +6,7 @@ use crate::{
     encoding::{self, Encodable},
     runtime::makedirs_with_perms,
     storage::{ManifestViewer, PayloadStorage},
-    tracking, Result,
+    tracking, Error, Result,
 };
 
 #[cfg(test)]
@@ -45,7 +45,7 @@ impl ManifestViewer for FSRepository {
         tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
 
         let uuid = uuid::Uuid::new_v4().to_string();
-        let working_dir = renders.root().join(uuid);
+        let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
         self.render_manifest_into_dir(&manifest, &working_dir, RenderType::HardLink)?;
@@ -59,7 +59,7 @@ impl ManifestViewer for FSRepository {
                         tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
                     }
                 }
-                _ => return Err(err.into()),
+                _ => return Err(Error::wrap_io(err, "Failed to finalize render")),
             },
         }
 
@@ -75,11 +75,15 @@ impl ManifestViewer for FSRepository {
         };
         let rendered_dirpath = renders.build_digest_path(&digest);
         let uuid = uuid::Uuid::new_v4().to_string();
-        let working_dirpath = self.root().join(uuid);
+        let working_dirpath = renders.workdir().join(uuid);
+        renders.ensure_base_dir(&working_dirpath)?;
         if let Err(err) = std::fs::rename(&rendered_dirpath, &working_dirpath) {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(err.into()),
+                _ => Err(crate::Error::wrap_io(
+                    err,
+                    "Failed to pull render for deletion",
+                )),
             };
         }
 
@@ -100,12 +104,17 @@ impl FSRepository {
             .walk_abs(&target_dir.as_ref().to_string_lossy())
             .collect();
         for node in entries.iter() {
-            match node.entry.kind {
-                tracking::EntryKind::Tree => std::fs::create_dir_all(&node.path.to_path("/"))?,
+            let res = match node.entry.kind {
+                tracking::EntryKind::Tree => {
+                    std::fs::create_dir_all(&node.path.to_path("/")).map_err(|e| e.into())
+                }
                 tracking::EntryKind::Mask => continue,
                 tracking::EntryKind::Blob => {
-                    self.render_blob(node.path.to_path("/"), &node.entry, &render_type)?
+                    self.render_blob(node.path.to_path("/"), &node.entry, &render_type)
                 }
+            };
+            if let Err(err) = res {
+                return Err(err.wrap(format!("Failed to render [{}]", node.path)));
             }
         }
 
@@ -116,10 +125,15 @@ impl FSRepository {
             if node.entry.is_symlink() {
                 continue;
             }
-            std::fs::set_permissions(
+            if let Err(err) = std::fs::set_permissions(
                 &node.path.to_path("/"),
                 std::fs::Permissions::from_mode(node.entry.mode),
-            )?;
+            ) {
+                return Err(Error::wrap_io(
+                    err,
+                    format!("Failed to set permissions [{}]", node.path),
+                ));
+            }
         }
         Ok(())
     }
@@ -137,15 +151,7 @@ impl FSRepository {
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(crate::Error::new_errno(
-                        err.raw_os_error().unwrap_or(libc::EINVAL),
-                        format!(
-                            "Failed to hardlink {{{:?} => {:?}}}: {:?}",
-                            &target,
-                            &rendered_path.as_ref(),
-                            err,
-                        ),
-                    )),
+                    _ => Err(Error::wrap_io(err, "Failed to render symlink")),
                 }
             } else {
                 Ok(())
@@ -157,12 +163,17 @@ impl FSRepository {
                 if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(err.into()),
+                        _ => return Err(Error::wrap_io(err, "Failed to hardlink")),
                     }
                 }
             }
             RenderType::Copy => {
-                std::fs::copy(&committed_path, &rendered_path)?;
+                if let Err(err) = std::fs::copy(&committed_path, &rendered_path) {
+                    match err.kind() {
+                        std::io::ErrorKind::AlreadyExists => (),
+                        _ => return Err(Error::wrap_io(err, "Failed to copy file")),
+                    }
+                }
             }
         }
         Ok(())
