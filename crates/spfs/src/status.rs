@@ -84,15 +84,9 @@ pub fn active_runtime() -> Result<runtime::Runtime> {
 }
 
 /// Initialize the current spfs runtime.
-pub fn initialize_runtime() -> Result<runtime::Runtime> {
-    active_runtime()
-}
-
-pub fn deinitialize_runtime() -> Result<()> {
+pub fn initialize_runtime() -> Result<runtime::OwnedRuntime> {
     let rt = active_runtime()?;
-    rt.delete()?;
-    std::env::remove_var(SPFS_RUNTIME);
-    Ok(())
+    runtime::OwnedRuntime::upgrade(rt)
 }
 
 fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<(OsString, Vec<OsString>)> {

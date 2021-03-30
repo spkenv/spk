@@ -28,8 +28,8 @@ pub use resolve::{
 };
 mod status;
 pub use status::{
-    active_runtime, compute_runtime_manifest, deinitialize_runtime, initialize_runtime,
-    make_active_runtime_editable, remount_runtime, NoRuntimeError,
+    active_runtime, compute_runtime_manifest, initialize_runtime, make_active_runtime_editable,
+    remount_runtime, NoRuntimeError,
 };
 mod bootstrap;
 pub use bootstrap::{
