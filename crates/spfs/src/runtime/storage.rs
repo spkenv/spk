@@ -207,7 +207,17 @@ impl Runtime {
 }
 
 fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
-    makedirs_with_perms(&path, 0o777)?;
+    if let Some(parent) = path.as_ref().parent() {
+        makedirs_with_perms(&parent, 0o777)?;
+    }
+    // the actual runtime dir is for this user only and is created
+    // with the normal permission mask
+    if let Err(err) = std::fs::create_dir(&path) {
+        match err.kind() {
+            std::io::ErrorKind::AlreadyExists => (),
+            _ => return Err(err.into()),
+        }
+    }
     let runtime = Runtime::new(&path)?;
     match makedirs_with_perms(&runtime.upper_dir, 0o777) {
         Ok(_) => (),
