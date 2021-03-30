@@ -7,23 +7,21 @@ fixtures!();
 
 #[rstest]
 fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
+    let spfs_binary = spfs_binary.display();
     let script = tmpdir.path().join("script.sh");
     let filename = "/spfs/message.txt";
     let base_tag = "test/file_removal_base";
     let top_tag = "test/file_removal_top";
     let lines: Vec<String> = vec![
         format!(
-            "{:?} run - -- bash -c 'echo hello > {} && {:?} commit layer -t {}'",
+            "{} run - -- bash -c 'echo hello > {} && {} commit layer -t {}'",
             &spfs_binary, filename, &spfs_binary, base_tag
         ),
         format!(
-            "{:?} run -e {} -- bash -c 'rm {} && {:?} commit platform -t {}'",
+            "{} run -e {} -- bash -c 'rm {} && {} commit platform -t {}'",
             &spfs_binary, base_tag, filename, &spfs_binary, top_tag
         ),
-        format!(
-            "{:?} run {} -- test ! -f {}",
-            &spfs_binary, top_tag, filename
-        ),
+        format!("{} run {} -- test ! -f {}", &spfs_binary, top_tag, filename),
     ];
     std::fs::OpenOptions::new()
         .create(true)
@@ -40,6 +38,7 @@ fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::P
 
 #[rstest]
 fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
+    let spfs_binary = spfs_binary.display();
     let script = tmpdir.path().join("script.sh");
     let dirpath = "/spfs/dir1/dir2/dir3";
     let to_remove = "/spfs/dir1/dir2";
@@ -48,21 +47,18 @@ fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::Pa
     let top_tag = "test/dir_removal_top";
     let lines: Vec<String> = vec![
         format!(
-            "{:?} run - -- bash -c 'mkdir -p {} && {:?} commit layer -t {}'",
+            "{} run - -- bash -c 'mkdir -p {} && {} commit layer -t {}'",
             &spfs_binary, dirpath, &spfs_binary, base_tag
         ),
         format!(
-            "{:?} run -e {} -- bash -c 'rm -r {} && {:?} commit platform -t {}'",
+            "{} run -e {} -- bash -c 'rm -r {} && {} commit platform -t {}'",
             &spfs_binary, base_tag, to_remove, &spfs_binary, top_tag
         ),
         format!(
-            "{:?} run {} -- test ! -d {}",
+            "{} run {} -- test ! -d {}",
             &spfs_binary, top_tag, to_remove
         ),
-        format!(
-            "{:?} run {} -- test -d {}",
-            &spfs_binary, top_tag, to_remain
-        ),
+        format!("{} run {} -- test -d {}", &spfs_binary, top_tag, to_remain),
     ];
     std::fs::OpenOptions::new()
         .create(true)

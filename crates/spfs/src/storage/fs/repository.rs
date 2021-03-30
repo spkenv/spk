@@ -122,8 +122,19 @@ pub fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Ve
         },
     };
 
-    semver::Version::parse(version.as_str())
-        .map_err(|err| crate::Error::String(format!("{:?}", err)))
+    let mut version = version.trim();
+    if version == "" {
+        version = crate::VERSION;
+    }
+    match semver::Version::parse(version) {
+        Ok(v) => Ok(v),
+        Err(err) => match err {
+            semver::SemVerError::ParseError(err) => Err(crate::Error::String(format!(
+                "Failed to read repository version: {}",
+                err,
+            ))),
+        },
+    }
 }
 
 /// Set the last migration version of the repo with the given root directory.
