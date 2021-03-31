@@ -1,9 +1,20 @@
-version: 0.24.2
+version: 0.25.0
 release_notes: |
+  ## New Features
+  * Add 'spfs join' command to enable rejoining an existing runtime environment
+
+  ## Other Changes
+  * Update SPFS_RUNTIME variable to contain just the name of the runtime not path
+  * Update shell and run commands to take optional name parameter for the runtime
   * Update all cli flags to have short and long forms
   * Improve error messages when file permission and other os errors are encountered
   * Update working file locations to be more contained and cleanable in a "work" directory
+  * Update runtimes command to output more metadata by default
+
+  ## Bug Fixes
   * Fix bug where an empty VERSION file caused repository to be unloadable
+  * Fix bug where an empty line was often printed even though there was nothing to render
+  * Fix but where runtimes could be left behind even after the process exits
 
 toolchain:
   - kind: Rust
