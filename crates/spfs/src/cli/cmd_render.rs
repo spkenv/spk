@@ -17,7 +17,7 @@ pub struct CmdRender {
 }
 
 impl CmdRender {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::new(&self.reference)?;
         let repo = config.get_repository()?;
 
@@ -38,10 +38,8 @@ impl CmdRender {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
-        let res = spfs::render_into_directory(&env_spec, &target_dir);
-        if let Ok(_) = res {
-            tracing::info!("successfully rendered {}", target_dir.display());
-        }
-        res
+        spfs::render_into_directory(&env_spec, &target_dir)?;
+        tracing::info!("successfully rendered {}", target_dir.display());
+        Ok(0)
     }
 }

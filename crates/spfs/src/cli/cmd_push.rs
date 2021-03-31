@@ -20,13 +20,13 @@ pub struct CmdPush {
 }
 
 impl CmdPush {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository()?.into();
         let mut remote = config.get_remote(&self.remote)?;
         for reference in self.refs.iter() {
             spfs::sync_ref(reference, &repo, &mut remote)?;
         }
 
-        Ok(())
+        Ok(0)
     }
 }

@@ -14,7 +14,7 @@ pub struct CmdCheck {
 }
 
 impl CmdCheck {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
@@ -29,9 +29,9 @@ impl CmdCheck {
             tracing::error!("{:?}", error);
         }
         if errors.len() > 0 {
-            std::process::exit(1);
+            return Ok(1);
         }
         tracing::info!("repository OK");
-        Ok(())
+        Ok(0)
     }
 }

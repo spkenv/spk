@@ -18,12 +18,12 @@ pub struct CmdCommit {
 }
 
 impl CmdCommit {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut runtime = spfs::active_runtime()?;
 
         if !runtime.is_editable() {
             tracing::error!("Active runtime is not editable, nothing to commmit");
-            std::process::exit(1)
+            return Ok(1);
         }
 
         let mut repo = config.get_repository()?;
@@ -33,7 +33,7 @@ impl CmdCommit {
             "platform" => spfs::commit_platform(&mut runtime)?.into(),
             _ => {
                 tracing::error!("cannot commit {}", self.kind);
-                std::process::exit(1);
+                return Ok(1);
             }
         };
 
@@ -51,6 +51,6 @@ impl CmdCommit {
         }
 
         tracing::info!("edit mode disabled");
-        Ok(())
+        Ok(0)
     }
 }

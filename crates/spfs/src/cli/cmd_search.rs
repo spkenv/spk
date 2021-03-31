@@ -9,7 +9,7 @@ pub struct CmdSearch {
 }
 
 impl CmdSearch {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut repos = Vec::with_capacity(config.remote.len());
         for name in config.list_remote_names() {
             let remote = match config.get_remote(&name) {
@@ -31,6 +31,6 @@ impl CmdSearch {
                 }
             }
         }
-        Ok(())
+        Ok(0)
     }
 }

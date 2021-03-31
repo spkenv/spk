@@ -12,7 +12,7 @@ pub struct CmdJoin {
 }
 
 impl CmdJoin {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let storage = config.get_runtime_storage()?;
         let rt = storage.read_runtime(&self.runtime)?;
         let pid = match rt.get_pid() {
@@ -48,7 +48,7 @@ impl CmdJoin {
 
         std::env::set_var("SPFS_RUNTIME", rt.name());
         let result = exec_runtime_command(self.cmd.clone());
-        std::process::exit(result?);
+        Ok(result?)
     }
 }
 

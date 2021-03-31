@@ -231,6 +231,7 @@ impl Runtime {
 
     /// Remove all data pertaining to this runtime.
     pub fn delete(&self) -> Result<()> {
+        tracing::debug!("cleaning up runtime: {:?}", &self.root.display());
         std::fs::remove_dir_all(&self.root)?;
         Ok(())
     }

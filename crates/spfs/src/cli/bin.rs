@@ -30,6 +30,13 @@ mod cmd_version;
 use args::{Command, Opt};
 
 fn main() {
+    // because this function exits right away it does not
+    // properly handle destruction of data, so we put the actual
+    // logic into a separate function/scope
+    std::process::exit(run())
+}
+
+fn run() -> i32 {
     args::configure_sentry();
 
     let opt = args::Opt::from_args();
@@ -75,7 +82,7 @@ fn main() {
     let config = match spfs::load_config() {
         Err(err) => {
             tracing::error!(err = ?err, "failed to load config");
-            std::process::exit(1);
+            return 1;
         }
         Ok(config) => config,
     };
@@ -113,9 +120,9 @@ fn main() {
         Err(err) => {
             capture_if_relevant(&err);
             tracing::error!("{}", spfs::io::format_error(&err));
-            std::process::exit(1);
+            1
         }
-        Ok(_) => std::process::exit(0),
+        Ok(code) => code,
     }
 }
 

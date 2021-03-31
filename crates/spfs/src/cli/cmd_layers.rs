@@ -13,7 +13,7 @@ pub struct CmdLayers {
 }
 
 impl CmdLayers {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
@@ -25,6 +25,6 @@ impl CmdLayers {
                 spfs::io::format_digest(&digest.to_string(), Some(&repo))?
             );
         }
-        Ok(())
+        Ok(0)
     }
 }

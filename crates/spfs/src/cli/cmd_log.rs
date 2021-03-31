@@ -16,7 +16,7 @@ pub struct CmdLog {
 }
 
 impl CmdLog {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
@@ -35,6 +35,6 @@ impl CmdLog {
                 tag.time.to_string().green(),
             );
         }
-        Ok(())
+        Ok(0)
     }
 }

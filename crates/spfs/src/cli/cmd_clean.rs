@@ -43,7 +43,7 @@ pub struct CmdClean {
 }
 
 impl CmdClean {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut repo = match &self.remote {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
@@ -61,7 +61,7 @@ impl CmdClean {
         unattached.extend(spfs::get_all_unattached_payloads(&repo)?);
         if unattached.len() == 0 {
             tracing::info!("no objects to remove");
-            return Ok(());
+            return Ok(0);
         }
         tracing::info!("found {} objects to remove", unattached.len());
         if !self.yes {
@@ -71,7 +71,7 @@ impl CmdClean {
             for line in std::io::stdin().lock().lines() {
                 let line = line?;
                 if line != "y" {
-                    std::process::exit(1)
+                    return Ok(2);
                 }
                 break;
             }
@@ -81,7 +81,7 @@ impl CmdClean {
             Err(err) => Err(err),
             Ok(_) => {
                 tracing::info!("clean successfull");
-                Ok(())
+                Ok(0)
             }
         }
     }
@@ -135,7 +135,7 @@ impl CmdClean {
             for line in std::io::stdin().lock().lines() {
                 let line = line?;
                 if line != "y" {
-                    std::process::exit(1)
+                    return Err("Operation cancelled by user".into());
                 }
                 break;
             }

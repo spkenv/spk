@@ -13,17 +13,17 @@ pub struct CmdInfo {
 }
 
 impl CmdInfo {
-    pub fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository()?.into();
         if self.refs.len() == 0 {
-            print_global_info(&repo)
+            print_global_info(&repo)?;
         } else {
             for reference in self.refs.iter() {
                 let item = repo.read_ref(reference.as_str())?;
                 pretty_print_ref(item, &repo, verbosity)?;
             }
-            Ok(())
         }
+        Ok(0)
     }
 }
 

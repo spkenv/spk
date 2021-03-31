@@ -17,7 +17,7 @@ pub struct CmdRead {
 }
 
 impl CmdRead {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo: RepositoryHandle = config.get_repository()?.into();
         let item = repo.read_ref(self.reference.as_str())?;
         use spfs::graph::Object;
@@ -37,12 +37,12 @@ impl CmdRead {
                     Some(e) => e,
                     None => {
                         tracing::error!("file does not exist: {}", path);
-                        std::process::exit(1);
+                        return Ok(1);
                     }
                 };
                 if !entry.kind.is_blob() {
                     tracing::error!("path is a directory or masked file: {}", path);
-                    std::process::exit(1);
+                    return Ok(1);
                 }
                 repo.read_blob(&entry.object)?
             }
@@ -50,6 +50,6 @@ impl CmdRead {
 
         let mut payload = repo.open_payload(&blob.digest())?;
         std::io::copy(&mut payload, &mut std::io::stdout())?;
-        Ok(())
+        Ok(0)
     }
 }

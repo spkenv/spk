@@ -12,7 +12,7 @@ pub struct CmdLsTags {
 }
 
 impl CmdLsTags {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository()?;
 
         let path = relative_path::RelativePathBuf::from(&self.path);
@@ -20,6 +20,6 @@ impl CmdLsTags {
         for name in names {
             println!("{}", name);
         }
-        Ok(())
+        Ok(0)
     }
 }

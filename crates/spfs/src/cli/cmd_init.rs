@@ -17,14 +17,14 @@ pub struct CmdInit {
 }
 
 impl CmdInit {
-    pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         tracing::debug!("initializing runtime environment");
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root_dir)?;
         std::env::set_var("SPFS_RUNTIME", runtime.name());
         let _handle = spfs::initialize_runtime()?;
 
         let result = exec_runtime_command(self.cmd.clone());
-        std::process::exit(result?);
+        Ok(result?)
     }
 }
 

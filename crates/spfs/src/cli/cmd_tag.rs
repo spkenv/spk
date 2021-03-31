@@ -17,7 +17,7 @@ pub struct CmdTag {
 }
 
 impl CmdTag {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut repo = match &self.remote {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
@@ -29,6 +29,6 @@ impl CmdTag {
             repo.push_tag(&tag, &target)?;
             tracing::info!(?tag, "created");
         }
-        Ok(())
+        Ok(0)
     }
 }

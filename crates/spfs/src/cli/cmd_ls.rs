@@ -17,7 +17,7 @@ pub struct CmdLs {
 }
 
 impl CmdLs {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo: RepositoryHandle = config.get_repository()?.into();
         let item = repo.read_ref(self.reference.as_str())?;
 
@@ -40,8 +40,8 @@ impl CmdLs {
                     tracing::error!("path is not a directory: {}", self.path);
                 }
             }
-            std::process::exit(1);
+            return Ok(1);
         }
-        Ok(())
+        Ok(0)
     }
 }

@@ -6,8 +6,8 @@ use spfs;
 pub struct CmdVersion {}
 
 impl CmdVersion {
-    pub fn run(&self) -> spfs::Result<()> {
+    pub fn run(&self) -> spfs::Result<i32> {
         println!("{}", spfs::VERSION);
-        Ok(())
+        Ok(0)
     }
 }

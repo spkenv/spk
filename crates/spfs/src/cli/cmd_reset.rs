@@ -22,7 +22,7 @@ pub struct CmdReset {
 }
 
 impl CmdReset {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<()> {
+    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut runtime = spfs::active_runtime()?;
         let repo = config.get_repository()?;
         if let Some(reference) = &self.reference {
@@ -47,7 +47,8 @@ impl CmdReset {
             runtime.set_editable(true)?;
         }
 
-        spfs::remount_runtime(&runtime)
+        spfs::remount_runtime(&runtime)?;
+        Ok(0)
     }
 }
 
