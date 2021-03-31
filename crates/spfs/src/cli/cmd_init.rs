@@ -23,8 +23,7 @@ impl CmdInit {
         std::env::set_var("SPFS_RUNTIME", runtime.name());
         let _handle = spfs::initialize_runtime()?;
 
-        let result = exec_runtime_command(self.cmd.clone());
-        Ok(result?)
+        exec_runtime_command(self.cmd.clone())
     }
 }
 

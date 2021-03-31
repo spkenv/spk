@@ -37,9 +37,21 @@ fn main() {
 }
 
 fn run() -> i32 {
-    args::configure_sentry();
-
     let opt = args::Opt::from_args();
+    match opt.cmd {
+        // sentry turns our program into a multithreaded one, which is not
+        // allowed while creating or changing namespaces
+        Command::Join(_) => (),
+        // all other non-provileged commands can use sentry and must drop
+        // capabilities that were assigned to this binary
+        _ => {
+            args::configure_sentry();
+            if let Err(err) = spfs::env::drop_all_capabilities() {
+                println!("Failed to drop capabilities, cannot continue: {:?}", err);
+                return 1;
+            }
+        }
+    }
     match opt.verbose {
         0 => {
             if std::env::var("SPFS_DEBUG").is_ok() {

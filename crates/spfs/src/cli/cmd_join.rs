@@ -1,6 +1,5 @@
 use spfs::Result;
 use std::ffi::OsString;
-use std::os::unix::io::AsRawFd;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -15,38 +14,7 @@ impl CmdJoin {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let storage = config.get_runtime_storage()?;
         let rt = storage.read_runtime(&self.runtime)?;
-        let pid = match rt.get_pid() {
-            None => return Err("Runtime has not been initialized".into()),
-            Some(pid) => pid,
-        };
-        let ns_path = std::path::Path::new("/proc")
-            .join(pid.to_string())
-            .join("ns/mnt");
-        tracing::debug!(?ns_path, "Getting process namespace");
-        let (_fd_handle, ns_fd) = match std::fs::File::open(&ns_path) {
-            Ok(file) => {
-                let fd = file.as_raw_fd();
-                (file, fd)
-            }
-            Err(err) => {
-                return match err.kind() {
-                    std::io::ErrorKind::NotFound => Err("Runtime does not exist".into()),
-                    _ => Err(err.into()),
-                }
-            }
-        };
-
-        if let Err(err) = nix::sched::setns(ns_fd, nix::sched::CloneFlags::CLONE_NEWNS) {
-            return Err(match err.as_errno() {
-                Some(nix::errno::Errno::EPERM) => spfs::Error::new_errno(
-                    libc::EPERM,
-                    "spfs binary was not installed with required capabilities",
-                ),
-                _ => err.into(),
-            });
-        }
-
-        std::env::set_var("SPFS_RUNTIME", rt.name());
+        spfs::env::join_runtime(&rt)?;
         let result = exec_runtime_command(self.cmd.clone());
         Ok(result?)
     }
