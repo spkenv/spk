@@ -32,7 +32,7 @@ fn test_shell_initialization_startup_scripts(
     let rt = storage.create_runtime().unwrap();
 
     let setenv = |cmd: &mut std::process::Command| {
-        cmd.env("SPFS_RUNTIME", rt.root());
+        cmd.env("SPFS_RUNTIME", rt.name());
         cmd.env("SPFS_DEBUG", "1");
         cmd.env("SHELL", &shell_path);
     };
@@ -55,7 +55,7 @@ fn test_shell_initialization_startup_scripts(
     std::fs::write(tmp_startup_dir.join(startup_script), startup_cmd).unwrap();
 
     std::env::set_var("SHELL", &shell_path);
-    std::env::set_var("SPFS_RUNTIME", &rt.root());
+    std::env::set_var("SPFS_RUNTIME", &rt.name());
     let args = build_shell_initialized_command(
         OsString::from("printenv"),
         &mut vec![OsString::from("TEST_VALUE")],
@@ -85,7 +85,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     let rt = storage.create_runtime().unwrap();
 
     let setenv = |cmd: &mut std::process::Command| {
-        cmd.env("SPFS_RUNTIME", rt.root());
+        cmd.env("SPFS_RUNTIME", rt.name());
         cmd.env("SPFS_DEBUG", "1");
         cmd.env("SHELL", &shell_path);
     };
@@ -101,7 +101,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     }
 
     std::env::set_var("SHELL", &shell_path);
-    std::env::set_var("SPFS_RUNTIME", &rt.root());
+    std::env::set_var("SPFS_RUNTIME", &rt.name());
     let args = build_shell_initialized_command(OsString::from("echo"), &mut Vec::new()).unwrap();
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());

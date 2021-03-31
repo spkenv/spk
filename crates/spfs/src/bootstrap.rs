@@ -12,7 +12,7 @@ mod bootstrap_test;
 /// The returned command properly calls through the relevant spfs
 /// binaries and runs the desired command in an existing runtime.
 pub fn build_command_for_runtime(
-    runtime: runtime::Runtime,
+    runtime: &runtime::Runtime,
     command: OsString,
     args: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
@@ -27,7 +27,7 @@ pub fn build_command_for_runtime(
                 command,
             ];
             spfs_args.append(args);
-            build_spfs_enter_command(runtime, &mut spfs_args)
+            build_spfs_enter_command(&runtime, &mut spfs_args)
         }
     }
 }
@@ -102,7 +102,7 @@ pub fn build_shell_initialized_command(
 }
 
 fn build_spfs_enter_command(
-    rt: runtime::Runtime,
+    rt: &runtime::Runtime,
     command: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
     let config = crate::load_config()?;

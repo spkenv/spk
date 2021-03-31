@@ -17,8 +17,9 @@ mod storage_test;
 pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 
 /// Stores the configuration of a single runtime.
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct Config {
+    name: String,
     stack: Vec<encoding::Digest>,
     editable: bool,
     running: bool,
@@ -89,6 +90,15 @@ impl Runtime {
     /// Create a runtime to represent the data under 'root'.
     pub fn new<S: AsRef<Path>>(root: S) -> Result<Self> {
         let root = std::fs::canonicalize(root)?;
+        let name = match root.file_name() {
+            None => return Err("Invalid runtime path, has no filename".into()),
+            Some(name) => match name.to_str() {
+                None => {
+                    return Err("Invalid runtime path, basename is not a valid 8tf-8 string".into())
+                }
+                Some(s) => s.to_string(),
+            },
+        };
         makedirs_with_perms(&root, 0o777)?;
 
         let mut rt = Self {
@@ -97,11 +107,18 @@ impl Runtime {
             sh_startup_file: root.join(Self::SH_STARTUP_FILE),
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
-            config: Default::default(),
+            config: Config {
+                name: name,
+                ..Default::default()
+            },
             root: root,
         };
         rt.read_config()?;
         Ok(rt)
+    }
+
+    pub fn name<'a>(&'a self) -> &'a str {
+        self.config.name.as_ref()
     }
 
     pub fn root<'a>(&'a self) -> &'a Path {
@@ -134,7 +151,7 @@ impl Runtime {
     }
 
     /// Mark this runtime as currently running or not.
-    fn set_running(&mut self, running: bool) -> Result<()> {
+    pub fn set_running(&mut self, running: bool) -> Result<()> {
         self.read_config()?;
         self.config.running = running;
         self.write_config()
@@ -233,7 +250,7 @@ impl Runtime {
         stack.append(&mut self.config.stack);
         self.config = Config {
             stack: stack,
-            ..self.config
+            ..self.config.clone()
         };
         self.write_config()
     }
@@ -261,7 +278,6 @@ impl Runtime {
             }
             Err(err) => {
                 if let std::io::ErrorKind::NotFound = err.kind() {
-                    self.config = Config::default();
                     self.write_config()?;
                     Ok(&mut self.config)
                 } else {

@@ -8,6 +8,7 @@ mod cmd_diff;
 mod cmd_edit;
 mod cmd_info;
 mod cmd_init;
+mod cmd_join;
 mod cmd_layers;
 mod cmd_log;
 mod cmd_ls;
@@ -90,6 +91,7 @@ fn main() {
         Command::Push(mut cmd) => cmd.run(&config),
         Command::Pull(mut cmd) => cmd.run(&config),
         Command::Runtimes(mut cmd) => cmd.run(&config),
+        Command::Join(mut cmd) => cmd.run(&config),
         Command::Layers(mut cmd) => cmd.run(&config),
         Command::Platforms(mut cmd) => cmd.run(&config),
         Command::Tags(mut cmd) => cmd.run(&config),

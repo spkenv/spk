@@ -105,7 +105,7 @@ impl CmdRun {
         runtime.set_editable(self.edit)?;
         tracing::debug!("resolving entry process");
         let (cmd, args) =
-            spfs::build_command_for_runtime(runtime, self.cmd.clone(), &mut self.args)?;
+            spfs::build_command_for_runtime(&runtime, self.cmd.clone(), &mut self.args)?;
         tracing::trace!("{:?} {:?}", cmd, args);
         use std::os::unix::ffi::OsStrExt;
         let cmd = std::ffi::CString::new(cmd.as_bytes()).unwrap();
@@ -114,6 +114,7 @@ impl CmdRun {
             .map(|arg| std::ffi::CString::new(arg.as_bytes()).unwrap())
             .collect();
         args.insert(0, cmd.clone());
+        runtime.set_running(true)?;
         nix::unistd::execv(cmd.as_ref(), args.as_slice())?;
         Ok(())
     }

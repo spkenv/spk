@@ -78,9 +78,11 @@ pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manif
 
 /// Return the active runtime, or raise a NoRuntimeError.
 pub fn active_runtime() -> Result<runtime::Runtime> {
-    let path =
+    let name =
         std::env::var(SPFS_RUNTIME).map_err(|_| NoRuntimeError::new(Option::<&str>::None))?;
-    runtime::Runtime::new(path)
+    let config = load_config()?;
+    let storage = config.get_runtime_storage()?;
+    storage.read_runtime(name)
 }
 
 /// Initialize the current spfs runtime.

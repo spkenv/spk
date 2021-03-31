@@ -40,6 +40,8 @@ pub enum Command {
     Pull(super::cmd_pull::CmdPull),
     #[structopt(about = "list the current set of spfs runtimes")]
     Runtimes(super::cmd_runtimes::CmdRuntimes),
+    #[structopt(about = "enter an existing runtime that is still active")]
+    Join(super::cmd_join::CmdJoin),
     #[structopt(about = "list all layers in an spfs repository")]
     Layers(super::cmd_layers::CmdLayers),
     #[structopt(about = "list all platforms in an spfs repository")]
