@@ -30,6 +30,7 @@ impl Default for Filesystem {
 #[serde(default)]
 pub struct Storage {
     pub root: PathBuf,
+    pub runtimes: Option<PathBuf>,
 }
 
 impl Default for Storage {
@@ -37,6 +38,7 @@ impl Default for Storage {
         Self {
             root: expanduser::expanduser(DEFAULT_STORAGE_ROOT)
                 .unwrap_or_else(|_| PathBuf::from(FALLBACK_STORAGE_ROOT)),
+            runtimes: None,
         }
     }
 }
@@ -44,7 +46,10 @@ impl Default for Storage {
 impl Storage {
     /// Return the path to the local runtime storage.
     pub fn runtime_root(&self) -> PathBuf {
-        self.root.join("runtimes")
+        match &self.runtimes {
+            None => self.root.join("runtimes"),
+            Some(root) => root.clone(),
+        }
     }
 }
 

@@ -6,6 +6,7 @@ use rstest::rstest;
 fixtures!();
 
 #[rstest]
+#[serial_test::serial] // too dependant on external env
 fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
     let spfs_binary = spfs_binary.display();
     let script = tmpdir.path().join("script.sh");
@@ -37,6 +38,7 @@ fn test_runtime_file_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::P
 }
 
 #[rstest]
+#[serial_test::serial] // too dependant on external env
 fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::PathBuf) {
     let spfs_binary = spfs_binary.display();
     let script = tmpdir.path().join("script.sh");
@@ -75,6 +77,7 @@ fn test_runtime_dir_removal(tmpdir: tempdir::TempDir, spfs_binary: std::path::Pa
 }
 
 #[rstest]
+#[serial_test::serial] // too dependant on external env
 fn test_runtime_recursion(spfs_binary: std::path::PathBuf) {
     let mut cmd = Command::new(&spfs_binary);
     cmd.args(&["run", "", "--", "sh", "-c"]);

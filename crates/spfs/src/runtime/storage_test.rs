@@ -33,7 +33,11 @@ fn test_runtime_properties(tmpdir: tempdir::TempDir) {
 #[rstest]
 fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
     let mut runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
-    assert_eq!(runtime.config, Config::default());
+    let expected = Config {
+        name: runtime.name().to_string(),
+        ..Default::default()
+    };
+    assert_eq!(runtime.config, expected);
     assert!(runtime.read_config().is_ok());
     assert!(runtime.config_file.metadata().is_ok());
 }

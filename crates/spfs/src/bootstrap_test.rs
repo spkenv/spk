@@ -13,6 +13,7 @@ fixtures!();
     case("bash", "test.sh", "export TEST_VALUE='spfs-test-value'"),
     case("tcsh", "test.csh", "setenv TEST_VALUE 'spfs-test-value'")
 )]
+#[serial_test::serial] // env manipulation must be reliable
 fn test_shell_initialization_startup_scripts(
     shell: &str,
     startup_script: &str,
@@ -32,6 +33,7 @@ fn test_shell_initialization_startup_scripts(
     let rt = storage.create_runtime().unwrap();
 
     let setenv = |cmd: &mut std::process::Command| {
+        cmd.env("SPFS_STORAGE_RUNTIMES", rt.root().parent().unwrap());
         cmd.env("SPFS_RUNTIME", rt.name());
         cmd.env("SPFS_DEBUG", "1");
         cmd.env("SHELL", &shell_path);
@@ -56,6 +58,7 @@ fn test_shell_initialization_startup_scripts(
 
     std::env::set_var("SHELL", &shell_path);
     std::env::set_var("SPFS_RUNTIME", &rt.name());
+    std::env::set_var("SPFS_STORAGE_RUNTIMES", rt.root().parent().unwrap());
     let args = build_shell_initialized_command(
         OsString::from("printenv"),
         &mut vec![OsString::from("TEST_VALUE")],
@@ -72,6 +75,7 @@ fn test_shell_initialization_startup_scripts(
 }
 
 #[rstest(shell, case("bash"), case("tcsh"))]
+#[serial_test::serial] // env manipulation must be reliable
 fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::TempDir) {
     let shell_path = match which(shell) {
         Some(path) => path,
@@ -85,6 +89,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     let rt = storage.create_runtime().unwrap();
 
     let setenv = |cmd: &mut std::process::Command| {
+        cmd.env("SPFS_STORAGE_RUNTIMES", rt.root().parent().unwrap());
         cmd.env("SPFS_RUNTIME", rt.name());
         cmd.env("SPFS_DEBUG", "1");
         cmd.env("SHELL", &shell_path);
@@ -102,6 +107,8 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
 
     std::env::set_var("SHELL", &shell_path);
     std::env::set_var("SPFS_RUNTIME", &rt.name());
+    std::env::set_var("SPFS_STORAGE_RUNTIMES", rt.root().parent().unwrap());
+
     let args = build_shell_initialized_command(OsString::from("echo"), &mut Vec::new()).unwrap();
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());
