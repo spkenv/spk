@@ -71,5 +71,15 @@ pub fn drop_all_capabilities() -> Result<()> {
     let mut caps = Capabilities::from_current_proc()?;
     caps.reset_all();
     caps.apply()?;
-    Ok(())
+
+    // the dumpable attribute can become unset when changing pids or
+    // calling a binary with capabilities (spfs). Resetting this to one
+    // restores ownership of the proc filesystem to the calling user which
+    // is important in being able to read and join an existing runtime's namespace
+    let result = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 1) };
+    if result != 0 {
+        Err(nix::errno::Errno::last().into())
+    } else {
+        Ok(())
+    }
 }
