@@ -105,8 +105,8 @@ int main(int argc, char *argv[])
         NULL,
     };
     step_t enter_steps[] = {
-        become_root,
         enter_mount_namespace,
+        become_root,
         privatize_existing_mounts,
         ensure_mount_targets_exist,
         mount_runtime,
