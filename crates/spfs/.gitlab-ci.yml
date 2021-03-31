@@ -9,9 +9,15 @@ lint-python3k:
 test rpm install:
   tags: [docker]
   stage: test
+  variables:
+    CENTOS_IMAGE: docker.artifactory.spimageworks.com/gitlab/spi/dev/infrastructure/api/docker/spi-centos/centos-7.9.2009
   except:
     - tags
   dependencies:
     - "build and package" # for artifacts
   script:
-    - docker run --rm -v $PWD/dist/rpm/RPMS/x86_64:/tmp/rpms docker-registry2.spimageworks.com/spi/centos:7 bash -c "yum install -y /tmp/rpms/*.rpm  && chmod 0777 -R /tmp/rpms && spfs version"
+    - docker pull $CENTOS_IMAGE
+    - docker run --privileged --rm
+      -v $PWD/dist/rpm/RPMS/x86_64:/tmp/rpms
+      $CENTOS_IMAGE
+      bash -c "yum install -y /tmp/rpms/*.rpm  && chmod 0777 -R /tmp/rpms && spfs version"
