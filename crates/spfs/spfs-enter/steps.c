@@ -364,6 +364,14 @@ int become_original_user()
 
 }
 
+int set_dumpable()
+{
+    if (SPFS_DEBUG) {
+        printf("--> reset the dumpable attribute");
+    }
+    return prctl(PR_SET_DUMPABLE, 1);
+}
+
 int drop_all_capabilities()
 {
     if (SPFS_DEBUG) {

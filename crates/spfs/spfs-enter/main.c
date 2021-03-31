@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
         set_runtime_lock,
         mount_shots_if_necessary,
         become_original_user,
+        set_dumpable,
         drop_all_capabilities,
         NULL,
     };
@@ -116,6 +117,7 @@ int main(int argc, char *argv[])
         set_runtime_lock,
         mount_shots_if_necessary,
         become_original_user,
+        set_dumpable,
         drop_all_capabilities,
         run_command,
         NULL,
