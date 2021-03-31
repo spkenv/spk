@@ -18,7 +18,7 @@ components:
       python3: false
       mypy: true
     test:
-      command: $SPDEV_ENV/bin/spfs run - pytest
+      command: spfs run - pytest
     install:
       enabled: false
     deploy:
