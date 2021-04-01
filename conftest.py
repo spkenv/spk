@@ -32,7 +32,7 @@ def tmprepo(tmpspfs: spkrs.SpFSRepository) -> spk.storage.SpFSRepository:
 
 
 @pytest.fixture(autouse=True)
-def spfs_editable(tmpspfs: None) -> None:
+def spfs_editable(tmpspfs: spkrs.SpFSRepository) -> None:
 
     try:
         spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
@@ -49,6 +49,8 @@ def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.SpFSRepository:
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath
     monkeypatch.setenv("SPFS_STORAGE_ROOT", root)
+    # we rely on an outer runtime being created and it needs to still be found
+    monkeypatch.setenv("SPFS_STORAGE_RUNTIMES", "/scratch/spfs/runtimes")
     monkeypatch.setenv("SPFS_REMOTE_ORIGIN_ADDRESS", "file:" + origin_root)
     for path in [root, origin_root]:
         r = py.path.local(path)

@@ -22,6 +22,8 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
     tmpdir = py.path.local(tempfile.mkdtemp())
     root = tmpdir.join("spfs_repo").strpath
     os.environ["SPFS_STORAGE_ROOT"] = root
+    # we rely on an outer runtime being created and it needs to still be found
+    os.environ["SPFS_STORAGE_RUNTIMES"] = "/scratch/spfs/runtimes"
     if "SPFS_REMOTE_ORIGIN_ADDRESS" in os.environ:
         del os.environ["SPFS_REMOTE_ORIGIN_ADDRESS"]
     r = py.path.local(root)

@@ -15,7 +15,7 @@ def pytest_generate_tests(metafunc: Any) -> None:
 
 
 @pytest.fixture
-def repo(request: Any, tmpdir: py.path.local) -> Repository:
+def repo(tmpspfs: None, request: Any, tmpdir: py.path.local) -> Repository:
 
     if request.param is MemRepository:
         return MemRepository()
