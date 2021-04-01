@@ -34,10 +34,11 @@ impl FSRepository {
     // exist and be a repository
     pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = std::fs::canonicalize(root)?;
+        let username = whoami::username();
         let repo = Self {
             objects: FSHashStore::open(root.join("objects"))?,
             payloads: FSHashStore::open(root.join("payloads"))?,
-            renders: FSHashStore::open(root.join("renders")).ok(),
+            renders: FSHashStore::open(root.join("renders").join(username)).ok(),
             root: root.clone(),
         };
 
