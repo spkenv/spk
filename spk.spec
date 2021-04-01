@@ -10,6 +10,7 @@ BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: python-pip
+BuildRequires: libcap-devel
 BuildRequires: python37-devel
 BuildRequires: openssl-devel
 BuildRequires: spdev
