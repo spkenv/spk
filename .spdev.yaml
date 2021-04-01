@@ -1,6 +1,6 @@
-version: 0.26.1
+version: 0.26.2
 release_notes: |
-  * Update to latest spfs patch version
+  * Update to latest spfs version for join functionality
 
 toolchain:
   - kind: Rust
