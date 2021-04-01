@@ -2118,8 +2118,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.25.0"
-source = "git+https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs?tag=v0.25.0#693c8254fdbfc2e342fa5f248cc299a2adea8d8f"
+version = "0.25.1"
+source = "git+https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs?tag=v0.25.1#2b1ffb67f3f1b2a14259a3031f9309afd458e76a"
 dependencies = [
  "capabilities",
  "chrono",
