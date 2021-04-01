@@ -15,12 +15,18 @@ import spkrs
 OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
 
 
-def add_no_runtime_flag(parser: argparse.ArgumentParser) -> None:
+def add_runtime_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-runtime",
         "-nr",
         action="store_true",
         help="Reconfigure the current spfs runtime (useful for speed and debugging)",
+    )
+    parser.add_argument(
+        "--env-name",
+        type=str,
+        default=None,
+        help="A name to use for the created spfs runtime (useful for rejoining it later)",
     )
 
 
@@ -32,7 +38,8 @@ def ensure_active_runtime(args: argparse.Namespace) -> spkrs.Runtime:
     cmd = sys.argv
     cmd_index = cmd.index(args.command)
     cmd.insert(cmd_index + 1, "--no-runtime")
-    cmd = ["spfs", "run", "-", "--"] + cmd
+    name_args = ["--name", args.env_name] if args.env_name else []
+    cmd = ["spfs", "run", *name_args, "-", "--"] + cmd
     os.execvp(cmd[0], cmd)
 
 

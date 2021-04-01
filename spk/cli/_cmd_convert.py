@@ -108,7 +108,7 @@ def register(
         help="The pip packages to import (eg: pytest,  PySide2>=5)",
     )
 
-    _flags.add_no_runtime_flag(convert_cmd)
+    _flags.add_runtime_flags(convert_cmd)
     convert_cmd.set_defaults(func=_convert)
     return convert_cmd
 

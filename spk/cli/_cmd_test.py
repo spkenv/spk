@@ -36,7 +36,7 @@ def register(
     )
     _flags.add_repo_flags(test_cmd, default_local=True)
     _flags.add_option_flags(test_cmd)
-    _flags.add_no_runtime_flag(test_cmd)
+    _flags.add_runtime_flags(test_cmd)
     test_cmd.set_defaults(func=_test)
     return test_cmd
 

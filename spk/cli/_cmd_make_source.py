@@ -26,7 +26,7 @@ def register(
         nargs="+",
         help="The packages or yaml specification files to build",
     )
-    _flags.add_no_runtime_flag(make_source_cmd)
+    _flags.add_runtime_flags(make_source_cmd)
     make_source_cmd.set_defaults(func=_make_source)
     return make_source_cmd
 

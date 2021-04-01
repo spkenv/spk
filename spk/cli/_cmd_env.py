@@ -37,7 +37,7 @@ def register(
 
 def add_env_flags(parser: argparse.ArgumentParser) -> None:
 
-    _flags.add_no_runtime_flag(parser)
+    _flags.add_runtime_flags(parser)
     _flags.add_solver_flags(parser)
     _flags.add_request_flags(parser)
 
