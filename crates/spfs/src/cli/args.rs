@@ -22,10 +22,6 @@ pub struct Opt {
 pub enum Command {
     #[structopt(about = "print the version of spfs")]
     Version(super::cmd_version::CmdVersion),
-    #[structopt(about = "run a program in a configured environment")]
-    Run(super::cmd_run::CmdRun),
-    #[structopt(about = "enter a subshell in a configured spfs environment")]
-    Shell(super::cmd_run::CmdShell),
     #[structopt(about = "make the current runtime editable")]
     Edit(super::cmd_edit::CmdEdit),
     #[structopt(about = "commit the current runtime state to storage")]
@@ -72,6 +68,9 @@ pub enum Command {
     Render(super::cmd_render::CmdRender),
     #[structopt(about = "[internal use only] instantiates a raw runtime session")]
     InitRuntime(super::cmd_init::CmdInit),
+
+    #[structopt(external_subcommand)]
+    External(Vec<String>),
 }
 
 pub fn configure_sentry() {
@@ -120,6 +119,18 @@ pub fn configure_spops(_: &Opt) {
 }
 
 pub fn configure_logging(opt: &super::Opt) {
+    match opt.verbose {
+        0 => {
+            if std::env::var("SPFS_DEBUG").is_ok() {
+                std::env::set_var("RUST_LOG", "spfs=debug");
+            } else if std::env::var("RUST_LOG").is_err() {
+                std::env::set_var("RUST_LOG", "spfs=info");
+            }
+        }
+        1 => std::env::set_var("RUST_LOG", "spfs=debug"),
+        _ => std::env::set_var("RUST_LOG", "spfs=trace"),
+    }
+
     use tracing_subscriber::layer::SubscriberExt;
     let filter = tracing_subscriber::filter::EnvFilter::from_default_env();
     let registry = tracing_subscriber::Registry::default().with(filter);

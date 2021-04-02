@@ -20,7 +20,6 @@ mod cmd_push;
 mod cmd_read;
 mod cmd_render;
 mod cmd_reset;
-mod cmd_run;
 mod cmd_runtimes;
 mod cmd_search;
 mod cmd_tag;
@@ -38,58 +37,9 @@ fn main() {
 
 fn run() -> i32 {
     let opt = args::Opt::from_args();
-    match opt.cmd {
-        // sentry turns our program into a multithreaded one, which is not
-        // allowed while creating or changing namespaces
-        Command::Join(_) => (),
-        // all other non-provileged commands can use sentry and must drop
-        // capabilities that were assigned to this binary
-        _ => {
-            args::configure_sentry();
-            if let Err(err) = spfs::env::drop_all_capabilities() {
-                println!("Failed to drop capabilities, cannot continue: {:?}", err);
-                return 1;
-            }
-        }
-    }
-    match opt.verbose {
-        0 => {
-            if std::env::var("SPFS_DEBUG").is_ok() {
-                std::env::set_var("RUST_LOG", "spfs=debug");
-            } else if std::env::var("RUST_LOG").is_err() {
-                std::env::set_var("RUST_LOG", "spfs=info");
-            }
-        }
-        1 => std::env::set_var("RUST_LOG", "spfs=debug"),
-        _ => std::env::set_var("RUST_LOG", "spfs=trace"),
-    }
-
+    args::configure_sentry();
     args::configure_logging(&opt);
     args::configure_spops(&opt);
-
-    sentry::configure_scope(|scope| {
-        scope.set_extra("command", format!("{:?}", opt.cmd).into());
-        scope.set_extra("argv", format!("{:?}", std::env::args()).into());
-    });
-
-    // TODO: spops collection
-    // try:
-    //     spops.count("spfs.run_count")
-    //     with spops.timer("spfs.run_time"):
-    //         args.func(args)
-
-    // except KeyboardInterrupt:
-    //     pass
-
-    // except Exception as e:
-    //     capture_if_relevant(e)
-    //     _logger.error(str(e))
-    //     spops.count("spfs.error_count")
-    //     if args.debug:
-    //         traceback.print_exc(file=sys.stderr)
-    //     return 1
-
-    // return 0
 
     let config = match spfs::load_config() {
         Err(err) => {
@@ -126,6 +76,7 @@ fn run() -> i32 {
         Command::Read(mut cmd) => cmd.run(&config),
         Command::Render(mut cmd) => cmd.run(&config),
         Command::InitRuntime(mut cmd) => cmd.run(&config),
+        Command::External(args) => run_external_subcommand(args),
     };
 
     match result {
@@ -135,6 +86,47 @@ fn run() -> i32 {
             1
         }
         Ok(code) => code,
+    }
+}
+
+fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
+    {
+        let command = match args.get(0) {
+            None => {
+                tracing::error!("Invalid subcommand, cannot be empty");
+                return Ok(1);
+            }
+            Some(c) => c,
+        };
+        let command = format!("spfs-{}", command);
+        let command_cstr = match std::ffi::CString::new(command.clone()) {
+            Ok(s) => s,
+            Err(_) => {
+                tracing::error!("Invalid subcommand, not a valid string");
+                return Ok(1);
+            }
+        };
+        let mut args_cstr = Vec::with_capacity(args.len());
+        args_cstr.push(command_cstr.clone());
+        for arg in args.iter().skip(2) {
+            args_cstr.push(match std::ffi::CString::new(arg.clone()) {
+                Ok(s) => s,
+                Err(_) => {
+                    tracing::error!("Invalid argument, not a valid string");
+                    return Ok(1);
+                }
+            })
+        }
+        if let Err(err) = nix::unistd::execvp(command_cstr.as_c_str(), args_cstr.as_slice()) {
+            match err.as_errno() {
+                Some(nix::errno::Errno::ENOENT) => {
+                    tracing::error!("{} not found in PATH, was it properly installed?", command)
+                }
+                _ => tracing::error!("subcommand failed: {:?}", err),
+            }
+            return Ok(1);
+        }
+        Ok(0)
     }
 }
 
