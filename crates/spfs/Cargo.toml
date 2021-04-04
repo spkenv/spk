@@ -14,7 +14,8 @@ name = "spfs"
 path = "src/cli/bin.rs"
 [[bin]]
 name = "spfs-run"
-path = "src/cli/cmd_run.rs"
+# use a separate module so cmd_run can also be importable from cmd_shell
+path = "src/cli/cmd_run_main.rs"
 [[bin]]
 name = "spfs-shell"
 path = "src/cli/cmd_shell.rs"

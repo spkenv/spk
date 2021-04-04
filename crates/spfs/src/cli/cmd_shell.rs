@@ -2,13 +2,11 @@ use structopt::StructOpt;
 
 use spfs;
 
-mod cmd_run;
+#[macro_use]
 mod args;
+mod cmd_run;
 
-fn main() {
-    let cmd = CmdShell::from_args();
-    println!("{:?}", cmd);
-}
+main!(CmdShell);
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -16,6 +14,8 @@ fn main() {
     about = "Enter a subshell in a configured spfs environment"
 )]
 pub struct CmdShell {
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
+    pub verbose: usize,
     #[structopt(
         short = "p",
         long = "pull",
@@ -44,6 +44,7 @@ pub struct CmdShell {
 impl CmdShell {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut run_cmd = cmd_run::CmdRun {
+            verbose: self.verbose,
             pull: self.pull,
             edit: self.edit,
             name: self.name.clone(),

@@ -5,20 +5,14 @@ use structopt::StructOpt;
 use spfs;
 use spfs::prelude::*;
 
-mod args;
-
-#[allow(dead_code)]
-fn main() {
-    let cmd = CmdRun::from_args();
-    println!("{:?}", cmd);
-}
-
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "spfs-run",
     about = "Run a program in a configured spfs environment"
 )]
 pub struct CmdRun {
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
+    pub verbose: usize,
     #[structopt(
         short = "p",
         long = "pull",
