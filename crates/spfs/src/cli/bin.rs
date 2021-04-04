@@ -51,8 +51,6 @@ fn run() -> i32 {
 
     let result = match opt.cmd {
         Command::Version(cmd) => cmd.run(),
-        Command::Run(mut cmd) => cmd.run(&config),
-        Command::Shell(mut cmd) => cmd.run(&config),
         Command::Edit(mut cmd) => cmd.run(&config),
         Command::Commit(mut cmd) => cmd.run(&config),
         Command::Reset(mut cmd) => cmd.run(&config),
