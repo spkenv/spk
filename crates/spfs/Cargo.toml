@@ -19,6 +19,9 @@ path = "src/cli/cmd_run_main.rs"
 [[bin]]
 name = "spfs-shell"
 path = "src/cli/cmd_shell.rs"
+[[bin]]
+name = "spfs-enter"
+path = "src/cli/cmd_enter.rs"
 
 [dependencies]
 capabilities = "0.3.0"

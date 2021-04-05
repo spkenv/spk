@@ -150,7 +150,7 @@ fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
         };
         let mut args_cstr = Vec::with_capacity(args.len());
         args_cstr.push(command_cstr.clone());
-        for arg in args.iter().skip(2) {
+        for arg in args.iter().skip(1) {
             args_cstr.push(match std::ffi::CString::new(arg.clone()) {
                 Ok(s) => s,
                 Err(_) => {

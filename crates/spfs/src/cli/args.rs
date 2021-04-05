@@ -76,6 +76,9 @@ pub fn configure_logging(verbosity: usize) {
 #[macro_export]
 macro_rules! main {
     ($cmd:ident) => {
+        main!($cmd, sentry = true);
+    };
+    ($cmd:ident, sentry = $sentry:literal) => {
 
         fn main() {
             // because this function exits right away it does not
@@ -85,7 +88,9 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::from_args();
-            args::configure_sentry();
+            // sentry makes this process multithreaded, and must be disabled
+            // for commands that use system calls which are bothered by this
+            if $sentry { args::configure_sentry() };
             args::configure_logging(opt.verbose);
             args::configure_spops(opt.verbose);
 
