@@ -24,19 +24,20 @@ Filesystem isolation, capture, and distribution.
 %setup -q -n %{name}-v%{version}
 
 %build
-mkdir -p ./build/bin
-gcc -lcap -o ./build/bin/spfs-enter spfs-enter/main.c
 dev toolchain install
 source ~/.bashrc
 dev env -- dev build spfs
 
 %install
 mkdir -p %{buildroot}/usr/bin
-install -p -m 755 %{_builddir}/%{name}-v%{version}/build/spfs/release/spfs %{buildroot}/usr/bin/
-install -p -m 755 %{_builddir}/%{name}-v%{version}/build/bin/spfs-enter %{buildroot}/usr/bin/
+for cmd in "spfs spfs-run spfs-shell spfs-enter"; do
+    install -p -m 755 %{_builddir}/%{name}-v%{version}/build/spfs/release/$cmd %{buildroot}/usr/bin/
+done
 
 %files
-%caps(cap_sys_chroot,cap_sys_admin+ep) /usr/bin/spfs
+/usr/bin/spfs
+/usr/bin/spfs-run
+/usr/bin/spfs-shell
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin+ep) /usr/bin/spfs-enter
 
 %post
