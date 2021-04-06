@@ -1,7 +1,8 @@
-version: 0.25.2
+version: 0.26.0
 release_notes: |
   * Convert spfs-enter command to rust
   * Externalize the run and shell commands
+  * Update init command to work for pre-baked environments
 
 toolchain:
   - kind: Rust
