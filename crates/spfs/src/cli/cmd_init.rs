@@ -10,8 +10,8 @@ use structopt::StructOpt;
 /// only be done from within the mount namespace.
 #[derive(StructOpt, Debug)]
 pub struct CmdInit {
-    #[structopt()]
-    runtime_root_dir: String,
+    #[structopt(long = "runtime-dir")]
+    runtime_root_dir: Option<String>,
     #[structopt(required = true)]
     cmd: Vec<OsString>,
 }
@@ -19,9 +19,17 @@ pub struct CmdInit {
 impl CmdInit {
     pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         tracing::debug!("initializing runtime environment");
-        let runtime = spfs::runtime::Runtime::new(&self.runtime_root_dir)?;
-        std::env::set_var("SPFS_RUNTIME", runtime.name());
-        let _handle = spfs::initialize_runtime()?;
+        let _handle = match &self.runtime_root_dir {
+            Some(root) => {
+                let runtime = spfs::runtime::Runtime::new(root)?;
+                std::env::set_var("SPFS_RUNTIME", runtime.name());
+                Some(spfs::initialize_runtime()?)
+            }
+            None => {
+                std::env::remove_var("SPFS_RUNTIME");
+                None
+            }
+        };
 
         exec_runtime_command(self.cmd.clone())
     }

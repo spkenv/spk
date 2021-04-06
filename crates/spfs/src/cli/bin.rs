@@ -96,10 +96,10 @@ pub enum Command {
     #[structopt(about = "Render the contents of an environment into any directory")]
     Render(cmd_render::CmdRender),
     #[structopt(
-        about = "Instantiate a raw runtime session",
+        about = "Initialize and run the environment for a rendered spfs filesytem",
         setting = structopt::clap::AppSettings::Hidden
     )]
-    InitRuntime(cmd_init::CmdInit),
+    Init(cmd_init::CmdInit),
 
     #[structopt(external_subcommand)]
     External(Vec<String>),
@@ -130,7 +130,7 @@ impl Opt {
             Command::Clean(cmd) => cmd.run(&config),
             Command::Read(cmd) => cmd.run(&config),
             Command::Render(cmd) => cmd.run(&config),
-            Command::InitRuntime(cmd) => cmd.run(&config),
+            Command::Init(cmd) => cmd.run(&config),
             Command::External(args) => run_external_subcommand(args.clone()),
         }
     }

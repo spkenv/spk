@@ -21,7 +21,8 @@ pub fn build_command_for_runtime(
         Some(spfs_exe) => {
             let mut spfs_args = vec![
                 spfs_exe.as_os_str().to_owned(),
-                "init-runtime".into(),
+                "init".into(),
+                "--runtime-root".into(),
                 runtime.root().into(),
                 "--".into(),
                 command,
