@@ -8,7 +8,6 @@ mod cmd_commit;
 mod cmd_diff;
 mod cmd_edit;
 mod cmd_info;
-mod cmd_init;
 mod cmd_layers;
 mod cmd_log;
 mod cmd_ls;
@@ -32,6 +31,7 @@ main!(Opt);
     version = spfs::VERSION,
     about = "Filesystem isolation, capture and distribution.",
     after_help = "EXTERNAL SUBCOMMANDS:\
+                  \n    init         run a command in the current spfs shell environment\
                   \n    run          run a command in an spfs environment\
                   \n    shell        create a new shell in an spfs environment\
                   \n    push         pull one or more object to the local repository\
@@ -91,11 +91,6 @@ pub enum Command {
     Read(cmd_read::CmdRead),
     #[structopt(about = "Render the contents of an environment into any directory")]
     Render(cmd_render::CmdRender),
-    #[structopt(
-        about = "Initialize and run the environment for a rendered spfs filesytem",
-        setting = structopt::clap::AppSettings::Hidden
-    )]
-    Init(cmd_init::CmdInit),
 
     #[structopt(external_subcommand)]
     External(Vec<String>),
@@ -124,7 +119,6 @@ impl Opt {
             Command::Clean(cmd) => cmd.run(&config),
             Command::Read(cmd) => cmd.run(&config),
             Command::Render(cmd) => cmd.run(&config),
-            Command::Init(cmd) => cmd.run(&config),
             Command::External(args) => run_external_subcommand(args.clone()),
         }
     }

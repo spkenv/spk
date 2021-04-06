@@ -2,14 +2,16 @@ use spfs::Result;
 use std::ffi::OsString;
 use structopt::StructOpt;
 
-/// This is a 'hidden' command.
-///
-/// This command is the entry point to new environments, and
-/// is executed ahead of any desired process to setup the
-/// environment variables and other configuration that can
-/// only be done from within the mount namespace.
+#[macro_use]
+mod args;
+
+main!(CmdInit);
+
 #[derive(StructOpt, Debug)]
 pub struct CmdInit {
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    pub verbose: usize,
+
     #[structopt(long = "runtime-dir")]
     runtime_root_dir: Option<String>,
     #[structopt(required = true)]

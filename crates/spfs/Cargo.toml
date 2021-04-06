@@ -31,6 +31,9 @@ path = "src/cli/cmd_pull.rs"
 [[bin]]
 name = "spfs-push"
 path = "src/cli/cmd_push.rs"
+[[bin]]
+name = "spfs-init"
+path = "src/cli/cmd_init.rs"
 
 [dependencies]
 capabilities = "0.3.0"
