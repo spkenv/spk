@@ -490,7 +490,7 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
 
     for pyver in ("2", "2.7", "2.7.5", "3", "3.7", "3.7.3"):
         solver.reset()
-        solver.update_options(api.OptionMap({"python": pyver}))
+        solver.add_request(api.VarRequest("python", pyver))
         solver.add_repository(repo)
         solver.add_request("vnp3")
         try:
@@ -573,10 +573,10 @@ def test_solver_build_from_source() -> None:
     )
 
     solver = Solver()
+    solver.add_repository(repo)
     # the new option value should disqulify the existing build
     # but a new one should be generated for this set of options
-    solver.update_options(api.OptionMap(debug="on"))
-    solver.add_repository(repo)
+    solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
 
     try:
@@ -589,8 +589,8 @@ def test_solver_build_from_source() -> None:
     ).is_source_build(), "Should set unbuilt spec as source"
 
     solver.reset()
-    solver.update_options(api.OptionMap(debug="on"))
     solver.add_repository(repo)
+    solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
     solver.set_binary_only(True)
     with pytest.raises(SolverError):
@@ -628,10 +628,10 @@ def test_solver_build_from_source_unsolvable(
         api.OptionMap(gcc="4.8"),
     )
 
+    solver.add_repository(repo)
     # the new option value should disqualify the existing build
     # and there is no 6.3 that can be resolved for this request
-    solver.update_options(api.OptionMap(gcc="6.3"))
-    solver.add_repository(repo)
+    solver.add_request(api.VarRequest("gcc", "6.3"))
     solver.add_request("my-tool")
 
     with pytest.raises(SolverError):
@@ -772,8 +772,8 @@ def test_solver_build_from_source_deprecated(
     )
     repo._specs["my-tool"]["1.2.0"].deprecated = True
 
-    solver.update_options(api.OptionMap(debug="on"))
     solver.add_repository(repo)
+    solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
 
     with pytest.raises(SolverError):
@@ -968,11 +968,10 @@ def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) ->
     # - the solver resolves versions that do define the option
 
     repo = make_repo([{"pkg": "my-lib/2.0.0"}])
+    solver.add_repository(repo)
 
     # this option is specific to the my-lib package and is not known by the package
-    options = api.OptionMap({"my-lib.something": "value"})
-    solver.update_options(options)
-    solver.add_repository(repo)
+    solver.add_request(api.VarRequest("my-lib.something", "value"))
     solver.add_request("my-lib")
 
     with pytest.raises(SolverError):
@@ -1106,3 +1105,57 @@ def test_solver_var_requirements_unresolve(
     assert (
         solution.get("python").spec.pkg.version == "2.7.5"
     ), "should re-resolve python"
+
+
+def test_solver_build_options_dont_affect_compat(
+    solver: Union[Solver, legacy.Solver]
+) -> None:
+
+    # test when a package is resolved with some build option
+    #  - that option can conflict with another packages build options
+    #  - as long as there is no explicit requirement on that option's value
+
+    dep_v1 = api.Spec.from_dict({"pkg": "build-dep/1.0.0"})
+    dep_v2 = api.Spec.from_dict({"pkg": "build-dep/2.0.0"})
+
+    a_spec = {
+        "pkg": "pkga/1.0.0",
+        "build": {"options": [{"pkg": "build-dep/=1.0.0"}, {"var": "debug/on"}]},
+    }
+
+    b_spec = {
+        "pkg": "pkgb/1.0.0",
+        "build": {"options": [{"pkg": "build-dep/=2.0.0"}, {"var": "debug/off"}]},
+    }
+
+    repo = make_repo(
+        [
+            make_build(a_spec.copy(), [dep_v1]),
+            make_build(b_spec.copy(), [dep_v2]),
+        ]
+    )
+    repo.publish_spec(api.Spec.from_dict(a_spec))
+    repo.publish_spec(api.Spec.from_dict(b_spec))
+
+    solver.add_repository(repo)
+    # a gets resolved and adds options for debug/on and build-dep/1
+    # to the set of options in the solver
+    solver.add_request("pkga")
+    # b is not affected and can still be resolved
+    solver.add_request("pkgb")
+
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
+
+    solver.reset()
+    solver.add_repository(repo)
+    solver.add_repository(repo)
+    solver.add_request("pkga")
+    solver.add_request("pkgb")
+    # this time the explicit request will cause a failure
+    solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
+    with pytest.raises(SolverError):
+        solution = solver.solve()
+        print(io.format_resolve(solver, verbosity=100))

@@ -70,9 +70,13 @@ class OptionsValidator(Validator):
     """Ensures that a package is compatible with all defined and requested options."""
 
     def validate(self, state: graph.State, spec: api.Spec) -> api.Compatibility:
-        compat = spec.build.validate_options(spec.pkg.name, state.get_option_map())
+
+        requested_options = api.OptionMap()
+        for request in state.var_requests:
+            requested_options[request.var] = request.value
+        compat = spec.build.validate_options(spec.pkg.name, requested_options)
         if not compat:
-            return compat
+            return api.Compatibility(f"doesn't satisfy requested option: {compat}")
 
         return api.COMPATIBLE
 
