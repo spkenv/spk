@@ -11,7 +11,7 @@ use spfs::prelude::*;
     about = "Run a program in a configured spfs environment"
 )]
 pub struct CmdRun {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = super::args::SPFS_VERBOSITY)]
     pub verbose: usize,
     #[structopt(
         short = "p",
@@ -55,13 +55,12 @@ impl CmdRun {
                 let env_spec = spfs::tracking::parse_env_spec(reference)?;
                 for target in env_spec {
                     let target = target.to_string();
-                    let obj = if self.pull || !repo.has_ref(target.as_str()) {
+                    if self.pull || !repo.has_ref(target.as_str()) {
                         tracing::info!(reference = ?target, "pulling target ref");
                         spfs::pull_ref(target.as_str())?
-                    } else {
-                        repo.read_ref(target.as_str())?
-                    };
+                    }
 
+                    let obj = repo.read_ref(target.as_str())?;
                     runtime.push_digest(&obj.digest()?)?;
                 }
             }

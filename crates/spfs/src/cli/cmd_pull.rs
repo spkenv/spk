@@ -2,8 +2,16 @@ use structopt::StructOpt;
 
 use spfs;
 
+#[macro_use]
+mod args;
+
+main!(CmdPull);
+
 #[derive(Debug, StructOpt)]
+#[structopt(about = "pull one or more objects to the local repository")]
 pub struct CmdPull {
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    pub verbose: usize,
     #[structopt(
         long = "remote",
         short = "r",

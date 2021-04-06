@@ -15,8 +15,6 @@ mod cmd_ls;
 mod cmd_ls_tags;
 mod cmd_migrate;
 mod cmd_platforms;
-mod cmd_pull;
-mod cmd_push;
 mod cmd_read;
 mod cmd_render;
 mod cmd_reset;
@@ -34,12 +32,14 @@ main!(Opt);
     version = spfs::VERSION,
     about = "Filesystem isolation, capture and distribution.",
     after_help = "EXTERNAL SUBCOMMANDS:\
-                  \n    run             run a command in an spfs environment\
-                  \n    shell           create a new shell in an spfs environment\
+                  \n    run          run a command in an spfs environment\
+                  \n    shell        create a new shell in an spfs environment\
+                  \n    push         pull one or more object to the local repository\
+                  \n    pull         push one or more objects to a remote repository\
                   "
 )]
 pub struct Opt {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
     pub verbose: usize,
     #[structopt(short = "h", long = "help", about = "Prints help information")]
     pub help: bool,
@@ -61,10 +61,6 @@ pub enum Command {
     Reset(cmd_reset::CmdReset),
     #[structopt(about = "tag and object")]
     Tag(cmd_tag::CmdTag),
-    #[structopt(about = "push one or more objects to a remote repository")]
-    Push(cmd_push::CmdPush),
-    #[structopt(about = "pull one or more objects to the local repository")]
-    Pull(cmd_pull::CmdPull),
     #[structopt(about = "list the current set of spfs runtimes")]
     Runtimes(cmd_runtimes::CmdRuntimes),
     #[structopt(about = "list all layers in an spfs repository")]
@@ -113,8 +109,6 @@ impl Opt {
             Command::Commit(cmd) => cmd.run(&config),
             Command::Reset(cmd) => cmd.run(&config),
             Command::Tag(cmd) => cmd.run(&config),
-            Command::Push(cmd) => cmd.run(&config),
-            Command::Pull(cmd) => cmd.run(&config),
             Command::Runtimes(cmd) => cmd.run(&config),
             Command::Layers(cmd) => cmd.run(&config),
             Command::Platforms(cmd) => cmd.run(&config),

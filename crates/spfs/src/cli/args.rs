@@ -2,6 +2,8 @@ use sentry::IntoDsn;
 
 use spfs;
 
+pub static SPFS_VERBOSITY: &str = "SPFS_VERBOSITY";
+
 pub fn configure_sentry() {
     let mut opts = sentry::ClientOptions {
         dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
@@ -48,21 +50,17 @@ pub fn configure_spops(_verbosity: usize) {
 }
 
 pub fn configure_logging(verbosity: usize) {
-    match verbosity {
-        0 => {
-            if std::env::var("SPFS_DEBUG").is_ok() {
-                std::env::set_var("RUST_LOG", "spfs=debug");
-            } else if std::env::var("RUST_LOG").is_err() {
-                std::env::set_var("RUST_LOG", "spfs=info");
-            }
-        }
-        1 => std::env::set_var("RUST_LOG", "spfs=debug"),
-        _ => std::env::set_var("RUST_LOG", "spfs=trace"),
-    }
-
+    std::env::set_var(SPFS_VERBOSITY, verbosity.to_string());
     use tracing_subscriber::layer::SubscriberExt;
-    let filter = tracing_subscriber::filter::EnvFilter::from_default_env();
-    let registry = tracing_subscriber::Registry::default().with(filter);
+    let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
+    let level_filter = match verbosity {
+        0 => tracing_subscriber::filter::LevelFilter::INFO,
+        1 => tracing_subscriber::filter::LevelFilter::DEBUG,
+        _ => tracing_subscriber::filter::LevelFilter::TRACE,
+    };
+    let registry = tracing_subscriber::Registry::default()
+        .with(env_filter)
+        .with(level_filter);
     let mut fmt_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .without_time();

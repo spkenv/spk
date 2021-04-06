@@ -29,29 +29,19 @@ pub fn push_ref<R: AsRef<str>>(
 ///
 /// Errors:
 /// - If the remote reference could not be found
-pub fn pull_ref<R: AsRef<str>>(reference: R) -> Result<graph::Object> {
-    let config = load_config()?;
-    let mut local = config.get_repository()?.into();
-    let names = config.list_remote_names();
-    for name in names {
-        tracing::debug!(
-            reference = %reference.as_ref(),
-            remote = %name,
-            "looking for reference"
-        );
-        let remote = match config.get_remote(&name) {
-            Ok(remote) => remote,
-            Err(err) => {
-                tracing::warn!(remote = %name, "failed to load remote repository");
-                tracing::debug!(" > {:?}", err);
-                continue;
-            }
-        };
-        if remote.has_ref(reference.as_ref()) {
-            return sync_ref(reference, &remote, &mut local);
-        }
+pub fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
+    let pull_cmd = match super::which_spfs("pull") {
+        Some(cmd) => cmd,
+        None => return Err("'spfs-pull' command not found in environment".into()),
+    };
+    let mut cmd = std::process::Command::new(pull_cmd);
+    cmd.arg(reference.as_ref());
+    let status = cmd.status()?;
+    if let Some(0) = status.code() {
+        Ok(())
+    } else {
+        Err("pull failed".into())
     }
-    Err(graph::UnknownReferenceError::new(reference))
 }
 
 pub fn sync_ref<R: AsRef<str>>(

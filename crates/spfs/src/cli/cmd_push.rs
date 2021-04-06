@@ -2,8 +2,16 @@ use structopt::StructOpt;
 
 use spfs;
 
+#[macro_use]
+mod args;
+
+main!(CmdPush);
+
 #[derive(Debug, StructOpt)]
+#[structopt(about = "push one or more objects to a remote repository")]
 pub struct CmdPush {
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    pub verbose: usize,
     #[structopt(
         long = "remote",
         short = "r",
