@@ -269,12 +269,12 @@ class VarOpt(Option):
             if not value or assigned == value:
                 return COMPATIBLE
             return Compatibility(
-                f"Incompatible option '{self.var}': wanted '{value}', got '{assigned}'"
+                f"incompatible option, wanted '{value}', got '{assigned}'"
             )
 
         if self.choices and value not in self.choices:
             return Compatibility(
-                f"Invalid value '{value}' for option '{self.var}', must be one of {self.choices}"
+                f"invalid value '{value}', must be one of {self.choices}"
             )
 
         return COMPATIBLE

@@ -199,27 +199,6 @@ class VarRequest(Request):
         """Return the canonical name of this requirement."""
         return self.var
 
-    def is_satisfied_by(self, options: OptionMap) -> Compatibility:
-        """Return true if the given options satisfy this request."""
-
-        exact = options.get(self.var)
-        if exact is not None and exact != self.value:
-            return Compatibility(
-                f"incompatible build option '{self.var}': '{exact}' != '{self.value}'"
-            )
-
-        if "." not in self.var:
-            return COMPATIBLE
-
-        _, name = self.var.split(".", 1)
-        global_value = options.get(name)
-        if global_value is not None and global_value != self.value:
-            return Compatibility(
-                f"incompatible global build option '{name}': '{global_value}' != '{self.value}'"
-            )
-
-        return COMPATIBLE
-
     def clone(self) -> "VarRequest":
         """Return a copy of this request instance."""
         return VarRequest.from_dict(self.to_dict())
