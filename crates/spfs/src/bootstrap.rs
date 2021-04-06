@@ -1,4 +1,4 @@
-use super::resolve::{resolve_overlay_dirs, which};
+use super::resolve::{resolve_overlay_dirs, which, which_spfs};
 use super::status::{active_runtime, compute_runtime_manifest};
 use crate::{runtime, Result};
 use std::ffi::{OsStr, OsString};
@@ -16,12 +16,11 @@ pub fn build_command_for_runtime(
     command: OsString,
     args: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
-    match which("spfs") {
-        None => Err("'spfs' not found in PATH".into()),
-        Some(spfs_exe) => {
+    match which_spfs("init") {
+        None => Err("'spfs-init' not found in PATH".into()),
+        Some(spfs_init_exe) => {
             let mut spfs_args = vec![
-                spfs_exe.as_os_str().to_owned(),
-                "init".into(),
+                spfs_init_exe.as_os_str().to_owned(),
                 "--runtime-root".into(),
                 runtime.root().into(),
                 "--".into(),
@@ -107,7 +106,7 @@ fn build_spfs_enter_command(
     command: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
     let config = crate::load_config()?;
-    let exe = match which("spfs-enter") {
+    let exe = match which_spfs("enter") {
         None => return Err("'spfs-enter' not found in PATH".into()),
         Some(exe) => exe,
     };
