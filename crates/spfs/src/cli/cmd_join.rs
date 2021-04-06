@@ -2,8 +2,16 @@ use spfs::Result;
 use std::ffi::OsString;
 use structopt::StructOpt;
 
+#[macro_use]
+mod args;
+
+main!(CmdJoin, sentry = false);
+
 #[derive(StructOpt, Debug)]
+#[structopt(about = "enter an existing runtime that is still active")]
 pub struct CmdJoin {
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
+    pub verbose: usize,
     #[structopt(about = "The name or id of the runtime to join")]
     runtime: String,
     #[structopt(about = "Optional command to run in the environment, spawns a shell if not given")]

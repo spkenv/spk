@@ -9,7 +9,6 @@ mod cmd_diff;
 mod cmd_edit;
 mod cmd_info;
 mod cmd_init;
-mod cmd_join;
 mod cmd_layers;
 mod cmd_log;
 mod cmd_ls;
@@ -68,8 +67,6 @@ pub enum Command {
     Pull(cmd_pull::CmdPull),
     #[structopt(about = "list the current set of spfs runtimes")]
     Runtimes(cmd_runtimes::CmdRuntimes),
-    #[structopt(about = "enter an existing runtime that is still active")]
-    Join(cmd_join::CmdJoin),
     #[structopt(about = "list all layers in an spfs repository")]
     Layers(cmd_layers::CmdLayers),
     #[structopt(about = "list all platforms in an spfs repository")]
@@ -119,7 +116,6 @@ impl Opt {
             Command::Push(cmd) => cmd.run(&config),
             Command::Pull(cmd) => cmd.run(&config),
             Command::Runtimes(cmd) => cmd.run(&config),
-            Command::Join(cmd) => cmd.run(&config),
             Command::Layers(cmd) => cmd.run(&config),
             Command::Platforms(cmd) => cmd.run(&config),
             Command::Tags(cmd) => cmd.run(&config),

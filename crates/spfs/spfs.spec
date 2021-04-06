@@ -30,14 +30,17 @@ dev env -- dev build spfs
 
 %install
 mkdir -p %{buildroot}/usr/bin
-for cmd in "spfs spfs-run spfs-shell spfs-enter"; do
-    install -p -m 755 %{_builddir}/%{name}-v%{version}/build/spfs/release/$cmd %{buildroot}/usr/bin/
+for cmd in build/spfs/release/spfs build/spfs/release/spfs-*; do
+    # skip debug info for commands
+    if [[ $cmd =~ \.d$ ]]; then continue; fi
+    install -p -m 755 %{_builddir}/%{name}-v%{version}/$cmd %{buildroot}/usr/bin/
 done
 
 %files
 /usr/bin/spfs
 /usr/bin/spfs-run
 /usr/bin/spfs-shell
+%caps(cap_sys_chroot,cap_sys_admin+ep) /usr/bin/spfs-join
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin+ep) /usr/bin/spfs-enter
 
 %post

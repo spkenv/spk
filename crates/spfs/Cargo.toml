@@ -22,6 +22,9 @@ path = "src/cli/cmd_shell.rs"
 [[bin]]
 name = "spfs-enter"
 path = "src/cli/cmd_enter.rs"
+[[bin]]
+name = "spfs-join"
+path = "src/cli/cmd_join.rs"
 
 [dependencies]
 capabilities = "0.3.0"
