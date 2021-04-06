@@ -140,8 +140,18 @@ fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
             }
             Some(c) => c,
         };
+
+        // either in the PATH or next to the current binary
         let command = format!("spfs-{}", command);
-        let command_cstr = match std::ffi::CString::new(command.clone()) {
+        let cmd_path = match spfs::which(command.as_str()) {
+            Some(cmd) => cmd,
+            None => {
+                let mut p = std::env::current_exe()?;
+                p.set_file_name(&command);
+                p
+            }
+        };
+        let command_cstr = match std::ffi::CString::new(cmd_path.to_string_lossy().to_string()) {
             Ok(s) => s,
             Err(_) => {
                 tracing::error!("Invalid subcommand, not a valid string");
