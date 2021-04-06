@@ -3,10 +3,6 @@ use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers, which};
 use crate::{prelude::*, runtime, tracking, Error, Result};
 use std::ffi::OsString;
 
-#[cfg(test)]
-#[path = "./status_test.rs"]
-mod status_test;
-
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 
 #[derive(Debug)]
