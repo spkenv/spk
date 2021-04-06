@@ -32,17 +32,23 @@ main!(Opt);
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "spfs",
-    about = "Filesystem isolation, capture and distribution."
+    version = spfs::VERSION,
+    about = "Filesystem isolation, capture and distribution.",
+    after_help = "EXTERNAL SUBCOMMANDS:\
+                  \n    run             run a command in an spfs environment\
+                  \n    shell           create a new shell in an spfs environment\
+                  "
 )]
 pub struct Opt {
     #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
     pub verbose: usize,
+    #[structopt(short = "h", long = "help", about = "Prints help information")]
+    pub help: bool,
     #[structopt(subcommand)]
     pub cmd: Command,
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(setting = structopt::clap::AppSettings::ColoredHelp)]
 #[structopt(setting = structopt::clap::AppSettings::DontDelimitTrailingValues)]
 #[structopt(setting = structopt::clap::AppSettings::TrailingVarArg)]
 pub enum Command {
@@ -78,9 +84,9 @@ pub enum Command {
     Search(cmd_search::CmdSearch),
     #[structopt(about = "compare two spfs file system states")]
     Diff(cmd_diff::CmdDiff),
-    #[structopt(about = "list tags by their path", aliases = &["list-tags"])]
+    #[structopt(about = "list tags by their path", visible_aliases = &["list-tags"])]
     LsTags(cmd_ls_tags::CmdLsTags),
-    #[structopt(about = "list the contents of a committed directory", aliases = &["list-dir", "list"])]
+    #[structopt(about = "list the contents of a committed directory", visible_aliases = &["list-dir", "list"])]
     Ls(cmd_ls::CmdLs),
     #[structopt(about = "migrate the data from and older repository format to the latest one")]
     Migrate(cmd_migrate::CmdMigrate),
@@ -88,11 +94,14 @@ pub enum Command {
     Check(cmd_check::CmdCheck),
     #[structopt(about = "clean the repository storage of untracked data")]
     Clean(cmd_clean::CmdClean),
-    #[structopt(about = "output the contents of a stored payload to stdout", aliases = &["read-file", "cat", "cat-file"])]
+    #[structopt(about = "output the contents of a stored payload to stdout", visible_aliases = &["read-file", "cat", "cat-file"])]
     Read(cmd_read::CmdRead),
     #[structopt(about = "Render the contents of an environment into any directory")]
     Render(cmd_render::CmdRender),
-    #[structopt(about = "[internal use only] instantiates a raw runtime session")]
+    #[structopt(
+        about = "Instantiate a raw runtime session",
+        setting = structopt::clap::AppSettings::Hidden
+    )]
     InitRuntime(cmd_init::CmdInit),
 
     #[structopt(external_subcommand)]
