@@ -30,7 +30,7 @@ impl<'t> Hasher<'t> {
     pub fn digest(self) -> Digest {
         let ring_digest = self.ctx.finish();
         let bytes = match ring_digest.as_ref().try_into() {
-            Err(err) => panic!(format!("internal error: {:?}", err)),
+            Err(err) => panic!("internal error: {:?}", err),
             Ok(b) => b,
         };
         Digest(bytes)
