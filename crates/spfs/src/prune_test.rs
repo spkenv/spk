@@ -135,7 +135,7 @@ fn test_prune_tags(tmprepo: TempRepo) {
             tags.insert(year, tag);
         }
         tags
-    };
+    }
 
     let tags = reset(&mut tmprepo);
     prune_tags(

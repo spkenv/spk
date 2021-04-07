@@ -36,6 +36,11 @@ impl Error {
         err.wrap(prefix)
     }
 
+    pub fn wrap_nix<E: Into<String>>(err: nix::Error, prefix: E) -> Error {
+        let err = Self::from(err);
+        err.wrap(prefix)
+    }
+
     pub fn wrap<E: Into<String>>(&self, prefix: E) -> Error {
         let msg = format!("{}: {:?}", prefix.into(), self);
         match self.raw_os_error() {

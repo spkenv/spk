@@ -6,74 +6,39 @@ use spfs;
 use spfs::prelude::*;
 
 #[derive(Debug, StructOpt)]
+#[structopt(
+    name = "spfs-run",
+    about = "Run a program in a configured spfs environment"
+)]
 pub struct CmdRun {
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    pub verbose: usize,
     #[structopt(
         short = "p",
         long = "pull",
         help = "try to pull the latest iteration of each tag even if it exists locally"
     )]
-    pull: bool,
+    pub pull: bool,
     #[structopt(
         short = "e",
         long = "edit",
         help = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
     )]
-    edit: bool,
+    pub edit: bool,
     #[structopt(
         short = "n",
         long = "name",
         about = "provide a name for this runtime to make it easier to identify"
     )]
-    name: Option<String>,
+    pub name: Option<String>,
     #[structopt(
         help = "The tag or id of the desired runtime, use '-' or an empty string to request an empty environment"
     )]
-    reference: String,
+    pub reference: String,
     #[structopt()]
-    cmd: OsString,
+    pub cmd: OsString,
     #[structopt()]
-    args: Vec<OsString>,
-}
-
-#[derive(Debug, StructOpt)]
-pub struct CmdShell {
-    #[structopt(
-        short = "p",
-        long = "pull",
-        about = "try to pull the latest iteration of each tag even if it exists locally"
-    )]
-    pull: bool,
-    #[structopt(
-        short = "e",
-        long = "edit",
-        about = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
-    )]
-    edit: bool,
-    #[structopt(
-        short = "n",
-        long = "name",
-        about = "provide a name for this runtime to make it easier to identify"
-    )]
-    name: Option<String>,
-    #[structopt(
-        name = "REF",
-        about = "The tag or id of the desired runtime, use '-' or nothing to request an empty environment"
-    )]
-    reference: Option<String>,
-}
-
-impl CmdShell {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut run_cmd = CmdRun {
-            pull: self.pull,
-            edit: self.edit,
-            name: self.name.clone(),
-            reference: self.reference.clone().unwrap_or_else(|| "".into()),
-            cmd: Default::default(),
-            args: Default::default(),
-        };
-        run_cmd.run(config)
-    }
+    pub args: Vec<OsString>,
 }
 
 impl CmdRun {
@@ -90,13 +55,12 @@ impl CmdRun {
                 let env_spec = spfs::tracking::parse_env_spec(reference)?;
                 for target in env_spec {
                     let target = target.to_string();
-                    let obj = if self.pull || !repo.has_ref(target.as_str()) {
+                    if self.pull || !repo.has_ref(target.as_str()) {
                         tracing::info!(reference = ?target, "pulling target ref");
                         spfs::pull_ref(target.as_str())?
-                    } else {
-                        repo.read_ref(target.as_str())?
-                    };
+                    }
 
+                    let obj = repo.read_ref(target.as_str())?;
                     runtime.push_digest(&obj.digest()?)?;
                 }
             }

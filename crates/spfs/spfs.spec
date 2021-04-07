@@ -1,5 +1,5 @@
 Name: spfs
-Version: 0.25.1
+Version: 0.26.0
 Release: 1
 Summary: Filesystem isolation, capture, and distribution.
 License: NONE
@@ -24,19 +24,26 @@ Filesystem isolation, capture, and distribution.
 %setup -q -n %{name}-v%{version}
 
 %build
-mkdir -p ./build/bin
-gcc -lcap -o ./build/bin/spfs-enter spfs-enter/main.c
 dev toolchain install
 source ~/.bashrc
 dev env -- dev build spfs
 
 %install
 mkdir -p %{buildroot}/usr/bin
-install -p -m 755 %{_builddir}/%{name}-v%{version}/build/spfs/release/spfs %{buildroot}/usr/bin/
-install -p -m 755 %{_builddir}/%{name}-v%{version}/build/bin/spfs-enter %{buildroot}/usr/bin/
+for cmd in build/spfs/release/spfs build/spfs/release/spfs-*; do
+    # skip debug info for commands
+    if [[ $cmd =~ \.d$ ]]; then continue; fi
+    install -p -m 755 %{_builddir}/%{name}-v%{version}/$cmd %{buildroot}/usr/bin/
+done
 
 %files
-%caps(cap_sys_chroot,cap_sys_admin+ep) /usr/bin/spfs
+/usr/bin/spfs
+/usr/bin/spfs-run
+/usr/bin/spfs-shell
+/usr/bin/spfs-push
+/usr/bin/spfs-pull
+/usr/bin/spfs-init
+%caps(cap_sys_chroot,cap_sys_admin+ep) /usr/bin/spfs-join
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin+ep) /usr/bin/spfs-enter
 
 %post

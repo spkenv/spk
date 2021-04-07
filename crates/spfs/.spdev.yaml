@@ -1,6 +1,9 @@
-version: 0.25.1
+version: 0.26.0
 release_notes: |
-  * Fix bug where render storage was not fully updated to be safe and user-based
+  * Convert spfs-enter command to rust
+  * Externalize the run and shell commands
+  * Update init command to work for pre-baked environments (run activation scripts, etc)
+  * Update enter command to take a runtime rather than pre-calculated argument lists
 
 toolchain:
   - kind: Rust

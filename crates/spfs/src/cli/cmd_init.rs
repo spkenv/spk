@@ -2,16 +2,18 @@ use spfs::Result;
 use std::ffi::OsString;
 use structopt::StructOpt;
 
-/// This is a 'hidden' command.
-///
-/// This command is the entry point to new environments, and
-/// is executed ahead of any desired process to setup the
-/// environment variables and other configuration that can
-/// only be done from within the mount namespace.
+#[macro_use]
+mod args;
+
+main!(CmdInit);
+
 #[derive(StructOpt, Debug)]
 pub struct CmdInit {
-    #[structopt()]
-    runtime_root_dir: String,
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    pub verbose: usize,
+
+    #[structopt(long = "runtime-dir")]
+    runtime_root_dir: Option<String>,
     #[structopt(required = true)]
     cmd: Vec<OsString>,
 }
@@ -19,9 +21,17 @@ pub struct CmdInit {
 impl CmdInit {
     pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         tracing::debug!("initializing runtime environment");
-        let runtime = spfs::runtime::Runtime::new(&self.runtime_root_dir)?;
-        std::env::set_var("SPFS_RUNTIME", runtime.name());
-        let _handle = spfs::initialize_runtime()?;
+        let _handle = match &self.runtime_root_dir {
+            Some(root) => {
+                let runtime = spfs::runtime::Runtime::new(root)?;
+                std::env::set_var("SPFS_RUNTIME", runtime.name());
+                Some(spfs::runtime::OwnedRuntime::upgrade(runtime)?)
+            }
+            None => {
+                std::env::remove_var("SPFS_RUNTIME");
+                None
+            }
+        };
 
         exec_runtime_command(self.cmd.clone())
     }
@@ -38,5 +48,6 @@ fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
     tracing::debug!(?cmd);
     let mut proc = std::process::Command::new(cmd[0].clone());
     proc.args(&cmd[1..]);
+    tracing::debug!("{:?}", proc);
     Ok(proc.status()?.code().unwrap_or(1))
 }

@@ -1,11 +1,6 @@
-use super::config::load_config;
-use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers, which};
-use crate::{prelude::*, runtime, tracking, Error, Result};
-use std::ffi::OsString;
-
-#[cfg(test)]
-#[path = "./status_test.rs"]
-mod status_test;
+use super::config::{load_config, Config};
+use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers};
+use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 
@@ -49,9 +44,10 @@ pub fn make_active_runtime_editable() -> Result<()> {
 
 /// Remount the given runtime as configured.
 pub fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
-    let (cmd, args) = build_spfs_remount_command(rt)?;
+    let (cmd, args) = bootstrap::build_spfs_remount_command(rt)?;
     let mut cmd = std::process::Command::new(cmd);
     cmd.args(&args);
+    tracing::debug!("{:?}", cmd);
     let res = cmd.status()?;
     if res.code() != Some(0) {
         Err("Failed to re-mount runtime filesystem".into())
@@ -85,29 +81,55 @@ pub fn active_runtime() -> Result<runtime::Runtime> {
     storage.read_runtime(name)
 }
 
-/// Initialize the current spfs runtime.
-pub fn initialize_runtime() -> Result<runtime::OwnedRuntime> {
-    let rt = active_runtime()?;
-    runtime::OwnedRuntime::upgrade(rt)
+/// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
+pub fn reinitialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
+    let dirs = resolve_overlay_dirs(&rt)?;
+    tracing::debug!("computing runtime manifest");
+    let manifest = compute_runtime_manifest(&rt)?;
+
+    let tmpfs_opts = config
+        .filesystem
+        .tmpfs_size
+        .as_ref()
+        .map(|size| format!("size={}", size));
+
+    let original = env::become_root()?;
+    env::ensure_mounts_already_exist()?;
+    env::unmount_env()?;
+    env::unmount_runtime()?;
+    env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
+    env::setup_runtime()?;
+    env::unlock_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
+    env::mount_env(&dirs)?;
+    env::mask_files(&manifest, original.uid)?;
+    env::set_runtime_lock(rt.is_editable(), None)?;
+    env::become_original_user(original)?;
+    env::drop_all_capabilities()?;
+    Ok(())
 }
 
-fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<(OsString, Vec<OsString>)> {
-    let exe = match which("spfs-enter") {
-        Some(exe) => exe,
-        None => return Err("'spfs-enter' not found in PATH".into()),
-    };
+/// Initialize the current runtime as rt.
+pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
+    let dirs = resolve_overlay_dirs(&rt)?;
+    tracing::debug!("computing runtime manifest");
+    let manifest = compute_runtime_manifest(&rt)?;
 
-    let mut args = vec![OsString::from("-r")];
+    let tmpfs_opts = config
+        .filesystem
+        .tmpfs_size
+        .as_ref()
+        .map(|size| format!("size={}", size));
 
-    let overlay_dirs = resolve_overlay_dirs(rt)?;
-    for dirpath in overlay_dirs {
-        args.push("-d".into());
-        args.push(dirpath.into());
-    }
-
-    if rt.is_editable() {
-        args.push("-e".into())
-    }
-
-    Ok((exe.into(), args))
+    env::enter_mount_namespace()?;
+    let original = env::become_root()?;
+    env::privatize_existing_mounts()?;
+    env::ensure_mount_targets_exist()?;
+    env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
+    env::setup_runtime()?;
+    env::mount_env(&dirs)?;
+    env::mask_files(&manifest, original.uid)?;
+    env::set_runtime_lock(rt.is_editable(), None)?;
+    env::become_original_user(original)?;
+    env::drop_all_capabilities()?;
+    Ok(())
 }

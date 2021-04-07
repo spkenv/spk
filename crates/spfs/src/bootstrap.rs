@@ -1,5 +1,5 @@
-use super::resolve::{resolve_overlay_dirs, which};
-use super::status::{active_runtime, compute_runtime_manifest};
+use super::resolve::{which, which_spfs};
+use super::status::active_runtime;
 use crate::{runtime, Result};
 use std::ffi::{OsStr, OsString};
 
@@ -16,12 +16,12 @@ pub fn build_command_for_runtime(
     command: OsString,
     args: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
-    match which("spfs") {
-        None => Err("'spfs' not found in PATH".into()),
-        Some(spfs_exe) => {
+    match which_spfs("init") {
+        None => Err("'spfs-init' not found in PATH".into()),
+        Some(spfs_init_exe) => {
             let mut spfs_args = vec![
-                spfs_exe.as_os_str().to_owned(),
-                "init-runtime".into(),
+                spfs_init_exe.as_os_str().to_owned(),
+                "--runtime-dir".into(),
                 runtime.root().into(),
                 "--".into(),
                 command,
@@ -101,45 +101,30 @@ pub fn build_shell_initialized_command(
     Ok(cmd)
 }
 
-fn build_spfs_enter_command(
+pub(crate) fn build_spfs_remount_command(
     rt: &runtime::Runtime,
-    command: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
-    let config = crate::load_config()?;
-    let exe = match which("spfs-enter") {
+    let exe = match which_spfs("enter") {
         None => return Err("'spfs-enter' not found in PATH".into()),
         Some(exe) => exe,
     };
 
-    let mut args = vec![];
+    Ok((
+        exe.into(),
+        vec!["--remount".into(), rt.root().into(), "--".into()],
+    ))
+}
 
-    let overlay_dirs = resolve_overlay_dirs(&rt)?;
-    for dirpath in overlay_dirs {
-        args.push("-d".into());
-        args.push(dirpath.into());
-    }
+fn build_spfs_enter_command(
+    rt: &runtime::Runtime,
+    command: &mut Vec<OsString>,
+) -> Result<(OsString, Vec<OsString>)> {
+    let exe = match which_spfs("enter") {
+        None => return Err("'spfs-enter' not found in PATH".into()),
+        Some(exe) => exe,
+    };
 
-    if rt.is_editable() {
-        args.push("-e".into());
-    }
-    if let Some(size) = config.filesystem.tmpfs_size {
-        args.push("-t".into());
-        args.push(format!("size={}", size).into());
-    }
-
-    tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(&rt)?;
-
-    tracing::debug!("finding files that should be masked");
-    for node in manifest.walk_abs("/spfs") {
-        if !node.entry.kind.is_mask() {
-            continue;
-        }
-        args.push("-m".into());
-        args.push(node.path.to_path("").into());
-    }
-
-    args.push("--".into());
+    let mut args = vec![rt.root().into(), "--".into()];
     args.append(command);
     Ok((exe.into(), args))
 }

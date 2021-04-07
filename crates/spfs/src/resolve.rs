@@ -170,11 +170,27 @@ pub fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
     Ok(layers)
 }
 
-pub fn which(name: &str) -> Option<std::path::PathBuf> {
+/// Find an spfs-* subcommand in the current environment
+pub fn which_spfs<S: AsRef<str>>(subcommand: S) -> Option<std::path::PathBuf> {
+    let command = format!("spfs-{}", subcommand.as_ref());
+    if let Some(path) = which(&command) {
+        return Some(path);
+    }
+    if let Ok(mut path) = std::env::current_exe() {
+        path.set_file_name(&command);
+        if is_exe(&path) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Find a command
+pub fn which<S: AsRef<str>>(name: S) -> Option<std::path::PathBuf> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
     let search_paths = path.split(":");
     for path in search_paths {
-        let filepath = Path::new(path).join(name);
+        let filepath = Path::new(path).join(name.as_ref());
         if is_exe(&filepath) {
             return Some(filepath);
         }

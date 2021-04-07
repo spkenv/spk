@@ -13,6 +13,7 @@ spfs.build/
 spfs.dist/
 .venv/
 prof/
+/target
 # GENERATED FOR spdev:Pipenv
 .venv/
 # END spdev:Pipenv
