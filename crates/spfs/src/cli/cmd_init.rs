@@ -25,7 +25,7 @@ impl CmdInit {
             Some(root) => {
                 let runtime = spfs::runtime::Runtime::new(root)?;
                 std::env::set_var("SPFS_RUNTIME", runtime.name());
-                Some(spfs::initialize_runtime()?)
+                Some(spfs::runtime::OwnedRuntime::upgrade(runtime)?)
             }
             None => {
                 std::env::remove_var("SPFS_RUNTIME");
