@@ -9,7 +9,7 @@ main!(CmdInit);
 
 #[derive(StructOpt, Debug)]
 pub struct CmdInit {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
 
     #[structopt(long = "runtime-dir")]
@@ -48,5 +48,6 @@ fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
     tracing::debug!(?cmd);
     let mut proc = std::process::Command::new(cmd[0].clone());
     proc.args(&cmd[1..]);
+    tracing::debug!("{:?}", proc);
     Ok(proc.status()?.code().unwrap_or(1))
 }

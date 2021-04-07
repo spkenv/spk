@@ -49,9 +49,20 @@ pub fn configure_spops(_verbosity: usize) {
     //     print(f"failed to initialize spops: {e}", file=sys.stderr)
 }
 
-pub fn configure_logging(verbosity: usize) {
+pub fn configure_logging(mut verbosity: usize) {
+    if verbosity == 0 {
+        let parse_result = std::env::var(SPFS_VERBOSITY)
+            .unwrap_or("0".to_string())
+            .parse::<usize>();
+        if let Ok(parsed) = parse_result {
+            verbosity = usize::max(parsed, verbosity);
+        }
+    }
     std::env::set_var(SPFS_VERBOSITY, verbosity.to_string());
     use tracing_subscriber::layer::SubscriberExt;
+    if !std::env::var("RUST_LOG").is_ok() {
+        std::env::set_var("RUST_LOG", "spfs=trace");
+    }
     let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
     let level_filter = match verbosity {
         0 => tracing_subscriber::filter::LevelFilter::INFO,

@@ -11,7 +11,7 @@ use spfs::prelude::*;
     about = "Run a program in a configured spfs environment"
 )]
 pub struct CmdRun {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = super::args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(
         short = "p",

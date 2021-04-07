@@ -10,7 +10,7 @@ main!(CmdPush);
 #[derive(Debug, StructOpt)]
 #[structopt(about = "push one or more objects to a remote repository")]
 pub struct CmdPush {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(
         long = "remote",

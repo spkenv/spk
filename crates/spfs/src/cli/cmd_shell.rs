@@ -14,7 +14,7 @@ main!(CmdShell);
     about = "Enter a subshell in a configured spfs environment"
 )]
 pub struct CmdShell {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(
         short = "p",

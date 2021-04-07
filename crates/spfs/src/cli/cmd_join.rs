@@ -10,7 +10,7 @@ main!(CmdJoin, sentry = false);
 #[derive(StructOpt, Debug)]
 #[structopt(about = "enter an existing runtime that is still active")]
 pub struct CmdJoin {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(about = "The name or id of the runtime to join")]
     runtime: String,
@@ -39,5 +39,6 @@ fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
     tracing::debug!(?cmd);
     let mut proc = std::process::Command::new(cmd[0].clone());
     proc.args(&cmd[1..]);
+    tracing::debug!("{:?}", proc);
     Ok(proc.status()?.code().unwrap_or(1))
 }

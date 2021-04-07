@@ -10,7 +10,7 @@ main!(CmdPull);
 #[derive(Debug, StructOpt)]
 #[structopt(about = "pull one or more objects to the local repository")]
 pub struct CmdPull {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(
         long = "remote",

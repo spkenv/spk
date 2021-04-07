@@ -39,7 +39,7 @@ main!(Opt);
                   "
 )]
 pub struct Opt {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
     pub verbose: usize,
     #[structopt(short = "h", long = "help", about = "Prints help information")]
     pub help: bool,

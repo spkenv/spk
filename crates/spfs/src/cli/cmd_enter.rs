@@ -15,7 +15,7 @@ main!(CmdEnter, sentry = false);
     about = "Run a command in a configured spfs runtime"
 )]
 pub struct CmdEnter {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences), env = args::SPFS_VERBOSITY)]
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     pub verbose: usize,
 
     #[structopt(
