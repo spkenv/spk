@@ -36,6 +36,7 @@ pub fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
     };
     let mut cmd = std::process::Command::new(pull_cmd);
     cmd.arg(reference.as_ref());
+    tracing::debug!("{:?}", cmd);
     let status = cmd.status()?;
     if let Some(0) = status.code() {
         Ok(())

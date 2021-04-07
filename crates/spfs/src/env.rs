@@ -13,7 +13,6 @@ static RUNTIME_DIR: &str = "/tmp/spfs-runtime";
 static RUNTIME_UPPER_DIR: &str = "/tmp/spfs-runtime/upper";
 static RUNTIME_LOWER_DIR: &str = "/tmp/spfs-runtime/lower";
 static RUNTIME_WORK_DIR: &str = "/tmp/spfs-runtime/work";
-static RUNTIME_OVERLAY_DIR: &str = "/tmp/spfs-runtime/overlay";
 
 const NONE: Option<&str> = None;
 
@@ -169,7 +168,19 @@ pub fn mount_runtime<'a>(tmpfs_opts: Option<&'a str>) -> Result<()> {
     }
 }
 
-pub fn setup_runtime(editable: bool) -> Result<()> {
+pub fn unmount_runtime() -> Result<()> {
+    tracing::debug!("unmounting existing runtime...");
+    let result = nix::mount::umount(RUNTIME_DIR);
+    if let Err(err) = result {
+        return Err(Error::wrap_nix(
+            err,
+            format!("Failed to unmount {}", RUNTIME_DIR),
+        ));
+    }
+    Ok(())
+}
+
+pub fn setup_runtime() -> Result<()> {
     tracing::debug!("setting up runtime...");
     let mut result = runtime::makedirs_with_perms(RUNTIME_LOWER_DIR, 0o777);
     if let Err(err) = result {
@@ -183,45 +194,55 @@ pub fn setup_runtime(editable: bool) -> Result<()> {
     if let Err(err) = result {
         return Err(err.wrap(format!("Failed to create {}", RUNTIME_WORK_DIR)));
     }
-    if !editable {
-        // no need to create additional dirs that won't
-        // be used in non-editable mode
-        return Ok(());
-    }
-    result = runtime::makedirs_with_perms(RUNTIME_OVERLAY_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {}", RUNTIME_OVERLAY_DIR)));
-    }
     Ok(())
 }
 
-pub fn mask_files<P: AsRef<Path>>(paths: impl IntoIterator<Item = P>) -> Result<()> {
+pub fn mask_files(manifest: &super::tracking::Manifest) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
     tracing::debug!("masking deleted files...");
 
-    for path in paths.into_iter() {
-        let path = path.as_ref();
-        if !path.starts_with(SPFS_DIR) {
-            return Err(format!(
-                "Cannot mask filepath: Path must start with {}: {}",
-                SPFS_DIR,
-                path.display()
-            )
-            .into());
+    let nodes: Vec<_> = manifest.walk_abs(RUNTIME_UPPER_DIR).collect();
+    for node in nodes.iter() {
+        if !node.entry.kind.is_mask() {
+            continue;
         }
-        if path.to_string_lossy() == SPFS_DIR {
-            return Err(format!("Masked path cannot be root {} folder", SPFS_DIR).into());
+        let fullpath = node.path.to_path("");
+        if let Some(parent) = fullpath.parent() {
+            tracing::trace!(?parent, "build parent dir for mask");
+            runtime::makedirs_with_perms(parent, 0o777)?;
         }
+        tracing::trace!(path = ?node.path, "Creating file mask");
+        if let Err(err) = nix::sys::stat::mknod(
+            &fullpath,
+            nix::sys::stat::SFlag::S_IFCHR,
+            nix::sys::stat::Mode::empty(),
+            0,
+        ) {
+            return Err(Error::wrap_nix(err, "Failed to create file mask"));
+        }
+    }
 
-        let res = if path.symlink_metadata()?.is_dir() {
-            std::fs::remove_dir_all(path)
-        } else {
-            std::fs::remove_file(path)
-        };
-        if let Err(err) = res {
-            return Err(Error::wrap_io(
-                err,
-                format!("Failed to remove masked file: {}", path.display()),
-            ));
+    for node in nodes.iter().rev() {
+        if !node.entry.kind.is_tree() {
+            continue;
+        }
+        let fullpath = node.path.to_path("/");
+        if !fullpath.is_dir() {
+            continue;
+        }
+        if let Err(err) =
+            std::fs::set_permissions(fullpath, std::fs::Permissions::from_mode(node.entry.mode))
+        {
+            match err.kind() {
+                std::io::ErrorKind::NotFound => continue,
+                std::io::ErrorKind::PermissionDenied => continue,
+                _ => {
+                    return Err(Error::wrap_io(
+                        err,
+                        format!("Failed to set permissions on masked file [{}]", node.path),
+                    ));
+                }
+            }
         }
     }
     Ok(())

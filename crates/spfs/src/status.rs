@@ -47,6 +47,7 @@ pub fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
     let (cmd, args) = bootstrap::build_spfs_remount_command(rt)?;
     let mut cmd = std::process::Command::new(cmd);
     cmd.args(&args);
+    tracing::debug!("{:?}", cmd);
     let res = cmd.status()?;
     if res.code() != Some(0) {
         Err("Failed to re-mount runtime filesystem".into())
@@ -86,19 +87,6 @@ pub fn reinitialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(&rt)?;
 
-    tracing::debug!("finding files that should be masked");
-    let masks: Vec<_> = manifest
-        .walk_abs("/spfs")
-        .into_iter()
-        .filter_map(|node| {
-            if !node.entry.kind.is_mask() {
-                None
-            } else {
-                Some(node.path.to_path(""))
-            }
-        })
-        .collect();
-
     let tmpfs_opts = config
         .filesystem
         .tmpfs_size
@@ -108,10 +96,12 @@ pub fn reinitialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
     env::unmount_env()?;
-    env::setup_runtime(rt.is_editable())?;
+    env::unmount_runtime()?;
+    env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
+    env::setup_runtime()?;
     env::unlock_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
     env::mount_env(&dirs)?;
-    env::mask_files(&masks)?;
+    env::mask_files(&manifest)?;
     env::set_runtime_lock(rt.is_editable(), None)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
@@ -124,19 +114,6 @@ pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> 
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(&rt)?;
 
-    tracing::debug!("finding files that should be masked");
-    let masks: Vec<_> = manifest
-        .walk_abs("/spfs")
-        .into_iter()
-        .filter_map(|node| {
-            if !node.entry.kind.is_mask() {
-                None
-            } else {
-                Some(node.path.to_path(""))
-            }
-        })
-        .collect();
-
     let tmpfs_opts = config
         .filesystem
         .tmpfs_size
@@ -148,9 +125,9 @@ pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> 
     env::privatize_existing_mounts()?;
     env::ensure_mount_targets_exist()?;
     env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
-    env::setup_runtime(rt.is_editable())?;
+    env::setup_runtime()?;
     env::mount_env(&dirs)?;
-    env::mask_files(&masks)?;
+    env::mask_files(&manifest)?;
     env::set_runtime_lock(rt.is_editable(), None)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
