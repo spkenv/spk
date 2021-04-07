@@ -101,7 +101,7 @@ pub fn reinitialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()
     env::setup_runtime()?;
     env::unlock_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
     env::mount_env(&dirs)?;
-    env::mask_files(&manifest)?;
+    env::mask_files(&manifest, original.uid)?;
     env::set_runtime_lock(rt.is_editable(), None)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
@@ -127,7 +127,7 @@ pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> 
     env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
     env::setup_runtime()?;
     env::mount_env(&dirs)?;
-    env::mask_files(&manifest)?;
+    env::mask_files(&manifest, original.uid)?;
     env::set_runtime_lock(rt.is_editable(), None)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;

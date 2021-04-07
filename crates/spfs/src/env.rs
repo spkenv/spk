@@ -131,7 +131,12 @@ pub fn ensure_mounts_already_exist() -> Result<()> {
     }
 }
 
-pub fn become_root() -> Result<(nix::unistd::Uid, nix::unistd::Uid)> {
+pub struct Uids {
+    pub uid: nix::unistd::Uid,
+    pub euid: nix::unistd::Uid,
+}
+
+pub fn become_root() -> Result<Uids> {
     tracing::debug!("becoming root...");
     let original_euid = nix::unistd::geteuid();
     if let Err(err) = nix::unistd::seteuid(nix::unistd::Uid::from_raw(0)) {
@@ -144,7 +149,10 @@ pub fn become_root() -> Result<(nix::unistd::Uid, nix::unistd::Uid)> {
     if let Err(err) = nix::unistd::setuid(nix::unistd::Uid::from_raw(0)) {
         return Err(Error::wrap_nix(err, "Failed to become root user (actual)"));
     }
-    Ok((original_euid, original_uid))
+    Ok(Uids {
+        euid: original_euid,
+        uid: original_uid,
+    })
 }
 
 pub fn mount_runtime<'a>(tmpfs_opts: Option<&'a str>) -> Result<()> {
@@ -197,7 +205,7 @@ pub fn setup_runtime() -> Result<()> {
     Ok(())
 }
 
-pub fn mask_files(manifest: &super::tracking::Manifest) -> Result<()> {
+pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     tracing::debug!("masking deleted files...");
 
@@ -231,15 +239,25 @@ pub fn mask_files(manifest: &super::tracking::Manifest) -> Result<()> {
             continue;
         }
         if let Err(err) =
-            std::fs::set_permissions(fullpath, std::fs::Permissions::from_mode(node.entry.mode))
+            std::fs::set_permissions(&fullpath, std::fs::Permissions::from_mode(node.entry.mode))
         {
             match err.kind() {
                 std::io::ErrorKind::NotFound => continue,
-                std::io::ErrorKind::PermissionDenied => continue,
                 _ => {
                     return Err(Error::wrap_io(
                         err,
                         format!("Failed to set permissions on masked file [{}]", node.path),
+                    ));
+                }
+            }
+        }
+        if let Err(err) = nix::unistd::chown(&fullpath, Some(owner), None) {
+            match err.as_errno() {
+                Some(nix::errno::Errno::ENOENT) => continue,
+                _ => {
+                    return Err(Error::wrap_nix(
+                        err,
+                        format!("Failed to set ownership on masked file [{}]", node.path),
                     ));
                 }
             }
@@ -338,16 +356,16 @@ pub fn set_runtime_lock(editable: bool, tmpfs_opts: Option<&str>) -> Result<()> 
     Ok(())
 }
 
-pub fn become_original_user(euid_uid: (nix::unistd::Uid, nix::unistd::Uid)) -> Result<()> {
+pub fn become_original_user(uids: Uids) -> Result<()> {
     tracing::debug!("dropping root...");
-    let mut result = nix::unistd::setuid(euid_uid.1);
+    let mut result = nix::unistd::setuid(uids.uid);
     if let Err(err) = result {
         return Err(Error::wrap_nix(
             err,
             "Failed to become regular user (actual)",
         ));
     }
-    result = nix::unistd::seteuid(euid_uid.0);
+    result = nix::unistd::seteuid(uids.euid);
     if let Err(err) = result {
         return Err(Error::wrap_nix(
             err,

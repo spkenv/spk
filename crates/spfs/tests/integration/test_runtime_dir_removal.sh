@@ -9,5 +9,6 @@ top_tag="test/dir_removal_top";
 
 spfs run - -- bash -c "mkdir -p $dirpath && spfs commit layer -t $base_tag"
 spfs run -e $base_tag -- bash -c "rm -r $to_remove && spfs commit platform -t $top_tag"
-spfs run test/dir_removal_top -- test ! -d $to_remove
-spfs run test/dir_removal_top -- test -d $to_remain
+spfs run test/dir_removal_top -- test ! -d $to_remove # masked dir should not exist
+spfs run test/dir_removal_top -- test -d $to_remain # upper dir should remain
+spfs run test/dir_removal_top -- test -O $to_remain # current user should still own files
