@@ -229,29 +229,26 @@ class Decision:
             request = api.PkgRequest.from_dict({"pkg": request})
 
         if isinstance(request, api.VarRequest):
-            compat = request.is_satisfied_by(self._options)
-            if not compat:
-                package = request.package()
-                if package:
-                    try:
-                        self.set_unresolved(package, compat)
-                    except ValueError:
-                        raise ConflictingRequestsError(
-                            "Var requests are incompatible", [request]
-                        )
-                else:
-                    raise ConflictingRequestsError(
-                        "Var requests are incompatible", [request]
-                    )
 
             # unfortunately we need to revalidate any existing solution item
             # the case of a global value being added
-            if request.package() is None:
-                for item in self.get_current_solution().items():
-                    opts = item.spec.resolve_all_options(self._options)
-                    compat = request.is_satisfied_by(opts)
+            solution = self.get_current_solution()
+            package = request.package()
+            if package is None:
+                for item in solution.items():
+                    compat = item.spec.satisfies_var_request(request)
                     if not compat:
                         self.set_unresolved(item.spec.pkg.name, compat)
+            else:
+                try:
+                    resolved = solution.get_spec(package)
+                except KeyError:
+                    pass
+                else:
+                    compat = resolved.satisfies_var_request(request)
+                    print("compat:", compat)
+                    if not compat:
+                        self.set_unresolved(resolved.pkg.name, compat)
 
             self._options = self._options.copy()
             self._options[request.var] = request.value

@@ -1,4 +1,5 @@
-from typing import List, Any, Dict, Union, IO, Iterable
+from ast import parse
+from typing import List, Any, Dict, Optional, Union, IO, Iterable
 from dataclasses import dataclass, field
 import os
 
@@ -7,10 +8,10 @@ from ruamel import yaml
 
 from ._build import EMBEDDED
 from ._ident import Ident, parse_ident
-from ._compat import Compat, parse_compat
-from ._request import Request, PkgRequest, VarRequest
+from ._compat import Compat, Compatibility, COMPATIBLE, parse_compat
+from ._request import Request, PkgRequest, VarRequest, RangeIdent, parse_version_range
 from ._option_map import OptionMap
-from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance
+from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance, Option
 from ._test_spec import TestSpec
 from ._source_spec import SourceSpec, LocalSource
 
@@ -146,19 +147,69 @@ class Spec:
 
         return self.build.resolve_all_options(self.pkg.name, given)
 
-    def sastisfies_request(self, request: PkgRequest) -> bool:
-        """Return true if this package spec satisfies the given request."""
+    def sastisfies_request(self, request: Request) -> Compatibility:
+        """Check if this package spec satisfies the given request."""
+
+        if isinstance(request, PkgRequest):
+            return self.satisfies_pkg_request(request)
+        elif isinstance(request, VarRequest):
+            return self.satisfies_var_request(request)
+        else:
+            raise NotImplementedError(f"Unhandled request type: {type(request)}")
+
+    def satisfies_var_request(self, request: VarRequest) -> Compatibility:
+        """Check if this package spec satisfies the given var request."""
+
+        opt_required = request.package() == self.pkg.name
+        opt: Optional[Option] = None
+        for o in self.build.options:
+            if request.name() in (o.name(), o.namespaced_name(self.pkg.name)):
+                opt = o
+                break
+
+        if opt is None:
+            if opt_required:
+                return Compatibility(
+                    f"Package does not define requested option: {request.var}"
+                )
+            return COMPATIBLE
+
+        if isinstance(opt, PkgOpt):
+            return opt.validate(request.value)
+
+        if not isinstance(opt, VarOpt):
+            _LOGGER.warning(f"Unhandled option type: {type(opt)}")
+            return COMPATIBLE
+
+        exact = opt.get_value(request.value)
+        if exact != request.value:
+            return Compatibility(
+                f"Incompatible build option '{request.var}': '{exact}' != '{request.value}'"
+            )
+
+        return COMPATIBLE
+
+    def satisfies_pkg_request(self, request: PkgRequest) -> Compatibility:
+        """Check if this package spec satisfies the given pkg request."""
 
         if request.pkg.name != self.pkg.name:
-            return False
+            return Compatibility(
+                f"different package name: {request.pkg.name} != {self.pkg.name}"
+            )
 
-        if not request.is_satisfied_by(self):
-            return False
+        compat = request.is_satisfied_by(self)
+        if not compat:
+            return compat
 
         if request.pkg.build is None:
-            return True
+            return COMPATIBLE
 
-        return request.pkg.build == self.pkg.build
+        if request.pkg.build == self.pkg.build:
+            return COMPATIBLE
+
+        return Compatibility(
+            f"Package and request differ in builds: requested {request.pkg.build}, got {self.pkg.build}"
+        )
 
     def update_for_build(self, options: OptionMap, resolved: Iterable["Spec"]) -> None:
         """Update this spec to represent a specific binary package build."""
