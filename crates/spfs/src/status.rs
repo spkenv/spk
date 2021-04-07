@@ -96,8 +96,6 @@ pub fn reinitialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
     env::unmount_env()?;
-    env::unmount_runtime()?;
-    env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
     env::setup_runtime()?;
     env::unlock_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
     env::mount_env(&dirs)?;

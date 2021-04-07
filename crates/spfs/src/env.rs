@@ -206,7 +206,7 @@ pub fn setup_runtime() -> Result<()> {
 }
 
 pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
     tracing::debug!("masking deleted files...");
 
     let nodes: Vec<_> = manifest.walk_abs(RUNTIME_UPPER_DIR).collect();
@@ -220,6 +220,19 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
             runtime::makedirs_with_perms(parent, 0o777)?;
         }
         tracing::trace!(path = ?node.path, "Creating file mask");
+
+        let existing = fullpath.symlink_metadata().ok();
+        if let Some(meta) = existing {
+            if runtime::is_removed_entry(&meta) {
+                continue;
+            }
+            if meta.is_file() {
+                std::fs::remove_file(&fullpath)?;
+            } else {
+                std::fs::remove_dir_all(&fullpath)?;
+            }
+        }
+
         if let Err(err) = nix::sys::stat::mknod(
             &fullpath,
             nix::sys::stat::SFlag::S_IFCHR,
@@ -238,27 +251,33 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
         if !fullpath.is_dir() {
             continue;
         }
-        if let Err(err) =
-            std::fs::set_permissions(&fullpath, std::fs::Permissions::from_mode(node.entry.mode))
-        {
-            match err.kind() {
-                std::io::ErrorKind::NotFound => continue,
-                _ => {
-                    return Err(Error::wrap_io(
-                        err,
-                        format!("Failed to set permissions on masked file [{}]", node.path),
-                    ));
+        let existing = &fullpath.symlink_metadata()?;
+        if existing.permissions().mode() != node.entry.mode {
+            if let Err(err) = std::fs::set_permissions(
+                &fullpath,
+                std::fs::Permissions::from_mode(node.entry.mode),
+            ) {
+                match err.kind() {
+                    std::io::ErrorKind::NotFound => continue,
+                    _ => {
+                        return Err(Error::wrap_io(
+                            err,
+                            format!("Failed to set permissions on masked file [{}]", node.path),
+                        ));
+                    }
                 }
             }
         }
-        if let Err(err) = nix::unistd::chown(&fullpath, Some(owner), None) {
-            match err.as_errno() {
-                Some(nix::errno::Errno::ENOENT) => continue,
-                _ => {
-                    return Err(Error::wrap_nix(
-                        err,
-                        format!("Failed to set ownership on masked file [{}]", node.path),
-                    ));
+        if existing.uid() != owner.as_raw() {
+            if let Err(err) = nix::unistd::chown(&fullpath, Some(owner), None) {
+                match err.as_errno() {
+                    Some(nix::errno::Errno::ENOENT) => continue,
+                    _ => {
+                        return Err(Error::wrap_nix(
+                            err,
+                            format!("Failed to set ownership on masked file [{}]", node.path),
+                        ));
+                    }
                 }
             }
         }
