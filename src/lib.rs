@@ -152,6 +152,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         spfs::remount_runtime(&runtime)?;
         Ok(())
     }
+
     #[pyfn(m, "build_shell_initialized_command", args = "*")]
     fn build_shell_initialized_command(cmd: String, args: Vec<String>) -> Result<Vec<String>> {
         let cmd = std::ffi::OsString::from(cmd);

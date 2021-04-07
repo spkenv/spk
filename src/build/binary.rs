@@ -62,8 +62,8 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
                 }
             }
             return Err(BuildError::new(format_args!(
-                "Existing file was {}: {:?}",
-                &diff.mode, &diff
+                "Existing file was {:?}: {:?}",
+                &diff.mode, &diff.path
             )));
         }
     }
