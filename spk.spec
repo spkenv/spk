@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.26.2
+Version: 0.27.0
 Release: 1
 Summary: Package manager for SPFS.
 License: NONE
@@ -15,7 +15,7 @@ BuildRequires: python37-devel
 BuildRequires: openssl-devel
 BuildRequires: spdev
 Requires: rsync
-Requires: spfs >= 0.26.0
+Requires: spfs >= 0.26.1
 
 %define debug_package %{nil}
 
