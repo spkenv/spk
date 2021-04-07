@@ -1,9 +1,6 @@
-version: 0.26.0
+version: 0.26.1
 release_notes: |
-  * Convert spfs-enter command to rust
-  * Externalize the run and shell commands
-  * Update init command to work for pre-baked environments (run activation scripts, etc)
-  * Update enter command to take a runtime rather than pre-calculated argument lists
+  * Fix regression where changes were lost after remounting
 
 toolchain:
   - kind: Rust
