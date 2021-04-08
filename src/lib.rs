@@ -61,21 +61,29 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     use self::{build, storage};
 
     #[pyfn(m, "configure_logging")]
-    fn configure_logging(_py: Python, verbosity: u64) -> Result<()> {
-        match verbosity {
-            0 => {
-                if std::env::var("SPFS_DEBUG").is_ok() {
-                    std::env::set_var("RUST_LOG", "spfs=debug");
-                } else if std::env::var("RUST_LOG").is_err() {
-                    std::env::set_var("RUST_LOG", "spfs=info");
-                }
+    fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
+        if verbosity == 0 {
+            let parse_result = std::env::var("SPFS_VERBOSITY")
+                .unwrap_or("0".to_string())
+                .parse::<usize>();
+            if let Ok(parsed) = parse_result {
+                verbosity = usize::max(parsed, verbosity);
             }
-            1 => std::env::set_var("RUST_LOG", "spfs=debug"),
-            _ => std::env::set_var("RUST_LOG", "spfs=trace"),
         }
+        std::env::set_var("SPFS_VERBOSITY", verbosity.to_string());
         use tracing_subscriber::layer::SubscriberExt;
-        let filter = tracing_subscriber::filter::EnvFilter::from_default_env();
-        let registry = tracing_subscriber::Registry::default().with(filter);
+        if !std::env::var("RUST_LOG").is_ok() {
+            std::env::set_var("RUST_LOG", "spfs=trace");
+        }
+        let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
+        let level_filter = match verbosity {
+            0 => tracing_subscriber::filter::LevelFilter::INFO,
+            1 => tracing_subscriber::filter::LevelFilter::DEBUG,
+            _ => tracing_subscriber::filter::LevelFilter::TRACE,
+        };
+        let registry = tracing_subscriber::Registry::default()
+            .with(env_filter)
+            .with(level_filter);
         let mut fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stderr)
             .without_time();
