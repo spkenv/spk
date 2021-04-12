@@ -1,6 +1,7 @@
 from typing import Dict, Type
 import pytest
 
+from ._option_map import OptionMap
 from ._build_spec import PkgOpt, VarOpt, BuildSpec
 
 
@@ -59,3 +60,29 @@ def test_variants_must_be_unique_unknown_ok() -> None:
     BuildSpec.from_dict(
         {"variants": [{"unknown": "any-value"}, {"unknown": "any_other_value"}]}
     )
+
+
+def test_resolve_all_options_package_option() -> None:
+
+    spec = BuildSpec.from_dict(
+        {
+            "options": [
+                {"var": "python.abi/cp37m"},
+                {"var": "my-opt/default"},
+                {"var": "debug/off"},
+            ]
+        }
+    )
+
+    options = OptionMap(
+        {
+            "python.abi": "cp27mu",
+            "my-opt": "value",
+            "my-pkg.my-opt": "override",
+            "debug": "on",
+        }
+    )
+    resolved = spec.resolve_all_options("my-pkg", options)
+    assert resolved["my-opt"] == "override", "namespaced option should take precedence"
+    assert resolved["debug"] == "on", "global opt should resolve if given"
+    assert resolved["python.abi"] == "cp27mu", "opt for other package should exist"

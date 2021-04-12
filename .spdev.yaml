@@ -2,6 +2,8 @@ version: 0.27.1
 release_notes: |
   * Fix bug where empty/unset options could cause requirements to not be met in solver
   * Fix bug where empty options would unset existing options in a resolve
+  * Fix bug where namespaced build options (python.abi) that were for a package other
+    than the one being built could not have their default option overriden
 
 toolchain:
   - kind: Rust
