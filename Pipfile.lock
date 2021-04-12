@@ -216,11 +216,6 @@
             "index": "pypi",
             "version": "==2.3.0"
         },
-        "spk": {
-            "edit": true,
-            "path": ".",
-            "version": "==0.26.2"
-        },
         "spops": {
             "hashes": [
                 "sha256:882c85f005ec7ab4e3e38a0b7c024938e965763dede54e2afdf75c485eda4c7c",

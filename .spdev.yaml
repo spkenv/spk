@@ -19,9 +19,9 @@ components:
       python3: false
       mypy: true
     test:
-      command: spfs run - pytest
+      command: spfs run - -- pytest
     install:
-      enabled: false
+      enabled: true
     deploy:
       rez.enabled: false
 
@@ -34,9 +34,9 @@ components:
 
   - kind: RPMPackage
     name: rpm
-    spec_file:
-      spk.spec
-      # bootstrap packages that need to go out with any new features
+    spec_file: spk.spec
+
+    # bootstrap packages that need to go out with any new features
   - kind: SPKPackage
     name: spk-stdfs
     version: 1.0.0
