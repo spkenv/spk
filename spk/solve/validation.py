@@ -132,6 +132,9 @@ class VarRequirementsValidator(Validator):
             for name, value in options.items():
                 if name != request.var and not name.endswith("." + request.var):
                     continue
+                if value == "":
+                    # empty option values do not provide a valuable opinion on the resolve
+                    continue
                 if request.value != value:
                     return api.Compatibility(
                         f"package wants {request.var}={request.value}, resolve has {name}={value}"

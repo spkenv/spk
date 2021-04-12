@@ -442,11 +442,16 @@ class SetPackageBuild(SetPackage):
 
 class SetOptions(Change):
     def __init__(self, options: api.OptionMap) -> None:
-        self.options = options
+        self.options = options.copy()
 
     def apply(self, base: State) -> State:
+
         options = dict(base.options)
-        options.update(self.options)
+        for k, v in self.options.items():
+            if v == "" and k in options:
+                continue
+            options[k] = v
+
         return State(
             pkg_requests=base.pkg_requests,
             var_requests=base.var_requests,

@@ -3,6 +3,7 @@ from .. import api
 from .graph import State
 from .validation import (
     Validator,
+    VarRequirementsValidator,
     default_validators,
 )
 
@@ -34,3 +35,28 @@ def test_src_package_install_requests_are_not_considered() -> None:
     for validator in validators:
         msg = "Source package should be valid regardless of requirements"
         assert validator.validate(state, spec), msg
+
+
+def test_empty_options_can_match_anything() -> None:
+
+    validator = VarRequirementsValidator()
+
+    state = State(
+        pkg_requests=tuple(),
+        var_requests=tuple(),
+        # this option is requested to be a specific value in the installed
+        # spec file, but is empty so should not cause a conflict
+        options=(("python.abi", ""),),
+        packages=tuple(),
+    )
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "my-package/1.0.0",
+            "install": {"requirements": [{"var": "python.abi/cp37m"}]},
+        }
+    )
+
+    assert validator.validate(
+        state, spec
+    ), "empty option should not invalidate requirement"

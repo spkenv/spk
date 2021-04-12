@@ -30,3 +30,25 @@ def test_resolve_build_same_result() -> None:
     assert (
         with_binary.id == with_build.id
     ), "Build and resolve package should create the same final state"
+
+
+def test_empty_options_do_not_unset() -> None:
+
+    state = graph.State(
+        pkg_requests=tuple(),
+        var_requests=tuple(),
+        packages=tuple(),
+        options=tuple(),
+    )
+
+    assign_empty = graph.SetOptions(api.OptionMap({"something": ""}))
+    assign_value = graph.SetOptions(api.OptionMap({"something": "value"}))
+
+    new_state = assign_empty.apply(state)
+    opts = new_state.get_option_map()
+    assert opts["something"] == "", "should assign empty option of no current value"
+
+    new_state = assign_value.apply(new_state)
+    new_state = assign_empty.apply(new_state)
+    opts = new_state.get_option_map()
+    assert opts["something"] == "value", "should not unset value when one exists"

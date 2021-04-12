@@ -64,12 +64,16 @@ class BuildSpec:
             given = OptionMap(given.items())
 
         resolved = OptionMap()
-        if package_name is not None:
-            given = given.package_options(package_name)
         for opt in self.options:
 
             name = opt.name()
-            given_value = given.get(name, None)
+            given_value: Optional[str] = None
+
+            if package_name is not None:
+                given_value = given.get(opt.namespaced_name(package_name), None)
+            if given_value is None:
+                given_value = given.get(name, None)
+
             value = opt.get_value(given_value)
             resolved[name] = value
 
