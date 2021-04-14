@@ -30,7 +30,8 @@ def register(
         action="store_true",
         help="Recursively list all package versions and builds (recursive results are not sorted)",
     )
-    _flags.add_repo_flags(ls_cmd)
+    # no defaults since we want --local to be mutually exclusive
+    _flags.add_repo_flags(ls_cmd, defaults=[])
     ls_cmd.set_defaults(func=_ls)
     return ls_cmd
 
@@ -46,11 +47,15 @@ def _ls(args: argparse.Namespace) -> None:
 
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:
-        print(
-            f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        if "origin" not in args.disable_repo:
+            args.enable_repo = ["origin"]
+            repos = _flags.get_repos_from_repo_flags(args)
+        else:
+            print(
+                f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     if args.recursive:
         return _list_recursively(prefix, end, repos, args)
