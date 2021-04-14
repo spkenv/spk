@@ -13,9 +13,8 @@ from setuptools_rust import Binding, RustExtension
 setup(
     name="spk",
     description="The 'S' Package System: Convenience, clarity and speed.",
-    version="0.27.1",
+    version="0.28.0",
     packages=find_packages(),
-    build_requires=["setuptools>=46.1"],
     entry_points={"console_scripts": ["spk=spk.cli:main"]},
     rust_extensions=[
         RustExtension(

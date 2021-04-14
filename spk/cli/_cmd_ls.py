@@ -28,9 +28,10 @@ def register(
     ls_cmd.add_argument(
         "--recursive",
         action="store_true",
-        help="Recursively list all package versions and builds",
+        help="Recursively list all package versions and builds (recursive results are not sorted)",
     )
-    _flags.add_repo_flags(ls_cmd)
+    # no defaults since we want --local to be mutually exclusive
+    _flags.add_repo_flags(ls_cmd, defaults=[])
     ls_cmd.set_defaults(func=_ls)
     return ls_cmd
 
@@ -38,58 +39,55 @@ def register(
 def _ls(args: argparse.Namespace) -> None:
     """list packages in one or more repositories."""
 
-    prefix = f"{Style.DIM}{{repo}}:{Style.RESET_ALL} "
-    end = "\n"
-    if not sys.stdout.isatty():
-        prefix = ""
-        end = " "
-
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:
-        print(
-            f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        if "origin" not in args.disable_repo:
+            args.enable_repo = ["origin"]
+            repos = _flags.get_repos_from_repo_flags(args)
+        else:
+            print(
+                f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     if args.recursive:
-        return _list_recursively(prefix, end, repos, args)
+        return _list_recursively(repos, args)
 
+    results = set()
     if not args.package:
         for repo_name, repo in repos.items():
             for name in repo.list_packages():
-                print(prefix.format(repo=repo_name) + name, end=end)
-            continue
+                results.add(name)
 
     elif "/" not in args.package:
         for repo in repos.values():
             for version in repo.list_package_versions(args.package):
-                print(version, end=end)
-            continue
+                results.add(version)
 
     else:
         for repo in repos.values():
             pkg = spk.api.parse_ident(args.package)
             for build in repo.list_package_builds(pkg):
                 if not build.build or build.build.is_source():
-                    print(spk.io.format_ident(build), end=end)
+                    results.add(spk.io.format_ident(build))
                     continue
 
                 if args.verbose:
                     spec = repo.read_spec(build)
                     options = spec.resolve_all_options(spk.api.OptionMap({}))
-                    print(
-                        spk.io.format_ident(build),
-                        spk.io.format_options(options),
-                        end=end,
+                    results.add(
+                        " ".join(
+                            (spk.io.format_ident(build), spk.io.format_options(options))
+                        )
                     )
                 else:
-                    print(spk.io.format_ident(build), end=end)
+                    results.add(spk.io.format_ident(build))
+
+    print("\n".join(sorted(results)))
 
 
 def _list_recursively(
-    _prefix: str,
-    end: str,
     repos: Dict[str, spk.storage.Repository],
     args: argparse.Namespace,
 ) -> None:
@@ -110,7 +108,7 @@ def _list_recursively(
                 pkg = spk.api.parse_ident(version)
                 for build in repo.list_package_builds(pkg):
                     if not build.build or build.build.is_source():
-                        print(spk.io.format_ident(build), end=end)
+                        print(spk.io.format_ident(build))
                         continue
 
                     if args.verbose:
@@ -119,7 +117,6 @@ def _list_recursively(
                         print(
                             spk.io.format_ident(build),
                             spk.io.format_options(options),
-                            end=end,
                         )
                     else:
-                        print(spk.io.format_ident(build), end=end)
+                        print(spk.io.format_ident(build))
