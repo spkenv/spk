@@ -170,7 +170,7 @@ class TarSource(SourceSpec):
     def collect(self, dirname: str) -> None:
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            tarfile = os.path.join(tmpdir, os.path.dirname(self.tar))
+            tarfile = os.path.join(tmpdir, os.path.basename(self.tar))
             if re.match(r"^https?://", self.tar):
                 cmd = ["wget", self.tar]
                 _LOGGER.debug(" ".join(cmd))
