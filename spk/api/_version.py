@@ -119,7 +119,7 @@ class Version:
 
     def __bool__(self) -> bool:
 
-        return any(self.parts)
+        return any(self.parts) or bool(self.pre) or bool(self.post)
 
     def __lt__(self, other: Any) -> bool:
 
