@@ -4,6 +4,7 @@ release_notes: |
     * Do not show repository prefix in interactive mode
     * Sort results for easier reading
     * Update --local flag to ONLY show local results be default (as opposed to local and remote results)
+  * Fix bug where --disable-repo flag was ignored in build command
 
 toolchain:
   - kind: Rust

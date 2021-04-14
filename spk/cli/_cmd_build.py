@@ -68,6 +68,8 @@ def _build(args: argparse.Namespace) -> None:
             binary_flags.append("-l")
         for r in args.enable_repo:
             binary_flags.extend(["-r", r])
+        for r in args.disable_repo:
+            binary_flags.extend(["-dr", r])
         if args.interactive:
             binary_flags.append("-i")
         cmd = ["spk", "make-binary", filename, *common_args, *binary_flags]
