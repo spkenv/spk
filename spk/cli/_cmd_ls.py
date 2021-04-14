@@ -39,12 +39,6 @@ def register(
 def _ls(args: argparse.Namespace) -> None:
     """list packages in one or more repositories."""
 
-    prefix = f"{Style.DIM}{{repo}}:{Style.RESET_ALL} "
-    end = "\n"
-    if not sys.stdout.isatty():
-        prefix = ""
-        end = " "
-
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:
         if "origin" not in args.disable_repo:
@@ -58,7 +52,7 @@ def _ls(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     if args.recursive:
-        return _list_recursively(prefix, end, repos, args)
+        return _list_recursively(repos, args)
 
     results = set()
     if not args.package:
@@ -94,8 +88,6 @@ def _ls(args: argparse.Namespace) -> None:
 
 
 def _list_recursively(
-    _prefix: str,
-    end: str,
     repos: Dict[str, spk.storage.Repository],
     args: argparse.Namespace,
 ) -> None:
@@ -116,7 +108,7 @@ def _list_recursively(
                 pkg = spk.api.parse_ident(version)
                 for build in repo.list_package_builds(pkg):
                     if not build.build or build.build.is_source():
-                        print(spk.io.format_ident(build), end=end)
+                        print(spk.io.format_ident(build))
                         continue
 
                     if args.verbose:
@@ -125,7 +117,6 @@ def _list_recursively(
                         print(
                             spk.io.format_ident(build),
                             spk.io.format_options(options),
-                            end=end,
                         )
                     else:
-                        print(spk.io.format_ident(build), end=end)
+                        print(spk.io.format_ident(build))

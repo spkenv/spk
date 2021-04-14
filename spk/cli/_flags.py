@@ -221,6 +221,7 @@ def add_repo_flags(
     parser: argparse.ArgumentParser,
     defaults: List[str] = ["origin"],
     default_local: bool = False,
+    defaults_if_local: bool = True,
 ) -> None:
 
     if not default_local:
