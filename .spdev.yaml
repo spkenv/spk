@@ -1,9 +1,9 @@
-version: 0.27.1
+version: 0.28.0
 release_notes: |
-  * Fix bug where empty/unset options could cause requirements to not be met in solver
-  * Fix bug where empty options would unset existing options in a resolve
-  * Fix bug where namespaced build options (python.abi) that were for a package other
-    than the one being built could not have their default option overriden
+  * Improvements to usability of list command
+    * Do not show repository prefix in interactive mode
+    * Sort results for easier reading
+    * Update --local flag to ONLY show local results be default (as opposed to local and remote results)
 
 toolchain:
   - kind: Rust
