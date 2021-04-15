@@ -25,8 +25,8 @@ mod config;
 pub use self::config::{load_config, Config};
 mod resolve;
 pub use resolve::{
-    compute_manifest, compute_object_manifest, render_into_directory, resolve_stack_to_layers,
-    which, which_spfs,
+    compute_manifest, compute_object_manifest, render, render_into_directory,
+    resolve_stack_to_layers, which, which_spfs,
 };
 mod status;
 pub use status::{
