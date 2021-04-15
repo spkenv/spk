@@ -260,6 +260,8 @@ where
     P2: AsRef<Path>,
 {
     use capabilities::{Capabilities, Capability, Flag};
+    use rand::Rng;
+    static HARD_LINK_RETRY: usize = 5;
 
     let mut current_caps = Capabilities::from_current_proc().ok();
     if let Some(caps) = current_caps.as_mut() {
@@ -274,14 +276,33 @@ where
         }
     }
 
-    nix::unistd::chown(committed_path.as_ref(), Some(nix::unistd::getuid()), None)?;
-    let res = match std::fs::hard_link(committed_path, rendered_path) {
-        Err(err) => match err.kind() {
-            std::io::ErrorKind::AlreadyExists => Ok(()),
-            _ => Err(Error::wrap_io(err, "Failed to hard link")),
-        },
-        Ok(_) => Ok(()),
-    };
+    let mut rng = rand::thread_rng();
+    let mut res = Err(Error::String("not run".to_string()));
+    // there is a race condition here where some other process could chown a file to
+    // some other user between the chown and hard_link calls below. To mitigate this,
+    // loop up to a small number of times.
+    // You could also check if the ownership was set back before decifing to retry,
+    // but it's not clear if that is the only case for an EPERM error in the hard_link
+    // process... if it's not you'd end up in an infinite loop
+    for _ in 0..HARD_LINK_RETRY {
+        nix::unistd::chown(committed_path.as_ref(), Some(nix::unistd::getuid()), None)?;
+        res = match std::fs::hard_link(&committed_path, &rendered_path) {
+            Ok(_) => Ok(()),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::AlreadyExists => Ok(()),
+                std::io::ErrorKind::PermissionDenied => {
+                    // use a slightly randomiszed sleep duration in case there are multiple competing
+                    // spfs processes that could otherwise be fighting back and forth
+                    std::thread::sleep(std::time::Duration::from_millis(rng.gen_range(0, 10)));
+                    continue;
+                }
+                _ => Err(Error::wrap_io(err, "Failed to hard link")),
+            },
+        };
+        if let Ok(_) = res {
+            break;
+        }
+    }
 
     if let Some(caps) = current_caps.as_mut() {
         caps.update(&[Capability::CAP_CHOWN], Flag::Effective, false);
