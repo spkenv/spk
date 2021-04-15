@@ -163,6 +163,9 @@ impl FSRepository {
                 if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
+                        std::io::ErrorKind::PermissionDenied => {
+                            sudo_hard_link(&committed_path, &rendered_path)?
+                        }
                         _ => return Err(Error::wrap_io(err, "Failed to hardlink")),
                     }
                 }
@@ -247,5 +250,32 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
         }
     } else {
         Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn sudo_hard_link<P1, P2>(committed_path: P1, rendered_path: P2) -> Result<()>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    use capabilities::{Capabilities, Capability, Flag};
+
+    if let Ok(mut caps) = Capabilities::from_current_proc() {
+        if !caps.check(Capability::CAP_CHOWN, Flag::Effective) {
+            caps.update(&[Capability::CAP_CHOWN], Flag::Effective, true);
+            if let Err(err) = caps.apply() {
+                tracing::warn!(?err, "Failed to get necessary capabilities");
+            }
+        }
+    }
+
+    nix::unistd::chown(committed_path.as_ref(), Some(nix::unistd::getuid()), None)?;
+    match std::fs::hard_link(committed_path, rendered_path) {
+        Err(err) => match err.kind() {
+            std::io::ErrorKind::AlreadyExists => Ok(()),
+            _ => Err(Error::wrap_io(err, "Failed to hard link")),
+        },
+        Ok(_) => Ok(()),
     }
 }
