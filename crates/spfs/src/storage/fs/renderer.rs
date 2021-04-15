@@ -261,8 +261,12 @@ where
 {
     use capabilities::{Capabilities, Capability, Flag};
 
-    if let Ok(mut caps) = Capabilities::from_current_proc() {
-        if !caps.check(Capability::CAP_CHOWN, Flag::Effective) {
+    let mut current_caps = Capabilities::from_current_proc().ok();
+    if let Some(caps) = current_caps.as_mut() {
+        if caps.check(Capability::CAP_CHOWN, Flag::Effective) {
+            // permissions already available, don't do any changes to caps
+            current_caps = None
+        } else {
             caps.update(&[Capability::CAP_CHOWN], Flag::Effective, true);
             if let Err(err) = caps.apply() {
                 tracing::warn!(?err, "Failed to get necessary capabilities");
@@ -271,11 +275,19 @@ where
     }
 
     nix::unistd::chown(committed_path.as_ref(), Some(nix::unistd::getuid()), None)?;
-    match std::fs::hard_link(committed_path, rendered_path) {
+    let res = match std::fs::hard_link(committed_path, rendered_path) {
         Err(err) => match err.kind() {
             std::io::ErrorKind::AlreadyExists => Ok(()),
             _ => Err(Error::wrap_io(err, "Failed to hard link")),
         },
         Ok(_) => Ok(()),
+    };
+
+    if let Some(caps) = current_caps.as_mut() {
+        caps.update(&[Capability::CAP_CHOWN], Flag::Effective, false);
+        if let Err(err) = caps.apply() {
+            panic!("Failed to release capabilities, this is unsafe: {:?}", err);
+        }
     }
+    res
 }
