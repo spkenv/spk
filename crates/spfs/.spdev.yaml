@@ -1,6 +1,8 @@
-version: 0.26.1
+version: 0.27.0
 release_notes: |
-  * Fix regression where changes were lost after remounting
+  * Update render process to survive repository files being owned by other users
+    * Separate core rendering process into separate binary with cap_chown
+    * Take ownership of local repo files forcefully if needed to complete a render
 
 toolchain:
   - kind: Rust
