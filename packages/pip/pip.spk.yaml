@@ -1,0 +1,18 @@
+pkg: pip
+
+build:
+  options:
+    - pkg: python
+  script:
+    - /spfs/bin/python -m ensurepip --upgrade --default-pip
+    - /spfs/bin/pip install --upgrade pip==$SPK_PACKAGE_VERSION_BASE
+
+tests:
+  - stage: install
+    script:
+      - test $(pip --version | cut -d ' ' -f 2) == "$SPK_PKG_VERSION_BASE"
+
+install:
+  requirements:
+    - pkg: python
+      fromBuildEnv: x.x

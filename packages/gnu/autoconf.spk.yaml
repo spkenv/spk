@@ -1,0 +1,19 @@
+pkg: autoconf/2.71
+
+sources:
+  - tar: http://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
+
+build:
+  options:
+    - pkg: m4/1.4.6
+    - pkg: perl/5.006
+    - pkg: make
+  script:
+    - ./configure --prefix=/spfs
+    - make
+    - make install
+
+install:
+  requirements:
+    - pkg: perl
+    - pkg: m4

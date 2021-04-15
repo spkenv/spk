@@ -1,0 +1,33 @@
+pkg: gmp/6.2.0
+
+sources:
+  - tar: https://gmplib.org/download/gmp/gmp-6.2.0.tar.xz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: stdfs
+    - pkg: autoconf
+    - pkg: make
+    - pkg: gcc
+  script:
+    - rm -rf build; mkdir build
+    - cd build
+    - ../gmp-6.2.0/configure --prefix=/spfs --with-sysroot=/spfs --with-local-prefix=/spfs
+    - make -j$(nproc)
+    - make check
+    - make install
+    # no need to keep these extra files around
+    - rm -r /spfs/share/info
+
+tests:
+  - stage: install
+    script:
+      - ldd /spfs/lib/libgmp.so
+
+install:
+  requirements:
+    - pkg: stdfs

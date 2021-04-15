@@ -1,0 +1,13 @@
+pkg: autogen/5.12
+
+sources:
+  - tar: http://ftp.gnu.org/gnu/autogen/rel5.12/autogen-5.12.tar.bz2
+
+build:
+  options:
+    - pkg: make
+    - pkg: guile
+  script:
+    - ./configure --prefix=/spfs
+    - make
+    - make install

@@ -66,6 +66,7 @@ pipenv shell
 The easiest way to work with spk is to install a local development version into the pipenv virtaul environment. Once in a pipenv shell, this can be achieved by running the commands below.
 
 ```sh
+# install the local sources into the virtualenv
 python setup.py develop
 which spk # now points to local dev version
 spk --help
@@ -96,4 +97,19 @@ Additionally, there are some rust unit tests that can be executed using `cargo`.
 
 ```sh
 cargo test
+```
+
+From this shell, you can run the local build of the `spk` command as well as all tests with pytest. **NOTE**: running the local development version of spk, and running the unit tests will require that `spfs` is installed on the local machine. The pytest test suite must also be run from within an spfs environment in order to work properly.
+
+```sh
+# run the unit test suite
+spfs run - -- pytest
+```
+
+### Bootstrapping
+
+In a new environment, it can be helpful to build all of the core packages who's recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
+
+```sh
+bash packages/build_all.sh
 ```

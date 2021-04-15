@@ -1,0 +1,27 @@
+pkg: gettext/0.21
+
+sources:
+  - tar: https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.tar.gz
+
+build:
+  options:
+    - autoconf
+    - automake/>=1.16.1
+    - gettext
+    - autopoint
+    - pkg-config
+    - texinfo
+    - gcc
+    - make # remove for bootstrapping from host
+  script:
+    - ./bootstrap
+    - ./configure --prefix=${PREFIX} MAKE_MAINTAINER_MODE= MAKE_CFLAGS=
+    - make
+    - make install
+
+tests:
+  - stage: build
+    script:
+      - ./bootstrap
+      - ./configure --prefix=${PREFIX}
+      - make check
