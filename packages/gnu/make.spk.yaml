@@ -1,0 +1,31 @@
+pkg: make
+
+sources:
+  - tar: https://ftp.gnu.org/gnu/make/make-4.3.tar.gz
+
+build:
+  options:
+    # - pkg: autoconf
+    # - pkg: automake/>=1.16.1
+    # - pkg: gettext
+    # - pkg: autopoint
+    # - pkg: pkg-config
+    # - pkg: texinfo
+    - pkg: expr
+    - pkg: sed
+    - pkg: gcc
+  script:
+    - export PATH=/spfs/bin
+    - cd make-4.3
+    - ./configure --prefix=${PREFIX} MAKE_MAINTAINER_MODE= MAKE_CFLAGS=
+    - ./build.sh
+    - make
+    - make install
+
+tests:
+  - stage: build
+    script:
+      - export PATH=/spfs/bin
+      - ./bootstrap
+      - ./configure --prefix=${PREFIX}
+      - make check

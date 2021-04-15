@@ -1,0 +1,22 @@
+pkg: bzip2/1.0.6
+
+sources:
+- tar: ./bzip2-1.0.6.tar.gz
+
+build:
+  options:
+  - var: arch
+  - var: os
+  - var: centos
+  - pkg: gcc
+  - pkg: stdfs
+  variants:
+  - {gcc: 4.8}
+  - {gcc: 6.3}
+  script:
+  - cd bzip2-1.0.6
+  - make install PREFIX=/spfs CFLAGS=-fPIC
+
+install:
+  requirements:
+  - pkg: stdfs
