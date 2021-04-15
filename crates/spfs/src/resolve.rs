@@ -32,7 +32,10 @@ pub fn render(spec: &tracking::EnvSpec) -> Result<std::path::PathBuf> {
     }
     match output.status.code() {
         Some(0) => Ok(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes))),
-        _ => Err("render failed".into()),
+        _ => {
+            let stderr = std::ffi::OsStr::from_bytes(output.stderr.as_slice());
+            Err(format!("render failed:\n{}", stderr.to_string_lossy()).into())
+        }
     }
 }
 
@@ -191,6 +194,9 @@ pub fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
                 let mut expanded =
                     resolve_stack_to_layers(platform.stack.clone().into_iter(), Some(repo))?;
                 layers.append(&mut expanded);
+            }
+            graph::Object::Manifest(manifest) => {
+                layers.push(graph::Layer::new(manifest.digest().unwrap()))
             }
             obj => {
                 return Err(format!(
