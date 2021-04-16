@@ -56,8 +56,8 @@ pub trait Repository:
         self.read_ref(reference).is_ok()
     }
 
-    /// Read an object of unknown type by tag or digest.
-    fn read_ref(&self, reference: &str) -> Result<graph::Object> {
+    /// Resolve a tag or digest string into it's absolute digest.
+    fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
         let reference = reference.as_ref();
         let digest = if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
             if let Ok(tag) = self.resolve_tag(&tag_spec) {
@@ -69,6 +69,12 @@ pub trait Repository:
             self.resolve_full_digest(reference)?
         };
 
+        Ok(digest)
+    }
+
+    /// Read an object of unknown type by tag or digest.
+    fn read_ref(&self, reference: &str) -> Result<graph::Object> {
+        let digest = self.resolve_ref(reference)?;
         Ok(self.read_object(&digest)?)
     }
 

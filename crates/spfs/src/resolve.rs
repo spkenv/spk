@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashSet, iter::FromIterator, path::Path};
 
 use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
@@ -8,6 +8,41 @@ use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
 use storage::{ManifestStorage, Repository};
 
+/// Render the given environment in the local repository
+///
+/// All items in the spec will be merged and rendered, so
+/// it's usually best to only include one thing in the spec if
+/// building up layers for use in an spfs runtime
+pub fn render(spec: &tracking::EnvSpec) -> Result<std::path::PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let render_cmd = match super::which_spfs("render") {
+        Some(cmd) => cmd,
+        None => return Err("'spfs-render' command not found in environment".into()),
+    };
+    let mut cmd = std::process::Command::new(render_cmd);
+    cmd.arg(spec.to_string());
+    tracing::debug!("{:?}", cmd);
+    let output = cmd.output()?;
+    let mut bytes = output.stdout.as_slice();
+    loop {
+        match bytes.strip_suffix(&[b'\n']) {
+            Some(b) => bytes = b,
+            None => break,
+        }
+    }
+    match output.status.code() {
+        Some(0) => Ok(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes))),
+        _ => {
+            let stderr = std::ffi::OsStr::from_bytes(output.stderr.as_slice());
+            Err(format!("render failed:\n{}", stderr.to_string_lossy()).into())
+        }
+    }
+}
+
+/// Render a set of layers into an arbitrary target directory.
+///
+/// This method runs in the current thread and creates a copy
+/// of the desired data in the target directory
 pub fn render_into_directory(
     env_spec: &tracking::EnvSpec,
     target: impl AsRef<std::path::Path>,
@@ -33,6 +68,7 @@ pub fn render_into_directory(
     repo.render_manifest_into_dir(&manifest, &target, storage::fs::RenderType::Copy)
 }
 
+/// Compute or load the spfs manifest representation for a saved reference.
 pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
     let config = load_config()?;
     let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository()?.into()];
@@ -82,7 +118,7 @@ pub fn compute_object_manifest(
 /// These are returned as a list, from bottom to top.
 pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
     let config = load_config()?;
-    let repo = config.get_repository()?.into();
+    let mut repo = config.get_repository()?.into();
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().into_iter(), Some(&repo))?;
     let manifests: Result<Vec<_>> = layers
@@ -97,14 +133,19 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
         for next in manifests.drain(0..to_flatten) {
             manifest.update(&next.unlock());
         }
-        manifests.insert(0, graph::Manifest::from(&manifest));
+        let manifest = graph::Manifest::from(&manifest);
+        // store the newly created manifest so that the render process can read it back
+        repo.write_object(&manifest.clone().into())?;
+        manifests.insert(0, manifest);
     }
 
     let renders = repo.renders()?;
-    let to_render: Vec<_> = manifests
-        .iter()
-        .filter(|manifest| !renders.has_rendered_manifest(&manifest.digest().unwrap()))
-        .collect();
+    let to_render: HashSet<encoding::Digest> = HashSet::from_iter(
+        manifests
+            .iter()
+            .map(|m| m.digest().unwrap())
+            .filter(|digest| !renders.has_rendered_manifest(&digest)),
+    );
     if to_render.len() > 0 {
         tracing::info!("{} layers require rendering", to_render.len());
 
@@ -116,10 +157,7 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
         let results: Result<Vec<_>> = to_render
             .into_par_iter()
             .progress_with(bar)
-            .map(|manifest| match repo.renders() {
-                Ok(renders) => renders.render_manifest(&manifest),
-                Err(err) => Err(err),
-            })
+            .map(|manifest| render(&manifest.into()))
             .collect();
         results?;
     }
@@ -156,6 +194,9 @@ pub fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
                 let mut expanded =
                     resolve_stack_to_layers(platform.stack.clone().into_iter(), Some(repo))?;
                 layers.append(&mut expanded);
+            }
+            graph::Object::Manifest(manifest) => {
+                layers.push(graph::Layer::new(manifest.digest().unwrap()))
             }
             obj => {
                 return Err(format!(

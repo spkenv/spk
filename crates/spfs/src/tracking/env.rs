@@ -6,6 +6,8 @@ use crate::{Error, Result};
 #[path = "./env_test.rs"]
 mod env_test;
 
+static ENV_SPEC_SEPARATOR: &str = "+";
+
 /// One object specifier in an env spec
 #[derive(Debug)]
 pub enum EnvSpecItem {
@@ -38,6 +40,21 @@ impl EnvSpec {
     }
 }
 
+impl From<encoding::Digest> for EnvSpec {
+    fn from(digest: encoding::Digest) -> Self {
+        EnvSpec {
+            items: vec![EnvSpecItem::Digest(digest)],
+        }
+    }
+}
+
+impl std::string::ToString for EnvSpec {
+    fn to_string(&self) -> String {
+        let items: Vec<_> = self.items.iter().map(|i| i.to_string()).collect();
+        items.join(ENV_SPEC_SEPARATOR)
+    }
+}
+
 /// Return the items identified in an environment spec string.
 ///
 /// ```rust
@@ -51,7 +68,7 @@ impl EnvSpec {
 /// ```
 pub fn parse_env_spec<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
     let mut items = Vec::new();
-    for layer in spec.as_ref().split("+") {
+    for layer in spec.as_ref().split(ENV_SPEC_SEPARATOR) {
         if let Ok(digest) = encoding::parse_digest(layer) {
             items.push(EnvSpecItem::Digest(digest));
             continue;

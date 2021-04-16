@@ -15,7 +15,6 @@ mod cmd_ls_tags;
 mod cmd_migrate;
 mod cmd_platforms;
 mod cmd_read;
-mod cmd_render;
 mod cmd_reset;
 mod cmd_runtimes;
 mod cmd_search;
@@ -36,6 +35,7 @@ main!(Opt);
                   \n    shell        create a new shell in an spfs environment\
                   \n    push         pull one or more object to the local repository\
                   \n    pull         push one or more objects to a remote repository\
+                  \n    render       render the contents of an environment or layer\
                   "
 )]
 pub struct Opt {
@@ -89,8 +89,6 @@ pub enum Command {
     Clean(cmd_clean::CmdClean),
     #[structopt(about = "output the contents of a stored payload to stdout", visible_aliases = &["read-file", "cat", "cat-file"])]
     Read(cmd_read::CmdRead),
-    #[structopt(about = "Render the contents of an environment into any directory")]
-    Render(cmd_render::CmdRender),
 
     #[structopt(external_subcommand)]
     External(Vec<String>),
@@ -118,7 +116,6 @@ impl Opt {
             Command::Check(cmd) => cmd.run(&config),
             Command::Clean(cmd) => cmd.run(&config),
             Command::Read(cmd) => cmd.run(&config),
-            Command::Render(cmd) => cmd.run(&config),
             Command::External(args) => run_external_subcommand(args.clone()),
         }
     }
