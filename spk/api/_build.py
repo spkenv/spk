@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 from dataclasses import dataclass
 import base64
 import binascii

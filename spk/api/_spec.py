@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 from ast import parse
 from typing import List, Any, Dict, Optional, Union, IO, Iterable
 from dataclasses import dataclass, field

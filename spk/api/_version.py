@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 from typing import Tuple, Any, MutableMapping
 from dataclasses import dataclass, field
 from sortedcontainers import SortedDict

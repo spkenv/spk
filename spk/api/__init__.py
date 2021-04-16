@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 from ._name import InvalidNameError
 from ._option_map import OptionMap, host_options
 from ._version import Version, parse_version, VERSION_SEP, InvalidVersionError
