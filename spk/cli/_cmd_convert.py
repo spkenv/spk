@@ -24,7 +24,7 @@ def register(
         "convert", help=_convert.__doc__, **parser_args
     )
 
-    sub_parsers = convert_cmd.add_subparsers(dest="converter", required=True)
+    sub_parsers = convert_cmd.add_subparsers(dest="converter")
     spcomp2_cmd = sub_parsers.add_parser(
         "spcomp2", help="Convert and convert spComp2s as packages", **parser_args
     )
@@ -127,6 +127,11 @@ def _convert(args: argparse.Namespace) -> None:
 
     elif args.converter == "pip":
         _convert_pip_packages(args)
+
+    elif args.converter is None:
+        raise ValueError(
+            f"Converter required and not given: use 'spk convert --help' for more info"
+        )
 
     else:
         raise NotImplementedError(

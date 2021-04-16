@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import Iterable, List, Iterable, Optional, Tuple
+from typing import Iterable, List, Iterable, Optional, Tuple, TYPE_CHECKING
 import os
 import re
 from pathlib import Path
@@ -12,6 +12,11 @@ from ruamel import yaml
 import structlog
 
 from .. import api, storage, build
+
+if TYPE_CHECKING:
+    Pattern = re.Pattern
+else:
+    Pattern = None
 
 
 _LOGGER = structlog.get_logger("spk.external.spcomp2")
@@ -184,7 +189,7 @@ def _to_spk_name(name: str) -> str:
     return name.lower().replace("_", "-")
 
 
-KNOWN_OPTIONS: List[Tuple[re.Pattern, str, str, List[api.Option]]] = [
+KNOWN_OPTIONS: List[Tuple[Pattern, str, str, List[api.Option]]] = [
     (
         re.compile(r"rhel(7)"),
         "var",
