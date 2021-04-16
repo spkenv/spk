@@ -1,10 +1,7 @@
-version: 0.28.0
+version: 0.28.1
 release_notes: |
-  * Improvements to usability of list command
-    * Do not show repository prefix in interactive mode
-    * Sort results for easier reading
-    * Update --local flag to ONLY show local results be default (as opposed to local and remote results)
-  * Fix bug where --disable-repo flag was ignored in build command
+  * Update to latest spfs release
+    * This will fix issues with multiple users not being able to properly share a machine
 
 toolchain:
   - kind: Rust
