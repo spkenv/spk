@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 from typing import Dict, Any, Union, Optional, TypeVar, TYPE_CHECKING
 from dataclasses import dataclass, field
 import abc

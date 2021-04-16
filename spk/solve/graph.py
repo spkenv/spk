@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple
 import abc
 import base64
