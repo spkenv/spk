@@ -1,0 +1,29 @@
+name: Rust
+
+on: push
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: cargo fmt -- --check
+  build:
+    runs-on: ubuntu-18.04
+    env:
+      SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
+      SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v2
+      - run: sudo apt-get install -y libcap-dev
+      - run: sudo pip3 install pipenv
+      - name: Patch spfs Pull Auth
+        run: sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
+      - run: pipenv sync --dev
+      - name: Build
+        run: pipenv run -- cargo build --verbose
+      - name: Run tests
+        run: pipenv run -- cargo test --verbose --no-default-features
