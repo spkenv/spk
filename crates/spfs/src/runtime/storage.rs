@@ -1,3 +1,7 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 ///! Local file system storage of runtimes.
 use std::ffi::OsStr;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};

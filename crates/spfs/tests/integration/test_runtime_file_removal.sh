@@ -1,5 +1,9 @@
-
 #!/bin/bash
+
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 # test that a removed file is masked in future environments
 
 filename="/spfs/message.txt";

@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 ## Run all integration tests in this folder
 # these are expected to be run off of the installed spfs binaries
 # with the proper capabilities

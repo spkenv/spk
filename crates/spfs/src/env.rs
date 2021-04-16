@@ -1,3 +1,7 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 //! Functions related to the setup and management of the spfs runtime environment
 //! and related system namespacing
 use std::os::unix::io::AsRawFd;

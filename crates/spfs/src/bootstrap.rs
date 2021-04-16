@@ -1,3 +1,7 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 use super::resolve::{which, which_spfs};
 use super::status::active_runtime;
 use crate::{runtime, Result};

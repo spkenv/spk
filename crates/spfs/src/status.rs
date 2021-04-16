@@ -1,3 +1,7 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 use super::config::{load_config, Config};
 use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers};
 use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};

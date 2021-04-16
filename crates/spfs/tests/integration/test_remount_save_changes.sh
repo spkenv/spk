@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# Copyright (c) 2021 Sony Pictures Imageworks, et al.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/imageworks/spk
+
 # test that a removed directory does not show up when running the env later
 
 filepath="/spfs/file1";
