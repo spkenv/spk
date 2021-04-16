@@ -8,6 +8,15 @@ Filesystem isolation, capture, and distribution.
 
 Additional information is available under [docs](docs/).
 
+
+## License
+
+SPK/SPFS/spawn are Copyright (c) 2021 Sony Pictures Imageworks, et al.
+All Rights Reserved.
+
+SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
+
+
 ## Development
 
 SpFS is written in Rust and uses Cargo. The best way to get started with rust development is to install the latest stable rust toolchain using [rustup](https://rustup.sh). More detailed design docs are available under [docs/design](docs/design/).
