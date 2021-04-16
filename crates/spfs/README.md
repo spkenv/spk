@@ -1,13 +1,51 @@
 # spfs
 
+Filesystem isolation, capture, and distribution.
+
+Additional information is available under [docs](docs/).
+
 ## Development
 
-For local development, some tests will require the privileged binary to be built and have its capabilities set. You can rely on the system install of spfs for this in most cases, or run the `build.sh` script with sudo if you need to validate changes to the `spfs-enter` binary itself.
+SpFS is written in Rust and uses Cargo. The best way to get started with rust development is to install the latest stable rust toolchain using [rustup](https://rustup.sh). More detailed design docs are available under [docs/design](docs/design/).
 
-`./build_rpm.sh` is the most consistent way to build the rpm file, which can easily be `sudo yum install`'d into the current system for validation.
+### Building
 
-The `build.sh` script compiles the binaries and standalone binary file into a local build folder.
+Once setup with Rust, building and running a local debug build of spfs is as easy as:
 
-For python development, however, `pipenv shell` followed by calls to `pytest` and `python -m spfs ...` are the simplest and fastest.
+```sh
+cargo build
+target/debug/spfs --help
+```
 
-`Nuitka` is used to compile the codebase and all necessary dependencies into a standalone binary file for distributions. This adds optimizations to the code, and stops the resulting binary from being environment-dependant.
+### Binaries and Capabilities
+
+Spfs builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcaps_debug.sh` script can be used to set these capabilities on your locally-compiled debug binaries.
+
+```sh
+sudo setcaps_debug.sh
+```
+
+### RPM Package
+
+The spfs codebase is setup to produce a centos7-compatible rpm package by building spfs in a docker container. To create the rpm package, you will need docker installed. These packages are also built and made available in this repository's CI.
+
+```sh
+# build the rpm package via docker and copy into ./dist/rpm
+make rpm
+```
+
+### Testing
+
+Spfs has a number of unit tests written in rust that can be run using the `cargo` command.
+
+```sh
+cargo test
+```
+
+Additionally, there are a number of integration tests that validate the fully installed state of spfs. These are generally a series of spfs command line calls that validate the creation and usage of the `/spfs` filesystem.
+
+```sh
+cargo build
+./setcaps_debug.sh
+tests/integration/run_all.sh
+```

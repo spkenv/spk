@@ -82,25 +82,16 @@ pub fn active_runtime() -> Result<runtime::Runtime> {
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
-pub fn reinitialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
+pub fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     let dirs = resolve_overlay_dirs(&rt)?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(&rt)?;
 
-    let tmpfs_opts = config
-        .filesystem
-        .tmpfs_size
-        .as_ref()
-        .map(|size| format!("size={}", size));
-
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
     env::unmount_env()?;
-    env::setup_runtime()?;
-    env::unlock_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
-    env::mount_env(&dirs)?;
+    env::mount_env(rt.is_editable(), &dirs)?;
     env::mask_files(&manifest, original.uid)?;
-    env::set_runtime_lock(rt.is_editable(), None)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
     Ok(())
@@ -124,9 +115,8 @@ pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> 
     env::ensure_mount_targets_exist()?;
     env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
     env::setup_runtime()?;
-    env::mount_env(&dirs)?;
+    env::mount_env(rt.is_editable(), &dirs)?;
     env::mask_files(&manifest, original.uid)?;
-    env::set_runtime_lock(rt.is_editable(), None)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
     Ok(())

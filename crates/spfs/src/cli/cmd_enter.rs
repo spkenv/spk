@@ -38,7 +38,7 @@ impl CmdEnter {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
         if self.remount {
-            spfs::reinitialize_runtime(&runtime, &config)?;
+            spfs::reinitialize_runtime(&runtime)?;
             Ok(0)
         } else {
             let cmd = match self.cmd.take() {

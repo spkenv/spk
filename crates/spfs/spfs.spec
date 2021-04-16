@@ -3,8 +3,9 @@ Version: 0.27.0
 Release: 1
 Summary: Filesystem isolation, capture, and distribution.
 License: NONE
-URL: https://gitlab.spimageworks.com/dev-group/dev-ops/spfs
-Source0: https://gitlab.spimageworks.com/dev-group/dev-ops/spfs/-/archive/v%{version}/%{name}-v%{version}.tar.gz
+URL: https://github.com/imageworks/spfs
+Source0: https://github.com/imageworks/spfs/archive/refs/tags/v%{version}.tar.gz
+
 
 Requires: expect >= 5, expect < 6
 BuildRequires: rsync
@@ -13,7 +14,6 @@ BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: libcap-devel
 BuildRequires: openssl-devel
-BuildRequires: spdev
 
 %define debug_package %{nil}
 
@@ -21,19 +21,18 @@ BuildRequires: spdev
 Filesystem isolation, capture, and distribution.
 
 %prep
-%setup -q -n %{name}-v%{version}
+%setup -q
 
 %build
-dev toolchain install
-source ~/.bashrc
-dev env -- dev build spfs
+cargo build --release --verbose
 
 %install
 mkdir -p %{buildroot}/usr/bin
-for cmd in build/spfs/release/spfs build/spfs/release/spfs-*; do
+RELEASE_DIR=%{_builddir}/%{name}-%{version}/target/release
+for cmd in $RELEASE_DIR/spfs $RELEASE_DIR/spfs-*; do
     # skip debug info for commands
     if [[ $cmd =~ \.d$ ]]; then continue; fi
-    install -p -m 755 %{_builddir}/%{name}-v%{version}/$cmd %{buildroot}/usr/bin/
+    install -p -m 755 $cmd %{buildroot}/usr/bin/
 done
 
 %files

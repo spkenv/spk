@@ -9,15 +9,22 @@ use storage::RepositoryHandle;
 fixtures!();
 
 #[rstest]
-fn test_push_ref_unknown() {
+fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
     let _guard = init_logging();
-    match push_ref("--test-unknown--", None) {
+    let (_handle, config) = config;
+    match push_ref(
+        "--test-unknown--",
+        Some(config.get_remote("origin").unwrap()),
+    ) {
         Err(Error::UnknownReference(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
         Ok(_) => panic!("expected unknown reference error, got success"),
     }
 
-    match push_ref(encoding::Digest::default().to_string(), None) {
+    match push_ref(
+        encoding::Digest::default().to_string(),
+        Some(config.get_remote("origin").unwrap()),
+    ) {
         Err(Error::UnknownObject(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
         Ok(_) => panic!("expected unknown reference error, got success"),

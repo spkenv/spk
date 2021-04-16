@@ -308,9 +308,15 @@ pub fn get_overlay_args<P: AsRef<Path>>(lowerdirs: impl IntoIterator<Item = P>) 
     Ok(args)
 }
 
-pub fn mount_env<P: AsRef<Path>>(lowerdirs: impl IntoIterator<Item = P>) -> Result<()> {
+pub fn mount_env<P: AsRef<Path>>(
+    editable: bool,
+    lowerdirs: impl IntoIterator<Item = P>,
+) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
-    let overlay_args = get_overlay_args(lowerdirs)?;
+    let mut overlay_args = get_overlay_args(lowerdirs)?;
+    if !editable {
+        overlay_args = format!("ro,{}", overlay_args);
+    }
     tracing::debug!(
         "/usr/bin/mount -t overlay -o {} none {}",
         overlay_args,
@@ -343,34 +349,6 @@ pub fn unmount_env() -> Result<()> {
             err,
             format!("Failed to unmount {}", SPFS_DIR),
         ));
-    }
-    Ok(())
-}
-
-pub fn unlock_runtime(tmpfs_opts: Option<&str>) -> Result<()> {
-    use nix::mount::{mount, MsFlags};
-    let result = mount(
-        NONE,
-        RUNTIME_DIR,
-        Some("tmpfs"),
-        MsFlags::MS_REMOUNT,
-        tmpfs_opts,
-    );
-    if let Err(err) = result {
-        return Err(Error::wrap_nix(err, "Failed to unlock runtime"));
-    }
-    Ok(())
-}
-
-pub fn set_runtime_lock(editable: bool, tmpfs_opts: Option<&str>) -> Result<()> {
-    use nix::mount::{mount, MsFlags};
-    let mut flags = MsFlags::MS_REMOUNT;
-    if !editable {
-        flags |= MsFlags::MS_RDONLY;
-    }
-    let result = mount(NONE, RUNTIME_DIR, Some("tmpfs"), flags, tmpfs_opts);
-    if let Err(err) = result {
-        return Err(Error::wrap_nix(err, "Failed to set runtime lock"));
     }
     Ok(())
 }
