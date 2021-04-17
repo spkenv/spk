@@ -3,17 +3,18 @@ Version: 0.28.1
 Release: 1
 Summary: Package manager for SPFS.
 License: NONE
-URL: https://gitlab.spimageworks.com/spi/dev/dev-ops/spk
-Source0: https://gitlab.spimageworks.com/spi/dev/dev-ops/spk/-/archive/v%{version}/%{name}-v%{version}.tar.gz
+URL: https://github.com/imageworks/spk
+Source0: https://github.com/imageworks/spk/archive/refs/tags/v%{version}.tar.gz
 
 BuildRequires: gcc
+BuildRequires: git
+BuildRequires: which
 BuildRequires: gcc-c++
 BuildRequires: chrpath
-BuildRequires: python-pip
 BuildRequires: libcap-devel
-BuildRequires: python37-devel
 BuildRequires: openssl-devel
-BuildRequires: spdev
+BuildRequires: python3-devel
+BuildRequires: python3-pip
 Requires: rsync
 Requires: spfs >= 0.27.0
 
@@ -23,14 +24,14 @@ Requires: spfs >= 0.27.0
 Package manager for SPFS
 
 %prep
-%setup -q -n %{name}-v%{version}
+%setup -q -n %{name}-%{version}
 
 %build
+pip3 install pipenv
+export LANG=en_US.UTF-8
 mkdir -p ./build
-dev toolchain install Rust
-source ~/.bashrc
 pipenv sync --dev
-source "$(pipenv --venv)/bin/activate"
+source $(pipenv --venv)/bin/activate
 python setup.py install
 python -m nuitka \
     --standalone \
@@ -50,7 +51,7 @@ python -m nuitka \
 %install
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/opt/spk.dist
-rsync -rvapog --chmod 755 %{_builddir}/%{name}-v%{version}/build/spk.dist/* %{buildroot}/opt/spk.dist/
+rsync -rvapog --chmod 755 %{_builddir}/%{name}-%{version}/build/spk.dist/* %{buildroot}/opt/spk.dist/
 
 %files
 /opt/spk.dist/

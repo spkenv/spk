@@ -1,0 +1,20 @@
+name: Python
+
+on: push
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - run: sudo pip3 install pipenv
+      - run: pipenv sync --dev
+      - name: Lint Formatting with Black
+        run: pipenv run -- black --check
+      - name: Lint Typing with MyPy
+        run: pipenv run -- mypy spk
+  # TODO: find a way to run the unit test suite... it needs an installation
+  # of spfs and we currently only produce a centos rpm that's not easy to use here

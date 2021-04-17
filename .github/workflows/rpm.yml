@@ -1,0 +1,23 @@
+name: RPM Build
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: echo RPM_NAME=$(rpmspec -q spk.spec | head -n1) >> $GITHUB_ENV
+      - run: echo Building ${{ env.RPM_NAME }}.rpm
+      - name: build RPM package
+        env:
+          SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
+          SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
+        run: make rpm
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: Binary RPM
+          path: dist/rpm/RPMS/x86_64/${{ env.RPM_NAME }}.rpm
+  # TODO: find a way to run the unit test suite... it needs an installation
+  # of spfs and we currently only produce a centos rpm that's not easy to use here

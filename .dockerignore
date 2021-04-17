@@ -1,0 +1,10 @@
+.git/
+target/
+.vscode/
+docs/
+examples/
+packages/
+.github/
+__pycache__/
+*.so
+*.egg-info/

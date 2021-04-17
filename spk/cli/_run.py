@@ -6,13 +6,12 @@ from typing import Sequence
 import sys
 import traceback
 
-import spops
 import sentry_sdk
 from colorama import Fore
 
 import spk
 
-from ._args import parse_args, configure_logging, configure_sentry, configure_spops
+from ._args import parse_args, configure_logging, configure_sentry, configure_spops, spops
 
 
 def main() -> None:
@@ -37,7 +36,8 @@ def run(argv: Sequence[str]) -> int:
     configure_logging(args)
     configure_spops()
 
-    spops.count("spk.run_count", command=args.command)
+    if spops is not None:
+        spops.count("spk.run_count", command=args.command)
 
     with sentry_sdk.configure_scope() as scope:
         scope.set_extra("command", args.command)
@@ -51,7 +51,10 @@ def run(argv: Sequence[str]) -> int:
 
     try:
 
-        with spops.timer("spk.run_time", command=args.command):
+        if spops is not None:
+            with spops.timer("spk.run_time", command=args.command):
+                args.func(args)
+        else:
             args.func(args)
 
     except KeyboardInterrupt:
@@ -62,7 +65,8 @@ def run(argv: Sequence[str]) -> int:
 
     except Exception as e:
         _capture_if_relevant(e)
-        spops.count("spk.error_count", command=args.command)
+        if spops is not None:
+            spops.count("spk.error_count", command=args.command)
         print(f"{spk.io.format_error(e)}", file=sys.stderr)
         if args.verbose > 2:
             print(f"{Fore.RED}{traceback.format_exc()}{Fore.RESET}", file=sys.stderr)

@@ -9,10 +9,14 @@ import getpass
 import logging
 import argparse
 
-import spops
 import sentry_sdk
 import structlog
 import colorama
+
+try:
+    import spops
+except ImportError:
+    spops = None
 
 import spk
 import spkrs
@@ -101,6 +105,8 @@ def configure_sentry() -> None:
 
 def configure_spops() -> None:
 
+    if spops is None:
+        return
     try:
         spops.configure(
             {"statsd": {"host": "statsd.k8s.spimageworks.com", "port": 30111}}
