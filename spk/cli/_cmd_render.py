@@ -22,7 +22,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    render_cmd = sub_parsers.add_parser("render", help=_render.__doc__, **parser_args)
+    render_cmd = sub_parsers.add_parser(
+        "render", help=_render.__doc__, description=_render.__doc__, **parser_args
+    )
     render_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to resolve and render"
     )

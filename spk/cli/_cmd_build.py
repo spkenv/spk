@@ -18,7 +18,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    build_cmd = sub_parsers.add_parser("build", help=_build.__doc__, **parser_args)
+    build_cmd = sub_parsers.add_parser(
+        "build", help=_build.__doc__, description=_build.__doc__, **parser_args
+    )
     build_cmd.add_argument(
         "--interactive",
         "-i",

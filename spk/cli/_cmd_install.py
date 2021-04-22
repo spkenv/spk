@@ -23,7 +23,11 @@ def register(
 ) -> argparse.ArgumentParser:
 
     install_cmd = sub_parsers.add_parser(
-        "install", aliases=["i"], help=_install.__doc__, **parser_args
+        "install",
+        aliases=["i"],
+        help=_install.__doc__,
+        description=_install.__doc__,
+        **parser_args,
     )
     install_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to install"

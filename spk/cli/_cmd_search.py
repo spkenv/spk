@@ -19,7 +19,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    search_cmd = sub_parsers.add_parser("search", help=_search.__doc__, **parser_args)
+    search_cmd = sub_parsers.add_parser(
+        "search", help=_search.__doc__, description=_search.__doc__, **parser_args
+    )
     _flags.add_repo_flags(search_cmd)
     search_cmd.add_argument("term", metavar="TERM", help="The search term / substring")
     search_cmd.set_defaults(func=_search)

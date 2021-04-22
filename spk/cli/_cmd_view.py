@@ -22,7 +22,11 @@ def register(
 ) -> argparse.ArgumentParser:
 
     view_cmd = sub_parsers.add_parser(
-        "view", aliases=["info"], help=_view.__doc__, **parser_args
+        "view",
+        aliases=["info"],
+        help=_view.__doc__,
+        description=_view.__doc__,
+        **parser_args,
     )
     view_cmd.add_argument(
         "package",

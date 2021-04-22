@@ -21,7 +21,11 @@ def register(
 ) -> argparse.ArgumentParser:
 
     remove_cmd = sub_parsers.add_parser(
-        "remove", aliases=["rm"], help=_remove.__doc__, **parser_args
+        "remove",
+        aliases=["rm"],
+        help=_remove.__doc__,
+        description=_remove.__doc__,
+        **parser_args,
     )
     remove_cmd.add_argument(
         "--yes", action="store_true", help="Do not ask for confirmations (dangerous!)"

@@ -21,7 +21,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     convert_cmd = sub_parsers.add_parser(
-        "convert", help=_convert.__doc__, **parser_args
+        "convert", help=_convert.__doc__, description=_convert.__doc__, **parser_args
     )
 
     sub_parsers = convert_cmd.add_subparsers(dest="converter")

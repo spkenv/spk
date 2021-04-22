@@ -18,7 +18,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    import_cmd = sub_parsers.add_parser("import", help=_import.__doc__, **parser_args)
+    import_cmd = sub_parsers.add_parser(
+        "import", help=_import.__doc__, description=_import.__doc__, **parser_args
+    )
 
     import_cmd.add_argument(
         "packages", metavar="FILE|NAME", nargs="+", help="The packages to import"

@@ -13,7 +13,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     version_cmd = sub_parsers.add_parser(
-        "version", help=_version.__doc__, **parser_args
+        "version", help=_version.__doc__, description=_version.__doc__, **parser_args
     )
     version_cmd.set_defaults(func=_version)
     return version_cmd

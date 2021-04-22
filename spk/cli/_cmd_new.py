@@ -16,7 +16,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    new_cmd = sub_parsers.add_parser("new", help=_new.__doc__, **parser_args)
+    new_cmd = sub_parsers.add_parser(
+        "new", help=_new.__doc__, description=_new.__doc__, **parser_args
+    )
     new_cmd.add_argument(
         "name", metavar="NAME", nargs=1, help="The name of the new package"
     )

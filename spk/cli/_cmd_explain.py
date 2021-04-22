@@ -20,7 +20,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     explain_cmd = sub_parsers.add_parser(
-        "explain", help=_explain.__doc__, **parser_args
+        "explain", help=_explain.__doc__, description=_explain.__doc__, **parser_args
     )
     _flags.add_solver_flags(explain_cmd)
     _flags.add_request_flags(explain_cmd)

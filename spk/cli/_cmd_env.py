@@ -22,7 +22,11 @@ def register(
 ) -> argparse.ArgumentParser:
 
     env_cmd = sub_parsers.add_parser(
-        "env", aliases=["run"], help=_env.__doc__, **parser_args
+        "env",
+        aliases=["run"],
+        help=_env.__doc__,
+        description=_env.__doc__,
+        **parser_args
     )
     env_cmd.add_argument(
         "args",

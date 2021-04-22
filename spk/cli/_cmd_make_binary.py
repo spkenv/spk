@@ -22,6 +22,7 @@ def register(
         "make-binary",
         aliases=["mkbinary", "mkbin", "mkb"],
         help=_make_binary.__doc__,
+        description=_make_binary.__doc__,
         **parser_args
     )
     mkb_cmd.add_argument(

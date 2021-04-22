@@ -11,7 +11,13 @@ from colorama import Fore
 
 import spk
 
-from ._args import parse_args, configure_logging, configure_sentry, configure_spops, spops
+from ._args import (
+    parse_args,
+    configure_logging,
+    configure_sentry,
+    configure_spops,
+    spops,
+)
 
 
 def main() -> None:
