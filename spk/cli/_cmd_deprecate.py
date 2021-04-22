@@ -21,7 +21,10 @@ def register(
 ) -> argparse.ArgumentParser:
 
     deprecate_cmd = sub_parsers.add_parser(
-        "deprecate", help=_deprecate.__doc__, **parser_args
+        "deprecate",
+        help=_deprecate.__doc__,
+        description=_deprecate.__doc__,
+        **parser_args,
     )
     deprecate_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to deprecate"

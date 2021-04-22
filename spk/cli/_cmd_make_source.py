@@ -22,6 +22,7 @@ def register(
         "make-source",
         aliases=["mksource", "mksrc", "mks"],
         help=_make_source.__doc__,
+        description=_make_source.__doc__,
         **parser_args,
     )
     make_source_cmd.add_argument(

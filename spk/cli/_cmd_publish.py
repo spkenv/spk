@@ -17,7 +17,7 @@ def register(
 ) -> argparse.ArgumentParser:
 
     publish_cmd = sub_parsers.add_parser(
-        "publish", help=_publish.__doc__, **parser_args
+        "publish", help=_publish.__doc__, description=_publish.__doc__, **parser_args
     )
     publish_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The local package to publish"

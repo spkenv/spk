@@ -22,7 +22,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    bake_cmd = sub_parsers.add_parser("bake", help=_bake.__doc__, **parser_args)
+    bake_cmd = sub_parsers.add_parser(
+        "bake", help=_bake.__doc__, description=_bake.__doc__, **parser_args
+    )
     bake_cmd.add_argument(
         "package",
         metavar="PKG",

@@ -19,7 +19,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    test_cmd = sub_parsers.add_parser("test", help=_test.__doc__, **parser_args)
+    test_cmd = sub_parsers.add_parser(
+        "test", help=_test.__doc__, description=_test.__doc__, **parser_args
+    )
     test_cmd.add_argument(
         "--here",
         action="store_true",

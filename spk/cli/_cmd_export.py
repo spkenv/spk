@@ -19,7 +19,9 @@ def register(
     sub_parsers: argparse._SubParsersAction, **parser_args: Any
 ) -> argparse.ArgumentParser:
 
-    export_cmd = sub_parsers.add_parser("export", help=_export.__doc__, **parser_args)
+    export_cmd = sub_parsers.add_parser(
+        "export", help=_export.__doc__, description=_export.__doc__, **parser_args
+    )
     export_cmd.add_argument(
         "packages", metavar="PKG", nargs="+", help="The packages to export"
     )
