@@ -36,7 +36,7 @@ def register(
 
 
 def _render(args: argparse.Namespace) -> None:
-    """remove a package from a repository."""
+    """Output the contents of an spk environment (/spfs) to a folder."""
 
     solver = _flags.get_solver_from_flags(args)
     for name in args.packages:
