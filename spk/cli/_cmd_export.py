@@ -30,7 +30,7 @@ def register(
 
 
 def _export(args: argparse.Namespace) -> None:
-    """export a package as a tar file."""
+    """Export a package as a tar file."""
 
     for package in args.packages:
         pkg = spk.api.parse_ident(package)

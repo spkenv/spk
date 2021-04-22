@@ -48,7 +48,7 @@ def register(
 
 
 def _publish(args: argparse.Namespace) -> None:
-    """publish a package into a shared repository."""
+    """Publish a package into a shared repository."""
 
     publisher = (
         spk.Publisher()

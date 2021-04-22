@@ -41,7 +41,7 @@ def register(
 
 
 def _ls(args: argparse.Namespace) -> None:
-    """list packages in one or more repositories."""
+    """List packages in one or more repositories."""
 
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:

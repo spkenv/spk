@@ -39,7 +39,7 @@ def register(
 
 
 def _remove(args: argparse.Namespace) -> None:
-    """remove a package from a repository."""
+    """Remove a package from a repository."""
 
     repos = _flags.get_repos_from_repo_flags(args)
     if not repos:

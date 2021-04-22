@@ -53,7 +53,7 @@ def register(
 
 
 def _install(args: argparse.Namespace) -> None:
-    """install a package into spkrs."""
+    """Install a package into spkrs."""
 
     solver = _flags.get_solver_from_flags(args)
     requests = _flags.parse_requests_using_flags(args, *args.packages)
