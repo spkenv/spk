@@ -32,7 +32,7 @@ def register(
 
 
 def _deprecate(args: argparse.Namespace) -> None:
-    """deprecate a package in a repository.
+    """Deprecate a package in a repository.
 
     Deprecated packages can still be resolved by requesting the exact build,
     but will otherwise not show up in environments. By deprecating a package

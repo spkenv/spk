@@ -37,7 +37,7 @@ def register(
 
 
 def _view(args: argparse.Namespace) -> None:
-    """view the current environment or a specific package's information."""
+    """View the current environment or a specific package's information."""
 
     if not args.package:
         _print_current_env(args)

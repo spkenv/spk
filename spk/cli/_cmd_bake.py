@@ -36,7 +36,7 @@ def register(
 
 
 def _bake(args: argparse.Namespace) -> None:
-    """bake an executable environment from a set of requests or the current environment."""
+    """Bake an executable environment from a set of requests or the current environment."""
 
     if args.package:
         layers = _solve_and_build_new_runtime(args)
