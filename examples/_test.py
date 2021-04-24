@@ -27,7 +27,7 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
     root = tmpdir.join("spfs_repo").strpath
     os.environ["SPFS_STORAGE_ROOT"] = root
     # we rely on an outer runtime being created and it needs to still be found
-    os.environ["SPFS_STORAGE_RUNTIMES"] = "/scratch/spfs/runtimes"
+    os.environ["SPFS_STORAGE_RUNTIMES"] = "/tmp/spfs-runtimes"
     if "SPFS_REMOTE_ORIGIN_ADDRESS" in os.environ:
         del os.environ["SPFS_REMOTE_ORIGIN_ADDRESS"]
     r = py.path.local(root)
@@ -44,6 +44,11 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
     "stage,spec_file", itertools.product(("mks", "mkb", "test"), testable_examples)
 )
 def test_example(stage: str, spec_file: str) -> None:
+
+    try:
+        spkrs.remote_repository("origin")
+    except FileNotFoundError:
+        pytest.skip("examples depend on external packages")
 
     subprocess.check_call(
         [
