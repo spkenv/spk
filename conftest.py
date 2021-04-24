@@ -54,7 +54,7 @@ def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.SpFSRepository:
     origin_root = tmpdir.join("spfs_origin").strpath
     monkeypatch.setenv("SPFS_STORAGE_ROOT", root)
     # we rely on an outer runtime being created and it needs to still be found
-    monkeypatch.setenv("SPFS_STORAGE_RUNTIMES", "/scratch/spfs/runtimes")
+    monkeypatch.setenv("SPFS_STORAGE_RUNTIMES", "/tmp/spfs-runtimes")
     monkeypatch.setenv("SPFS_REMOTE_ORIGIN_ADDRESS", "file:" + origin_root)
     for path in [root, origin_root]:
         r = py.path.local(path)
