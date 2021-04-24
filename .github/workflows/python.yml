@@ -1,6 +1,10 @@
 name: Python
 
-on: push
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -43,6 +47,7 @@ jobs:
         run: docker run
           -e SPFS_PULL_USERNAME
           -e SPFS_PULL_PASSWORD
+          -e HOME=/root
           --rm
           --privileged
           -v $PWD:/source

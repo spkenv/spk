@@ -8,6 +8,7 @@ import os
 import re
 import tempfile
 import subprocess
+import functools
 from dataclasses import dataclass, field
 
 import structlog
@@ -121,17 +122,17 @@ class GitSource(SourceSpec):
             git_cmd += ["-b", self.ref]
         git_cmd += [self.git, dirname]
 
-        commands = [
-            git_cmd,
-            [
-                "git",
-                "submodule",
-                "update",
-                "--init",
-                "--recursive",
-                f"--depth={self.depth}",
-            ],
+        submodule_cmd = [
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
         ]
+        if git_supports_submodule_depth():
+            submodule_cmd += [f"--depth={self.depth}"]
+
+        commands = [git_cmd, submodule_cmd]
         for cmd in commands:
             _LOGGER.debug(" ".join(cmd))
             subprocess.check_call(cmd, cwd=dirname)
@@ -252,3 +253,21 @@ class ScriptSource(SourceSpec):
             raise ValueError(f"Unknown field in ScriptSource: '{name}'")
 
         return src
+
+
+def git_supports_submodule_depth() -> bool:
+
+    v = git_version()
+    return bool(v and v >= "2.0")
+
+
+@functools.lru_cache()
+def git_version() -> Optional[str]:
+
+    try:
+        out = subprocess.check_output(["git", "--version"])
+    except subprocess.CalledProcessError:
+        return None
+
+    # eg: git version 1.83.6
+    return out.decode().strip().split(" ")[-1]

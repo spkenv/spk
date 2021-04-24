@@ -129,7 +129,7 @@ def test_build_to_options(build: str, expected: api.OptionMap) -> None:
 
 
 try:
-    names =  os.listdir(SPCOMP2_ROOT)
+    names = os.listdir(SPCOMP2_ROOT)
 except FileNotFoundError:
     names = []
 
