@@ -24,7 +24,7 @@ dist/
 .idea/
 .vscode/
 .nfs*
-.env
+.secrets
 # GENERATED FOR spdev:Shell
 
 # END spdev:Shell

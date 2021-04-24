@@ -24,6 +24,8 @@ jobs:
       # get the pipenv setup and then run this from within the pipenv...
       # all in the right version of a centos container
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 # to work with tests
       - name: Download Deps
         uses: dawidd6/action-download-artifact@v2
         with:
