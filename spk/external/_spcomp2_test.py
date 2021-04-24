@@ -128,8 +128,13 @@ def test_build_to_options(build: str, expected: api.OptionMap) -> None:
     assert compat, compat
 
 
+try:
+    names =  os.listdir(SPCOMP2_ROOT)
+except FileNotFoundError:
+    names = []
+
 all_builds = set()
-for name in os.listdir(SPCOMP2_ROOT):
+for name in names:
     build_dir = os.path.join(SPCOMP2_ROOT, name)
     if not os.path.isdir(build_dir):
         continue
