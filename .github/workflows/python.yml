@@ -16,5 +16,32 @@ jobs:
         run: pipenv run -- black --check
       - name: Lint Typing with MyPy
         run: pipenv run -- mypy spk
-  # TODO: find a way to run the unit test suite... it needs an installation
-  # of spfs and we currently only produce a centos rpm that's not easy to use here
+  test:
+    runs-on: ubuntu-18.04
+    steps:
+      # essentially the goal is to run 'spfs run - -- pytest'
+      # but we need to install spfs, have the spfs source code,
+      # get the pipenv setup and then run this from within the pipenv...
+      # all in the right version of a centos container
+      - uses: actions/checkout@v2
+      - name: Download Deps
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          github_token: ${{secrets.SPFS_PULL_PASSWORD}}
+          workflow: rpm.yml
+          workflow_conclusion: success
+          branch: master
+          name: Binary RPM
+          path: deps
+          repo: imageworks/spfs
+      - name: Run Unit Tests
+        env:
+          SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
+          SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
+        run: docker run
+          -e SPFS_PULL_USERNAME
+          -e SPFS_PULL_PASSWORD
+          --rm
+          --privileged
+          -v $PWD:/source
+          centos:7 bash -ex /source/.github/scripts/unittests.sh
