@@ -1,0 +1,19 @@
+pkg: sed/4.8
+
+sources:
+  - tar: https://gnu.freemirror.org/gnu/sed/sed-4.8.tar.xz
+
+build:
+  options:
+    - autoconf/2.64
+    - automake/1.11.2
+    - autopoint
+    - gettext/0.19.2
+    - git/1.4.4
+    - gzip
+    - makeinfo/6.1
+    - perl/5.5
+    - rsync
+    - tar
+  script:
+    -

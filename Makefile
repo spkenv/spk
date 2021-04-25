@@ -1,6 +1,8 @@
 VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
+include packages/Makefile
+
 .PHONY: rpm devel test
 default: devel
 

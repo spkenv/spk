@@ -11,8 +11,8 @@ build:
     # - pkg: autopoint
     # - pkg: pkg-config
     # - pkg: texinfo
-    - pkg: expr
-    - pkg: sed
+    # - pkg: expr
+    # - pkg: sed
     - pkg: gcc
   script:
     - export PATH=/spfs/bin
