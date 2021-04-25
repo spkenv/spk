@@ -135,7 +135,9 @@ def parse_requests_using_flags(
             spec, _, stage = parse_stage_specifier(r)
 
             if stage == "source":
-                raise NotImplementedError("'source' stage is not yet supported")
+                ident = spec.pkg.with_build(spk.api.SRC)
+                out.append(spk.api.PkgRequest.from_ident(ident))
+
             elif stage == "build":
                 builder = spk.build.BinaryPackageBuilder.from_spec(spec).with_options(
                     options
