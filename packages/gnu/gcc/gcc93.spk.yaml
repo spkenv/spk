@@ -1,8 +1,7 @@
 pkg: gcc/9.3.0
 
 sources:
-  - git: https://github.com/gcc-mirror/gcc
-    ref: releases/gcc-9.3.0
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-9.3.0/gcc-9.3.0.tar.gz
   - path: activate-gcc.csh
   - path: activate-gcc.sh
 
@@ -22,23 +21,23 @@ build:
     - pkg: autoconf
     - pkg: autogen
     - pkg: make
+    - pkg: zip
+    - pkg: gcc/<=9.3.0
   script:
-    - rm -rf build; mkdir build
-    - cd build
-    # sometimes autogen is not installed and causes a failure right at the end - which is annoying
-    # so we do a quick check for it before getting started
-    - which autogen
-    - ../configure
+    - cd gcc-9.3.0
+    - ./configure
       --prefix=/spfs
+      --with-sysroot=/spfs
       --with-local-prefix=/spfs
       --with-mpfr=/spfs
       --with-gmp=/spfs
       --with-mpc=/spfs
       --disable-multilib
+      --enable-language=c,c++
     # library path cannot be set when building gcc - it will due to a specific check for this
     - unset LIBRARY_PATH
     - make -j$(nproc)
-    # - make check
+    - make check
     - make install
     # no need to keep extra bloat files in info dir
     - rm -r /spfs/share/info

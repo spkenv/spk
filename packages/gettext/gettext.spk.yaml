@@ -1,7 +1,7 @@
 pkg: gettext/0.21
 
 sources:
-  - tar: https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.tar.gz
+  - tar: https://ftpmirror.gnu.org/pub/gnu/gettext/gettext-0.21.tar.gz
 
 build:
   options:

@@ -1,7 +1,7 @@
-pkg: make
+pkg: make/4.3
 
 sources:
-  - tar: https://ftp.gnu.org/gnu/make/make-4.3.tar.gz
+  - tar: https://ftpmirror.gnu.org/gnu/make/make-4.3.tar.gz
 
 build:
   options:
@@ -15,7 +15,6 @@ build:
     # - pkg: sed
     - pkg: gcc
   script:
-    - export PATH=/spfs/bin
     - cd make-4.3
     - ./configure --prefix=${PREFIX} MAKE_MAINTAINER_MODE= MAKE_CFLAGS=
     - ./build.sh

@@ -1,0 +1,25 @@
+pkg: autoconf-archive/2019.01.06
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/autoconf-archive/autoconf-archive-2019.01.06.tar.xz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: automake
+  script:
+    - cd autoconf-archive-2019.01.06
+    - autoreconf -f -i
+    - ./configure --prefix=/spfs
+    - make
+    - make install
+
+
+install:
+  requirements:
+    - pkg: bash
+    - pkg: autoconf
+    - pkg: info

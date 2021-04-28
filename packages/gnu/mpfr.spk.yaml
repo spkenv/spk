@@ -1,7 +1,7 @@
 pkg: mpfr/4.1.0
 
 sources:
-  - tar: https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/mpfr/mpfr-4.1.0.tar.gz
 
 build:
   options:
@@ -12,18 +12,18 @@ build:
     - pkg: stdfs
     - pkg: gmp
       default: 6.2
+    - pkg: libtool
     - pkg: autoconf
     - pkg: autoconf-archive
     - pkg: make
   script:
-    - rm -rf build; mkdir build
-    - cd build
-    # on centos7 we need to reconfigure because the files that come
-    # in the archive use a newer version of the autotools that we don't have.
-    # Also autoconf-archive needs to be installed on the machine to get this
-    # reconfigure command to work
-    - autoreconf -f -i ../mpfr-4.1.0/
-    - ../mpfr-4.1.0/configure --prefix=/spfs --with-gmp=/spfs
+    - cd mpfr-4.1.0
+    - autoreconf -f -i
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --with-gmp=/spfs
     - make -j$(nproc)
     - make check
     - make install

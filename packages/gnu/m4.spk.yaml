@@ -1,0 +1,28 @@
+pkg: m4/1.4.9
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/m4/m4-1.4.9.tar.gz
+
+build:
+  options:
+    - pkg: m4
+    - pkg: automake/1.10b
+    - pkg: libtool/2.2
+    - pkg: gettext/0.16
+    - pkg: gperf/3.0
+    - pkg: help2man/1.29
+    - pkg: xz/4.999.8beta
+    - pkg: texinfo/4.8
+  script:
+    - cd m4-1.4.9
+    - ./configure --prefix=/spfs
+    - make
+    - make install
+    - mkdir -p /spfs/etc/startup.d/
+    - rm -r /spfs/share/info
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: perl
+    - pkg: m4

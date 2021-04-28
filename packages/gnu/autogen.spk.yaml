@@ -1,13 +1,29 @@
 pkg: autogen/5.12
 
 sources:
-  - tar: http://ftp.gnu.org/gnu/autogen/rel5.12/autogen-5.12.tar.bz2
+  - tar: http://ftpmirror.gnu.org/gnu/autogen/rel5.12/autogen-5.12.tar.gz
 
 build:
   options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
     - pkg: make
-    - pkg: guile
+    - pkg: guile/2
   script:
     - ./configure --prefix=/spfs
     - make
     - make install
+
+install:
+  requirements:
+  - pkg: autogen-libopts
+  - pkg: bash
+  - pkg: gc
+  - pkg: glibc
+  - pkg: guile
+  - pkg: info
+  - pkg: libxml2
+  - pkg: perl
+  - pkg: zlib

@@ -1,0 +1,25 @@
+pkg: bash/5.1
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/bash/bash-5.1.tar.gz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: gcc
+    - pkg: automake
+  script:
+    - cd bash-5.1
+    - ./configure
+      --with-sysroot=$PREFIX
+      --prefix=/spfs
+    - make
+    - make install
+
+install:
+  requirements:
+    - pkg: ncurses
+    - pkg: glibc

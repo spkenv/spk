@@ -1,9 +1,0 @@
-# use a low version and explicit bootstrap tag to be clear
-pkg: make/0.0.0+bootstrap.1
-
-build:
-  # this is an empty package which just assumes that make is installed and
-  # available to be used, hence the bootstrapping idea...
-  # Usually this package is only used to satisfy the dependencies of the
-  # real make package which requires itself to build itself
-  script: []

@@ -1,7 +1,7 @@
 pkg: gmp/6.2.0
 
 sources:
-  - tar: https://gmplib.org/download/gmp/gmp-6.2.0.tar.xz
+  - tar: http://ftpmirror.gnu.org/gnu/gmp/gmp-6.2.0.tar.xz
 
 build:
   options:
@@ -10,13 +10,15 @@ build:
     - var: distro
     - var: centos
     - pkg: stdfs
-    - pkg: autoconf
+    # - pkg: autoconf
     - pkg: make
     - pkg: gcc
   script:
-    - rm -rf build; mkdir build
-    - cd build
-    - ../gmp-6.2.0/configure --prefix=/spfs --with-sysroot=/spfs --with-local-prefix=/spfs
+    - cd gmp-6.2.0
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
     - make -j$(nproc)
     - make check
     - make install

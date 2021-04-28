@@ -1,19 +1,34 @@
 pkg: autoconf/2.71
 
 sources:
-  - tar: http://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
 
 build:
   options:
-    - pkg: m4/1.4.6
-    - pkg: perl/5.006
-    - pkg: make
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: m4
+    - pkg: perl
   script:
+    - cd autoconf-2.71
     - ./configure --prefix=/spfs
     - make
     - make install
 
 install:
   requirements:
-    - pkg: perl
-    - pkg: m4
+   - pkg: bash
+   - pkg: info
+   - pkg: perl
+   - pkg: m4
+   - pkg: perl-carp
+   - pkg: perl-pathtools
+   - pkg: perl-data-dumper
+   - pkg: perl-exporter
+   - pkg: perl-file-path
+   - pkg: perl-pathtools
+   - pkg: perl-getopt-long
+   - pkg: perl-text-parsewords
+   - pkg: perl-constant

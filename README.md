@@ -111,5 +111,7 @@ spfs run - -- pytest
 In a new environment, it can be helpful to build all of the core packages who's recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
 
 ```sh
-bash packages/build_all.sh
+make packages
 ```
+
+Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process.
