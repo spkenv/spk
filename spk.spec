@@ -16,6 +16,7 @@ BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
 Requires: rsync
+Requires: bash
 Requires: spfs >= 0.27.0
 
 %define debug_package %{nil}
@@ -46,6 +47,7 @@ python -m nuitka \
     --include-package='sentry_sdk.integrations.argv' \
     --include-package='sentry_sdk.integrations.modules' \
     --include-package='sentry_sdk.integrations.threading' \
+    --include-package='sentry_sdk.integrations.django' \
     spk
 
 %install
