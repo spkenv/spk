@@ -114,4 +114,4 @@ In a new environment, it can be helpful to build all of the core packages who's 
 make packages
 ```
 
-Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process.
+Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process. If you are not running on an rpm-based system, you can run the process in a container instead:

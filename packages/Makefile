@@ -8,61 +8,65 @@ packages: \
 	gnu \
 	perl \
 	python \
-	pip/pip.mark
+	pip/pip.spk
 
 .PHONY: bootstrap
 # boostrap just enough to get a real linker and compiler
 # under /spfs, then move on from there
 bootstrap: \
-	stdfs/stdfs.mark \
-	bootstrap/autoconf.mark \
-	bootstrap/autogen.mark \
-	bootstrap/automake.mark \
-	bootstrap/bison.mark \
-	bootstrap/coreutils.mark \
-	bootstrap/flex.mark \
-	bootstrap/gcc.mark \
-	bootstrap/grep.mark \
-	bootstrap/libtool.mark \
-	bootstrap/m4.mark \
-	bootstrap/make.mark \
-	bootstrap/perl.mark \
-	bootstrap/sed.mark \
-	bootstrap/texinfo.mark \
-	bootstrap/zip.mark
+	stdfs/stdfs.spk \
+	bootstrap/autoconf.spk \
+	bootstrap/autogen.spk \
+	bootstrap/automake.spk \
+	bootstrap/bison.spk \
+	bootstrap/coreutils.spk \
+	bootstrap/flex.spk \
+	bootstrap/gcc.spk \
+	bootstrap/grep.spk \
+	bootstrap/libtool.spk \
+	bootstrap/m4.spk \
+	bootstrap/make.spk \
+	bootstrap/perl.spk \
+	bootstrap/sed.spk \
+	bootstrap/texinfo.spk \
+	bootstrap/zip.spk
 
 .PHONY: gnu
 gnu: \
-	gnu/binutils.mark \
-	gnu/bash.mark \
-	gnu/autoconf-archive.mark \
-	gnu/gmp.mark \
-	gnu/mpfr.mark \
-	gnu/mpc.mark \
-	gnu/gcc/gcc48.mark \
-	gnu/gcc/gcc63.mark \
-	gnu/gcc/gcc93.mark \
-	gnu/make.mark \
-	gnu/m4.mark \
-	gnu/texinfo.mark
+	gnu/binutils.spk \
+	gnu/bash.spk \
+	gnu/autoconf-archive.spk \
+	gnu/gmp.spk \
+	gnu/mpfr.spk \
+	gnu/mpc.spk \
+	gnu/gcc/gcc48.spk \
+	gnu/gcc/gcc63.spk \
+	gnu/gcc/gcc93.spk \
+	gnu/make.spk \
+	gnu/m4.spk \
+	gnu/texinfo.spk
 
 .PHONY: perl
 perl: \
-	perl/perl.mark
+	perl/perl.spk
 
 .PHONY: python
 python: \
-	python/python2.mark \
-	python/python3.mark
+	python/python2.spk \
+	python/python3.spk
 
 .PHONY: clean
 clean:
-	find packages -name "*.mark" -delete
+	find . -name "*.spk" -delete
 
-%.mark : %.spk.yaml
+.PHONY: import
+import:
+	find . -name "*.spk" -exec spk import {} \;
+
+%.spk : %.spk.yaml
 	spk info -l $<@source > /dev/null 2>&1 || spk make-source $<
 	spk mkb -dr origin -l $<
-	touch $@
+	spk export $< $@
 
 .PRECIOUS: bootstrap/*.spk.yaml
 bootstrap/%.spk.yaml : bootstrap/spk.yaml.in
