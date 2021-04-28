@@ -122,13 +122,40 @@ def add_request_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def parse_idents(*packages: str) -> List[spk.api.Ident]:
+
+    idents = []
+    for package in packages:
+        if "@" in package:
+            spec, _, stage = parse_stage_specifier(package)
+
+            if stage == "source":
+                ident = spec.pkg.with_build(spk.api.SRC)
+                idents.append(ident)
+
+            else:
+                print(
+                    f"Unsupported stage '{stage}', can only be empty or 'source' in this context"
+                )
+                sys.exit(1)
+
+        if os.path.isfile(package):
+            spec, _ = find_package_spec(package)
+            idents.append(spec.pkg)
+
+        else:
+            idents.append(spk.api.parse_ident(package))
+
+    return idents
+
+
 def parse_requests_using_flags(
     args: argparse.Namespace, *requests: str
 ) -> List[spk.api.Request]:
 
     options = get_options_from_flags(args)
 
-    out = []
+    out: List[spk.api.Request] = []
     for r in requests:
 
         if "@" in r:
