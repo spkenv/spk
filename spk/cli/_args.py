@@ -93,10 +93,30 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def configure_sentry() -> None:
 
+    from sentry_sdk.integrations.stdlib import StdlibIntegration
+    from sentry_sdk.integrations.excepthook import ExcepthookIntegration
+    from sentry_sdk.integrations.dedupe import DedupeIntegration
+    from sentry_sdk.integrations.atexit import AtexitIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    from sentry_sdk.integrations.argv import ArgvIntegration
+    from sentry_sdk.integrations.modules import ModulesIntegration
+    from sentry_sdk.integrations.threading import ThreadingIntegration
+
     sentry_sdk.init(
         "http://4506b47108ac4b648fdf18a8d803f403@sentry.k8s.spimageworks.com/25",
         environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
         release=spk.__version__,
+        default_integrations=False,
+        integrations=[
+            StdlibIntegration(),
+            ExcepthookIntegration(),
+            DedupeIntegration(),
+            AtexitIntegration(),
+            LoggingIntegration(),
+            ArgvIntegration(),
+            ModulesIntegration(),
+            ThreadingIntegration(),
+        ],
     )
     with sentry_sdk.configure_scope() as scope:
         username = getpass.getuser()
@@ -128,7 +148,7 @@ def configure_logging(args: argparse.Namespace) -> None:
     ]
 
     logging.getLogger("spfs").setLevel(logging.INFO)
-    logging.getLogger("urllib3").setLevel(logging.INFO)
+    logging.getLogger("urllib3").setLevel(logging.CRITICAL + 1)
     os.environ["SPK_VERBOSITY"] = str(args.verbose)
     if args.verbose > 0:
         level = logging.DEBUG

@@ -47,7 +47,6 @@ python -m nuitka \
     --include-package='sentry_sdk.integrations.argv' \
     --include-package='sentry_sdk.integrations.modules' \
     --include-package='sentry_sdk.integrations.threading' \
-    --include-package='sentry_sdk.integrations.django' \
     spk
 
 %install
