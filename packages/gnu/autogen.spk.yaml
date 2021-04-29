@@ -23,7 +23,6 @@ install:
   - pkg: gc
   - pkg: glibc
   - pkg: guile
-  - pkg: info
   - pkg: libxml2
   - pkg: perl
   - pkg: zlib

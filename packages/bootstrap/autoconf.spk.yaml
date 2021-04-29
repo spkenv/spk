@@ -1,13 +1,13 @@
 # use a low version and explicit bootstrap tag to be clear
-pkg: NAME/0.0.0+bootstrap.1
+pkg: autoconf/0.0.0+bootstrap.1
 
 sources: [] # no source package files
 
 build:
-  # this is an empty package which just assumes that NAME is installed and
+  # this is an empty package which just assumes that autoconf is installed and
   # available to be used, hence the bootstrapping idea...
   # Usually this package is only used to satisfy the dependencies of the
-  # real NAME package which requires itself to build itself
+  # real autoconf package which requires itself to build itself
   options:
     - var: arch
     - var: os
@@ -17,25 +17,21 @@ build:
     - var: bootstrapped/yes
       inheritance: Strong
   script: |
-    if ! rpm -q NAME; then
-      echo "NAME is not installed on this system"
+    if ! rpm -q autoconf; then
+      echo "autoconf is not installed on this system"
       exit 1
     fi
-    files="$(rpm -ql NAME | grep -v /doc/)"
+    files="$(rpm -ql autoconf | grep -v /doc/)"
     mkdir -p /spfs/share/aclocal
     for file in $files; do
       [ -f $file ] || continue
       newfile=/spfs/${file/\/usr\//}
       mkdir -p $(dirname $newfile)
-      if [ -L $file ]; then
-        target=$(readlink $file)
-        newtarget=${target/\/usr/\/spfs}
-        ln -s $newtarget $newfile
-      else
-        cp $file $newfile
-      fi
+      cp $file $newfile
     done
-    [ ! -e /spfs/share/info ] || rm -r /spfs/share/info
+    mkdir -p /spfs/etc/startup.d/
+    echo "export ACLOCAL_PATH=/spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.sh
+    echo "setenv ACLOCAL_PATH /spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.csh
 
 install:
   requirements:

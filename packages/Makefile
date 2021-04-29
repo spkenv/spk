@@ -1,7 +1,3 @@
-#!/usr/bin/bash
-
-SPECS := $(wildcard **/*.spk.yaml)
-
 .PHONY: packages
 packages: \
 	bootstrap \
@@ -10,18 +6,20 @@ packages: \
 	python \
 	pip/pip.spk
 
-.PHONY: bootstrap
+.PHONY: bootstrap boostrap.full
 # boostrap just enough to get a real linker and compiler
 # under /spfs, then move on from there
 bootstrap: \
 	stdfs/stdfs.spk \
+	bootstrap/automake.spk \
+	bootstrap/gcc.spk \
+	bootstrap/glibc.spk
+bootstrap.full: bootstrap \
 	bootstrap/autoconf.spk \
 	bootstrap/autogen.spk \
-	bootstrap/automake.spk \
 	bootstrap/bison.spk \
 	bootstrap/coreutils.spk \
 	bootstrap/flex.spk \
-	bootstrap/gcc.spk \
 	bootstrap/grep.spk \
 	bootstrap/libtool.spk \
 	bootstrap/m4.spk \
@@ -32,28 +30,28 @@ bootstrap: \
 	bootstrap/zip.spk
 
 .PHONY: gnu
-gnu: \
+gnu.bootstrap: bootstrap.full \
 	gnu/binutils.spk \
 	gnu/bash.spk \
+	gnu/ncurses.spk \
 	gnu/autoconf-archive.spk \
 	gnu/gmp.spk \
 	gnu/mpfr.spk \
 	gnu/mpc.spk \
 	gnu/gcc/gcc48.spk \
-	gnu/gcc/gcc63.spk \
+	gnu/gcc/gcc63.spk
+gnu: gnu.bootstrap \
 	gnu/gcc/gcc93.spk \
+	gnu/autoconf.spk \
 	gnu/make.spk \
+	gnu/glibc.spk \
 	gnu/m4.spk \
 	gnu/texinfo.spk
 
-.PHONY: perl
-perl: \
-	perl/perl.spk
-
-.PHONY: python
-python: \
-	python/python2.spk \
-	python/python3.spk
+.PHONY: python python2 python3
+python: python2 python3
+python2: bzip2 python/python2.spk
+python3: bzip2 python/python3.spk
 
 .PHONY: clean
 clean:
@@ -61,7 +59,10 @@ clean:
 
 .PHONY: import
 import:
-	find . -name "*.spk" -exec spk import {} \;
+	find . -name "bootstrap" -prune -o -name "*.spk" -exec spk import {} \;
+
+# eg bzip2 <- bzip2/bzip2.spk
+%: $</$<.spk
 
 %.spk : %.spk.yaml
 	spk info -l $<@source > /dev/null 2>&1 || spk make-source $<
@@ -74,3 +75,24 @@ bootstrap/%.spk.yaml : bootstrap/spk.yaml.in
 	cp $< $@ && \
 	sed -i 's|NAME|$*|g' $@; \
 	else touch $@; fi
+
+docker.%:
+	if [ ! -f ../dist/rpm/RPMS/x86_64/spk-*.rpm ]; then \
+	echo "Please run 'make rpm' or download the latest spk rpm from github"; \
+	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
+	exit 1; \
+	fi
+	if [ ! -f ../dist/rpm/RPMS/x86_64/spfs-*.rpm ]; then \
+	echo "Please build the spfs rpm or download the latest spfs rpm from github"; \
+	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
+	exit 1; \
+	fi
+	docker run --privileged --rm \
+	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
+	-v $PWD/../build/packages/:/root/.local/share/spfs \
+	-v $PWD/../dist/rpm/RPMS/x86_64:/rpms \
+	-v $PWD/..:/work centos:7 bash -c "\
+	yum install -y /rpms/* autoconf autogen automake bison coreutils flex gcc gcc-c++ git grep libtool m4 make perl sed texinfo wget zip && \
+	mkdir -p origin/{objects,payloads,tags} && \
+	cd /work && \
+	make $*"

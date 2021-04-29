@@ -1,2 +1,2 @@
-export CC=/usr/bin/gcc
-export CXX=/usr/bin/g++
+export CC=/spfs/bin/gcc
+export CXX=/spfs/bin/g++

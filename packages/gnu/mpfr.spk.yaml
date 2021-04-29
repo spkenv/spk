@@ -15,7 +15,7 @@ build:
     - pkg: libtool
     - pkg: autoconf
     - pkg: autoconf-archive
-    - pkg: make
+    - pkg: automake
   script:
     - cd mpfr-4.1.0
     - autoreconf -f -i
@@ -24,6 +24,7 @@ build:
       --with-sysroot=/spfs
       --with-local-prefix=/spfs
       --with-gmp=/spfs
+      --with-platlibdir=lib
     - make -j$(nproc)
     - make check
     - make install

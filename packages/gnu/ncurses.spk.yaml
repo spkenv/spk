@@ -1,7 +1,7 @@
-pkg: bash/5.1
+pkg: ncurses/6.2
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/bash/bash-5.1.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
 
 build:
   options:
@@ -12,7 +12,7 @@ build:
     - pkg: gcc
     - pkg: automake
   script:
-    - cd bash-5.1
+    - cd ncurses-6.2
     - ./configure
       --prefix=/spfs
       --with-sysroot=/spfs
@@ -22,5 +22,4 @@ build:
 
 install:
   requirements:
-    - pkg: ncurses
     - pkg: glibc

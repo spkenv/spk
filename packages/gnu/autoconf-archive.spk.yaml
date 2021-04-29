@@ -13,7 +13,10 @@ build:
   script:
     - cd autoconf-archive-2019.01.06
     - autoreconf -f -i
-    - ./configure --prefix=/spfs
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
     - make
     - make install
 
@@ -22,4 +25,3 @@ install:
   requirements:
     - pkg: bash
     - pkg: autoconf
-    - pkg: info

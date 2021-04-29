@@ -20,8 +20,9 @@ build:
   script:
     - cd binutils-2.36
     - ./configure
-      --with-sysroot=$PREFIX
       --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
       --target=x86_64-elf
       --disable-nls
       --disable-werror
@@ -34,5 +35,4 @@ install:
     - pkg: chkconfig
     - pkg: coreutils
     - pkg: glibc
-    - pkg: info
     - pkg: zlib

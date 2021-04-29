@@ -1,4 +1,4 @@
-pkg: python/2.7.5+r.5
+pkg: python/2.7.5
 sources:
   - git: https://github.com/python/cpython
     ref: v2.7.5

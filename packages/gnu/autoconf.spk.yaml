@@ -13,14 +13,16 @@ build:
     - pkg: perl
   script:
     - cd autoconf-2.71
-    - ./configure --prefix=/spfs
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
     - make
     - make install
 
 install:
   requirements:
    - pkg: bash
-   - pkg: info
    - pkg: perl
    - pkg: m4
    - pkg: perl-carp

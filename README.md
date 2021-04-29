@@ -111,7 +111,20 @@ spfs run - -- pytest
 In a new environment, it can be helpful to build all of the core packages who's recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
 
 ```sh
+# bootstrap and build all core packages (takes a long time)
 make packages
+# build only enough to bootstrap a compiler and linker
+make packages.bootstrap
+# build the python2 package (will require at least packages.bootstrap)
+make packages.python2
 ```
 
 Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process. If you are not running on an rpm-based system, you can run the process in a container instead:
+
+```sh
+# build boostrap packages in a docker image
+# (can also build any other packages.* rule, though the container startup is heavy)
+make packages.docker.bootstrap
+# import the created packages to the local spk environment
+make packages.import
+```

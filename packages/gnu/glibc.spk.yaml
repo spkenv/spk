@@ -1,7 +1,7 @@
-pkg: automake/1.16
+pkg: glibc/2.33
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/automake/automake-1.16.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/glibc/glibc-2.33.tar.gz
 
 build:
   options:
@@ -11,14 +11,12 @@ build:
     - var: centos
     - pkg: make
     - pkg: coreutils
-    - pkg: sed
-    - pkg: perl
-    - pkg: autoconf
-    - pkg: flex
-    - pkg: bison
+    - pkg: automake
   script:
-    - cd automake-1.16
-    - ./configure --prefix=/spfs
+    - glibc-2.33/configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
     - make
     - make install
 
@@ -26,7 +24,6 @@ install:
   requirements:
     - pkg: autoconf
     - pkg: bash
-    - pkg: sed
     - pkg: coreutils
     - pkg: perl
     - pkg: perl-carp
