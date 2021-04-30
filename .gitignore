@@ -34,3 +34,4 @@ dist/
 # GENERATED FOR spdev:Rust
 target/
 # END spdev:Rust
+.devcontainer/
