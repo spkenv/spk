@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.27.0"
+version = "0.27.1"
 dependencies = [
  "capabilities",
  "chrono",

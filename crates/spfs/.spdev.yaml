@@ -1,8 +1,7 @@
-version: 0.27.0
+version: 0.27.1
 release_notes: |
-  * Update render process to survive repository files being owned by other users
-    * Separate core rendering process into separate binary with cap_chown
-    * Take ownership of local repo files forcefully if needed to complete a render
+  * Ensure all configs can be specified as env vars
+  * Add command to output current config
 
 toolchain:
   - kind: Rust

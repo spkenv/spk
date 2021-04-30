@@ -14,7 +14,7 @@ mod config_test;
 static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
 static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Filesystem {
     pub max_layers: usize,
@@ -30,7 +30,7 @@ impl Default for Filesystem {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Storage {
     pub root: PathBuf,
@@ -57,12 +57,12 @@ impl Storage {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Remote {
     pub address: url::Url,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     pub storage: Storage,
@@ -144,5 +144,12 @@ pub fn load_config() -> Result<Config> {
         )?;
     }
     s.merge(Environment::with_prefix("SPFS").separator("_"))?;
+
+    if let Ok(v) = s.get_str("filesystem.max.layers") {
+        let _ = s.set("filesystem.max_layers", v);
+    }
+    if let Ok(v) = s.get_str("filesystem.tmpfs.size") {
+        let _ = s.set("filesystem.tmpfs_size", v);
+    }
     Ok(s.try_into()?)
 }

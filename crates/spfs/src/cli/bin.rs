@@ -9,6 +9,7 @@ mod args;
 mod cmd_check;
 mod cmd_clean;
 mod cmd_commit;
+mod cmd_config;
 mod cmd_diff;
 mod cmd_edit;
 mod cmd_info;
@@ -61,6 +62,8 @@ pub enum Command {
     Edit(cmd_edit::CmdEdit),
     #[structopt(about = "commit the current runtime state to storage")]
     Commit(cmd_commit::CmdCommit),
+    #[structopt(about = "output configuration information")]
+    Config(cmd_config::CmdConfig),
     #[structopt(about = "rebuild /spfs with the requested refs, removing any active changes")]
     Reset(cmd_reset::CmdReset),
     #[structopt(about = "tag and object")]
@@ -104,6 +107,7 @@ impl Opt {
             Command::Version(cmd) => cmd.run(),
             Command::Edit(cmd) => cmd.run(&config),
             Command::Commit(cmd) => cmd.run(&config),
+            Command::Config(cmd) => cmd.run(&config),
             Command::Reset(cmd) => cmd.run(&config),
             Command::Tag(cmd) => cmd.run(&config),
             Command::Runtimes(cmd) => cmd.run(&config),
