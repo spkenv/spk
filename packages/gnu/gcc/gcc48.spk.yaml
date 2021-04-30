@@ -18,10 +18,11 @@ build:
       default: 4.1
     - pkg: mpc
       default: 1.0
-    #- pkg: autoconf
+    - pkg: autoconf
     - pkg: autogen
     - pkg: zip
     - pkg: coreutils
+    - pkg: binutils
     - pkg: make
     - pkg: gcc/<=4.8.5
   script:

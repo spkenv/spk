@@ -32,7 +32,6 @@ build:
 install:
   requirements:
     - pkg: bash
-    - pkg: chkconfig
     - pkg: coreutils
     - pkg: glibc
     - pkg: zlib

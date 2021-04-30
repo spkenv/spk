@@ -16,6 +16,7 @@ bootstrap: \
 	bootstrap/glibc.spk
 bootstrap.full: bootstrap \
 	bootstrap/autoconf.spk \
+	bootstrap/autoconf-archive.spk \
 	bootstrap/autogen.spk \
 	bootstrap/bison.spk \
 	bootstrap/coreutils.spk \
@@ -27,31 +28,37 @@ bootstrap.full: bootstrap \
 	bootstrap/perl.spk \
 	bootstrap/sed.spk \
 	bootstrap/texinfo.spk \
-	bootstrap/zip.spk
+	bootstrap/help2man.spk \
+	bootstrap/gettext.spk \
+	bootstrap/zip.spk \
+	bootstrap/zlib.spk
 
 .PHONY: gnu
-gnu.bootstrap: bootstrap.full \
+gnu: bootstrap.full \
 	gnu/binutils.spk \
 	gnu/bash.spk \
 	gnu/ncurses.spk \
-	gnu/autoconf-archive.spk \
 	gnu/gmp.spk \
 	gnu/mpfr.spk \
 	gnu/mpc.spk \
 	gnu/gcc/gcc48.spk \
 	gnu/gcc/gcc63.spk
-gnu: gnu.bootstrap \
-	gnu/gcc/gcc93.spk \
+gnu.full: gnu.bootstrap \
 	gnu/autoconf.spk \
+	gnu/automake.spk \
+	gnu/autoconf-archive.spk \
 	gnu/make.spk \
 	gnu/glibc.spk \
 	gnu/m4.spk \
-	gnu/texinfo.spk
+	gnu/texinfo.spk \
+	gnu/gcc/gcc93.spk
+
+perl: gnu perl/perl.spk
 
 .PHONY: python python2 python3
 python: python2 python3
-python2: bzip2 python/python2.spk
-python3: bzip2 python/python3.spk
+python2: bootstrap bzip2 python/python2.spk
+python3: bootstrap bzip2 python/python3.spk
 
 .PHONY: clean
 clean:
@@ -61,7 +68,7 @@ clean:
 import:
 	find . -name "bootstrap" -prune -o -name "*.spk" -exec spk import {} \;
 
-# eg bzip2 <- bzip2/bzip2.spk
+# bzip2: bzip2/bzip2.spk
 %: $</$<.spk
 
 %.spk : %.spk.yaml
@@ -87,12 +94,12 @@ docker.%:
 	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
 	exit 1; \
 	fi
+	docker build . -t spk-package-builder
 	docker run --privileged --rm \
 	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
-	-v $PWD/../build/packages/:/root/.local/share/spfs \
-	-v $PWD/../dist/rpm/RPMS/x86_64:/rpms \
-	-v $PWD/..:/work centos:7 bash -c "\
-	yum install -y /rpms/* autoconf autogen automake bison coreutils flex gcc gcc-c++ git grep libtool m4 make perl sed texinfo wget zip && \
-	mkdir -p origin/{objects,payloads,tags} && \
+	-v $$PWD/../build/packages/:/spfs-storage \
+	-v $$PWD/../dist/rpm/RPMS/x86_64:/rpms \
+	-v $$PWD/..:/work spk-package-builder bash -ex -c "\
+	yum install -y /rpms/* && \
 	cd /work && \
-	make $*"
+	make packages.$*"

@@ -1,0 +1,23 @@
+pkg: perl/5.32.1
+
+sources:
+  - tar: https://www.cpan.org/src/5.0/perl-5.32.1.tar.gz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: make
+  script:
+     - cd perl-5.32.1
+     - ./Configure
+       -des
+       -Dprefix=/spfs
+       -Dvendorprefix=/spfs
+       -Dusethreads
+     - make
+     - make install
+     # do not keep man pages in the spk package
+     - rm -rf /spfs/man

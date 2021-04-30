@@ -5,19 +5,13 @@ sources:
 
 build:
   options:
-    # - pkg: autoconf
-    # - pkg: automake/>=1.16.1
-    # - pkg: gettext
-    # - pkg: autopoint
-    # - pkg: pkg-config
-    # - pkg: texinfo
-    # - pkg: expr
-    # - pkg: sed
+    - pkg: autoconf
+    - pkg: automake
     - pkg: gcc
   script:
     - cd make-4.3
+    - autoreconf -f -i
     - ./configure --prefix=${PREFIX} MAKE_MAINTAINER_MODE= MAKE_CFLAGS=
-    - ./build.sh
     - make
     - make install
 

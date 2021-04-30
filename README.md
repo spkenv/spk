@@ -124,7 +124,14 @@ Currently, this process can only be run on an rpm-based system, as it relies on 
 ```sh
 # build boostrap packages in a docker image
 # (can also build any other packages.* rule, though the container startup is heavy)
-make packages.docker.bootstrap
+make packages.docker.python2
 # import the created packages to the local spk environment
 make packages.import
 ```
+
+Some of these package specs have not yet been used or tested fully or ironed out all the way so please communicate any issues as you run into them!
+
+- The make `packages.python2` and `packages.python3` targets can be used to boostrap just enough to be able to build python for spk. The python recipes will build multiple python versions for each gcc48 and 63 as well as for the different python abi's
+- The make `packages.gnu` target can be used to bootstrap just enought to get "native" spk packages for gcc48 and gcc63
+
+Of course, the packages themselves can also be build with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.

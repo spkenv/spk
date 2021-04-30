@@ -14,11 +14,14 @@ build:
     - pkg: sed
     - pkg: perl
     - pkg: autoconf
+    - pkg: automake
     - pkg: flex
     - pkg: bison
   script:
     - cd automake-1.16
-    - ./configure --prefix=/spfs
+    - ls bin
+    - ./configure
+      --prefix=/spfs
     - make
     - make install
 
