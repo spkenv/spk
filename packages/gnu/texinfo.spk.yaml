@@ -1,0 +1,24 @@
+pkg: texinfo/6.7
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/texinfo/texinfo-6.7.tar.xz
+
+build:
+  options:
+    - pkg: gcc
+    - pkg: sed
+    - pkg: make
+    - pkg: coreutils
+    - pkg: perl
+  script:
+    - export PATH=/spfs/bin
+    - cd texinfo-6.7
+    - ./configure --prefix=/spfs
+    - make
+    - make install
+    - rm -r /spfs/share/info
+
+install:
+  requirements:
+    - pkg: perl
+    - pkg: m4

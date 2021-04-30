@@ -16,6 +16,7 @@ BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
 Requires: rsync
+Requires: bash
 Requires: spfs >= 0.27.0
 
 %define debug_package %{nil}

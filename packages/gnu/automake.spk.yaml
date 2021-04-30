@@ -1,0 +1,43 @@
+pkg: automake/1.16
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/automake/automake-1.16.tar.gz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: make
+    - pkg: coreutils
+    - pkg: sed
+    - pkg: perl
+    - pkg: autoconf
+    - pkg: automake
+    - pkg: flex
+    - pkg: bison
+  script:
+    - cd automake-1.16
+    - ls bin
+    - ./configure
+      --prefix=/spfs
+    - make
+    - make install
+
+install:
+  requirements:
+    - pkg: autoconf
+    - pkg: bash
+    - pkg: sed
+    - pkg: coreutils
+    - pkg: perl
+    - pkg: perl-carp
+    - pkg: perl-constant
+    - pkg: perl-exporter
+    - pkg: perl-file-path
+    - pkg: perl-getopt-long
+    - pkg: perl-pathtools
+    - pkg: perl-test-harness
+    - pkg: perl-thread-queue
+    - pkg: perl-threads

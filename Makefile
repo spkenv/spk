@@ -1,8 +1,17 @@
 VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: rpm devel test
+.PHONY: rpm devel test packages clean
 default: devel
+
+packages:
+	cd $(SOURCE_ROOT)/packages && \
+	$(MAKE) packages
+
+packages.%:
+	cd $(SOURCE_ROOT)/packages && $(MAKE) $*
+
+clean: packages.clean
 
 devel:
 	cd $(SOURCE_ROOT)

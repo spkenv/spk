@@ -9,6 +9,8 @@ import argparse
 import structlog
 from colorama import Fore
 
+from . import _flags
+
 import spk
 
 
@@ -23,7 +25,10 @@ def register(
         "export", help=_export.__doc__, description=_export.__doc__, **parser_args
     )
     export_cmd.add_argument(
-        "packages", metavar="PKG", nargs="+", help="The packages to export"
+        "package", metavar="PKG", help="The package to export"
+    )
+    export_cmd.add_argument(
+        "filename", metavar="FILE", nargs="?", help="The file to export into (Defaults to the name and verison of the package)"
     )
     export_cmd.set_defaults(func=_export)
     return export_cmd
@@ -32,15 +37,17 @@ def register(
 def _export(args: argparse.Namespace) -> None:
     """Export a package as a tar file."""
 
-    for package in args.packages:
-        pkg = spk.api.parse_ident(package)
-        build = ""
-        if pkg.build is not None:
-            build = f"_{pkg.build.digest}"
+    pkg = _flags.parse_idents(args.package)[0]
+    build = ""
+    if pkg.build is not None:
+        build = f"_{pkg.build.digest}"
+    if args.filename:
+        filename = args.filename
+    else:
         filename = f"{pkg.name}_{pkg.version}{build}.spk"
-        try:
-            spk.export_package(pkg, filename)
-        except spk.storage.PackageNotFoundError:
-            os.remove(filename)
-            raise
-        print(f"{Fore.GREEN}Created: {Fore.RESET}" + filename)
+    try:
+        spk.export_package(pkg, filename)
+    except spk.storage.PackageNotFoundError:
+        os.remove(filename)
+        raise
+    print(f"{Fore.GREEN}Created: {Fore.RESET}" + filename)

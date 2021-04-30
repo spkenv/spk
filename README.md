@@ -66,6 +66,7 @@ pipenv shell
 The easiest way to work with spk is to install a local development version into the pipenv virtaul environment. Once in a pipenv shell, this can be achieved by running the commands below.
 
 ```sh
+# install the local sources into the virtualenv
 python setup.py develop
 which spk # now points to local dev version
 spk --help
@@ -97,3 +98,40 @@ Additionally, there are some rust unit tests that can be executed using `cargo`.
 ```sh
 cargo test
 ```
+
+From this shell, you can run the local build of the `spk` command as well as all tests with pytest. **NOTE**: running the local development version of spk, and running the unit tests will require that `spfs` is installed on the local machine. The pytest test suite must also be run from within an spfs environment in order to work properly.
+
+```sh
+# run the unit test suite
+spfs run - -- pytest
+```
+
+### Bootstrapping
+
+In a new environment, it can be helpful to build all of the core packages whose recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
+
+```sh
+# bootstrap and build all core packages (takes a long time)
+make packages
+# build only enough to bootstrap a compiler and linker
+make packages.bootstrap
+# build the python2 package (will require at least packages.bootstrap)
+make packages.python2
+```
+
+Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process. If you are not running on an rpm-based system, you can run the process in a container instead:
+
+```sh
+# build boostrap packages in a docker image
+# (can also build any other packages.* rule, though the container startup is heavy)
+make packages.docker.python2
+# import the created packages to the local spk environment
+make packages.import
+```
+
+Some of these package specs have not yet been used or tested fully or ironed out all the way so please communicate any issues as you run into them!
+
+- The make `packages.python2` and `packages.python3` targets can be used to boostrap just enough to be able to build python for spk. The python recipes will build multiple python versions for each gcc48 and 63 as well as for the different python abi's
+- The make `packages.gnu` target can be used to bootstrap just enought to get "native" spk packages for gcc48 and gcc63
+
+Of course, the packages themselves can also be build with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.

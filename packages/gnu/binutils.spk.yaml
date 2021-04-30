@@ -1,0 +1,37 @@
+pkg: binutils/2.36
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/binutils/binutils-2.36.tar.gz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: gcc
+    - pkg: automake
+    - pkg: sed
+    - pkg: grep
+    - pkg: flex
+    - pkg: bison
+    - pkg: coreutils
+    - pkg: texinfo
+  script:
+    - cd binutils-2.36
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --target=x86_64-elf
+      --disable-nls
+      --disable-werror
+    - make
+    - make install
+
+install:
+  requirements:
+    - pkg: bash
+    - pkg: coreutils
+    - pkg: glibc
+    - pkg: zlib

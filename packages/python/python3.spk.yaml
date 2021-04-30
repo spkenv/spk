@@ -1,0 +1,78 @@
+pkg: python/3.7.3
+sources:
+  - git: https://github.com/python/cpython
+    ref: v3.7.3
+build:
+  options:
+    - var: os
+    - var: arch
+    - var: centos
+    - pkg: gcc
+    - pkg: stdfs
+    - pkg: bzip2
+    - var: abi
+      default: cp37m
+      choices: [cp37m, cp37dm]
+      inheritance: Strong
+    - var: debug
+      default: off
+      choices: [on, off]
+  variants:
+    - { gcc: 4.8, abi: cp37m, debug: off }
+    - { gcc: 6.3, abi: cp37m, debug: off }
+  script:
+    - |
+      case "$SPK_OPT_debug" in
+        on)
+          if ! [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
+            echo "Must use an abi with debug when building with debug enabled!"
+            exit 1
+          fi
+          DEBUG="--with-pydebug"
+          ;;
+        off)
+          if [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
+            echo "Must not use an abi with debug when building with debug disabled!"
+            exit 1
+          fi
+          DEBUG=""
+          ;;
+        *)
+          echo "Unsupported debug: $SPK_OPT_debug"
+          ;;
+      esac
+    - ./configure -prefix=${PREFIX} CC=$CC CXX=$CXX LDFLAGS='-Wl,--rpath=/spfs/lib'
+      --enable-optimizations --enable-shared $DEBUG
+    - make -j$(nproc)
+    - make install
+    # remove test files that are just bloat
+    - find /spfs/lib/python* -name "test" -type d | xargs -r rm -rv
+    - find /spfs/lib/python* -name "*_test" -type d | xargs -r rm -rv
+    - ln -sf python3 /spfs/bin/python
+    # python is best in spfs when pyc files are not used at all
+    - find /spfs -type f -name "*.pyc" | xargs rm
+    - mkdir -p /spfs/etc/spfs/startup.d
+    - echo "export PYTHONDONTWRITEBYTECODE=1" > /spfs/etc/spfs/startup.d/activate-python.sh
+    - echo "setenv PYTHONDONTWRITEBYTECODE 1" > /spfs/etc/spfs/startup.d/activate-python.csh
+
+tests:
+  - stage: install
+    script:
+      # Verify we built a python with the requested ABI
+      - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel; print(wheel.bdist_wheel.get_abi_tag())')
+      - |
+        if [ "$python_abi" != "$SPK_OPT_abi" ]; then
+          echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
+          exit 1
+        fi
+  - stage: install
+    script:
+      # Verify bz2 support is available by importing and not getting a traceback
+      - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: x.x
+      include: IfAlreadyPresent
+    - pkg: stdfs

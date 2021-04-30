@@ -1,0 +1,25 @@
+pkg: ncurses/6.2
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: gcc
+    - pkg: automake
+  script:
+    - cd ncurses-6.2
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+    - make
+    - make install
+
+install:
+  requirements:
+    - pkg: glibc

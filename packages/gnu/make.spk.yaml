@@ -1,0 +1,24 @@
+pkg: make/4.3
+
+sources:
+  - tar: https://ftpmirror.gnu.org/gnu/make/make-4.3.tar.gz
+
+build:
+  options:
+    - pkg: autoconf
+    - pkg: automake
+    - pkg: gcc
+  script:
+    - cd make-4.3
+    - autoreconf -f -i
+    - ./configure --prefix=${PREFIX} MAKE_MAINTAINER_MODE= MAKE_CFLAGS=
+    - make
+    - make install
+
+tests:
+  - stage: build
+    script:
+      - export PATH=/spfs/bin
+      - ./bootstrap
+      - ./configure --prefix=${PREFIX}
+      - make check

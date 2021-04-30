@@ -1,0 +1,41 @@
+pkg: autoconf/2.71
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: distro
+    - var: centos
+    - pkg: m4
+    - pkg: perl
+    - pkg: help2man
+    - pkg: gettext
+  script:
+    - cd autoconf-2.71
+    - autoreconf -f -i
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+    - make
+    - make install
+    - mkdir -p /spfs/etc/spfs/startup.d
+    - echo "export ACLOCAL_PATH=/spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.sh
+    - echo "setenv ACLOCAL_PATH /spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.csh
+
+install:
+  requirements:
+   - pkg: bash
+   - pkg: perl
+   - pkg: m4
+   - pkg: perl-carp
+   - pkg: perl-pathtools
+   - pkg: perl-data-dumper
+   - pkg: perl-exporter
+   - pkg: perl-file-path
+   - pkg: perl-getopt-long
+   - pkg: perl-text-parsewords
+   - pkg: perl-constant
