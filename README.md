@@ -108,7 +108,7 @@ spfs run - -- pytest
 
 ### Bootstrapping
 
-In a new environment, it can be helpful to build all of the core packages who's recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
+In a new environment, it can be helpful to build all of the core packages whose recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
 
 ```sh
 # bootstrap and build all core packages (takes a long time)
