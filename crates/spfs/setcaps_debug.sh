@@ -9,7 +9,10 @@ fi
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-cmds=$(cat spfs.spec | grep '%caps' | sed -r 's|%caps\((.*)\) (.*)|setcap \1 \2|' | sed "s|/usr/bin/|$DIR/target/debug/|")
-
-set -ex
-$cmds
+set -e
+while read line; do
+  echo "$line" | grep '%caps' > /dev/null || continue
+  cmd=$(echo "$line" | sed -r 's|%caps\((.*)\) (.*)|setcap \1 \2|' | sed "s|/usr/bin/|$DIR/target/debug/|")
+  echo $cmd
+  $cmd
+done < spfs.spec
