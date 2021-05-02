@@ -1,0 +1,47 @@
+pkg: openexr/3.0.1
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d openexr ] ; then git clone https://github.com/AcademySoftwareFoundation/openexr -b v3.0.1 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: imath/3.0.1
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - cmake -S openexr -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_PREFIX_PATH=/spfs
+        -DCMAKE_INSTALL_PREFIX=/spfs
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: imath
+      fromBuildEnv: x.x
+
+tests:
+  - stage: build
+    script:
+      - cmake -S openexr -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=/spfs
+          -DCMAKE_INSTALL_PREFIX=/spfs
+      - cmake --build build
+      - cd build
+      - ctest

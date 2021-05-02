@@ -1,0 +1,58 @@
+pkg: imath/3.0.1
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d Imath ] ; then git clone https://github.com/AcademySoftwareFoundation/Imath -b v3.0.1 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: gcc/6.3
+    - pkg: python/3.7
+    - pkg: numpy
+    - pkg: cmake/^3.13
+    - pkg: boost/1.70
+  variants:
+    - { gcc: 6.3, python: 2.7, boost: 1.70 }
+    - { gcc: 6.3, python: 3.7, boost: 1.70 }
+    - { gcc: 9.3, python: 2.7, boost: 1.70 }
+    - { gcc: 9.3, python: 3.7, boost: 1.70 }
+  script:
+    - cmake -S Imath -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_PREFIX_PATH=/spfs
+        -DCMAKE_INSTALL_PREFIX=/spfs
+        -DPYTHON=ON
+        -DUSE_PYTHON${SPK_PKG_python_VERSION_MAJOR}=ON
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: boost
+      fromBuildEnv: x.x
+    - pkg: python
+      fromBuildEnv: x.x
+      include: IfAlreadyPresent
+    - pkg: numpy
+      include: IfAlreadyPresent
+
+tests:
+  - stage: build
+    script:
+      - cmake -S Imath -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=/spfs
+          -DCMAKE_INSTALL_PREFIX=/spfs
+          -DPYTHON=ON
+          -DUSE_PYTHON${SPK_PKG_python_VERSION_MAJOR}=ON
+      - cmake --build build
+      - cd build
+      - ctest
