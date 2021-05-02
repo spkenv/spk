@@ -8,14 +8,12 @@ Filesystem isolation, capture, and distribution.
 
 Additional information is available under [docs](docs/).
 
-
 ## License
 
 SPK/SPFS/spawn are Copyright (c) 2021 Sony Pictures Imageworks, et al.
 All Rights Reserved.
 
 SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
-
 
 ## Structure of the spk project
 

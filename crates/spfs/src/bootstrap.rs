@@ -1,11 +1,12 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
 
 use super::resolve::{which, which_spfs};
 use super::status::active_runtime;
 use crate::{runtime, Result};
-use std::ffi::{OsStr, OsString};
 
 #[cfg(test)]
 #[path = "./bootstrap_test.rs"]
@@ -40,41 +41,57 @@ pub fn build_command_for_runtime(
 ///
 /// The returned command properly sets up and runs an interactive
 /// shell session in the current runtime.
-pub fn build_interactive_shell_cmd() -> Result<Vec<OsString>> {
-    let rt = active_runtime()?;
-    let shell_path = std::env::var("SHELL").unwrap_or("<not-set>".to_string());
-    let shell_name = std::path::Path::new(shell_path.as_str())
+pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString>> {
+    let mut shell_path =
+        std::path::PathBuf::from(std::env::var("SHELL").unwrap_or("<not-set>".to_string()));
+    let shell_name = shell_path
         .file_name()
-        .unwrap_or_else(|| OsStr::new("bash"));
+        .unwrap_or_else(|| OsStr::new("bash"))
+        .to_os_string();
 
-    match shell_name.to_str() {
-        Some("tcsh") => match which("expect") {
+    if !shell_path.is_absolute() {
+        shell_path = match which(shell_name.to_string_lossy()) {
+            None => {
+                tracing::error!(
+                    "'{}' not found in PATH, falling back to /usr/bin/bash",
+                    shell_name.to_string_lossy()
+                );
+                std::path::PathBuf::from("/usr/bin/bash")
+            }
+            Some(path) => path,
+        }
+    }
+
+    if let Some("tcsh") = shell_name.to_str() {
+        match which("expect") {
             None => {
                 tracing::error!("'expect' command not found in PATH, falling back to bash");
             }
             Some(expect) => {
                 return Ok(vec![
                     expect.as_os_str().to_owned(),
-                    rt.csh_expect_file.into(),
+                    rt.csh_expect_file.as_os_str().to_owned(),
                     shell_path.into(),
-                    rt.csh_startup_file.into(),
+                    rt.csh_startup_file.as_os_str().to_owned(),
                 ]);
             }
-        },
-        Some("bash") => (),
-        _ => {
-            tracing::warn!(
-                "current shell not supported ({:?}) - using bash",
-                shell_name
-            );
         }
     }
 
-    let shell_path = "/usr/bin/bash";
+    match shell_name.to_str() {
+        Some("bash") => (),
+        _ => {
+            tracing::warn!(
+                "shell not supported ({:?}) - trying bash instead",
+                shell_name
+            );
+            shell_path = PathBuf::from("/usr/bin/bash");
+        }
+    }
     Ok(vec![
         shell_path.into(),
         "--init-file".into(),
-        rt.sh_startup_file.into(),
+        rt.sh_startup_file.as_os_str().to_owned(),
     ])
 }
 

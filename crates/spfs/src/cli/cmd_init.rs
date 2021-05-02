@@ -43,7 +43,7 @@ impl CmdInit {
 
 fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
     if cmd.len() == 0 || cmd[0] == OsString::from("") {
-        cmd = spfs::build_interactive_shell_cmd()?;
+        cmd = spfs::build_interactive_shell_cmd(&spfs::active_runtime()?)?;
         tracing::debug!("starting interactive shell environment");
     } else {
         cmd = spfs::build_shell_initialized_command(cmd[0].clone(), &mut cmd[1..].to_vec())?;

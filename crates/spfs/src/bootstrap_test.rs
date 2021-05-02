@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::build_shell_initialized_command;
+use super::{build_interactive_shell_cmd, build_shell_initialized_command};
 use crate::{resolve::which, runtime};
 use std::{ffi::OsString, process::Command};
 
@@ -119,4 +119,34 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     setenv(&mut cmd);
     let out = cmd.output().unwrap();
     assert_eq!(out.stdout, "\n".as_bytes());
+}
+
+#[rstest(shell, case("bash"), case("tcsh"))]
+#[serial_test::serial] // env manipulation must be reliable
+fn test_find_alternate_bash(shell: &str, tmpdir: tempdir::TempDir) {
+    let _guard = init_logging();
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    let original_shell = std::env::var("SHELL").unwrap_or_default();
+    std::env::set_var("PATH", tmpdir.path());
+    std::env::set_var("SHELL", shell);
+
+    let rt = runtime::Runtime::new(&tmpdir).unwrap();
+
+    let tmp_shell = tmpdir.path().join(shell);
+    make_exe(&tmp_shell);
+    make_exe(&tmpdir.path().join("expect")); // for tcsh
+
+    let cmd = build_interactive_shell_cmd(&rt).unwrap();
+    let expected = tmp_shell.as_os_str().to_os_string();
+    assert!(cmd.contains(&expected), "should find shell in PATH");
+
+    std::env::set_var("PATH", original_path);
+    std::env::set_var("SHELL", original_shell);
+}
+
+fn make_exe(path: &std::path::PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let file = std::fs::File::create(&path).unwrap();
+    drop(file);
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
