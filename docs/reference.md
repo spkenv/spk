@@ -27,7 +27,8 @@ Defines a local directory to collect sources from. This process will also automa
 | Field   | Type        | Description                                                                                  |
 | ------- | ----------- | -------------------------------------------------------------------------------------------- |
 | path    | _str_       | The relative or absolute path to a local directory                                           |
-| exclude | _List[str]_ | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/") |
+| exclude | _List[str]_ | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/")    |
+| filter | _List[str]_ | A list of filter rules for rsync (defaults to reading from the gitignore file: `":- .gitignore"`) |
 | subdir  | _str_       | An alternative path to place these files in the source package                               |
 
 ### GitSource
