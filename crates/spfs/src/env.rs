@@ -347,7 +347,9 @@ pub fn mount_env<P: AsRef<Path>>(
 
 pub fn unmount_env() -> Result<()> {
     tracing::debug!("unmounting existing env...");
-    let result = nix::mount::umount(SPFS_DIR);
+    // Perform a lazy unmount in case there are still open handles to files.
+    // This way we can mount over the old one without worrying about business
+    let result = nix::mount::umount2(SPFS_DIR, nix::mount::MntFlags::MNT_DETACH);
     if let Err(err) = result {
         return Err(Error::wrap_nix(
             err,
