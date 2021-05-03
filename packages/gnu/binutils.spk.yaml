@@ -1,7 +1,7 @@
-pkg: binutils/2.36
+pkg: binutils/2.36.1
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/binutils/binutils-2.36.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/binutils/binutils-2.36.12.tar.xz
 
 build:
   options:

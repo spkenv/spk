@@ -1,7 +1,6 @@
 pkg: python/2.7.5
 sources:
-  - git: https://github.com/python/cpython
-    ref: v2.7.5
+  - tar: https://www.python.org/ftp/python/2.7.5/Python-2.7.5.tgz
 build:
   options:
     - var: os
@@ -23,6 +22,7 @@ build:
     - { gcc: 6.3, abi: cp27m, debug: off }
     - { gcc: 6.3, abi: cp27mu, debug: off }
   script:
+    - cd Python-2.7.5
     - |
       case "$SPK_OPT_debug" in
         on)
@@ -55,8 +55,17 @@ build:
           echo "Unsupported abi: $SPK_OPT_abi"
           ;;
       esac
-    - ./configure -prefix=${PREFIX} CC=$CC CXX=$CXX LDFLAGS='-Wl,--rpath=/spfs/lib'
-      --enable-shared "$UNICODE" $DEBUG
+    - unset PYTHONPATH
+    - unset PYTHONHOME
+    - ./configure
+      --prefix=${PREFIX}
+      CC=$CC
+      CXX=$CXX
+      LDFLAGS='-Wl,--rpath=/spfs/lib'
+      --enable-shared
+      "$UNICODE"
+      $DEBUG
+    - make touch # to avoid regenerating just because of timestamps
     - make -j$(nproc)
     - make install
     # remove test files that are just bloat
@@ -71,6 +80,8 @@ build:
 
 tests:
   - stage: install
+    requirements:
+      - pkg: python-pip
     script:
       # Verify we built a python with the requested ABI
       - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel;
@@ -84,6 +95,10 @@ tests:
     script:
       # Verify bz2 support is available by importing and not getting a traceback
       - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
+  - stage: install
+    script:
+      # Verify hash support is available by importing and not getting a traceback
+      - test -z "$(/spfs/bin/python -c 'import hashlib.sha256' 2>&1)"
 
 install:
   requirements:

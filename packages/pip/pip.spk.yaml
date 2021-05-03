@@ -1,11 +1,20 @@
-pkg: pip
+pkg: python-pip/21.1.1
+compat: x.ab
 
 build:
   options:
     - pkg: python
+  variants:
+    - { python: 2 }
+    - { python: 3 }
   script:
+    - if "$(python --version)" =~ 3.\d.\d; then
     - /spfs/bin/python -m ensurepip --upgrade --default-pip
     - /spfs/bin/pip install --upgrade pip==$SPK_PACKAGE_VERSION_BASE
+    - else
+    - curl https://bootstrap.pypa.io/pip/2.7/get-pip.py -o get-pip.py
+    - python get-pip.py
+    - fi
 
 tests:
   - stage: install

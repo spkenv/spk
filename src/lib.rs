@@ -122,6 +122,9 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         path: &str,
         create: Option<bool>,
     ) -> Result<storage::SpFSRepository> {
+        let path = std::env::current_dir()
+            .unwrap_or_else(|_| ".".into())
+            .join(path);
         let repo = match create {
             Some(true) => spfs::storage::tar::TarRepository::create(path)?,
             _ => spfs::storage::tar::TarRepository::open(path)?,

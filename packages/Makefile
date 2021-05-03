@@ -1,57 +1,107 @@
+BOOTSTRAP := no
+
 .PHONY: packages
 packages: \
-	bootstrap \
-	gnu \
-	perl \
-	python \
-	pip/pip.spk
+	bootstrap
 
-.PHONY: bootstrap boostrap.full
-# boostrap just enough to get a real linker and compiler
-# under /spfs, then move on from there
+.PHONY: bootstrap
+bootstrap: BOOTSTRAP := yes
 bootstrap: \
-	stdfs/stdfs.spk \
-	bootstrap/automake.spk \
-	bootstrap/gcc.spk \
-	bootstrap/glibc.spk
-bootstrap.full: bootstrap \
-	bootstrap/autoconf.spk \
-	bootstrap/autoconf-archive.spk \
-	bootstrap/autogen.spk \
-	bootstrap/bison.spk \
-	bootstrap/coreutils.spk \
-	bootstrap/flex.spk \
-	bootstrap/grep.spk \
-	bootstrap/libtool.spk \
-	bootstrap/m4.spk \
-	bootstrap/make.spk \
-	bootstrap/perl.spk \
-	bootstrap/sed.spk \
-	bootstrap/texinfo.spk \
-	bootstrap/help2man.spk \
-	bootstrap/gettext.spk \
-	bootstrap/zip.spk \
-	bootstrap/zlib.spk
+	bootstrap/binutils.spk \
+	bootstrap/gcc.spk
+
+#####################################
 
 .PHONY: gnu
-gnu: bootstrap.full \
-	gnu/binutils.spk \
-	gnu/bash.spk \
-	gnu/ncurses.spk \
-	gnu/gmp.spk \
-	gnu/mpfr.spk \
-	gnu/mpc.spk \
-	gnu/gcc/gcc48.spk \
-	gnu/gcc/gcc63.spk
-gnu.full: gnu.bootstrap \
-	gnu/autoconf.spk \
-	gnu/automake.spk \
-	gnu/autoconf-archive.spk \
-	gnu/make.spk \
-	gnu/glibc.spk \
-	gnu/m4.spk \
-	gnu/texinfo.spk \
-	gnu/gcc/gcc93.spk
+gnu: \
+	acl.spk \
+	attr.spk \
+	autoconf.spk \
+	automake.spk \
+	bash.spk \
+	bc.spk \
+	binutils.spk \
+	bison.spk \
+	bzip2.spk \
+	check.spk \
+	coreutils.spk \
+	dbus.spk \
+	dejagnu.spk \
+	diffutils.spk \
+	e2fsprogs.spk \
+	elfutils.spk \
+	eudev.spk \
+	expat.spk \
+	expect5.45.4 \
+	file.spk \
+	findutils.spk \
+	flex.spk \
+	gawk.spk \
+	gcc.spk \
+	gdbm.spk \
+	gettext.spk \
+	glibc.spk \
+	gmp.spk \
+	gperf.spk \
+	grep.spk \
+	groff.spk \
+	grub.spk \
+	gzip.spk \
+	iana-etc.spk \
+	inetutils.spk \
+	intltool.spk \
+	iproute2.spk \
+	kbd.spk \
+	kmod-28 \
+	less.spk \
+	lfs-bootscripts.spk \
+	libcap.spk \
+	libffi.spk \
+	libpipeline.spk \
+	libtool.spk \
+	linux.spk \
+	m4.spk \
+	make.spk \
+	man-db.spk \
+	man-pages.spk \
+	meson.spk \
+	mpc.spk \
+	mpfr.spk \
+	ncurses.spk \
+	ninja.spk \
+	openssl-1.1.1j \
+	patch.spk \
+	perl.spk \
+	pkg-config.spk \
+	procps-ng.spk \
+	psmisc.spk \
+	Python.spk \
+	python-3.9.2-docs-html2 \
+	readline.spk \
+	sed.spk \
+	shadow.spk \
+	sysklogd.spk \
+	systemd.spk \
+	systemd-man-pages.spk \
+	sysvinit.spk \
+	tar.spk \
+	tcl8.6.11-src \
+	tcl8.6.11-html \
+	texinfo.spk \
+	tzdata2021a \
+	udev-lfs.spk \
+	util-linux.spk \
+	vim.spk \
+	XML-Parser.spk \
+	xz.spk \
+	zlib.spk \
+	zstd.spk \
+	bzip2-1.0.8-install_docs-1.patch \
+	coreutils-8.32-i18n-1.patch \
+	glibc-2.33-fhs-1.patch \
+	kbd-2.4.0-backspace-1.patch \
+	sysvinit-2.98-consolidated-1.patch \
+	systemd-247-upstream_fixes-1.patch \
 
 perl: gnu perl/perl.spk
 
@@ -73,7 +123,8 @@ import:
 
 %.spk : %.spk.yaml
 	spk info -l $<@source > /dev/null 2>&1 || spk make-source $<
-	spk mkb -dr origin -l $<
+	SPFS_FILESYSTEM_TMPFS_SIZE=30G \
+	spk mkb -dr origin -o BOOTSTRAPPING=$(BOOTSTRAPPING) -l $<
 	spk export $< $@
 
 .PRECIOUS: bootstrap/*.spk.yaml
@@ -96,7 +147,6 @@ docker.%:
 	fi
 	docker build . -t spk-package-builder
 	docker run --privileged --rm \
-	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
 	-v $$PWD/../build/packages/:/spfs-storage \
 	-v $$PWD/../dist/rpm/RPMS/x86_64:/rpms \
 	-v $$PWD/..:/work spk-package-builder bash -ex -c "\

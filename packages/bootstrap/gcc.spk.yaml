@@ -1,9 +1,50 @@
-# use a low version and explicit bootstrap tag to be clear
-pkg: gcc/0.0.0+bootstrap.1
+pkg: gcc/10.2.0
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-10.2.0/gcc-10.2.0.tar.xz
+  - tar: http://ftpmirror.gnu.org/gnu/mpfr/mpfr-4.1.0.tar.xz
+  - tar: http://ftpmirror.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz
+  - tar: http://ftpmirror.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
+  - script:
+    - mv -v mpfr-4.1.0 gcc-10.2.0/mpfr
+    - mv -v gmp-6.2.1 gcc-10.2.0/gmp
+    - mv -v mpc-1.2.1 gcc-10.2.0/mpc
 
 build:
-  # this is an empty package which just assumes that gcc is installed and
-  # available to be used, hence the bootstrapping idea...
-  # Usually this package is only used to satisfy the dependencies of the
-  # real gcc package which requires itself to build itself
-  script: []
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+  script:
+    - cd gcc-10.2.0
+    # set the default lib to to just `lib`
+    - sed -e '/m64=/s/lib64/lib/' -i gcc/config/i386/t-linux64
+    - mkdir -p build; cd build
+    - unset LIBRARY_PATH # this is specifically checked for during build
+    # TODO: get target from build options
+    - ../configure
+      --target=$SPK_OPT_target
+      --prefix=/spfs/bootstrap
+      --with-glibc-version=2.11
+      --with-sysroot=/spfs
+      --with-newlib
+      --without-headers
+      --enable-initfini-array
+      --disable-nls
+      --disable-shared
+      --disable-multilib
+      --disable-decimal-float
+      --disable-threads
+      --disable-libatomic
+      --disable-libgomp
+      --disable-libquadmath
+      --disable-libssp
+      --disable-libvtv
+      --disable-libstdcxx
+      --disable-bootstrap
+      --enable-languages=c,c++
+    - make -j$(nproc)
+    - make install
+    - cd ..
+    - cat gcc/limitx.h gcc/glimits.h gcc/limity.h >
+      `dirname $(/spfs/bootstrap/bin/*-gcc -print-libgcc-file-name)`/install-tools/include/limits.h

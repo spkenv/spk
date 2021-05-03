@@ -1,13 +1,13 @@
 # use a low version and explicit bootstrap tag to be clear
-pkg: autoconf/0.0.0+bootstrap.1
+pkg: perl/0.0.0+bootstrap.1
 
 sources: [] # no source package files
 
 build:
-  # this is an empty package which just assumes that autoconf is installed and
+  # this is an empty package which just assumes that perl is installed and
   # available to be used, hence the bootstrapping idea...
   # Usually this package is only used to satisfy the dependencies of the
-  # real autoconf package which requires itself to build itself
+  # real perl package which requires itself to build itself
   options:
     - var: arch
     - var: os
@@ -17,11 +17,11 @@ build:
     - var: bootstrapped/yes
       inheritance: Strong
   script: |
-    if ! rpm -q autoconf; then
-      echo "autoconf is not installed on this system"
+    if ! rpm -q perl; then
+      echo "perl is not installed on this system"
       exit 1
     fi
-    files="$(rpm -ql autoconf | grep -v /doc/)"
+    files="$(rpm -ql perl | grep -v /doc/)"
     mkdir -p /spfs/share/aclocal
     for file in $files; do
       [ -f $file ] || continue
@@ -30,8 +30,8 @@ build:
       cp $file $newfile
     done
     mkdir -p /spfs/etc/startup.d/
-    echo "export ACLOCAL_PATH=/spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.sh
-    echo "setenv ACLOCAL_PATH /spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.csh
+    echo "export PERL5LIB=/spfs/lib/perl5" > /spfs/etc/spfs/startup.d/activate-perl.sh
+    echo "setenv PERL5LIB /spfs/lib/perl5" > /spfs/etc/spfs/startup.d/activate-perl.csh
 
 install:
   requirements:

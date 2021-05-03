@@ -17,11 +17,12 @@ build:
     - var: bootstrapped/yes
       inheritance: Strong
   script: |
+    unset LD_LIBRARY_PATH # to avoid build errors
     if ! rpm -q NAME; then
       echo "NAME is not installed on this system"
       exit 1
     fi
-    files="$(rpm -ql NAME | grep -v /doc/)"
+    files="$(rpm -ql NAME | grep -v /doc/ | sort)"
     mkdir -p /spfs/share/aclocal
     for file in $files; do
       [ -f $file ] || continue
@@ -30,7 +31,7 @@ build:
       if [ -L $file ]; then
         target=$(readlink $file)
         newtarget=${target/\/usr/\/spfs}
-        ln -s $newtarget $newfile
+        ln -sf $newtarget $newfile
       else
         cp $file $newfile
       fi
