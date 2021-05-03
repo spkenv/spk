@@ -64,6 +64,11 @@ impl Runtime {
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     use self::{build, storage};
 
+    #[pyfn(m, "version")]
+    fn version(_py: Python) -> &str {
+        return env!("CARGO_PKG_VERSION");
+    }
+
     #[pyfn(m, "configure_logging")]
     fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
         if verbosity == 0 {
@@ -181,7 +186,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     }
     #[pyfn(m, "build_interactive_shell_command")]
     fn build_interactive_shell_command() -> Result<Vec<String>> {
-        let cmd = spfs::build_interactive_shell_cmd()?;
+        let rt = spfs::active_runtime()?;
+        let cmd = spfs::build_interactive_shell_cmd(&rt)?;
         let cmd = cmd
             .into_iter()
             .map(|a| a.to_string_lossy().to_string())

@@ -1,15 +1,15 @@
 # Copyright (c) 2021 Sony Pictures Imageworks, et al.
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
+"""SPK - an SpFS Package Manager"""
 
-"""SPack - an SpFS Package Manager"""
-
-__version__ = "0.28.1"
-
+import spkrs
 from . import api, storage, solve, build, exec, test
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError
 from ._publish import Publisher
+
+__version__ = spkrs.version()
 
 # promote useful front line api functions
 from .solve import (
