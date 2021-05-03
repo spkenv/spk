@@ -64,6 +64,11 @@ impl Runtime {
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     use self::{build, storage};
 
+    #[pyfn(m, "version")]
+    fn version(_py: Python) -> &str {
+        return env!("CARGO_PKG_VERSION");
+    }
+
     #[pyfn(m, "configure_logging")]
     fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
         if verbosity == 0 {
