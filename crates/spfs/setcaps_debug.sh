@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Sets required capabilities on the local debug builds of spfs.
 # Must be run as root, and ./target dir must be on a local filesystem (not NFS)
 
