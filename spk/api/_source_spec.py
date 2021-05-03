@@ -53,6 +53,7 @@ class LocalSource(SourceSpec):
 
     path: str = "."
     exclude: List[str] = field(default_factory=lambda: [".git/", ".svn/"])
+    filter: List[str] = field(default_factory=lambda: [":- .gitignore"])
     subdir: Optional[str] = None
 
     def collect(self, dirname: str) -> None:
@@ -71,8 +72,8 @@ class LocalSource(SourceSpec):
         dirname = os.path.join(dirname, "")
         if "SPK_DEBUG" in os.environ:
             args.append("--verbose")
-        if os.path.exists(os.path.join(path, ".gitignore")):
-            args += ["--filter", ":- .gitignore"]
+        for filter_rule in self.filter:
+            args += ["--filter", filter_rule]
         for exclusion in self.exclude:
             args += ["--exclude", exclusion]
         args += [path, dirname]
@@ -86,6 +87,8 @@ class LocalSource(SourceSpec):
             out["subdir"] = self.subdir
         if self.exclude != LocalSource().exclude:
             out["exclude"] = list(self.exclude)
+        if self.filter != LocalSource().filter:
+            out["filter"] = list(self.filter)
         return out
 
     @staticmethod
@@ -99,6 +102,12 @@ class LocalSource(SourceSpec):
             assert isinstance(
                 src.exclude, list
             ), "LocalSource.exclude must be a list of strings"
+
+        if "filter" in data:
+            src.exclude = data.pop("filter")
+            assert isinstance(
+                src.filter, list
+            ), "LocalSource.filter must be a list of strings"
 
         for name in data:
             raise ValueError(f"Unknown field in LocalSource: '{name}'")
