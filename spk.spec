@@ -17,7 +17,7 @@ BuildRequires: python3-devel
 BuildRequires: python3-pip
 Requires: rsync
 Requires: bash
-Requires: spfs >= 0.27.1
+Requires: spfs >= 0.28.0
 
 %define debug_package %{nil}
 
