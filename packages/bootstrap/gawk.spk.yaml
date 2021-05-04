@@ -1,0 +1,25 @@
+pkg: gawk/5.1.0
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/gawk/gawk-5.1.0.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd gawk-5.1.0
+    # do not install unneeded files
+    - sed -i 's/extras//' Makefile.in
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --build=$(./config.guess)
+      --host=$SPK_OPT_target
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+

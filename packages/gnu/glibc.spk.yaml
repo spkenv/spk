@@ -13,12 +13,16 @@ build:
     - pkg: coreutils
     - pkg: automake
   script:
-    - glibc-2.33/configure
-      --prefix=/spfs
-      --with-sysroot=/spfs
-      --with-local-prefix=/spfs
-    - make
-    - make install
+    - cd glibc-2.33.tar.gz
+    - ../configure                             \
+      --prefix=/usr
+      --host=$LFS_TGT
+      --build=$(../scripts/config.guess)
+      --enable-kernel=3.2
+      --with-headers=$LFS/usr/include
+      libc_cv_slibdir=/lib
+    - make -j$(nproc)
+    - make DESTIR=/spfs install
 
 install:
   requirements:

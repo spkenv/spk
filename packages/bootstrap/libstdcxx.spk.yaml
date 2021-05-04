@@ -1,0 +1,28 @@
+pkg: libstdcxx/3
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-10.2.0/gcc-10.2.0.tar.xz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: gcc
+    - pkg: stdfs
+    - pkg: binutils
+  script:
+    - cd gcc-10.2.0
+    - mkdir -p build; cd build
+    - ../libstdc++-v3/configure
+      --host=$SPK_OPT_target
+      --build=$(../config.guess)
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --disable-multilib
+      --disable-nls
+      --disable-libstdcxx-pch
+      --with-gxx-include-dir=/spfs/bootstrap/$SPK_OPT_target/include/c++/10.2.0
+    - make -j$(nproc)
+    - make install

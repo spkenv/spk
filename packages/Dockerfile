@@ -13,6 +13,7 @@ RUN yum install -y \
     gettext \
     gettext-devel \
     git \
+    gperf \
     grep \
     help2man \
     libtool \

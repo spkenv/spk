@@ -1,0 +1,20 @@
+pkg: grep/3.6
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/grep/grep-3.6.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd grep-3.6
+    - ./configure
+      --prefix=/spfs
+      --host=$SPK_OPT_target
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+

@@ -1,0 +1,24 @@
+pkg: patch/2.7.6
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/patch/patch-2.7.6.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd patch-2.7.6
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+    # make sure timestamps don't require the Makefile to be rebuilt
+    - touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+

@@ -15,6 +15,8 @@ build:
     - var: bootstrap
       static: yes
     - var: target/x86_64-pc-linux-gnu
+    - pkg: binutils
+    - var: binutils.bootrap/yes
   script:
     - cd gcc-10.2.0
     # set the default lib to to just `lib`
@@ -27,6 +29,7 @@ build:
       --prefix=/spfs/bootstrap
       --with-glibc-version=2.11
       --with-sysroot=/spfs
+      --with-local-prefix=/spfs
       --with-newlib
       --without-headers
       --enable-initfini-array
@@ -48,3 +51,10 @@ build:
     - cd ..
     - cat gcc/limitx.h gcc/glimits.h gcc/limity.h >
       `dirname $(/spfs/bootstrap/bin/*-gcc -print-libgcc-file-name)`/install-tools/include/limits.h
+
+tests:
+  - stage: install
+    script:
+      - echo "int main(){}" > test.c
+      - /spfs/bootstrap/bin/*-gcc test.c -o test.o
+      - readelf -l test.o | grep '/ld-linux'

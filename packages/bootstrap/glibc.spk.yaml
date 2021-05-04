@@ -1,0 +1,32 @@
+pkg: glibc/2.33
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/glibc/glibc-2.33.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: gcc
+    - pkg: stdfs
+    - pkg: binutils
+  script:
+    - cd glibc-2.33
+    - mkdir build; cd build
+    - unset LD_LIBRARY_PATH LIBRARY_PATH
+    - ../configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+      --build=$(../scripts/config.guess)
+      --enable-kernel=3.2
+      libc_cv_slibdir=/lib
+      #--with-headers=/spfs/include
+    - make -j$(nproc)
+    - make DESTDIR=/spfs install
+
+install:
+  requirements:
+    - pkg: stdfs

@@ -1,0 +1,25 @@
+pkg: tar/1.34
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/tar/tar-1.34.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd tar-1.34
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+      --build=$(build-aux/config.guess)
+    # make sure timestamps don't require the Makefile to be rebuilt
+    - touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+

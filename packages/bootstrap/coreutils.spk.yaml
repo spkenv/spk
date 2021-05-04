@@ -1,0 +1,29 @@
+pkg: coreutils/8.32
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/coreutils/coreutils-8.32.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd coreutils-8.32
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+      --build=$(build-aux/config.guess)
+      --enable-install-program=hostname
+      --enable-no-install-program=kill,uptime
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+
+# install:
+#   requirements:
+#     - pkg: ncurses
+#     - pkg: glibc

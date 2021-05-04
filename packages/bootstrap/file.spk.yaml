@@ -1,0 +1,31 @@
+pkg: file/5.40
+
+sources:
+  - tar: https://astron.com/pub/file/file-5.40.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd file-5.40
+    - mkdir build; cd build
+    - ../configure
+      --disable-bzlib
+      --disable-libseccomp
+      --disable-xzlib
+      --disable-zlib
+    - make
+    - cd ..
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+
+

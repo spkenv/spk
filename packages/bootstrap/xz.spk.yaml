@@ -1,0 +1,26 @@
+pkg: xz/5.2.5
+
+sources:
+  - tar: https://tukaani.org/xz/xz-5.2.5.tar.xz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd xz-5.2.5
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+      --build=$(build-aux/config.guess)
+      --disable-static
+    # make sure timestamps don't require the Makefile to be rebuilt
+    - touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
+    - make
+    - make install
+    - rm -rf /spfs/share/doc
+

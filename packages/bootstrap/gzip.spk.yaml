@@ -1,0 +1,22 @@
+pkg: gzip/1.10
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/gzip/gzip-1.10.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd gzip-1.10
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+    - make
+    - make install
+    - rm -rf /spfs/share/man
+

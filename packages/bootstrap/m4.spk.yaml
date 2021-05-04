@@ -1,0 +1,31 @@
+pkg: m4/1.4.18
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/m4/m4-1.4.18.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd m4-1.4.18
+
+    # fix for: "Please port gnulib freadahead.c to your platform!"
+    - sed -i 's/IO_ftrylockfile/IO_EOF_SEEN/' lib/*.c
+    - echo "#define _IO_IN_BACKUP 0x100" >> lib/stdio-impl.h
+
+    # fix for: "\xAB" does not map to Unicode
+    - sed -i '1 i @documentencoding ISO-8859-1' doc/m4.texi
+
+    - ./configure
+      --prefix=/spfs
+      --host=$SPK_OPT_target
+      --build=$(build-aux/config.guess)
+    # make sure timestamps don't require the Makefile to be rebuilt
+    - touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
+    - make
+    - make install
+    - rm -r /spfs/share/{info,man}
+

@@ -1,12 +1,34 @@
-BOOTSTRAP := no
+# disables exporting packages in favour of touching the file, saves time and space
+NOEXPORT ?= 0
 
 .PHONY: packages
 packages: \
 	bootstrap
 
-.PHONY: bootstrap
-bootstrap: BOOTSTRAP := yes
-bootstrap: \
+.PHONY: bootstrap bootstrap.phase1 bootstrap.phase2
+bootstrap: bootstrap.phase1 bootstrap.phase2
+bootstrap.phase1: \
+	bootstrap/binutils.spk \
+	bootstrap/gcc.spk \
+	stdfs/stdfs.spk \
+	bootstrap/glibc.spk \
+	bootstrap/libstdcxx.spk
+bootstrap.phase2: \
+	bootstrap/m4.spk \
+	bootstrap/ncurses.spk \
+	bootstrap/bash.spk \
+	bootstrap/coreutils.spk \
+	bootstrap/diffutils.spk \
+	bootstrap/file.spk \
+	bootstrap/findutils.spk \
+	bootstrap/gawk.spk \
+	bootstrap/grep.spk \
+	bootstrap/gzip.spk \
+	bootstrap/make.spk \
+	bootstrap/patch.spk \
+	bootstrap/sed.spk \
+	bootstrap/tar.spk \
+	bootstrap/xz.spk \
 	bootstrap/binutils.spk \
 	bootstrap/gcc.spk
 
@@ -124,15 +146,8 @@ import:
 %.spk : %.spk.yaml
 	spk info -l $<@source > /dev/null 2>&1 || spk make-source $<
 	SPFS_FILESYSTEM_TMPFS_SIZE=30G \
-	spk mkb -dr origin -o BOOTSTRAPPING=$(BOOTSTRAPPING) -l $<
-	spk export $< $@
-
-.PRECIOUS: bootstrap/*.spk.yaml
-bootstrap/%.spk.yaml : bootstrap/spk.yaml.in
-	if [ ! -f $@ ]; then \
-	cp $< $@ && \
-	sed -i 's|NAME|$*|g' $@; \
-	else touch $@; fi
+	spk mkb -dr origin -l -v $<
+	if [ "$(NOEXPORT)" == "1" ]; then touch $@; else spk export $< $@; fi
 
 docker.%:
 	if [ ! -f ../dist/rpm/RPMS/x86_64/spk-*.rpm ]; then \

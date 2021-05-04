@@ -1,0 +1,40 @@
+pkg: ncurses/6.2
+
+sources:
+  - tar: http://ftpmirror.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
+
+build:
+  options:
+    - var: bootstrap
+      static: yes
+    - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
+  script:
+    - cd ncurses-6.2
+    - sed -i s/mawk// configure
+    - mkdir build; cd build
+    - ../configure
+    - make -C include
+    - make -C progs tic
+    - cd ..
+    - ./configure
+      --prefix=/spfs
+      --with-sysroot=/spfs
+      --with-local-prefix=/spfs
+      --host=$SPK_OPT_target
+      --build=$(./config.guess)
+      --mandir=/spfs/share/man
+      --with-manpage-format=normal
+      --with-shared
+      --without-debug
+      --without-ada
+      --without-normal
+      --enable-widec
+    - make
+    - make TIC_PATH=$(pwd)/build/progs/tic install
+    - echo "INPUT(-lncursesw)" > /spfs/lib/libncurses.so
+    - rm -rf /spfs/share/man # no need to package these
+
+# install:
+#   requirements:
+#     - pkg: glibc
