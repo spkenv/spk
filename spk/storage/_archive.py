@@ -20,6 +20,11 @@ _LOGGER = structlog.get_logger("spk.storage")
 
 
 def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
+
+    # Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
+    # relative paths properly.
+    filename = os.path.abspath(filename)
+
     if not isinstance(pkg, api.Ident):
         pkg = api.parse_ident(pkg)
 
