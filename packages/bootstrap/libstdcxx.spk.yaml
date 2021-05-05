@@ -26,3 +26,7 @@ build:
       --with-gxx-include-dir=/spfs/bootstrap/$SPK_OPT_target/include/c++/10.2.0
     - make -j$(nproc)
     - make install
+
+install:
+  requirements:
+    - pkg: stdfs

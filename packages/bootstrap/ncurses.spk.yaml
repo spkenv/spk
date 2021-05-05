@@ -38,3 +38,6 @@ build:
 # install:
 #   requirements:
 #     - pkg: glibc
+install:
+  requirements:
+    - pkg: stdfs

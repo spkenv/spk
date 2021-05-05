@@ -15,8 +15,12 @@ build:
       --prefix=/spfs/bootstrap
       --with-sysroot=/spfs
       --with-local-prefix=/spfs
+      --build=$(../config.guess)
       --target=$SPK_OPT_target
       --disable-nls
+      --enable-shared
       --disable-werror
+      --enable-64-bit-bfd
     - make -j$(nproc)
     - make install
+    - install -vm755 libctf/.libs/libctf.so.0.0.0 /spfs/lib

@@ -36,3 +36,7 @@ build:
 install:
   requirements:
     - pkg: stdfs
+
+install:
+  requirements:
+    - pkg: stdfs

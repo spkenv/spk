@@ -29,3 +29,6 @@ build:
     - make install
     - rm -r /spfs/share/{info,man}
 
+install:
+  requirements:
+    - pkg: stdfs

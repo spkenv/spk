@@ -29,8 +29,8 @@ bootstrap.phase2: \
 	bootstrap/sed.spk \
 	bootstrap/tar.spk \
 	bootstrap/xz.spk \
-	bootstrap/binutils.spk \
-	bootstrap/gcc.spk
+	bootstrap/binutils2.spk \
+	bootstrap/gcc2.spk
 
 #####################################
 

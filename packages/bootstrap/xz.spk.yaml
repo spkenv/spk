@@ -24,3 +24,6 @@ build:
     - make install
     - rm -rf /spfs/share/doc
 
+install:
+  requirements:
+    - pkg: stdfs

@@ -26,3 +26,6 @@ build:
 #   requirements:
 #     - pkg: ncurses
 #     - pkg: glibc
+install:
+  requirements:
+    - pkg: stdfs

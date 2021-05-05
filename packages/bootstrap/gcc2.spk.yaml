@@ -17,19 +17,27 @@ build:
     - var: target/x86_64-pc-linux-gnu
     - pkg: binutils
     - var: binutils.bootrap/yes
+    - pkg: stdfs
   script:
     - cd gcc-10.2.0
     # set the default lib to to just `lib`
     - sed -e '/m64=/s/lib64/lib/' -i gcc/config/i386/t-linux64
+    # allow posix thread support
+    - mkdir -pv $SPK_OPT_target/libgcc
+    - ln -s ../../../libgcc/gthr-posix.h $SPK_OPT_target/libgcc/gthr-default.h
     - mkdir -p build; cd build
     - unset LIBRARY_PATH # this is specifically checked for during build
     # TODO: get target from build options
     - ../configure
+      --build=$(../config.guess)
       --target=$SPK_OPT_target
-      --prefix=/spfs/bootstrap
+      --prefix=/spfs
       --with-glibc-version=2.11
       --with-sysroot=/spfs
       --with-local-prefix=/spfs
+      --with-build-sysroot=.spfs
+      --enable-initfini-array
+      CC_FOR_TARGET=$SPK_OPT_target-gcc
       --with-newlib
       --without-headers
       --enable-initfini-array
@@ -49,8 +57,7 @@ build:
     - make -j$(nproc)
     - make install
     - cd ..
-    - cat gcc/limitx.h gcc/glimits.h gcc/limity.h >
-      `dirname $(/spfs/bootstrap/bin/*-gcc -print-libgcc-file-name)`/install-tools/include/limits.h
+    - ln -sv gcc /spfs/bin/cc
 
 tests:
   - stage: install
@@ -58,3 +65,7 @@ tests:
       - echo "int main(){}" > test.c
       - /spfs/bootstrap/bin/*-gcc test.c -o test.o
       - readelf -l test.o | grep '/ld-linux'
+
+install:
+  requirements:
+    - pkg: stdfs
