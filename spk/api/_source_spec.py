@@ -104,7 +104,7 @@ class LocalSource(SourceSpec):
             ), "LocalSource.exclude must be a list of strings"
 
         if "filter" in data:
-            src.exclude = data.pop("filter")
+            src.filter = data.pop("filter")
             assert isinstance(
                 src.filter, list
             ), "LocalSource.filter must be a list of strings"
