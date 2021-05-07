@@ -8,13 +8,13 @@ build:
     - var: bootstrap
       static: yes
     - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
   script:
     - cd binutils-2.36.1
     - mkdir -p build; cd build
     - ../configure
       --prefix=/spfs/bootstrap
       --with-sysroot=/spfs
-      --with-local-prefix=/spfs
       --target=$SPK_OPT_target
       --disable-nls
       --disable-werror

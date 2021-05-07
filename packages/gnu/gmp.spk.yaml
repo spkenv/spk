@@ -10,15 +10,19 @@ build:
     - var: distro
     - var: centos
     - pkg: stdfs
-    # - pkg: autoconf
     - pkg: make
     - pkg: gcc
+    - pkg: coreutils
+    - pkg: sed
+    - pkg: grep
+    - pkg: gawk
   script:
+    - export PATH=/spfs/bin
+    - export LD_LIBRARY_PATH=/spfs/bin
     - cd gmp-6.2.0
     - ./configure
       --prefix=/spfs
       --with-sysroot=/spfs
-      --with-local-prefix=/spfs
     - make -j$(nproc)
     - make check
     - make install

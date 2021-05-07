@@ -5,18 +5,27 @@ sources:
 
 build:
   options:
-    - var: bootstrap
-      static: yes
+    - var: bootstrap/no
     - var: target/x86_64-pc-linux-gnu
     - pkg: gcc
     - pkg: stdfs
       inheritance: Strong
     - pkg: binutils
       inheritance: Strong
+    - pkg: glibc
+      inheritance: Strong
+    - pkg: coreutils
+    - pkg: sed
+    - pkg: make
+    - pkg: grep
+    - pkg: gawk
+    - pkg: diffutils
   script:
+    - export PATH=/spfs/bin
     - cd gcc-10.2.0
     - mkdir -p build; cd build
     - ../libstdc++-v3/configure
+      CXXFLAGS="-g -O2 -D_GNU_SOURCE"
       --host=$SPK_OPT_target
       --build=$(../config.guess)
       --prefix=/spfs
@@ -25,12 +34,9 @@ build:
       --disable-multilib
       --disable-nls
       --disable-libstdcxx-pch
-      --with-gxx-include-dir=/spfs/bootstrap/$SPK_OPT_target/include/c++/10.2.0
     - make -j$(nproc)
     - make install
 
 install:
   requirements:
     - pkg: stdfs
-    - pkg: binutils
-      fromBuildEnv: x.x

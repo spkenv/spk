@@ -8,11 +8,12 @@ build:
     - var: bootstrap
       static: yes
     - var: target/x86_64-pc-linux-gnu
+    - pkg: stdfs
   script:
     - cd binutils-2.36.1
     - mkdir -p build; cd build
     - ../configure
-      --prefix=/spfs/bootstrap
+      --prefix=/spfs
       --with-sysroot=/spfs
       --with-local-prefix=/spfs
       --build=$(../config.guess)
@@ -21,6 +22,7 @@ build:
       --enable-shared
       --disable-werror
       --enable-64-bit-bfd
-    - make -j$(nproc)
-    - make install
+    - make -j$(nproc) tooldir=/spfs
+    - make -k check
+    - make install tooldir=/spfs DESTDIR=/spfs
     - install -vm755 libctf/.libs/libctf.so.0.0.0 /spfs/lib

@@ -13,8 +13,6 @@ build:
     - cd gzip-1.10
     - ./configure
       --prefix=/spfs
-      --with-sysroot=/spfs
-      --with-local-prefix=/spfs
       --host=$SPK_OPT_target
     - make
     - make install

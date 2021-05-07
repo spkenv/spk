@@ -1,7 +1,7 @@
 VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: rpm devel test packages clean
+.PHONY: rpm devel test packages clean lint
 default: devel
 
 packages:
@@ -22,6 +22,10 @@ test:
 	mkdir -p /tmp/spfs-runtimes
 	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
 	pipenv run -- spfs run - -- pytest -x -vvv
+
+lint:
+	black --check spk
+	mypy spk
 
 rpm: SPFS_PULL_USERNAME ?= $(shell read -p "Github Username: " user; echo $$user)
 rpm: SPFS_PULL_PASSWORD ?= $(shell read -s -p "Github Password/Access Token: " pass; echo $$pass)

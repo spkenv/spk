@@ -15,8 +15,10 @@ build:
     - var: bootstrap
       static: yes
     - var: target/x86_64-pc-linux-gnu
-    - pkg: binutils
     - var: binutils.bootrap/yes
+    - pkg: binutils
+      inheritance: Strong
+    - pkg: stdfs
   script:
     - cd gcc-10.2.0
     # set the default lib to to just `lib`
@@ -28,8 +30,7 @@ build:
       --target=$SPK_OPT_target
       --prefix=/spfs/bootstrap
       --with-glibc-version=2.11
-      --with-sysroot=/spfs
-      --with-local-prefix=/spfs
+      --with-sysroot=/spfs/bootstrap
       --with-newlib
       --without-headers
       --enable-initfini-array
@@ -47,10 +48,12 @@ build:
       --disable-bootstrap
       --enable-languages=c,c++
     - make -j$(nproc)
+    - make check
     - make install
     - cd ..
     - cat gcc/limitx.h gcc/glimits.h gcc/limity.h >
       `dirname $(/spfs/bootstrap/bin/*-gcc -print-libgcc-file-name)`/install-tools/include/limits.h
+    - echo 'export PATH=/spfs/bootstrap/bin:$PATH' >> /spfs/etc/spfs/startup.d/bootstrap-gcc.sh
 
 tests:
   - stage: install
@@ -58,3 +61,8 @@ tests:
       - echo "int main(){}" > test.c
       - /spfs/bootstrap/bin/*-gcc test.c -o test.o
       - readelf -l test.o | grep '/ld-linux'
+
+install:
+  requirements:
+    - pkg: binutils
+      fromBuildEnv: x.x
