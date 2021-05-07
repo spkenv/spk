@@ -3,7 +3,7 @@
 # https://github.com/imageworks/spk
 
 from ast import parse
-from typing import List, Any, Dict, Optional, Union, IO, Iterable
+from typing import List, Any, Dict, Optional, Set, Union, IO, Iterable
 from dataclasses import dataclass, field
 import os
 
@@ -13,9 +13,9 @@ from ruamel import yaml
 from ._build import EMBEDDED
 from ._ident import Ident, parse_ident
 from ._compat import Compat, Compatibility, COMPATIBLE, parse_compat
-from ._request import Request, PkgRequest, VarRequest, RangeIdent, parse_version_range
+from ._request import Request, PkgRequest, VarRequest, RangeIdent, parse_version_range, InclusionPolicy
 from ._option_map import OptionMap
-from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance, Option
+from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance, Option, opt_from_dict
 from ._test_spec import TestSpec
 from ._source_spec import SourceSpec, LocalSource
 
@@ -221,17 +221,16 @@ class Spec:
         specs = dict((s.pkg.name, s) for s in resolved)
         for dep_name, dep_spec in specs.items():
             for opt in dep_spec.build.options:
-                if not isinstance(opt, VarOpt):
-                    continue
                 if opt.inheritance is Inheritance.weak:
                     continue
-                inherited_opt = VarOpt.from_dict(opt.to_dict())
-                if "." not in inherited_opt.var:
-                    inherited_opt.var = f"{dep_name}.{opt.var}"
+                inherited_opt = opt_from_dict(opt.to_dict())
+                if isinstance(inherited_opt, VarOpt):
+                    if "." not in inherited_opt.var:
+                        inherited_opt.var = f"{dep_name}.{opt.name()}"
                 inherited_opt.inheritance = Inheritance.weak
                 self.build.upsert_opt(inherited_opt)
                 if opt.inheritance is Inheritance.strong:
-                    req = VarRequest(inherited_opt.var, pin=True)
+                    req = inherited_opt.to_request()
                     self.install.upsert_requirement(req)
 
         build_options = list(self.build.options)
@@ -272,6 +271,30 @@ class Spec:
         else:
             spec.build = BuildSpec.from_dict(data.pop("build", {}))
         spec.install = InstallSpec.from_dict(data.pop("install", {}))
+
+        # all non-weak package options must also be install requirements
+        # or they will not be satisfied in the build environment
+        inherited_package_options: Set[str] = set()
+        for opt in spec.build.options:
+            if not isinstance(opt, PkgOpt):
+                continue
+            if opt.inheritance is Inheritance.weak:
+                continue
+            inherited_package_options.add(opt.name())
+        for req in spec.install.requirements:
+            if not isinstance(req, PkgRequest):
+                continue
+            if req.inclusion_policy is not InclusionPolicy.Always:
+                continue
+            try:
+                inherited_package_options.remove(req.name)
+            except KeyError:
+                pass
+        if inherited_package_options:
+            raise ValueError(
+                "inherited 'pkg' options must also be non-optional "
+                f"install requirements (missing {list(inherited_package_options)})"
+            )
 
         if len(data):
             raise ValueError(f"unrecognized fields in spec: {', '.join(data.keys())}")

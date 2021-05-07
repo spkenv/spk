@@ -7,7 +7,13 @@ import abc
 import enum
 from dataclasses import dataclass, field
 
-from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
+from ._request import (
+    Request,
+    PkgRequest,
+    VarRequest,
+    parse_ident_range,
+    PreReleasePolicy,
+)
 from ._option_map import OptionMap
 from ._version import Version
 from ._compat import Compatibility, COMPATIBLE, CompatRule
@@ -16,6 +22,7 @@ from ._compat import Compatibility, COMPATIBLE, CompatRule
 class Option(metaclass=abc.ABCMeta):
     def __init__(self) -> None:
         self.__value: str = ""
+        self.inheritance: Inheritance = Inheritance.weak
 
     @abc.abstractmethod
     def name(self) -> str:
@@ -30,6 +37,10 @@ class Option(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def to_dict(self) -> Dict[str, Any]:
+        pass
+
+    @abc.abstractmethod
+    def to_request(self, given_value: str = None) -> Request:
         pass
 
     def set_value(self, value: str) -> None:
@@ -219,7 +230,7 @@ def opt_from_request(request: Request) -> "PkgOpt":
 
 
 class Inheritance(enum.Enum):
-    """Defines the way in which a build option in inherited by downstream packages."""
+    """Defines the way in which a build option is inherited by downstream packages."""
 
     # the default value, not inherited by downstream packages unless redefined
     weak = "Weak"
@@ -234,7 +245,6 @@ class VarOpt(Option):
         self.var = var
         self.default = default
         self.choices = choices if choices else set()
-        self.inheritance = Inheritance.weak
         super(VarOpt, self).__init__()
 
     def __repr__(self) -> str:
@@ -325,13 +335,22 @@ class VarOpt(Option):
         opt.choices = set(str(c) for c in data.pop("choices", []))
         opt.set_value(str(data.pop("static", "")))
 
-        inheritance = str(data.pop("inheritance", Inheritance.weak.value))
-        opt.inheritance = Inheritance(inheritance)
+        if "inheritance" in data:
+            name = data.pop("inheritance")
+            try:
+                opt.inheritance = Inheritance(name)
+            except ValueError:
+                raise ValueError(
+                    f"Unknown inheritance '{name}'. Must be on of {list(i.value for i in Inheritance)}"
+                )
 
         if len(data):
             raise ValueError(f"unrecognized fields in var: {', '.join(data.keys())}")
 
         return opt
+
+    def to_request(self, given_value: str = None) -> VarRequest:
+        return VarRequest(self.var, self.get_value(given_value))
 
 
 class PkgOpt(Option):
@@ -413,7 +432,9 @@ class PkgOpt(Option):
         if base_value:
             spec["static"] = base_value
         if self.prerelease_policy is not PreReleasePolicy.ExcludeAll:
-            spec["prereleasePolicy"] = self.prerelease_policy.name
+            spec["prereleasePolicy"] = self.prerelease_policy.value
+        if self.inheritance is not Inheritance.weak:
+            spec["inheritance"] = self.inheritance.value
         return spec
 
     @staticmethod
@@ -435,12 +456,20 @@ class PkgOpt(Option):
         if "prereleasePolicy" in data:
             name = data.pop("prereleasePolicy")
             try:
-                policy = PreReleasePolicy.__members__[name]
+                opt.prerelease_policy = PreReleasePolicy(name)
             except KeyError:
                 raise ValueError(
-                    f"Unknown 'prereleasePolicy': {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
+                    f"Unknown prereleasePolicy '{name}'. Must be on of {list(i.value for i in PreReleasePolicy)}"
                 )
-            opt.prerelease_policy = policy
+
+        if "inheritance" in data:
+            name = data.pop("inheritance")
+            try:
+                opt.inheritance = Inheritance(name)
+            except ValueError:
+                raise ValueError(
+                    f"Unknown inheritance '{name}'. Must be on of {list(i.value for i in Inheritance)}"
+                )
 
         opt.set_value(str(data.pop("static", "")))
 

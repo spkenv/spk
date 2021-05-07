@@ -166,4 +166,6 @@ def remote_repository(remote: str = "origin") -> SpFSRepository:
     try:
         return SpFSRepository(spkrs.remote_repository(remote))
     except FileNotFoundError as err:
-        raise ValueError(f"Remote '{remote}' is not configured or does not exist: {err}")
+        raise ValueError(
+            f"Remote '{remote}' is not configured or does not exist: {err}"
+        )

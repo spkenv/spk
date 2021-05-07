@@ -1,3 +1,4 @@
+import spkrs
 from typing import Any
 import subprocess
 import os
@@ -241,14 +242,31 @@ def test_build_package_source_cleanup(tmprepo: storage.SpFSRepository) -> None:
 
 def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) -> None:
 
+    open("/spfs/file.txt", "w+").close()
+    digest1 = spkrs.commit_layer(spkrs.active_runtime())
+    spkrs.reconfigure_runtime(editable=True)
+    open("/spfs/file2.txt", "w+").close()
+    digest2 = spkrs.commit_layer(spkrs.active_runtime())
+
     base_spec = api.Spec.from_dict(
         {
             "pkg": "base/1.0.0",
             "sources": [],
             "build": {
-                "options": [{"var": "inherited/val", "inheritance": "Strong"}],
+                "options": [
+                    {"var": "strong/val", "inheritance": "Strong"},
+                    {"pkg": "strong-pkg/0.0.0", "inheritance": "Strong"},
+                    {"var": "build/val", "inheritance": "StrongForBuildOnly"},
+                    {"pkg": "build-pkg/0.0.0", "inheritance": "StrongForBuildOnly"},
+                ],
                 "script": "echo building...",
             },
+            "install": {
+                "requirements": [
+                    {"pkg": "strong-pkg"},
+                    {"pkg": "build-pkg"}
+                ]
+            }
         }
     )
     top_spec = api.Spec.from_dict(
@@ -260,6 +278,12 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
     )
     tmprepo.publish_spec(base_spec)
     tmprepo.publish_spec(top_spec)
+    strong_dep = api.Spec.from_dict({"pkg":"strong-pkg"})
+    strong_dep.update_for_build(api.OptionMap(), [])
+    tmprepo.publish_package(strong_dep, digest1)
+    build_dep = api.Spec.from_dict({"pkg":"build-pkg"})
+    build_dep.update_for_build(api.OptionMap(), [])
+    tmprepo.publish_package(build_dep, digest2)
 
     SourcePackageBuilder.from_spec(base_spec).with_target_repository(tmprepo).build()
     base_pkg = (
@@ -269,17 +293,17 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
     SourcePackageBuilder.from_spec(top_spec).with_target_repository(tmprepo).build()
     top_pkg = BinaryPackageBuilder.from_spec(top_spec).with_repository(tmprepo).build()
 
-    assert len(top_pkg.build.options) == 2, "should get option added"
+    assert len(top_pkg.build.options) == 5, "should get options added"
     opt = top_pkg.build.options[1]
     assert isinstance(opt, api.VarOpt), "should be given inherited option"
-    assert opt.var == "base.inherited", "should be inherited as package option"
+    assert opt.var == "base.strong", "should be inherited as package option"
     assert (
         opt.inheritance is api.Inheritance.weak
     ), "inherited option should have weak inheritance"
 
-    assert len(top_pkg.install.requirements) == 1, "should get install requirement"
+    assert len(top_pkg.install.requirements) == 2, "should get install requirements"
     req = top_pkg.install.requirements[0]
     assert isinstance(req, api.VarRequest), "should be given var request"
-    assert req.var == "base.inherited", "should be inherited with package namespace"
+    assert req.var == "base.strong", "should be inherited with package namespace"
     assert not req.pin, "should not be pinned after build"
     assert req.value == "val", "should be rendered to build time var"
