@@ -2,52 +2,34 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-mod source_spec;
-mod build_spec;
+// mod build;
+// mod build_spec;
+// mod compat;
+// mod ident;
 mod name;
-mod spec;
-mod option_map;
-mod mod;
-mod version_range;
-mod request;
-mod ident;
-mod compat;
-mod version;
-mod build;
-mod test_spec;
+// mod option_map;
+// mod request;
+// mod source_spec;
+// mod spec;
+// mod test_spec;
+// mod version;
+// mod version_range;
 
-pub use name::{ InvalidNameError};
-pub use option_map::{ OptionMap, host_options};
-pub use version::{ Version, parse_version, VERSION_SEP, InvalidVersionError};
-pub use compat::{ Compat, parse_compat, Compatibility, COMPATIBLE, CompatRule};
-pub use build::{ Build, parse_build, SRC, EMBEDDED, InvalidBuildError};
-pub use ident::{ Ident, parse_ident, validate_name};
-pub use version_range::{
-    VersionRange,
-    VersionFilter,
-    VERSION_RANGE_SEP,
-    parse_version_range,
-};
-pub use build_spec::{ BuildSpec, opt_from_dict, VarOpt, PkgOpt, Option, Inheritance};
-pub use source_spec::{ SourceSpec, LocalSource, GitSource, TarSource, ScriptSource};
-pub use test_spec::{ TestSpec};
-pub use request::{
-    Request,
-    PkgRequest,
-    VarRequest,
-    parse_ident_range,
-    PreReleasePolicy,
-    InclusionPolicy,
-    RangeIdent,
-};
-pub use spec::{
-    InstallSpec,
-    Spec,
-    read_spec_file,
-    read_spec,
-    write_spec,
-    save_spec_file,
-};
+// pub use build::{parse_build, Build, InvalidBuildError, EMBEDDED, SRC};
+// pub use build_spec::{opt_from_dict, BuildSpec, Inheritance, Option, PkgOpt, VarOpt};
+// pub use compat::{parse_compat, Compat, CompatRule, Compatibility, COMPATIBLE};
+// pub use ident::{parse_ident, validate_name, Ident};
+pub use name::{validate_name, validate_tag_name, InvalidNameError};
+// pub use option_map::{host_options, OptionMap};
+// pub use request::{
+//     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
+//     VarRequest,
+// };
+// pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
+// pub use spec::{read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
+// pub use test_spec::TestSpec;
+// pub use version::{parse_version, InvalidVersionError, Version, VERSION_SEP};
+// pub use version_range::{parse_version_range, VersionFilter, VersionRange, VERSION_RANGE_SEP};
 
 use pyo3::prelude::*;
 pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
