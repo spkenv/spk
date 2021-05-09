@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-pub mod build;
 mod error;
+pub mod build;
 pub mod storage;
+pub mod api;
 
 pub use error::{Error, Result};
 
@@ -62,7 +63,11 @@ impl Runtime {
 
 #[pymodule]
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
-    use self::{build, storage};
+    use self::{build, storage, api};
+
+    let api_mod = PyModule::new(py, "api")?;
+    api::init_module(&py, &api_mod)?;
+    m.add_submodule(api_mod)?;
 
     #[pyfn(m, "version")]
     fn version(_py: Python) -> &str {
