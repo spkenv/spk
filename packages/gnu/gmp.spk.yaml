@@ -17,8 +17,6 @@ build:
     - pkg: grep
     - pkg: gawk
   script:
-    - export PATH=/spfs/bin
-    - export LD_LIBRARY_PATH=/spfs/bin
     - cd gmp-6.2.0
     - ./configure
       --prefix=/spfs

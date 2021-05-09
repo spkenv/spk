@@ -17,19 +17,25 @@ build:
     - cd glibc-2.33
     - mkdir build; cd build
     - unset LD_LIBRARY_PATH LIBRARY_PATH
-    - export CC=/spfs/bin/gcc
-    - export CXX=/spfs/bin/g++
     - ../configure
+      --with-binutils=/spfs
       --prefix=/spfs
-      --with-sysroot=/spfs
       --host=$SPK_OPT_target
       --build=$(../scripts/config.guess)
       --enable-kernel=3.2
       libc_cv_slibdir=/lib
-      #--with-headers=/spfs/include
     - exit 1
     - make -j$(nproc)
     - make DESTDIR=/spfs install
+
+tests:
+  - stage: install
+    requirements:
+      - pkg: gcc
+    script:
+      - echo 'int main(){}' > dummy.c
+      - $CC dummy.c
+      - readelf -l a.out | grep '/ld-linux'
 
 install:
   requirements:

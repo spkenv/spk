@@ -30,7 +30,6 @@ build:
       --target=$SPK_OPT_target
       --prefix=/spfs/bootstrap
       --with-glibc-version=2.11
-      --with-sysroot=/spfs/bootstrap
       --with-newlib
       --without-headers
       --enable-initfini-array
@@ -46,6 +45,7 @@ build:
       --disable-libvtv
       --disable-libstdcxx
       --disable-bootstrap
+      --enable-static
       --enable-languages=c,c++
     - make -j$(nproc)
     - make check
@@ -54,6 +54,8 @@ build:
     - cat gcc/limitx.h gcc/glimits.h gcc/limity.h >
       `dirname $(/spfs/bootstrap/bin/*-gcc -print-libgcc-file-name)`/install-tools/include/limits.h
     - echo 'export PATH=/spfs/bootstrap/bin:$PATH' >> /spfs/etc/spfs/startup.d/bootstrap-gcc.sh
+    - echo 'export CC=/spfs/bootstrap/bin/gcc' >> /spfs/etc/spfs/startup.d/bootstrap-gcc.sh
+    - echo 'export CXX=/spfs/bootstrap/bin/g++' >> /spfs/etc/spfs/startup.d/bootstrap-gcc.sh
 
 tests:
   - stage: install

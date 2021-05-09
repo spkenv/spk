@@ -34,6 +34,9 @@ bootstrap.phase2: \
 	bootstrap/xz.spk \
 	bootstrap/binutils2.spk \
 	bootstrap/gcc2.spk \
+	bootstrap/gmp.spk \
+	bootstrap/mpfr.spk \
+	bootstrap/mpc.spk \
 	bootstrap/libstdcxx2.spk
 
 .PHONY: gnu

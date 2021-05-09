@@ -38,7 +38,6 @@ build:
       --prefix=/spfs
       --with-glibc-version=2.11
       --with-sysroot=/spfs
-      --with-local-prefix=/spfs
       --with-build-sysroot=/spfs
       --enable-initfini-array
       CC_FOR_TARGET=$SPK_OPT_target-gcc
@@ -62,6 +61,8 @@ build:
     - make check
     - make install
     - ln -sv gcc /spfs/bin/cc
+    - echo 'export CC=/spfs/bin/gcc' >> /spfs/etc/spfs/startup.d/activate-gcc.sh
+    - echo 'export CXX=/spfs/bin/g++' >> /spfs/etc/spfs/startup.d/activate-gcc.sh
 
 tests:
   - stage: install
@@ -74,4 +75,7 @@ install:
   requirements:
     - pkg: stdfs
     - pkg: glibc
+    - pkg: mpfr
+    - pkg: gmp
+    - pkg: mpc
     - pkg: binutils
