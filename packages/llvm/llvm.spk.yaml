@@ -1,0 +1,33 @@
+pkg: llvm/12.0.0
+
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+    filter: [ ]
+  - script:
+    - if [ ! -d llvm-project ] ; then git clone https://github.com/llvm/llvm-project -b llvmorg-12.0.0 ; fi
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: gcc/6
+    - pkg: cmake/^3.13
+    - pkg: cuda
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - ./build.sh
+    # The build steps are a little too complex to put inline here, so we
+    # have it in a separate script.
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: x.x
