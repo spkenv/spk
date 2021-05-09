@@ -24,3 +24,5 @@ build:
     - mkdir -p /spfs/etc/spfs/startup.d
     - echo "export CMAKE_SYSTEM_INCLUDE_PATH=/spfs/include" > /spfs/etc/spfs/startup.d/activate_cmake.sh
     - echo "export CMAKE_SYSTEM_PREFIX_PATH=/spfs" >> /spfs/etc/spfs/startup.d/activate_cmake.sh
+    - echo "setenv CMAKE_SYSTEM_INCLUDE_PATH /spfs/include" > /spfs/etc/spfs/startup.d/activate_cmake.csh
+    - echo "setenv CMAKE_SYSTEM_PREFIX_PATH /spfs" >> /spfs/etc/spfs/startup.d/activate_cmake.csh
