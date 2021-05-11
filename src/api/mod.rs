@@ -12,7 +12,7 @@ mod name;
 // mod source_spec;
 // mod spec;
 // mod test_spec;
-// mod version;
+mod version;
 // mod version_range;
 
 // pub use build::{parse_build, Build, InvalidBuildError, EMBEDDED, SRC};
@@ -28,10 +28,10 @@ pub use name::{validate_name, validate_tag_name, InvalidNameError};
 // pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 // pub use spec::{read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
 // pub use test_spec::TestSpec;
-// pub use version::{parse_version, InvalidVersionError, Version, VERSION_SEP};
+pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
 // pub use version_range::{parse_version_range, VersionFilter, VersionRange, VERSION_RANGE_SEP};
 
 use pyo3::prelude::*;
-pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
+pub fn init_module(_py: &Python, _m: &PyModule) -> PyResult<()> {
     Ok(())
 }

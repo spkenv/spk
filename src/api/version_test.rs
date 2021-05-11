@@ -1,72 +1,99 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::cmp::Ord;
+use std::cmp::Ordering;
 
-import pytest
+use rstest::rstest;
 
-from ._version import parse_version, Version, TagSet
+use super::{parse_version, TagSet, Version};
 
+#[rstest]
+fn test_version_nonzero() {
+    assert_eq!(true, Version::default().is_zero());
+    assert_eq!(true, Version::new(1, 0, 0).is_zero());
+}
 
-def test_version_nonzero() -> None:
+#[rstest]
+#[case("1.0.0", "1.0.0", false)]
+#[case("1", "1.0.0", false)]
+#[case("1.0.0", "1", false)]
+#[case("6.3", "4.8.5", true)]
+#[case("6.3", "6.3+post.0", false)]
+#[case("6.3+post.0", "6.3", true)]
+#[case("6.3+b.0", "6.3+a.0", true)]
+#[case("6.3-pre.0", "6.3", false)]
+#[case("6.3", "6.3-pre.0", true)]
+#[case("6.3+r.1", "6.3+other.1,r.1", true)]
+fn test_is_gt(#[case] base: &str, #[case] test: &str, #[case] expected: bool) {
+    let actual = parse_version(base).unwrap() > parse_version(test).unwrap();
+    assert_eq!(actual, expected);
+}
 
-    assert bool(Version()) == False
-    assert bool(Version(1, 0, 0)) == True
+#[rstest]
+#[case("1.0.0", Version::new(1, 0, 0))]
+#[case("0.0.0", Version::new(0, 0, 0))]
+#[case("1.2.3.4.5.6", Version{
+    major: 1, minor: 2, patch: 3, tail: vec![4, 5, 6], ..Default::default()
+})]
+#[case("1.0+post.1", Version{
+    major: 1, post: TagSet::single("post", 1), ..Default::default()
+})]
+#[case(
+     "1.2.5.7-alpha.4+rev.6",
+     Version{
+         major: 1, minor: 2, patch: 5, tail: vec![7],
+         pre:TagSet::single("alpha", 4), post:TagSet::single("rev", 6)
+    },
+)]
+fn test_parse_version(#[case] string: &str, #[case] expected: Version) {
+    let actual = parse_version(string).unwrap();
+    assert_eq!(actual, expected)
+}
 
+#[rstest]
+#[case("1.a.0")]
+#[case("my-version")]
+#[case("1.0+post.1-pre.2")]
+#[case("1.2.5-alpha.a")]
+fn test_parse_version_invalid(#[case] string: &str) {
+    let result = parse_version(string);
+    if let Err(crate::Error::InvalidVersionError(_)) = result {
+        // ok
+    } else {
+        panic!("expected InvalidVersionError, got: {:?}", result)
+    }
+}
 
-@pytest.mark.parametrize(
-    "base,test,expected",
-    [
-        ("1.0.0", "1.0.0", False),
-        ("1", "1.0.0", False),
-        ("1.0.0", "1", False),
-        ("6.3", "4.8.5", True),
-        ("6.3", "6.3+post.0", False),
-        ("6.3+post.0", "6.3", True),
-        ("6.3+b.0", "6.3+a.0", True),
-        ("6.3-pre.0", "6.3", False),
-        ("6.3", "6.3-pre.0", True),
-        ("6.3+r.1", "6.3+other.1,r.1", True),
-    ],
-)
-def test_is_gt(base: str, test: str, expected: bool) -> None:
+#[rstest]
+#[case("1.0.0")]
+#[case("0.0.0")]
+#[case("1.2.3.4.5.6")]
+#[case("1.0+post.1")]
+#[case("1.2.5.7-alpha.4+rev.6")]
+fn test_parse_version_clone(#[case] string: &str) {
+    let v1 = parse_version(string).unwrap();
+    let v2 = v1.clone();
+    assert_eq!(v1, v2);
+}
 
-    actual = parse_version(base) > parse_version(test)
-    assert actual == expected
-
-
-@pytest.mark.parametrize(
-    "string,expected",
-    [
-        ("1.0.0", Version(1, 0, 0)),
-        ("0.0.0", Version(0, 0, 0)),
-        ("1.2.3.4.5.6", Version(1, 2, 3, (4, 5, 6))),
-        ("1.0+post.1", Version(1, 0, 0, post=TagSet({"post": 1}))),
-        (
-            "1.2.5.7-alpha.4+rev.6",
-            Version(1, 2, 5, (7,), pre=TagSet({"alpha": 4}), post=TagSet({"rev": 6})),
-        ),
-    ],
-)
-def test_parse_version(string: str, expected: Version) -> None:
-
-    actual = parse_version(string)
-    assert actual == expected
-
-
-@pytest.mark.parametrize(
-    "string", ["1.a.0", "my-version", "1.0+post.1-pre.2", "1.2.5-alpha.a"]
-)
-def test_parse_version_invalid(string: str) -> None:
-
-    with pytest.raises(ValueError):
-        parse_version(string)
-
-
-@pytest.mark.parametrize(
-    "string", ["1.0.0", "0.0.0", "1.2.3.4.5.6", "1.0+post.1", "1.2.5.7-alpha.4+rev.6"]
-)
-def test_parse_version_clone(string: str) -> None:
-
-    v1 = parse_version(string)
-    v2 = v1.clone()
-    assert v1 == v2
+#[rstest]
+#[case(TagSet::single("pre", 1), TagSet::single("pre", 2), Ordering::Less)]
+#[case(TagSet::single("pre", 0), TagSet::single("pre", 0), Ordering::Equal)]
+#[case(
+    TagSet::single("alpha", 0),
+    TagSet::double("alpha", 0, "beta", 1),
+    Ordering::Less
+)]
+#[case(TagSet::default(), TagSet::single("alpha", 0), Ordering::Less)]
+#[case(TagSet::single("alpha", 0), TagSet::default(), Ordering::Greater)]
+#[case(TagSet::single("alpha", 0), TagSet::single("beta", 1), Ordering::Less)]
+#[case(TagSet::single("alpha", 0), TagSet::single("alpha", 1), Ordering::Less)]
+#[case(
+    TagSet::single("alpha", 1),
+    TagSet::single("alpha", 1),
+    Ordering::Equal
+)]
+fn test_tag_set_order(#[case] a: TagSet, #[case] b: TagSet, #[case] expected: Ordering) {
+    assert_eq!(a.cmp(&b), expected);
+}

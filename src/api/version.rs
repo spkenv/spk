@@ -1,219 +1,279 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::cmp::{Ord, Ordering};
 
-from typing import Tuple, Any, MutableMapping
-from dataclasses import dataclass, field
-from sortedcontainers import SortedDict
-from functools import total_ordering
+use super::validate_tag_name;
 
-from ._name import validate_tag_name
+#[cfg(test)]
+#[path = "./version_test.rs"]
+mod version_test;
 
-VERSION_SEP = "."
+pub const VERSION_SEP: &str = ".";
+pub const TAG_SET_SEP: &str = ",";
+pub const TAG_SEP: &str = ".";
 
+/// Denotes that an in valid verison number was given
+#[derive(Debug)]
+pub struct InvalidVersionError {
+    pub message: String,
+}
 
-class InvalidVersionError(ValueError):
-    """Denotes that an in valid verison number was given"""
+impl InvalidVersionError {
+    pub fn new(msg: String) -> crate::Error {
+        crate::Error::InvalidVersionError(Self { message: msg })
+    }
+}
 
-    pass
+/// TagSet contains a set of pre or post release version tags
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+pub struct TagSet(std::collections::BTreeMap<String, u32>);
 
+impl TagSet {
+    pub fn single<S: Into<String>>(name: S, value: u32) -> TagSet {
+        let mut tag_set = TagSet::default();
+        tag_set.0.insert(name.into(), value);
+        return tag_set;
+    }
+    pub fn double<S: Into<String>>(name_1: S, value_1: u32, name_2: S, value_2: u32) -> TagSet {
+        let mut tag_set = TagSet::default();
+        tag_set.0.insert(name_1.into(), value_1);
+        tag_set.0.insert(name_2.into(), value_2);
+        return tag_set;
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.keys().len() == 0
+    }
+}
 
-@total_ordering  # type: ignore
-class TagSet(SortedDict, MutableMapping[str, int]):
-    """TagSet contains a set of pre or post release version tags."""
+impl ToString for TagSet {
+    fn to_string(&self) -> String {
+        let parts: Vec<_> = self
+            .0
+            .iter()
+            .map(|(name, num)| format!("{}.{}", name, num))
+            .collect();
+        parts.join(TAG_SET_SEP)
+    }
+}
 
-    def __lt__(self, other: Any) -> bool:
-        """Return true if other if less than self.
+impl PartialOrd for TagSet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-        >>> TagSet({"pre": 1}) < TagSet({"pre": 2})
-        True
-        >>> TagSet({"pre": 0}) < TagSet({"pre": 0})
-        False
-        >>> TagSet({"alpha": 0}) < TagSet({"alpha": 0, "beta": 1})
-        True
-        >>> TagSet({}) < TagSet({"alpha": 0})
-        True
-        >>> TagSet({"alpha": 0}) > TagSet({})
-        True
-        >>> TagSet({"alpha": 0}) > TagSet({'beta': 1})
-        False
-        >>> TagSet({"alpha": 0}) == TagSet({'alpha': 1})
-        False
-        >>> TagSet({"alpha": 1}) == TagSet({'alpha': 1})
-        True
-        """
+impl Ord for TagSet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut self_entries: Vec<_> = self.0.iter().collect();
+        let mut other_entries: Vec<_> = other.0.iter().collect();
+        self_entries.sort_unstable();
+        other_entries.sort_unstable();
+        let self_entries = self_entries.into_iter();
+        let other_entries = other_entries.into_iter();
 
-        if not isinstance(other, TagSet):
-            raise TypeError(
-                f"'<' not supported between TagSet and {type(other).__name__}"
-            )
+        for ((self_name, self_value), (other_name, other_value)) in self_entries.zip(other_entries)
+        {
+            println!(
+                "{}.{} {}.{}",
+                self_name, self_value, other_name, other_value
+            );
+            match self_name.cmp(&other_name) {
+                Ordering::Equal => (),
+                res => return res,
+            }
+            match self_value.cmp(&other_value) {
+                Ordering::Equal => (),
+                res => return res,
+            }
+        }
 
-        for self_name, other_name in zip(self.keys(), other.keys()):
+        return self.0.len().cmp(&other.0.len());
+    }
+}
 
-            if self_name != other_name:
-                return bool(self_name < other_name)
-            if self[self_name] != other[other_name]:
-                return bool(self[self_name] < other[other_name])
+/// Parse the given string as a set of version tags.
+///
+/// ```
+/// let tag_set = parse_tag_set("release.0,alpha.1").unwrap();
+/// assert_eq!(tag_set.get("alpha"), Some(1));
+/// ```
+pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
+    let tags = tags.as_ref();
+    let mut tag_set = TagSet::default();
+    if tags.len() == 0 {
+        return Ok(tag_set);
+    }
 
-        return bool(len(self) < len(other))
+    for tag in tags.split(TAG_SET_SEP) {
+        let (name, num) = break_string(tag, TAG_SEP);
+        match (name, num) {
+            ("", _) | (_, "") => {
+                return Err(InvalidVersionError::new(format!(
+                    "Version tag segment must be of the form <name>.<int>, got [{}]",
+                    tag
+                )))
+            }
+            _ => {
+                if tag_set.0.contains_key(name) {
+                    return Err(InvalidVersionError::new(format!("duplicate tag: {}", name)));
+                }
+                validate_tag_name(name)?;
+                match num.parse() {
+                    Ok(num) => {
+                        tag_set.0.insert(name.to_string(), num);
+                    }
+                    Err(_) => {
+                        return Err(InvalidVersionError::new(format!(
+                            "Version tag segment must be of the form <name>.<int>, got [{}]",
+                            tag
+                        )))
+                    }
+                }
+            }
+        }
+    }
 
+    Ok(tag_set)
+}
 
-def parse_tag_set(tags: str) -> TagSet:
-    """Parse the given string as a set of version tags.
+/// Version specifies a package version number.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+    pub tail: Vec<u32>,
+    pub pre: TagSet,
+    pub post: TagSet,
+}
 
-    >>> parse_tag_set("release.0,alpha.1")
-    TagSet({'alpha': 1, 'release': 0})
-    >>> TagSet({'alpha': 0}) < TagSet({'alpha': 1})
-    True
-    """
+impl Version {
+    pub fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Version {
+            major: major,
+            minor: minor,
+            patch: patch,
+            ..Default::default()
+        }
+    }
 
-    tag_set = TagSet()
-    if not tags:
-        return tag_set
+    pub fn from_parts<P: Iterator<Item = u32>>(mut parts: P) -> Self {
+        Version {
+            major: parts.next().unwrap_or_default(),
+            minor: parts.next().unwrap_or_default(),
+            patch: parts.next().unwrap_or_default(),
+            tail: parts.collect(),
+            ..Default::default()
+        }
+    }
 
-    for tag in tags.split(","):
-        try:
-            name, num = tag.split(".")
-        except ValueError:
-            raise InvalidVersionError(
-                f"Version tag segment must be of the form <name>.<int>, got [{tag}]"
-            )
-        if name in tag_set:
-            raise InvalidVersionError("duplicate tag: " + name)
-        validate_tag_name(name)
-        tag_set[name] = int(num)
+    /// The integer pieces of this version number
+    pub fn parts(&self) -> Vec<u32> {
+        let mut parts = vec![self.major, self.minor, self.patch];
+        parts.append(&mut self.tail.clone());
+        parts
+    }
 
-    return tag_set
+    /// The base integer portion of this version as a string
+    pub fn base(&self) -> String {
+        let part_strings: Vec<_> = self.parts().into_iter().map(|p| p.to_string()).collect();
+        part_strings.join(VERSION_SEP)
+    }
 
+    /// Reports if this version is exactly 0.0.0
+    pub fn is_zero(&self) -> bool {
+        if let Some(0) = self.parts().iter().max() {
+            true
+        } else {
+            self.pre.is_empty() && self.post.is_empty()
+        }
+    }
+}
 
-@dataclass
-class Version:
-    """Version specifies a package version number."""
+impl ToString for Version {
+    fn to_string(&self) -> String {
+        let mut base = self.base();
+        if self.pre.0.len() > 0 {
+            base = format!("{}-{}", base, self.pre.to_string());
+        }
+        if self.post.0.len() > 0 {
+            base = format!("{}+{}", base, self.post.to_string());
+        }
+        base
+    }
+}
 
-    major: int = 0
-    minor: int = 0
-    patch: int = 0
-    tail: Tuple[int, ...] = tuple()
-    pre: TagSet = field(default_factory=TagSet)
-    post: TagSet = field(default_factory=TagSet)
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-    @staticmethod
-    def from_parts(*parts: int) -> "Version":
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let self_parts = self.parts().into_iter();
+        let mut other_parts = other.parts().into_iter();
 
-        while len(parts) < 3:
-            parts += (0,)
-        return Version(major=parts[0], minor=parts[1], patch=parts[2], tail=parts[3:])
+        for self_part in self_parts {
+            match other_parts.next() {
+                Some(other_part) => match self_part.cmp(&other_part) {
+                    Ordering::Equal => continue,
+                    res => return res,
+                },
+                None => {
+                    // we have more base parts than other
+                    return Ordering::Greater;
+                }
+            }
+        }
 
-    def __str__(self) -> str:
+        if let Some(_) = other_parts.next() {
+            // other has more base parts than we do
+            return Ordering::Less;
+        }
 
-        base = self.base
-        if self.pre:
-            base += "-" + ",".join(f"{n}.{v}" for n, v in self.pre.items())
-        if self.post:
-            base += "+" + ",".join(f"{n}.{v}" for n, v in self.post.items())
+        match self.pre.cmp(&other.pre) {
+            Ordering::Equal => (),
+            Ordering::Less => return Ordering::Greater,
+            Ordering::Greater => return Ordering::Less,
+        }
 
-        return base
+        self.post.cmp(&other.post)
+    }
+}
 
-    def __hash__(self) -> int:
-        return hash(self.__str__())
+/// Parse a string as a version specifier.
+pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
+    let version = version.as_ref();
+    if version.len() == 0 {
+        return Ok(Version::default());
+    }
 
-    def __repr__(self) -> str:
+    let (version, post) = break_string(version, "+");
+    let (version, pre) = break_string(version, "-");
 
-        return f"Version({self.__str__()})"
+    let str_parts = version.split(VERSION_SEP);
+    let mut parts = Vec::new();
+    for (i, p) in str_parts.enumerate() {
+        match p.parse() {
+            Ok(p) => parts.push(p),
+            Err(_) => {
+                return Err(InvalidVersionError::new(format!(
+                    "Version must be a sequence of integers, got '{}' in position {} [{}]",
+                    p, i, version
+                )))
+            }
+        }
+    }
 
-    def __bool__(self) -> bool:
+    let mut v = Version::from_parts(parts.into_iter());
+    v.pre = parse_tag_set(pre)?;
+    v.post = parse_tag_set(post)?;
+    Ok(v)
+}
 
-        return any(self.parts) or bool(self.pre) or bool(self.post)
-
-    def __lt__(self, other: Any) -> bool:
-
-        if not isinstance(other, Version):
-            return bool(str(self) < other)
-
-        if self.parts < other.parts:
-            return True
-        if self.parts > other.parts:
-            return False
-        if self.pre:
-            if not other.pre:
-                return True
-            bool(self.pre < other.pre)
-        if other.pre:
-            return False
-        return bool(self.post < other.post)
-
-    def __gt__(self, other: Any) -> bool:
-
-        if not isinstance(other, Version):
-            return bool(str(self) < other)
-
-        if self.parts > other.parts:
-            return True
-        if self.parts < other.parts:
-            return False
-        if self.pre:
-            if not other.pre:
-                return False
-            bool(self.pre > other.pre)
-        if other.pre:
-            return True
-        return bool(self.post > other.post)
-
-    def __eq__(self, other: Any) -> bool:
-
-        if isinstance(other, Version):
-            return (
-                self.parts == other.parts
-                and self.pre == other.pre
-                and self.post == other.post
-            )
-        return bool(str(self) == other)
-
-    def __ge__(self, other: Any) -> bool:
-
-        return bool(self == other or self > other)
-
-    def __le__(self, other: Any) -> bool:
-
-        return bool(self == other or self < other)
-
-    @property
-    def parts(self) -> Tuple[int, ...]:
-        return (self.major, self.minor, self.patch, *self.tail)
-
-    @property
-    def base(self) -> str:
-        return VERSION_SEP.join(str(s) for s in self.parts)
-
-    def clone(self) -> "Version":
-
-        return Version(
-            self.major, self.minor, self.patch, self.tail, self.pre, self.post
-        )
-
-
-def parse_version(version: str) -> Version:
-    """Parse a string as a version specifier."""
-
-    if not version:
-        return Version()
-
-    pre, post = "", ""
-    if "+" in version:
-        version, post = version.split("+", 1)
-    if "-" in version:
-        version, pre = version.split("-", 1)
-
-    str_parts = version.split(VERSION_SEP) if version else []
-    parts = []
-    for i, p in enumerate(str_parts):
-        try:
-            parts.append(int(p))
-        except ValueError:
-            raise InvalidVersionError(
-                f"Version must be a sequence of integers, got '{p}' in position {i} [{version}]"
-            )
-    v = Version.from_parts(*parts)
-    v.pre = parse_tag_set(pre)
-    v.post = parse_tag_set(post)
-    return v
+fn break_string<'a>(string: &'a str, sep: &str) -> (&'a str, &'a str) {
+    let mut parts = string.splitn(2, sep);
+    (parts.next().unwrap_or(string), parts.next().unwrap_or(""))
+}

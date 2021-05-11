@@ -5,6 +5,8 @@
 use pyo3::{exceptions, prelude::*};
 use spfs;
 
+use super::api;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
@@ -13,6 +15,10 @@ pub enum Error {
     SPFS(spfs::Error),
     Collection(crate::build::CollectionError),
     Build(crate::build::BuildError),
+
+    // API Errors
+    InvalidVersionError(api::InvalidVersionError),
+    InvalidNameError(api::InvalidNameError),
 }
 
 impl From<std::io::Error> for Error {
@@ -34,6 +40,12 @@ impl From<Error> for PyErr {
             Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
             Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
             Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
+            Error::InvalidVersionError(err) => {
+                exceptions::PyValueError::new_err(err.message.to_string())
+            }
+            Error::InvalidNameError(err) => {
+                exceptions::PyValueError::new_err(err.message.to_string())
+            }
         }
     }
 }
