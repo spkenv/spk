@@ -15,6 +15,7 @@ pub enum Error {
     SPFS(spfs::Error),
     Collection(crate::build::CollectionError),
     Build(crate::build::BuildError),
+    String(String),
 
     // API Errors
     InvalidVersionError(api::InvalidVersionError),
@@ -40,6 +41,7 @@ impl From<Error> for PyErr {
             Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
             Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
             Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
+            Error::String(msg) => exceptions::PyRuntimeError::new_err(msg.to_string()),
             Error::InvalidVersionError(err) => {
                 exceptions::PyValueError::new_err(err.message.to_string())
             }

@@ -1,119 +1,239 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::cmp::{Ord, Ordering};
+use std::collections::BTreeSet;
+use std::convert::TryFrom;
+use std::iter::FromIterator;
+use std::str::FromStr;
 
-from typing import Any
-import enum
+use itertools::izip;
 
+use super::{Version, VERSION_SEP};
 
-from ._version import VERSION_SEP, Version
+#[cfg(test)]
+#[path = "./compat_test.rs"]
+mod compat_test;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompatRule {
+    None,
+    API,
+    ABI,
+}
 
-class CompatRule(enum.Enum):
+impl std::fmt::Display for CompatRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
 
-    NONE = "x"
+impl TryFrom<&char> for CompatRule {
+    type Error = crate::Error;
 
-    # The current logic requires that there is an order to these
-    # enums. For example API is less than ABI because it's considered
-    # a subset - aka you cannot provide binary compatibility and not
-    # API compatibility
-    API = "a"
-    ABI = "b"
+    fn try_from(c: &char) -> crate::Result<CompatRule> {
+        match c {
+            'x' => Ok(CompatRule::None),
+            'a' => Ok(CompatRule::API),
+            'b' => Ok(CompatRule::ABI),
+            _ => Err(crate::Error::String(format!(
+                "Invalid compatibility rule: {}",
+                c
+            ))),
+        }
+    }
+}
 
+impl AsRef<str> for CompatRule {
+    fn as_ref(&self) -> &str {
+        match self {
+            CompatRule::None => "x",
+            CompatRule::API => "a",
+            CompatRule::ABI => "b",
+        }
+    }
+}
 
-class Compatibility(str):
-    """Denotes whether or not something is compatible.
+impl PartialOrd for CompatRule {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-    If not compatible, each instance contains a description
-    of the incompatibility. Compatibility instances will properly
-    evaluate as a boolean (aka empty string (no issues) == true)
-    """
+impl Ord for CompatRule {
+    // The current logic requires that there is an order to these
+    // enums. For example API is less than ABI because it's considered
+    // a subset - aka you cannot provide binary compatibility and not
+    // API compatibility
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_ref().cmp(other.as_ref())
+    }
+}
 
-    def __bool__(self) -> bool:
-        """Things are truthy/compatible when no error is specified."""
-        return len(self) == 0
+/// Denotes whether or not something is compatible.
+pub enum Compatibility {
+    Compatible,
+    Incompatible(String),
+}
 
+impl std::fmt::Display for Compatibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Compatibility::Compatible => f.write_str(""),
+            Compatibility::Incompatible(msg) => f.write_str(&msg),
+        }
+    }
+}
 
-COMPATIBLE = Compatibility()
+impl Compatibility {
+    pub fn is_ok(&self) -> bool {
+        match self {
+            Compatibility::Compatible => true,
+            _ => false,
+        }
+    }
 
+    pub fn message<'a>(&'a self) -> &'a str {
+        match self {
+            Compatibility::Compatible => "",
+            Compatibility::Incompatible(msg) => msg.as_ref(),
+        }
+    }
+}
 
-class Compat:
-    """Compat specifies the compatilbility contract of a compat number."""
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CompatRuleSet(BTreeSet<CompatRule>);
 
-    def __init__(self, spec: str = "x.a.b") -> None:
+impl std::fmt::Display for CompatRuleSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let strings: Vec<_> = self.0.iter().map(|r| r.to_string()).collect();
+        f.write_str(&strings.join(""))
+    }
+}
 
-        if spec:
-            self.parts = tuple(spec.split(VERSION_SEP))
-        else:
-            self.parts = tuple()
+impl CompatRuleSet {
+    /// Create a compat rule set with one part
+    pub fn single(first: CompatRule) -> Self {
+        CompatRuleSet(BTreeSet::from_iter(vec![first].into_iter()))
+    }
+    /// Create a compat rule set with two parts
+    pub fn double(first: CompatRule, second: CompatRule) -> Self {
+        CompatRuleSet(BTreeSet::from_iter(vec![first, second].into_iter()))
+    }
 
-    def __str__(self) -> str:
+    /// Create a compat rule set with three parts
+    pub fn triple(first: CompatRule, second: CompatRule, third: CompatRule) -> Self {
+        CompatRuleSet(BTreeSet::from_iter(vec![first, second, third].into_iter()))
+    }
+}
 
-        return str(VERSION_SEP.join(self.parts))
+/// Compat specifies the compatilbility contract of a compat number.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Compat(Vec<CompatRuleSet>);
 
-    __repr__ = __str__
+impl std::fmt::Display for Compat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let str_parts: Vec<_> = self.0.iter().map(|r| r.to_string()).collect();
+        f.write_str(&str_parts.join(VERSION_SEP))
+    }
+}
 
-    def __eq__(self, other: Any) -> bool:
+impl FromStr for Compat {
+    type Err = crate::Error;
 
-        if isinstance(other, Compat):
-            return self.parts == other.parts
-        return bool(str(self) == other)
+    fn from_str(value: &str) -> crate::Result<Self> {
+        let mut parts = Vec::new();
+        for part in value.split(".") {
+            let mut rule_set = CompatRuleSet::default();
+            for c in part.chars() {
+                rule_set.0.insert(CompatRule::try_from(&c)?);
+            }
+            parts.push(rule_set);
+        }
+        Ok(Self(parts))
+    }
+}
 
-    def clone(self) -> "Compat":
+impl Compat {
+    /// Create a compat rule set with two parts
+    pub fn double(first: CompatRuleSet, second: CompatRuleSet) -> Self {
+        Compat(vec![first, second])
+    }
 
-        return Compat(VERSION_SEP.join(self.parts))
+    /// Create a compat rule set with three parts
+    pub fn triple(first: CompatRuleSet, second: CompatRuleSet, third: CompatRuleSet) -> Self {
+        Compat(vec![first, second, third])
+    }
 
-    def is_api_compatible(self, base: Version, other: Version) -> Compatibility:
-        """Return true if the two version are api compatible by this compat rule."""
+    /// Return true if the two version are api compatible by this compat rule.
+    pub fn is_api_compatible(self, base: &Version, other: &Version) -> Compatibility {
+        return self._check_compat(base, other, CompatRule::API);
+    }
 
-        return self._check_compat(base, other, CompatRule.API)
+    /// Return true if the two version are binary compatible by this compat rule.
+    pub fn is_binary_compatible(self, base: &Version, other: &Version) -> Compatibility {
+        return self._check_compat(base, other, CompatRule::ABI);
+    }
 
-    def is_binary_compatible(self, base: Version, other: Version) -> Compatibility:
-        """Return true if the two version are binary compatible by this compat rule."""
+    pub fn render(self, version: &Version) -> String {
+        let parts: Vec<_> = version
+            .parts()
+            .drain(..self.0.len())
+            .map(|p| p.to_string())
+            .collect();
+        format!("~{}", parts.join(VERSION_SEP))
+    }
 
-        return self._check_compat(base, other, CompatRule.ABI)
+    pub fn _check_compat(
+        self,
+        base: &Version,
+        other: &Version,
+        required: CompatRule,
+    ) -> Compatibility {
+        if base == other {
+            return Compatibility::Compatible;
+        }
 
-    def render(self, version: Version) -> str:
+        let each = itertools::izip!(self.0.iter(), base.parts(), other.parts());
+        for (i, (rule, a, b)) in each.enumerate() {
+            if rule.0.contains(&CompatRule::None) {
+                if a != b {
+                    return Compatibility::Incompatible(format!(
+                        "Not compatible with {} [{} at pos {}]",
+                        base, self, i
+                    ));
+                }
+                continue;
+            }
 
-        parts = version.parts[: len(self.parts)]
-        return f"~{VERSION_SEP.join(str(i) for i in parts)}"
+            if !rule.0.contains(&required) {
+                if b == a {
+                    continue;
+                }
+                return Compatibility::Incompatible(format!(
+                    "Not {} compatible with {} [{} at pos {}]",
+                    required, base, self, i
+                ));
+            }
 
-    def _check_compat(
-        self, base: Version, other: Version, required: CompatRule
-    ) -> Compatibility:
+            if b < a {
+                return Compatibility::Incompatible(format!(
+                    "Not {} compatible with {} [{} at pos {}]",
+                    required, base, self, i
+                ));
+            } else {
+                return Compatibility::Compatible;
+            }
+        }
 
-        if base == other:
-            return COMPATIBLE
+        Compatibility::Incompatible(format!(
+            "Not compatible: {} ({}) [{} compatibility not specified]",
+            base, self, required,
+        ))
+    }
+}
 
-        each = list(zip(self.parts, base.parts, other.parts))
-        for i, (rule, a, b) in enumerate(each):
-
-            if CompatRule.NONE.value in rule:
-                if a != b:
-                    return Compatibility(
-                        f"Not compatible with {base} [{self} at pos {i}]"
-                    )
-                continue
-
-            if required.value not in rule:
-                if b == a:
-                    continue
-                return Compatibility(
-                    f"Not {required.name} compatible with {base} [{self} at pos {i}]"
-                )
-
-            if b < a:
-                return Compatibility(
-                    f"Not {required.name} compatible with {base} [{self} at pos {i}]"
-                )
-            return COMPATIBLE
-
-        return Compatibility(
-            f"Not compatible: {base} ({self}) [{required.name} compatibility not specified]"
-        )
-
-
-def parse_compat(compat: str) -> Compat:
-    """Parse a string as a compatibility specifier."""
-
-    return Compat(compat)
+/// Parse a string as a compatibility specifier.
+pub fn parse_compat<S: AsRef<str>>(compat: S) -> crate::Result<Compat> {
+    Compat::from_str(compat.as_ref())
+}

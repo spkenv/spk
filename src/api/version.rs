@@ -191,8 +191,8 @@ impl Version {
     }
 }
 
-impl ToString for Version {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut base = self.base();
         if self.pre.0.len() > 0 {
             base = format!("{}-{}", base, self.pre.to_string());
@@ -200,7 +200,7 @@ impl ToString for Version {
         if self.post.0.len() > 0 {
             base = format!("{}+{}", base, self.post.to_string());
         }
-        base
+        f.write_str(&base)
     }
 }
 

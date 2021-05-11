@@ -2190,6 +2190,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "spk"
 version = "0.29.2"
 dependencies = [
+ "itertools",
  "pyo3",
  "relative-path",
  "rstest 0.9.0",
