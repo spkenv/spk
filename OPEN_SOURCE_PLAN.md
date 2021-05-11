@@ -20,14 +20,14 @@ outside Imageworks can have access to it:
 - [x] Set up email list, add internal developers.
 - [x] The code needs a LICENSE file attached, and copyright notices affixed
   to all the code modules.
-- [ ] (IP - lg) README, CONTRIBUTING guide, basic procedures, etc. -- the set of
+- [x] README, CONTRIBUTING guide, basic procedures, etc. -- the set of
   things expected for any open source project.
-- [ ] (IP - ryan) Some work to make it buildable and testable, so that the initial
+- [x] Some work to make it buildable and testable, so that the initial
   co-developers will actually be able to kick the tires.
-- [ ] (IP - ryan) If possible, set up initial continuous integration so we know it
+- [x] If possible, set up initial continuous integration so we know it
   builds outside of our environment and can pass basic tests.
-- [ ] (IP - lg) Get **final** business clearance to open source.
-- [ ] Add external developers to mail list, GitHub repos.
+- [x] Get **final** business clearance to open source.
+- [x] Add external developers to mail list, GitHub repos.
 
 
 ## Initial private share to work toward minimal viable product
@@ -48,11 +48,11 @@ expresses an interest in helping with the process.
 The purpose of this privately shared period is get to a "MVP" state, which
 involves at least the following:
 
-- [ ] Let the other presumed contributors see the code for the first time, try it out, evaluate it, figure out which parts need alteration to suit their needs, and which parts of the project moving forward they would like to help with.
-- [ ] Set up a regular stakeholder meeting cadence.
+- [x] Let the other presumed contributors see the code for the first time, try it out, evaluate it, figure out which parts need alteration to suit their needs, and which parts of the project moving forward they would like to help with.
+- [x] Set up a regular stakeholder meeting cadence.
 - [ ] Combine the (currently) three repositories (for the file system layer, the packager, and the application launcher) into a single project/repository.
-- [ ] Make sure that it's easily buildable and deployable outside the SPI environment, including build/deploy documentation.
-- [ ] Set up a continuous integration system that can build and test the system, using GitHub Actions.
+- [x] Make sure that it's easily buildable and deployable outside the SPI environment, including build/deploy documentation.
+- [x] Set up a continuous integration system that can build and test the system, using GitHub Actions.
 - [ ] Figure out how to organize package recipes within the repository, and seed it with package recipes for all the common VFX packages so that it will be a useful working system "out of the box" when it goes truly public.
 - [ ] Set up web site and online documentation.
 - [ ] Need logo and other basic graphic design assets.
