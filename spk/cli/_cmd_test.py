@@ -90,6 +90,15 @@ def _test(args: argparse.Namespace) -> None:
                     continue
                 tested.add(digest)
 
+                variant_requirements = []
+                for opt in spec.build.options:
+                    opt = opt.clone()
+                    value = opts.get(opt.name())
+                    if value:
+                        opt.set_value(value)
+                    request = opt.to_request()
+                    variant_requirements.append(request)
+
                 for index, test in enumerate(spec.tests):
                     if test.stage != stage:
                         continue
@@ -105,7 +114,7 @@ def _test(args: argparse.Namespace) -> None:
                                 "SKIP: variant not selected", test=index, variant=opts
                             )
                             continue
-                    _LOGGER.info("Running test", test=index, variant=opts)
+                    _LOGGER.info(f"Running test {index}", variant=opts)
 
                     tester: Union[
                         spk.test.PackageSourceTester,
@@ -113,11 +122,13 @@ def _test(args: argparse.Namespace) -> None:
                         spk.test.PackageInstallTester,
                     ]
                     if stage == "sources":
-                        tester = spk.test.PackageSourceTester(spec, test.script)
+                        tester = spk.test.PackageSourceTester(spec.clone(), test.script)
                     elif stage == "build":
-                        tester = spk.test.PackageBuildTester(spec, test.script)
+                        tester = spk.test.PackageBuildTester(spec.clone(), test.script)
                     elif stage == "install":
-                        tester = spk.test.PackageInstallTester(spec, test.script)
+                        tester = spk.test.PackageInstallTester(
+                            spec.clone(), test.script
+                        )
                     else:
                         raise ValueError(
                             f"Untestable stage '{stage}', must be one of {_VALID_STAGES}"
@@ -126,6 +137,7 @@ def _test(args: argparse.Namespace) -> None:
                     tester = (
                         tester.with_options(opts)
                         .with_repositories(repos.values())
+                        .with_requirements(variant_requirements)
                         .with_requirements(test.requirements)
                     )
                     if args.here:

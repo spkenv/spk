@@ -66,7 +66,7 @@ class PackageSourceTester:
         self, requests: Iterable[api.Request]
     ) -> "PackageSourceTester":
 
-        self._additional_requirements = list(requests)
+        self._additional_requirements.extend(requests)
         return self
 
     def test(self) -> None:

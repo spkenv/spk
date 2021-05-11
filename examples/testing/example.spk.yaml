@@ -1,0 +1,40 @@
+pkg: testing-example/1.0.0
+build:
+  options:
+    - var: os
+    - var: arch
+    - var: centos
+    - pkg: stdfs
+    - var: debug
+      default: off
+      choices: [on, off]
+  variants:
+    - {debug: on}
+    - {debug: off}
+  script:
+    - echo "$SPK_OPT_debug" > /spfs/debug.txt
+
+# Packages can define tests to validate various stages of the packages life
+tests:
+
+  - stage: sources
+    script:
+      # ensure that the source package was built properly and has the expected files
+      - test -f test_file.txt
+
+  - stage: build
+    selectors:
+      - {debug: on}
+    script:
+      # because of the selector, this should only test the debug=on variant
+      - test "$SPK_OPT_debug" == "on"
+
+  - stage: install
+    script:
+      # each compiled variant is run to test how the package behaves when installed
+      - debug=$(cat '/spfs/debug.txt')
+      - test "$debug" == "$SPK_OPT_debug"
+
+install:
+  requirements:
+    - pkg: stdfs

@@ -66,7 +66,7 @@ class PackageInstallTester:
         self, requests: Iterable[api.Request]
     ) -> "PackageInstallTester":
 
-        self._additional_requirements = list(requests)
+        self._additional_requirements.extend(requests)
         return self
 
     def test(self) -> None:
