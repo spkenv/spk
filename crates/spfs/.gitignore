@@ -3,6 +3,8 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 .vscode/
+*.iml
+.idea/
 coverage.xml
 .coverage.*
 build/
