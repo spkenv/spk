@@ -184,9 +184,9 @@ impl Version {
     /// Reports if this version is exactly 0.0.0
     pub fn is_zero(&self) -> bool {
         if let Some(0) = self.parts().iter().max() {
-            true
-        } else {
             self.pre.is_empty() && self.post.is_empty()
+        } else {
+            false
         }
     }
 }

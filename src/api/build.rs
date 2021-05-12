@@ -26,7 +26,7 @@ impl InvalidBuildError {
 }
 
 /// Build represents a package build identifier.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Build {
     Source,
     Embedded,
@@ -43,7 +43,7 @@ impl Build {
         }
     }
 
-    pub fn is_source(self) -> bool {
+    pub fn is_source(&self) -> bool {
         if let Build::Source = self {
             true
         } else {
@@ -51,7 +51,7 @@ impl Build {
         }
     }
 
-    pub fn is_emdeded(self) -> bool {
+    pub fn is_emdeded(&self) -> bool {
         if let Build::Embedded = self {
             true
         } else {

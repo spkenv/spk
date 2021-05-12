@@ -11,7 +11,7 @@ use super::{parse_version, TagSet, Version};
 #[rstest]
 fn test_version_nonzero() {
     assert_eq!(true, Version::default().is_zero());
-    assert_eq!(true, Version::new(1, 0, 0).is_zero());
+    assert_eq!(false, Version::new(1, 0, 0).is_zero());
 }
 
 #[rstest]

@@ -34,6 +34,12 @@ impl From<spfs::Error> for Error {
     }
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self))
+    }
+}
+
 impl From<Error> for PyErr {
     fn from(err: Error) -> PyErr {
         match err {

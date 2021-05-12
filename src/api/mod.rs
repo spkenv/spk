@@ -5,7 +5,7 @@
 mod build;
 // mod build_spec;
 mod compat;
-// mod ident;
+mod ident;
 mod name;
 mod option_map;
 // mod request;
@@ -18,7 +18,7 @@ mod version;
 pub use build::{parse_build, Build, InvalidBuildError};
 // pub use build_spec::{opt_from_dict, BuildSpec, Inheritance, Option, PkgOpt, VarOpt};
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
-// pub use ident::{parse_ident, validate_name, Ident};
+pub use ident::{parse_ident, Ident};
 pub use name::{validate_name, validate_tag_name, InvalidNameError};
 pub use option_map::{host_options, OptionMap};
 // pub use request::{
