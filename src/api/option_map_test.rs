@@ -1,14 +1,23 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from ._option_map import OptionMap
+use rstest::rstest;
 
+use super::OptionMap;
+use crate::option_map;
 
-def test_package_options() -> None:
-
-    options = OptionMap()
-    options["message"] = "hello, world"
-    options["my-pkg.message"] = "hello, package"
-    assert options.global_options() == OptionMap({"message": "hello, world"})
-    assert options.package_options("my-pkg") == OptionMap({"message": "hello, package"})
+#[rstest]
+fn test_package_options() {
+    let mut options = OptionMap::default();
+    options.insert("message".into(), "hello, world".into());
+    options.insert("my-pkg.message".into(), "hello, package".into());
+    assert_eq!(
+        options.global_options(),
+        option_map! {"message" => "hello, world"}
+    );
+    assert_eq!(
+        options.package_options("my-pkg"),
+        option_map! {"message" => "hello, package"}
+    );
+}

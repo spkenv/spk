@@ -1,102 +1,152 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::collections::{BTreeMap, HashMap};
+use std::iter::FromIterator;
 
-from typing import Dict, Any, Mapping
-import hashlib
-import base64
-import platform
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
-import distro
-from sortedcontainers import SortedDict
+use sys_info;
 
-# given option digests are namespaced by the package itself,
-# there are slim likelyhoods of collision, so we roll the dice
-# also must be a multiple of 8 to be decodable wich is generally
-# a nice way to handle validation / and 16 is a lot
-_DIGEST_SIZE = 8
+#[cfg(test)]
+#[path = "./option_map_test.rs"]
+mod option_map_test;
 
+// given option digests are namespaced by the package itself,
+// there are slim likelyhoods of collision, so we roll the dice
+// also must be a multiple of 8 to be decodable wich is generally
+// a nice way to handle validation / and 16 is a lot
+static _DIGEST_SIZE: usize = 8;
 
-class OptionMap(SortedDict):
-    """A set of values for package build options."""
+#[macro_export]
+macro_rules! option_map {
+    ($($k:expr => $v:expr),* $(,)?) => {{
+        let mut opts = OptionMap::default();
+        $(opts.insert($k.into(), $v.into());)*
+        opts
+    }};
+}
 
-    def __str__(self) -> str:
+/// A set of values for package build options.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OptionMap(pub BTreeMap<String, String>);
 
-        return f"{{{', '.join(f'{n}: {v}' for n, v in self.items())}}}"
+impl std::ops::Deref for OptionMap {
+    type Target = BTreeMap<String, String>;
 
-    __repr__ = __str__
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
-    def copy(self) -> "OptionMap":
-        return OptionMap(**self)
+impl std::ops::DerefMut for OptionMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
-    def digest(self) -> str:
+impl FromIterator<(String, String)> for OptionMap {
+    fn from_iter<T: IntoIterator<Item = (String, String)>>(iter: T) -> Self {
+        Self(BTreeMap::from_iter(iter))
+    }
+}
 
-        hasher = hashlib.sha1()
-        for name, value in self.items():
-            hasher.update(name.encode())
-            hasher.update(b"=")
-            hasher.update(str(value).encode())
-            hasher.update(bytes([0]))
+impl std::fmt::Display for OptionMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let items: Vec<_> = self.iter().map(|(n, v)| format!("{}: {}", n, v)).collect();
+        f.write_fmt(format_args!("{{{}}}", items.join(", ")))
+    }
+}
 
-        digest = hasher.digest()
-        return base64.b32encode(digest)[:_DIGEST_SIZE].decode()
+impl OptionMap {
+    pub fn digest(&self) -> String {
+        let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
+        for (name, value) in self.iter() {
+            hasher.update(name.as_bytes());
+            hasher.update(b"=");
+            hasher.update(value.as_bytes());
+            hasher.update(&[0]);
+        }
 
-    def global_options(self) -> "OptionMap":
+        let digest = hasher.finish();
+        let encoded = data_encoding::BASE32.encode(digest.as_ref());
+        encoded.chars().take(_DIGEST_SIZE).collect()
+    }
 
-        return OptionMap(o for o in self.items() if "." not in o[0])
+    /// Return only the options in this map that are not package-specific
+    pub fn global_options(&self) -> Self {
+        let items = self
+            .iter()
+            .filter(|(k, _)| !k.contains("."))
+            .map(|(k, v)| (k.to_owned(), v.to_owned()));
+        OptionMap::from_iter(items)
+    }
 
-    def package_options_without_global(self, name: str) -> "OptionMap":
-        """Return the set of options given for the specific named package."""
+    /// Return the set of options given for the specific named package.
+    pub fn package_options_without_global<S: AsRef<str>>(&self, name: S) -> Self {
+        let prefix = format!("{}.", name.as_ref());
+        let mut options = OptionMap::default();
+        for (key, value) in self.iter() {
+            if let Some(key) = key.strip_prefix(prefix.as_str()) {
+                options.insert(key.to_string(), value.to_string());
+            }
+        }
+        options
+    }
 
-        prefix = name + "."
-        options = OptionMap()
-        for key, value in self.items():
-            if key.startswith(prefix):
-                options[key[len(prefix) :]] = value
-        return options
+    /// Return the set of options relevant to the named package.
+    pub fn package_options<S: AsRef<str>>(&self, name: S) -> Self {
+        let mut options = self.global_options();
+        options.append(&mut self.package_options_without_global(name));
+        options
+    }
 
-    def package_options(self, name: str) -> "OptionMap":
-        """Return the set of options relevant to the named package."""
+    /// Return the data of these options as environment variables.
+    pub fn to_environment(&self) -> HashMap<String, String> {
+        let mut out = HashMap::default();
+        for (name, value) in self.iter() {
+            let var_name = format!("SPK_OPT_{}", name);
+            out.insert(var_name, value.into());
+        }
+        out
+    }
 
-        options = self.global_options()
-        options.update(self.package_options_without_global(name))
-        return options
+    /// Remove option-related values from the given environment variables
+    pub fn clean_environment(env: &mut HashMap<String, String>) {
+        let to_remove = env
+            .keys()
+            .filter(|name| name.starts_with("SPK_OPT_"))
+            .map(|k| k.to_owned())
+            .collect_vec();
+        for name in to_remove.into_iter() {
+            env.remove(&name);
+        }
+    }
+}
 
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "OptionMap":
+/// Detect and return the default options for the current host system.
+pub fn host_options() -> crate::Result<OptionMap> {
+    let mut opts = OptionMap::default();
+    opts.insert("os".into(), std::env::consts::OS.into());
+    opts.insert("arch".into(), std::env::consts::ARCH.into());
 
-        opts = OptionMap()
-        for name, value in data.items():
-            opts[name] = str(value)
-        return opts
+    let info = match sys_info::linux_os_release() {
+        Ok(i) => i,
+        Err(err) => {
+            return Err(crate::Error::String(format!(
+                "Failed to get linux info: {:?}",
+                err
+            )))
+        }
+    };
 
-    def to_environment(self, base: Mapping[str, str] = None) -> Dict[str, str]:
-        """Return the data of these options as environment variables.
+    if let Some(id) = info.id {
+        opts.insert("distro".into(), id.clone());
+        if let Some(version_id) = info.version_id {
+            opts.insert(id.into(), version_id.into());
+        }
+    }
 
-        If base is given, also clean any existing, conflicting values.
-        """
-
-        out = dict(base) if base else dict()
-
-        for name in tuple(out.keys()):
-            if name.startswith("SPK_OPT_"):
-                del out[name]
-
-        for name, value in self.items():
-            var_name = f"SPK_OPT_{name}"
-            out[var_name] = value
-
-        return out
-
-
-def host_options() -> OptionMap:
-    """Detect and return the default options for the current host system"""
-
-    opts = OptionMap(arch=platform.machine(), os=platform.system().lower())
-
-    info = distro.info()
-    distro_name = info["id"]
-    opts["distro"] = distro_name
-    opts[distro_name] = info["version"]
-
-    return opts
+    Ok(opts)
+}

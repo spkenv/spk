@@ -2190,11 +2190,17 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "spk"
 version = "0.29.2"
 dependencies = [
+ "data-encoding",
  "itertools",
  "pyo3",
  "relative-path",
+ "ring",
  "rstest 0.9.0",
+ "serde 1.0.123",
+ "serde_derive",
+ "serde_json",
  "spfs",
+ "sys-info",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2262,6 +2268,16 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
+]
+
+[[package]]
+name = "sys-info"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33fcecee49339531cf6bd84ecf3ed94f9c8ef4a7e700f2a1cac9cc1ca485383a"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]

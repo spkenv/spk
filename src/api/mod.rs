@@ -7,7 +7,7 @@
 mod compat;
 // mod ident;
 mod name;
-// mod option_map;
+mod option_map;
 // mod request;
 // mod source_spec;
 // mod spec;
@@ -20,7 +20,7 @@ mod version;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 // pub use ident::{parse_ident, validate_name, Ident};
 pub use name::{validate_name, validate_tag_name, InvalidNameError};
-// pub use option_map::{host_options, OptionMap};
+pub use option_map::{host_options, OptionMap};
 // pub use request::{
 //     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
 //     VarRequest,
