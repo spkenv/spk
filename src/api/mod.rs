@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-// mod build;
+mod build;
 // mod build_spec;
 mod compat;
 // mod ident;
@@ -15,7 +15,7 @@ mod option_map;
 mod version;
 // mod version_range;
 
-// pub use build::{parse_build, Build, InvalidBuildError, EMBEDDED, SRC};
+pub use build::{parse_build, Build, InvalidBuildError};
 // pub use build_spec::{opt_from_dict, BuildSpec, Inheritance, Option, PkgOpt, VarOpt};
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 // pub use ident::{parse_ident, validate_name, Ident};

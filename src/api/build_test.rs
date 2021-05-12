@@ -1,24 +1,21 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-import pytest
+use rstest::rstest;
 
-from ._build import parse_build, SRC
-from ._option_map import OptionMap
+use super::{parse_build, SRC};
+use crate::api::OptionMap;
 
+#[rstest]
+fn test_parse_build_src() {
+    // should allow non-digest if it's a special token
+    assert!(parse_build(SRC).is_ok());
+}
 
-def test_parse_build_src() -> None:
-
-    # should allow non-digest if it's the src token
-    parse_build(SRC)
-
-
-def test_parse_build() -> None:
-
-    parse_build(OptionMap().digest())
-
-    with pytest.raises(ValueError):
-        parse_build("not eight characters")
-    with pytest.raises(ValueError):
-        parse_build("invalid.")
+#[rstest]
+fn test_parse_build() {
+    assert!(parse_build(OptionMap::default().digest_str()).is_ok());
+    assert!(parse_build("not eight characters").is_err());
+    assert!(parse_build("invalid.").is_err())
+}

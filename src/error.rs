@@ -20,6 +20,7 @@ pub enum Error {
     // API Errors
     InvalidVersionError(api::InvalidVersionError),
     InvalidNameError(api::InvalidNameError),
+    InvalidBuildError(api::InvalidBuildError),
 }
 
 impl From<std::io::Error> for Error {
@@ -42,6 +43,9 @@ impl From<Error> for PyErr {
             Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
             Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
             Error::String(msg) => exceptions::PyRuntimeError::new_err(msg.to_string()),
+            Error::InvalidBuildError(err) => {
+                exceptions::PyValueError::new_err(err.message.to_string())
+            }
             Error::InvalidVersionError(err) => {
                 exceptions::PyValueError::new_err(err.message.to_string())
             }

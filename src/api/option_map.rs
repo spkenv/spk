@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::{BTreeMap, HashMap};
+use std::convert::TryInto;
 use std::iter::FromIterator;
 
 use itertools::Itertools;
@@ -17,7 +18,7 @@ mod option_map_test;
 // there are slim likelyhoods of collision, so we roll the dice
 // also must be a multiple of 8 to be decodable wich is generally
 // a nice way to handle validation / and 16 is a lot
-static _DIGEST_SIZE: usize = 8;
+pub const DIGEST_SIZE: usize = 8;
 
 #[macro_export]
 macro_rules! option_map {
@@ -60,7 +61,7 @@ impl std::fmt::Display for OptionMap {
 }
 
 impl OptionMap {
-    pub fn digest(&self) -> String {
+    pub fn digest(&self) -> [char; DIGEST_SIZE] {
         let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
         for (name, value) in self.iter() {
             hasher.update(name.as_bytes());
@@ -71,7 +72,17 @@ impl OptionMap {
 
         let digest = hasher.finish();
         let encoded = data_encoding::BASE32.encode(digest.as_ref());
-        encoded.chars().take(_DIGEST_SIZE).collect()
+        encoded
+            .chars()
+            .take(DIGEST_SIZE)
+            .collect_vec()
+            .try_into()
+            .unwrap() // sha1 digests are always greater than 8 characters
+    }
+
+    /// The digest of this option map as a proper length string
+    pub fn digest_str(&self) -> String {
+        self.digest().iter().collect()
     }
 
     /// Return only the options in this map that are not package-specific

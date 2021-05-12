@@ -13,7 +13,7 @@ pub const VERSION_SEP: &str = ".";
 pub const TAG_SET_SEP: &str = ",";
 pub const TAG_SEP: &str = ".";
 
-/// Denotes that an in valid verison number was given
+/// Denotes that an invalid verison number was given.
 #[derive(Debug)]
 pub struct InvalidVersionError {
     pub message: String,
