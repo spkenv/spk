@@ -1,6 +1,6 @@
-version: 0.28.0
+version: 0.28.1
 release_notes: |
-  * Ensure bash is resolved using PATH when launching
+  * Update startup file to properly support older sh builds
 
 toolchain:
   - kind: Rust
