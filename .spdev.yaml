@@ -1,11 +1,6 @@
-version: 0.29.0
+version: 0.29.2
 release_notes: |
-  - add initial set of package recipes to get boostrapped in clean environment
-  - fix output of help messages, and make them more clear
-  - add github ci code for running lint, test and generating rpm file
-  - silence warnings logged by the sentry sdk that can no longer connect to the internal imageworks instance
-  - update export command to allow a filename to be specified (making it more useful for automation)
-  - add the ability to run spk info spec.yaml@source to get source package information (if any)
+  -
 
 toolchain:
   - kind: Rust

@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.29.1
+Version: 0.29.2
 Release: 1
 Summary: Package manager for SPFS.
 License: NONE
@@ -17,7 +17,7 @@ BuildRequires: python3-devel
 BuildRequires: python3-pip
 Requires: rsync
 Requires: bash
-Requires: spfs >= 0.28.0
+Requires: spfs >= 0.28.1
 
 %define debug_package %{nil}
 

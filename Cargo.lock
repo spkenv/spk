@@ -2118,8 +2118,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.28.0"
-source = "git+https://github.com/imageworks/spfs?tag=v0.28.0#96dc1bacde7457df277c446f1987dab006e2cd56"
+version = "0.28.1"
+source = "git+https://github.com/imageworks/spfs?tag=v0.28.1#98dae852f31b45a8e9767ab1fd0ab0ba18592fa1"
 dependencies = [
  "capabilities",
  "chrono",
@@ -2166,7 +2166,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spk"
-version = "0.29.1"
+version = "0.29.2"
 dependencies = [
  "pyo3",
  "relative-path",
