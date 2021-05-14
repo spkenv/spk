@@ -1,7 +1,26 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
+use super::{Compat, Ident};
+
+#[macro_export]
+macro_rules! spec {
+    ($($k:ident => $v:expr),* $(,)?) => {{
+        use std::convert::TryInto;
+        let mut spec = Spec::default();
+        $(spec.$k = $v.try_into().unwrap();)*
+        spec
+    }};
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Spec {
+    pub pkg: Ident,
+    pub compat: Compat,
+}
+
+/*
 from ast import parse
 from typing import List, Any, Dict, Optional, Union, IO, Iterable
 from dataclasses import dataclass, field
@@ -376,3 +395,4 @@ def read_spec(stream: IO[str]) -> Spec:
 def write_spec(spec: Spec) -> bytes:
 
     return yaml.dump(spec.to_dict()).encode()  # type: ignore
+*/

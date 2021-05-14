@@ -10,10 +10,10 @@ mod name;
 mod option_map;
 // mod request;
 // mod source_spec;
-// mod spec;
+mod spec;
 // mod test_spec;
 mod version;
-// mod version_range;
+mod version_range;
 
 pub use build::{parse_build, Build, InvalidBuildError};
 // pub use build_spec::{opt_from_dict, BuildSpec, Inheritance, Option, PkgOpt, VarOpt};
@@ -26,10 +26,11 @@ pub use option_map::{host_options, OptionMap};
 //     VarRequest,
 // };
 // pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-// pub use spec::{read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
+pub use spec::Spec; // {read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
+
 // pub use test_spec::TestSpec;
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
-// pub use version_range::{parse_version_range, VersionFilter, VersionRange, VERSION_RANGE_SEP};
+pub use version_range::{parse_version_range, VersionFilter, VersionRange, VERSION_RANGE_SEP};
 
 use pyo3::prelude::*;
 pub fn init_module(_py: &Python, _m: &PyModule) -> PyResult<()> {

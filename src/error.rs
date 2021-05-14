@@ -23,6 +23,13 @@ pub enum Error {
     InvalidBuildError(api::InvalidBuildError),
 }
 
+impl Error {
+    /// Wraps an error message with a prefix, creating a contextual but generic error
+    pub fn wrap<S: AsRef<str>, E: std::error::Error>(prefix: S, err: E) -> Error {
+        Error::String(format!("{}: {:?}", prefix.as_ref(), err))
+    }
+}
+
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
         Error::IO(err)

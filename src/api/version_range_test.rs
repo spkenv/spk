@@ -1,88 +1,82 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use rstest::rstest;
 
-from typing import Dict
-import pytest
+use super::parse_version_range;
+use crate::{
+    api::{parse_version, Spec},
+    spec,
+};
 
-from ._version import parse_version
-from ._version_range import parse_version_range
-from ._spec import Spec
+#[rstest]
+fn test_parse_version_range_carat() {
+    let vr = parse_version_range("^1.0.1").unwrap();
+    assert_eq!(vr.greater_or_equal_to(), Some("1.0.1".parse().unwrap()));
+    assert_eq!(vr.less_than(), Some("2.0.0".parse().unwrap()));
+}
 
+#[rstest]
+fn test_parse_version_range_tilde() {
+    let vr = parse_version_range("~1.0.1").unwrap();
+    assert_eq!(vr.greater_or_equal_to().unwrap(), "1.0.1".parse().unwrap());
+    assert_eq!(vr.less_than().unwrap(), "1.1.0".parse().unwrap());
 
-def test_parse_version_range_carat() -> None:
+    assert!(parse_version_range("~2").is_err());
+}
 
-    vr = parse_version_range("^1.0.1")
-    assert vr.greater_or_equal_to() == "1.0.1"
-    assert vr.less_than() == "2.0.0"
+#[rstest]
+#[case("~1.0.0", "1.0.0", true)]
+#[case("~1.0.0", "1.0.1", true)]
+#[case("~1.0.0", "1.2.1", false)]
+#[case("^1.0.0", "1.0.0", true)]
+#[case("^1.0.0", "1.1.0", true)]
+#[case("^1.0.0", "1.0.1", true)]
+#[case("^1.0.0", "2.0.0", false)]
+#[case("^0.1.0", "2.0.0", false)]
+#[case("^0.1.0", "0.2.0", false)]
+#[case("^0.1.0", "0.1.4", true)]
+#[case("1.0.*", "1.0.0", true)]
+#[case("1.*", "1.0.0", true)]
+#[case("1.*", "1.4.6", true)]
+#[case("1.*.0", "1.4.6", false)]
+#[case("1.*.0", "1.4.0", true)]
+#[case("*", "100.0.0", true)]
+#[case(">1.0.0", "1.0.0", false)]
+#[case("<1.0.0", "1.0.0", false)]
+#[case("<=1.0.0", "1.0.0", true)]
+#[case("<=1.0.0", "1.0.1", false)]
+#[case(">=1.0.0", "1.0.1", true)]
+#[case("1.0.0", "1.0.0", true)]
+#[case("1.0.0", "1.0.0", true)]
+#[case("!=1.0", "1.0.1", false)]
+#[case("!=1.0", "1.1.0", true)]
+#[case("=1.0.0", "1.0.0", true)]
+#[case("=1.0.0", "1.0.0+r.1", true)]
+#[case("=1.0.0+r.2", "1.0.0+r.1", false)]
+fn test_version_range_is_applicable(
+    #[case] range: &str,
+    #[case] version: &str,
+    #[case] expected: bool,
+) {
+    let vr = parse_version_range(range).unwrap();
+    let v = parse_version(version).unwrap();
+    let actual = vr.is_applicable(&v);
 
+    assert_eq!(actual.is_ok(), expected, "{}", actual);
+}
 
-def test_parse_version_range_tilde() -> None:
+#[rstest]
+#[case("=1.0.0", spec!{pkg => "test/1.0.0"}, true)]
+#[case("=1.0.0", spec!{pkg => "test/1.0.0+r.1"}, true)]
+#[case("=1.0.0+r.2", spec!{pkg => "test/1.0.0+r.1"}, false)]
+fn test_version_range_is_satisfied(
+    #[case] range: &str,
+    #[case] spec: Spec,
+    #[case] expected: bool,
+) {
+    let vr = parse_version_range(range).unwrap();
+    let actual = vr.is_satisfied_by(&spec, crate::api::CompatRule::ABI);
 
-    vr = parse_version_range("~1.0.1")
-    assert vr.greater_or_equal_to() == "1.0.1"
-    assert vr.less_than() == "1.1.0"
-
-    with pytest.raises(ValueError):
-        parse_version_range("~2")
-
-
-@pytest.mark.parametrize(
-    "range,version,expected",
-    [
-        ("~1.0.0", "1.0.0", True),
-        ("~1.0.0", "1.0.1", True),
-        ("~1.0.0", "1.2.1", False),
-        ("^1.0.0", "1.0.0", True),
-        ("^1.0.0", "1.1.0", True),
-        ("^1.0.0", "1.0.1", True),
-        ("^1.0.0", "2.0.0", False),
-        ("^0.1.0", "2.0.0", False),
-        ("^0.1.0", "0.2.0", False),
-        ("^0.1.0", "0.1.4", True),
-        ("1.0.*", "1.0.0", True),
-        ("1.*", "1.0.0", True),
-        ("1.*", "1.4.6", True),
-        ("1.*.0", "1.4.6", False),
-        ("1.*.0", "1.4.0", True),
-        ("*", "100.0.0", True),
-        (">1.0.0", "1.0.0", False),
-        ("<1.0.0", "1.0.0", False),
-        ("<=1.0.0", "1.0.0", True),
-        ("<=1.0.0", "1.0.1", False),
-        (">=1.0.0", "1.0.1", True),
-        ("1.0.0", "1.0.0", True),
-        ("1.0.0", "1.0.0", True),
-        ("!=1.0", "1.0.1", False),
-        ("!=1.0", "1.1.0", True),
-        ("=1.0.0", "1.0.0", True),
-        ("=1.0.0", "1.0.0+r.1", True),
-        ("=1.0.0+r.2", "1.0.0+r.1", False),
-    ],
-)
-def test_version_range_is_applicable(range: str, version: str, expected: bool) -> None:
-
-    vr = parse_version_range(range)
-    v = parse_version(version)
-    actual = vr.is_applicable(v)
-
-    assert bool(actual) == expected, actual
-
-
-@pytest.mark.parametrize(
-    "range,spec_dict,expected",
-    [
-        ("=1.0.0", {"pkg": "test/1.0.0"}, True),
-        ("=1.0.0", {"pkg": "test/1.0.0+r.1"}, True),
-        ("=1.0.0+r.2", {"pkg": "test/1.0.0+r.1"}, False),
-    ],
-)
-def test_version_range_is_satisfied(
-    range: str, spec_dict: Dict, expected: bool
-) -> None:
-
-    vr = parse_version_range(range)
-    spec = Spec.from_dict(spec_dict)
-    actual = vr.is_satisfied_by(spec)
-
-    assert bool(actual) == expected, actual
+    assert_eq!(actual.is_ok(), expected, "{}", actual);
+}

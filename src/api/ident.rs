@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{fmt::Write, str::FromStr};
+use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -79,6 +79,14 @@ impl Ident {
         let mut new = self.clone();
         new.build = build;
         new
+    }
+}
+
+impl TryFrom<&str> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_str(value)
     }
 }
 

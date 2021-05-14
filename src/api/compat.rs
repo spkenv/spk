@@ -15,7 +15,7 @@ use super::{Version, VERSION_SEP};
 #[path = "./compat_test.rs"]
 mod compat_test;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompatRule {
     None,
     API,
@@ -166,16 +166,16 @@ impl Compat {
     }
 
     /// Return true if the two version are api compatible by this compat rule.
-    pub fn is_api_compatible(self, base: &Version, other: &Version) -> Compatibility {
-        return self._check_compat(base, other, CompatRule::API);
+    pub fn is_api_compatible(&self, base: &Version, other: &Version) -> Compatibility {
+        return self.check_compat(base, other, CompatRule::API);
     }
 
     /// Return true if the two version are binary compatible by this compat rule.
-    pub fn is_binary_compatible(self, base: &Version, other: &Version) -> Compatibility {
-        return self._check_compat(base, other, CompatRule::ABI);
+    pub fn is_binary_compatible(&self, base: &Version, other: &Version) -> Compatibility {
+        return self.check_compat(base, other, CompatRule::ABI);
     }
 
-    pub fn render(self, version: &Version) -> String {
+    pub fn render(&self, version: &Version) -> String {
         let parts: Vec<_> = version
             .parts()
             .drain(..self.0.len())
@@ -184,12 +184,7 @@ impl Compat {
         format!("~{}", parts.join(VERSION_SEP))
     }
 
-    pub fn _check_compat(
-        self,
-        base: &Version,
-        other: &Version,
-        required: CompatRule,
-    ) -> Compatibility {
+    fn check_compat(&self, base: &Version, other: &Version, required: CompatRule) -> Compatibility {
         if base == other {
             return Compatibility::Compatible;
         }

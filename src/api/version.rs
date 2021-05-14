@@ -1,7 +1,13 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::cmp::{Ord, Ordering};
+use std::{
+    cmp::{Ord, Ordering},
+    convert::TryFrom,
+    str::FromStr,
+};
+
+use crate::Error;
 
 use super::validate_tag_name;
 
@@ -26,8 +32,16 @@ impl InvalidVersionError {
 }
 
 /// TagSet contains a set of pre or post release version tags
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct TagSet(std::collections::BTreeMap<String, u32>);
+
+impl std::ops::Deref for TagSet {
+    type Target = std::collections::BTreeMap<String, u32>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl TagSet {
     pub fn single<S: Into<String>>(name: S, value: u32) -> TagSet {
@@ -92,6 +106,14 @@ impl Ord for TagSet {
     }
 }
 
+impl FromStr for TagSet {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_tag_set(s)
+    }
+}
+
 /// Parse the given string as a set of version tags.
 ///
 /// ```
@@ -138,7 +160,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
 }
 
 /// Version specifies a package version number.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Version {
     pub major: u32,
     pub minor: u32,
@@ -188,6 +210,22 @@ impl Version {
         } else {
             false
         }
+    }
+}
+
+impl TryFrom<&str> for Version {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> crate::Result<Self> {
+        parse_version(value)
+    }
+}
+
+impl FromStr for Version {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_version(s)
     }
 }
 
