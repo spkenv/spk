@@ -24,11 +24,12 @@ def register(
     export_cmd = sub_parsers.add_parser(
         "export", help=_export.__doc__, description=_export.__doc__, **parser_args
     )
+    export_cmd.add_argument("package", metavar="PKG", help="The package to export")
     export_cmd.add_argument(
-        "package", metavar="PKG", help="The package to export"
-    )
-    export_cmd.add_argument(
-        "filename", metavar="FILE", nargs="?", help="The file to export into (Defaults to the name and verison of the package)"
+        "filename",
+        metavar="FILE",
+        nargs="?",
+        help="The file to export into (Defaults to the name and verison of the package)",
     )
     export_cmd.set_defaults(func=_export)
     return export_cmd

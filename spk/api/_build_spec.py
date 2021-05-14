@@ -2,15 +2,24 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import Dict, List, Any, Optional, Tuple, Union, Set
+from typing import Dict, List, Any, Optional, Tuple, Type, TypeVar, Union, Set
 import abc
 import enum
 from dataclasses import dataclass, field
 
-from ._request import Request, PkgRequest, parse_ident_range, PreReleasePolicy
+from ._request import (
+    Request,
+    PkgRequest,
+    VarRequest,
+    parse_ident_range,
+    PreReleasePolicy,
+)
 from ._option_map import OptionMap
 from ._version import Version
 from ._compat import Compatibility, COMPATIBLE, CompatRule
+
+
+Self = TypeVar("Self", bound="Option")
 
 
 class Option(metaclass=abc.ABCMeta):
@@ -29,8 +38,19 @@ class Option(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def to_request(self, given_value: str = None) -> Request:
+        pass
+
+    @abc.abstractmethod
     def to_dict(self) -> Dict[str, Any]:
         pass
+
+    @abc.abstractclassmethod
+    def from_dict(cls: Self, data: Dict[str, Any]) -> Self:
+        pass
+
+    def clone(self: Self) -> Self:
+        return self.from_dict(self.to_dict())
 
     def set_value(self, value: str) -> None:
         """Assign a value to this option.
@@ -287,6 +307,15 @@ class VarOpt(Option):
 
         return COMPATIBLE
 
+    def to_request(self, given_value: str = None) -> VarRequest:
+
+        value = self.get_value(given_value) or ""
+        return VarRequest(
+            var=self.var,
+            value=value,
+            pin=False,
+        )
+
     def to_dict(self) -> Dict[str, Any]:
 
         var = self.var
@@ -391,11 +420,9 @@ class PkgOpt(Option):
 
         return value_range.contains(base_range)
 
-    def to_request(self, given_value: str = None) -> Request:
+    def to_request(self, given_value: str = None) -> PkgRequest:
 
-        value = self.default
-        if given_value is not None:
-            value = given_value
+        value = self.get_value(given_value) or "*"
         return PkgRequest(
             pkg=parse_ident_range(f"{self.pkg}/{value}"),
             prerelease_policy=self.prerelease_policy,
