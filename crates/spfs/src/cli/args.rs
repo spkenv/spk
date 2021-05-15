@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
+
 use sentry::IntoDsn;
 
 use spfs;
@@ -24,6 +26,21 @@ pub fn configure_sentry() {
         ..Default::default()
     };
     opts = sentry::apply_defaults(opts);
+
+    // Proxy values may have been read from env.
+    // If they do not contain a scheme prefix, sentry-transport
+    // produces a panic log output
+    if let Some(url) = opts.http_proxy.as_ref().map(ToString::to_string) {
+        if !url.contains("://") {
+            opts.http_proxy = Some(format!("http://{}", url)).map(Cow::Owned);
+        }
+    }
+    if let Some(url) = opts.https_proxy.as_ref().map(ToString::to_string) {
+        if !url.contains("://") {
+            opts.https_proxy = Some(format!("https://{}", url)).map(Cow::Owned);
+        }
+    }
+
     let _guard = sentry::init(opts);
 
     sentry::configure_scope(|scope| {
