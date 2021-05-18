@@ -18,6 +18,7 @@ macro_rules! spec {
 pub struct Spec {
     pub pkg: Ident,
     pub compat: Compat,
+    pub deprecated: bool,
 }
 
 /*

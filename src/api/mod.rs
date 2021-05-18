@@ -8,7 +8,7 @@ mod compat;
 mod ident;
 mod name;
 mod option_map;
-// mod request;
+mod request;
 // mod source_spec;
 mod spec;
 // mod test_spec;
@@ -21,16 +21,18 @@ pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility}
 pub use ident::{parse_ident, Ident};
 pub use name::{validate_name, validate_tag_name, InvalidNameError};
 pub use option_map::{host_options, OptionMap};
-// pub use request::{
-//     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
-//     VarRequest,
-// };
+pub use request::{
+    parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
+    VarRequest,
+};
 // pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::Spec; // {read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
 
 // pub use test_spec::TestSpec;
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
-pub use version_range::{parse_version_range, VersionFilter, VersionRange, VERSION_RANGE_SEP};
+pub use version_range::{
+    parse_version_range, ExactVersion, VersionFilter, VersionRange, VERSION_RANGE_SEP,
+};
 
 use pyo3::prelude::*;
 pub fn init_module(_py: &Python, _m: &PyModule) -> PyResult<()> {

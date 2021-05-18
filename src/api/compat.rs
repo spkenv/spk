@@ -15,7 +15,7 @@ use super::{Version, VERSION_SEP};
 #[path = "./compat_test.rs"]
 mod compat_test;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompatRule {
     None,
     API,

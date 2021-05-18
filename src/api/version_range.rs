@@ -25,16 +25,23 @@ pub const VERSION_RANGE_SEP: &str = ",";
 
 /// The generic trait for all range implementations.
 ///
-/// This is not public as the VersionRange enum is used
+/// This is not public API as the VersionRange enum is used
 /// as the public interface, which can be used to identify
 /// which range type is actually being used
-trait Range: Display {
+pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The lower, inclusive bound for this range
     fn greater_or_equal_to(&self) -> Option<Version>;
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
-    ///Return true if the given package spec satisfies this version range with the given compatibility.
+    /// Return true if the given package spec satisfies this version range with the given compatibility.
     fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility;
+
+    /// If applicable, return the broken down set of rules for this range
+    fn rules(&self) -> HashSet<VersionRange> {
+        let mut out = HashSet::with_capacity(1);
+        out.insert(self.clone().into());
+        out
+    }
 
     /// Return true if the given version seems applicable to this range
     ///
@@ -54,7 +61,7 @@ trait Range: Display {
         Compatibility::Compatible
     }
 
-    fn contains(&self, other: &VersionRange) -> Compatibility {
+    fn contains(&self, other: impl Ranged) -> Compatibility {
         let self_lower = self.greater_or_equal_to();
         let self_upper = self.less_than();
         let other_lower = other.greater_or_equal_to();
@@ -80,7 +87,7 @@ trait Range: Display {
         self.intersects(other)
     }
 
-    fn intersects(&self, other: &VersionRange) -> Compatibility {
+    fn intersects(&self, other: impl Ranged) -> Compatibility {
         let self_lower = self.greater_or_equal_to();
         let self_upper = self.less_than();
         let other_lower = other.greater_or_equal_to();
@@ -107,6 +114,18 @@ trait Range: Display {
     }
 }
 
+impl<T: Ranged> Ranged for &T {
+    fn greater_or_equal_to(&self) -> Option<Version> {
+        Ranged::greater_or_equal_to(*self)
+    }
+    fn less_than(&self) -> Option<Version> {
+        Ranged::less_than(*self)
+    }
+    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+        Ranged::is_satisfied_by(*self, spec, required)
+    }
+}
+
 /// Specifies a range of version numbers by inclusion or exclusion
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VersionRange {
@@ -123,8 +142,8 @@ pub enum VersionRange {
     Filter(VersionFilter),
 }
 
-impl VersionRange {
-    pub fn greater_or_equal_to(&self) -> Option<Version> {
+impl Ranged for VersionRange {
+    fn greater_or_equal_to(&self) -> Option<Version> {
         match self {
             VersionRange::Semver(vr) => vr.greater_or_equal_to(),
             VersionRange::Wildcard(vr) => vr.greater_or_equal_to(),
@@ -140,7 +159,7 @@ impl VersionRange {
         }
     }
 
-    pub fn less_than(&self) -> Option<Version> {
+    fn less_than(&self) -> Option<Version> {
         match self {
             VersionRange::Semver(vr) => vr.less_than(),
             VersionRange::Wildcard(vr) => vr.less_than(),
@@ -156,7 +175,7 @@ impl VersionRange {
         }
     }
 
-    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
         match self {
             VersionRange::Semver(vr) => vr.is_satisfied_by(spec, required),
             VersionRange::Wildcard(vr) => vr.is_satisfied_by(spec, required),
@@ -172,7 +191,7 @@ impl VersionRange {
         }
     }
 
-    pub fn is_applicable(&self, other: &Version) -> Compatibility {
+    fn is_applicable(&self, other: &Version) -> Compatibility {
         match self {
             VersionRange::Semver(vr) => vr.is_applicable(other),
             VersionRange::Wildcard(vr) => vr.is_applicable(other),
@@ -188,7 +207,7 @@ impl VersionRange {
         }
     }
 
-    pub fn contains(&self, other: &VersionRange) -> Compatibility {
+    fn contains(&self, other: impl Ranged) -> Compatibility {
         match self {
             VersionRange::Semver(vr) => vr.contains(other),
             VersionRange::Wildcard(vr) => vr.contains(other),
@@ -204,7 +223,7 @@ impl VersionRange {
         }
     }
 
-    pub fn intersects(&self, other: &VersionRange) -> Compatibility {
+    fn intersects(&self, other: impl Ranged) -> Compatibility {
         match self {
             VersionRange::Semver(vr) => vr.intersects(other),
             VersionRange::Wildcard(vr) => vr.intersects(other),
@@ -217,6 +236,13 @@ impl VersionRange {
             VersionRange::Excluded(vr) => vr.intersects(other),
             VersionRange::Compat(vr) => vr.intersects(other),
             VersionRange::Filter(vr) => vr.intersects(other),
+        }
+    }
+
+    fn rules(&self) -> HashSet<VersionRange> {
+        match self {
+            VersionRange::Filter(f) => return f.rules(),
+            _ => Ranged::rules(self),
         }
     }
 }
@@ -239,6 +265,12 @@ impl Display for VersionRange {
     }
 }
 
+impl<T: Ranged> From<&T> for VersionRange {
+    fn from(other: &T) -> Self {
+        other.to_owned().into()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SemverRange {
     minimum: Version,
@@ -252,7 +284,13 @@ impl SemverRange {
     }
 }
 
-impl Range for SemverRange {
+impl From<SemverRange> for VersionRange {
+    fn from(other: SemverRange) -> Self {
+        VersionRange::Semver(other)
+    }
+}
+
+impl Ranged for SemverRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.minimum.clone())
     }
@@ -323,7 +361,13 @@ impl WildcardRange {
     }
 }
 
-impl Range for WildcardRange {
+impl From<WildcardRange> for VersionRange {
+    fn from(other: WildcardRange) -> Self {
+        VersionRange::Wildcard(other)
+    }
+}
+
+impl Ranged for WildcardRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         let parts = self
             .parts
@@ -410,7 +454,13 @@ impl LowestSpecifiedRange {
     }
 }
 
-impl Range for LowestSpecifiedRange {
+impl From<LowestSpecifiedRange> for VersionRange {
+    fn from(other: LowestSpecifiedRange) -> Self {
+        VersionRange::LowestSpecified(other)
+    }
+}
+
+impl Ranged for LowestSpecifiedRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.base.clone())
     }
@@ -455,7 +505,13 @@ impl GreaterThanRange {
     }
 }
 
-impl Range for GreaterThanRange {
+impl From<GreaterThanRange> for VersionRange {
+    fn from(other: GreaterThanRange) -> Self {
+        VersionRange::GreaterThan(other)
+    }
+}
+
+impl Ranged for GreaterThanRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.bound.clone())
     }
@@ -496,7 +552,13 @@ impl LessThanRange {
     }
 }
 
-impl Range for LessThanRange {
+impl From<LessThanRange> for VersionRange {
+    fn from(other: LessThanRange) -> Self {
+        VersionRange::LessThan(other)
+    }
+}
+
+impl Ranged for LessThanRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
     }
@@ -537,7 +599,13 @@ impl GreaterThanOrEqualToRange {
     }
 }
 
-impl Range for GreaterThanOrEqualToRange {
+impl From<GreaterThanOrEqualToRange> for VersionRange {
+    fn from(other: GreaterThanOrEqualToRange) -> Self {
+        VersionRange::GreaterThanOrEqualTo(other)
+    }
+}
+
+impl Ranged for GreaterThanOrEqualToRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.bound.clone())
     }
@@ -578,7 +646,13 @@ impl LessThanOrEqualToRange {
     }
 }
 
-impl Range for LessThanOrEqualToRange {
+impl From<LessThanOrEqualToRange> for VersionRange {
+    fn from(other: LessThanOrEqualToRange) -> Self {
+        VersionRange::LessThanOrEqualTo(other)
+    }
+}
+
+impl Ranged for LessThanOrEqualToRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
     }
@@ -612,14 +686,18 @@ pub struct ExactVersion {
 }
 
 impl ExactVersion {
-    pub fn new<V: TryInto<Version, Error = Error>>(version: V) -> Result<VersionRange> {
-        Ok(VersionRange::Exact(Self {
-            version: version.try_into()?,
-        }))
+    pub fn new(version: Version) -> VersionRange {
+        VersionRange::Exact(Self { version: version })
     }
 }
 
-impl Range for ExactVersion {
+impl From<ExactVersion> for VersionRange {
+    fn from(other: ExactVersion) -> Self {
+        VersionRange::Exact(other)
+    }
+}
+
+impl Ranged for ExactVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.version.clone())
     }
@@ -685,7 +763,13 @@ impl ExcludedVersion {
     }
 }
 
-impl Range for ExcludedVersion {
+impl From<ExcludedVersion> for VersionRange {
+    fn from(other: ExcludedVersion) -> Self {
+        VersionRange::Excluded(other)
+    }
+}
+
+impl Ranged for ExcludedVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
     }
@@ -733,7 +817,13 @@ impl CompatRange {
     }
 }
 
-impl Range for CompatRange {
+impl From<CompatRange> for VersionRange {
+    fn from(other: CompatRange) -> Self {
+        VersionRange::Compat(other)
+    }
+}
+
+impl Ranged for CompatRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.base.clone())
     }
@@ -761,7 +851,7 @@ impl Display for CompatRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VersionFilter {
-    pub rules: HashSet<VersionRange>,
+    rules: HashSet<VersionRange>,
 }
 
 impl Hash for VersionFilter {
@@ -779,29 +869,36 @@ impl VersionFilter {
         filter
     }
 
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rules.len() == 0
+    }
+
     /// Reduce this range by the scope of another
     ///
     /// This version range will become restricted to the intersection
     /// of the current version range and the other.
-    pub fn restrict(&mut self, other: &VersionRange) -> Result<()> {
-        let compat = self.intersects(other);
+    pub fn restrict(&mut self, other: impl Ranged) -> Result<()> {
+        let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
             return Err(Error::String(msg));
         }
 
-        match other {
-            VersionRange::Filter(other) => {
-                self.rules.extend(&mut other.rules.clone().into_iter());
-            }
-            _ => {
-                self.rules.insert(other.clone());
-            }
-        }
+        self.rules.insert(other.into());
         Ok(())
     }
 }
 
-impl Range for VersionFilter {
+impl From<VersionFilter> for VersionRange {
+    fn from(other: VersionFilter) -> Self {
+        VersionRange::Filter(other)
+    }
+}
+
+impl Ranged for VersionFilter {
     fn greater_or_equal_to(&self) -> Option<Version> {
         self.rules
             .iter()
@@ -844,20 +941,11 @@ impl Range for VersionFilter {
         Compatibility::Compatible
     }
 
-    fn contains(&self, other: &VersionRange) -> Compatibility {
-        let other = match other {
-            VersionRange::Filter(f) => f,
-            _ => {
-                return self.contains(&VersionRange::Filter(VersionFilter::single(
-                    other.to_owned(),
-                )))
-            }
-        };
-
-        let new_rules = other.rules.sub(&self.rules);
+    fn contains(&self, other: impl Ranged) -> Compatibility {
+        let new_rules = other.rules().sub(&self.rules);
         for new_rule in new_rules.iter() {
             for old_rule in self.rules.iter() {
-                let compat = old_rule.contains(new_rule);
+                let compat = old_rule.contains(&new_rule);
                 if !compat.is_ok() {
                     return compat;
                 }
@@ -867,17 +955,8 @@ impl Range for VersionFilter {
         Compatibility::Compatible
     }
 
-    fn intersects(&self, other: &VersionRange) -> Compatibility {
-        let other = match other {
-            VersionRange::Filter(f) => f,
-            _ => {
-                return self.intersects(&VersionRange::Filter(VersionFilter::single(
-                    other.to_owned(),
-                )))
-            }
-        };
-
-        let new_rules = other.rules.sub(&self.rules);
+    fn intersects(&self, other: impl Ranged) -> Compatibility {
+        let new_rules = other.rules().sub(&self.rules);
         for new_rule in new_rules {
             for old_rule in self.rules.iter() {
                 let compat = old_rule.intersects(&new_rule);
@@ -888,6 +967,10 @@ impl Range for VersionFilter {
         }
 
         Compatibility::Compatible
+    }
+
+    fn rules(&self) -> HashSet<VersionRange> {
+        self.rules.clone()
     }
 }
 
@@ -908,6 +991,9 @@ impl FromStr for VersionFilter {
 
     fn from_str(range: &str) -> Result<Self> {
         let mut out = VersionFilter::default();
+        if range.is_empty() {
+            return Ok(out);
+        }
         for rule_str in range.split(VERSION_RANGE_SEP) {
             let rule = if rule_str.len() == 0 {
                 return Err(Error::String(format!(
@@ -915,27 +1001,28 @@ impl FromStr for VersionFilter {
                     range
                 )));
             } else if rule_str.starts_with("^") {
-                SemverRange::new(&rule_str[1..])
+                SemverRange::new(&rule_str[1..])?
             } else if rule_str.starts_with("~") {
-                LowestSpecifiedRange::new(&rule_str[1..])
+                LowestSpecifiedRange::new(&rule_str[1..])?
             } else if rule_str.starts_with(">=") {
-                GreaterThanOrEqualToRange::new(&rule_str[2..])
+                GreaterThanOrEqualToRange::new(&rule_str[2..])?
             } else if rule_str.starts_with("<=") {
-                LessThanOrEqualToRange::new(&rule_str[2..])
+                LessThanOrEqualToRange::new(&rule_str[2..])?
             } else if rule_str.starts_with(">") {
-                GreaterThanRange::new(&rule_str[1..])
+                GreaterThanRange::new(&rule_str[1..])?
             } else if rule_str.starts_with("<") {
-                LessThanRange::new(&rule_str[1..])
+                LessThanRange::new(&rule_str[1..])?
             } else if rule_str.starts_with("=") {
-                ExactVersion::new(&rule_str[1..])
+                let version = Version::from_str(&rule_str[1..])?;
+                ExactVersion::new(version)
             } else if rule_str.starts_with("!=") {
-                ExcludedVersion::new(&rule_str[2..])
+                ExcludedVersion::new(&rule_str[2..])?
             } else if rule_str.contains('*') {
-                WildcardRange::new(rule_str)
+                WildcardRange::new(rule_str)?
             } else {
-                CompatRange::new(rule_str)
+                CompatRange::new(rule_str)?
             };
-            out.rules.insert(rule?);
+            out.rules.insert(rule);
         }
 
         Ok(out)

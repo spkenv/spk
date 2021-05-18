@@ -1,406 +1,509 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
-
-from typing import Dict, Any, Union, Optional, TypeVar, TYPE_CHECKING
-from dataclasses import dataclass, field
-import abc
-import enum
-import itertools
-
-from ._name import validate_name
-from ._version import Version, parse_version
-from ._build import Build, parse_build
-from ._ident import Ident, parse_ident
-from ._version_range import parse_version_range, VersionFilter, ExactVersion
-from ._compat import Compatibility, COMPATIBLE, CompatRule
-from ._option_map import OptionMap
-
-if TYPE_CHECKING:
-    from ._spec import Spec
-
-Self = TypeVar("Self")
-
-
-@dataclass
-class RangeIdent:
-    """Identitfies a range of package versions and builds."""
-
-    name: str
-    version: VersionFilter = field(default_factory=VersionFilter)
-    build: Optional[Build] = None
-
-    def __str__(self) -> str:
-
-        out = self.name
-        if self.version.rules:
-            out += "/" + str(self.version)
-        if self.build:
-            out += "/" + self.build.digest
-        return out
-
-    def is_source(self) -> bool:
-        """Return true if this ident requests a source package."""
-        return self.build is not None and self.build.is_source()
-
-    def is_applicable(self, pkg: Union[str, Ident]) -> bool:
-        """Return true if the given package version is applicable to this range.
-
-        Versions that are applicable are not necessarily satisfactory, but
-        this cannot be fully determined without a complete package spec.
-        """
-
-        if not isinstance(pkg, Ident):
-            pkg = parse_ident(pkg)
-
-        if pkg.name != self.name:
-            return False
-
-        if not self.version.is_applicable(pkg.version):
-            return False
-
-        if self.build is not None:
-            if self.build != pkg.build:
-                return False
-
-        return True
-
-    def is_satisfied_by(
-        self, spec: "Spec", required: CompatRule = CompatRule.ABI
-    ) -> Compatibility:
-        """Return true if the given package spec satisfies this request."""
-
-        if spec.pkg.name != self.name:
-            return Compatibility("different package names")
-
-        c = self.version.is_satisfied_by(spec, required)
-        if not c:
-            return c
-
-        if self.build is not None:
-            if self.build != spec.pkg.build:
-                return Compatibility(
-                    f"different builds: {self.build} != {spec.pkg.build}"
-                )
-
-        return COMPATIBLE
-
-    def contains(self, other: "RangeIdent") -> Compatibility:
-
-        if other.name != self.name:
-            return Compatibility(
-                f"Version selectors are for different packages: {self.name} != {other.name}"
-            )
-
-        compat = self.version.contains(other.version)
-        if not compat:
-            return compat
-
-        if other.build is None:
-            return COMPATIBLE
-        elif self.build == other.build or self.build is None:
-            return COMPATIBLE
-        else:
-            return Compatibility(f"Incompatible builds: {self} && {other}")
-
-    def restrict(self, other: "RangeIdent") -> None:
-
-        try:
-            self.version.restrict(other.version)
-        except ValueError as e:
-            raise ValueError(f"{e} [{self.name}]") from None
-
-        if other.build is None:
-            pass
-        elif self.build == other.build or self.build is None:
-            self.build = other.build
-        else:
-            raise ValueError(f"Incompatible builds: {self} && {other}")
-
-
-def parse_ident_range(source: str) -> RangeIdent:
-    """Parse a package identifier which specifies a range of versions.
-
-    >>> parse_ident_range("maya/~2020.0")
-    RangeIdent(name='maya', version=VersionFilter(...), build=None)
-    >>> parse_ident_range("maya/^2020.0")
-    RangeIdent(name='maya', version=VersionFilter(...), build=None)
-    """
-
-    name, version, build, *other = str(source).split("/") + ["", ""]
-
-    if any(other):
-        raise ValueError(f"Too many tokens in identifier: {source}")
-
-    return RangeIdent(
-        name=validate_name(name),
-        version=parse_version_range(version),
-        build=parse_build(build) if build else None,
-    )
-
-
-class PreReleasePolicy(enum.IntEnum):
-
-    ExcludeAll = enum.auto()
-    IncludeAll = enum.auto()
-
-
-class InclusionPolicy(enum.IntEnum):
-
-    Always = enum.auto()
-    IfAlreadyPresent = enum.auto()
-
-
-class Request(metaclass=abc.ABCMeta):
-    """Represents a contraint added to a resolved environment."""
-
-    @abc.abstractproperty
-    def name(self) -> str:
-        """Return the canonical name of this requirement."""
-        pass
-
-    @abc.abstractmethod
-    def clone(self: Self) -> Self:
-        """Return a copy of this request instance."""
-        pass
-
-    @abc.abstractmethod
-    def to_dict(self) -> Dict[str, Any]:
-        """Return a serializable dict copy of this request."""
-        pass
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "Request":
-        """Construct a request from it's dictionary representation."""
-
-        if "pkg" in data:
-            return PkgRequest.from_dict(data)
-        if "var" in data:
-            return VarRequest.from_dict(data)
-
-        raise ValueError(f"Incomprehensible request definition: {data}")
-
-
-@dataclass
-class VarRequest(Request):
-    """A set of restrictions placed on selected packages' build options."""
-
-    var: str
-    value: str = ""
-    pin: bool = False
-
-    def __hash__(self) -> int:
-
-        return hash(f"{self.var}={self.value}")
-
-    def package(self) -> Optional[str]:
-        """Return the name of the package that this var refers to (if any)"""
-        if "." in self.var:
-            return self.var.split(".", 1)[0]
-        return None
-
-    def name(self) -> str:
-        """Return the canonical name of this requirement."""
-        return self.var
-
-    def clone(self) -> "VarRequest":
-        """Return a copy of this request instance."""
-        return VarRequest.from_dict(self.to_dict())
-
-    def render_pin(self, value: str) -> "VarRequest":
-        """Create a copy of this request with it's pin rendered out using 'var'."""
-
-        if not self.pin:
-            raise RuntimeError("Request has no pin to be rendered")
-
-        new = self.clone()
-        new.pin = False
-        new.value = value
-        return new
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Return a serializable dict copy of this request."""
-
-        if self.pin:
-            return {"var": f"{self.var}", "fromBuildEnv": True}
-        else:
-            return {"var": f"{self.var}/{self.value}"}
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "VarRequest":
-
-        var = data.pop("var")
-        value = ""
-        pin = data.pop("fromBuildEnv", False)
-        if "/" not in var and not pin:
-            raise ValueError(f"var request must be in the form name/value, got '{var}'")
-
-        if not pin:
-            var, value = var.split("/", 1)
-        request = VarRequest(var=var, value=value, pin=pin)
-
-        if len(data):
-            raise ValueError(
-                f"unrecognized fields in var request: {', '.join(data.keys())}"
-            )
-
-        return request
-
-
-@dataclass
-class PkgRequest(Request):
-    """A desired package and set of restrictions on how it's selected."""
-
-    pkg: RangeIdent
-    prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll
-    inclusion_policy: InclusionPolicy = InclusionPolicy.Always
-    pin: str = ""
-    required_compat: CompatRule = CompatRule.ABI
-
-    def __hash__(self) -> int:
-
-        return hash(self.pkg.name)
-
-    def __eq__(self, other: Any) -> bool:
-
-        if not isinstance(other, Request):
-            return bool(str(self) == other)
-        return self.__hash__() == other.__hash__()
-
-    @property
-    def name(self) -> str:
-        return self.pkg.name
-
-    def clone(self) -> "PkgRequest":
-
-        req = PkgRequest.from_dict(self.to_dict())
-        req.required_compat = self.required_compat
-        return req
-
-    def render_pin(self, pkg: Ident) -> "PkgRequest":
-        """Create a copy of this request with it's pin rendered out using 'pkg'."""
-
-        if not self.pin:
-            raise RuntimeError("Request has no pin to be rendered")
-
-        digits = itertools.chain(pkg.version.parts, itertools.repeat(0))
-        rendered = list(self.pin)
-        for i, char in enumerate(self.pin):
-            if char == "x":
-                rendered[i] = str(next(digits))
-
-        new = self.clone()
-        new.pin = ""
-        new.pkg.version = parse_version_range("".join(rendered))
-        return new
-
-    def is_version_applicable(self, version: Union[str, Version]) -> Compatibility:
-        """Return true if the given version number is applicable to this request.
-
-        This is used a cheap preliminary way to prune package
-        versions that are not going to satisfy the request without
-        needing to load the whole package spec.
-        """
-
-        if not isinstance(version, Version):
-            version = parse_version(version)
-
-        if self.prerelease_policy is PreReleasePolicy.ExcludeAll and version.pre:
-            return Compatibility("prereleases not allowed")
-
-        return self.pkg.version.is_applicable(version)
-
-    def is_satisfied_by(self, spec: "Spec") -> Compatibility:
-        """Return true if the given package spec satisfies this request."""
-
-        if spec.deprecated:
-            # deprecated builds are only okay if their build
-            # was specifically requested
-            if self.pkg.build is not None and self.pkg.build == spec.pkg.build:
-                pass
-            else:
-                return Compatibility(
-                    "Build is deprecated and was not specifically requested"
-                )
-
-        if (
-            self.prerelease_policy is PreReleasePolicy.ExcludeAll
-            and spec.pkg.version.pre
-        ):
-            return Compatibility("prereleases not allowed")
-
-        return self.pkg.is_satisfied_by(spec, self.required_compat)
-
-    def restrict(self, other: "PkgRequest") -> None:
-        """Reduce the scope of this request to the intersection with another."""
-
-        self.prerelease_policy = PreReleasePolicy(
-            min(self.prerelease_policy.value, other.prerelease_policy.value)
-        )
-        self.inclusion_policy = InclusionPolicy(
-            min(self.inclusion_policy.value, other.inclusion_policy.value)
-        )
-        self.pkg.restrict(other.pkg)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Return a serializable dict copy of this request."""
-        out = {"pkg": str(self.pkg), "prereleasePolicy": self.prerelease_policy.name}
-        if self.inclusion_policy is not InclusionPolicy.Always:
-            out["include"] = self.inclusion_policy.name
-        if self.pin:
-            out["fromBuildEnv"] = self.pin
-        return out
-
-    @staticmethod
-    def from_ident(pkg: Ident) -> "PkgRequest":
-
-        ri = RangeIdent(
-            name=pkg.name,
-            version=VersionFilter(
-                {
-                    ExactVersion(pkg.version),
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::{
+    cmp::min,
+    fmt::{Display, Write},
+    str::FromStr,
+};
+
+use serde::{Deserialize, Serialize};
+
+use crate::{Error, Result};
+
+use super::{
+    parse_build, validate_name, version_range::Ranged, Build, CompatRule, Compatibility,
+    ExactVersion, Ident, Spec, Version, VersionFilter,
+};
+
+#[cfg(test)]
+#[path = "./request_test.rs"]
+mod request_test;
+
+/// Identitfies a range of package versions and builds.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct RangeIdent {
+    name: String,
+    pub version: VersionFilter,
+    pub build: Option<Build>,
+}
+
+impl RangeIdent {
+    /// Return true if this ident requests a source package.
+    pub fn is_source(&self) -> bool {
+        if let Some(build) = &self.build {
+            build.is_source()
+        } else {
+            false
+        }
+    }
+
+    /// Return true if the given package version is applicable to this range.
+    ///
+    /// Versions that are applicable are not necessarily satisfactory, but
+    /// this cannot be fully determined without a complete package spec.
+    pub fn is_applicable(&self, pkg: &Ident) -> bool {
+        if pkg.name() != self.name {
+            return false;
+        }
+
+        if !self.version.is_applicable(&pkg.version).is_ok() {
+            return false;
+        }
+
+        if self.build.is_some() && self.build != pkg.build {
+            return false;
+        }
+
+        true
+    }
+
+    /// Return true if the given package spec satisfies this request.
+    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+        if spec.pkg.name() != self.name {
+            return Compatibility::Incompatible("different package names".into());
+        }
+
+        let c = self.version.is_satisfied_by(&spec, required);
+        if !c.is_ok() {
+            return c;
+        }
+
+        if self.build.is_some() && self.build != spec.pkg.build {
+            return Compatibility::Incompatible(format!(
+                "different builds: {:?} != {:?}",
+                self.build, spec.pkg.build
+            ));
+        }
+
+        Compatibility::Compatible
+    }
+
+    pub fn contains(&self, other: &RangeIdent) -> Compatibility {
+        if other.name != self.name {
+            return Compatibility::Incompatible(format!(
+                "Version selectors are for different packages: {} != {}",
+                self.name, other.name
+            ));
+        }
+
+        let compat = self.version.contains(&other.version);
+        if !compat.is_ok() {
+            return compat;
+        }
+
+        if other.build.is_none() {
+            Compatibility::Compatible
+        } else if self.build == other.build || self.build.is_none() {
+            Compatibility::Compatible
+        } else {
+            Compatibility::Incompatible(format!("Incompatible builds: {} && {}", self, other))
+        }
+    }
+
+    pub fn restrict(&mut self, other: &RangeIdent) -> Result<()> {
+        if let Err(err) = self.version.restrict(&other.version) {
+            return Err(Error::wrap(format!("{:?} [{}]", err, self.name), err));
+        }
+
+        if other.build.is_none() {
+            Ok(())
+        } else if self.build == other.build || self.build.is_none() {
+            self.build = other.build.clone();
+            Ok(())
+        } else {
+            Err(Error::String(format!(
+                "Incompatible builds: {} && {}",
+                self, other
+            )))
+        }
+    }
+}
+
+impl Display for RangeIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&self.name)?;
+        if self.version.len() > 0 {
+            f.write_char('/')?;
+            self.version.fmt(f)?;
+        }
+        if let Some(build) = &self.build {
+            f.write_char('/')?;
+            build.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl FromStr for RangeIdent {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> crate::Result<Self> {
+        parse_ident_range(s)
+    }
+}
+
+impl Serialize for RangeIdent {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for RangeIdent {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let ident = String::deserialize(deserializer)?;
+        match parse_ident_range(ident) {
+            Err(err) => Err(serde::de::Error::custom(format!("{}", err))),
+            Ok(ident) => Ok(ident),
+        }
+    }
+}
+
+/// Parse a package identifier which specifies a range of versions.
+///
+/// ```
+/// parse_ident_range("maya/~2020.0").unwrap()
+/// parse_ident_range("maya/^2020.0").unwrap()
+/// ```
+pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
+    let mut parts = source.as_ref().split("/");
+    let name = match parts.next() {
+        Some(s) => s,
+        None => "",
+    };
+    let version = match parts.next() {
+        Some(s) => s,
+        None => "",
+    };
+    let build = parts.next();
+
+    if let Some(_) = parts.next() {
+        return Err(Error::String(format!(
+            "Too many tokens in range identifier: {}",
+            source.as_ref()
+        )));
+    }
+
+    validate_name(name)?;
+    Ok(RangeIdent {
+        name: name.to_string(),
+        version: VersionFilter::from_str(version)?,
+        build: match build {
+            Some(b) => Some(parse_build(b)?),
+            None => None,
+        },
+    })
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub enum PreReleasePolicy {
+    ExcludeAll,
+    IncludeAll,
+}
+
+impl PreReleasePolicy {
+    pub fn is_default(&self) -> bool {
+        if let PreReleasePolicy::ExcludeAll = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for PreReleasePolicy {
+    fn default() -> Self {
+        PreReleasePolicy::ExcludeAll
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub enum InclusionPolicy {
+    Always,
+    IfAlreadyPresent,
+}
+
+impl InclusionPolicy {
+    pub fn is_default(&self) -> bool {
+        if let InclusionPolicy::Always = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for InclusionPolicy {
+    fn default() -> Self {
+        InclusionPolicy::Always
+    }
+}
+
+/// Represents a contraint added to a resolved environment.
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Request {
+    Var(VarRequest),
+    Pkg(PkgRequest),
+}
+
+impl Request {
+    /// Return the canonical name of this requirement."""
+    pub fn name(&self) -> String {
+        match self {
+            Request::Var(r) => r.var.to_owned(),
+            Request::Pkg(r) => r.pkg.to_string(),
+        }
+    }
+}
+
+/// A set of restrictions placed on selected packages' build options.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct VarRequest {
+    var: String,
+    value: String,
+    pin: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+struct VarRequestSchema {
+    var: String,
+    #[serde(rename = "fromBuildEnv", default, skip_serializing_if = "is_false")]
+    pin: bool,
+}
+
+impl VarRequest {
+    /// Return the name of the package that this var refers to (if any)
+    pub fn package(&self) -> Option<String> {
+        if self.var.contains(".") {
+            Some(self.var.split(".").next().unwrap().to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Create a copy of this request with it's pin rendered out using 'var'.
+    pub fn render_pin<S: Into<String>>(&self, value: S) -> Result<VarRequest> {
+        if !self.pin {
+            return Err(Error::String(
+                "Request has no pin to be rendered".to_string(),
+            ));
+        }
+
+        let mut new = self.clone();
+        new.pin = false;
+        new.value = value.into();
+        Ok(new)
+    }
+}
+
+impl<'de> Deserialize<'de> for VarRequest {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let spec = VarRequestSchema::deserialize(deserializer)?;
+
+        if !spec.var.contains("/") && !spec.pin {
+            return Err(serde::de::Error::custom(format!(
+                "var request must be in the form name/value, got '{}'",
+                spec.var
+            )));
+        }
+
+        let mut parts = spec.var.splitn(1, "/");
+        let mut out = Self {
+            var: parts.next().unwrap().to_string(),
+            value: Default::default(),
+            pin: false,
+        };
+        match (parts.next(), spec.pin) {
+            (Some(_), true) => {
+                return Err(serde::de::Error::custom(format!(
+                    "var request {} cannot have value when fromBuildEnv is true",
+                    out.var
+                )));
+            }
+            (Some(value), false) => out.value = value.to_string(),
+            (None, _) => (),
+        }
+
+        Ok(out)
+    }
+}
+
+impl Serialize for VarRequest {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut var = self.var.clone();
+        if self.value != "" {
+            var = format!("{}/{}", var, self.value);
+        }
+        let out = VarRequestSchema {
+            var: var,
+            pin: self.pin,
+        };
+        out.serialize(serializer)
+    }
+}
+
+/// A desired package and set of restrictions on how it's selected.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+pub struct PkgRequest {
+    pkg: RangeIdent,
+    #[serde(
+        rename = "prereleasePolicy",
+        default,
+        skip_serializing_if = "PreReleasePolicy::is_default"
+    )]
+    prerelease_policy: PreReleasePolicy,
+    #[serde(
+        rename = "include",
+        default,
+        skip_serializing_if = "InclusionPolicy::is_default"
+    )]
+    inclusion_policy: InclusionPolicy,
+    #[serde(
+        rename = "fromBuildEnv",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pin: Option<String>,
+    #[serde(skip)]
+    required_compat: CompatRule,
+}
+
+impl PkgRequest {
+    pub fn new(pkg: RangeIdent) -> Self {
+        Self {
+            pkg: pkg,
+            prerelease_policy: PreReleasePolicy::ExcludeAll,
+            inclusion_policy: InclusionPolicy::Always,
+            pin: Default::default(),
+            required_compat: CompatRule::ABI,
+        }
+    }
+
+    /// Create a copy of this request with it's pin rendered out using 'pkg'.
+    pub fn render_pin(&self, pkg: &Ident) -> Result<PkgRequest> {
+        match &self.pin {
+            None => {
+                return Err(Error::String(
+                    "Request has no pin to be rendered".to_owned(),
+                ))
+            }
+            Some(pin) => {
+                let mut digits = pkg.version.parts().into_iter().chain(std::iter::repeat(0));
+                let mut rendered = Vec::with_capacity(pin.len());
+                for char in pin.chars() {
+                    if char == 'x' {
+                        rendered.extend(digits.next().unwrap().to_string().chars().into_iter());
+                    } else {
+                        rendered.push(char);
+                    }
                 }
-            ),
-            build=pkg.build,
-        )
-        return PkgRequest(ri)
 
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "PkgRequest":
-        """Construct a request from it's dictionary representation."""
+                let mut new = self.clone();
+                new.pin = None;
+                new.pkg.version =
+                    VersionFilter::from_str(&rendered.into_iter().collect::<String>())?;
+                Ok(new)
+            }
+        }
+    }
 
-        try:
-            req = PkgRequest(parse_ident_range(data.pop("pkg")))
-        except KeyError as e:
-            raise ValueError(f"Missing required key in package request: {e}")
+    ///Return true if the given version number is applicable to this request.
+    ///
+    /// This is used a cheap preliminary way to prune package
+    /// versions that are not going to satisfy the request without
+    /// needing to load the whole package spec.
+    pub fn is_version_applicable(&self, version: &Version) -> Compatibility {
+        if self.prerelease_policy == PreReleasePolicy::ExcludeAll && !version.pre.is_empty() {
+            Compatibility::Incompatible("prereleases not allowed".to_owned())
+        } else {
+            self.pkg.version.is_applicable(version)
+        }
+    }
 
-        if "prereleasePolicy" in data:
-            name = data.pop("prereleasePolicy")
-            try:
-                policy = PreReleasePolicy.__members__[name]
-            except KeyError:
-                raise ValueError(
-                    f"Unknown 'prereleasePolicy': {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
-                )
-            req.prerelease_policy = policy
+    /// Return true if the given package spec satisfies this request.
+    pub fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
+        if spec.deprecated {
+            // deprecated builds are only okay if their build
+            // was specifically requested
+            if self.pkg.build.is_none() || self.pkg.build != spec.pkg.build {
+                return Compatibility::Incompatible(
+                    "Build is deprecated and was not specifically requested".to_string(),
+                );
+            }
+        }
 
-        inclusion_policy = data.pop("include", InclusionPolicy.Always.name)
-        try:
-            req.inclusion_policy = InclusionPolicy.__members__[inclusion_policy]
-        except KeyError:
-            raise ValueError(
-                f"Unknown 'include' policy: {inclusion_policy} must be on of {list(InclusionPolicy.__members__.keys())}"
-            )
+        if self.prerelease_policy == PreReleasePolicy::ExcludeAll
+            && !spec.pkg.version.pre.is_empty()
+        {
+            return Compatibility::Incompatible("prereleases not allowed".to_string());
+        }
 
-        req.pin = data.pop("fromBuildEnv", "")
-        if req.pin and req.pkg.version.rules:
-            raise ValueError(
-                "Package request cannot include both a version number and fromBuildEnv"
-            )
+        return self.pkg.is_satisfied_by(spec, self.required_compat);
+    }
 
-        if len(data):
-            raise ValueError(
-                f"unrecognized fields in package request: {', '.join(data.keys())}"
-            )
+    /// Reduce the scope of this request to the intersection with another.
+    pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
+        self.prerelease_policy = min(self.prerelease_policy, other.prerelease_policy);
+        self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
+        self.pkg.restrict(&other.pkg)
+    }
+}
 
-        return req
+impl From<&Ident> for PkgRequest {
+    fn from(pkg: &Ident) -> PkgRequest {
+        let ri = RangeIdent {
+            name: pkg.name().to_owned(),
+            version: VersionFilter::single(ExactVersion::new(pkg.version.clone())),
+            build: pkg.build.clone(),
+        };
+        PkgRequest::new(ri)
+    }
+}
+
+impl<'de> Deserialize<'de> for PkgRequest {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Unchecked {
+            pkg: RangeIdent,
+            #[serde(rename = "prereleasePolicy", default)]
+            prerelease_policy: PreReleasePolicy,
+            #[serde(rename = "include", default)]
+            inclusion_policy: InclusionPolicy,
+            #[serde(rename = "fromBuildEnv", default)]
+            pin: Option<String>,
+        }
+        let unchecked = Unchecked::deserialize(deserializer)?;
+        if unchecked.pin.is_some() && !unchecked.pkg.version.is_empty() {
+            return Err(serde::de::Error::custom(
+                "Package request cannot include both a version number and fromBuildEnv",
+            ));
+        }
+        Ok(Self {
+            pkg: unchecked.pkg,
+            prerelease_policy: unchecked.prerelease_policy,
+            inclusion_policy: unchecked.inclusion_policy,
+            pin: unchecked.pin,
+            required_compat: CompatRule::ABI,
+        })
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    *value
+}

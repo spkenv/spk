@@ -5,7 +5,7 @@ use rstest::rstest;
 
 use super::parse_version_range;
 use crate::{
-    api::{parse_version, Spec},
+    api::{parse_version, version_range::Ranged, Spec},
     spec,
 };
 

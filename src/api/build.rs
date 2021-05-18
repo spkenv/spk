@@ -26,7 +26,7 @@ impl InvalidBuildError {
 }
 
 /// Build represents a package build identifier.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Build {
     Source,
     Embedded,
