@@ -1,0 +1,54 @@
+pkg: openjpeg/2.4.0
+  # - name: openjpeg
+  # - description: "Open source library for JPEG-2000"
+  # - url: https://www.openjpeg.org
+  # - license: bsd-2-clause
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d openjpeg ] ; then git clone https://github.com/uclouvain/openjpeg -b v2.4.0 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: zlib
+    - pkg: libpng
+    - pkg: libtiff
+    - pkg: lcms2
+  # Pure C library, doesn't need gcc variants
+  # variants:
+  #   - { gcc: 6.3 }
+  #   - { gcc: 9.3 }
+  script:
+    - cmake --version
+    - export CMAKE_PREFIX_PATH=$PREFIX:$CMAKE_PREFIX_PATH
+    - cmake -S openjpeg -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_SHARED_LIBS=ON
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+    - cmake --build build --target install
+
+
+install:
+  requirements:
+    - pkg: stdfs
+    # Pure C library, doesn't need gcc libs at runtime
+    # - pkg: gcc
+    #   fromBuildEnv: x.x
+    - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: libpng
+      fromBuildEnv: x.x
+    - pkg: libtiff
+      fromBuildEnv: x.x
+    - pkg: lcms2
+      fromBuildEnv: x.x

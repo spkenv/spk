@@ -1,0 +1,36 @@
+pkg: giflib/5.2.1
+  # - description: "GIF file manipulation library"
+  # - url: "https://giflib.sourceforge.net"
+  # - license: "MIT"
+
+sources:
+  # This idiom can work with either a local copy of the tar file, or will
+  # download it if it doesn't already exist.
+  - path: ./
+  - script:
+    - export TARFILE=giflib-5.2.1.tar.gz
+    - if [ ! -e $TARFILE ] ; then wget https://downloads.sourceforge.net/project/giflib/$TARFILE ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+
+  # No need for gcc variants because we're only building the pure C library
+  # components.
+
+  script:
+    - tar xzf giflib-5.2.1.tar.gz
+    - cd giflib-5.2.1
+    - make PREFIX=${PREFIX} install
+
+install:
+  requirements:
+    - pkg: stdfs
+    # Don't include gcc as install requirements, since we're only building
+    # the pure C library components.
+    # - pkg: gcc
+    #   fromBuildEnv: x.x

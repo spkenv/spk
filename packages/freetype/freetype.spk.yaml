@@ -1,0 +1,48 @@
+pkg: freetype/2.10.1
+  # - name: Freetype
+  # - description: Open source library for font reading and rasterization.
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d freetype ] ; then git clone https://github.com/freetype/freetype -b VER-2-10-1 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: zlib
+    - pkg: libpng
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+  script:
+    - cmake -S freetype -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_SHARED_LIBS=ON
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+    - cmake --build build --target install
+
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: libpng
+      fromBuildEnv: x.x
+    # - pkg: python
+    #   fromBuildEnv: x.x
+    #   # If python is already in the environment/resolve then we
+    #   # we require it to be compatible with what we built with.
+    #   # But no python at all is also okay.
+    #   include: IfAlreadyPresent
