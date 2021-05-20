@@ -1,64 +1,92 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use rstest::rstest;
 
-import tarfile
-import os
+use super::{GitSource, LocalSource, ScriptSource, TarSource};
+use crate::fixtures;
 
-import py.path
+fixtures!();
 
-from ._source_spec import GitSource, TarSource, LocalSource, ScriptSource
+#[rstest]
+fn test_local_source_dir() {
+    let _guard = init_logging();
+    let tmpdir = tempdir::TempDir::new("").unwrap();
+    let source_dir = tmpdir.path().join("source");
+    let dest_dir = tmpdir.path().join("dest");
+    {
+        std::fs::create_dir_all(&source_dir).unwrap();
+        std::fs::create_dir_all(&dest_dir).unwrap();
+        std::fs::File::create(source_dir.join("file.txt")).unwrap();
+    }
+    let spec = format!("{{path: {:?}}}", source_dir);
+    let source: LocalSource = serde_yaml::from_str(&spec).unwrap();
+    source.collect(&dest_dir).unwrap();
 
+    assert!(dest_dir.join("file.txt").exists());
+}
 
-def test_local_source_dir(tmpdir: py.path.local) -> None:
+#[rstest]
+fn test_local_source_file() {
+    let _guard = init_logging();
+    let tmpdir = tempdir::TempDir::new("").unwrap();
+    let source_dir = tmpdir.path().join("source");
+    let dest_dir = tmpdir.path().join("dest");
+    {
+        std::fs::create_dir_all(&source_dir).unwrap();
+        std::fs::create_dir_all(&dest_dir).unwrap();
+        std::fs::File::create(source_dir.join("file.txt")).unwrap();
+    }
+    let spec = format!("{{path: {:?}}}", source_dir.join("file.txt"));
+    let source: LocalSource = serde_yaml::from_str(&spec).unwrap();
+    source.collect(&dest_dir).unwrap();
 
-    source_dir = tmpdir.join("source")
-    source_dir.join("file.txt").ensure()
-    spec = {"path": source_dir}
-    source = LocalSource.from_dict(spec)
-    source.collect(tmpdir.join("dest").ensure(dir=1).strpath)
+    assert!(dest_dir.join("file.txt").exists());
+}
 
-    assert tmpdir.join("dest", "file.txt").exists()
+#[rstest]
+fn test_git_sources() {
+    let _guard = init_logging();
+    let tmpdir = tempdir::TempDir::new("").unwrap();
+    let source_dir = tmpdir.path().join("source");
+    let dest_dir = tmpdir.path().join("dest");
+    {
+        std::fs::create_dir_all(&source_dir).unwrap();
+        std::fs::create_dir_all(&dest_dir).unwrap();
+        std::fs::File::create(source_dir.join("file.txt")).unwrap();
+    }
+    let spec = format!("{{git: {:?}}}", std::env::current_dir().unwrap());
+    let source: GitSource = serde_yaml::from_str(&spec).unwrap();
+    source.collect(&dest_dir).unwrap();
 
+    assert!(dest_dir.join(".git").is_dir());
+}
 
-def test_local_source_file(tmpdir: py.path.local) -> None:
+#[rstest]
+fn test_tar_sources() {
+    let _guard = init_logging();
+    let tmpdir = tempdir::TempDir::new("").unwrap();
+    let filename = tmpdir.path().join("archive.tar.gz");
+    let mut tar_cmd = std::process::Command::new("tar");
+    tar_cmd.arg("acf");
+    tar_cmd.arg(&filename);
+    tar_cmd.arg("src/lib.rs");
+    tar_cmd.status().unwrap();
 
-    source_file = tmpdir.join("src", "source.txt").ensure()
-    spec = {"path": source_file.strpath}
-    source = LocalSource.from_dict(spec)
-    source.collect(tmpdir.join("dest").ensure(dir=1).strpath)
+    let spec = format!("{{tar: {:?}}}", &filename);
+    let source: TarSource = serde_yaml::from_str(&spec).unwrap();
+    source.collect(tmpdir.path()).unwrap();
 
-    assert tmpdir.join("dest", "source.txt").exists()
+    assert!(tmpdir.path().join("src/lib.rs").is_file());
+}
 
+#[rstest]
+fn test_script_sources() {
+    let _guard = init_logging();
+    let tmpdir = tempdir::TempDir::new("").unwrap();
+    let spec = format!("{{script: ['mkdir spk', 'touch spk/__init__.py']}}");
+    let source: ScriptSource = serde_yaml::from_str(&spec).unwrap();
+    source.collect(tmpdir.path()).unwrap();
 
-def test_git_sources(tmpdir: py.path.local) -> None:
-
-    tmpdir = tmpdir.join("source").ensure(dir=1)
-    spec = {"git": os.getcwd()}
-    source = GitSource.from_dict(spec)
-    source.collect(tmpdir.strpath)
-
-    assert os.listdir(tmpdir.strpath)
-
-
-def test_tar_sources(tmpdir: py.path.local) -> None:
-
-    filename = tmpdir.join("archive.tar.gz").strpath
-    with tarfile.open(filename, "w") as tar:
-        tar.add("spk/__init__.py")
-
-    tmpdir = tmpdir.join("source").ensure(dir=1)
-    spec = {"tar": filename}
-    source = TarSource.from_dict(spec)
-    source.collect(tmpdir.strpath)
-
-    assert tmpdir.join("spk", "__init__.py").exists()
-
-
-def test_script_sources(tmpdir: py.path.local) -> None:
-
-    spec = {"script": ["mkdir spk", "touch spk/__init__.py"]}
-    source = ScriptSource.from_dict(spec)
-    source.collect(tmpdir.strpath)
-
-    assert tmpdir.join("spk", "__init__.py").exists()
+    assert!(tmpdir.path().join("spk/__init__.py").exists());
+}

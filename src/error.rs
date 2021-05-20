@@ -28,6 +28,11 @@ impl Error {
     pub fn wrap<S: AsRef<str>, E: std::error::Error>(prefix: S, err: E) -> Error {
         Error::String(format!("{}: {:?}", prefix.as_ref(), err))
     }
+
+    /// Wraps an error message with a prefix, creating a contextual error
+    pub fn wrap_io<S: AsRef<str>>(prefix: S, err: std::io::Error) -> Error {
+        Error::String(format!("{}: {:?}", prefix.as_ref(), err))
+    }
 }
 
 impl std::error::Error for Error {}

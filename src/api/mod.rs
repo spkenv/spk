@@ -9,7 +9,7 @@ mod ident;
 mod name;
 mod option_map;
 mod request;
-// mod source_spec;
+mod source_spec;
 mod spec;
 // mod test_spec;
 mod version;
@@ -25,7 +25,7 @@ pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
     VarRequest,
 };
-// pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
+pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::Spec; // {read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
 
 // pub use test_spec::TestSpec;

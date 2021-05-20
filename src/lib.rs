@@ -7,6 +7,9 @@ pub mod build;
 mod error;
 pub mod storage;
 
+#[cfg(test)]
+mod fixtures;
+
 pub use error::{Error, Result};
 
 // -- begin python wrappers --
