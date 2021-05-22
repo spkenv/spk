@@ -1,4 +1,9 @@
 pkg: libraw/0.20.0+r.1
+  # - name: LibRaw
+  # - description: "Library for reading DSLR raw images"
+  # - url: https://www.libraw.org/
+  # - license: [ "LGPL-2.1", "CDDL-1.0" ]
+  # - bindings: [ "C" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
@@ -25,7 +30,6 @@ build:
     - cd LibRaw
     - aclocal
     - autoreconf --install
-    - ./configure --help
     - ./configure --prefix=${PREFIX}
     - make -j $(nproc)
     - make install

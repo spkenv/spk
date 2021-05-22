@@ -1,4 +1,9 @@
 pkg: libtiff/4.3.0+r.1
+  # - name: LibTIFF
+  # - description: "Library for TIFF images"
+  # - url: http://www.simplesystems.org/libtiff/
+  # - license: MIT
+  # - bindings: [ "C", "C++", "cli" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
@@ -19,13 +24,9 @@ build:
 
   # No need for gcc variants because we're only building the pure C library
   # components.
-  #
-  # variants:
-  #   - { gcc: 6.3 }
-  #   - { gcc: 9.3 }
 
   script:
-    - cmake -S libtiff -B build 
+    - cmake -S libtiff -B build
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
         -Dcxx=OFF
@@ -37,5 +38,3 @@ install:
     - pkg: zlib
     # Don't include gcc as install requirements, since we're only building
     # the pure C library components.
-    # - pkg: gcc
-    #   fromBuildEnv: x.x

@@ -40,9 +40,3 @@ install:
       fromBuildEnv: x.x
     - pkg: libpng
       fromBuildEnv: x.x
-    # - pkg: python
-    #   fromBuildEnv: x.x
-    #   # If python is already in the environment/resolve then we
-    #   # we require it to be compatible with what we built with.
-    #   # But no python at all is also okay.
-    #   include: IfAlreadyPresent

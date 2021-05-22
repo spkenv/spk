@@ -1,46 +1,37 @@
 pkg: fmt/7.1.3
+  # - name: fmt
+  # - description: Header-only C++ string formatting like C++20 std::format
+  # - url: https://github.com/fmtlib/fmt
+  # - license: MIT
+  # - bindings: [ "C++" ]
+
 compat: x.a.b
 
-build:
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d fmt ] ; then git clone https://github.com/fmtlib/fmt.git -b v7.1.3 ; fi
 
-  # options are all the inputs to the package build process, including
-  # build-time dependencies
+
+build:
   options:
-    # var options define environment/string values that affect the build.
-    # The value is defined in the build environment as SPK_OPT_{name}
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-
-    # pkg options request packages that need to be present
-    # in the build environment. You can specify a version number
-    # here as the default for when the option is not otherise specified
-    # - pkg: python/3
     - pkg: gcc/6
     - pkg: cmake/^3.13
 
-  # variants declares the default set of variants to build and publish
-  # using the spk build and make-* commands
   variants:
     - { gcc: 6.3 }
     - { gcc: 9.3 }
 
-  # the build script is arbitrary bash script to be executed for the
-  # build. It should be and install artifacts into /spfs
   script:
-    # if you remove this it will try to run a build.sh script instead
     - cmake -S fmt -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_PREFIX_PATH=/spfs
-        -DCMAKE_INSTALL_PREFIX=/spfs
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DFMT_TEST=OFF
     - cmake --build build --target install
     - exit 0
 
-
-# install:
-#   requirements:
-#     - pkg: python
-#       # we can use the version of python from the build environment to dynamically
-#       # define the install requirement
-#       fromBuildEnv: x.x

@@ -1,4 +1,9 @@
 pkg: libpng/1.6.35
+  # - name: libpng
+  # - description: Library for reading and writing PNG files
+  # - license: BSD-3-clause
+  # - url: https://libpng.sourceforge.io/
+  # - bindings: [ "C" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
@@ -16,9 +21,6 @@ build:
     - pkg: gcc/6.3
     - pkg: cmake/^3.13
     - pkg: zlib
-    # - var: sharedlibs
-    #   default: off
-    #   choices: [on, off]
 
   # No need for gcc variants because we're only building the pure C library
   # components.
@@ -28,7 +30,7 @@ build:
   #   - { gcc: 9.3 }
 
   script:
-    - cmake -S libpng -B build 
+    - cmake -S libpng -B build
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
         -DPNG_TESTS=OFF
@@ -41,5 +43,3 @@ install:
     - pkg: zlib
     # Don't include gcc as install requirements, since we're only building
     # the pure C library components.
-    # - pkg: gcc
-    #   fromBuildEnv: x.x

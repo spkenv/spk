@@ -1,7 +1,9 @@
 pkg: libjpeg/9.4.0
+  # - name: libJPEG
   # - description: "JPEG file manipulation library"
-  # - url: "https://www.ijg.org"
+  # - url: https://www.ijg.org
   # - license: "IJG"
+  # - bindings: [ "C" ]
 
 sources:
   # This idiom can work with either a local copy of the tar file, or will
@@ -34,5 +36,3 @@ install:
     - pkg: stdfs
     # Don't include gcc as install requirements, since we're only building
     # the pure C library components.
-    # - pkg: gcc
-    #   fromBuildEnv: x.x
