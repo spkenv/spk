@@ -1,0 +1,30 @@
+pkg: zlib/1.2.11+r.1
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d zlib ] ; then git clone https://github.com/madler/zlib.git -b v1.2.11 ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+  # Because this is a pure C library, just build with any gcc and don't
+  # specify multiple gcc variangs.
+  script:
+    - cmake -S zlib -B build 
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    # Omit gcc as install requirements because it's a pure C library and
+    # will get libc from the system install.

@@ -1,0 +1,38 @@
+pkg: pugixml/1.11.4
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d pugixml ] ; then git clone https://github.com/zeux/pugixml.git -b v1.11.4 ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - var: sharedlibs
+      default: on
+      choices: [on, off]
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - cmake -S pugixml -B build 
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        -DBUILD_SHARED_LIBS=${SPK_OPT_sharedlibs}
+        -DBUILD_TESTS=OFF
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x

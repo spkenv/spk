@@ -1,4 +1,9 @@
 pkg: opencolorio/2.0.0
+  # - name: OpenColorIO
+  # - description: Open source color management library
+  # - license: BSD-3-clause
+  # - url: https://opencolorio.org
+  # - bindings: [ "C++", "Python" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
@@ -7,12 +12,12 @@ sources:
   - script:
     - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b v2.0.0 ; fi
 
-
 build:
   options:
     - var: arch
     - var: os
     - var: centos
+    - pkg: stdfs
     - pkg: gcc/6.3
     - pkg: python/3.7
     - pkg: pybind11/2.6.2
@@ -27,14 +32,14 @@ build:
   script:
     - cmake -S OpenColorIO -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_PREFIX_PATH=/spfs
-        -DCMAKE_INSTALL_PREFIX=/spfs
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DOCIO_BUILD_TESTS=OFF
-        -DPYBIND11_PYTHON_VERSION="${SPK_OPT_python}" 
+        -DPYBIND11_PYTHON_VERSION="${SPK_OPT_python}"
     - cmake --build build --target install
 
 install:
   requirements:
+    - pkg: stdfs
     - pkg: gcc
       fromBuildEnv: x.x
     - pkg: python

@@ -1,0 +1,46 @@
+pkg: lcms2/2.12.0
+  # - name: lcms2
+  # - description: "Open source library for ICC profiles"
+  # - url: https://github.com/mm2/Little-CMS
+  # - license: MIT
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d Little-CMS ] ; then git clone https://github.com/mm2/Little-CMS -b lcms2.12 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: zlib
+    - pkg: libtiff
+    - pkg: libjpeg
+  # It's pure C, so no need for gcc C++ variants
+  # variants:
+  #   - { gcc: 6.3 }
+  script:
+    - cd Little-CMS
+    - ./configure --prefix=$PREFIX
+    - make -j $(nproc)
+    - make install
+
+install:
+  requirements:
+    # It's pure C, so does not need gcc at runtime
+    - pkg: stdfs
+    # - pkg: gcc
+    #   fromBuildEnv: x.x
+    - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: libtiff
+      fromBuildEnv: x.x
+    - pkg: libjpeg
+      fromBuildEnv: x.x

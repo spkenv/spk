@@ -1,0 +1,40 @@
+pkg: libtiff/4.3.0+r.1
+  # - name: LibTIFF
+  # - description: "Library for TIFF images"
+  # - url: http://www.simplesystems.org/libtiff/
+  # - license: MIT
+  # - bindings: [ "C", "C++", "cli" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d libtiff ] ; then git clone https://gitlab.com/libtiff/libtiff.git -b v4.3.0 ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: zlib
+
+  # No need for gcc variants because we're only building the pure C library
+  # components.
+
+  script:
+    - cmake -S libtiff -B build
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        -Dcxx=OFF
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: zlib
+    # Don't include gcc as install requirements, since we're only building
+    # the pure C library components.

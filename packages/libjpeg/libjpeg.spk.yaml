@@ -1,0 +1,38 @@
+pkg: libjpeg/9.4.0
+  # - name: libJPEG
+  # - description: "JPEG file manipulation library"
+  # - url: https://www.ijg.org
+  # - license: "IJG"
+  # - bindings: [ "C" ]
+
+sources:
+  # This idiom can work with either a local copy of the tar file, or will
+  # download it if it doesn't already exist.
+  - path: ./
+  - script:
+    - export TARFILE=jpegsrc.v9d.tar.gz
+    - if [ ! -e $TARFILE ] ; then wget https://fossies.org/linux/misc/$TARFILE ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+
+  # No need for gcc variants because we're only building the pure C library
+  # components.
+
+  script:
+    - tar xzf jpegsrc.v9d.tar.gz
+    - cd jpeg-9d
+    - ./configure --prefix=$PREFIX
+    - make -j $(nproc)
+    - make install
+
+install:
+  requirements:
+    - pkg: stdfs
+    # Don't include gcc as install requirements, since we're only building
+    # the pure C library components.
