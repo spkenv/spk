@@ -11,7 +11,7 @@ mod option_map;
 mod request;
 mod source_spec;
 mod spec;
-// mod test_spec;
+mod test_spec;
 mod version;
 mod version_range;
 
@@ -28,7 +28,7 @@ pub use request::{
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::Spec; // {read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
 
-// pub use test_spec::TestSpec;
+pub use test_spec::{TestSpec, TestStage};
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
 pub use version_range::{
     parse_version_range, ExactVersion, VersionFilter, VersionRange, VERSION_RANGE_SEP,
