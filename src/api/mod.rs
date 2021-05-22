@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 mod build;
-// mod build_spec;
+mod build_spec;
 mod compat;
 mod ident;
 mod name;
@@ -16,7 +16,7 @@ mod version;
 mod version_range;
 
 pub use build::{parse_build, Build, InvalidBuildError};
-// pub use build_spec::{opt_from_dict, BuildSpec, Inheritance, Option, PkgOpt, VarOpt};
+pub use build_spec::{BuildSpec, Inheritance, Opt, PkgOpt, VarOpt};
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use ident::{parse_ident, Ident};
 pub use name::{validate_name, validate_tag_name, InvalidNameError};

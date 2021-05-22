@@ -23,6 +23,7 @@ pub const DIGEST_SIZE: usize = 8;
 #[macro_export]
 macro_rules! option_map {
     ($($k:expr => $v:expr),* $(,)?) => {{
+        use crate::api::OptionMap;
         let mut opts = OptionMap::default();
         $(opts.insert($k.into(), $v.into());)*
         opts

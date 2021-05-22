@@ -1,477 +1,575 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::collections::HashSet;
+use std::convert::TryFrom;
 
-from typing import Dict, List, Any, Optional, Tuple, Type, TypeVar, Union, Set
-import abc
-import enum
-from dataclasses import dataclass, field
+use serde::{Deserialize, Serialize};
 
-from ._request import (
-    Request,
-    PkgRequest,
-    VarRequest,
-    parse_ident_range,
-    PreReleasePolicy,
-)
-from ._option_map import OptionMap
-from ._version import Version
-from ._compat import Compatibility, COMPATIBLE, CompatRule
+use super::{
+    parse_ident_range, CompatRule, Compatibility, InclusionPolicy, OptionMap, PkgRequest,
+    PreReleasePolicy, Request, VarRequest,
+};
+use crate::{Error, Result};
 
+#[cfg(test)]
+#[path = "./build_spec_test.rs"]
+mod build_spec_test;
 
-Self = TypeVar("Self", bound="Option")
+/// An option that can be provided to provided to the package build process
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Opt {
+    Pkg(PkgOpt),
+    Var(VarOpt),
+}
 
+impl Opt {
+    pub fn name<'a>(&'a self) -> &'a str {
+        match self {
+            Self::Pkg(opt) => &opt.pkg,
+            Self::Var(opt) => &opt.var,
+        }
+    }
 
-class Option(metaclass=abc.ABCMeta):
-    def __init__(self) -> None:
-        self.__value: str = ""
+    pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
+        match self {
+            Self::Pkg(opt) => opt.namespaced_name(pkg),
+            Self::Var(opt) => opt.namespaced_name(pkg),
+        }
+    }
 
-    @abc.abstractmethod
-    def name(self) -> str:
-        pass
+    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        match self {
+            Self::Pkg(opt) => opt.validate(value),
+            Self::Var(opt) => opt.validate(value),
+        }
+    }
 
-    def namespaced_name(self, pkg: str) -> str:
-        return f"{pkg}.{self.name()}"
+    /// Assign a value to this option.
+    ///
+    /// Once a value is assigned, it overrides any 'given' value on future access.
+    pub fn set_value(&mut self, value: String) -> Result<()> {
+        match self {
+            Self::Pkg(opt) => opt.set_value(value),
+            Self::Var(opt) => opt.set_value(value),
+        }
+    }
 
-    @abc.abstractmethod
-    def validate(self, value: Optional[str]) -> Compatibility:
-        pass
+    /// Return the current value of this option, if set.
+    ///
+    /// Given is only returned if the option is not currently set to something else.
+    pub fn get_value(&self, given: &Option<String>) -> String {
+        let value = match self {
+            Self::Pkg(opt) => opt.get_value(given),
+            Self::Var(opt) => opt.get_value(given),
+        };
+        match (value, given) {
+            (Some(v), _) => v,
+            (_, Some(v)) => v.clone(),
+            (None, None) => "".to_string(),
+        }
+    }
+}
 
-    @abc.abstractmethod
-    def to_request(self, given_value: str = None) -> Request:
-        pass
+impl TryFrom<Request> for Opt {
+    type Error = Error;
+    /// Create a build option from the given request."""
+    fn try_from(request: Request) -> Result<Opt> {
+        match request {
+            Request::Pkg(request) => {
+                let default = request
+                    .pkg
+                    .to_string()
+                    .chars()
+                    .skip(request.pkg.name().len())
+                    .skip(1)
+                    .collect();
+                Ok(Opt::Pkg(PkgOpt {
+                    pkg: request.pkg.name().to_owned(),
+                    default: default,
+                    prerelease_policy: request.prerelease_policy,
+                    value: None,
+                }))
+            }
+            Request::Var(_) => Err(Error::String(format!(
+                "Cannot convert {:?} to option",
+                request
+            ))),
+        }
+    }
+}
 
-    @abc.abstractmethod
-    def to_dict(self) -> Dict[str, Any]:
-        pass
+/// A set of structured inputs used to build a package.
+#[derive(Debug, Clone, Serialize)]
+pub struct BuildSpec {
+    script: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    options: Vec<Opt>,
+    #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
+    variants: Vec<OptionMap>,
+}
 
-    @abc.abstractclassmethod
-    def from_dict(cls: Self, data: Dict[str, Any]) -> Self:
-        pass
+impl Default for BuildSpec {
+    fn default() -> Self {
+        Self {
+            script: vec!["sh ./build.sh".into()],
+            options: Vec::new(),
+            variants: vec![OptionMap::default()],
+        }
+    }
+}
 
-    def clone(self: Self) -> Self:
-        return self.from_dict(self.to_dict())
+impl BuildSpec {
+    fn is_default_variants(variants: &Vec<OptionMap>) -> bool {
+        if variants.len() != 1 {
+            return false;
+        }
+        variants.get(0) == Some(&OptionMap::default())
+    }
 
-    def set_value(self, value: str) -> None:
-        """Assign a value to this option.
+    pub fn resolve_all_options(&self, package_name: Option<&str>, given: &OptionMap) -> OptionMap {
+        let mut resolved = OptionMap::default();
+        for opt in self.options.iter() {
+            let name = opt.name();
+            let mut given_value: Option<&String> = None;
 
-        Once a value is assigned, it overrides any 'given' value on future access.
-        """
+            if let Some(name) = &package_name {
+                given_value = given.get(&opt.namespaced_name(name))
+            }
+            if let None = &given_value {
+                given_value = given.get(name)
+            }
 
-        self.__value = value
+            let value = opt.get_value(&given_value.map(String::to_owned));
+            resolved.insert(name.to_string(), value);
+        }
 
-    def get_value(self, given: str = None) -> str:
-        """Return the current value of this option, if set.
+        resolved
+    }
 
-        Given is only returned if the option is not currently set to something else.
-        """
+    /// Validate the given options against the options in this spec.
+    pub fn validate_options<S: AsRef<str>>(
+        &self,
+        package_name: S,
+        mut given_options: OptionMap,
+    ) -> Compatibility {
+        let mut must_exist = given_options.package_options_without_global(&package_name);
+        given_options = given_options.package_options(&package_name);
+        for option in self.options.iter() {
+            let compat = option.validate(given_options.get(option.name()).map(String::as_str));
+            if !compat.is_ok() {
+                return Compatibility::Incompatible(format!(
+                    "invalid value for {}: {}",
+                    option.name(),
+                    compat
+                ));
+            }
 
-        if self.__value:
-            return self.__value
+            must_exist.remove(option.name());
+        }
 
-        return given or ""
+        let missing = must_exist.keys();
+        if missing.len() != 0 {
+            let missing = must_exist.iter().collect::<Vec<_>>();
+            return Compatibility::Incompatible(format!(
+                "Package does not define requested build options: {:?}",
+                missing
+            ));
+        }
 
+        Compatibility::Compatible
+    }
 
-@dataclass
-class BuildSpec:
-    """A set of structured inputs used to build a package."""
+    /// Add or update an option in this build spec.
+    ///
+    /// An option is replaced if it shares a name with the given option,
+    /// otherwise the option is appended to the buid options
+    pub fn upsert_opt(&mut self, opt: Opt) {
+        for (i, other) in self.options.iter().enumerate() {
+            if other.name() == opt.name() {
+                self.options.insert(i, opt);
+                return;
+            }
+        }
+        self.options.push(opt);
+    }
+}
 
-    script: str = "sh ./build.sh"
-    options: List[Option] = field(default_factory=list)
-    variants: List[OptionMap] = field(default_factory=lambda: [OptionMap()])
+impl<'de> Deserialize<'de> for BuildSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Unchecked {
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            script: Option<Vec<String>>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            options: Option<Vec<Opt>>,
+            #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
+            variants: Vec<OptionMap>,
+        }
 
-    def resolve_all_options(
-        self, package_name: str = None, given: Union[Dict, OptionMap] = {}
-    ) -> OptionMap:
-
-        if not isinstance(given, OptionMap):
-            given = OptionMap(given.items())
-
-        resolved = OptionMap()
-        for opt in self.options:
-
-            name = opt.name()
-            given_value: Optional[str] = None
-
-            if package_name is not None:
-                given_value = given.get(opt.namespaced_name(package_name), None)
-            if given_value is None:
-                given_value = given.get(name, None)
-
-            value = opt.get_value(given_value)
-            resolved[name] = value
-
-        return resolved
-
-    def validate_options(
-        self, package_name: str, given_options: Union[Dict, OptionMap]
-    ) -> Compatibility:
-        """Validate the given options against the options in this spec."""
-
-        if not isinstance(given_options, OptionMap):
-            given_options = OptionMap(given_options.items())
-
-        must_exist = given_options.package_options_without_global(package_name)
-        given_options = given_options.package_options(package_name)
-        for option in self.options:
-            compat = option.validate(given_options.get(option.name()))
-            if not compat:
-                return Compatibility(f"invalid value for {option.name()}: {compat}")
-
-            try:
-                del must_exist[option.name()]
-            except KeyError:
-                pass
-
-        missing = list(must_exist.keys())
-        if missing:
-            missing = list(name for name in missing)
-            return Compatibility(
-                f"Package does not define requested build options: {missing}"
-            )
-
-        return COMPATIBLE
-
-    def upsert_opt(self, opt: Union[str, Request, Option]) -> None:
-        """Add or update an option in this build spec.
-
-        An option is replaced if it shares a name with the given option,
-        otherwise the option is appended to the buid options
-        """
-        if isinstance(opt, str):
-            opt = PkgRequest(parse_ident_range(opt))
-        if isinstance(opt, Request):
-            opt = opt_from_request(opt)
-        for i, other in enumerate(self.options):
-            if other.name() == opt.name():
-                self.options[i] = opt
-                break
-        else:
-            self.options.append(opt)
-
-    def to_dict(self) -> Dict[str, Any]:
-        spec: Dict[str, Any] = {}
-        if self.options:
-            spec["options"] = list(o.to_dict() for o in self.options)
-        if self.script != BuildSpec().script:
-            spec["script"] = self.script.splitlines()
-        if self.variants != BuildSpec().variants:
-            spec["variants"] = list(dict(v) for v in self.variants)
-        return spec
-
-    @staticmethod
-    def from_dict_unsafe(data: Dict[str, Any]) -> "BuildSpec":
-        """Construct a BuildSpec from a dictionary config without checking validation rules."""
-        bs = BuildSpec()
-        if "script" in data:
-            script = data.get("script", "")
-            if isinstance(script, list):
-                script = "\n".join(script)
+        let raw = Unchecked::deserialize(deserializer)?;
+        let mut bs = BuildSpec::default();
+        if let Some(script) = raw.script {
             bs.script = script
-
-        options = data.get("options", [])
-        if options:
-            bs.options = list(opt_from_dict(opt) for opt in options)
-
-        variants = data.get("variants", [])
-        if variants:
-            bs.variants = list(OptionMap.from_dict(v) for v in variants)
-        return bs
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "BuildSpec":
-        """Construct a BuildSpec from a dictionary config."""
-
-        bs = BuildSpec.from_dict_unsafe(data)
-        data.pop("script", None)
-        data.pop("options", None)
-        variants = data.pop("variants", [])
-
-        unique_options = set()
-        for opt in bs.options:
-            if opt.name() in unique_options:
-                raise ValueError(f"Build option specified more than once: {opt.name()}")
-            unique_options.add(opt.name())
-
-        variant_builds: List[Tuple[str, OptionMap]] = []
-        unique_variants = set()
-        for variant in variants:
-            build_opts = OptionMap(variant)
-            build_opts.update(bs.resolve_all_options(None, variant))
-            digest = build_opts.digest()
-            variant_builds.append((digest, variant))
-            unique_variants.add(digest)
-        if len(unique_variants) < len(variant_builds):
-            raise ValueError(
-                "Multiple variants would produce the same build:\n"
-                + "\n".join(f"- {o} ({h})" for (h, o) in variant_builds)
-            )
-
-        if len(data):
-            raise ValueError(
-                f"unrecognized fields in spec.build: {', '.join(data.keys())}"
-            )
-
-        return bs
-
-
-def opt_from_dict(data: Dict[str, Any]) -> Option:
-
-    if "pkg" in data:
-        return PkgOpt.from_dict(data)
-    if "var" in data:
-        return VarOpt.from_dict(data)
-
-    raise ValueError(f"Incomprehensible option definition: {data}")
-
-
-def opt_from_request(request: Request) -> "PkgOpt":
-    """Create a build option from the given request."""
-
-    if isinstance(request, PkgRequest):
-        return PkgOpt(
-            pkg=request.pkg.name,
-            default=str(request.pkg)[len(request.pkg.name) + 1 :],
-            prerelease_policy=request.prerelease_policy,
-        )
-
-    raise ValueError(f"Cannot convert {type(request)} to option")
-
-
-class Inheritance(enum.Enum):
-    """Defines the way in which a build option in inherited by downstream packages."""
-
-    # the default value, not inherited by downstream packages unless redefined
-    weak = "Weak"
-    # inherited by downstream packages as a build option only
-    strong_build_only = "StrongForBuildOnly"
-    # inherited by downstream packages as both build options and install requirement
-    strong = "Strong"
-
-
-class VarOpt(Option):
-    def __init__(self, var: str, default: str = "", choices: Set[str] = None) -> None:
-        self.var = var
-        self.default = default
-        self.choices = choices if choices else set()
-        self.inheritance = Inheritance.weak
-        super(VarOpt, self).__init__()
-
-    def __repr__(self) -> str:
-        return f"VarOpt({self.to_dict()})"
-
-    def name(self) -> str:
-        return self.var
-
-    def namespaced_name(self, pkg: str) -> str:
-        if "." in self.var:
-            return self.var
-        return super(VarOpt, self).namespaced_name(pkg)
-
-    def get_value(self, given: str = None) -> str:
-
-        assigned = super(VarOpt, self).get_value(given)
-        if assigned:
-            return assigned
-
-        if given is not None:
-            return given
-
-        return self.default
-
-    def set_value(self, value: str) -> None:
-
-        if value and self.choices and value not in self.choices:
-            raise ValueError(
-                f"Invalid value '{value}' for option '{self.var}', must be one of {self.choices}"
-            )
-        super(VarOpt, self).set_value(value)
-
-    def validate(self, value: Optional[str]) -> Compatibility:
-
-        if value is None:
-            value = self.get_value(None)
-
-        assigned = super(VarOpt, self).get_value()
-        if assigned:
-            if not value or assigned == value:
-                return COMPATIBLE
-            return Compatibility(
-                f"incompatible option, wanted '{value}', got '{assigned}'"
-            )
-
-        if self.choices and value not in self.choices:
-            return Compatibility(
-                f"invalid value '{value}', must be one of {self.choices}"
-            )
-
-        return COMPATIBLE
-
-    def to_request(self, given_value: str = None) -> VarRequest:
-
-        value = self.get_value(given_value) or ""
-        return VarRequest(
-            var=self.var,
-            value=value,
-            pin=False,
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-
-        var = self.var
-        if self.default:
-            var += "/" + str(self.default)
-
-        spec: Dict[str, Any] = {"var": var}
-        if self.choices:
-            spec["choices"] = list(self.choices)
-
-        base_value = super(VarOpt, self).get_value()
-        if base_value:
-            spec["static"] = base_value
-
-        if self.inheritance is not Inheritance.weak:
-            spec["inheritance"] = self.inheritance.value
-
-        return spec
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "VarOpt":
-
-        try:
-            var = data.pop("var")
-        except KeyError:
-            raise ValueError("missing required key for VarOpt: var")
-
-        if "default" in data:
-            # the default field is deprecated, but we support it for existing packages
-            var += "/" + str(data.pop("default", ""))
-        if "/" not in var:
-            var += "/"
-
-        var, default = var.split("/", 1)
-        opt = VarOpt(var, default=default)
-        opt.choices = set(str(c) for c in data.pop("choices", []))
-        opt.set_value(str(data.pop("static", "")))
-
-        inheritance = str(data.pop("inheritance", Inheritance.weak.value))
-        opt.inheritance = Inheritance(inheritance)
-
-        if len(data):
-            raise ValueError(f"unrecognized fields in var: {', '.join(data.keys())}")
-
-        return opt
-
-
-class PkgOpt(Option):
-    def __init__(
-        self,
-        pkg: str,
-        default: str = "",
-        prerelease_policy: PreReleasePolicy = PreReleasePolicy.ExcludeAll,
-    ) -> None:
-        self.pkg = pkg
-        self.default = default
-        self.prerelease_policy = prerelease_policy
-        super(PkgOpt, self).__init__()
-
-    def __repr__(self) -> str:
-        return f"PkgOpt({self.to_dict()})"
-
-    def name(self) -> str:
-        return self.pkg
-
-    def get_value(self, given: str = None) -> str:
-
-        assigned = super(PkgOpt, self).get_value(given)
-        if assigned:
-            return assigned
-
-        if given is not None:
-            return given
-
-        return self.default
-
-    def set_value(self, value: str) -> None:
-
-        try:
-            parse_ident_range(f"{self.pkg}/{value}")
-        except ValueError as err:
-            raise ValueError(
-                f"Invalid value '{value}' for option '{self.pkg}', not a valid package request: {err}"
-            )
-        super(PkgOpt, self).set_value(value)
-
-    def validate(self, value: Optional[str]) -> Compatibility:
-
-        if value is None:
-            value = ""
-
-        # skip any default that might exist since
-        # that does not represent a definitive range
-        base = super(PkgOpt, self).get_value()
-        base_range = parse_ident_range(f"{self.pkg}/{base}")
-        try:
-            value_range = parse_ident_range(f"{self.pkg}/{value}")
-        except ValueError as err:
-            return Compatibility(
-                f"Invalid value '{value}' for option '{self.pkg}', not a valid package request: {err}"
-            )
-
-        return value_range.contains(base_range)
-
-    def to_request(self, given_value: str = None) -> PkgRequest:
-
-        value = self.get_value(given_value) or "*"
-        return PkgRequest(
-            pkg=parse_ident_range(f"{self.pkg}/{value}"),
-            prerelease_policy=self.prerelease_policy,
-            required_compat=CompatRule.API,
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-
-        pkg = self.pkg
-        if self.default:
-            pkg += "/" + self.default
-
-        spec = {"pkg": pkg}
-        base_value = super(PkgOpt, self).get_value()
-        if base_value:
-            spec["static"] = base_value
-        if self.prerelease_policy is not PreReleasePolicy.ExcludeAll:
-            spec["prereleasePolicy"] = self.prerelease_policy.name
-        return spec
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "PkgOpt":
-
-        try:
-            pkg = data.pop("pkg")
-        except KeyError:
-            raise ValueError("missing required key for PkgOpt: pkg")
-
-        if "default" in data:
-            # the default field is deprecated but we support it for existing packages
-            pkg += "/" + str(data.pop("default", ""))
-        pkg = parse_ident_range(pkg)
-        opt = PkgOpt(
-            pkg.name, default=str(pkg.version) if pkg.version != Version() else ""
-        )
-
-        if "prereleasePolicy" in data:
-            name = data.pop("prereleasePolicy")
-            try:
-                policy = PreReleasePolicy.__members__[name]
-            except KeyError:
-                raise ValueError(
-                    f"Unknown 'prereleasePolicy': {name} must be on of {list(PreReleasePolicy.__members__.keys())}"
-                )
-            opt.prerelease_policy = policy
-
-        opt.set_value(str(data.pop("static", "")))
-
-        if len(data):
-            raise ValueError(f"unrecognized fields in pkg: {', '.join(data.keys())}")
-
-        return opt
+        }
+        if let Some(options) = raw.options {
+            bs.options = options
+        }
+        if !raw.variants.is_empty() {
+            bs.variants = raw.variants
+        }
+        let mut unique_options = HashSet::new();
+        for opt in bs.options.iter() {
+            let name = opt.name();
+            if unique_options.contains(&name) {
+                return Err(serde::de::Error::custom(format!(
+                    "Build option specified more than once: {}",
+                    opt.name()
+                )));
+            }
+            unique_options.insert(name);
+        }
+
+        let mut variant_builds = Vec::new();
+        let mut unique_variants = HashSet::new();
+        for variant in bs.variants.iter() {
+            let mut build_opts = variant.clone();
+            build_opts.append(&mut bs.resolve_all_options(None, variant));
+            let digest = build_opts.digest();
+            variant_builds.push((digest.clone(), variant.clone()));
+            unique_variants.insert(digest);
+        }
+        if unique_variants.len() < variant_builds.len() {
+            let details = variant_builds
+                .iter()
+                .map(|(h, o)| format!("- {} ({:?})", o, h))
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(serde::de::Error::custom(format!(
+                "Multiple variants would produce the same build:\n{}",
+                details
+            )));
+        }
+
+        Ok(bs)
+    }
+}
+
+/// Defines the way in which a build option in inherited by downstream packages.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub enum Inheritance {
+    // the default value, not inherited by downstream packages unless redefined
+    Weak,
+    // inherited by downstream packages as a build option only
+    StrongForBuildOnly,
+    // inherited by downstream packages as both build options and install requirement
+    Strong,
+}
+
+impl Default for Inheritance {
+    fn default() -> Self {
+        Self::Weak
+    }
+}
+
+impl Inheritance {
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VarOpt {
+    pub var: String,
+    pub default: String,
+    pub choices: HashSet<String>,
+    pub inheritance: Inheritance,
+    value: Option<String>,
+}
+
+impl VarOpt {
+    pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
+        if self.var.contains(".") {
+            self.var.clone()
+        } else {
+            format!("{}.{}", pkg.as_ref(), self.var)
+        }
+    }
+
+    pub fn get_value(&self, given: &Option<String>) -> Option<String> {
+        if let Some(v) = &self.value {
+            Some(v.clone())
+        } else if let Some(v) = given {
+            Some(v.clone())
+        } else {
+            Some(self.default.clone())
+        }
+    }
+
+    pub fn set_value(&mut self, value: String) -> Result<()> {
+        if self.choices.len() > 0 && !value.is_empty() {
+            if !self.choices.contains(&value) {
+                return Err(Error::String(format!(
+                    "Invalid value '{}' for option '{}', must be one of {:?}",
+                    value, self.var, self.choices
+                )));
+            }
+        }
+        self.value = Some(value);
+        Ok(())
+    }
+
+    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        if value.is_none() {
+            return self.validate(self.value.as_ref().map(String::as_str));
+        }
+        let assigned = self.get_value(&None);
+        match (value, assigned) {
+            (None, Some(_)) => Compatibility::Compatible,
+            (Some(value), Some(assigned)) => {
+                if value == assigned {
+                    return Compatibility::Compatible;
+                } else {
+                    Compatibility::Incompatible(format!(
+                        "incompatible option, wanted '{}', got '{}'",
+                        value, assigned
+                    ))
+                }
+            }
+            (Some(value), _) => {
+                if self.choices.len() > 0 && !self.choices.contains(value) {
+                    return Compatibility::Incompatible(format!(
+                        "invalid value '{}', must be one of {:?}",
+                        value, self.choices
+                    ));
+                } else {
+                    Compatibility::Compatible
+                }
+            }
+            (_, None) => Compatibility::Compatible,
+        }
+    }
+
+    pub fn to_request(self, given_value: &Option<String>) -> VarRequest {
+        let value = self.get_value(given_value).unwrap_or_default();
+        return VarRequest {
+            var: self.var,
+            value: value,
+            pin: false,
+        };
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct VarOptSchema {
+    var: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    choices: Vec<String>,
+    #[serde(default, skip_serializing_if = "Inheritance::is_default")]
+    inheritance: Inheritance,
+    #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
+    value: String,
+    // the default field can be loaded for legacy compatibility but is deprecated
+    #[serde(default, skip_serializing)]
+    default: Option<String>,
+}
+
+impl Serialize for VarOpt {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let mut out = VarOptSchema {
+            var: self.var.clone(),
+            choices: self.choices.iter().map(String::to_owned).collect(),
+            inheritance: self.inheritance,
+            value: self.value.clone().unwrap_or_default(),
+            default: None,
+        };
+        if !self.default.is_empty() {
+            out.var = format!("{}/{}", self.var, self.default);
+        }
+
+        out.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for VarOpt {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let data = VarOptSchema::deserialize(deserializer)?;
+        let mut out = VarOpt {
+            var: data.var.clone(),
+            default: "".to_string(),
+            choices: data.choices.iter().map(String::to_owned).collect(),
+            inheritance: data.inheritance,
+            value: None,
+        };
+        if let Some(default) = data.default {
+            // the default field is deprecated, but we support it for existing packages
+            out.default = default.clone();
+        } else {
+            let mut split = data.var.split("/");
+            out.var = split.next().unwrap().to_string();
+            out.default = split.collect::<Vec<_>>().join("");
+        }
+
+        if !data.value.is_empty() {
+            out.value = Some(data.value.to_owned());
+        }
+        Ok(out)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PkgOpt {
+    pub pkg: String,
+    pub default: String,
+    pub prerelease_policy: PreReleasePolicy,
+    value: Option<String>,
+}
+
+impl PkgOpt {
+    pub fn get_value(&self, given: &Option<String>) -> Option<String> {
+        if let Some(v) = &self.value {
+            Some(v.clone())
+        } else if let Some(v) = given {
+            Some(v.clone())
+        } else {
+            Some(self.default.clone())
+        }
+    }
+
+    pub fn set_value(&mut self, value: String) -> Result<()> {
+        let ident = format!("{}/{}", self.pkg, value);
+        if let Err(err) = parse_ident_range(ident) {
+            return Err(Error::wrap(
+                format!(
+                    "Invalid value '{}' for option '{}', not a valid package request",
+                    value, self.pkg
+                ),
+                err,
+            ));
+        }
+        self.value = Some(value);
+        Ok(())
+    }
+
+    pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
+        format!("{}.{}", pkg.as_ref(), self.pkg)
+    }
+
+    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        let value = value.unwrap_or_default();
+
+        // skip any default that might exist since
+        // that does not represent a definitive range
+        let base = self.value.as_ref().map(String::as_str).unwrap_or_default();
+        let base_range = match parse_ident_range(format!("{}/{}", self.pkg, base)) {
+            Err(err) => {
+                return Compatibility::Incompatible(format!(
+                    "Invalid value '{}' for option '{}', not a valid package request: {}",
+                    base, self.pkg, err
+                ))
+            }
+            Ok(r) => r,
+        };
+        match parse_ident_range(format!("{}/{}", self.pkg, value)) {
+            Err(err) => Compatibility::Incompatible(format!(
+                "Invalid value '{}' for option '{}', not a valid package request: {}",
+                value, self.pkg, err
+            )),
+            Ok(value_range) => value_range.contains(&base_range),
+        }
+    }
+
+    pub fn to_request(&self, given_value: Option<String>) -> Result<Request> {
+        let mut value = self.default.clone();
+        if let Some(given_value) = given_value {
+            value = given_value;
+        }
+        Ok(Request::Pkg(PkgRequest {
+            pkg: parse_ident_range(format!("{}/{}", self.pkg, value))?,
+            pin: None,
+            prerelease_policy: self.prerelease_policy,
+            inclusion_policy: InclusionPolicy::default(),
+            required_compat: CompatRule::API,
+        }))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct PkgOptSchema {
+    pkg: String,
+    #[serde(
+        default,
+        rename = "prereleasePolicy",
+        skip_serializing_if = "PreReleasePolicy::is_default"
+    )]
+    prerelease_policy: PreReleasePolicy,
+    #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
+    value: String,
+    // the default field can be loaded for legacy compatibility but is deprecated
+    #[serde(default, skip_serializing)]
+    default: Option<String>,
+}
+
+impl Serialize for PkgOpt {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let mut out = PkgOptSchema {
+            pkg: self.pkg.clone(),
+            prerelease_policy: self.prerelease_policy,
+            value: self.value.clone().unwrap_or_default(),
+            default: None,
+        };
+        if !self.default.is_empty() {
+            out.pkg = format!("{}/{}", self.pkg, self.default);
+        }
+
+        out.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PkgOpt {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let data = PkgOptSchema::deserialize(deserializer)?;
+        let mut out = PkgOpt {
+            pkg: data.pkg.clone(),
+            default: "".to_string(),
+            prerelease_policy: data.prerelease_policy,
+            value: None,
+        };
+        if let Some(default) = data.default {
+            // the default field is deprecated, but we support it for existing packages
+            out.default = default.to_owned();
+        } else {
+            let mut split = data.pkg.split("/");
+            out.pkg = split.next().unwrap().to_string();
+            out.default = split.collect::<Vec<_>>().join("");
+        }
+
+        if let Compatibility::Incompatible(err) = out.validate(Some(&out.default)) {
+            return Err(serde::de::Error::custom(err));
+        }
+
+        if !data.value.is_empty() {
+            out.value = Some(data.value.to_owned());
+            if let Compatibility::Incompatible(err) = out.validate(Some(&data.value)) {
+                return Err(serde::de::Error::custom(err));
+            }
+        }
+        Ok(out)
+    }
+}

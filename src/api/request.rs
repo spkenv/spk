@@ -29,6 +29,10 @@ pub struct RangeIdent {
 }
 
 impl RangeIdent {
+    pub fn name<'a>(&'a self) -> &'a str {
+        &self.name
+    }
+
     /// Return true if this ident requests a source package.
     pub fn is_source(&self) -> bool {
         if let Some(build) = &self.build {
@@ -358,27 +362,27 @@ impl Serialize for VarRequest {
 /// A desired package and set of restrictions on how it's selected.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct PkgRequest {
-    pkg: RangeIdent,
+    pub pkg: RangeIdent,
     #[serde(
         rename = "prereleasePolicy",
         default,
         skip_serializing_if = "PreReleasePolicy::is_default"
     )]
-    prerelease_policy: PreReleasePolicy,
+    pub prerelease_policy: PreReleasePolicy,
     #[serde(
         rename = "include",
         default,
         skip_serializing_if = "InclusionPolicy::is_default"
     )]
-    inclusion_policy: InclusionPolicy,
+    pub inclusion_policy: InclusionPolicy,
     #[serde(
         rename = "fromBuildEnv",
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pin: Option<String>,
+    pub pin: Option<String>,
     #[serde(skip)]
-    required_compat: CompatRule,
+    pub required_compat: CompatRule,
 }
 
 impl PkgRequest {

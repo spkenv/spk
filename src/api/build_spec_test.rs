@@ -1,92 +1,85 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use rstest::rstest;
 
-from typing import Dict, Type
-import pytest
+use super::{BuildSpec, PkgOpt, VarOpt};
+use crate::option_map;
 
-from ._option_map import OptionMap
-from ._build_spec import PkgOpt, VarOpt, BuildSpec
+#[rstest]
+#[case("{pkg: my-pkg}", "1", false)]
+#[case("{pkg: my-pkg}", "none", true)]
+#[case("{pkg: my-pkg}", "", false)]
+fn test_pkg_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
+    let mut opt: PkgOpt = serde_yaml::from_str(spec).unwrap();
+    let res = opt.set_value(value.to_string());
+    assert_eq!(res.is_err(), expect_err);
+}
 
+#[rstest]
+#[case("{var: my-var, choices: [hello, world]}", "hello", false)]
+#[case("{var: my-var, choices: [hello, world]}", "bad", true)]
+#[case("{var: my-var, choices: [hello, world]}", "", false)]
+fn test_var_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
+    let mut opt: VarOpt = serde_yaml::from_str(spec).unwrap();
+    let res = opt.set_value(value.to_string());
+    assert_eq!(res.is_err(), expect_err);
+}
 
-@pytest.mark.parametrize(
-    "spec,value,err",
-    [
-        ({"pkg": "my-pkg"}, "1", None),
-        ({"pkg": "my-pkg"}, "none", ValueError),
-        ({"pkg": "my-pkg"}, "", None),
-    ],
-)
-def test_pkg_opt_validation(spec: Dict, value: str, err: Type[Exception]) -> None:
+#[rstest]
+fn test_variants_must_be_unique() {
+    // two variants end up resolving to the same set of options
+    let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(
+        r#"{
+        options: [{var: "my-opt/any-value"}],
+        variants: [{my-opt: "any-value"}, {}],
+    }"#,
+    );
 
-    opt = PkgOpt.from_dict(spec)
-    if err is None:
-        opt.set_value(value)
-        return
-    with pytest.raises(err):
-        opt.set_value(value)
+    assert!(res.is_err());
+}
 
+#[rstest]
+fn test_variants_must_be_unique_unknown_ok() {
+    // unreconized variant values are ok if they are unique still
+    let _: BuildSpec =
+        serde_yaml::from_str("{variants: [{unknown: any-value}, {unknown: any_other_value}]}")
+            .unwrap();
+}
 
-@pytest.mark.parametrize(
-    "spec,value,err",
-    [
-        ({"var": "my-var", "choices": ["hello", "world"]}, "hello", None),
-        ({"var": "my-var", "choices": ["hello", "world"]}, "bad", ValueError),
-        ({"var": "my-var", "choices": ["hello", "world"]}, "", None),
-    ],
-)
-def test_var_opt_validation(spec: Dict, value: str, err: Type[Exception]) -> None:
-
-    opt = VarOpt.from_dict(spec)
-    if err is None:
-        opt.set_value(value)
-        return
-    with pytest.raises(err):
-        opt.set_value(value)
-
-
-def test_variants_must_be_unique() -> None:
-
-    with pytest.raises(ValueError):
-
-        # two variants end up resolving to the same set of options
-        BuildSpec.from_dict(
-            {
-                "options": [{"var": "my-opt/any-value"}],
-                "variants": [{"my-opt": "any-value"}, {}],
-            },
-        )
-
-
-def test_variants_must_be_unique_unknown_ok() -> None:
-
-    # unreconized variant values are ok if they are unique still
-    BuildSpec.from_dict(
-        {"variants": [{"unknown": "any-value"}, {"unknown": "any_other_value"}]}
-    )
-
-
-def test_resolve_all_options_package_option() -> None:
-
-    spec = BuildSpec.from_dict(
-        {
-            "options": [
-                {"var": "python.abi/cp37m"},
-                {"var": "my-opt/default"},
-                {"var": "debug/off"},
+#[rstest]
+fn test_resolve_all_options_package_option() {
+    let spec: BuildSpec = serde_yaml::from_str(
+        r#"{
+            options: [
+                {var: "python.abi/cp37m"},
+                {var: "my-opt/default"},
+                {var: "debug/off"},
             ]
-        }
+        }"#,
     )
+    .unwrap();
 
-    options = OptionMap(
-        {
-            "python.abi": "cp27mu",
-            "my-opt": "value",
-            "my-pkg.my-opt": "override",
-            "debug": "on",
-        }
-    )
-    resolved = spec.resolve_all_options("my-pkg", options)
-    assert resolved["my-opt"] == "override", "namespaced option should take precedence"
-    assert resolved["debug"] == "on", "global opt should resolve if given"
-    assert resolved["python.abi"] == "cp27mu", "opt for other package should exist"
+    let options = option_map! {
+        "python.abi" => "cp27mu",
+        "my-opt" => "value",
+        "my-pkg.my-opt" => "override",
+        "debug" => "on",
+    };
+    let resolved = spec.resolve_all_options(Some(&"my-pkg"), &options);
+    assert_eq!(
+        resolved.get("my-opt"),
+        Some(&"override".to_string()),
+        "namespaced option should take precedence"
+    );
+    assert_eq!(
+        resolved.get("debug"),
+        Some(&"on".to_string()),
+        "global opt should resolve if given"
+    );
+    assert_eq!(
+        resolved.get("python.abi"),
+        Some(&"cp27mu".to_string()),
+        "opt for other package should exist"
+    );
+}
