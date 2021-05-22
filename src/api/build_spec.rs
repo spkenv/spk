@@ -101,13 +101,13 @@ impl TryFrom<Request> for Opt {
 }
 
 /// A set of structured inputs used to build a package.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BuildSpec {
-    script: Vec<String>,
+    pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    options: Vec<Opt>,
+    pub options: Vec<Opt>,
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
-    variants: Vec<OptionMap>,
+    pub variants: Vec<OptionMap>,
 }
 
 impl Default for BuildSpec {
@@ -121,6 +121,10 @@ impl Default for BuildSpec {
 }
 
 impl BuildSpec {
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+
     fn is_default_variants(variants: &Vec<OptionMap>) -> bool {
         if variants.len() != 1 {
             return false;
@@ -186,9 +190,9 @@ impl BuildSpec {
     /// An option is replaced if it shares a name with the given option,
     /// otherwise the option is appended to the buid options
     pub fn upsert_opt(&mut self, opt: Opt) {
-        for (i, other) in self.options.iter().enumerate() {
+        for other in self.options.iter_mut() {
             if other.name() == opt.name() {
-                self.options.insert(i, opt);
+                std::mem::replace(other, opt);
                 return;
             }
         }

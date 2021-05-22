@@ -270,9 +270,9 @@ impl Request {
 /// A set of restrictions placed on selected packages' build options.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VarRequest {
-    var: String,
+    pub var: String,
+    pub pin: bool,
     value: String,
-    pin: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -508,6 +508,6 @@ impl<'de> Deserialize<'de> for PkgRequest {
     }
 }
 
-fn is_false(value: &bool) -> bool {
+pub(crate) fn is_false(value: &bool) -> bool {
     *value
 }

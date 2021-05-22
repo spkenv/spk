@@ -1,8 +1,14 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use serde::{Deserialize, Serialize};
 
-use super::{Compat, Ident};
+use super::{
+    parse_compat, parse_ident, parse_version_range, request::is_false, BuildSpec, Compat,
+    Compatibility, Ident, Inheritance, LocalSource, Opt, OptionMap, PkgOpt, PkgRequest, RangeIdent,
+    Request, SourceSpec, TestSpec, VarOpt, VarRequest,
+};
+use crate::{Error, Result};
 
 #[macro_export]
 macro_rules! spec {
@@ -14,137 +20,160 @@ macro_rules! spec {
     }};
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Spec {
     pub pkg: Ident,
+    #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
+    #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<SourceSpec>,
+    pub build: BuildSpec,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tests: Vec<TestSpec>,
+    pub install: InstallSpec,
+}
+
+/// A set of structured installation parameters for a package.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
+pub struct InstallSpec {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    requirements: Vec<Request>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    embedded: Vec<Spec>,
+}
+
+impl InstallSpec {
+    pub fn is_empty(&self) -> bool {
+        self.requirements.is_empty() && self.embedded.is_empty()
+    }
+
+    /// Add or update a requirement to the set of installation requirements.
+    ///
+    /// If a request exists for the same name, it is replaced with the given
+    /// one. Otherwise the new request is appended to the list.
+    pub fn upsert_requirement(&mut self, request: Request) {
+        let name = request.name();
+        for other in self.requirements.iter_mut() {
+            if other.name() == name {
+                std::mem::replace(other, request);
+                return;
+            }
+        }
+        self.requirements.push(request);
+    }
+
+    /// Render all requests with a package pin using the given resolved packages.
+    pub fn render_all_pins<'a>(
+        &mut self,
+        options: &OptionMap,
+        resolved: impl Iterator<Item = &'a Ident>,
+    ) -> Result<()> {
+        let mut by_name = std::collections::HashMap::new();
+        for pkg in resolved {
+            by_name.insert(pkg.name(), pkg);
+        }
+        for request in self.requirements.iter_mut() {
+            match request {
+                Request::Pkg(request) => {
+                    if request.pin.is_none() {
+                        continue;
+                    }
+                    match by_name.get(&request.pkg.name()) {
+                        None => {
+                            return Err(Error::String(
+                                format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name())
+                            ));
+                        }
+                        Some(resolved) => {
+                            std::mem::replace(request, request.render_pin(resolved)?);
+                        }
+                    }
+                }
+                Request::Var(request) => {
+                    if !request.pin {
+                        continue;
+                    }
+                    let split = request.var.splitn(2, ".");
+                    let var = split.last().unwrap();
+                    let opts = match split.next() {
+                        Some(package) => options.package_options(package),
+                        None => options.clone(),
+                    };
+                    match opts.get(var) {
+                        None => {
+                            return Err(Error::String(
+                                format!("Cannot resolve fromBuildEnv, variable not set: {}\nIs it missing from the package build options?", request.var)
+                            ));
+                        }
+                        Some(opt) => {
+                            std::mem::replace(request, request.render_pin(opt)?);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'de> Deserialize<'de> for InstallSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Unchecked {
+            #[serde(default)]
+            requirements: Vec<Request>,
+            #[serde(default)]
+            embedded: Vec<Spec>,
+        }
+
+        let unchecked = Unchecked::deserialize(deserializer)?;
+        let spec = InstallSpec {
+            requirements: unchecked.requirements,
+            embedded: unchecked.embedded,
+        };
+
+        let requirement_names = std::collections::HashSet::with_capacity(spec.requirements.len());
+        for name in spec.requirements.iter().map(Request::name) {
+            if requirement_names.contains(&name) {
+                return Err(serde::de::Error::custom(format!(
+                    "found multiple install requirements for '{}'",
+                    name
+                )));
+            }
+            requirement_names.insert(name);
+        }
+
+        let mut default_build_spec = BuildSpec::default();
+        for embedded in spec.embedded.iter() {
+            default_build_spec.options = embedded.build.options.clone();
+            if default_build_spec != embedded.build {
+                return Err(serde::de::Error::custom(
+                    "embedded packages can only specify build.options",
+                ));
+            }
+            if !embedded.install.is_empty() {
+                return Err(serde::de::Error::custom(
+                    "embedded packages cannot specify the install field",
+                ));
+            }
+            if let Some(_) = embedded.pkg.build {
+                return Err(serde::de::Error::custom(format!(
+                    "embedded package should not specify a build, got: {}",
+                    embedded.pkg
+                )));
+            }
+        }
+
+        Ok(spec)
+    }
 }
 
 /*
-from ast import parse
-from typing import List, Any, Dict, Optional, Union, IO, Iterable
-from dataclasses import dataclass, field
-import os
-
-import structlog
-from ruamel import yaml
-
-from ._build import EMBEDDED
-from ._ident import Ident, parse_ident
-from ._compat import Compat, Compatibility, COMPATIBLE, parse_compat
-from ._request import Request, PkgRequest, VarRequest, RangeIdent, parse_version_range
-from ._option_map import OptionMap
-from ._build_spec import BuildSpec, PkgOpt, VarOpt, Inheritance, Option
-from ._test_spec import TestSpec
-from ._source_spec import SourceSpec, LocalSource
-
-
-_LOGGER = structlog.get_logger("spk")
-
-
-@dataclass
-class InstallSpec:
-    """A set of structured installation parameters for a package."""
-
-    requirements: List[Request] = field(default_factory=list)
-    embedded: List["Spec"] = field(default_factory=list)
-
-    def upsert_requirement(self, request: Request) -> None:
-        """Add or update a requirement to the set of installation requirements.
-
-        If a request exists for the same name, it is replaced with the given
-        one. Otherwise the new request is appended to the list.
-        """
-        for i, other in enumerate(self.requirements):
-            if other.name == request.name:
-                self.requirements[i] = request
-                return
-        else:
-            self.requirements.append(request)
-
-    def to_dict(self) -> Dict[str, Any]:
-        data = {}
-        if self.requirements:
-            data["requirements"] = list(r.to_dict() for r in self.requirements)
-        if self.embedded:
-            data["embedded"] = list(r.to_dict() for r in self.embedded)
-        return data
-
-    def render_all_pins(self, options: OptionMap, resolved: Iterable[Ident]) -> None:
-        """Render all requests with a package pin using the given resolved packages."""
-
-        by_name = dict((pkg.name, pkg) for pkg in resolved)
-        for i, request in enumerate(self.requirements):
-
-            if isinstance(request, PkgRequest):
-                if not request.pin:
-                    continue
-                if request.pkg.name not in by_name:
-                    raise ValueError(
-                        f"Cannot resolve fromBuildEnv, package not present: {request.pkg.name}\n"
-                        "Is it missing from your package build options?"
-                    )
-                self.requirements[i] = request.render_pin(by_name[request.pkg.name])
-
-            elif isinstance(request, VarRequest):
-                if not request.pin:
-                    continue
-                var = request.var
-                opts = options
-                if "." in var:
-                    package, var = var.split(".", 1)
-                    opts = options.package_options(package)
-                if var not in opts:
-                    raise ValueError(
-                        f"Cannot resolve fromBuildEnv, variable not set: {request.var}\n"
-                        "Is it missing from the package build options?"
-                    )
-                self.requirements[i] = request.render_pin(opts[var])
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "InstallSpec":
-
-        spec = InstallSpec()
-
-        requirements = data.pop("requirements", [])
-        assert isinstance(requirements, list), "install.requirements must be a list"
-        if requirements:
-            spec.requirements = list(Request.from_dict(r) for r in requirements)
-        request_names = list(r.name for r in spec.requirements)
-        while request_names:
-            name = request_names.pop()
-            if name in request_names:
-                raise ValueError(f"found multiple install requirements for '{name}'")
-
-        embedded = data.pop(
-            "embedded", data.pop("embeded", [])  # legacy support of misspelling
-        )
-        assert isinstance(requirements, list), "install.embedded must be a list"
-        for e in embedded:
-            if "build" in e:
-                if tuple(e["build"].keys()) != ("options",):
-                    raise ValueError("embedded packages can only specify build.options")
-            if "install" in e:
-                raise ValueError("embedded packages cannot specify the install field")
-            es = Spec.from_dict(e)
-            if es.pkg.build is not None and not es.pkg.build.is_emdeded():
-                raise ValueError(
-                    f"embedded package should not specify a build, got: {es.pkg}"
-                )
-            for opt in es.build.options:
-                opt.to_dict
-            es.pkg.set_build(EMBEDDED)
-            spec.embedded.append(es)
-
-        if len(data):
-            raise ValueError(
-                f"unrecognized fields in spec.install: {', '.join(data.keys())}"
-            )
-
-        return spec
-
-
 @dataclass
 class Spec:
     """Spec encompases the complete specification of a package."""

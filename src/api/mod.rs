@@ -26,7 +26,7 @@ pub use request::{
     VarRequest,
 };
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::Spec; // {read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
+pub use spec::{read_spec, read_spec_file, save_spec_file, write_spec, InstallSpec, Spec};
 
 pub use test_spec::{TestSpec, TestStage};
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};

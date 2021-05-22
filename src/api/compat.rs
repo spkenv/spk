@@ -8,6 +8,7 @@ use std::iter::FromIterator;
 use std::str::FromStr;
 
 use itertools::izip;
+use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
 
@@ -128,8 +129,19 @@ impl CompatRuleSet {
 }
 
 /// Compat specifies the compatilbility contract of a compat number.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Compat(Vec<CompatRuleSet>);
+
+impl Default for Compat {
+    fn default() -> Compat {
+        // equivalent to "x.a.b"
+        Compat(vec![
+            CompatRuleSet::single(CompatRule::None),
+            CompatRuleSet::single(CompatRule::API),
+            CompatRuleSet::single(CompatRule::ABI),
+        ])
+    }
+}
 
 impl std::fmt::Display for Compat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -155,6 +167,11 @@ impl FromStr for Compat {
 }
 
 impl Compat {
+    // True if this is the default compatibility specification
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Create a compat rule set with two parts
     pub fn double(first: CompatRuleSet, second: CompatRuleSet) -> Self {
         Compat(vec![first, second])
@@ -231,4 +248,26 @@ impl Compat {
 /// Parse a string as a compatibility specifier.
 pub fn parse_compat<S: AsRef<str>>(compat: S) -> crate::Result<Compat> {
     Compat::from_str(compat.as_ref())
+}
+
+impl Serialize for Compat {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        self.to_string().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Compat {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match parse_compat(value) {
+            Err(err) => Err(serde::de::Error::custom(err.to_string())),
+            Ok(compat) => Ok(compat),
+        }
+    }
 }

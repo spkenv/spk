@@ -13,7 +13,7 @@ use crate::{Error, Result};
 #[path = "./source_spec_test.rs"]
 mod source_spec_test;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SourceSpec {
     Local(LocalSource),
