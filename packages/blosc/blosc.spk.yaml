@@ -1,15 +1,16 @@
-pkg: zlib/1.2.11+r.1
-  # - name: "zlib"
-  # - description: "Compression library"
-  # - license: Zlib
-  # - url: https://www.zlib.net
+pkg: blosc/1.21.0
+  # - name: "Blosc"
+  # - description: "A blocking, shuffling, and loss-less compression library."
+  # - authors: ["blosc@blosc.org"]
+  # - license: BSD-3-clause
+  # - url: https://www.blosc.org
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
   # or (c) nothing (does a fresh clone).
   - path: ./
   - script:
-    - if [ ! -d zlib ] ; then git clone https://github.com/madler/zlib.git -b v1.2.11 ; fi
+    - if [ ! -d c-blosc ] ; then git clone https://github.com/Blosc/c-blosc -b v1.21.0 ; fi
 
 build:
   options:
@@ -17,14 +18,21 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - pkg: gcc/6.3
+    - var: sse2/on
+      choices: [on, off]
+    - var: avx2/on
+      choices: [on, off]
     - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+
   # Because this is a pure C library, just build with any gcc and don't
   # specify multiple gcc variants.
   script:
-    - cmake -S zlib -B build 
+    - cmake -S c-blosc -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        -DBUILD_BENCHMARKS=OFF
+        -DBUILD_FUZZERS=OFF
     - cmake --build build --target install
 
 install:

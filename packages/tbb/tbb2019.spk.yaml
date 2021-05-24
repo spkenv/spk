@@ -1,0 +1,49 @@
+pkg: tbb/2019.9.0
+  # - name: "Intel TBB"
+  # - description: "Threading Building Blocks (TBB) C++ library"
+  # - license: Apache-2.0
+  # - url: https://software.intel.com/en-us/oneapi/onetbb
+
+sources:
+  - path: ./
+  - git: https://github.com/oneapi-src/oneTBB
+    ref: 2019_U9
+    subdir: oneTBB
+  - script:
+    # For TBB 2019, we use the CMakeLists.txt from Wenzel Jakob, who
+    # maintains a fork of TBB that differs only by adding a CMake build
+    # system. When we upgrade to TBB 2021, I think it does now comes with
+    # its own CMake build system.
+    - cp patches-tbb2019/CMakeLists.txt oneTBB
+    - cp patches-tbb2019/version_string.ver.in oneTBB/build
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+  script:
+    - cmake -B build -S oneTBB -G Ninja
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+    - cmake --build build --target install
+
+tests:
+  - stage: build
+    script:
+      - cmake -B build -S oneTBB -G Ninja
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+      - cmake --build build
+      - cd build
+      - ctest
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
