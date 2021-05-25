@@ -283,6 +283,14 @@ struct VarRequestSchema {
 }
 
 impl VarRequest {
+    pub fn new<S: AsRef<str>>(name: S) -> Self {
+        Self {
+            var: name.as_ref().to_string(),
+            pin: false,
+            value: Default::default(),
+        }
+    }
+
     /// Return the name of the package that this var refers to (if any)
     pub fn package(&self) -> Option<String> {
         if self.var.contains(".") {
@@ -290,6 +298,10 @@ impl VarRequest {
         } else {
             None
         }
+    }
+
+    pub fn value<'a>(&'a self) -> &'a str {
+        self.value.as_str()
     }
 
     /// Create a copy of this request with it's pin rendered out using 'var'.

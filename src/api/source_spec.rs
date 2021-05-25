@@ -45,7 +45,7 @@ impl SourceSpec {
 }
 
 /// Package source files in a local directory or file path.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSource {
     pub path: PathBuf,
     #[serde(
@@ -123,7 +123,7 @@ impl LocalSource {
 }
 
 /// Package source files from a remote git repository.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitSource {
     pub git: String,
     #[serde(default, rename = "ref", skip_serializing_if = "String::is_empty")]
@@ -176,7 +176,7 @@ impl GitSource {
 }
 
 /// Package source files from a local or remote tar archive.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TarSource {
     pub tar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -226,7 +226,7 @@ impl TarSource {
 }
 
 /// Package source files collected via arbitrary shell script.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSource {
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

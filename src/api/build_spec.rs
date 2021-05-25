@@ -17,7 +17,7 @@ use crate::{Error, Result};
 mod build_spec_test;
 
 /// An option that can be provided to provided to the package build process
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Opt {
     Pkg(PkgOpt),
@@ -192,7 +192,7 @@ impl BuildSpec {
     pub fn upsert_opt(&mut self, opt: Opt) {
         for other in self.options.iter_mut() {
             if other.name() == opt.name() {
-                std::mem::replace(other, opt);
+                let _ = std::mem::replace(other, opt);
                 return;
             }
         }
