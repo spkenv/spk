@@ -6,6 +6,7 @@ mod build;
 mod build_spec;
 mod compat;
 mod ident;
+mod install_spec;
 mod name;
 mod option_map;
 mod request;
@@ -19,6 +20,7 @@ pub use build::{parse_build, Build, InvalidBuildError};
 pub use build_spec::{BuildSpec, Inheritance, Opt, PkgOpt, VarOpt};
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use ident::{parse_ident, Ident};
+pub use install_spec::InstallSpec;
 pub use name::{validate_name, validate_tag_name, InvalidNameError};
 pub use option_map::{host_options, OptionMap};
 pub use request::{
@@ -26,7 +28,7 @@ pub use request::{
     VarRequest,
 };
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::{read_spec_file, InstallSpec, Spec};
+pub use spec::{read_spec_file, Spec};
 
 pub use test_spec::{TestSpec, TestStage};
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
