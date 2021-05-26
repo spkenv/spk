@@ -41,5 +41,6 @@ install:
   requirements:
     - pkg: stdfs
     - pkg: zlib
+      fromBuildEnv: x.x
     # Don't include gcc as install requirements, since we're only building
     # the pure C library components.

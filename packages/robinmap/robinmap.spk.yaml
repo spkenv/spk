@@ -1,4 +1,9 @@
 pkg: robinmap/0.6.3
+  # - name: "Robin-map"
+  # - description: "C++ implementation of a fast hash map and hash set"
+  # - license: MIT
+  # - url: https://github.com/Tessil/robin-map
+  # - bindings: [ "C++" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
@@ -25,5 +30,4 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    # - pkg: gcc
-    #   fromBuildEnv: x.x
+    # No need for gcc runtime, it's a header-only library

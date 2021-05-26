@@ -1,0 +1,34 @@
+pkg: jemalloc/4.5.0+r.1
+  # - name: jemalloc
+  # - description: "Open source scalable allocator for C/C++"
+  # - url: https://jemalloc.net
+  # - license: BSD-2-clause
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d jemalloc ] ; then git clone https://github.com/jemalloc/jemalloc -b 4.5.0 ; fi
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: gcc/6.3
+  # It's pure C, so no need for gcc C++ variants
+  script:
+    - cd jemalloc
+    - ./autogen.sh --prefix=$PREFIX
+    - make -j $(nproc)
+    # Make sure these files appear to be present before install, or it fails.
+    - touch doc/jemalloc.html
+    - touch doc/jemalloc.3
+    - make install
+
+install:
+  requirements:
+    # It's pure C, so does not need gcc at runtime
+    - pkg: stdfs

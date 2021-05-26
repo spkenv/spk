@@ -17,6 +17,7 @@ build:
     - var: arch
     - var: os
     - var: centos
+    - pkg: stdfs
     - pkg: gcc/6.3
     - pkg: python/3.7
     - pkg: imath/3
@@ -30,12 +31,14 @@ build:
     - cmake -S alembic -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
         -DUSE_PYALEMBIC=ON
         -DPYALEMBIC_PYTHON_MAJOR=${SPK_PKG_python_VERSION_MAJOR}
     - cmake --build build --target install
 
 install:
   requirements:
+    - pkg: stdfs
     - pkg: gcc
       fromBuildEnv: x.x
     - pkg: boost
@@ -50,10 +53,11 @@ tests:
   - stage: build
     script:
       - cmake -S alembic -B build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_INSTALL_PREFIX=$PREFIX
-          -DUSE_PYALEMBIC=ON
-          -DPYALEMBIC_PYTHON_MAJOR=${SPK_PKG_python_VERSION_MAJOR}
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
+        -DUSE_PYALEMBIC=ON
+        -DPYALEMBIC_PYTHON_MAJOR=${SPK_PKG_python_VERSION_MAJOR}
       - cmake --build build
       - cd build
       - ctest

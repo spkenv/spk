@@ -1,4 +1,4 @@
-pkg: libtiff/4.3.0+r.1
+pkg: libtiff/4.3.0+r.2
   # - name: LibTIFF
   # - description: "Library for TIFF images"
   # - url: http://www.simplesystems.org/libtiff/
@@ -18,8 +18,10 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
+    - pkg: stdfs
     - pkg: gcc/6.3
     - pkg: cmake/^3.13
+    - pkg: libjpeg
     - pkg: zlib
 
   # No need for gcc variants because we're only building the pure C library
@@ -28,6 +30,7 @@ build:
   script:
     - cmake -S libtiff -B build
         -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_PREFIX_PATH=${PREFIX}
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
         -Dcxx=OFF
     - cmake --build build --target install
@@ -36,5 +39,8 @@ install:
   requirements:
     - pkg: stdfs
     - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: libjpeg
+      fromBuildEnv: x.x
     # Don't include gcc as install requirements, since we're only building
     # the pure C library components.

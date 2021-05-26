@@ -24,8 +24,6 @@ build:
     - pkg: libtiff
     - pkg: libjpeg
   # It's pure C, so no need for gcc C++ variants
-  # variants:
-  #   - { gcc: 6.3 }
   script:
     - cd Little-CMS
     - ./configure --prefix=$PREFIX
@@ -36,8 +34,6 @@ install:
   requirements:
     # It's pure C, so does not need gcc at runtime
     - pkg: stdfs
-    # - pkg: gcc
-    #   fromBuildEnv: x.x
     - pkg: zlib
       fromBuildEnv: x.x
     - pkg: libtiff

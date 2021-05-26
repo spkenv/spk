@@ -1,4 +1,9 @@
 pkg: llvm/12.0.0
+  # - name: "LLVM+Clang"
+  # - description: "LLVM compiler infrastructure and Clang compiler and tools"
+  # - license: "Apache-2.0 WITH LLVM-exception"
+  # - url: https://llvm.org
+  # - bindings: [ "C++", "C" ]
 
 
 sources:
@@ -14,9 +19,11 @@ build:
     - var: arch
     - var: os
     - var: centos
+    - pkg: stdfs
     - pkg: gcc/6
     - pkg: cmake/^3.13
     - pkg: cuda
+    - pkg: ncurses
 
   variants:
     - { gcc: 6.3 }
@@ -29,5 +36,8 @@ build:
 
 install:
   requirements:
+    - pkg: stdfs
     - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: ncurses
       fromBuildEnv: x.x

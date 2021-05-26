@@ -48,6 +48,7 @@ install:
       fromBuildEnv: x.x
       include: IfAlreadyPresent
     - pkg: numpy
+      fromBuildEnv: x.x
       include: IfAlreadyPresent
 
 tests:
