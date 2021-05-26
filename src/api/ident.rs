@@ -4,6 +4,7 @@
 
 use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
+use pyo3::prelude::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{parse_build, parse_version, validate_name, Build, InvalidNameError, Version};
@@ -17,9 +18,12 @@ mod ident_test;
 /// The identifier is either a specific package or
 /// range of package versions/releases depending on the
 /// syntax and context
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Ident {
+    #[pyo3(get)]
     name: String,
+    #[pyo3(get, set)]
     pub version: Version,
     pub build: Option<Build>,
 }

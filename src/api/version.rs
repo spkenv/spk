@@ -7,9 +7,10 @@ use std::{
     str::FromStr,
 };
 
-use crate::Error;
+use pyo3::prelude::*;
 
 use super::validate_tag_name;
+use crate::Error;
 
 #[cfg(test)]
 #[path = "./version_test.rs"]
@@ -160,6 +161,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
 }
 
 /// Version specifies a package version number.
+#[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Version {
     pub major: u32,

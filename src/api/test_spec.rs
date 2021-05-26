@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{OptionMap, Request};
@@ -44,6 +45,7 @@ impl<'de> Deserialize<'de> for TestStage {
 }
 
 /// A set of structured inputs used to build a package.
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestSpec {
     stage: TestStage,

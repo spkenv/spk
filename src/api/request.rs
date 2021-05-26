@@ -7,6 +7,7 @@ use std::{
     str::FromStr,
 };
 
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
@@ -21,6 +22,7 @@ use super::{
 mod request_test;
 
 /// Identitfies a range of package versions and builds.
+#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct RangeIdent {
     name: String,
@@ -268,10 +270,14 @@ impl Request {
 }
 
 /// A set of restrictions placed on selected packages' build options.
+#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VarRequest {
+    #[pyo3(get, set)]
     pub var: String,
+    #[pyo3(get, set)]
     pub pin: bool,
+    #[pyo3(get)]
     value: String,
 }
 
@@ -372,6 +378,7 @@ impl Serialize for VarRequest {
 }
 
 /// A desired package and set of restrictions on how it's selected.
+#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct PkgRequest {
     pub pkg: RangeIdent,

@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -26,6 +27,7 @@ macro_rules! spec {
     }};
 }
 
+#[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Spec {
     #[serde(default)]

@@ -4,6 +4,7 @@
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -101,6 +102,7 @@ impl TryFrom<Request> for Opt {
 }
 
 /// A set of structured inputs used to build a package.
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BuildSpec {
     pub script: Vec<String>,

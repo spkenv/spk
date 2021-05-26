@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::HashSet;
 
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{BuildSpec, Ident, OptionMap, Request, Spec};
@@ -13,6 +14,7 @@ use crate::{Error, Result};
 mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
+#[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

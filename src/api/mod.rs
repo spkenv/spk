@@ -9,6 +9,7 @@ mod ident;
 mod install_spec;
 mod name;
 mod option_map;
+mod python;
 mod request;
 mod source_spec;
 mod spec;
@@ -30,13 +31,9 @@ pub use request::{
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{read_spec_file, Spec};
 
+pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
 pub use version_range::{
     parse_version_range, ExactVersion, VersionFilter, VersionRange, VERSION_RANGE_SEP,
 };
-
-use pyo3::prelude::*;
-pub fn init_module(_py: &Python, _m: &PyModule) -> PyResult<()> {
-    Ok(())
-}
