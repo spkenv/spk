@@ -18,10 +18,6 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - var: sse2/on
-      choices: [on, off]
-    - var: avx2/on
-      choices: [on, off]
     - pkg: cmake/^3.13
     - pkg: gcc/6.3
 
