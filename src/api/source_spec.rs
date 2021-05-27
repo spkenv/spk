@@ -4,6 +4,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 
@@ -45,6 +46,7 @@ impl SourceSpec {
 }
 
 /// Package source files in a local directory or file path.
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSource {
     pub path: PathBuf,
@@ -123,6 +125,7 @@ impl LocalSource {
 }
 
 /// Package source files from a remote git repository.
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitSource {
     pub git: String,
@@ -176,6 +179,7 @@ impl GitSource {
 }
 
 /// Package source files from a local or remote tar archive.
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TarSource {
     pub tar: String,
@@ -226,6 +230,7 @@ impl TarSource {
 }
 
 /// Package source files collected via arbitrary shell script.
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSource {
     pub script: Vec<String>,

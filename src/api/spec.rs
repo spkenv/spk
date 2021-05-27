@@ -30,18 +30,22 @@ macro_rules! spec {
 #[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Spec {
+    #[pyo3(get, set)]
     #[serde(default)]
     pub pkg: Ident,
     #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceSpec>,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "BuildSpec::is_default")]
     pub build: BuildSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "InstallSpec::is_empty")]
     pub install: InstallSpec,
 }

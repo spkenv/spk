@@ -288,6 +288,7 @@ impl Inheritance {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VarOpt {
     pub var: String,
@@ -433,6 +434,7 @@ impl<'de> Deserialize<'de> for VarOpt {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
     pub pkg: String,

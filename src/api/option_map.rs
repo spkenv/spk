@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use std::iter::FromIterator;
 
 use itertools::Itertools;
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use sys_info;
@@ -31,26 +32,32 @@ macro_rules! option_map {
 }
 
 /// A set of values for package build options.
+#[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OptionMap(pub BTreeMap<String, String>);
+#[serde(transparent)]
+pub struct OptionMap {
+    options: BTreeMap<String, String>,
+}
 
 impl std::ops::Deref for OptionMap {
     type Target = BTreeMap<String, String>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.options
     }
 }
 
 impl std::ops::DerefMut for OptionMap {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.options
     }
 }
 
 impl FromIterator<(String, String)> for OptionMap {
     fn from_iter<T: IntoIterator<Item = (String, String)>>(iter: T) -> Self {
-        Self(BTreeMap::from_iter(iter))
+        Self {
+            options: BTreeMap::from_iter(iter),
+        }
     }
 }
 
@@ -58,6 +65,35 @@ impl std::fmt::Display for OptionMap {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let items: Vec<_> = self.iter().map(|(n, v)| format!("{}: {}", n, v)).collect();
         f.write_fmt(format_args!("{{{}}}", items.join(", ")))
+    }
+}
+
+#[pymethods]
+impl OptionMap {
+    #[new]
+    #[args(py_kwargs = "**")]
+    pub fn new(
+        py: pyo3::Python,
+        py_args: Option<&pyo3::types::PyDict>,
+        py_kwargs: Option<&pyo3::types::PyDict>,
+    ) -> Self {
+        let mut opts = OptionMap::default();
+        if let Some(data) = py_args.or(py_kwargs) {
+            for (name, value) in data.iter() {
+                let name = name
+                    .str()
+                    .unwrap_or_else(|_| pyo3::types::PyString::new(py, ""))
+                    .to_string_lossy()
+                    .to_string();
+                let value = value
+                    .str()
+                    .unwrap_or_else(|_| pyo3::types::PyString::new(py, ""))
+                    .to_string_lossy()
+                    .to_string();
+                opts.insert(name, value);
+            }
+        }
+        opts
     }
 }
 

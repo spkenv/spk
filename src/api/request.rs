@@ -381,6 +381,7 @@ impl Serialize for VarRequest {
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct PkgRequest {
+    #[pyo3(get, set)]
     pub pkg: RangeIdent,
     #[serde(
         rename = "prereleasePolicy",
@@ -399,6 +400,7 @@ pub struct PkgRequest {
         default,
         skip_serializing_if = "Option::is_none"
     )]
+    #[pyo3(get, set)]
     pub pin: Option<String>,
     #[serde(skip)]
     pub required_compat: CompatRule,
