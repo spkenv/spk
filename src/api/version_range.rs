@@ -12,6 +12,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use pyo3::prelude::*;
 
 use crate::{Error, Result};
 
@@ -127,7 +128,7 @@ impl<T: Ranged> Ranged for &T {
 }
 
 /// Specifies a range of version numbers by inclusion or exclusion
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, FromPyObject)]
 pub enum VersionRange {
     Semver(SemverRange),
     Wildcard(WildcardRange),
@@ -271,6 +272,7 @@ impl<T: Ranged> From<&T> for VersionRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SemverRange {
     minimum: Version,
@@ -323,6 +325,7 @@ impl Display for SemverRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WildcardRange {
     specified: usize,
@@ -431,6 +434,7 @@ impl Display for WildcardRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LowestSpecifiedRange {
     specified: usize,
@@ -492,6 +496,7 @@ impl Display for LowestSpecifiedRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GreaterThanRange {
     bound: Version,
@@ -539,6 +544,7 @@ impl Display for GreaterThanRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LessThanRange {
     bound: Version,
@@ -586,6 +592,7 @@ impl Display for LessThanRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GreaterThanOrEqualToRange {
     bound: Version,
@@ -633,6 +640,7 @@ impl Display for GreaterThanOrEqualToRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LessThanOrEqualToRange {
     bound: Version,
@@ -680,6 +688,7 @@ impl Display for LessThanOrEqualToRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExactVersion {
     version: Version,
@@ -747,6 +756,7 @@ impl Display for ExactVersion {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExcludedVersion {
     specified: usize,
@@ -804,6 +814,7 @@ impl Display for ExcludedVersion {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
     base: Version,
@@ -849,6 +860,7 @@ impl Display for CompatRange {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VersionFilter {
     rules: HashSet<VersionRange>,

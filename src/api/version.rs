@@ -243,10 +243,10 @@ impl FromStr for Version {
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut base = self.base();
-        if self.pre.0.len() > 0 {
+        if self.pre.tags.len() > 0 {
             base = format!("{}-{}", base, self.pre.to_string());
         }
-        if self.post.0.len() > 0 {
+        if self.post.tags.len() > 0 {
             base = format!("{}+{}", base, self.post.to_string());
         }
         f.write_str(&base)

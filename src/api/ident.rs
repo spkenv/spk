@@ -25,6 +25,7 @@ pub struct Ident {
     name: String,
     #[pyo3(get, set)]
     pub version: Version,
+    #[pyo3(get, set)]
     pub build: Option<Build>,
 }
 

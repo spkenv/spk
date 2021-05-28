@@ -255,7 +255,7 @@ impl Default for InclusionPolicy {
 }
 
 /// Represents a contraint added to a resolved environment.
-#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq, FromPyObject)]
 #[serde(untagged)]
 pub enum Request {
     Var(VarRequest),

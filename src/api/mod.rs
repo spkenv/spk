@@ -35,5 +35,7 @@ pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};
 pub use version::{parse_version, InvalidVersionError, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
 pub use version_range::{
-    parse_version_range, ExactVersion, VersionFilter, VersionRange, VERSION_RANGE_SEP,
+    parse_version_range, CompatRange, ExactVersion, ExcludedVersion, GreaterThanOrEqualToRange,
+    GreaterThanRange, LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, SemverRange,
+    VersionFilter, VersionRange, WildcardRange, VERSION_RANGE_SEP,
 };

@@ -17,8 +17,10 @@ mod install_spec_test;
 #[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct InstallSpec {
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: Vec<Request>,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: Vec<Spec>,
 }
