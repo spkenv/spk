@@ -1,5 +1,5 @@
 
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Set, Union
 import typing
 
 
@@ -35,15 +35,34 @@ class VarRequest:
 
 Request = Union[PkgRequest, VarRequest]
 
-class PkgOpt: ...
+class PkgOpt:
+    pkg: str
+    default: str
 
-class VarOpt: ...
+    @property
+    def value(self) -> Optional[str]: ...
+
+class VarOpt:
+    var: str
+    default: str
+    choices: Set[str]
+
+    @property
+    def value(self) -> Optional[str]: ...
 
 Option = Union[PkgOpt, VarOpt]
 
 class TestSpec: ...
 
-class Version: ...
+class TagSet: ...
+
+class Version:
+    major: int
+    minor: int
+    patch: int
+    tail: List[int]
+    pre: TagSet
+    post: TagSet
 
 class LocalSource: ...
 

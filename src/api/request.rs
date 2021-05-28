@@ -25,8 +25,11 @@ mod request_test;
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct RangeIdent {
+    #[pyo3(get)]
     name: String,
+    #[pyo3(get, set)]
     pub version: VersionFilter,
+    #[pyo3(get, set)]
     pub build: Option<Build>,
 }
 

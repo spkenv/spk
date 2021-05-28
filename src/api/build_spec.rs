@@ -291,10 +291,14 @@ impl Inheritance {
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VarOpt {
+    #[pyo3(get, set)]
     pub var: String,
+    #[pyo3(get, set)]
     pub default: String,
+    #[pyo3(get, set)]
     pub choices: HashSet<String>,
     pub inheritance: Inheritance,
+    #[pyo3(get)]
     value: Option<String>,
 }
 
@@ -437,9 +441,12 @@ impl<'de> Deserialize<'de> for VarOpt {
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
+    #[pyo3(get, set)]
     pub pkg: String,
+    #[pyo3(get, set)]
     pub default: String,
     pub prerelease_policy: PreReleasePolicy,
+    #[pyo3(get)]
     value: Option<String>,
 }
 

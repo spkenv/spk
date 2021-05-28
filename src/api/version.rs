@@ -33,38 +33,41 @@ impl InvalidVersionError {
 }
 
 /// TagSet contains a set of pre or post release version tags
+#[pyclass]
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-pub struct TagSet(std::collections::BTreeMap<String, u32>);
+pub struct TagSet {
+    tags: std::collections::BTreeMap<String, u32>,
+}
 
 impl std::ops::Deref for TagSet {
     type Target = std::collections::BTreeMap<String, u32>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.tags
     }
 }
 
 impl TagSet {
     pub fn single<S: Into<String>>(name: S, value: u32) -> TagSet {
         let mut tag_set = TagSet::default();
-        tag_set.0.insert(name.into(), value);
+        tag_set.tags.insert(name.into(), value);
         return tag_set;
     }
     pub fn double<S: Into<String>>(name_1: S, value_1: u32, name_2: S, value_2: u32) -> TagSet {
         let mut tag_set = TagSet::default();
-        tag_set.0.insert(name_1.into(), value_1);
-        tag_set.0.insert(name_2.into(), value_2);
+        tag_set.tags.insert(name_1.into(), value_1);
+        tag_set.tags.insert(name_2.into(), value_2);
         return tag_set;
     }
     pub fn is_empty(&self) -> bool {
-        self.0.keys().len() == 0
+        self.tags.keys().len() == 0
     }
 }
 
 impl ToString for TagSet {
     fn to_string(&self) -> String {
         let parts: Vec<_> = self
-            .0
+            .tags
             .iter()
             .map(|(name, num)| format!("{}.{}", name, num))
             .collect();
@@ -80,8 +83,8 @@ impl PartialOrd for TagSet {
 
 impl Ord for TagSet {
     fn cmp(&self, other: &Self) -> Ordering {
-        let mut self_entries: Vec<_> = self.0.iter().collect();
-        let mut other_entries: Vec<_> = other.0.iter().collect();
+        let mut self_entries: Vec<_> = self.tags.iter().collect();
+        let mut other_entries: Vec<_> = other.tags.iter().collect();
         self_entries.sort_unstable();
         other_entries.sort_unstable();
         let self_entries = self_entries.into_iter();
@@ -103,7 +106,7 @@ impl Ord for TagSet {
             }
         }
 
-        return self.0.len().cmp(&other.0.len());
+        return self.tags.len().cmp(&other.tags.len());
     }
 }
 
@@ -118,7 +121,7 @@ impl FromStr for TagSet {
 /// Parse the given string as a set of version tags.
 ///
 /// ```
-/// let tag_set = parse_tag_set("release.0,alpha.1").unwrap();
+/// let tag_set = parse_tag_set("release.tags,alpha.1").unwrap();
 /// assert_eq!(tag_set.get("alpha"), Some(1));
 /// ```
 pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
@@ -138,13 +141,13 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
                 )))
             }
             _ => {
-                if tag_set.0.contains_key(name) {
+                if tag_set.tags.contains_key(name) {
                     return Err(InvalidVersionError::new(format!("duplicate tag: {}", name)));
                 }
                 validate_tag_name(name)?;
                 match num.parse() {
                     Ok(num) => {
-                        tag_set.0.insert(name.to_string(), num);
+                        tag_set.tags.insert(name.to_string(), num);
                     }
                     Err(_) => {
                         return Err(InvalidVersionError::new(format!(
@@ -164,11 +167,17 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
 #[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Version {
+    #[pyo3(get, set)]
     pub major: u32,
+    #[pyo3(get, set)]
     pub minor: u32,
+    #[pyo3(get, set)]
     pub patch: u32,
+    #[pyo3(get, set)]
     pub tail: Vec<u32>,
+    #[pyo3(get, set)]
     pub pre: TagSet,
+    #[pyo3(get, set)]
     pub post: TagSet,
 }
 
