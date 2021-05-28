@@ -3,7 +3,7 @@
 # https://github.com/imageworks/spk
 
 from spk.exec import _LOGGER
-from typing import Dict, List, Tuple
+from typing import Dict, Iterator, List, Tuple
 import os
 import re
 import sys
@@ -66,6 +66,8 @@ def get_solver_from_flags(args: argparse.Namespace) -> spk.Solver:
     solver.update_options(options)
     configure_solver_with_repo_flags(args, solver)
     solver.set_binary_only(args.binary_only)
+    for r in get_var_requests_from_option_flags(args):
+        solver.add_request(r)
     return solver
 
 
@@ -93,11 +95,20 @@ def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
     else:
         opts = spk.api.host_options()
 
+    for req in get_var_requests_from_option_flags(args):
+        opts[req.var] = req.value
+
+    return opts
+
+
+def get_var_requests_from_option_flags(args: argparse.Namespace) -> Iterator[spk.api.VarRequest]:
+
     for pair in getattr(args, "opt", []):
 
         pair = pair.strip()
         if pair.startswith("{"):
-            opts.update(yaml.safe_load(pair) or {})
+            for name, value in (yaml.safe_load(pair) or {}).items():
+                yield spk.api.VarRequest(name, value)
             continue
 
         if "=" in pair:
@@ -108,9 +119,7 @@ def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
             raise ValueError(
                 f"Invalid option: -o {pair} (should be in the form name=value)"
             )
-        opts[name] = value
-
-    return opts
+        yield spk.api.VarRequest(name, value)
 
 
 def add_request_flags(parser: argparse.ArgumentParser) -> None:
