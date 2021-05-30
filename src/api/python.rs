@@ -1,6 +1,13 @@
-use pyo3::{prelude::*, types};
+use pyo3::{prelude::*, types, wrap_pyfunction};
+
+#[pyfunction]
+fn parse_version(v: &str) -> crate::Result<super::Version> {
+    super::parse_version(v)
+}
 
 pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(parse_version, m)?)?;
+
     m.add_class::<super::Ident>()?;
     m.add_class::<super::Spec>()?;
     m.add_class::<super::BuildSpec>()?;

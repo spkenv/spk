@@ -181,7 +181,9 @@ pub struct Version {
     pub post: TagSet,
 }
 
+#[pymethods]
 impl Version {
+    #[new(major = 0, minor = 0, patch = 0)]
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {
             major: major,
@@ -191,17 +193,8 @@ impl Version {
         }
     }
 
-    pub fn from_parts<P: Iterator<Item = u32>>(mut parts: P) -> Self {
-        Version {
-            major: parts.next().unwrap_or_default(),
-            minor: parts.next().unwrap_or_default(),
-            patch: parts.next().unwrap_or_default(),
-            tail: parts.collect(),
-            ..Default::default()
-        }
-    }
-
     /// The integer pieces of this version number
+    #[getter]
     pub fn parts(&self) -> Vec<u32> {
         let mut parts = vec![self.major, self.minor, self.patch];
         parts.append(&mut self.tail.clone());
@@ -209,6 +202,7 @@ impl Version {
     }
 
     /// The base integer portion of this version as a string
+    #[getter]
     pub fn base(&self) -> String {
         let part_strings: Vec<_> = self.parts().into_iter().map(|p| p.to_string()).collect();
         part_strings.join(VERSION_SEP)
@@ -220,6 +214,18 @@ impl Version {
             self.pre.is_empty() && self.post.is_empty()
         } else {
             false
+        }
+    }
+}
+
+impl Version {
+    pub fn from_parts<P: Iterator<Item = u32>>(mut parts: P) -> Self {
+        Version {
+            major: parts.next().unwrap_or_default(),
+            minor: parts.next().unwrap_or_default(),
+            patch: parts.next().unwrap_or_default(),
+            tail: parts.collect(),
+            ..Default::default()
         }
     }
 }
