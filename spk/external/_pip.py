@@ -135,8 +135,10 @@ class PipImporter:
         assert not info.supported_platforms, "No support for supported platforms field"
 
         spec = api.Spec()
-        spec.pkg.name = _to_spk_name(info.name)
-        spec.pkg.version = api.parse_version(_to_spk_version(info.version))
+        spec.pkg = api.Ident(
+            _to_spk_name(info.name),
+            api.parse_version(_to_spk_version(info.version)),
+        )
         spec.sources = []
         spec.build.options = [
             api.VarOpt("os"),

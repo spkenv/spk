@@ -40,6 +40,39 @@ impl std::fmt::Display for Ident {
     }
 }
 
+#[pymethods]
+impl Ident {
+    #[new]
+    fn newpy(name: &str, version: Option<Version>, build: Option<Build>) -> crate::Result<Self> {
+        let mut ident = Self::new(name)?;
+        if let Some(version) = version {
+            ident.version = version;
+        }
+        ident.build = build;
+        Ok(ident)
+    }
+
+    /// Return true if this identifier is for a source package.
+    pub fn is_source(&self) -> bool {
+        match &self.build {
+            Some(build) => build.is_source(),
+            None => false,
+        }
+    }
+
+    /// Set the build component of this package identifier.
+    pub fn set_build(&mut self, build: Option<Build>) {
+        self.build = build;
+    }
+
+    /// Return a copy of this identifier with the given build replaced.
+    pub fn with_build(&self, build: Option<Build>) -> Self {
+        let mut new = self.clone();
+        new.build = build;
+        new
+    }
+}
+
 impl Ident {
     pub fn new<S: AsRef<str>>(name: S) -> crate::Result<Self> {
         validate_name(name.as_ref())?;
@@ -64,26 +97,6 @@ impl Ident {
                 }
             }
         }
-    }
-
-    /// Return true if this identifier is for a source package.
-    pub fn is_source(&self) -> bool {
-        match &self.build {
-            Some(build) => build.is_source(),
-            None => false,
-        }
-    }
-
-    /// Set the build component of this package identifier.
-    pub fn set_build(&mut self, build: Option<Build>) {
-        self.build = build;
-    }
-
-    /// Return a copy of this identifier with the given build replaced.
-    pub fn with_build(&self, build: Option<Build>) -> Self {
-        let mut new = self.clone();
-        new.build = build;
-        new
     }
 }
 
