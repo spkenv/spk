@@ -2,6 +2,9 @@
 from typing import Dict, List, Optional, Set, Union
 import typing
 
+EMBEDDED: str
+SRC: str
+
 
 class Ident:
     version: Version

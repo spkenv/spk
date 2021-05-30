@@ -6,6 +6,9 @@ fn parse_version(v: &str) -> crate::Result<super::Version> {
 }
 
 pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
+    m.add("EMBEDDED", super::Build::Embedded.to_string())?;
+    m.add("SRC", super::Build::Source.to_string())?;
+
     m.add_function(wrap_pyfunction!(parse_version, m)?)?;
 
     m.add_class::<super::Ident>()?;
