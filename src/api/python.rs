@@ -20,6 +20,7 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::VarRequest>()?;
     m.add_class::<super::TestSpec>()?;
     m.add_class::<super::Version>()?;
+    m.add_class::<super::OptionMap>()?;
     m.add_class::<super::SemverRange>()?;
     m.add_class::<super::WildcardRange>()?;
     m.add_class::<super::LowestSpecifiedRange>()?;

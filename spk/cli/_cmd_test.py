@@ -85,7 +85,7 @@ def _test(args: argparse.Namespace) -> None:
 
                 opts.update(variant)
                 opts.update(options)
-                digest = opts.digest()
+                digest = opts.digest
                 if digest in tested:
                     continue
                 tested.add(digest)
@@ -106,7 +106,7 @@ def _test(args: argparse.Namespace) -> None:
                     for selector in test.selectors:
                         selected_opts = opts.copy()
                         selected_opts.update(selector)
-                        if selected_opts.digest() == digest:
+                        if selected_opts.digest == digest:
                             break
                     else:
                         if test.selectors:

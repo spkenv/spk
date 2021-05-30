@@ -98,7 +98,7 @@ def import_spcomp2(
             pkg=api.Ident(
                 spk_name,
                 latest,
-                build=build_opts.digest(),
+                build=build_opts.digest,
             ),
             compat=api.parse_compat("x.ab"),
             build=build_spec,

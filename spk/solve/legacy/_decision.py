@@ -99,6 +99,8 @@ class Decision:
 
     def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
         """Update the options for this solver state."""
+        if not isinstance(options, api.OptionMap):
+            options = api.OptionMap(options)
         self._options.update(options)
 
     def get_options(self) -> api.OptionMap:
@@ -143,7 +145,9 @@ class Decision:
         self._resolved.add(request, spec, source)
 
         for name, value in spec.resolve_all_options({}).items():
-            self._options.setdefault(f"{spec.pkg.name}.{name}", value)
+            name = f"{spec.pkg.name}.{name}"
+            if name not in self._options:
+                self._options[name] = value
 
         try:
             del self._unresolved[spec.pkg.name]

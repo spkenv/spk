@@ -21,6 +21,8 @@ mod option_map_test;
 // a nice way to handle validation / and 16 is a lot
 pub const DIGEST_SIZE: usize = 8;
 
+type Digest = [char; DIGEST_SIZE];
+
 #[macro_export]
 macro_rules! option_map {
     ($($k:expr => $v:expr),* $(,)?) => {{
@@ -95,10 +97,32 @@ impl OptionMap {
         }
         opts
     }
+
+    fn get(&self, key: String, default: Option<String>) -> Option<String> {
+        let res = self.options.get(&key).map(String::to_owned);
+        if res.is_some() {
+            res
+        } else {
+            default
+        }
+    }
+
+    fn copy(&self) -> Self {
+        self.clone()
+    }
+
+    fn update(&mut self, other: &mut OptionMap) {
+        self.options.append(&mut other.options)
+    }
+
+    #[getter(digest)]
+    fn pydigest(&self) -> String {
+        self.digest_str()
+    }
 }
 
 impl OptionMap {
-    pub fn digest(&self) -> [char; DIGEST_SIZE] {
+    pub fn digest(&self) -> Digest {
         let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
         for (name, value) in self.iter() {
             hasher.update(name.as_bytes());
@@ -197,4 +221,37 @@ pub fn host_options() -> crate::Result<OptionMap> {
     }
 
     Ok(opts)
+}
+
+#[pyproto]
+impl pyo3::mapping::PyMappingProtocol for OptionMap {
+    fn __len__(self) -> usize {
+        self.options.len()
+    }
+
+    fn __getitem__(&self, key: String) -> PyResult<String> {
+        self.options
+            .get(&key)
+            .map(String::clone)
+            .ok_or(pyo3::exceptions::PyKeyError::new_err(key))
+    }
+
+    fn __setitem__(&mut self, key: String, value: String) {
+        self.options.insert(key, value);
+    }
+
+    fn __delitem__(&mut self, key: String) {
+        self.options.remove(&key);
+    }
+}
+
+#[pyproto]
+impl pyo3::iter::PyIterProtocol for OptionMap {
+    fn __iter__(slf: PyRef<'p, Self>) -> Vec<String> {
+        slf.options
+            .keys()
+            .into_iter()
+            .map(String::to_owned)
+            .collect()
+    }
 }
