@@ -4,9 +4,13 @@ import typing
 
 EMBEDDED: str
 SRC: str
+COMPATIBLE: Compatibility
 
 def opt_from_dict(input: Dict[str, Any]) -> Option: ...
 def request_from_dict(input: Dict[str, Any]) -> Request: ...
+
+class Compatibility:
+    def __init__(self, msg: str = "") -> None: ...
 
 class Ident:
     version: Version

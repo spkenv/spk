@@ -5,11 +5,50 @@ fn parse_version(v: &str) -> crate::Result<super::Version> {
     super::parse_version(v)
 }
 
+#[pyclass]
+struct Compatibility {
+    inner: super::Compatibility,
+}
+
+#[pymethods]
+impl Compatibility {
+    #[new]
+    #[args(msg = "\"\"")]
+    fn new(msg: &str) -> Compatibility {
+        let inner = if msg.is_empty() {
+            super::Compatibility::Compatible
+        } else {
+            super::Compatibility::Incompatible(msg.to_string())
+        };
+        Compatibility { inner: inner }
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for Compatibility {
+    fn __bool__(&self) -> bool {
+        match self.inner {
+            super::Compatibility::Compatible => true,
+            super::Compatibility::Incompatible(_) => false,
+        }
+    }
+
+    fn __str__(&self) -> String {
+        match &self.inner {
+            super::Compatibility::Compatible => "".to_string(),
+            super::Compatibility::Incompatible(msg) => msg.clone(),
+        }
+    }
+}
+
 pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add("EMBEDDED", super::Build::Embedded.to_string())?;
     m.add("SRC", super::Build::Source.to_string())?;
+    m.add("COMPATIBLE", Compatibility::new(""))?;
 
     m.add_function(wrap_pyfunction!(parse_version, m)?)?;
+    m.add_function(wrap_pyfunction!(opt_from_dict, m)?)?;
+    m.add_function(wrap_pyfunction!(request_from_dict, m)?)?;
 
     m.add_class::<super::Ident>()?;
     m.add_class::<super::Spec>()?;
