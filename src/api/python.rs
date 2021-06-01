@@ -5,6 +5,36 @@ fn parse_version(v: &str) -> crate::Result<super::Version> {
     super::parse_version(v)
 }
 
+#[pyfunction]
+fn parse_compat(v: &str) -> crate::Result<super::Compat> {
+    super::parse_compat(v)
+}
+
+#[pyfunction]
+fn parse_ident(v: &str) -> crate::Result<super::Ident> {
+    super::parse_ident(v)
+}
+
+#[pyfunction]
+fn parse_ident_range(v: &str) -> crate::Result<super::RangeIdent> {
+    super::parse_ident_range(v)
+}
+
+#[pyfunction]
+fn parse_version_range(v: &str) -> crate::Result<super::VersionRange> {
+    super::parse_version_range(v)
+}
+
+#[pyfunction]
+fn host_options() -> crate::Result<super::OptionMap> {
+    super::host_options()
+}
+
+#[pyfunction]
+fn validate_name(name: &str) -> crate::Result<()> {
+    super::validate_name(name)
+}
+
 #[pyclass]
 struct Compatibility {
     inner: super::Compatibility,
@@ -47,8 +77,14 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add("COMPATIBLE", Compatibility::new(""))?;
 
     m.add_function(wrap_pyfunction!(parse_version, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_compat, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_ident, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_ident_range, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_version_range, m)?)?;
     m.add_function(wrap_pyfunction!(opt_from_dict, m)?)?;
     m.add_function(wrap_pyfunction!(request_from_dict, m)?)?;
+    m.add_function(wrap_pyfunction!(host_options, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_name, m)?)?;
 
     m.add_class::<super::Ident>()?;
     m.add_class::<super::Spec>()?;
@@ -84,6 +120,24 @@ impl<'source> FromPyObject<'source> for super::Build {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
         let string = <&'source str>::extract(ob)?;
         match super::parse_build(string) {
+            Err(err) => Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                err.to_string(),
+            )),
+            Ok(res) => Ok(res),
+        }
+    }
+}
+
+impl IntoPy<Py<types::PyAny>> for super::Compat {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::Compat {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        let string = <&'source str>::extract(ob)?;
+        match super::parse_compat(string) {
             Err(err) => Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 err.to_string(),
             )),

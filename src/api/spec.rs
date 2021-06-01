@@ -33,6 +33,7 @@ pub struct Spec {
     #[pyo3(get, set)]
     #[serde(default)]
     pub pkg: Ident,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
     #[pyo3(get, set)]
