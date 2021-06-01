@@ -1,10 +1,12 @@
 
-from typing import Dict, Iterator, List, MutableMapping, Optional, Set, Union
+from typing import Any, Dict, Iterator, List, MutableMapping, Optional, Set, Union
 import typing
 
 EMBEDDED: str
 SRC: str
 
+def opt_from_dict(input: Dict[str, Any]) -> Option: ...
+def request_from_dict(input: Dict[str, Any]) -> Request: ...
 
 class Ident:
     version: Version
@@ -25,6 +27,9 @@ class Spec:
     build: BuildSpec
     install: InstallSpec
 
+    @staticmethod
+    def from_dict(input: Dict[str, Any]) -> Spec: ...
+
 class BuildSpec: ...
 
 class InstallSpec:
@@ -41,6 +46,9 @@ class RangeIdent:
 class PkgRequest:
     pkg: RangeIdent
     pin: Optional[str]
+
+    @staticmethod
+    def from_dict(input: Dict[str, Any]) -> PkgRequest: ...
 
 class VarRequest:
     var: str
@@ -89,11 +97,17 @@ class Version:
     def base(self) -> str: ...
     def is_zero(self) -> bool: ...
 
-class LocalSource: ...
+class LocalSource:
+    @staticmethod
+    def from_dict(input: Dict[str, Any]) -> LocalSource: ...
 
-class GitSource: ...
+class GitSource:
+    @staticmethod
+    def from_dict(input: Dict[str, Any]) -> GitSource: ...
 
-class TarSource: ...
+class TarSource:
+    @staticmethod
+    def from_dict(input: Dict[str, Any]) -> TarSource: ...
 
 class ScriptSource: ...
 

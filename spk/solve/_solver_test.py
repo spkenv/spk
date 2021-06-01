@@ -400,7 +400,7 @@ def test_solver_pre_release_config(solver: Union[Solver, legacy.Solver]) -> None
     solver.reset()
     solver.add_repository(repo)
     solver.add_request(
-        api.Request.from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
+        api.request_from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
     )
 
     solution = solver.solve()
@@ -712,7 +712,7 @@ def test_solver_deprecated_build(solver: Union[Solver, legacy.Solver]) -> None:
 
     solver.reset()
     solver.add_repository(repo)
-    solver.add_request(api.Request.from_dict({"pkg": str(deprecated.pkg)}))
+    solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
     try:
         solution = solver.solve()
@@ -743,7 +743,7 @@ def test_solver_deprecated_version(solver: Union[Solver, legacy.Solver]) -> None
 
     solver.reset()
     solver.add_repository(repo)
-    solver.add_request(api.Request.from_dict({"pkg": str(deprecated.pkg)}))
+    solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
     try:
         solution = solver.solve()

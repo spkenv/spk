@@ -62,6 +62,15 @@ impl IntoPy<Py<PyAny>> for super::Request {
     }
 }
 
+impl IntoPy<Py<PyAny>> for super::Opt {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            super::Opt::Var(var) => var.into_py(py),
+            super::Opt::Pkg(pkg) => pkg.into_py(py),
+        }
+    }
+}
+
 impl IntoPy<Py<PyAny>> for super::VersionRange {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
@@ -78,4 +87,77 @@ impl IntoPy<Py<PyAny>> for super::VersionRange {
             super::VersionRange::Filter(rng) => rng.into_py(py),
         }
     }
+}
+
+#[pymethods]
+impl super::Spec {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        from_dict(input, py)
+    }
+}
+
+#[pymethods]
+impl super::TarSource {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        from_dict(input, py)
+    }
+}
+
+#[pymethods]
+impl super::GitSource {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        from_dict(input, py)
+    }
+}
+
+#[pymethods]
+impl super::LocalSource {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        from_dict(input, py)
+    }
+}
+
+#[pymethods]
+impl super::PkgRequest {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        from_dict(input, py)
+    }
+}
+
+#[pyfunction]
+fn opt_from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<super::Opt> {
+    from_dict(input, py)
+}
+
+#[pyfunction]
+fn request_from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<super::Request> {
+    from_dict(input, py)
+}
+
+fn from_dict<T>(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let locals = pyo3::types::PyDict::new(py);
+    let _ = locals.set_item("data", input);
+    let dumps = py
+        .eval("import json; json.dumps(data)", None, Some(locals))
+        .or_else(|err| {
+            Err(crate::Error::String(format!(
+                "Not a valid dictionary: {:?}",
+                err
+            )))
+        })?;
+    let json: &str = dumps.extract().or_else(|err| {
+        Err(crate::Error::String(format!(
+            "Not a valid dictionary: {:?}",
+            err
+        )))
+    })?;
+    Ok(serde_yaml::from_str(json)?)
 }
