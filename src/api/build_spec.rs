@@ -16,10 +16,13 @@ mod build_spec_test;
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BuildSpec {
+    #[pyo3(get, set)]
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[pyo3(get, set)]
     pub options: Vec<Opt>,
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
+    #[pyo3(get, set)]
     pub variants: Vec<OptionMap>,
 }
 
@@ -44,6 +47,17 @@ impl BuildSpec {
         }
         variants.get(0) == Some(&OptionMap::default())
     }
+}
+
+#[pymethods]
+impl BuildSpec {
+    #[new]
+    fn init(options: Vec<Opt>) -> Self {
+        Self {
+            options: options,
+            ..Self::default()
+        }
+    }
 
     pub fn resolve_all_options(&self, package_name: Option<&str>, given: &OptionMap) -> OptionMap {
         let mut resolved = OptionMap::default();
@@ -66,9 +80,9 @@ impl BuildSpec {
     }
 
     /// Validate the given options against the options in this spec.
-    pub fn validate_options<S: AsRef<str>>(
+    pub fn validate_options(
         &self,
-        package_name: S,
+        package_name: &str,
         mut given_options: OptionMap,
     ) -> Compatibility {
         let mut must_exist = given_options.package_options_without_global(&package_name);

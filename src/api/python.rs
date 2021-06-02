@@ -88,6 +88,7 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_ident_range, m)?)?;
     m.add_function(wrap_pyfunction!(parse_version_range, m)?)?;
     m.add_function(wrap_pyfunction!(opt_from_dict, m)?)?;
+    m.add_function(wrap_pyfunction!(opt_from_request, m)?)?;
     m.add_function(wrap_pyfunction!(request_from_dict, m)?)?;
     m.add_function(wrap_pyfunction!(host_options, m)?)?;
     m.add_function(wrap_pyfunction!(validate_name, m)?)?;
@@ -294,6 +295,12 @@ impl super::PkgRequest {
 #[pyfunction]
 fn opt_from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<super::Opt> {
     from_dict(input, py)
+}
+
+#[pyfunction]
+fn opt_from_request(input: super::Request) -> crate::Result<super::Opt> {
+    use std::convert::TryFrom;
+    super::Opt::try_from(input)
 }
 
 #[pyfunction]

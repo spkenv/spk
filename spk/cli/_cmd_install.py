@@ -72,7 +72,8 @@ def _install(args: argparse.Namespace) -> None:
             raise NotImplementedError("'source' stage is not yet supported")
         elif stage == "build":
             for r in requests:
-                spec.build.upsert_opt(r)
+                o = spk.api.opt_from_request(r)
+                spec.build.upsert_opt(o)
 
         elif stage == "install":
             for r in requests:
