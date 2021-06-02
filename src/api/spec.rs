@@ -39,11 +39,13 @@ pub struct Spec {
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceSpec>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "BuildSpec::is_default")]
     pub build: BuildSpec,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[pyo3(get, set)]
@@ -51,15 +53,24 @@ pub struct Spec {
     pub install: InstallSpec,
 }
 
+#[pymethods]
 impl Spec {
+    #[new]
+    fn init() -> Self {
+        Self::default()
+    }
+
+    fn copy(&self) -> Self {
+        self.clone()
+    }
+
     /// Return the full set of resolved build options using the given ones.
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
         self.build
             .resolve_all_options(Some(&self.pkg.name()), given)
     }
-
     /// Check if this package spec satisfies the given request.
-    pub fn sastisfies_request(&self, request: &Request) -> Compatibility {
+    pub fn sastisfies_request(&self, request: Request) -> Compatibility {
         match request {
             Request::Pkg(request) => self.satisfies_pkg_request(&request),
             Request::Var(request) => self.satisfies_var_request(&request),
@@ -138,6 +149,12 @@ impl Spec {
         ))
     }
 
+    fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {
+        self.update_for_build(options, resolved.iter())
+    }
+}
+
+impl Spec {
     /// Update this spec to represent a specific binary package build.
     pub fn update_for_build<'a>(
         &mut self,

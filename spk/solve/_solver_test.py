@@ -34,7 +34,7 @@ def make_repo(
     def add_pkg(s: Union[Dict, api.Spec]) -> None:
         if isinstance(s, dict):
             spec = api.Spec.from_dict(s)
-            s = spec.clone()
+            s = spec.copy()
             spec.pkg.set_build(None)
             repo.force_publish_spec(spec)
             s = make_build(s.to_dict(), [], opts)
@@ -55,7 +55,7 @@ def make_build(
         return spec
     build_opts = opts.copy()
     build_opts.update(spec.resolve_all_options(build_opts))
-    spec.update_for_build(build_opts, deps)
+    spec.update_spec_for_build(build_opts, deps)
     return spec
 
 

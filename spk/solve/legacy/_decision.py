@@ -144,7 +144,7 @@ class Decision:
 
         self._resolved.add(request, spec, source)
 
-        for name, value in spec.resolve_all_options({}).items():
+        for name, value in spec.resolve_all_options(api.OptionMap()).items():
             name = f"{spec.pkg.name}.{name}"
             if name not in self._options:
                 self._options[name] = value

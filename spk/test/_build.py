@@ -101,7 +101,7 @@ class PackageBuildTester:
 
         specs = list(s for _, s, _ in solution.items())
         self._options.update(solution.options())
-        self._spec.update_for_build(self._options, specs)
+        self._spec.update_spec_for_build(self._options, specs)
 
         env = solution.to_environment(os.environ)
         env = self._spec.resolve_all_options(solution.options()).to_environment(env)

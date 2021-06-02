@@ -94,16 +94,14 @@ def import_spcomp2(
         latest = _get_latest_patch_version(version_dir)
         if latest is None:
             continue
-        spec = api.Spec(
-            pkg=api.Ident(
+        spec = api.Spec()
+        spec.pkg=api.Ident(
                 spk_name,
                 latest,
                 build=build_opts.digest,
-            ),
-            compat=api.parse_compat("x.ab"),
-            build=build_spec,
-        )
-
+            )
+        spec.compat=api.parse_compat("x.ab")
+        spec.build=build_spec
         spec.build.script = BUILD_SCRIPT.format(
             root=str(root.absolute()),
             name=name,

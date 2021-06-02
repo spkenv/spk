@@ -188,8 +188,8 @@ class Solver:
         except SolverError as err:
             return api.Compatibility(f"Failed to resolve build env: {err}")
 
-        spec = spec.clone()
-        spec.update_for_build(opts, list(s for _, s, _ in solution.items()))
+        spec = spec.copy()
+        spec.update_spec_for_build(opts, list(s for _, s, _ in solution.items()))
         for request in spec.install.requirements:
             try:
                 state.add_request(request)

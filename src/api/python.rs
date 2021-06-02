@@ -234,6 +234,17 @@ impl IntoPy<Py<PyAny>> for super::Opt {
     }
 }
 
+impl IntoPy<Py<PyAny>> for super::SourceSpec {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            super::SourceSpec::Git(src) => src.into_py(py),
+            super::SourceSpec::Tar(src) => src.into_py(py),
+            super::SourceSpec::Local(src) => src.into_py(py),
+            super::SourceSpec::Script(src) => src.into_py(py),
+        }
+    }
+}
+
 impl IntoPy<Py<PyAny>> for super::VersionRange {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
@@ -257,6 +268,10 @@ impl super::Spec {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
         from_dict(input, py)
+    }
+
+    fn to_dict(&self, py: Python) -> crate::Result<Py<pyo3::types::PyDict>> {
+        to_dict(self, py)
     }
 }
 
@@ -329,4 +344,26 @@ where
         )))
     })?;
     Ok(serde_yaml::from_str(json)?)
+}
+
+fn to_dict<T>(input: T, py: Python) -> crate::Result<Py<pyo3::types::PyDict>>
+where
+    T: serde::ser::Serialize,
+{
+    let yaml = serde_yaml::to_string(input)?;
+    let locals = pyo3::types::PyDict::new(py);
+    let _ = locals.set_item("data", input);
+    let dumps = py
+        .eval(
+            "from ruamel import yaml; yaml.loads(data)",
+            None,
+            Some(locals),
+        )
+        .or_else(|err| {
+            Err(crate::Error::String(format!(
+                "Failed to serialize item: {:?}",
+                err
+            )))
+        })?;
+    dumps.extract()
 }
