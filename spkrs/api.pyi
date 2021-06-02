@@ -39,7 +39,7 @@ class Spec:
     deprecated: bool
     sources: List[SourceSpec]
     build: BuildSpec
-    tests: List[InstallSpec]
+    tests: List[TestSpec]
     install: InstallSpec
 
     @staticmethod
@@ -135,7 +135,11 @@ class VarOpt:
 
 Option = Union[PkgOpt, VarOpt]
 
-class TestSpec: ...
+class TestSpec:
+    stage: str
+    script: str
+    selectors: List[OptionMap]
+    requirements: List[Request]
 
 class TagSet: ...
 

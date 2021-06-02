@@ -13,6 +13,12 @@ pub enum TestStage {
     Install,
 }
 
+impl std::fmt::Display for TestStage {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
 impl Serialize for TestStage {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -48,10 +54,14 @@ impl<'de> Deserialize<'de> for TestStage {
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestSpec {
+    #[pyo3(get, set)]
     stage: TestStage,
+    #[pyo3(get, set)]
     script: String,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     selectors: Vec<OptionMap>,
+    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     requirements: Vec<Request>,
 }

@@ -216,6 +216,25 @@ impl<'source> FromPyObject<'source> for super::Compat {
     }
 }
 
+impl IntoPy<Py<types::PyAny>> for super::TestStage {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::TestStage {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        let string = <&'source str>::extract(ob)?;
+        match serde_yaml::from_str(string) {
+            Ok(ts) => Ok(ts),
+            Err(err) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{:?}",
+                err
+            ))),
+        }
+    }
+}
+
 impl IntoPy<Py<PyAny>> for super::Request {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
@@ -270,7 +289,7 @@ impl super::Spec {
         from_dict(input, py)
     }
 
-    fn to_dict(&self, py: Python) -> crate::Result<Py<pyo3::types::PyDict>> {
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
         to_dict(self, py)
     }
 }
@@ -346,13 +365,21 @@ where
     Ok(serde_yaml::from_str(json)?)
 }
 
-fn to_dict<T>(input: T, py: Python) -> crate::Result<Py<pyo3::types::PyDict>>
+fn to_dict<T>(input: &T, py: Python) -> PyResult<Py<pyo3::types::PyDict>>
 where
     T: serde::ser::Serialize,
 {
-    let yaml = serde_yaml::to_string(input)?;
+    let yaml = match serde_yaml::to_string(input) {
+        Err(err) => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Failed to serialize object for dict conversion: {:?}",
+                err
+            )))
+        }
+        Ok(yaml) => yaml,
+    };
     let locals = pyo3::types::PyDict::new(py);
-    let _ = locals.set_item("data", input);
+    let _ = locals.set_item("data", yaml);
     let dumps = py
         .eval(
             "from ruamel import yaml; yaml.loads(data)",
