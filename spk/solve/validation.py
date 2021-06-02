@@ -106,6 +106,8 @@ class PkgRequirementsValidator(Validator):
             except ValueError as err:
                 return api.Compatibility(f"conflicting requirement: {err}")
 
+            if not isinstance(request, api.PkgRequest):
+                continue
             try:
                 resolved = state.get_current_resolve(request.pkg.name)
             except KeyError:

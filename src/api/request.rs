@@ -326,15 +326,6 @@ impl VarRequest {
         }
     }
 
-    /// Return the name of the package that this var refers to (if any)
-    pub fn package(&self) -> Option<String> {
-        if self.var.contains(".") {
-            Some(self.var.split(".").next().unwrap().to_string())
-        } else {
-            None
-        }
-    }
-
     pub fn value<'a>(&'a self) -> &'a str {
         self.value.as_str()
     }
@@ -362,6 +353,15 @@ impl VarRequest {
         let mut r = Self::new(var);
         r.value = value.to_string();
         r
+    }
+
+    /// Return the name of the package that this var refers to (if any)
+    pub fn package(&self) -> Option<String> {
+        if self.var.contains(".") {
+            Some(self.var.split(".").next().unwrap().to_string())
+        } else {
+            None
+        }
     }
 }
 
@@ -445,6 +445,7 @@ pub struct PkgRequest {
     #[pyo3(get, set)]
     pub pin: Option<String>,
     #[serde(skip)]
+    #[pyo3(get, set)]
     pub required_compat: CompatRule,
 }
 
@@ -485,6 +486,22 @@ impl PkgRequest {
                 Ok(new)
             }
         }
+    }
+}
+
+#[pymethods]
+impl PkgRequest {
+    #[new]
+    fn init(pkg: RangeIdent, prerelease_policy: Option<PreReleasePolicy>) -> Self {
+        let mut req = Self::new(pkg);
+        if let Some(prp) = prerelease_policy {
+            req.prerelease_policy = prp
+        }
+        req
+    }
+
+    fn copy(&self) -> Self {
+        self.clone()
     }
 
     ///Return true if the given version number is applicable to this request.
@@ -527,13 +544,10 @@ impl PkgRequest {
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
         self.pkg.restrict(&other.pkg)
     }
-}
 
-#[pymethods]
-impl PkgRequest {
-    #[new]
-    fn init(pkg: RangeIdent) -> Self {
-        Self::new(pkg)
+    #[staticmethod]
+    fn from_ident(pkg: &Ident) -> Self {
+        Self::from(pkg)
     }
 }
 

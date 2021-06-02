@@ -40,6 +40,12 @@ struct Compatibility {
     inner: super::Compatibility,
 }
 
+impl IntoPy<Py<PyAny>> for super::Compatibility {
+    fn into_py(self, py: pyo3::Python) -> Py<PyAny> {
+        Compatibility { inner: self }.into_py(py)
+    }
+}
+
 #[pymethods]
 impl Compatibility {
     #[new]
@@ -121,6 +127,27 @@ impl<'source> FromPyObject<'source> for super::Inheritance {
         use std::str::FromStr;
         let string = <&'source str>::extract(ob)?;
         Ok(super::Inheritance::from_str(string)?)
+    }
+}
+
+impl IntoPy<Py<types::PyAny>> for super::CompatRule {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::CompatRule {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        use std::convert::TryFrom;
+        let string = <&'source str>::extract(ob)?;
+        if string.len() != 1 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "CompatRule must be a single character only",
+            ));
+        }
+        Ok(super::CompatRule::try_from(
+            &string.chars().next().unwrap(),
+        )?)
     }
 }
 

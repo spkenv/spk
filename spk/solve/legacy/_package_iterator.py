@@ -181,7 +181,7 @@ class FilteredPackageIterator(PackageIterator):
     def clone(self) -> "FilteredPackageIterator":
 
         it = FilteredPackageIterator(
-            self._source.clone(), self.request.clone(), self.options.copy()
+            self._source.clone(), self.request.copy(), self.options.copy()
         )
         it._history = self._history.copy()
         return it

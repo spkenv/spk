@@ -294,7 +294,7 @@ class Decision:
 
         copy = {}
         for name, reqs in self._requests.items():
-            copy[name] = list(pkg.clone() for pkg in reqs)
+            copy[name] = list(pkg.copy() for pkg in reqs)
         return copy
 
     def add_branch(self) -> "Decision":
@@ -403,7 +403,7 @@ class Decision:
         if not requests:
             return None
 
-        merged = requests[0].clone()
+        merged = requests[0].copy()
         for request in requests[1:]:
             try:
                 merged.restrict(request)

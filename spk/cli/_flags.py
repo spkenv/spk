@@ -204,7 +204,7 @@ def parse_requests_using_flags(
                 )
 
             req = spk.api.PkgRequest.from_dict(request_data)
-            req.required_compat = spk.api.CompatRule.API
+            req.required_compat = "a"
             out.append(req)
 
     return out
