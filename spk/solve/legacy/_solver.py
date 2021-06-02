@@ -77,7 +77,7 @@ class Solver:
         for option in spec.build.options:
             if not isinstance(option, api.PkgOpt):
                 continue
-            given = build_options.get(option.name())
+            given = build_options.get(option.pkg)
             request = option.to_request(given)
             self.add_request(request)
 

@@ -78,12 +78,16 @@ class VarRequest:
 Request = Union[PkgRequest, VarRequest]
 
 class PkgOpt:
-    pkg: str
     default: str
     prerelease_policy: str
 
     @property
+    def pkg(self) -> str: ...
+    @property
     def value(self) -> Optional[str]: ...
+
+    def __init__(self, pkg: str, value: str = None) -> None: ...
+    def to_request(self, given_value: str = None) -> Request: ...
 
 class VarOpt:
     var: str
@@ -93,6 +97,8 @@ class VarOpt:
 
     @property
     def value(self) -> Optional[str]: ...
+
+    def __init__(self, name: str, value: str = None) -> None: ...
 
 Option = Union[PkgOpt, VarOpt]
 

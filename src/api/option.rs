@@ -237,8 +237,12 @@ impl VarOpt {
 #[pymethods]
 impl VarOpt {
     #[new]
-    fn init(var: &str) -> Self {
-        Self::new(var)
+    fn init(var: &str, value: Option<String>) -> Result<Self> {
+        let mut opt = Self::new(var);
+        if let Some(value) = value {
+            opt.set_value(value)?;
+        }
+        Ok(opt)
     }
 }
 
@@ -308,7 +312,7 @@ impl<'de> Deserialize<'de> for VarOpt {
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub pkg: String,
     #[pyo3(get, set)]
     pub default: String,
@@ -319,6 +323,16 @@ pub struct PkgOpt {
 }
 
 impl PkgOpt {
+    pub fn new<S: AsRef<str>>(name: S) -> Result<Self> {
+        super::validate_name(name.as_ref())?;
+        Ok(Self {
+            pkg: name.as_ref().to_string(),
+            default: String::default(),
+            prerelease_policy: PreReleasePolicy::default(),
+            value: None,
+        })
+    }
+
     pub fn get_value(&self, given: &Option<String>) -> Option<String> {
         if let Some(v) = &self.value {
             Some(v.clone())
@@ -370,6 +384,18 @@ impl PkgOpt {
             )),
             Ok(value_range) => value_range.contains(&base_range),
         }
+    }
+}
+
+#[pymethods]
+impl PkgOpt {
+    #[new]
+    fn init(pkg: &str, value: Option<String>) -> Result<Self> {
+        let mut opt = Self::new(pkg)?;
+        if let Some(value) = value {
+            opt.set_value(value)?;
+        }
+        Ok(opt)
     }
 
     pub fn to_request(&self, given_value: Option<String>) -> Result<Request> {
