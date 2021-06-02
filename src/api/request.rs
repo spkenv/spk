@@ -226,6 +226,19 @@ impl PreReleasePolicy {
     }
 }
 
+impl std::fmt::Display for PreReleasePolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
+impl std::str::FromStr for PreReleasePolicy {
+    type Err = crate::Error;
+    fn from_str(value: &str) -> crate::Result<Self> {
+        Ok(serde_yaml::from_str(value)?)
+    }
+}
+
 impl Default for PreReleasePolicy {
     fn default() -> Self {
         PreReleasePolicy::ExcludeAll
@@ -245,6 +258,19 @@ impl InclusionPolicy {
         } else {
             false
         }
+    }
+}
+
+impl std::fmt::Display for InclusionPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
+impl std::str::FromStr for InclusionPolicy {
+    type Err = crate::Error;
+    fn from_str(value: &str) -> crate::Result<Self> {
+        Ok(serde_yaml::from_str(value)?)
     }
 }
 
@@ -328,6 +354,17 @@ impl VarRequest {
     }
 }
 
+#[pymethods]
+impl VarRequest {
+    #[new]
+    #[args(value = "\"\"")]
+    fn init(var: &str, value: &str) -> Self {
+        let mut r = Self::new(var);
+        r.value = value.to_string();
+        r
+    }
+}
+
 impl<'de> Deserialize<'de> for VarRequest {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -391,12 +428,14 @@ pub struct PkgRequest {
         default,
         skip_serializing_if = "PreReleasePolicy::is_default"
     )]
+    #[pyo3(get, set)]
     pub prerelease_policy: PreReleasePolicy,
     #[serde(
         rename = "include",
         default,
         skip_serializing_if = "InclusionPolicy::is_default"
     )]
+    #[pyo3(get, set)]
     pub inclusion_policy: InclusionPolicy,
     #[serde(
         rename = "fromBuildEnv",
@@ -487,6 +526,14 @@ impl PkgRequest {
         self.prerelease_policy = min(self.prerelease_policy, other.prerelease_policy);
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
         self.pkg.restrict(&other.pkg)
+    }
+}
+
+#[pymethods]
+impl PkgRequest {
+    #[new]
+    fn init(pkg: RangeIdent) -> Self {
+        Self::new(pkg)
     }
 }
 

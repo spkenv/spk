@@ -200,7 +200,7 @@ def parse_requests_using_flags(
 
             if args.pre:
                 request_data.setdefault(
-                    "prereleasePolicy", spk.api.PreReleasePolicy.IncludeAll.name
+                    "prereleasePolicy", "IncludeAll"
                 )
 
             req = spk.api.PkgRequest.from_dict(request_data)

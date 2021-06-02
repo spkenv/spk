@@ -58,9 +58,13 @@ class RangeIdent:
 class PkgRequest:
     pkg: RangeIdent
     pin: Optional[str]
+    prerelease_policy: str
+    inclusion_policy: str
 
     @staticmethod
     def from_dict(input: Dict[str, Any]) -> PkgRequest: ...
+
+    def __init__(self, pkg: RangeIdent) -> None: ...
 
 class VarRequest:
     var: str
@@ -69,11 +73,14 @@ class VarRequest:
     @property
     def value(self) -> str: ...
 
+    def __init__(self, var: str, value: str = "") -> None: ...
+
 Request = Union[PkgRequest, VarRequest]
 
 class PkgOpt:
     pkg: str
     default: str
+    prerelease_policy: str
 
     @property
     def value(self) -> Optional[str]: ...
@@ -81,6 +88,7 @@ class PkgOpt:
 class VarOpt:
     var: str
     default: str
+    inheritance: str
     choices: Set[str]
 
     @property

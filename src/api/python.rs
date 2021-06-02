@@ -110,6 +110,48 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+impl IntoPy<Py<types::PyAny>> for super::Inheritance {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::Inheritance {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        use std::str::FromStr;
+        let string = <&'source str>::extract(ob)?;
+        Ok(super::Inheritance::from_str(string)?)
+    }
+}
+
+impl IntoPy<Py<types::PyAny>> for super::InclusionPolicy {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::InclusionPolicy {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        use std::str::FromStr;
+        let string = <&'source str>::extract(ob)?;
+        Ok(super::InclusionPolicy::from_str(string)?)
+    }
+}
+
+impl IntoPy<Py<types::PyAny>> for super::PreReleasePolicy {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::PreReleasePolicy {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        use std::str::FromStr;
+        let string = <&'source str>::extract(ob)?;
+        Ok(super::PreReleasePolicy::from_str(string)?)
+    }
+}
+
 impl IntoPy<Py<types::PyAny>> for super::Build {
     fn into_py(self, py: Python) -> Py<types::PyAny> {
         self.to_string().into_py(py)

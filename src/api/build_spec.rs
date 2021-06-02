@@ -276,6 +276,19 @@ pub enum Inheritance {
     Strong,
 }
 
+impl std::fmt::Display for Inheritance {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
+impl std::str::FromStr for Inheritance {
+    type Err = crate::Error;
+    fn from_str(value: &str) -> crate::Result<Self> {
+        Ok(serde_yaml::from_str(value)?)
+    }
+}
+
 impl Default for Inheritance {
     fn default() -> Self {
         Self::Weak
@@ -297,12 +310,22 @@ pub struct VarOpt {
     pub default: String,
     #[pyo3(get, set)]
     pub choices: HashSet<String>,
+    #[pyo3(get, set)]
     pub inheritance: Inheritance,
     #[pyo3(get)]
     value: Option<String>,
 }
 
 impl VarOpt {
+    pub fn new<S: AsRef<str>>(var: S) -> Self {
+        Self {
+            var: var.as_ref().to_string(),
+            default: String::default(),
+            choices: HashSet::default(),
+            inheritance: Inheritance::default(),
+            value: None,
+        }
+    }
     pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
         if self.var.contains(".") {
             self.var.clone()
@@ -372,6 +395,14 @@ impl VarOpt {
             value: value,
             pin: false,
         };
+    }
+}
+
+#[pymethods]
+impl VarOpt {
+    #[new]
+    fn init(var: &str) -> Self {
+        Self::new(var)
     }
 }
 
@@ -445,6 +476,7 @@ pub struct PkgOpt {
     pub pkg: String,
     #[pyo3(get, set)]
     pub default: String,
+    #[pyo3(get, set)]
     pub prerelease_policy: PreReleasePolicy,
     #[pyo3(get)]
     value: Option<String>,

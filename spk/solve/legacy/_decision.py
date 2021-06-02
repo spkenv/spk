@@ -340,7 +340,7 @@ class Decision:
             req = self.get_merged_request(name)
             if req is None:
                 continue
-            if req.inclusion_policy is api.InclusionPolicy.Always:
+            if req.inclusion_policy == "Always":
                 return req
         return None
 
