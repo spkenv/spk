@@ -8,6 +8,7 @@ mod compat;
 mod ident;
 mod install_spec;
 mod name;
+mod option;
 mod option_map;
 mod python;
 mod request;
@@ -18,11 +19,12 @@ mod version;
 mod version_range;
 
 pub use build::{parse_build, Build, InvalidBuildError};
-pub use build_spec::{BuildSpec, Inheritance, Opt, PkgOpt, VarOpt};
+pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
 pub use name::{validate_name, validate_tag_name, InvalidNameError};
+pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub use option_map::{host_options, OptionMap};
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,

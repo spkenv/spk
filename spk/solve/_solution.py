@@ -21,7 +21,7 @@ class SolvedRequest(NamedTuple):
 
         if not isinstance(self.source, api.Spec):
             return False
-        return self.source.pkg == self.spec.pkg.with_build(None)
+        return bool(self.source.pkg == self.spec.pkg.with_build(None))
 
 
 class Solution:
