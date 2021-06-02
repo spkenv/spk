@@ -40,6 +40,31 @@ pub struct CmdEnter {
 
 impl CmdEnter {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        // Acquire expected effective caps.
+        use capabilities::{Capabilities, Capability, Flag};
+
+        let mut current_caps = Capabilities::from_current_proc().ok();
+        if let Some(caps) = current_caps.as_mut() {
+            caps.update(
+                &[
+                    // These were formerly already effective by default
+                    // via `setcap`, before the addition of CAP_FOWNER,
+                    // which we do not want to be effective by default.
+                    // It is not legal to set some caps with `+ep` and
+                    // others with just `+p`.
+                    Capability::CAP_SETUID,
+                    Capability::CAP_CHOWN,
+                    Capability::CAP_MKNOD,
+                    Capability::CAP_SYS_ADMIN,
+                ],
+                Flag::Effective,
+                true,
+            );
+            if let Err(err) = caps.apply() {
+                tracing::warn!(?err, "Failed to get necessary capabilities");
+            }
+        }
+
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime)?;

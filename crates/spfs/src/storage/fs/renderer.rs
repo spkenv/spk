@@ -107,39 +107,47 @@ impl FSRepository {
         let entries: Vec<_> = walkable
             .walk_abs(&target_dir.as_ref().to_string_lossy())
             .collect();
-        for node in entries.iter() {
-            let res = match node.entry.kind {
-                tracking::EntryKind::Tree => {
-                    std::fs::create_dir_all(&node.path.to_path("/")).map_err(|e| e.into())
+        // Acquire FOWNER here to allow us to:
+        // 1. create hard links to files that are not owned by us
+        //    (see: /proc/sys/fs/protected_hardlinks);
+        // 2. chmod these newly created hard links that are not
+        //    owned by us.
+        with_cap_fowner(|| {
+            for node in entries.iter() {
+                let res = match node.entry.kind {
+                    tracking::EntryKind::Tree => {
+                        std::fs::create_dir_all(&node.path.to_path("/")).map_err(|e| e.into())
+                    }
+                    tracking::EntryKind::Mask => continue,
+                    tracking::EntryKind::Blob => {
+                        self.render_blob(node.path.to_path("/"), &node.entry, &render_type)
+                    }
+                };
+                if let Err(err) = res {
+                    return Err(err.wrap(format!("Failed to render [{}]", node.path)));
                 }
-                tracking::EntryKind::Mask => continue,
-                tracking::EntryKind::Blob => {
-                    self.render_blob(node.path.to_path("/"), &node.entry, &render_type)
-                }
-            };
-            if let Err(err) = res {
-                return Err(err.wrap(format!("Failed to render [{}]", node.path)));
             }
-        }
 
-        for node in entries.iter().rev() {
-            if node.entry.kind.is_mask() {
-                continue;
+            for node in entries.iter().rev() {
+                if node.entry.kind.is_mask() {
+                    continue;
+                }
+                if node.entry.is_symlink() {
+                    continue;
+                }
+                if let Err(err) = std::fs::set_permissions(
+                    &node.path.to_path("/"),
+                    std::fs::Permissions::from_mode(node.entry.mode),
+                ) {
+                    return Err(Error::wrap_io(
+                        err,
+                        format!("Failed to set permissions [{}]", node.path),
+                    ));
+                }
             }
-            if node.entry.is_symlink() {
-                continue;
-            }
-            if let Err(err) = std::fs::set_permissions(
-                &node.path.to_path("/"),
-                std::fs::Permissions::from_mode(node.entry.mode),
-            ) {
-                return Err(Error::wrap_io(
-                    err,
-                    format!("Failed to set permissions [{}]", node.path),
-                ));
-            }
-        }
-        Ok(())
+
+            Ok(())
+        })
     }
 
     fn render_blob<P: AsRef<Path>>(
@@ -167,9 +175,6 @@ impl FSRepository {
                 if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        std::io::ErrorKind::PermissionDenied => {
-                            sudo_hard_link(&committed_path, &rendered_path)?
-                        }
                         _ => return Err(Error::wrap_io(err, "Failed to hardlink")),
                     }
                 }
@@ -258,61 +263,34 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-fn sudo_hard_link<P1, P2>(committed_path: P1, rendered_path: P2) -> Result<()>
+fn with_cap_fowner<F, R>(f: F) -> R
 where
-    P1: AsRef<Path>,
-    P2: AsRef<Path>,
+    F: FnOnce() -> R,
 {
     use capabilities::{Capabilities, Capability, Flag};
-    use rand::Rng;
-    static HARD_LINK_RETRY: usize = 5;
 
+    let desired_cap: Capability = Capability::CAP_FOWNER;
     let mut current_caps = Capabilities::from_current_proc().ok();
     if let Some(caps) = current_caps.as_mut() {
-        if caps.check(Capability::CAP_CHOWN, Flag::Effective) {
+        if caps.check(desired_cap, Flag::Effective) {
             // permissions already available, don't do any changes to caps
             current_caps = None
         } else {
-            caps.update(&[Capability::CAP_CHOWN], Flag::Effective, true);
+            caps.update(&[desired_cap], Flag::Effective, true);
             if let Err(err) = caps.apply() {
                 tracing::warn!(?err, "Failed to get necessary capabilities");
             }
         }
     }
 
-    let mut rng = rand::thread_rng();
-    let mut res = Err(Error::String("not run".to_string()));
-    // there is a race condition here where some other process could chown a file to
-    // some other user between the chown and hard_link calls below. To mitigate this,
-    // loop up to a small number of times.
-    // You could also check if the ownership was set back before decifing to retry,
-    // but it's not clear if that is the only case for an EPERM error in the hard_link
-    // process... if it's not you'd end up in an infinite loop
-    for _ in 0..HARD_LINK_RETRY {
-        nix::unistd::chown(committed_path.as_ref(), Some(nix::unistd::getuid()), None)?;
-        res = match std::fs::hard_link(&committed_path, &rendered_path) {
-            Ok(_) => Ok(()),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::AlreadyExists => Ok(()),
-                std::io::ErrorKind::PermissionDenied => {
-                    // use a slightly randomiszed sleep duration in case there are multiple competing
-                    // spfs processes that could otherwise be fighting back and forth
-                    std::thread::sleep(std::time::Duration::from_millis(rng.gen_range(0, 10)));
-                    continue;
-                }
-                _ => Err(Error::wrap_io(err, "Failed to hard link")),
-            },
-        };
-        if let Ok(_) = res {
-            break;
-        }
-    }
+    let res = f();
 
     if let Some(caps) = current_caps.as_mut() {
-        caps.update(&[Capability::CAP_CHOWN], Flag::Effective, false);
+        caps.update(&[desired_cap], Flag::Effective, false);
         if let Err(err) = caps.apply() {
             panic!("Failed to release capabilities, this is unsafe: {:?}", err);
         }
     }
+
     res
 }

@@ -1,6 +1,6 @@
-version: 0.28.1
+version: 0.28.2
 release_notes: |
-  * Update startup file to properly support older sh builds
+  * Switch to CAP_FOWNER permission model.
 
 toolchain:
   - kind: Rust
