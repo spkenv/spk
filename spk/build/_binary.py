@@ -206,7 +206,7 @@ class BinaryPackageBuilder:
 
     def _build_artifacts(
         self,
-        env: MutableMapping[str, str] = None,
+        env: MutableMapping[str, str],
     ) -> None:
 
         assert self._spec is not None
@@ -227,7 +227,6 @@ class BinaryPackageBuilder:
         with open(build_options, "w+") as writer:
             json.dump(self._all_options, writer, indent="\t")
 
-        env = env or {}
         env = self._all_options.to_environment(env)
         env.update(get_package_build_env(self._spec))
         env["PREFIX"] = self._prefix

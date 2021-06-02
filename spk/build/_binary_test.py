@@ -20,7 +20,7 @@ def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) ->
         BinaryPackageBuilder()
         .from_spec(spec)
         .with_source(tmpdir.strpath)
-        ._build_artifacts()
+        ._build_artifacts(env=os.environ.copy())
     )
 
     _, err = capfd.readouterr()
