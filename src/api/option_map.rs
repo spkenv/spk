@@ -119,6 +119,23 @@ impl OptionMap {
     fn pydigest(&self) -> String {
         self.digest_str()
     }
+
+    /// Return the data of these options as environment variables.
+    pub fn to_environment(&self) -> HashMap<String, String> {
+        let mut out = HashMap::default();
+        for (name, value) in self.iter() {
+            let var_name = format!("SPK_OPT_{}", name);
+            out.insert(var_name, value.into());
+        }
+        out
+    }
+
+    fn items(&self) -> Vec<(String, String)> {
+        self.options
+            .iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .collect()
+    }
 }
 
 impl OptionMap {
@@ -172,16 +189,6 @@ impl OptionMap {
         let mut options = self.global_options();
         options.append(&mut self.package_options_without_global(name));
         options
-    }
-
-    /// Return the data of these options as environment variables.
-    pub fn to_environment(&self) -> HashMap<String, String> {
-        let mut out = HashMap::default();
-        for (name, value) in self.iter() {
-            let var_name = format!("SPK_OPT_{}", name);
-            out.insert(var_name, value.into());
-        }
-        out
     }
 
     /// Remove option-related values from the given environment variables

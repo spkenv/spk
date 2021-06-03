@@ -275,7 +275,8 @@ class FilteredPackageIterator(PackageIterator):
             # validating
             opts = self.options.copy()
             for name, value in spec.resolve_all_options(opts).items():
-                opts.setdefault(name, value)
+                if name not in opts:
+                    opts[name] = value
             compat = spec.build.validate_options(spec.pkg.name, self.options)
             if not compat:
                 self.add_history(candidate.pkg, compat)
