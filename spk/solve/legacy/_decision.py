@@ -127,7 +127,7 @@ class Decision:
         request = self.get_merged_request(spec.pkg.name)  # TODO: should this be passed?
         assert request is not None, "Cannot resolve unrequested package " + str(spec)
         self.force_set_resolved(request, spec, source)
-        if spec.pkg.build is not None and spec.pkg.build.is_source():
+        if spec.pkg.build == api.SRC:
             return
         for embedded in spec.install.embedded:
             try:

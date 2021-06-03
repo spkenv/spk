@@ -140,7 +140,7 @@ class Solver:
                     if not compat:
                         iterator.add_history(spec.pkg, compat)
                         continue
-                elif not spec.pkg.build.is_source():
+                elif not spec.pkg.build == api.SRC:
                     try:
                         with decision.transaction() as t:
                             for dep in spec.install.requirements:

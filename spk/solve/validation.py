@@ -48,7 +48,7 @@ class BinaryOnly(Validator):
         if spec.pkg.build is None:
             return api.Compatibility("only binary packages are allowed")
         request = state.get_merged_request(spec.pkg.name)
-        if spec.pkg.build.is_source() and request.pkg.build != spec.pkg.build:
+        if spec.pkg.build == api.SRC and request.pkg.build != spec.pkg.build:
             return api.Compatibility("only binary packages are allowed")
         return api.COMPATIBLE
 

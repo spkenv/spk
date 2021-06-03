@@ -246,7 +246,7 @@ class FilteredPackageIterator(PackageIterator):
                 )
                 continue
 
-            if requested_build is None and candidate.pkg.build.is_source():
+            if requested_build is None and candidate.pkg.build == api.SRC:
                 if version_spec is not None:
                     spec = version_spec
                 else:

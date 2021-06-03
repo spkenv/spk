@@ -51,7 +51,7 @@ def make_build(
 ) -> api.Spec:
 
     spec = api.Spec.from_dict(spec_dict)
-    if spec.pkg.build and spec.pkg.build.is_source():
+    if spec.pkg.build == api.SRC:
         return spec
     build_opts = opts.copy()
     build_opts.update(spec.resolve_all_options(build_opts))
