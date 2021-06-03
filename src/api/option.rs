@@ -172,11 +172,16 @@ impl VarOpt {
 
     pub fn get_value(&self, given: &Option<String>) -> Option<String> {
         if let Some(v) = &self.value {
+            if !v.is_empty() {
+                return Some(v.clone());
+            }
+        }
+        if let Some(v) = given {
             Some(v.clone())
-        } else if let Some(v) = given {
-            Some(v.clone())
-        } else {
+        } else if !self.default.is_empty() {
             Some(self.default.clone())
+        } else {
+            None
         }
     }
 
@@ -206,7 +211,7 @@ impl VarOpt {
                 } else {
                     Compatibility::Incompatible(format!(
                         "incompatible option, wanted '{}', got '{}'",
-                        value, assigned
+                        assigned, value
                     ))
                 }
             }

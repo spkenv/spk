@@ -41,7 +41,7 @@ fn read_spec_file(filepath: &str) -> crate::Result<super::Spec> {
 }
 
 #[pyfunction]
-fn save_spec_file(filepath: &str, spec: &Spec) -> crate::Result<()> {
+fn save_spec_file(filepath: &str, spec: &super::Spec) -> crate::Result<()> {
     super::save_spec_file(filepath, spec)
 }
 
@@ -79,6 +79,10 @@ impl pyo3::PyObjectProtocol for Compatibility {
         }
     }
 
+    fn __repr__(&self) -> String {
+        self.__str__()
+    }
+
     fn __str__(&self) -> String {
         match &self.inner {
             super::Compatibility::Compatible => "".to_string(),
@@ -87,10 +91,14 @@ impl pyo3::PyObjectProtocol for Compatibility {
     }
 }
 
-pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
+pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add("EMBEDDED", super::Build::Embedded.to_string())?;
     m.add("SRC", super::Build::Source.to_string())?;
     m.add("COMPATIBLE", Compatibility::new(""))?;
+    // placeholders for Union types defined in api.pyi
+    m.add("Request", py.None())?;
+    m.add("Option", py.None())?;
+    m.add("VersionRange", py.None())?;
 
     m.add_function(wrap_pyfunction!(parse_version, m)?)?;
     m.add_function(wrap_pyfunction!(parse_compat, m)?)?;
@@ -126,6 +134,7 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::ExcludedVersion>()?;
     m.add_class::<super::CompatRange>()?;
     m.add_class::<super::VersionFilter>()?;
+    m.add_class::<Compatibility>()?;
     Ok(())
 }
 
@@ -307,6 +316,13 @@ impl super::Spec {
 }
 
 #[pymethods]
+impl super::BuildSpec {
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
+        to_dict(self, py)
+    }
+}
+
+#[pymethods]
 impl super::TarSource {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
@@ -360,15 +376,14 @@ where
 {
     let locals = pyo3::types::PyDict::new(py);
     let _ = locals.set_item("data", input);
-    let dumps = py
-        .eval("import json; json.dumps(data)", None, Some(locals))
+    py.run("import json; out = json.dumps(data)", None, Some(locals))
         .or_else(|err| {
             Err(crate::Error::String(format!(
                 "Not a valid dictionary: {:?}",
                 err
             )))
         })?;
-    let json: &str = dumps.extract().or_else(|err| {
+    let json: &str = locals.get_item("out").unwrap().extract().or_else(|err| {
         Err(crate::Error::String(format!(
             "Not a valid dictionary: {:?}",
             err
@@ -392,17 +407,62 @@ where
     };
     let locals = pyo3::types::PyDict::new(py);
     let _ = locals.set_item("data", yaml);
-    let dumps = py
-        .eval(
-            "from ruamel import yaml; yaml.loads(data)",
-            None,
-            Some(locals),
-        )
-        .or_else(|err| {
-            Err(crate::Error::String(format!(
-                "Failed to serialize item: {:?}",
-                err
-            )))
-        })?;
-    dumps.extract()
+    py.run(
+        "from ruamel import yaml; out = yaml.safe_load(data)",
+        None,
+        Some(locals),
+    )
+    .or_else(|err| {
+        Err(crate::Error::String(format!(
+            "Failed to serialize item: {:?}",
+            err
+        )))
+    })?;
+    locals.get_item("out").unwrap().extract()
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::Ident {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::Version {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::RangeIdent {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::TagSet {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::OptionMap {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::Spec {
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        match op {
+            CompareOp::Eq => self == &other,
+            _ => false,
+        }
+    }
 }
