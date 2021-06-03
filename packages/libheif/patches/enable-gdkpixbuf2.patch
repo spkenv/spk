@@ -1,0 +1,11 @@
+diff --git a/gdk-pixbuf/CMakeLists.txt b/gdk-pixbuf/CMakeLists.txt
+index 85ad597..5eab5aa 100644
+--- a/gdk-pixbuf/CMakeLists.txt
++++ b/gdk-pixbuf/CMakeLists.txt
+@@ -1,4 +1,5 @@
+-if(UNIX)
++option (ENABLE_GDKPIXBUF2 "Enable use of GDKPIXBUF2" ON)
++if(UNIX AND ENABLE_GDKPIXBUF2)
+   find_package(PkgConfig)
+   find_package(Threads)
+   pkg_check_modules(GDKPIXBUF2 gdk-pixbuf-2.0)

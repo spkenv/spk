@@ -1,6 +1,9 @@
 pkg: freetype/2.10.1
   # - name: Freetype
-  # - description: Open source library for font reading and rasterization.
+  # - description: "Open source library for font reading and rasterization."
+  # - license: FTL
+  # - url: https://www.freetype.org
+  # - bindings: [ "C++" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,

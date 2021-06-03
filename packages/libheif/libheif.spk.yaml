@@ -1,0 +1,62 @@
+pkg: libheif/1.12.0
+  # - name: "libheif"
+  # - description: "HEIF/HEIC image file format library"
+  # - license: LGPL-3
+  # - url: https://www.libheif.com
+  # - bindings: [ "C", C++" ]
+
+# Notes:
+#
+# At present, this build only demands libde265, which is good enough for
+# decoding HEIF image files. But we haven't yet set up the dependencies for
+# libx265 (necessary for encoding HEIC), nor aom, rav1e, or dav1d, which are
+# used for AVIF. At SPI, we are only building libheif for OpenImageIO, and
+# so this limitation (HEIF read only, no write or AVIF) is fine.
+#
+# If somebody needs this install of libheif to support encoding or AVIF,
+# they'll need to set up and add the other dependencies: aom, rav1e, dav1d.
+#
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d libheif ] ; then git clone https://github.com/strukturag/libheif -b v1.12.0 ; fi
+    # Apply important patches
+    - (cd libheif ; patch -p1 --quiet -N -i ../patches/enable-gdkpixbuf2.patch)
+
+
+build:
+
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+    - pkg: libde265
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - cmake -S libheif -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
+        -DWITH_EXAMPLES=OFF
+        -DGDKPIXBUF2_FOUND:STRING=0
+        -DGDKPIXBUF2_MODULE_DIR:PATH=$PREFIX/lib
+        -DENABLE_GDKPIXBUF2=OFF
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: libde265
+      fromBuildEnv: x.x

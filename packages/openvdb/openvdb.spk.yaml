@@ -1,0 +1,96 @@
+pkg: openvdb/8.0.0
+  # - name: openvdb
+  # - description: Hierarchical data structure for volumes
+  # - license: MPL-2.0
+  # - url: https://openvdb.org
+  # - bindings: [ "C++", "Python" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d openvdb ] ; then git clone https://github.com/AcademySoftwareFoundation/openvdb -b v8.0.0 ; fi
+
+
+build:
+  options:
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: stdfs
+    - pkg: gcc/6.3
+    - pkg: python/3.7
+    - pkg: cmake/^3.13
+    - pkg: tbb/2019
+    - pkg: blosc
+    - pkg: zlib
+    - pkg: jemalloc
+    - pkg: boost/1.70
+    - pkg: llvm/11
+    - pkg: cuda/11
+
+  variants:
+    - { gcc: 6.3, python: 2.7 }
+    - { gcc: 6.3, python: 3.7 }
+    # At SPI, we don't yet have python built for gcc/9. Come back to
+    # and do these builds when that has been finished.
+
+  script:
+    - cmake -S openvdb -B build -G Ninja
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_VISIBILITY_INLINES_HIDDEN=ON
+        -DCMAKE_CXX_VISIBILITY_PRESET=hidden
+        -DOPENVDB_CORE_STATIC=OFF
+        -DUSE_BLOSC=ON
+        -DCONCURRENT_MALLOC="None"
+        -DOPENVDB_BUILD_PYTHON_MODULE=ON
+        -DPYOPENVDB_INSTALL_DIRECTORY="lib/python"
+        -DOPENVDB_BUILD_UNITTESTS=OFF
+        -DOPENVDB_BUILD_VDB_RENDER=OFF
+        -DOPENVDB_BUILD_VDB_VIEW=OFF
+        -DOPENVDB_BUILD_VDB_LOD=OFF
+        -DOpenGL_GL_PREFERENCE=GLVND
+        -DDISABLE_DEPENDENCY_VERSION_CHECKS=OFF
+        -DCMAKE_INSTALL_LIBDIR=lib
+        -DUSE_EXR=OFF
+        -DBlosc_ROOT=$PREFIX
+    - cmake --build build --target install
+    # Also build nanovdb if this is an openvdb branch that supports it
+    - if [ -e openvdb/nanovdb ] ; then
+        export PATH="/opt/rh/devtoolset-6/root/bin:${PATH}" ;
+        cmake -S openvdb/nanovdb -B nanobuild -G Ninja
+            -DCMAKE_INSTALL_PREFIX=$PREFIX
+            -DNANOVDB_BUILD_UNITTESTS=OFF
+            -DNANOVDB_BUILD_EXAMPLES=OFF
+            -DNANOVDB_BUILD_BENCHMARK=OFF
+            -DNANOVDB_USE_OPENGL=OFF
+            -DNANOVDB_USE_MAGICAVOXEL=OFF
+            -DNANOVDB_ALLOW_FETCHCONTENT=OFF
+            -DCMAKE_CUDA_HOST_COMPILER=${PREFIX}/bin/clang
+            -DBlosc_ROOT=$PREFIX
+            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON
+            ;
+        cmake --build nanobuild --target install
+        ;
+      fi
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: python
+      fromBuildEnv: x.x
+      # If python is already in the environment/resolve then we
+      # we require it to be compatible with what we built with.
+      # But no python at all is also okay.
+      include: IfAlreadyPresent
+    - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: boost
+      fromBuildEnv: x.x
+    - pkg: blosc
+      fromBuildEnv: x.x
+    - pkg: tbb
+      fromBuildEnv: x.x

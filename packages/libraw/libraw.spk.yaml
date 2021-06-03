@@ -17,6 +17,7 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
+    - pkg: stdfs
     - pkg: zlib
     - pkg: gcc/6.3
     - pkg: lcms2
@@ -36,8 +37,12 @@ build:
 
 install:
   requirements:
+    - pkg: stdfs
     - pkg: gcc
       fromBuildEnv: x.x
     - pkg: zlib
+      fromBuildEnv: x.x
     - pkg: lcms2
+      fromBuildEnv: x.x
     - pkg: libjpeg
+      fromBuildEnv: x.x

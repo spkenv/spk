@@ -18,8 +18,10 @@ build:
     - var: arch
     - var: os
     - var: centos
-    - pkg: gcc/6.3
+    - pkg: stdfs
     - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+    - pkg: zlib
     - pkg: imath/3.0.1
 
   variants:
@@ -29,13 +31,16 @@ build:
   script:
     - cmake -S openexr -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_PREFIX_PATH=/spfs
-        -DCMAKE_INSTALL_PREFIX=/spfs
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
     - cmake --build build --target install
 
 install:
   requirements:
+    - pkg: stdfs
     - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: zlib
       fromBuildEnv: x.x
     - pkg: imath
       fromBuildEnv: x.x
@@ -45,8 +50,8 @@ tests:
     script:
       - cmake -S openexr -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_PREFIX_PATH=/spfs
-          -DCMAKE_INSTALL_PREFIX=/spfs
+          -DCMAKE_INSTALL_PREFIX=$PREFIX
+          -DCMAKE_PREFIX_PATH=$PREFIX
       - cmake --build build
       - cd build
       - ctest

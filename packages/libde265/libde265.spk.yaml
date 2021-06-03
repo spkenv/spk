@@ -1,0 +1,41 @@
+pkg: libde265/1.0.7+r.1
+  # - name: "libde265"
+  # - description: "H.265 codec implementation"
+  # - license: LGPL-3
+  # - url: https://github.com/strukturag/libde265
+  # - bindings: [ "C++" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d libde265 ] ; then git clone https://github.com/strukturag/libde265 -b v1.0.7 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - cmake -S libde265 -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+    - cmake --build build --target install
+    # HACK! the cmake doesn't seem to copy an essential header
+    - cp build/libde265/de265-version.h $PREFIX/include/libde265
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x

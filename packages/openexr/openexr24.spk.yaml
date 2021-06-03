@@ -1,0 +1,81 @@
+pkg: openexr/2.4.3
+  # - name: "OpenEXR"
+  # - description: "Image storage format for HDR imagery"
+  # - license: BSD-3-clause
+  # - url: https://www.openexr.com
+  # - bindings: [ "C++" ]
+
+# NOTICE:
+#
+# This is the legacy spec for OpenEXR 2.4.
+#
+# Modern use has imath and openexr package on version 3.x. This legacy
+# library is from the dark ages when the OpenEXR package contained all
+# of Imath (as part of what it called IlmBase).
+#
+# If you need OpenEXR/IlmBase 2.4, use spk package openexr/2.4 (only)
+# If you need OpenEXR/Imath 3.x, use spk package openexr/3 AND imath/3
+
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d openexr ] ; then git clone https://github.com/AcademySoftwareFoundation/openexr -b v2.4.3 ; fi
+
+
+build:
+
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+    - pkg: zlib
+    - pkg: python/3.7
+    - pkg: boost/1.70
+
+  variants:
+    - { gcc: 6.3, python: 2.7 }
+    - { gcc: 6.3, python: 3.7 }
+    # TODO: Add gcc-9.3 after we fix the gcc9+python combinations at SPI.
+
+  script:
+    - if [ "${SPK_PKG_python_VERSION_MAJOR}" == "2" ] ; then
+          export pycmd="-DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON" ;
+      else
+          export pycmd="-DCMAKE_DISABLE_FIND_PACKAGE_Python2=ON" ;
+      fi
+    - cmake -S openexr -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DOPENEXR_VIEWERS_ENABLE=OFF
+        -DOPENEXR_BUILD_UTILS=OFF
+        $pycmd
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: boost
+      fromBuildEnv: x.x
+    - pkg: python
+      fromBuildEnv: x.x
+      include: IfAlreadyPresent
+
+tests:
+  - stage: build
+    script:
+      - cmake -S openexr -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_INSTALL_PREFIX=$PREFIX
+      - cmake --build build
+      - cd build
+      - ctest

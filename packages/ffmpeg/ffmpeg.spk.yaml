@@ -1,0 +1,68 @@
+pkg: ffmpeg/4.2.4
+  # - name: "FFmpeg"
+  # - description: "Multimedia processing libraries and tools"
+  # - license: LGPL-2.1
+  # - url: https://ffmpeg.org
+  # - bindings: [ "C", "cli" ]
+
+# NOTICE:
+#
+# This is my first stab and building ffmpeg via spk (and in fact the first
+# time I've built it from source for any reason), and I'm relying heavily on
+# it finding everything it needs in the system libraries.
+#
+# It's possible that a bunch of formats or codecs are not supported in this
+# build, and need us to either explicitly enable build-time options and/or
+# build (including in spk) a long list of other dependencies.
+#
+# If that turns out to be the case, we can come back and revise this later.
+
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d FFmpeg ] ; then git clone https://github.com/FFmpeg/FFmpeg -b n4.2.4 ; fi
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: cmake/^3.13
+    - pkg: gcc/6.3
+    - pkg: zlib
+    - pkg: freetype
+    - pkg: openjpeg
+    - pkg: libpng
+
+  script:
+    - mkdir -p build
+    - cd build
+    - ../FFmpeg/configure --prefix=$PREFIX
+          --libdir=$PREFIX/lib --shlibdir=$PREFIX/lib
+          --bindir=$PREFIX/bin --incdir=$PREFIX/include
+          --disable-doc
+          --enable-shared
+          --enable-pic
+          --enable-libfreetype
+          --enable-libopenjpeg
+          --disable-x86asm
+    - make -j $(nprocs)
+    - make install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: zlib
+      fromBuildEnv: x.x
+    - pkg: freetype
+      fromBuildEnv: x.x
+    - pkg: openjpeg
+      fromBuildEnv: x.x
+    - pkg: libpng
+      fromBuildEnv: x.x
+    # No gcc runtime requirement because it's strictly a C library

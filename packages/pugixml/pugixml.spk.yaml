@@ -1,4 +1,9 @@
 pkg: pugixml/1.11.4
+  # - name: "PugiXML"
+  # - description: "XML parser for C++"
+  # - license: MIT
+  # - url: https://pugixml.org
+  # - bindings: [ "C++" ]
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
