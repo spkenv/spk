@@ -118,6 +118,28 @@ impl FromStr for TagSet {
     }
 }
 
+#[pyproto]
+impl pyo3::mapping::PyMappingProtocol for TagSet {
+    fn __len__(self) -> usize {
+        self.tags.len()
+    }
+
+    fn __getitem__(&self, key: String) -> PyResult<u32> {
+        self.tags
+            .get(&key)
+            .map(u32::to_owned)
+            .ok_or(pyo3::exceptions::PyKeyError::new_err(key))
+    }
+
+    fn __setitem__(&mut self, key: String, value: u32) {
+        self.tags.insert(key, value);
+    }
+
+    fn __delitem__(&mut self, key: String) {
+        self.tags.remove(&key);
+    }
+}
+
 /// Parse the given string as a set of version tags.
 ///
 /// ```
