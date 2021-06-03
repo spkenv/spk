@@ -240,3 +240,13 @@ pub fn read_spec_file<P: AsRef<Path>>(filepath: P) -> Result<Spec> {
 
     Ok(spec)
 }
+
+/// Save the given spec to a file.
+pub fn save_spec_file<P: AsRef<Path>>(filepath: P, spec: &Spec) -> crate::Result<()> {
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(filepath)?;
+    serde_yaml::to_writer(file, spec)?;
+    Ok(())
+}

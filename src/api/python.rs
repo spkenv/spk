@@ -35,6 +35,16 @@ fn validate_name(name: &str) -> crate::Result<()> {
     super::validate_name(name)
 }
 
+#[pyfunction]
+fn read_spec_file(filepath: &str) -> crate::Result<super::Spec> {
+    super::read_spec_file(filepath)
+}
+
+#[pyfunction]
+fn save_spec_file(filepath: &str, spec: &Spec) -> crate::Result<()> {
+    super::save_spec_file(filepath, spec)
+}
+
 #[pyclass]
 struct Compatibility {
     inner: super::Compatibility,
@@ -92,6 +102,8 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request_from_dict, m)?)?;
     m.add_function(wrap_pyfunction!(host_options, m)?)?;
     m.add_function(wrap_pyfunction!(validate_name, m)?)?;
+    m.add_function(wrap_pyfunction!(read_spec_file, m)?)?;
+    m.add_function(wrap_pyfunction!(save_spec_file, m)?)?;
 
     m.add_class::<super::Ident>()?;
     m.add_class::<super::Spec>()?;

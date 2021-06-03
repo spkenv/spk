@@ -233,7 +233,7 @@ class Decision:
         if isinstance(request, api.Ident):
             request = str(request)
 
-        if not isinstance(request, api.Request):
+        if isinstance(request, str):
             request = api.PkgRequest.from_dict({"pkg": request})
 
         if isinstance(request, api.VarRequest):

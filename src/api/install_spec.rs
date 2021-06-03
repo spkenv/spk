@@ -25,11 +25,8 @@ pub struct InstallSpec {
     pub embedded: Vec<Spec>,
 }
 
+#[pymethods]
 impl InstallSpec {
-    pub fn is_empty(&self) -> bool {
-        self.requirements.is_empty() && self.embedded.is_empty()
-    }
-
     /// Add or update a requirement to the set of installation requirements.
     ///
     /// If a request exists for the same name, it is replaced with the given
@@ -43,6 +40,12 @@ impl InstallSpec {
             }
         }
         self.requirements.push(request);
+    }
+}
+
+impl InstallSpec {
+    pub fn is_empty(&self) -> bool {
+        self.requirements.is_empty() && self.embedded.is_empty()
     }
 
     /// Render all requests with a package pin using the given resolved packages.

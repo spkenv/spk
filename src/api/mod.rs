@@ -31,7 +31,7 @@ pub use request::{
     VarRequest,
 };
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::{read_spec_file, Spec};
+pub use spec::{read_spec_file, save_spec_file, Spec};
 
 pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};

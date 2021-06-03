@@ -72,7 +72,8 @@ install:
 def _new(args: argparse.Namespace) -> None:
     """Generate a new package spec file."""
 
-    name = spk.api.validate_name(args.name[0])
+    name = args.name[0]
+    spk.api.validate_name(name)
     spec = TEMPLATE.format(name=name)
 
     spec_file = f"{name}.spk.yaml"
