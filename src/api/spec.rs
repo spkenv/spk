@@ -105,7 +105,7 @@ impl Spec {
             }
             Some(Opt::Pkg(opt)) => opt.validate(Some(request.value())),
             Some(Opt::Var(opt)) => {
-                let exact = opt.get_value(&Some(request.value().to_string()));
+                let exact = opt.get_value(Some(request.value()));
                 if exact.as_ref().map(String::as_str) != Some(request.value()) {
                     Compatibility::Incompatible(format!(
                         "Incompatible build option '{}': {:?} != '{}'",
@@ -195,7 +195,7 @@ impl Spec {
                         options
                             .get(&opt.var)
                             .map(String::to_owned)
-                            .or_else(|| opt.get_value(&None))
+                            .or_else(|| opt.get_value(None))
                             .unwrap_or_default(),
                     )?;
                     continue;

@@ -29,7 +29,7 @@ class Solution:
 
     def __init__(self, options: api.OptionMap = None) -> None:
 
-        self._options = api.OptionMap(options or {})
+        self._options = options.copy() if options else api.OptionMap()
         self._resolved: Dict[api.PkgRequest, Tuple[api.Spec, PackageSource]] = {}
         self._by_name: Dict[str, api.Spec] = {}
 

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     parse_ident_range, CompatRule, Compatibility, InclusionPolicy, PkgRequest, PreReleasePolicy,
-    Request,
+    Request, VarRequest,
 };
 use crate::{Error, Result};
 
@@ -71,8 +71,8 @@ impl Opt {
 
     pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
         match self {
-            Self::Pkg(opt) => opt.namespaced_name(pkg),
-            Self::Var(opt) => opt.namespaced_name(pkg),
+            Self::Pkg(opt) => opt.namespaced_name(pkg.as_ref()),
+            Self::Var(opt) => opt.namespaced_name(pkg.as_ref()),
         }
     }
 
@@ -96,14 +96,14 @@ impl Opt {
     /// Return the current value of this option, if set.
     ///
     /// Given is only returned if the option is not currently set to something else.
-    pub fn get_value(&self, given: &Option<String>) -> String {
+    pub fn get_value(&self, given: Option<&str>) -> String {
         let value = match self {
             Self::Pkg(opt) => opt.get_value(given),
             Self::Var(opt) => opt.get_value(given),
         };
         match (value, given) {
             (Some(v), _) => v,
-            (_, Some(v)) => v.clone(),
+            (_, Some(v)) => v.to_string(),
             (None, None) => "".to_string(),
         }
     }
@@ -175,22 +175,27 @@ impl VarOpt {
             value: None,
         }
     }
-    pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
+}
+
+#[pymethods]
+impl VarOpt {
+    pub fn namespaced_name(&self, pkg: &str) -> String {
         if self.var.contains(".") {
             self.var.clone()
         } else {
-            format!("{}.{}", pkg.as_ref(), self.var)
+            format!("{}.{}", pkg, self.var)
         }
     }
 
-    pub fn get_value(&self, given: &Option<String>) -> Option<String> {
+    #[args(given = "None")]
+    pub fn get_value(&self, given: Option<&str>) -> Option<String> {
         if let Some(v) = &self.value {
             if !v.is_empty() {
                 return Some(v.clone());
             }
         }
         if let Some(v) = given {
-            Some(v.clone())
+            Some(v.to_string())
         } else if !self.default.is_empty() {
             Some(self.default.clone())
         } else {
@@ -215,7 +220,7 @@ impl VarOpt {
         if value.is_none() {
             return self.validate(self.value.as_ref().map(String::as_str));
         }
-        let assigned = self.get_value(&None);
+        let assigned = self.get_value(None);
         match (value, assigned) {
             (None, Some(_)) => Compatibility::Compatible,
             (Some(value), Some(assigned)) => {
@@ -242,18 +247,15 @@ impl VarOpt {
         }
     }
 
-    pub fn to_request(self, given_value: &Option<String>) -> VarRequest {
+    pub fn to_request(&self, given_value: Option<&str>) -> VarRequest {
         let value = self.get_value(given_value).unwrap_or_default();
         return VarRequest {
-            var: self.var,
+            var: self.var.clone(),
             value: value,
             pin: false,
         };
     }
-}
 
-#[pymethods]
-impl VarOpt {
     #[new]
     fn init(var: &str, value: Option<String>) -> Result<Self> {
         let mut opt = Self::new(var);
@@ -350,12 +352,16 @@ impl PkgOpt {
             value: None,
         })
     }
+}
 
-    pub fn get_value(&self, given: &Option<String>) -> Option<String> {
+#[pymethods]
+impl PkgOpt {
+    #[args(given = "None")]
+    pub fn get_value(&self, given: Option<&str>) -> Option<String> {
         if let Some(v) = &self.value {
             Some(v.clone())
         } else if let Some(v) = given {
-            Some(v.clone())
+            Some(v.to_string())
         } else {
             Some(self.default.clone())
         }
@@ -376,8 +382,8 @@ impl PkgOpt {
         Ok(())
     }
 
-    pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
-        format!("{}.{}", pkg.as_ref(), self.pkg)
+    pub fn namespaced_name(&self, pkg: &str) -> String {
+        format!("{}.{}", pkg, self.pkg)
     }
 
     pub fn validate(&self, value: Option<&str>) -> Compatibility {
@@ -403,10 +409,7 @@ impl PkgOpt {
             Ok(value_range) => value_range.contains(&base_range),
         }
     }
-}
 
-#[pymethods]
-impl PkgOpt {
     #[new]
     fn init(pkg: &str, value: Option<String>) -> Result<Self> {
         let mut opt = Self::new(pkg)?;

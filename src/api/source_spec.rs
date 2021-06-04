@@ -49,7 +49,6 @@ impl SourceSpec {
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSource {
-    #[pyo3(get, set)]
     pub path: PathBuf,
     #[serde(
         default = "LocalSource::default_exclude",
@@ -76,6 +75,14 @@ impl Default for LocalSource {
             filter: Self::default_filter(),
             subdir: None,
         }
+    }
+}
+
+#[pymethods]
+impl LocalSource {
+    #[getter]
+    fn get_path(&self) -> String {
+        self.path.to_string_lossy().into()
     }
 }
 

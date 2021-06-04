@@ -307,7 +307,7 @@ pub struct VarRequest {
     #[pyo3(get, set)]
     pub pin: bool,
     #[pyo3(get)]
-    value: String,
+    pub value: String,
 }
 
 #[derive(Serialize, Deserialize)]

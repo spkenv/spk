@@ -73,7 +73,7 @@ def _ls(args: argparse.Namespace) -> None:
         for repo in repos.values():
             pkg = spk.api.parse_ident(args.package)
             for build in repo.list_package_builds(pkg):
-                if not build.build or build.build.is_source():
+                if not build.build or build.build == "SRC":
                     results.add(spk.io.format_ident(build))
                     continue
 
@@ -111,7 +111,7 @@ def _list_recursively(
             for version in versions:
                 pkg = spk.api.parse_ident(version)
                 for build in repo.list_package_builds(pkg):
-                    if not build.build or build.build.is_source():
+                    if not build.build or build.build == "SRC":
                         print(spk.io.format_ident(build))
                         continue
 

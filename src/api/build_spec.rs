@@ -72,7 +72,7 @@ impl BuildSpec {
                 given_value = given.get(name)
             }
 
-            let value = opt.get_value(&given_value.map(String::to_owned));
+            let value = opt.get_value(given_value.map(String::as_ref));
             resolved.insert(name.to_string(), value);
         }
 
