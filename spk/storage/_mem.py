@@ -43,11 +43,11 @@ class MemRepository(Repository):
 
         try:
             if not pkg.build:
-                return self._specs[pkg.name][str(pkg.version)].clone()
+                return self._specs[pkg.name][str(pkg.version)].copy()
             else:
-                return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][
+                return self._packages[pkg.name][str(pkg.version)][pkg.build][
                     0
-                ].clone()
+                ].copy()
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -56,7 +56,7 @@ class MemRepository(Repository):
         if pkg.build is None:
             raise PackageNotFoundError(pkg)
         try:
-            return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][1]
+            return self._packages[pkg.name][str(pkg.version)][pkg.build][1]
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -79,7 +79,7 @@ class MemRepository(Repository):
         version = str(spec.pkg.version)
         if version in versions:
             raise VersionExistsError(version)
-        versions[version] = spec.clone()
+        versions[version] = spec.copy()
 
     def remove_spec(self, pkg: api.Ident) -> None:
 
@@ -109,6 +109,6 @@ class MemRepository(Repository):
                 "Package must include a build in order to be removed: " + str(pkg)
             )
         try:
-            del self._packages[pkg.name][str(pkg.version)][pkg.build.digest]
+            del self._packages[pkg.name][str(pkg.version)][pkg.build]
         except KeyError:
             raise PackageNotFoundError(pkg)

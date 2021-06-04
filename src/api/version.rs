@@ -92,10 +92,6 @@ impl Ord for TagSet {
 
         for ((self_name, self_value), (other_name, other_value)) in self_entries.zip(other_entries)
         {
-            println!(
-                "{}.{} {}.{}",
-                self_name, self_value, other_name, other_value
-            );
             match self_name.cmp(&other_name) {
                 Ordering::Equal => (),
                 res => return res,

@@ -254,7 +254,7 @@ class State(NamedTuple):
         raise KeyError(f"Has not been resolved: '{name}'")
 
     def as_solution(self) -> Solution:
-        solution = Solution(api.OptionMap(self.options))
+        solution = Solution(api.OptionMap(**dict(self.options)))
         for spec, source in self.packages:
             req = self.get_merged_request(spec.pkg.name)
             solution.add(req, spec, source)

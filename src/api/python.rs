@@ -100,6 +100,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add("EMBEDDED", super::Build::Embedded.to_string())?;
     m.add("SRC", super::Build::Source.to_string())?;
     m.add("COMPATIBLE", Compatibility::new(""))?;
+    m.add("VERSION_SEP", super::VERSION_SEP)?;
     // placeholders for Union types defined in api.pyi
     m.add("Request", py.None())?;
     m.add("Option", py.None())?;

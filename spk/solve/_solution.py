@@ -130,5 +130,5 @@ class Solution:
                 str(p) for p in spec.pkg.version.parts
             )
 
-        out = self.options().to_environment(out)
+        out.update(self.options().to_environment())
         return out

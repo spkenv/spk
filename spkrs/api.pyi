@@ -5,6 +5,7 @@ import typing
 EMBEDDED: str
 SRC: str
 COMPATIBLE: Compatibility
+VERSION_SEP: Compatibility
 
 def opt_from_dict(input: Dict[str, Any]) -> Option: ...
 def opt_from_request(input: Request) -> Option: ...

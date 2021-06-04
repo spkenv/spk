@@ -67,7 +67,7 @@ class SpFSRepository(Repository):
             spec.pkg.build is None or not spec.pkg.build == api.EMBEDDED
         ), "Cannot publish embedded package"
         meta_tag = self.build_spec_tag(spec.pkg)
-        spec_data = yaml.safe_dump(spec.to_dict()).encode()
+        spec_data = yaml.safe_dump(spec.to_dict()).encode() # type: ignore
         self.rs.write_spec(meta_tag, spec_data)
         self.list_packages.cache_clear()
         self.list_package_versions.cache_clear()

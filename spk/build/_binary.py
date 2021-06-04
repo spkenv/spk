@@ -49,7 +49,7 @@ class BinaryPackageBuilder:
     def from_spec(spec: api.Spec) -> "BinaryPackageBuilder":
 
         builder = BinaryPackageBuilder()
-        builder._spec = spec.clone()
+        builder._spec = spec.copy()
         builder._source = spec.pkg.with_build(api.SRC)
         return builder
 
@@ -127,10 +127,10 @@ class BinaryPackageBuilder:
         spkrs.reconfigure_runtime(editable=True, stack=stack)
 
         specs = list(s for _, s, _ in solution.items())
-        self._spec.update_for_build(self._all_options, specs)
+        self._spec.update_spec_for_build(self._all_options, specs)
         env = os.environ.copy()
         env = solution.to_environment(env)
-        env = self._all_options.to_environment(env)
+        env.update(self._all_options.to_environment())
         layer = self._build_and_commit_artifacts(env)
         storage.local_repository().publish_package(self._spec, layer)
         return self._spec
@@ -220,14 +220,13 @@ class BinaryPackageBuilder:
         build_options = build_options_path(pkg, prefix=self._prefix)
         build_script = build_script_path(pkg, prefix=self._prefix)
         os.makedirs(metadata_dir, exist_ok=True)
-        with open(build_spec, "w+b") as bwriter:
-            bwriter.write(api.write_spec(self._spec))
+        api.save_spec_file(build_spec, self._spec)
         with open(build_script, "w+") as writer:
-            writer.write(self._spec.build.script)
+            writer.write("\n".join(self._spec.build.script))
         with open(build_options, "w+") as writer:
-            json.dump(self._all_options, writer, indent="\t")
+            json.dump(dict(self._all_options.items()), writer, indent="\t")
 
-        env = self._all_options.to_environment(env)
+        env.update(self._all_options.to_environment())
         env.update(get_package_build_env(self._spec))
         env["PREFIX"] = self._prefix
 

@@ -104,8 +104,10 @@ class Solver:
             self._validators.insert(0, validation.BinaryOnly())
 
     def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
+        if not isinstance(options, api.OptionMap):
+            options = api.OptionMap(options)
         self._initial_state_builders.append(
-            graph.SetOptions(api.OptionMap(options.items()))
+            graph.SetOptions(options)
         )
 
     def get_initial_state(self) -> graph.State:

@@ -232,15 +232,21 @@ def _to_spk_version(version: str) -> str:
     python_version = packaging.version.parse(version)
     spk_version = api.parse_version(python_version.base_version)
     if python_version.pre is not None:
+        # rust requires that we take ownership before
+        # editing and then put it back
         name, num = python_version.pre
         pre = spk_version.pre
         pre[name] = num
         spk_version.pre = pre
     if python_version.dev is not None:
+        # rust requires that we take ownership before
+        # editing and then put it back
         pre = spk_version.pre
         pre["dev"] = int(python_version.dev)
         spk_version.pre = pre
     if python_version.post is not None:
+        # rust requires that we take ownership before
+        # editing and then put it back
         post = spk_version.post
         post["post"] = int(python_version.post)
         spk_version.post = post
