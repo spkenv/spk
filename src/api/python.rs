@@ -440,6 +440,106 @@ impl pyo3::PyObjectProtocol for super::Version {
     fn __str__(&self) -> String {
         self.to_string()
     }
+
+    fn __repr__(&self) -> String {
+        format!("Version('{}')", self.to_string())
+    }
+
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        match op {
+            CompareOp::Eq => self == &other,
+            CompareOp::Le => self <= &other,
+            CompareOp::Ge => self >= &other,
+            CompareOp::Gt => self > &other,
+            CompareOp::Lt => self < &other,
+            CompareOp::Ne => self != &other,
+        }
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::SemverRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::WildcardRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::LowestSpecifiedRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::GreaterThanRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::LessThanRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::GreaterThanOrEqualToRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::LessThanOrEqualToRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::ExactVersion {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::ExcludedVersion {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::CompatRange {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::VersionFilter {
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
 }
 
 #[pyproto]
