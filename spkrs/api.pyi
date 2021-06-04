@@ -170,18 +170,33 @@ class Version:
     def is_zero(self) -> bool: ...
 
 class LocalSource:
+    path: str
+    exclude: List[str]
+    filter: List[str]
+    subdir: Optional[str]
+
     @staticmethod
     def from_dict(input: Dict[str, Any]) -> LocalSource: ...
 
 class GitSource:
+    git: str
+    reference: str
+    depth: int
+    subdir: Optional[str]
+
     @staticmethod
     def from_dict(input: Dict[str, Any]) -> GitSource: ...
 
 class TarSource:
+    tar: str
+    subdir: Optional[str]
+
     @staticmethod
     def from_dict(input: Dict[str, Any]) -> TarSource: ...
 
-class ScriptSource: ...
+class ScriptSource:
+    script: List[str]
+    subdir: Optional[str]
 
 SourceSpec = Union[LocalSource, GitSource, TarSource, ScriptSource]
 

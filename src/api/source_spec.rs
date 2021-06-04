@@ -49,18 +49,22 @@ impl SourceSpec {
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSource {
+    #[pyo3(get, set)]
     pub path: PathBuf,
     #[serde(
         default = "LocalSource::default_exclude",
         skip_serializing_if = "Vec::is_empty"
     )]
+    #[pyo3(get, set)]
     pub exclude: Vec<String>,
     #[serde(
         default = "LocalSource::default_filter",
         skip_serializing_if = "Vec::is_empty"
     )]
+    #[pyo3(get, set)]
     pub filter: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 
@@ -128,15 +132,19 @@ impl LocalSource {
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitSource {
+    #[pyo3(get, set)]
     pub git: String,
     #[serde(default, rename = "ref", skip_serializing_if = "String::is_empty")]
+    #[pyo3(get, set)]
     pub reference: String,
     #[serde(
         default = "default_git_clone_depth",
         skip_serializing_if = "is_default_git_clone_depth"
     )]
+    #[pyo3(get, set)]
     pub depth: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 
@@ -182,8 +190,10 @@ impl GitSource {
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TarSource {
+    #[pyo3(get, set)]
     pub tar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 
@@ -233,8 +243,10 @@ impl TarSource {
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSource {
+    #[pyo3(get, set)]
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple, Union
 import abc
 import base64
 from functools import lru_cache
@@ -217,7 +217,7 @@ class State(NamedTuple):
         for request in self.pkg_requests:
             if request.pkg.name in packages:
                 continue
-            if request.inclusion_policy is api.InclusionPolicy.IfAlreadyPresent:
+            if request.inclusion_policy is "IfAlreadyPresent":
                 continue
             break
         else:
@@ -236,7 +236,7 @@ class State(NamedTuple):
                 raise KeyError(f"No requests for '{name}' [INTERNAL ERROR]")
             if request.pkg.name != name:
                 continue
-            merged = request.clone()
+            merged = request.copy()
             break
 
         for request in requests:
@@ -345,7 +345,7 @@ class BuildPackage(Decision):
 
     def _generate_changes(self) -> Iterator["Change"]:
 
-        specs = tuple(s.spec for s in self.env.items())
+        specs = list(s.spec for s in self.env.items())
         options = self.env.options()
         spec = self.spec.copy()
         spec.update_spec_for_build(options, specs)
@@ -354,7 +354,7 @@ class BuildPackage(Decision):
         for req in spec.install.requirements:
             if isinstance(req, api.PkgRequest):
                 req = req.copy()
-                req.required_compat = api.CompatRule.API
+                req.required_compat = "a"
                 yield RequestPackage(req)
             elif isinstance(req, api.VarRequest):
                 yield RequestVar(req)
@@ -471,9 +471,9 @@ class Note(metaclass=abc.ABCMeta):
 
 
 class SkipPackageNote(Note):
-    def __init__(self, pkg: api.Ident, reason: str) -> None:
+    def __init__(self, pkg: api.Ident, reason: Union[str, api.Compatibility]) -> None:
         self.pkg = pkg
-        self.reason = reason
+        self.reason = str(reason)
 
     def __str__(self) -> str:
         return f"Skipped {self.pkg} - {self.reason}"
