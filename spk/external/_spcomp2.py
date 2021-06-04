@@ -107,7 +107,7 @@ def import_spcomp2(
             name=name,
             build=build_str,
             version=version_dir.name,
-        )
+        ).splitlines()
 
         _LOGGER.info("scanning dependencies...")
         spcomp2_depends = version_config.get("spcomp2_depend", "")

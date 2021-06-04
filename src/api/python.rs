@@ -36,6 +36,11 @@ fn validate_name(name: &str) -> crate::Result<()> {
 }
 
 #[pyfunction]
+fn render_compat(compat: super::Compat, version: &super::Version) -> String {
+    compat.render(version)
+}
+
+#[pyfunction]
 fn read_spec_file(filepath: &str) -> crate::Result<super::Spec> {
     super::read_spec_file(filepath)
 }
@@ -110,6 +115,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(request_from_dict, m)?)?;
     m.add_function(wrap_pyfunction!(host_options, m)?)?;
     m.add_function(wrap_pyfunction!(validate_name, m)?)?;
+    m.add_function(wrap_pyfunction!(render_compat, m)?)?;
     m.add_function(wrap_pyfunction!(read_spec_file, m)?)?;
     m.add_function(wrap_pyfunction!(save_spec_file, m)?)?;
 

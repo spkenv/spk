@@ -146,13 +146,12 @@ class PipImporter:
             api.VarOpt("distro"),
             api.PkgOpt("python", self._python_version),
         ]
-        spec.build.script = "\n".join(
-            [
-                "export PYTHONNOUSERSITE=1",
-                "export PYTHONDONTWRITEBYTECODE=1",
-                f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
-            ]
-        )
+        spec.build.script = [
+            "export PYTHONNOUSERSITE=1",
+            "export PYTHONDONTWRITEBYTECODE=1",
+            f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
+        ]
+
 
         builds = []
         if info.requires_python:
@@ -234,11 +233,17 @@ def _to_spk_version(version: str) -> str:
     spk_version = api.parse_version(python_version.base_version)
     if python_version.pre is not None:
         name, num = python_version.pre
-        spk_version.pre[name] = num
+        pre = spk_version.pre
+        pre[name] = num
+        spk_version.pre = pre
     if python_version.dev is not None:
-        spk_version.pre["dev"] = int(python_version.dev)  # type: ignore
+        pre = spk_version.pre
+        pre["dev"] = int(python_version.dev)
+        spk_version.pre = pre
     if python_version.post is not None:
-        spk_version.post["post"] = int(python_version.post)  # type: ignore
+        post = spk_version.post
+        post["post"] = int(python_version.post)
+        spk_version.post = post
     if python_version.local:
         # irrelevant information for compatibility of versions and
         # no equal concept in spk versions specs

@@ -251,14 +251,3 @@ impl pyo3::mapping::PyMappingProtocol for OptionMap {
         self.options.remove(&key);
     }
 }
-
-#[pyproto]
-impl pyo3::iter::PyIterProtocol for OptionMap {
-    fn __iter__(slf: PyRef<'p, Self>) -> Vec<String> {
-        slf.options
-            .keys()
-            .into_iter()
-            .map(String::to_owned)
-            .collect()
-    }
-}

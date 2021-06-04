@@ -323,7 +323,7 @@ class ResolvePackage(Decision):
             yield SetPackage(embedded, self.spec)
 
         opts = api.OptionMap()
-        opts[self.spec.pkg.name] = self.spec.compat.render(self.spec.pkg.version)
+        opts[self.spec.pkg.name] = api.render_compat(self.spec.compat, self.spec.pkg.version)
         for opt in self.spec.build.options:
             value = opt.get_value()
             if value:
@@ -347,13 +347,13 @@ class BuildPackage(Decision):
 
         specs = tuple(s.spec for s in self.env.items())
         options = self.env.options()
-        spec = self.spec.clone()
-        spec.update_for_build(options, specs)
+        spec = self.spec.copy()
+        spec.update_spec_for_build(options, specs)
 
         yield SetPackageBuild(spec, self.spec)
         for req in spec.install.requirements:
             if isinstance(req, api.PkgRequest):
-                req = req.clone()
+                req = req.copy()
                 req.required_compat = api.CompatRule.API
                 yield RequestPackage(req)
             elif isinstance(req, api.VarRequest):
@@ -362,7 +362,7 @@ class BuildPackage(Decision):
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
         opts = api.OptionMap()
-        opts[self.spec.pkg.name] = self.spec.compat.render(self.spec.pkg.version)
+        opts[self.spec.pkg.name] =  api.render_compat(self.spec.compat, self.spec.pkg.version)
         for opt in spec.build.options:
             name = opt.namespaced_name(spec.pkg.name)
             value = opt.get_value()

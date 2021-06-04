@@ -201,9 +201,9 @@ def format_request(name: str, requests: Sequence[api.Request]) -> str:
 def format_options(options: api.OptionMap) -> str:
 
     formatted = []
-    for name in options:
+    for name, value in options.items():
         formatted.append(
-            f"{name}{Style.DIM}={Style.NORMAL}{Fore.CYAN}{options[name]}{Fore.RESET}"
+            f"{name}{Style.DIM}={Style.NORMAL}{Fore.CYAN}{value}{Fore.RESET}"
         )
 
     return f"{{{', '.join(formatted)}}}"

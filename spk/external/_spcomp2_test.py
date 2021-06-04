@@ -3,6 +3,7 @@
 # https://github.com/imageworks/spk
 
 import os
+from typing import Dict
 
 import pytest
 
@@ -120,8 +121,9 @@ from ._spcomp2 import _build_to_options, SPCOMP2_EXCLUDED_BUILDS, SPCOMP2_ROOT
         ),
     ],
 )
-def test_build_to_options(build: str, expected: api.OptionMap) -> None:
+def test_build_to_options(build: str, expected: Dict[str, str]) -> None:
 
+    expected = api.OptionMap(expected)
     actual = _build_to_options(build)
     spec = api.BuildSpec(options=actual)
     compat = spec.validate_options("", expected)

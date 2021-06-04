@@ -45,7 +45,7 @@ class Solution:
 
     def options(self) -> api.OptionMap:
         """Return the options used to generate this solution."""
-        return api.OptionMap(self._options)
+        return self._options.copy()
 
     def repositories(self) -> List[storage.Repository]:
         """Return the set of repositories in this solution."""

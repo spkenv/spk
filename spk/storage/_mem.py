@@ -99,8 +99,8 @@ class MemRepository(Repository):
         self._packages.setdefault(spec.pkg.name, {})
         version = str(spec.pkg.version)
         self._packages[spec.pkg.name].setdefault(version, {})
-        build = spec.pkg.build.digest
-        self._packages[spec.pkg.name][version][build] = (spec.clone(), digest)
+        build = spec.pkg.build
+        self._packages[spec.pkg.name][version][build] = (spec.copy(), digest)
 
     def remove_package(self, pkg: api.Ident) -> None:
 

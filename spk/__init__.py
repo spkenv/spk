@@ -18,7 +18,6 @@ from .solve import (
     Solution,
     SolverError,
 )
-from .api import read_spec_file
 from .build import (
     SourcePackageBuilder,
     BinaryPackageBuilder,

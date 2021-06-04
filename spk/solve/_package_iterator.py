@@ -219,8 +219,8 @@ class SortedBuildIterator(BuildIterator):
             # and then it's the distance from the default option set,
             # where distance is just the number of differing options
             current_options = dict(
-                (o, self._options[o])
-                for o in spec.resolve_all_options({})
+                (o, v)
+                for o, v in spec.resolve_all_options(api.OptionMap()).items()
                 if o in self._options
             )
             similar_options_count = len(
