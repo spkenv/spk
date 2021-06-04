@@ -28,7 +28,7 @@ macro_rules! spec {
 }
 
 #[pyclass]
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Spec {
     #[pyo3(get, set)]
     #[serde(default)]

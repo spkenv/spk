@@ -102,7 +102,7 @@ impl Compatibility {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Hash, Clone, PartialEq, Eq)]
 pub struct CompatRuleSet(BTreeSet<CompatRule>);
 
 impl std::fmt::Display for CompatRuleSet {
@@ -129,7 +129,7 @@ impl CompatRuleSet {
 }
 
 /// Compat specifies the compatilbility contract of a compat number.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Compat(Vec<CompatRuleSet>);
 
 impl Default for Compat {

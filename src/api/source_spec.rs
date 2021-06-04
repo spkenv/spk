@@ -14,7 +14,7 @@ use crate::{Error, Result};
 #[path = "./source_spec_test.rs"]
 mod source_spec_test;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, FromPyObject)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, FromPyObject)]
 #[serde(untagged)]
 pub enum SourceSpec {
     Local(LocalSource),
@@ -47,7 +47,7 @@ impl SourceSpec {
 
 /// Package source files in a local directory or file path.
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSource {
     pub path: PathBuf,
     #[serde(
@@ -126,7 +126,7 @@ impl LocalSource {
 
 /// Package source files from a remote git repository.
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitSource {
     pub git: String,
     #[serde(default, rename = "ref", skip_serializing_if = "String::is_empty")]
@@ -180,7 +180,7 @@ impl GitSource {
 
 /// Package source files from a local or remote tar archive.
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TarSource {
     pub tar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -231,7 +231,7 @@ impl TarSource {
 
 /// Package source files collected via arbitrary shell script.
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSource {
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

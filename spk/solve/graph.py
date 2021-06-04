@@ -209,7 +209,7 @@ class State(NamedTuple):
 
     def get_option_map(self) -> api.OptionMap:
 
-        return api.OptionMap(self.options)
+        return api.OptionMap(dict(self.options))
 
     def get_next_request(self) -> Optional[api.PkgRequest]:
 

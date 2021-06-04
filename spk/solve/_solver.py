@@ -75,7 +75,7 @@ class Solver:
 
         if isinstance(request, str):
             request = api.PkgRequest.from_dict({"pkg": request})
-            request.required_compat = api.CompatRule.API
+            request.required_compat = "a"
             request = graph.RequestPackage(request)
 
         if isinstance(request, api.PkgRequest):

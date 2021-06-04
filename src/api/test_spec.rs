@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{OptionMap, Request};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum TestStage {
     Sources,
     Build,
@@ -52,7 +52,7 @@ impl<'de> Deserialize<'de> for TestStage {
 
 /// A set of structured inputs used to build a package.
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestSpec {
     #[pyo3(get, set)]
     stage: TestStage,

@@ -14,7 +14,7 @@ mod build_spec_test;
 
 /// A set of structured inputs used to build a package.
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct BuildSpec {
     #[pyo3(get, set)]
     pub script: Vec<String>,

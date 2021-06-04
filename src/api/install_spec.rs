@@ -15,7 +15,7 @@ mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
 #[pyclass]
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Default, Hash, Clone, PartialEq, Eq, Serialize)]
 pub struct InstallSpec {
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

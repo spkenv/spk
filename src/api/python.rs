@@ -472,4 +472,11 @@ impl pyo3::PyObjectProtocol for super::Spec {
             _ => false,
         }
     }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
 }

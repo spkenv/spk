@@ -69,8 +69,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     repo = storage.MemRepository()
 
     options = api.OptionMap()
-    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
-    spec.pkg.set_build(options.digest)
+    spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
 
     # publish package without publishing spec
     repo.publish_package(spec, spkrs.EMPTY_DIGEST)

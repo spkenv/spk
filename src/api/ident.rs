@@ -19,7 +19,7 @@ mod ident_test;
 /// range of package versions/releases depending on the
 /// syntax and context
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Default)]
 pub struct Ident {
     #[pyo3(get)]
     name: String,

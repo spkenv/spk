@@ -54,7 +54,7 @@ impl Inheritance {
 }
 
 /// An option that can be provided to provided to the package build process
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, FromPyObject)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, FromPyObject)]
 #[serde(untagged)]
 pub enum Opt {
     Pkg(PkgOpt),
@@ -150,6 +150,19 @@ pub struct VarOpt {
     pub inheritance: Inheritance,
     #[pyo3(get)]
     value: Option<String>,
+}
+
+impl std::hash::Hash for VarOpt {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.var.hash(state);
+        self.default.hash(state);
+        for (i, choice) in self.choices.iter().enumerate() {
+            i.hash(state);
+            choice.hash(state);
+        }
+        self.inheritance.hash(state);
+        self.value.hash(state)
+    }
 }
 
 impl VarOpt {
@@ -315,7 +328,7 @@ impl<'de> Deserialize<'de> for VarOpt {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
     #[pyo3(get)]
     pub pkg: String,

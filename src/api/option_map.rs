@@ -35,7 +35,7 @@ macro_rules! option_map {
 
 /// A set of values for package build options.
 #[pyclass]
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OptionMap {
     options: BTreeMap<String, String>,
