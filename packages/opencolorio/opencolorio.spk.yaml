@@ -1,16 +1,25 @@
-pkg: opencolorio/2.0.0
+pkg: opencolorio/2.0.1
   # - name: OpenColorIO
-  # - description: Open source color management library
+  # - description: "Open source color management library"
   # - license: BSD-3-clause
   # - url: https://opencolorio.org
   # - bindings: [ "C++", "Python" ]
+
+# This package builds the OpenColorIO libraries. There is a separate spk
+# package, opencolorio-apps, that builds the applications.
+#
+# This separation is necessary to untangle a mutual build dependency between
+# opencolorio and openimageio. The full build sequence is: (a) opencolorio,
+# (b) openimageio (which uses the opencolorio libraries), and finally, (c)
+# opencolorio-apps.
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
   # or (c) nothing (does a fresh clone from GitHub).
   - path: ./
   - script:
-    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b v2.0.0 ; fi
+    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b v2.0.1 ; fi
+
 
 build:
   options:
@@ -19,22 +28,27 @@ build:
     - var: centos
     - pkg: stdfs
     - pkg: gcc/6.3
-    - pkg: python/3.7
+    - pkg: python/~3.7.0
     - pkg: pybind11/2.6.2
-    - pkg: cmake/^3.13
+    - pkg: cmake/3.13
 
   variants:
-    - { gcc: 6.3, python: 2.7 }
-    - { gcc: 6.3, python: 3.7 }
-    - { gcc: 9.3, python: 2.7 }
-    - { gcc: 9.3, python: 3.7 }
+    - { gcc: 6.3, python: ~2.7.0 }
+    - { gcc: 6.3, python: ~3.7.0 }
+    - { gcc: 9.3, python: ~2.7.0 }
+    - { gcc: 9.3, python: ~3.7.0 }
 
   script:
     - cmake -S OpenColorIO -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_CXX_STANDARD=14
         -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
         -DOCIO_BUILD_TESTS=OFF
-        -DPYBIND11_PYTHON_VERSION="${SPK_OPT_python}"
+        -DOCIO_BUILD_GPU_TESTS=OFF
+        -DOCIO_BUILD_APPS=OFF
+        -DOCIO_BUILD_PYTHON=ON
+        -DPYBIND11_PYTHON_VERSION="${SPK_PKG_python_VERSION_BASE}"
     - cmake --build build --target install
 
 install:

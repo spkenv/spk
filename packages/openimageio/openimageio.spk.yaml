@@ -1,0 +1,151 @@
+pkg: openimageio/2.3.5.0
+  # - description: "Library and tools for image files and processing"
+  # - url: https://openimageio.org
+  # - docs: https://openimageio.readthedocs.io
+  # - author: "Larry Gritz <lg@larrygritz.com>"
+  # - license: BSD-3-clause
+  # - bindings: [ "C++", "C", "Python", "cli" ]
+
+# If building off the master/development branch of OIIO, there is no
+# guarantee of API or ABI compatibility (except for the most minor level of
+# patches), so be stricter than usual, with "x.x.x.ab". If building from a
+# release branch, however, the usual x.x.a.b correctly reflects OIIO's
+# compatibility promises for release branches.
+#
+# Also, if using a "master" OIIO, downstream packages should require it
+# using
+#    - pkg: openimageio
+#      fromBuildEnv: x.x.x.x
+# but for "release" branches of OIIO, it's sufficient to use `x.x`.
+#
+compat: x.x.x.ab
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d oiio ] ; then git clone https://github.com/OpenImageIO/oiio -b v2.3.5.0-dev ; fi
+
+
+build:
+
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: gcc/6.3
+    - pkg: python/~3.7.0
+    - pkg: pybind11/2.6.2
+    - pkg: cmake/^3.13
+    - pkg: boost/~1.70.0
+    - pkg: zlib
+    - pkg: libtiff/4.3
+    - pkg: imath/~3.0.0
+    - pkg: openexr/~3.0.0
+    - pkg: fmt/7.1.3
+    - pkg: opencolorio/~2.0.1
+    - pkg: giflib
+    - pkg: libpng
+    - pkg: pugixml
+    - pkg: robinmap
+    - pkg: libraw
+    - pkg: freetype
+    - pkg: libjpeg
+    - pkg: openjpeg
+    - pkg: tbb/2019
+    - pkg: openvdb/8.0
+    - pkg: libheif/1.12
+    - pkg: ffmpeg/4.2
+    # TODO:
+    # - pkg: webp
+    # - pkg: qt5
+    # - pkg: libsquish?
+    # - pkg: jpeg-turbo?
+    # optional: opencv?
+    - var: cxx/14
+      choices: [14, 17]
+    - var: debug/off
+      choices: [on, off]
+    - var: sse4/on
+      choices: [on, off]
+    - var: avx2/off
+      choices: [on, off]
+    - var: avx512f/off
+      choices: [on, off]
+
+  # variants declares the default set of variants to build and publish
+  # using the spk build and make-* commands
+  variants:
+    - { gcc: 6.3, cxx: 14, python: ~2.7.0, boost: ~1.70.0 }
+    - { gcc: 6.3, cxx: 14, python: ~3.7.0, boost: ~1.70.0 }
+    - { gcc: 9.3, cxx: 17, python: ~2.7.0, boost: ~1.73.0 }
+    - { gcc: 9.3, cxx: 17, python: ~3.7.0, boost: ~1.73.0 }
+
+  script:
+    - export SIMD_OPTS="-DUSE_SIMD=sse2"
+    - if [ "$SPK_OPT_sse4" == "on" ] ; then SIMD_OPTS+=",sse4.2" ; fi
+    - if [ "$SPK_OPT_avx2" == "on" ] ; then SIMD_OPTS+=",avx2" ; fi
+    - if [ "$SPK_OPT_avx512f" == "on" ] ; then SIMD_OPTS+=",avx512f" ; fi
+    - export CMAKE_BUILD_TYPE=Release
+    - if [ "${SPK_OPT_debug}" == "debug" ] ; then export CMAKE_BUILD_TYPE=Debug ; fi
+    - cmake -S oiio -B build -G Ninja
+        -DVERBOSE=1
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        -DCMAKE_PREFIX_PATH=${PREFIX}
+        -DCMAKE_CXX_STANDARD=${SPK_OPT_cxx}
+        ${SIMD_OPTS}
+        -DPYBIND11_PYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
+        -DPYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
+        -DENABLE_FIELD3D=OFF
+        -DENABLE_PTEX=OFF
+        -DUSE_OPENCV=0
+        -DOpenJPEG_ROOT=$PREFIX
+        -DTBB_USE_DEBUG_BUILD=0
+        -DCMAKE_DISABLE_FIND_PACKAGE_JPEGTurbo=ON
+    - cmake --build build --target install
+
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: python
+      fromBuildEnv: x.x
+      # If python is already in the environment/resolve then we
+      # we require it to be compatible with what we built with.
+      # But no python at all is also okay.
+      include: IfAlreadyPresent
+    - pkg: boost
+      fromBuildEnv: x.x
+    - pkg: imath
+      fromBuildEnv: x.x
+    - pkg: fmt
+      fromBuildEnv: x.x
+    - pkg: openexr
+      fromBuildEnv: x.x
+    - pkg: opencolorio
+      fromBuildEnv: x.x
+    - pkg: giflib
+      fromBuildEnv: x.x
+    - pkg: libpng
+      fromBuildEnv: x.x
+    - pkg: pugixml
+      fromBuildEnv: x.x
+    - pkg: libraw
+      fromBuildEnv: x.x
+    - pkg: freetype
+      fromBuildEnv: x.x
+    - pkg: openjpeg
+      fromBuildEnv: x.x
+    - pkg: libjpeg
+      fromBuildEnv: x.x
+    - pkg: tbb
+      fromBuildEnv: x.x
+    - pkg: openvdb
+      fromBuildEnv: x.x
+    - pkg: libheif
+      fromBuildEnv: x.x
+    - pkg: ffmpeg
+      fromBuildEnv: x.x

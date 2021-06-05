@@ -1,0 +1,48 @@
+pkg: boost-python/1.73.0
+  # - name: "Boost.python"
+  # - description: "Boost library for making python bindings"
+  # - url: https://www.boost.org
+  # - license: BSL-1.0
+  # - bindings: [ "C++" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+    filter: [ ]
+  - script:
+    - if [ ! -d boost ] ; then git clone https://github.com/boostorg/boost --recurse-submodules -b boost-1.73.0 ; fi
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: gcc/6.3
+    - pkg: python/2.7
+
+  variants:
+    - { gcc: 6.3, python: 2.7 }
+    - { gcc: 6.3, python: 3.7 }
+    - { gcc: 9.3, python: 2.7 }
+    - { gcc: 9.3, python: 3.7 }
+
+  script: |
+    cd boost
+    ./bootstrap.sh --prefix=$PREFIX \
+          --with-python=$PREFIX/bin/python \
+          --with-python-version=${SPK_OPT_python}
+    # This works around an apparent bug in the boost build system:
+    PYTHON_INCLUDE_PATH=$(python -c 'from distutils.sysconfig import get_python_inc; print(get_python_inc())')
+    sed --in-place=.bak -e "s|\(using python.*\);|\1: \"$PYTHON_INCLUDE_PATH\" ;|" project-config.jam
+    ./b2 -q -j $(nproc) --prefix=$PREFIX --with-python install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: python
+      fromBuildEnv: x.x
+      include: IfAlreadyPresent

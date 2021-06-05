@@ -1,4 +1,4 @@
-pkg: openexr/3.0.1
+pkg: openexr/3.0.4
   # - name: "OpenEXR"
   # - description: "Image storage format for HDR imagery"
   # - license: BSD-3-clause
@@ -10,7 +10,7 @@ sources:
   # or (c) nothing (does a fresh clone from GitHub).
   - path: ./
   - script:
-    - if [ ! -d openexr ] ; then git clone https://github.com/AcademySoftwareFoundation/openexr -b v3.0.1 ; fi
+    - if [ ! -d openexr ] ; then git clone https://github.com/AcademySoftwareFoundation/openexr -b v3.0.4 ; fi
 
 
 build:
@@ -22,7 +22,7 @@ build:
     - pkg: cmake/^3.13
     - pkg: gcc/6.3
     - pkg: zlib
-    - pkg: imath/3.0.1
+    - pkg: imath/3.0.4
 
   variants:
     - { gcc: 6.3 }
