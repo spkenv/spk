@@ -50,6 +50,12 @@ fn save_spec_file(filepath: &str, spec: &super::Spec) -> crate::Result<()> {
     super::save_spec_file(filepath, spec)
 }
 
+#[pyfunction]
+fn collect_source(source: super::SourceSpec, path: &str) -> crate::Result<()> {
+    let path = std::path::Path::new(path);
+    source.collect(path)
+}
+
 #[pyclass]
 struct Compatibility {
     inner: super::Compatibility,
@@ -119,6 +125,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render_compat, m)?)?;
     m.add_function(wrap_pyfunction!(read_spec_file, m)?)?;
     m.add_function(wrap_pyfunction!(save_spec_file, m)?)?;
+    m.add_function(wrap_pyfunction!(collect_source, m)?)?;
 
     m.add_class::<super::Ident>()?;
     m.add_class::<super::Spec>()?;
@@ -359,6 +366,10 @@ impl super::PkgRequest {
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
         from_dict(input, py)
     }
+
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
+        to_dict(self, py)
+    }
 }
 
 #[pyfunction]
@@ -442,18 +453,28 @@ impl pyo3::PyObjectProtocol for super::Version {
     }
 
     fn __repr__(&self) -> String {
-        format!("Version('{}')", self.to_string())
+        self.to_string()
     }
 
-    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+    fn __richcmp__(&self, other: &PyAny, op: pyo3::class::basic::CompareOp) -> PyResult<bool> {
         use pyo3::class::basic::CompareOp;
+        use std::str::FromStr;
+        let other = if let Ok(string) = other.extract::<&str>() {
+            Self::from_str(string)?
+        } else if let Ok(version) = other.extract::<Self>() {
+            version
+        } else {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "Cannot compare with Version object",
+            ));
+        };
         match op {
-            CompareOp::Eq => self == &other,
-            CompareOp::Le => self <= &other,
-            CompareOp::Ge => self >= &other,
-            CompareOp::Gt => self > &other,
-            CompareOp::Lt => self < &other,
-            CompareOp::Ne => self != &other,
+            CompareOp::Eq => Ok(self == &other),
+            CompareOp::Le => Ok(self <= &other),
+            CompareOp::Ge => Ok(self >= &other),
+            CompareOp::Gt => Ok(self > &other),
+            CompareOp::Lt => Ok(self < &other),
+            CompareOp::Ne => Ok(self != &other),
         }
     }
 
@@ -565,6 +586,24 @@ impl pyo3::PyObjectProtocol for super::OptionMap {
 
 #[pyproto]
 impl pyo3::PyObjectProtocol for super::Spec {
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        match op {
+            CompareOp::Eq => self == &other,
+            _ => false,
+        }
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::PkgRequest {
     fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
         use pyo3::class::basic::CompareOp;
         match op {

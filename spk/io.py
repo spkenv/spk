@@ -102,7 +102,7 @@ def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
     if isinstance(change, solve.graph.RequestPackage):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
     elif isinstance(change, solve.graph.RequestVar):
-        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.name(): change.request.value}))}"
+        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.var: change.request.value}))}"
     elif isinstance(change, solve.graph.SetPackageBuild):
         return f"{Fore.YELLOW}BUILD{Fore.RESET} {format_ident(change.spec.pkg)}"
     elif isinstance(change, solve.graph.SetPackage):

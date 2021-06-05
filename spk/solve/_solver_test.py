@@ -99,7 +99,7 @@ def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> 
     assert len(packages) == 1, "expected one resolved package"
     assert packages.get("my-pkg").spec.pkg.version == "1.0.0"
     assert packages.get("my-pkg").spec.pkg.build is not None
-    assert packages.get("my-pkg").spec.pkg.build.digest != api.SRC  # type: ignore
+    assert packages.get("my-pkg").spec.pkg.build != api.SRC  # type: ignore
 
 
 def test_solver_single_package_simple_deps(
@@ -504,7 +504,7 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
         assert (
             solution.get("vnp3")
             .spec.build.options[0]
-            .get_value()
+            .get_value("")
             .startswith(f"~{pyver}")
         )
 

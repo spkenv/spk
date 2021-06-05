@@ -254,7 +254,6 @@ class Decision:
                     pass
                 else:
                     compat = resolved.satisfies_var_request(request)
-                    print("compat:", compat)
                     if not compat:
                         self.set_unresolved(resolved.pkg.name, compat)
 

@@ -67,27 +67,6 @@ impl RangeIdent {
         true
     }
 
-    /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        if spec.pkg.name() != self.name {
-            return Compatibility::Incompatible("different package names".into());
-        }
-
-        let c = self.version.is_satisfied_by(&spec, required);
-        if !c.is_ok() {
-            return c;
-        }
-
-        if self.build.is_some() && self.build != spec.pkg.build {
-            return Compatibility::Incompatible(format!(
-                "different builds: {:?} != {:?}",
-                self.build, spec.pkg.build
-            ));
-        }
-
-        Compatibility::Compatible
-    }
-
     pub fn contains(&self, other: &RangeIdent) -> Compatibility {
         if other.name != self.name {
             return Compatibility::Incompatible(format!(
@@ -126,6 +105,30 @@ impl RangeIdent {
                 self, other
             )))
         }
+    }
+}
+
+#[pymethods]
+impl RangeIdent {
+    /// Return true if the given package spec satisfies this request.
+    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+        if spec.pkg.name() != self.name {
+            return Compatibility::Incompatible("different package names".into());
+        }
+
+        let c = self.version.is_satisfied_by(&spec, required);
+        if !c.is_ok() {
+            return c;
+        }
+
+        if self.build.is_some() && self.build != spec.pkg.build {
+            return Compatibility::Incompatible(format!(
+                "different builds: {:?} != {:?}",
+                self.build, spec.pkg.build
+            ));
+        }
+
+        Compatibility::Compatible
     }
 }
 

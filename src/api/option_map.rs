@@ -251,3 +251,13 @@ impl pyo3::mapping::PyMappingProtocol for OptionMap {
         self.options.remove(&key);
     }
 }
+
+#[pyproto]
+impl pyo3::PySequenceProtocol for OptionMap {
+    fn __len__(&self) -> usize {
+        self.options.len()
+    }
+    fn __contains__(&self, item: &str) -> bool {
+        self.options.contains_key(item)
+    }
+}

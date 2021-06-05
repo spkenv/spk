@@ -82,12 +82,9 @@ impl BuildSpec {
     /// Validate the given options against the options in this spec.
     pub fn validate_options(&self, package_name: &str, given_options: &OptionMap) -> Compatibility {
         let mut must_exist = given_options.package_options_without_global(&package_name);
-        println!("{}", given_options);
         let given_options = given_options.package_options(&package_name);
-        println!("{}", given_options);
         for option in self.options.iter() {
             let value = given_options.get(option.name()).map(String::as_str);
-            println!("{:?} {:?} {}", option.name(), value, given_options);
             let compat = option.validate(value);
             if !compat.is_ok() {
                 return Compatibility::Incompatible(format!(
