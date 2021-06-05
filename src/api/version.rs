@@ -306,10 +306,14 @@ impl Ord for Version {
             return Ordering::Less;
         }
 
-        match self.pre.cmp(&other.pre) {
-            Ordering::Equal => (),
-            Ordering::Less => return Ordering::Greater,
-            Ordering::Greater => return Ordering::Less,
+        match (self.pre.is_empty(), other.pre.is_empty()) {
+            (true, true) => (),
+            (true, false) => return Ordering::Greater,
+            (false, true) => return Ordering::Less,
+            (false, false) => match self.pre.cmp(&other.pre) {
+                Ordering::Equal => (),
+                cmp => return cmp,
+            },
         }
 
         self.post.cmp(&other.post)

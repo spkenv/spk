@@ -24,10 +24,13 @@ fn test_version_nonzero() {
 #[case("6.3+b.0", "6.3+a.0", true)]
 #[case("6.3-pre.0", "6.3", false)]
 #[case("6.3", "6.3-pre.0", true)]
+#[case("6.3-pre.1", "6.3-pre.0", true)]
 #[case("6.3+r.1", "6.3+other.1,r.1", true)]
 fn test_is_gt(#[case] base: &str, #[case] test: &str, #[case] expected: bool) {
-    let actual = parse_version(base).unwrap() > parse_version(test).unwrap();
-    assert_eq!(actual, expected);
+    let a = parse_version(base).unwrap();
+    let b = parse_version(test).unwrap();
+    let actual = a > b;
+    assert_eq!(actual, expected, "{} should be greater than {}", a, b);
 }
 
 #[rstest]
