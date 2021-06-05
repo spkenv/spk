@@ -607,7 +607,7 @@ impl pyo3::PyObjectProtocol for super::PkgRequest {
     fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
         use pyo3::class::basic::CompareOp;
         match op {
-            CompareOp::Eq => self == &other,
+            CompareOp::Eq => self.pkg.name() == other.pkg.name(),
             _ => false,
         }
     }
@@ -615,7 +615,7 @@ impl pyo3::PyObjectProtocol for super::PkgRequest {
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
+        self.pkg.name().hash(&mut hasher);
         hasher.finish()
     }
 }
