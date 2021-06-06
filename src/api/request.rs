@@ -134,7 +134,7 @@ impl RangeIdent {
 
 impl Display for RangeIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&self.name)?;
+        self.name.fmt(f)?;
         if self.version.len() > 0 {
             f.write_char('/')?;
             self.version.fmt(f)?;

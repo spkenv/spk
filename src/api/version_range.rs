@@ -868,8 +868,7 @@ pub struct VersionFilter {
 
 impl Hash for VersionFilter {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
-        rules.sort_unstable();
+        let rules = self.sorted_rules();
         rules.hash(state)
     }
 }
@@ -887,6 +886,12 @@ impl VersionFilter {
 
     pub fn is_empty(&self) -> bool {
         self.rules.len() == 0
+    }
+
+    pub(crate) fn sorted_rules(&self) -> Vec<String> {
+        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
+        rules.sort_unstable();
+        rules
     }
 
     /// Reduce this range by the scope of another
@@ -996,12 +1001,10 @@ impl Ranged for VersionFilter {
 
 impl Display for VersionFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let s = self
-            .rules
-            .iter()
-            .map(|r| r.to_string())
-            .collect_vec()
-            .join(VERSION_RANGE_SEP);
+        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
+        rules.sort_unstable();
+
+        let s = rules.join(VERSION_RANGE_SEP);
         f.write_str(&s)
     }
 }

@@ -601,6 +601,29 @@ impl pyo3::PyObjectProtocol for super::RangeIdent {
     fn __str__(&self) -> String {
         self.to_string()
     }
+
+    fn __repr__(&self) -> String {
+        self.to_string()
+    }
+
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        let eq = self.name() == other.name()
+            && self.version.sorted_rules() == other.version.sorted_rules()
+            && self.build == other.build;
+        match op {
+            CompareOp::Eq => eq,
+            CompareOp::Ne => !eq,
+            _ => false,
+        }
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 #[pyproto]
@@ -613,6 +636,10 @@ impl pyo3::PyObjectProtocol for super::TagSet {
 #[pyproto]
 impl pyo3::PyObjectProtocol for super::OptionMap {
     fn __str__(&self) -> String {
+        self.to_string()
+    }
+
+    fn __repr__(&self) -> String {
         self.to_string()
     }
 }
