@@ -323,7 +323,9 @@ class ResolvePackage(Decision):
             yield SetPackage(embedded, self.spec)
 
         opts = api.OptionMap()
-        opts[self.spec.pkg.name] = api.render_compat(self.spec.compat, self.spec.pkg.version)
+        opts[self.spec.pkg.name] = api.render_compat(
+            self.spec.compat, self.spec.pkg.version
+        )
         for opt in self.spec.build.options:
             value = opt.get_value()
             if value:
@@ -362,7 +364,9 @@ class BuildPackage(Decision):
                 _LOGGER.warning(f"unhandled install requirement {type(req)}")
 
         opts = api.OptionMap()
-        opts[self.spec.pkg.name] =  api.render_compat(self.spec.compat, self.spec.pkg.version)
+        opts[self.spec.pkg.name] = api.render_compat(
+            self.spec.compat, self.spec.pkg.version
+        )
         for opt in spec.build.options:
             name = opt.namespaced_name(spec.pkg.name)
             value = opt.get_value()

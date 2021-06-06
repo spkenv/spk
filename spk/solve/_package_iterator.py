@@ -193,7 +193,9 @@ class SortedBuildIterator(BuildIterator):
         version_spec = self.version_spec()
         variant_count = len(version_spec.build.variants) if version_spec else 0
         default_options = (
-            version_spec.resolve_all_options(api.OptionMap()) if version_spec else api.OptionMap()
+            version_spec.resolve_all_options(api.OptionMap())
+            if version_spec
+            else api.OptionMap()
         )
 
         def key(entry: Tuple[api.Spec, PackageSource]) -> Tuple[int, str]:

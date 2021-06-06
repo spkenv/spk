@@ -154,7 +154,6 @@ class PipImporter:
         ]
         spec.build = build
 
-
         builds = []
         if info.requires_python:
             _LOGGER.debug(

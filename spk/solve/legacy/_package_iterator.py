@@ -217,7 +217,9 @@ class FilteredPackageIterator(PackageIterator):
 
             # check option compatibility of entire version, if applicable
             if version_spec is not None:
-                compat = api.version_range_is_satisfied_by(self.request.pkg.version, version_spec, self.request.required_compat);
+                compat = api.version_range_is_satisfied_by(
+                    self.request.pkg.version, version_spec, self.request.required_compat
+                )
                 if not compat:
                     self.add_history(candidate.pkg.with_build(None), compat)
                     continue

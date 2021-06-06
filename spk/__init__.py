@@ -4,6 +4,7 @@
 """SPK - an SpFS Package Manager"""
 
 import spkrs
+
 api = spkrs.api
 from . import storage, solve, build, exec, test
 from ._global import load_spec, save_spec

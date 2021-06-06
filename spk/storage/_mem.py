@@ -45,9 +45,7 @@ class MemRepository(Repository):
             if not pkg.build:
                 return self._specs[pkg.name][str(pkg.version)].copy()
             else:
-                return self._packages[pkg.name][str(pkg.version)][pkg.build][
-                    0
-                ].copy()
+                return self._packages[pkg.name][str(pkg.version)][pkg.build][0].copy()
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -70,7 +68,9 @@ class MemRepository(Repository):
 
     def publish_spec(self, spec: api.Spec) -> None:
 
-        assert spec.pkg.build is None, f"Spec must be published with no build, got {spec.pkg}"
+        assert (
+            spec.pkg.build is None
+        ), f"Spec must be published with no build, got {spec.pkg}"
         assert (
             spec.pkg.build is None or not spec.pkg.build == api.EMDEDDED
         ), "Cannot publish embedded package"

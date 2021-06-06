@@ -488,7 +488,11 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
             },
         }
     )
-    print(make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]).build.options[0].get_value())
+    print(
+        make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})])
+        .build.options[0]
+        .get_value()
+    )
     repo = make_repo(
         [
             make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]),
@@ -593,7 +597,9 @@ def test_solver_build_from_source() -> None:
         print(io.format_resolve(solver, verbosity=100))
 
     resolved = solution.get("my-tool")
-    assert resolved.is_source_build(), f"Should set unbuilt spec as source: {resolved.spec.pkg}"
+    assert (
+        resolved.is_source_build()
+    ), f"Should set unbuilt spec as source: {resolved.spec.pkg}"
 
     solver.reset()
     solver.add_repository(repo)

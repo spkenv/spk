@@ -106,9 +106,7 @@ class Solver:
     def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
         if not isinstance(options, api.OptionMap):
             options = api.OptionMap(options)
-        self._initial_state_builders.append(
-            graph.SetOptions(options)
-        )
+        self._initial_state_builders.append(graph.SetOptions(options))
 
     def get_initial_state(self) -> graph.State:
         state = graph.State.default()
@@ -200,7 +198,9 @@ class Solver:
                 builds = SortedBuildIterator(node.state.get_option_map(), builds)
                 iterator.set_builds(pkg.version, builds)
             for spec, repo in builds:
-                build_from_source = spec.pkg.build == api.SRC and not request.pkg.build == api.SRC
+                build_from_source = (
+                    spec.pkg.build == api.SRC and not request.pkg.build == api.SRC
+                )
                 if build_from_source:
                     if isinstance(repo, api.Spec):
                         notes.append(

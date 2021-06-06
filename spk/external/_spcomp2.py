@@ -95,19 +95,19 @@ def import_spcomp2(
         if latest is None:
             continue
         spec = api.Spec()
-        spec.pkg=api.Ident(
-                spk_name,
-                latest,
-                build=build_opts.digest,
-            )
-        spec.compat=api.parse_compat("x.ab")
+        spec.pkg = api.Ident(
+            spk_name,
+            latest,
+            build=build_opts.digest,
+        )
+        spec.compat = api.parse_compat("x.ab")
         build_spec.script = BUILD_SCRIPT.format(
             root=str(root.absolute()),
             name=name,
             build=build_str,
             version=version_dir.name,
         ).splitlines()
-        spec.build=build_spec
+        spec.build = build_spec
 
         _LOGGER.info("scanning dependencies...")
         spcomp2_depends = version_config.get("spcomp2_depend", "")
