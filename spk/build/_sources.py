@@ -102,7 +102,6 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
                 target_dir = os.path.join(source_dir, subdir.lstrip("/"))
                 os.makedirs(target_dir, exist_ok=True)
 
-            source.collect(target_dir)
             api.collect_source(source, target_dir)
     finally:
         os.environ.clear()

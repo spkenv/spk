@@ -179,6 +179,14 @@ impl VarOpt {
 
 #[pymethods]
 impl VarOpt {
+    fn copy(&self) -> Self {
+        self.clone()
+    }
+
+    fn name(&self) -> String {
+        self.var.clone()
+    }
+
     pub fn namespaced_name(&self, pkg: &str) -> String {
         if self.var.contains(".") {
             self.var.clone()
@@ -356,6 +364,14 @@ impl PkgOpt {
 
 #[pymethods]
 impl PkgOpt {
+    fn copy(&self) -> Self {
+        self.clone()
+    }
+
+    fn name(&self) -> String {
+        self.pkg.clone()
+    }
+
     #[args(given = "None")]
     pub fn get_value(&self, given: Option<&str>) -> Option<String> {
         if let Some(v) = &self.value {

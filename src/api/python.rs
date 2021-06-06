@@ -379,6 +379,14 @@ impl super::LocalSource {
 }
 
 #[pymethods]
+impl super::ScriptSource {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        from_dict(input, py)
+    }
+}
+
+#[pymethods]
 impl super::PkgRequest {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {

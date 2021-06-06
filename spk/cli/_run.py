@@ -93,13 +93,6 @@ def _capture_if_relevant(err: Exception) -> None:
         return
     if isinstance(err, spk.solve.SolverError):
         return
-    if isinstance(
-        err,
-        (
-            spk.api.InvalidNameError,
-            spk.api.InvalidVersionError,
-            spk.api.InvalidBuildError,
-        ),
-    ):
+    if isinstance(err, RuntimeError):  # likely from spkrs
         return
     sentry_sdk.capture_exception(err)

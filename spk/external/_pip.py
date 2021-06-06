@@ -140,19 +140,19 @@ class PipImporter:
             api.parse_version(_to_spk_version(info.version)),
         )
         spec.sources = []
-        build = spec.build
-        build.options = [
+        build_spec = spec.build
+        build_spec.options = [
             api.VarOpt("os"),
             api.VarOpt("arch"),
             api.VarOpt("distro"),
             api.PkgOpt("python", self._python_version),
         ]
-        build.script = [
+        build_spec.script = [
             "export PYTHONNOUSERSITE=1",
             "export PYTHONDONTWRITEBYTECODE=1",
             f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
         ]
-        spec.build = build
+        spec.build = build_spec
 
         builds = []
         if info.requires_python:
@@ -243,13 +243,13 @@ def _to_spk_version(version: str) -> str:
         # rust requires that we take ownership before
         # editing and then put it back
         pre = spk_version.pre
-        pre["dev"] = int(python_version.dev)
+        pre["dev"] = int(python_version.dev) # type: ignore
         spk_version.pre = pre
     if python_version.post is not None:
         # rust requires that we take ownership before
         # editing and then put it back
         post = spk_version.post
-        post["post"] = int(python_version.post)
+        post["post"] = int(python_version.post) # type: ignore
         spk_version.post = post
     if python_version.local:
         # irrelevant information for compatibility of versions and

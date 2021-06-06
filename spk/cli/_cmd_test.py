@@ -92,7 +92,7 @@ def _test(args: argparse.Namespace) -> None:
 
                 variant_requirements = []
                 for opt in spec.build.options:
-                    opt = opt.clone()
+                    opt = opt.copy()
                     value = opts.get(opt.name())
                     if value:
                         opt.set_value(value)
@@ -122,13 +122,11 @@ def _test(args: argparse.Namespace) -> None:
                         spk.test.PackageInstallTester,
                     ]
                     if stage == "sources":
-                        tester = spk.test.PackageSourceTester(spec.clone(), test.script)
+                        tester = spk.test.PackageSourceTester(spec.copy(), test.script)
                     elif stage == "build":
-                        tester = spk.test.PackageBuildTester(spec.clone(), test.script)
+                        tester = spk.test.PackageBuildTester(spec.copy(), test.script)
                     elif stage == "install":
-                        tester = spk.test.PackageInstallTester(
-                            spec.clone(), test.script
-                        )
+                        tester = spk.test.PackageInstallTester(spec.copy(), test.script)
                     else:
                         raise ValueError(
                             f"Untestable stage '{stage}', must be one of {_VALID_STAGES}"
