@@ -183,12 +183,13 @@ impl Spec {
             }
         }
 
-        let mut build_options = self.build.options.clone();
         for e in self.install.embedded.iter() {
-            build_options.extend(e.build.options.clone().into_iter());
+            self.build
+                .options
+                .extend(e.build.options.clone().into_iter());
         }
 
-        for opt in build_options.iter_mut() {
+        for opt in self.build.options.iter_mut() {
             match opt {
                 Opt::Var(opt) => {
                     opt.set_value(

@@ -13,19 +13,19 @@ def test_only_latest_release_is_given() -> None:
     repo = storage.MemRepository()
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.1"})
     repo.publish_spec(spec)
-    spec.pkg.set_build("BGSHW3CN")
+    spec.pkg = spec.pkg.with_build("BGSHW3CN")
     repo.publish_package(
         spec,
         spkrs.EMPTY_DIGEST,
     )
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.2"})
     repo.publish_spec(spec)
-    spec.pkg.set_build("BGSHW3CN")
+    spec.pkg = spec.pkg.with_build("BGSHW3CN")
     repo.publish_package(
         spec,
         spkrs.EMPTY_DIGEST,
     )
-    spec.pkg.set_build("BVOFAV57")
+    spec.pkg = spec.pkg.with_build("BVOFAV57")
     repo.publish_package(
         spec,
         spkrs.EMPTY_DIGEST,
@@ -49,14 +49,14 @@ def test_old_release_allowed_if_requested() -> None:
     repo = storage.MemRepository()
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.1"})
     repo.publish_spec(spec)
-    spec.pkg.set_build("BGSHW3CN")
+    spec.pkg = spec.pkg.with_build("BGSHW3CN")
     repo.publish_package(
         spec,
         spkrs.EMPTY_DIGEST,
     )
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.2"})
     repo.publish_spec(spec)
-    spec.pkg.set_build("BGSHW3CN")
+    spec.pkg = spec.pkg.with_build("BGSHW3CN")
     repo.publish_package(
         spec,
         spkrs.EMPTY_DIGEST,

@@ -140,17 +140,19 @@ class PipImporter:
             api.parse_version(_to_spk_version(info.version)),
         )
         spec.sources = []
-        spec.build.options = [
+        build = spec.build
+        build.options = [
             api.VarOpt("os"),
             api.VarOpt("arch"),
             api.VarOpt("distro"),
             api.PkgOpt("python", self._python_version),
         ]
-        spec.build.script = [
+        build.script = [
             "export PYTHONNOUSERSITE=1",
             "export PYTHONDONTWRITEBYTECODE=1",
             f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
         ]
+        spec.build = build
 
 
         builds = []

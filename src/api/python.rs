@@ -56,6 +56,16 @@ fn collect_source(source: super::SourceSpec, path: &str) -> crate::Result<()> {
     source.collect(path)
 }
 
+#[pyfunction]
+fn version_range_is_satisfied_by(
+    range: super::VersionRange,
+    spec: &super::Spec,
+    required: super::CompatRule,
+) -> super::Compatibility {
+    use super::Ranged;
+    range.is_satisfied_by(spec, required)
+}
+
 #[pyclass]
 struct Compatibility {
     inner: super::Compatibility,
@@ -126,6 +136,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(read_spec_file, m)?)?;
     m.add_function(wrap_pyfunction!(save_spec_file, m)?)?;
     m.add_function(wrap_pyfunction!(collect_source, m)?)?;
+    m.add_function(wrap_pyfunction!(version_range_is_satisfied_by, m)?)?;
 
     m.add_class::<super::Ident>()?;
     m.add_class::<super::Spec>()?;
@@ -134,6 +145,8 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::PkgRequest>()?;
     m.add_class::<super::RangeIdent>()?;
     m.add_class::<super::VarRequest>()?;
+    m.add_class::<super::VarOpt>()?;
+    m.add_class::<super::PkgOpt>()?;
     m.add_class::<super::TestSpec>()?;
     m.add_class::<super::Version>()?;
     m.add_class::<super::OptionMap>()?;
@@ -444,6 +457,26 @@ impl pyo3::PyObjectProtocol for super::Ident {
     fn __str__(&self) -> String {
         self.to_string()
     }
+
+    fn __repr__(&self) -> String {
+        self.to_string()
+    }
+
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        match op {
+            CompareOp::Eq => self == &other,
+            CompareOp::Ne => self != &other,
+            _ => false,
+        }
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 #[pyproto]
@@ -590,6 +623,7 @@ impl pyo3::PyObjectProtocol for super::Spec {
         use pyo3::class::basic::CompareOp;
         match op {
             CompareOp::Eq => self == &other,
+            CompareOp::Ne => self != &other,
             _ => false,
         }
     }

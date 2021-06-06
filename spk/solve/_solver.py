@@ -200,7 +200,7 @@ class Solver:
                 builds = SortedBuildIterator(node.state.get_option_map(), builds)
                 iterator.set_builds(pkg.version, builds)
             for spec, repo in builds:
-                build_from_source = spec.pkg.build == "SRC" and not request.pkg.build == "SRC"
+                build_from_source = spec.pkg.build == api.SRC and not request.pkg.build == api.SRC
                 if build_from_source:
                     if isinstance(repo, api.Spec):
                         notes.append(

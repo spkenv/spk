@@ -217,7 +217,7 @@ class State(NamedTuple):
         for request in self.pkg_requests:
             if request.pkg.name in packages:
                 continue
-            if request.inclusion_policy is "IfAlreadyPresent":
+            if request.inclusion_policy == "IfAlreadyPresent":
                 continue
             break
         else:

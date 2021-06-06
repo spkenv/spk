@@ -156,7 +156,7 @@ class RepositoryBuildIterator(BuildIterator):
             _LOGGER.debug(
                 "Published spec is corrupt (has no associated build)", pkg=build
             )
-            spec.pkg.build = build.build
+            spec.pkg = spec.pkg.with_build(build.build)
 
         return (spec, self._repo)
 
@@ -203,7 +203,7 @@ class SortedBuildIterator(BuildIterator):
             total_options_count = len(spec.build.options)
             # source packages must come last to ensure that building
             # from source is the last option under normal circumstances
-            if spec.pkg.build is None or spec.pkg.build == "SRC":
+            if spec.pkg.build is None or spec.pkg.build == api.SRC:
                 return (variant_count + total_options_count + 1, build)
 
             if version_spec is not None:

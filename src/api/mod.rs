@@ -40,6 +40,6 @@ pub use version::{
 };
 pub use version_range::{
     parse_version_range, CompatRange, ExactVersion, ExcludedVersion, GreaterThanOrEqualToRange,
-    GreaterThanRange, LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, SemverRange,
-    VersionFilter, VersionRange, WildcardRange, VERSION_RANGE_SEP,
+    GreaterThanRange, LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, Ranged,
+    SemverRange, VersionFilter, VersionRange, WildcardRange, VERSION_RANGE_SEP,
 };

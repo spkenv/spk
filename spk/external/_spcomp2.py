@@ -101,13 +101,13 @@ def import_spcomp2(
                 build=build_opts.digest,
             )
         spec.compat=api.parse_compat("x.ab")
-        spec.build=build_spec
-        spec.build.script = BUILD_SCRIPT.format(
+        build_spec.script = BUILD_SCRIPT.format(
             root=str(root.absolute()),
             name=name,
             build=build_str,
             version=version_dir.name,
         ).splitlines()
+        spec.build=build_spec
 
         _LOGGER.info("scanning dependencies...")
         spcomp2_depends = version_config.get("spcomp2_depend", "")

@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{BuildSpec, Ident, OptionMap, Request, Spec};
+use super::{Build, BuildSpec, Ident, OptionMap, Request, Spec};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -117,7 +117,7 @@ impl<'de> Deserialize<'de> for InstallSpec {
         }
 
         let unchecked = Unchecked::deserialize(deserializer)?;
-        let spec = InstallSpec {
+        let mut spec = InstallSpec {
             requirements: unchecked.requirements,
             embedded: unchecked.embedded,
         };
@@ -134,7 +134,7 @@ impl<'de> Deserialize<'de> for InstallSpec {
         }
 
         let mut default_build_spec = BuildSpec::default();
-        for embedded in spec.embedded.iter() {
+        for embedded in spec.embedded.iter_mut() {
             default_build_spec.options = embedded.build.options.clone();
             if default_build_spec != embedded.build {
                 return Err(serde::de::Error::custom(
@@ -146,11 +146,15 @@ impl<'de> Deserialize<'de> for InstallSpec {
                     "embedded packages cannot specify the install field",
                 ));
             }
-            if let Some(_) = embedded.pkg.build {
-                return Err(serde::de::Error::custom(format!(
-                    "embedded package should not specify a build, got: {}",
-                    embedded.pkg
-                )));
+            match &mut embedded.pkg.build {
+                Some(Build::Embedded) => continue,
+                None => embedded.pkg.set_build(Some(Build::Embedded)),
+                Some(_) => {
+                    return Err(serde::de::Error::custom(format!(
+                        "embedded package should not specify a build, got: {}",
+                        embedded.pkg
+                    )));
+                }
             }
         }
 

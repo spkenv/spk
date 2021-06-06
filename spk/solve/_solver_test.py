@@ -35,7 +35,7 @@ def make_repo(
         if isinstance(s, dict):
             spec = api.Spec.from_dict(s)
             s = spec.copy()
-            spec.pkg.set_build(None)
+            spec.pkg = spec.pkg.with_build(None)
             repo.force_publish_spec(spec)
             s = make_build(s.to_dict(), [], opts)
         repo.publish_package(s, spkrs.EMPTY_DIGEST)
@@ -427,7 +427,10 @@ def test_solver_constraint_only(solver: Union[Solver, legacy.Solver]) -> None:
     )
     solver.add_repository(repo)
     solver.add_request("vnp3")
-    solution = solver.solve()
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
 
     with pytest.raises(KeyError):
         solution.get("python")
@@ -460,8 +463,10 @@ def test_solver_constraint_and_request(solver: Union[Solver, legacy.Solver]) -> 
     )
     solver.add_repository(repo)
     solver.add_request("my-tool")
-    solution = solver.solve()
-    print(io.format_resolve(solver, verbosity=100))
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
 
     assert solution.get("python").spec.pkg.version == "3.7.3"
 
@@ -483,6 +488,7 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
             },
         }
     )
+    print(make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]).build.options[0].get_value())
     repo = make_repo(
         [
             make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]),
@@ -501,12 +507,11 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
         finally:
             print(io.format_resolve(solver, verbosity=100))
 
-        assert (
-            solution.get("vnp3")
-            .spec.build.options[0]
-            .get_value("")
-            .startswith(f"~{pyver}")
-        )
+        resolved = solution.get("vnp3")
+        opt = resolved.spec.build.options[0]
+        value = opt.get_value()
+        assert value is not None
+        assert value.startswith(f"~{pyver}"), f"{value} should start with ~{pyver}"
 
 
 def test_solver_option_injection() -> None:
@@ -565,11 +570,11 @@ def test_solver_build_from_source() -> None:
         [
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
             },
             {
                 "pkg": "my-tool/1.2.0",
-                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
             },
         ],
         api.OptionMap(debug="off"),
@@ -587,9 +592,8 @@ def test_solver_build_from_source() -> None:
     finally:
         print(io.format_resolve(solver, verbosity=100))
 
-    assert solution.get(
-        "my-tool"
-    ).is_source_build(), "Should set unbuilt spec as source"
+    resolved = solution.get("my-tool")
+    assert resolved.is_source_build(), f"Should set unbuilt spec as source: {resolved.spec.pkg}"
 
     solver.reset()
     solver.add_repository(repo)
@@ -619,13 +623,13 @@ def test_solver_build_from_source_unsolvable(
             make_build(
                 {
                     "pkg": "my-tool/1.2.0",
-                    "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+                    "build": {"options": [{"pkg": "gcc"}], "script": ["echo BUILD"]},
                 },
                 [gcc48],
             ),
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+                "build": {"options": [{"pkg": "gcc"}], "script": ["echo BUILD"]},
             },
         ],
         api.OptionMap(gcc="4.8"),
@@ -764,11 +768,11 @@ def test_solver_build_from_source_deprecated(
         [
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
             },
             {
                 "pkg": "my-tool/1.2.0",
-                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
             },
         ],
         api.OptionMap(debug="off"),
@@ -798,7 +802,7 @@ def test_solver_embedded_package_adds_request(
         [
             {
                 "pkg": "maya/2019.2",
-                "build": {"script": "echo BUILD"},
+                "build": {"script": ["echo BUILD"]},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
         ]
@@ -812,9 +816,9 @@ def test_solver_embedded_package_adds_request(
     finally:
         print(io.format_resolve(solver, verbosity=100))
 
-    assert solution.get("qt").request.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").request.pkg.build == api.EMBEDDED
     assert solution.get("qt").spec.pkg.version == "5.12.6"
-    assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").spec.pkg.build == api.EMBEDDED
 
 
 def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) -> None:
@@ -828,12 +832,12 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
         [
             {
                 "pkg": "maya/2019.2",
-                "build": {"script": "echo BUILD"},
+                "build": {"script": ["echo BUILD"]},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
             {
                 "pkg": "qt/5.13.0",
-                "build": {"script": "echo BUILD"},
+                "build": {"script": ["echo BUILD"]},
             },
         ]
     )
@@ -848,7 +852,7 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
         print(io.format_resolve(solver, verbosity=100))
 
     assert solution.get("qt").spec.pkg.version == "5.12.6"
-    assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").spec.pkg.build == api.EMBEDDED
 
 
 def test_solver_embedded_package_unsolvable(
@@ -868,12 +872,12 @@ def test_solver_embedded_package_unsolvable(
             },
             {
                 "pkg": "maya/2019.2",
-                "build": {"script": "echo BUILD"},
+                "build": {"script": ["echo BUILD"]},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
             {
                 "pkg": "qt/5.13.0",
-                "build": {"script": "echo BUILD"},
+                "build": {"script": ["echo BUILD"]},
             },
         ]
     )

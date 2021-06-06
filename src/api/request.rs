@@ -123,7 +123,7 @@ impl RangeIdent {
 
         if self.build.is_some() && self.build != spec.pkg.build {
             return Compatibility::Incompatible(format!(
-                "different builds: {:?} != {:?}",
+                "requested build {:?} != {:?}",
                 self.build, spec.pkg.build
             ));
         }

@@ -64,7 +64,7 @@ class SourcePackageBuilder:
 
         layer = collect_and_commit_sources(self._spec)
         spec = self._spec.copy()
-        spec.pkg.set_build(api.SRC)
+        spec.pkg = spec.pkg.with_build(api.SRC)
         repo.publish_package(spec, layer)
         return spec.pkg
 

@@ -73,7 +73,7 @@ def _ls(args: argparse.Namespace) -> None:
         for repo in repos.values():
             pkg = spk.api.parse_ident(args.package)
             for build in repo.list_package_builds(pkg):
-                if not build.build or build.build == "SRC":
+                if not build.build or build.build == spk.api.SRC:
                     results.add(spk.io.format_ident(build))
                     continue
 

@@ -13,7 +13,7 @@ from ._binary import BinaryPackageBuilder
 def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
 
     spec = api.Spec.from_dict(
-        {"pkg": "test/1.0.0", "build": {"script": "echo $PWD > /dev/stderr"}}
+        {"pkg": "test/1.0.0", "build": {"script": ["echo $PWD > /dev/stderr"]}}
     )
 
     (
@@ -30,7 +30,7 @@ def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) ->
 def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
 
     dep_spec = api.Spec.from_dict(
-        {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+        {"pkg": "dep/1.0.0", "build": {"script": ["touch /spfs/dep-file"]}}
     )
     spec = api.Spec.from_dict(
         {
@@ -77,7 +77,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
 def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
 
     dep_spec = api.Spec.from_dict(
-        {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+        {"pkg": "dep/1.0.0", "build": {"script": ["touch /spfs/dep-file"]}}
     )
     spec = api.Spec.from_dict(
         {
@@ -114,7 +114,7 @@ def test_build_package_missing_deps(tmprepo: storage.SpFSRepository) -> None:
     spec = api.Spec.from_dict(
         {
             "pkg": "dep/1.0.0",
-            "build": {"script": "touch /spfs/dep-file"},
+            "build": {"script": ["touch /spfs/dep-file"]},
             "install": {"requirements": [{"pkg": "does-not-exist"}]},
         }
     )
@@ -135,7 +135,7 @@ def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
         {
             "pkg": "dep/1.0.0",
             "build": {
-                "script": "touch /spfs/dep-file",
+                "script": ["touch /spfs/dep-file"],
                 "options": [{"var": "depvar/depvalue"}],
             },
         }
@@ -247,7 +247,7 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
             "sources": [],
             "build": {
                 "options": [{"var": "inherited/val", "inheritance": "Strong"}],
-                "script": "echo building...",
+                "script": ["echo building..."],
             },
         }
     )
@@ -255,7 +255,7 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
         {
             "pkg": "top/1.0.0",
             "sources": [],
-            "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
+            "build": {"options": [{"pkg": "base"}], "script": ["echo building..."]},
         }
     )
     tmprepo.publish_spec(base_spec)

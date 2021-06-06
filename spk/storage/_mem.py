@@ -70,9 +70,9 @@ class MemRepository(Repository):
 
     def publish_spec(self, spec: api.Spec) -> None:
 
-        assert spec.pkg.build is None, "Spec must be published with no build"
+        assert spec.pkg.build is None, f"Spec must be published with no build, got {spec.pkg}"
         assert (
-            spec.pkg.build is None or not spec.pkg.build.is_emdedded()
+            spec.pkg.build is None or not spec.pkg.build == api.EMDEDDED
         ), "Cannot publish embedded package"
         self._specs.setdefault(spec.pkg.name, {})
         versions = self._specs[spec.pkg.name]
