@@ -217,7 +217,7 @@ impl VarOpt {
     }
 
     pub fn validate(&self, value: Option<&str>) -> Compatibility {
-        if value.is_none() {
+        if value.is_none() && self.value.is_some() {
             return self.validate(self.value.as_ref().map(String::as_str));
         }
         let assigned = self.get_value(None);

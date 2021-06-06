@@ -121,6 +121,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add("Request", py.None())?;
     m.add("Option", py.None())?;
     m.add("VersionRange", py.None())?;
+    m.add("SourceSpec", py.None())?;
 
     m.add_function(wrap_pyfunction!(parse_version, m)?)?;
     m.add_function(wrap_pyfunction!(parse_compat, m)?)?;
@@ -161,6 +162,10 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::ExcludedVersion>()?;
     m.add_class::<super::CompatRange>()?;
     m.add_class::<super::VersionFilter>()?;
+    m.add_class::<super::LocalSource>()?;
+    m.add_class::<super::GitSource>()?;
+    m.add_class::<super::TarSource>()?;
+    m.add_class::<super::ScriptSource>()?;
     m.add_class::<Compatibility>()?;
     Ok(())
 }

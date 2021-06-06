@@ -386,7 +386,7 @@ impl<'de> Deserialize<'de> for VarRequest {
         let mut out = Self {
             var: parts.next().unwrap().to_string(),
             value: Default::default(),
-            pin: false,
+            pin: spec.pin,
         };
         match (parts.next(), spec.pin) {
             (Some(_), true) => {
