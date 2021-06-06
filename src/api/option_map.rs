@@ -35,7 +35,7 @@ macro_rules! option_map {
 
 /// A set of values for package build options.
 #[pyclass]
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OptionMap {
     options: BTreeMap<String, String>,
@@ -60,6 +60,12 @@ impl FromIterator<(String, String)> for OptionMap {
         Self {
             options: BTreeMap::from_iter(iter),
         }
+    }
+}
+
+impl std::fmt::Debug for OptionMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
     }
 }
 

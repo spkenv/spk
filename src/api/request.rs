@@ -382,7 +382,7 @@ impl<'de> Deserialize<'de> for VarRequest {
             )));
         }
 
-        let mut parts = spec.var.splitn(1, "/");
+        let mut parts = spec.var.splitn(2, "/");
         let mut out = Self {
             var: parts.next().unwrap().to_string(),
             value: Default::default(),

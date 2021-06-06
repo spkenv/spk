@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+from spkrs import Runtime
 from typing import List, Dict, Optional, Union, Iterator, Iterable
 from collections import defaultdict
 from functools import lru_cache
@@ -406,7 +407,7 @@ class Decision:
         for request in requests[1:]:
             try:
                 merged.restrict(request)
-            except ValueError as e:
+            except RuntimeError as e:
                 raise ConflictingRequestsError(str(e), requests)
 
         return merged
