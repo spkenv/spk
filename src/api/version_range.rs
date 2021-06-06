@@ -894,6 +894,14 @@ impl VersionFilter {
     /// This version range will become restricted to the intersection
     /// of the current version range and the other.
     pub fn restrict(&mut self, other: impl Ranged) -> Result<()> {
+        // FIXME: de-duplicating by strings is less than ideal
+        let rendered = other.to_string();
+        for rule in self.rules.iter() {
+            if rendered == rule.to_string() {
+                return Ok(());
+            }
+        }
+
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
             return Err(Error::String(msg));
