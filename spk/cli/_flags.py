@@ -101,7 +101,9 @@ def get_options_from_flags(args: argparse.Namespace) -> spk.api.OptionMap:
     return opts
 
 
-def get_var_requests_from_option_flags(args: argparse.Namespace) -> Iterator[spk.api.VarRequest]:
+def get_var_requests_from_option_flags(
+    args: argparse.Namespace,
+) -> Iterator[spk.api.VarRequest]:
 
     for pair in getattr(args, "opt", []):
 
