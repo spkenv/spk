@@ -284,7 +284,7 @@ impl Default for InclusionPolicy {
 }
 
 /// Represents a contraint added to a resolved environment.
-#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq, FromPyObject)]
+#[derive(Debug, Serialize, Clone, Hash, PartialEq, Eq, FromPyObject)]
 #[serde(untagged)]
 pub enum Request {
     Var(VarRequest),
@@ -297,6 +297,35 @@ impl Request {
         match self {
             Request::Var(r) => r.var.to_owned(),
             Request::Pkg(r) => r.pkg.to_string(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Request {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde_yaml::Value;
+        let value = Value::deserialize(deserializer)?;
+        let mapping = match value {
+            Value::Mapping(m) => m,
+            _ => return Err(serde::de::Error::custom("expected mapping")),
+        };
+        if mapping.get(&Value::String("var".to_string())).is_some() {
+            Ok(Request::Var(
+                VarRequest::deserialize(Value::Mapping(mapping))
+                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+            ))
+        } else if mapping.get(&Value::String("pkg".to_string())).is_some() {
+            Ok(Request::Pkg(
+                PkgRequest::deserialize(Value::Mapping(mapping))
+                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+            ))
+        } else {
+            Err(serde::de::Error::custom(
+                "failed to determine request type: must have one of 'var' or 'pkg' fields",
+            ))
         }
     }
 }

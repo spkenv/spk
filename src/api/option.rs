@@ -54,7 +54,7 @@ impl Inheritance {
 }
 
 /// An option that can be provided to provided to the package build process
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, FromPyObject)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, FromPyObject)]
 #[serde(untagged)]
 pub enum Opt {
     Pkg(PkgOpt),
@@ -133,6 +133,35 @@ impl TryFrom<Request> for Opt {
                 "Cannot convert {:?} to option",
                 request
             ))),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Opt {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde_yaml::Value;
+        let value = Value::deserialize(deserializer)?;
+        let mapping = match value {
+            Value::Mapping(m) => m,
+            _ => return Err(serde::de::Error::custom("expected mapping")),
+        };
+        if mapping.get(&Value::String("var".to_string())).is_some() {
+            Ok(Opt::Var(
+                VarOpt::deserialize(Value::Mapping(mapping))
+                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+            ))
+        } else if mapping.get(&Value::String("pkg".to_string())).is_some() {
+            Ok(Opt::Pkg(
+                PkgOpt::deserialize(Value::Mapping(mapping))
+                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+            ))
+        } else {
+            Err(serde::de::Error::custom(
+                "failed to determine option type: must have one of 'var' or 'pkg' fields",
+            ))
         }
     }
 }
