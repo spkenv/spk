@@ -57,7 +57,7 @@ pub struct TestSpec {
     #[pyo3(get, set)]
     stage: TestStage,
     #[pyo3(get, set)]
-    script: String,
+    script: Vec<String>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     selectors: Vec<OptionMap>,

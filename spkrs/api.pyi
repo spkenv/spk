@@ -170,7 +170,7 @@ Option = Union[PkgOpt, VarOpt]
 
 class TestSpec:
     stage: str
-    script: str
+    script: List[str]
     selectors: List[OptionMap]
     requirements: List[Request]
 

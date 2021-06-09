@@ -122,11 +122,11 @@ def _test(args: argparse.Namespace) -> None:
                         spk.test.PackageInstallTester,
                     ]
                     if stage == "sources":
-                        tester = spk.test.PackageSourceTester(spec.copy(), test.script)
+                        tester = spk.test.PackageSourceTester(spec.copy(), "\n".join(test.script))
                     elif stage == "build":
-                        tester = spk.test.PackageBuildTester(spec.copy(), test.script)
+                        tester = spk.test.PackageBuildTester(spec.copy(), "\n".join(test.script))
                     elif stage == "install":
-                        tester = spk.test.PackageInstallTester(spec.copy(), test.script)
+                        tester = spk.test.PackageInstallTester(spec.copy(), "\n".join(test.script))
                     else:
                         raise ValueError(
                             f"Untestable stage '{stage}', must be one of {_VALID_STAGES}"
