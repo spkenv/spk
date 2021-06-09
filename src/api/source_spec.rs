@@ -91,15 +91,14 @@ impl LocalSource {
     pub fn collect(&self, dirname: &Path) -> Result<()> {
         let mut rsync = std::process::Command::new("rsync");
         rsync.arg("--archive");
-        let path = if self.path.is_dir() {
+        let mut path = self.path.canonicalize()?;
+        if path.is_dir() {
             // if the source path is a directory then we require
             // a trailing '/' so that rsync doesn't create new subdirectories
             // in the destination folder
             rsync.arg("--recursive");
-            self.path.join("")
-        } else {
-            self.path.clone()
-        };
+            path = path.join("")
+        }
         // require a trailing '/' on destination also so that rsync doesn't
         // add aditional levels to the resulting structure
         let dirname = dirname.join("");
