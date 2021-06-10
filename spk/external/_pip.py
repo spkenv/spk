@@ -243,13 +243,13 @@ def _to_spk_version(version: str) -> str:
         # rust requires that we take ownership before
         # editing and then put it back
         pre = spk_version.pre
-        pre["dev"] = int(python_version.dev) # type: ignore
+        pre["dev"] = int(python_version.dev)  # type: ignore
         spk_version.pre = pre
     if python_version.post is not None:
         # rust requires that we take ownership before
         # editing and then put it back
         post = spk_version.post
-        post["post"] = int(python_version.post) # type: ignore
+        post["post"] = int(python_version.post)  # type: ignore
         spk_version.post = post
     if python_version.local:
         # irrelevant information for compatibility of versions and
