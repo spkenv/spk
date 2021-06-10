@@ -574,11 +574,11 @@ def test_solver_build_from_source() -> None:
         [
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
             {
                 "pkg": "my-tool/1.2.0",
-                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
         api.OptionMap(debug="off"),
@@ -629,13 +629,13 @@ def test_solver_build_from_source_unsolvable(
             make_build(
                 {
                     "pkg": "my-tool/1.2.0",
-                    "build": {"options": [{"pkg": "gcc"}], "script": ["echo BUILD"]},
+                    "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
                 },
                 [gcc48],
             ),
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"pkg": "gcc"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
             },
         ],
         api.OptionMap(gcc="4.8"),
@@ -774,11 +774,11 @@ def test_solver_build_from_source_deprecated(
         [
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
             {
                 "pkg": "my-tool/1.2.0",
-                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
         api.OptionMap(debug="off"),
@@ -808,7 +808,7 @@ def test_solver_embedded_package_adds_request(
         [
             {
                 "pkg": "maya/2019.2",
-                "build": {"script": ["echo BUILD"]},
+                "build": {"script": "echo BUILD"},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
         ]
@@ -838,12 +838,12 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
         [
             {
                 "pkg": "maya/2019.2",
-                "build": {"script": ["echo BUILD"]},
+                "build": {"script": "echo BUILD"},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
             {
                 "pkg": "qt/5.13.0",
-                "build": {"script": ["echo BUILD"]},
+                "build": {"script": "echo BUILD"},
             },
         ]
     )
@@ -878,12 +878,12 @@ def test_solver_embedded_package_unsolvable(
             },
             {
                 "pkg": "maya/2019.2",
-                "build": {"script": ["echo BUILD"]},
+                "build": {"script": "echo BUILD"},
                 "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
             },
             {
                 "pkg": "qt/5.13.0",
-                "build": {"script": ["echo BUILD"]},
+                "build": {"script": "echo BUILD"},
             },
         ]
     )

@@ -21,11 +21,11 @@ def test_solver_build_from_source() -> None:
         [
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
             {
                 "pkg": "my-tool/1.2.0",
-                "build": {"options": [{"var": "debug"}], "script": ["echo BUILD"]},
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
         api.OptionMap(debug="off"),

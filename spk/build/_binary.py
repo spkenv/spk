@@ -25,7 +25,7 @@ class BinaryPackageBuilder:
     ...     BinaryPackageBuilder
     ...     .from_spec(api.Spec.from_dict({
     ...         "pkg": "my-pkg",
-    ...         "build": {"script": ["echo hello, world"]},
+    ...         "build": {"script": "echo hello, world"},
     ...      }))
     ...     .with_option("debug", "true")
     ...     .with_source(".")

@@ -16,7 +16,7 @@ def test_archive_io(tmpdir: py.path.local) -> None:
     spec = api.Spec.from_dict(
         {
             "pkg": "spk-archive-test/0.0.1",
-            "build": {"script": ["touch /spfs/file.txt"]},
+            "build": {"script": "touch /spfs/file.txt"},
         }
     )
     repo = storage.local_repository()

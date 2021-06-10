@@ -21,7 +21,7 @@ fn test_install_embedded_build_options() {
         r#"
         embedded:
           - pkg: "embedded/1.0.0"
-            build: {"script": ["echo hello"]}
+            build: {"script": "echo hello"}
         "#
     )
     .is_err());
