@@ -33,9 +33,35 @@ macro_rules! option_map {
     }};
 }
 
+/// Detect and return the default options for the current host system.
+pub fn host_options() -> crate::Result<OptionMap> {
+    let mut opts = OptionMap::default();
+    opts.insert("os".into(), std::env::consts::OS.into());
+    opts.insert("arch".into(), std::env::consts::ARCH.into());
+
+    let info = match sys_info::linux_os_release() {
+        Ok(i) => i,
+        Err(err) => {
+            return Err(crate::Error::String(format!(
+                "Failed to get linux info: {:?}",
+                err
+            )))
+        }
+    };
+
+    if let Some(id) = info.id {
+        opts.insert("distro".into(), id.clone());
+        if let Some(version_id) = info.version_id {
+            opts.insert(id.into(), version_id.into());
+        }
+    }
+
+    Ok(opts)
+}
+
 /// A set of values for package build options.
 #[pyclass]
-#[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Clone, Hash, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct OptionMap {
     options: BTreeMap<String, String>,
@@ -210,32 +236,6 @@ impl OptionMap {
     }
 }
 
-/// Detect and return the default options for the current host system.
-pub fn host_options() -> crate::Result<OptionMap> {
-    let mut opts = OptionMap::default();
-    opts.insert("os".into(), std::env::consts::OS.into());
-    opts.insert("arch".into(), std::env::consts::ARCH.into());
-
-    let info = match sys_info::linux_os_release() {
-        Ok(i) => i,
-        Err(err) => {
-            return Err(crate::Error::String(format!(
-                "Failed to get linux info: {:?}",
-                err
-            )))
-        }
-    };
-
-    if let Some(id) = info.id {
-        opts.insert("distro".into(), id.clone());
-        if let Some(version_id) = info.version_id {
-            opts.insert(id.into(), version_id.into());
-        }
-    }
-
-    Ok(opts)
-}
-
 #[pyproto]
 impl pyo3::mapping::PyMappingProtocol for OptionMap {
     fn __len__(self) -> usize {
@@ -265,5 +265,47 @@ impl pyo3::PySequenceProtocol for OptionMap {
     }
     fn __contains__(&self, item: &str) -> bool {
         self.options.contains_key(item)
+    }
+}
+
+impl<'de> Deserialize<'de> for OptionMap {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde_yaml::Value;
+        let value = Value::deserialize(deserializer)?;
+        let mapping = match value {
+            Value::Mapping(m) => m,
+            _ => {
+                return Err(serde::de::Error::custom(
+                    "expected yaml mapping for OptionMap",
+                ))
+            }
+        };
+        let mut options = OptionMap::default();
+        for (name, value) in mapping.into_iter() {
+            let name = String::deserialize(name)
+                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
+            let value = string_from_scalar(value)
+                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
+            options.options.insert(name, value);
+        }
+        Ok(options)
+    }
+}
+
+/// Deserialize any reasonable scalar option (int, float, str) to a string value
+pub(crate) fn string_from_scalar<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde_yaml::Value;
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(n) => Ok(n.to_string()),
+        Value::String(s) => Ok(s),
+        _ => Err(serde::de::Error::custom("expected scalar value")),
     }
 }
