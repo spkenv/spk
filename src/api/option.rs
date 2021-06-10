@@ -257,7 +257,7 @@ impl VarOpt {
         if value.is_none() && self.value.is_some() {
             return self.validate(self.value.as_ref().map(String::as_str));
         }
-        let assigned = self.get_value(None);
+        let assigned = self.value.as_ref().map(String::as_str);
         match (value, assigned) {
             (None, Some(_)) => Compatibility::Compatible,
             (Some(value), Some(assigned)) => {
