@@ -313,7 +313,11 @@ struct VarOptSchema {
     #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
     // the default field can be loaded for legacy compatibility but is deprecated
-    #[serde(default, skip_serializing)]
+    #[serde(
+        default,
+        skip_serializing,
+        deserialize_with = "optional_string_from_scalar"
+    )]
     default: Option<String>,
 }
 
@@ -491,7 +495,11 @@ struct PkgOptSchema {
     #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
     // the default field can be loaded for legacy compatibility but is deprecated
-    #[serde(default, skip_serializing)]
+    #[serde(
+        default,
+        skip_serializing,
+        deserialize_with = "optional_string_from_scalar"
+    )]
     default: Option<String>,
 }
 
@@ -546,5 +554,23 @@ impl<'de> Deserialize<'de> for PkgOpt {
             }
         }
         Ok(out)
+    }
+}
+
+/// Deserialize any reasonable scalar option (int, float, str, null) to an Option<String> value
+pub(crate) fn optional_string_from_scalar<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde_yaml::Value;
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Bool(b) => Ok(Some(b.to_string())),
+        Value::Number(n) => Ok(Some(n.to_string())),
+        Value::String(s) => Ok(Some(s)),
+        Value::Null => Ok(None),
+        _ => Err(serde::de::Error::custom("expected scalar value")),
     }
 }
