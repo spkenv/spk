@@ -57,6 +57,7 @@ pub struct TestSpec {
     #[pyo3(get, set)]
     stage: TestStage,
     #[pyo3(get, set)]
+    #[serde(deserialize_with = "super::build_spec::deserialize_script")]
     script: Vec<String>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

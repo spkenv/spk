@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::HashSet;
 
+use itertools::Itertools;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -131,18 +132,20 @@ impl<'de> Deserialize<'de> for BuildSpec {
     {
         #[derive(Deserialize)]
         struct Unchecked {
-            #[serde(default, skip_serializing_if = "Option::is_none")]
-            script: Option<Vec<String>>,
-            #[serde(default, skip_serializing_if = "Option::is_none")]
+            #[serde(default)]
+            script: Option<serde_yaml::Value>,
+            #[serde(default)]
             options: Option<Vec<Opt>>,
-            #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
+            #[serde(default)]
             variants: Vec<OptionMap>,
         }
 
         let raw = Unchecked::deserialize(deserializer)?;
         let mut bs = BuildSpec::default();
         if let Some(script) = raw.script {
-            bs.script = script
+            bs.script = deserialize_script(script).map_err(|err| {
+                serde::de::Error::custom(format!("build.script: {}", err.to_string()))
+            })?;
         }
         if let Some(options) = raw.options {
             bs.options = options
@@ -184,5 +187,24 @@ impl<'de> Deserialize<'de> for BuildSpec {
         }
 
         Ok(bs)
+    }
+}
+
+/// Deserialize any reasonable scalar option (int, float, str) to a string value
+pub(crate) fn deserialize_script<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde_yaml::Value;
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Sequence(seq) => Vec::<String>::deserialize(Value::Sequence(seq))
+            .map_err(|err| serde::de::Error::custom(err.to_string())),
+        Value::String(string) => Ok(string.split("\n").map(String::from).collect_vec()),
+        _ => Err(serde::de::Error::custom(
+            "expected string or list of strings",
+        )),
     }
 }

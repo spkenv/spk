@@ -250,6 +250,7 @@ impl TarSource {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSource {
     #[pyo3(get, set)]
+    #[serde(deserialize_with = "super::build_spec::deserialize_script")]
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[pyo3(get, set)]
