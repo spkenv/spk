@@ -175,7 +175,16 @@ impl FSRepository {
                 if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(Error::wrap_io(err, "Failed to hardlink")),
+                        _ => {
+                            return Err(Error::wrap_io(
+                                err,
+                                format!(
+                                    "Failed to hardlink original:[{}] link:[{}]",
+                                    committed_path.display(),
+                                    rendered_path.as_ref().display()
+                                ),
+                            ))
+                        }
                     }
                 }
             }

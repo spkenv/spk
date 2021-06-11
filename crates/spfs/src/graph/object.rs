@@ -8,8 +8,9 @@ use super::Manifest;
 use super::Platform;
 use super::Tree;
 use crate::encoding;
+use strum_macros::Display;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Display, Eq, PartialEq)]
 pub enum Object {
     Platform(Platform),
     Layer(Layer),
@@ -40,6 +41,14 @@ impl Object {
             Self::Platform(_) => ObjectKind::Platform,
             Self::Tree(_) => ObjectKind::Tree,
             Self::Mask => ObjectKind::Mask,
+        }
+    }
+
+    /// Return true if this Object kind also has a payload
+    pub fn has_payload(&self) -> bool {
+        match self {
+            Self::Blob(_) => true,
+            _ => false,
         }
     }
 }
@@ -134,7 +143,7 @@ impl encoding::Decodable for Object {
             Some(ObjectKind::Platform) => Ok(Self::Platform(Platform::decode(&mut reader)?)),
             Some(ObjectKind::Tree) => Ok(Self::Tree(Tree::decode(&mut reader)?)),
             Some(ObjectKind::Mask) => Ok(Self::Mask),
-            None => Err(format!("Cannot read object: unkown object kind {}", type_id).into()),
+            None => Err(format!("Cannot read object: unknown object kind {}", type_id).into()),
         }
     }
 }
