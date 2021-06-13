@@ -1,0 +1,40 @@
+pkg: boost/1.73.0
+  # - name: Boost
+  # - description: "Portable C++ libraries"
+  # - url: https://www.boost.org
+  # - license: BSL-1.0
+  # - bindings: [ "C++" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+    filter: [ ]
+  - script:
+    - if [ ! -d boost ] ; then git clone https://github.com/boostorg/boost --recurse-submodules -b boost-1.73.0 ; fi
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: gcc/6.3
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - cd boost
+    - ./bootstrap.sh --prefix=$PREFIX
+    - ./b2 --help
+    - ./b2 -q -j $(nproc) --prefix=$PREFIX 
+          --without-python
+          install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x

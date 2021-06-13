@@ -1,0 +1,62 @@
+pkg: opencolorio-apps/2.0.1
+  # - name: OpenColorIO-Apps
+  # - description: :OpenColorIO command line tools"
+  # - license: BSD-3-clause
+  # - url: https://opencolorio.org
+  # - bindings: [ "cli" ]
+
+# This package only builds the OpenColorIO command line utilities. There is
+# a separate spk package, opencolorio, that builds the libraries.
+#
+# This separation is necessary to untangle a mutual build dependency between
+# opencolorio and openimageio. The full build sequence is: (a) opencolorio,
+# (b) openimageio (which uses the opencolorio libraries), and finally, (c)
+# opencolorio-apps.
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+  - script:
+    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b v2.0.1 ; fi
+
+
+build:
+  options:
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: opencolorio/=2.0.1
+    - pkg: openimageio/~2.3.5.0
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    # Move outdated FindOpenImageIO.cmake out of the way
+    - mv -f OpenColorIO/share/cmake/modules/FindOpenImageIO.cmake OpenColorIO/share/cmake/modules/FindOpenImageIO.cmake.bak
+    - cmake -S OpenColorIO -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_CXX_STANDARD=14
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
+        -DOCIO_NAMESPACE=OpenColorIO_SPI
+        -DOCIO_LIBNAME_SUFFIX=_SPI
+        -DOCIO_BUILD_TESTS=OFF
+        -DOCIO_BUILD_GPU_TESTS=OFF
+        -DOCIO_BUILD_APPS=ON
+        -DOCIO_BUILD_PYTHON=OFF
+    - mv -f OpenColorIO/share/cmake/modules/FindOpenImageIO.cmake.bak OpenColorIO/share/cmake/modules/FindOpenImageIO.cmake
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: openimageio
+      fromBuildEnv: x.x.x.x
+    - pkg: opencolorio
+      fromBuildEnv: x.x

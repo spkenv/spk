@@ -1,4 +1,4 @@
-pkg: imath/3.0.1
+pkg: imath/3.0.4+r.2
   # - name: "Imath"
   # - description: "Basic vector, matrix, and math for 3D graphics"
   # - license: BSD-3-clause
@@ -10,7 +10,7 @@ sources:
   # or (c) nothing (does a fresh clone from GitHub).
   - path: ./
   - script:
-    - if [ ! -d Imath ] ; then git clone https://github.com/AcademySoftwareFoundation/Imath -b v3.0.1 ; fi
+    - if [ ! -d Imath ] ; then git clone https://github.com/AcademySoftwareFoundation/Imath -b v3.0.4 ; fi
 
 
 build:
@@ -20,19 +20,20 @@ build:
     - var: centos
     - pkg: stdfs
     - pkg: gcc/6.3
-    - pkg: python/3.7
+    - pkg: python/~3.7.0
     - pkg: numpy
-    - pkg: cmake/^3.13
-    - pkg: boost/1.70
+    - pkg: cmake/3.13
+    - pkg: boost-python/~1.70.0
   variants:
-    - { gcc: 6.3, python: 2.7, boost: 1.70 }
-    - { gcc: 6.3, python: 3.7, boost: 1.70 }
-    - { gcc: 9.3, python: 2.7, boost: 1.70 }
-    - { gcc: 9.3, python: 3.7, boost: 1.70 }
+    - { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0 }
+    - { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0 }
+    - { gcc: 9.3, python: ~2.7.0, boost-python: ~1.73.0 }
+    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0 }
   script:
     - cmake -S Imath -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
         -DPYTHON=ON
         -DUSE_PYTHON${SPK_PKG_python_VERSION_MAJOR}=ON
     - cmake --build build --target install
@@ -42,7 +43,7 @@ install:
     - pkg: stdfs
     - pkg: gcc
       fromBuildEnv: x.x
-    - pkg: boost
+    - pkg: boost-python
       fromBuildEnv: x.x
     - pkg: python
       fromBuildEnv: x.x
@@ -57,6 +58,7 @@ tests:
     - cmake -S Imath -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
         -DPYTHON=ON
         -DUSE_PYTHON${SPK_PKG_python_VERSION_MAJOR}=ON
     - cmake --build build
