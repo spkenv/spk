@@ -1,6 +1,7 @@
-version: 0.28.2
+version: 0.28.3
 release_notes: |
-  * Switch to CAP_FOWNER permission model.
+  * Add support for env specs when using spfs diff
+  * Update check command to find missing payloads as well
 
 toolchain:
   - kind: Rust
