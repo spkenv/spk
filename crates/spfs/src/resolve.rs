@@ -86,15 +86,34 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
         }
     }
 
-    let spec = tracking::TagSpec::parse(reference)?;
-    for repo in repos {
-        match repo.read_ref(spec.to_string().as_str()) {
-            Ok(obj) => return compute_object_manifest(obj, &repo),
-            Err(Error::UnknownObject(_)) => continue,
-            Err(err) => return Err(err),
+    let env = tracking::EnvSpec::new(reference.as_ref())?;
+    let mut full_manifest = tracking::Manifest::default();
+    for tag_spec in env.items {
+        let mut item_manifest = None;
+        for repo in repos.iter() {
+            match repo.read_ref(&tag_spec.to_string()) {
+                Ok(obj) => {
+                    item_manifest = Some(compute_object_manifest(obj, &repo)?);
+                    break;
+                }
+                Err(Error::UnknownObject(_)) => {
+                    tracing::trace!("{:?} UnknownObject {}", repo, tag_spec);
+                    continue;
+                }
+                Err(Error::UnknownReference(_)) => {
+                    tracing::trace!("{:?} UnknownReference {}", repo, tag_spec);
+                    continue;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        if let Some(item_manifest) = item_manifest {
+            full_manifest.update(&item_manifest);
+        } else {
+            return Err(graph::UnknownReferenceError::new(tag_spec.to_string()));
         }
     }
-    Err(graph::UnknownReferenceError::new(spec.to_string()))
+    Ok(full_manifest)
 }
 
 pub fn compute_object_manifest(
