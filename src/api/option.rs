@@ -306,7 +306,11 @@ impl VarOpt {
 #[derive(Serialize, Deserialize)]
 struct VarOptSchema {
     var: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "strings_from_scalars"
+    )]
     choices: Vec<String>,
     #[serde(default, skip_serializing_if = "Inheritance::is_default")]
     inheritance: Inheritance,
@@ -572,5 +576,28 @@ where
         Value::String(s) => Ok(Some(s)),
         Value::Null => Ok(None),
         _ => Err(serde::de::Error::custom("expected scalar value")),
+    }
+}
+
+/// Deserialize a list of any reasonable scalar option (int, float, str) to an Vec<String> value
+pub(crate) fn strings_from_scalars<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde_yaml::Value;
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Sequence(b) => {
+            return b
+                .into_iter()
+                .map(|v| super::option_map::string_from_scalar(v))
+                .collect::<serde_yaml::Result<Vec<String>>>()
+                .map_err(|err| {
+                    serde::de::Error::custom(format!("expected list of scalars: {}", err))
+                })
+        }
+        _ => Err(serde::de::Error::custom("expected list of scalars")),
     }
 }
