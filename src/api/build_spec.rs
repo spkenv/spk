@@ -177,7 +177,7 @@ impl<'de> Deserialize<'de> for BuildSpec {
         if unique_variants.len() < variant_builds.len() {
             let details = variant_builds
                 .iter()
-                .map(|(h, o)| format!("- {} ({:?})", o, h))
+                .map(|(h, o)| format!("- {} ({})", o, h.iter().join("")))
                 .collect::<Vec<_>>()
                 .join("\n");
             return Err(serde::de::Error::custom(format!(
