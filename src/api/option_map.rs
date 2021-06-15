@@ -143,8 +143,8 @@ impl OptionMap {
         self.clone()
     }
 
-    fn update(&mut self, other: &mut OptionMap) {
-        self.options.append(&mut other.options)
+    fn update(&mut self, other: &OptionMap) {
+        self.options.append(&mut other.options.clone())
     }
 
     #[getter(digest)]
@@ -173,7 +173,7 @@ impl OptionMap {
 impl OptionMap {
     pub fn digest(&self) -> Digest {
         let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
-        for (name, value) in self.iter() {
+        for (name, value) in self.items() {
             hasher.update(name.as_bytes());
             hasher.update(b"=");
             hasher.update(value.as_bytes());
