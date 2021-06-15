@@ -26,7 +26,7 @@ impl InvalidBuildError {
 }
 
 /// Build represents a package build identifier.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Build {
     Source,
     Embedded,
@@ -57,6 +57,11 @@ impl Build {
         } else {
             false
         }
+    }
+}
+impl std::fmt::Debug for Build {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.digest().as_str())
     }
 }
 
