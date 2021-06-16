@@ -214,6 +214,7 @@ impl TarSource {
         if re.is_match(&self.tar) {
             let mut wget = std::process::Command::new("wget");
             wget.arg(&self.tar);
+            wget.current_dir(tmpdir.path());
             tracing::debug!(cmd=?wget, "running");
             match wget.status()?.code() {
                 Some(0) => (),
