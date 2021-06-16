@@ -314,7 +314,12 @@ struct VarOptSchema {
     choices: Vec<String>,
     #[serde(default, skip_serializing_if = "Inheritance::is_default")]
     inheritance: Inheritance,
-    #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        rename = "static",
+        skip_serializing_if = "String::is_empty",
+        deserialize_with = "super::option_map::string_from_scalar"
+    )]
     value: String,
     // the default field can be loaded for legacy compatibility but is deprecated
     #[serde(
@@ -496,7 +501,12 @@ struct PkgOptSchema {
         skip_serializing_if = "PreReleasePolicy::is_default"
     )]
     prerelease_policy: PreReleasePolicy,
-    #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        rename = "static",
+        skip_serializing_if = "String::is_empty",
+        deserialize_with = "super::option_map::string_from_scalar"
+    )]
     value: String,
     // the default field can be loaded for legacy compatibility but is deprecated
     #[serde(
