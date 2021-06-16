@@ -229,9 +229,10 @@ impl Spec {
 
 /// ReadSpec loads a package specification from a yaml file.
 pub fn read_spec_file<P: AsRef<Path>>(filepath: P) -> Result<Spec> {
+    let filepath = filepath.as_ref().canonicalize()?;
     let file = std::fs::File::open(&filepath)?;
     let mut spec: Spec = serde_yaml::from_reader(file)?;
-    if let Some(spec_root) = filepath.as_ref().parent() {
+    if let Some(spec_root) = filepath.parent() {
         for source in spec.sources.iter_mut() {
             if let SourceSpec::Local(source) = source {
                 source.path = spec_root.join(&source.path);
