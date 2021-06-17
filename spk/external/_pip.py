@@ -223,7 +223,7 @@ class PipImporter:
 
 def _to_spk_name(name: str) -> str:
 
-    return name.lower().replace("_", "-").replace(".", "-")
+    return "python-" + name.lower().replace("_", "-").replace(".", "-")
 
 
 def _to_spk_version(version: str) -> str:
