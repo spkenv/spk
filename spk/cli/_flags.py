@@ -52,10 +52,10 @@ def add_solver_flags(parser: argparse.ArgumentParser) -> None:
     add_option_flags(parser)
     add_repo_flags(parser)
     parser.add_argument(
-        "--binary-only",
+        "--allow-builds",
         action="store_true",
         default=False,
-        help="If true, never build packages from source if needed",
+        help="If true, build packages from source if needed",
     )
 
 
@@ -65,7 +65,7 @@ def get_solver_from_flags(args: argparse.Namespace) -> spk.Solver:
     solver = spk.Solver()
     solver.update_options(options)
     configure_solver_with_repo_flags(args, solver)
-    solver.set_binary_only(args.binary_only)
+    solver.set_binary_only(not args.allow_builds)
     for r in get_var_requests_from_option_flags(args):
         solver.add_request(r)
     return solver
