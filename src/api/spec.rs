@@ -28,7 +28,7 @@ macro_rules! spec {
 }
 
 #[pyclass]
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct Spec {
     #[pyo3(get, set)]
     #[serde(default)]
@@ -224,6 +224,46 @@ impl Spec {
         let digest = self.resolve_all_options(options).digest();
         self.pkg.set_build(Some(Build::Digest(digest)));
         Ok(())
+    }
+}
+
+impl<'de> Deserialize<'de> for Spec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct SpecSchema {
+            #[serde(default)]
+            pkg: Ident,
+            #[serde(default)]
+            compat: Compat,
+            #[serde(default)]
+            deprecated: bool,
+            #[serde(default)]
+            sources: Vec<SourceSpec>,
+            #[serde(default)]
+            build: BuildSpec,
+            #[serde(default)]
+            tests: Vec<TestSpec>,
+            #[serde(default)]
+            install: InstallSpec,
+        }
+        let mut unchecked = SpecSchema::deserialize(deserializer)?;
+        if unchecked.sources.is_empty() {
+            unchecked
+                .sources
+                .push(SourceSpec::Local(super::LocalSource::default()))
+        }
+        Ok(Spec {
+            pkg: unchecked.pkg,
+            compat: unchecked.compat,
+            deprecated: unchecked.deprecated,
+            sources: unchecked.sources,
+            build: unchecked.build,
+            tests: unchecked.tests,
+            install: unchecked.install,
+        })
     }
 }
 
