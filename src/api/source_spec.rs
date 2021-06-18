@@ -70,7 +70,7 @@ pub struct LocalSource {
 impl Default for LocalSource {
     fn default() -> Self {
         Self {
-            path: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            path: PathBuf::from("."),
             exclude: Self::default_exclude(),
             filter: Self::default_filter(),
             subdir: None,
