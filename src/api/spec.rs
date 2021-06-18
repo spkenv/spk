@@ -243,7 +243,7 @@ impl<'de> Deserialize<'de> for Spec {
             #[serde(default)]
             sources: Vec<SourceSpec>,
             #[serde(default)]
-            build: BuildSpec,
+            build: serde_yaml::Mapping,
             #[serde(default)]
             tests: Vec<TestSpec>,
             #[serde(default)]
@@ -255,12 +255,23 @@ impl<'de> Deserialize<'de> for Spec {
                 .sources
                 .push(SourceSpec::Local(super::LocalSource::default()))
         }
+
+        let build_spec_result = if unchecked.pkg.build.is_none() {
+            BuildSpec::deserialize(serde_yaml::Value::Mapping(unchecked.build))
+        } else {
+            // if the build is set, we assume that this is a rendered spec
+            // and we do not want to make an existing rendered build spec unloadable
+            BuildSpec::deserialize_unsafe(serde_yaml::Value::Mapping(unchecked.build))
+        };
+        let build_spec = build_spec_result
+            .map_err(|err| serde::de::Error::custom(format!("spec.build: {:?}", err)))?;
+
         Ok(Spec {
             pkg: unchecked.pkg,
             compat: unchecked.compat,
             deprecated: unchecked.deprecated,
             sources: unchecked.sources,
-            build: unchecked.build,
+            build: build_spec,
             tests: unchecked.tests,
             install: unchecked.install,
         })

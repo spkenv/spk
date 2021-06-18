@@ -130,6 +130,38 @@ impl<'de> Deserialize<'de> for BuildSpec {
     where
         D: serde::Deserializer<'de>,
     {
+        let bs = BuildSpec::deserialize_unsafe(deserializer)?;
+
+        let mut variant_builds = Vec::new();
+        let mut unique_variants = HashSet::new();
+        for variant in bs.variants.iter() {
+            let mut build_opts = variant.clone();
+            build_opts.append(&mut bs.resolve_all_options(None, variant));
+            let digest = build_opts.digest();
+            variant_builds.push((digest.clone(), variant.clone()));
+            unique_variants.insert(digest);
+        }
+        if unique_variants.len() < variant_builds.len() {
+            let details = variant_builds
+                .iter()
+                .map(|(h, o)| format!("  - {} ({})", o, h.iter().join("")))
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(serde::de::Error::custom(format!(
+                "Multiple variants would produce the same build:\n{}",
+                details
+            )));
+        }
+
+        Ok(bs)
+    }
+}
+
+impl<'de> BuildSpec {
+    pub(crate) fn deserialize_unsafe<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
         #[derive(Deserialize)]
         struct Unchecked {
             #[serde(default)]
@@ -164,28 +196,6 @@ impl<'de> Deserialize<'de> for BuildSpec {
             }
             unique_options.insert(name);
         }
-
-        let mut variant_builds = Vec::new();
-        let mut unique_variants = HashSet::new();
-        for variant in bs.variants.iter() {
-            let mut build_opts = variant.clone();
-            build_opts.append(&mut bs.resolve_all_options(None, variant));
-            let digest = build_opts.digest();
-            variant_builds.push((digest.clone(), variant.clone()));
-            unique_variants.insert(digest);
-        }
-        if unique_variants.len() < variant_builds.len() {
-            let details = variant_builds
-                .iter()
-                .map(|(h, o)| format!("- {} ({})", o, h.iter().join("")))
-                .collect::<Vec<_>>()
-                .join("\n");
-            return Err(serde::de::Error::custom(format!(
-                "Multiple variants would produce the same build:\n{}",
-                details
-            )));
-        }
-
         Ok(bs)
     }
 }
