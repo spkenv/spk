@@ -10,3 +10,9 @@ use super::Spec;
 fn test_empty_spec_is_valid() {
     let _spec: Spec = serde_yaml::from_str("{}").unwrap();
 }
+
+#[rstest]
+fn test_explicit_no_sources() {
+    let spec: Spec = serde_yaml::from_str("sources: []").unwrap();
+    assert!(spec.sources.is_empty());
+}

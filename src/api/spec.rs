@@ -241,7 +241,7 @@ impl<'de> Deserialize<'de> for Spec {
             #[serde(default)]
             deprecated: bool,
             #[serde(default)]
-            sources: Vec<SourceSpec>,
+            sources: Option<Vec<SourceSpec>>,
             #[serde(default)]
             build: serde_yaml::Mapping,
             #[serde(default)]
@@ -249,13 +249,7 @@ impl<'de> Deserialize<'de> for Spec {
             #[serde(default)]
             install: InstallSpec,
         }
-        let mut unchecked = SpecSchema::deserialize(deserializer)?;
-        if unchecked.sources.is_empty() {
-            unchecked
-                .sources
-                .push(SourceSpec::Local(super::LocalSource::default()))
-        }
-
+        let unchecked = SpecSchema::deserialize(deserializer)?;
         let build_spec_result = if unchecked.pkg.build.is_none() {
             BuildSpec::deserialize(serde_yaml::Value::Mapping(unchecked.build))
         } else {
@@ -270,7 +264,9 @@ impl<'de> Deserialize<'de> for Spec {
             pkg: unchecked.pkg,
             compat: unchecked.compat,
             deprecated: unchecked.deprecated,
-            sources: unchecked.sources,
+            sources: unchecked
+                .sources
+                .unwrap_or_else(|| vec![SourceSpec::Local(super::LocalSource::default())]),
             build: build_spec,
             tests: unchecked.tests,
             install: unchecked.install,
