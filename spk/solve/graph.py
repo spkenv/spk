@@ -356,8 +356,6 @@ class BuildPackage(Decision):
         for req in spec.install.requirements:
             if isinstance(req, api.PkgRequest):
                 req = req.copy()
-                if req.required_compat is None:
-                    req.required_compat = "API"
                 yield RequestPackage(req)
             elif isinstance(req, api.VarRequest):
                 yield RequestVar(req)
