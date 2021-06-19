@@ -45,7 +45,7 @@ fn test_deserialize_value_or_pin() {
     assert!(res.is_err(), "should not allow value and pin");
 
     let res = serde_yaml::from_str::<VarRequest>("{var: python.abi}");
-    assert!(res.is_err(), "should not allow not value without pin");
+    assert!(res.is_err(), "should not allow omitting value without pin");
 }
 
 #[rstest]
