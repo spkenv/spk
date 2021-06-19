@@ -20,7 +20,7 @@ mod compat_test;
 pub enum CompatRule {
     None,
     API,
-    ABI,
+    Binary,
 }
 
 impl std::fmt::Display for CompatRule {
@@ -36,7 +36,7 @@ impl TryFrom<&char> for CompatRule {
         match c {
             'x' => Ok(CompatRule::None),
             'a' => Ok(CompatRule::API),
-            'b' => Ok(CompatRule::ABI),
+            'b' => Ok(CompatRule::Binary),
             _ => Err(crate::Error::String(format!(
                 "Invalid compatibility rule: {}",
                 c
@@ -50,7 +50,7 @@ impl AsRef<str> for CompatRule {
         match self {
             CompatRule::None => "x",
             CompatRule::API => "a",
-            CompatRule::ABI => "b",
+            CompatRule::Binary => "b",
         }
     }
 }
@@ -63,7 +63,7 @@ impl PartialOrd for CompatRule {
 
 impl Ord for CompatRule {
     // The current logic requires that there is an order to these
-    // enums. For example API is less than ABI because it's considered
+    // enums. For example API is less than Binary because it's considered
     // a subset - aka you cannot provide binary compatibility and not
     // API compatibility
     fn cmp(&self, other: &Self) -> Ordering {
@@ -138,7 +138,7 @@ impl Default for Compat {
         Compat(vec![
             CompatRuleSet::single(CompatRule::None),
             CompatRuleSet::single(CompatRule::API),
-            CompatRuleSet::single(CompatRule::ABI),
+            CompatRuleSet::single(CompatRule::Binary),
         ])
     }
 }
@@ -189,7 +189,7 @@ impl Compat {
 
     /// Return true if the two version are binary compatible by this compat rule.
     pub fn is_binary_compatible(&self, base: &Version, other: &Version) -> Compatibility {
-        return self.check_compat(base, other, CompatRule::ABI);
+        return self.check_compat(base, other, CompatRule::Binary);
     }
 
     pub fn render(&self, version: &Version) -> String {

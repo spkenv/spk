@@ -76,7 +76,7 @@ fn test_version_range_is_satisfied(
     #[case] expected: bool,
 ) {
     let vr = parse_version_range(range).unwrap();
-    let actual = vr.is_satisfied_by(&spec, crate::api::CompatRule::ABI);
+    let actual = vr.is_satisfied_by(&spec, crate::api::CompatRule::Binary);
 
     assert_eq!(actual.is_ok(), expected, "{}", actual);
 }

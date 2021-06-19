@@ -63,7 +63,7 @@ fn version_range_is_satisfied_by(
     required: Option<super::CompatRule>,
 ) -> super::Compatibility {
     use super::Ranged;
-    range.is_satisfied_by(spec, required.unwrap_or(super::CompatRule::ABI))
+    range.is_satisfied_by(spec, required.unwrap_or(super::CompatRule::Binary))
 }
 
 #[pyclass]

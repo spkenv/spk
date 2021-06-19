@@ -847,7 +847,7 @@ impl Ranged for CompatRange {
         match required {
             CompatRule::None => Compatibility::Compatible,
             CompatRule::API => spec.compat.is_api_compatible(&self.base, &spec.pkg.version),
-            CompatRule::ABI => spec
+            CompatRule::Binary => spec
                 .compat
                 .is_binary_compatible(&self.base, &spec.pkg.version),
         }

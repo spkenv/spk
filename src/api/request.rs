@@ -489,7 +489,7 @@ impl PkgRequest {
             prerelease_policy: PreReleasePolicy::ExcludeAll,
             inclusion_policy: InclusionPolicy::Always,
             pin: Default::default(),
-            required_compat: Some(CompatRule::ABI),
+            required_compat: Some(CompatRule::Binary),
         }
     }
 
@@ -570,7 +570,7 @@ impl PkgRequest {
 
         return self
             .pkg
-            .is_satisfied_by(spec, self.required_compat.unwrap_or(CompatRule::ABI));
+            .is_satisfied_by(spec, self.required_compat.unwrap_or(CompatRule::Binary));
     }
 
     /// Reduce the scope of this request to the intersection with another.
