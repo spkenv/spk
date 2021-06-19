@@ -34,7 +34,7 @@ def collect_source(source: SourceSpec, path: str) -> None: ...
 def version_range_is_satisfied_by(
     range: VersionRange,
     spec: Spec,
-    required: str,
+    required: Optional[str],
 ) -> Compatibility: ...
 
 class Compatibility:
