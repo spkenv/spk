@@ -186,22 +186,20 @@ impl<'source> FromPyObject<'source> for super::Inheritance {
 
 impl IntoPy<Py<types::PyAny>> for super::CompatRule {
     fn into_py(self, py: Python) -> Py<types::PyAny> {
-        self.to_string().into_py(py)
+        format!("{:?}", self).into_py(py)
     }
 }
 
 impl<'source> FromPyObject<'source> for super::CompatRule {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        use std::convert::TryFrom;
         let string = <&'source str>::extract(ob)?;
-        if string.len() != 1 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "CompatRule must be a single character only",
-            ));
+        match serde_yaml::from_str(string) {
+            Err(err) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid compat rule: {:?}",
+                err
+            ))),
+            Ok(rule) => Ok(rule),
         }
-        Ok(super::CompatRule::try_from(
-            &string.chars().next().unwrap(),
-        )?)
     }
 }
 
