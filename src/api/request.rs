@@ -437,7 +437,9 @@ impl Serialize for VarRequest {
         S: serde::Serializer,
     {
         let mut var = self.var.clone();
-        if self.value != "" {
+        if self.value != "" || !self.pin {
+            // serialize an empty value if not pinning, otherwise it
+            // wont be valid to load back in
             var = format!("{}/{}", var, self.value);
         }
         let out = VarRequestSchema {

@@ -47,3 +47,14 @@ fn test_deserialize_value_or_pin() {
     let res = serde_yaml::from_str::<VarRequest>("{var: python.abi}");
     assert!(res.is_err(), "should not allow not value without pin");
 }
+
+#[rstest]
+fn test_var_request_empty_value_roundtrip() {
+    let req = serde_yaml::from_str::<VarRequest>("{var: python.abi/}").unwrap();
+    let yaml = serde_yaml::to_string(&req).unwrap();
+    let res = serde_yaml::from_str::<VarRequest>(&yaml);
+    assert!(
+        res.is_ok(),
+        "should be able to round-trip serialize a var request with empty string value"
+    );
+}
