@@ -404,13 +404,6 @@ impl<'de> Deserialize<'de> for VarRequest {
     {
         let spec = VarRequestSchema::deserialize(deserializer)?;
 
-        if !spec.var.contains("/") && !spec.pin {
-            return Err(serde::de::Error::custom(format!(
-                "var request must be in the form name/value, got '{}'",
-                spec.var
-            )));
-        }
-
         let mut parts = spec.var.splitn(2, "/");
         let mut out = Self {
             var: parts.next().unwrap().to_string(),
@@ -425,7 +418,13 @@ impl<'de> Deserialize<'de> for VarRequest {
                 )));
             }
             (Some(value), false) => out.value = value.to_string(),
-            (None, _) => (),
+            (None, true) => (),
+            (None, false) => {
+                return Err(serde::de::Error::custom(format!(
+                    "var request must be in the form name/value, got '{}'",
+                    spec.var
+                )));
+            }
         }
 
         Ok(out)
