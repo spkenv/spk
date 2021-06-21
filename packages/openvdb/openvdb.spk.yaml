@@ -1,4 +1,4 @@
-pkg: openvdb/8.0.0
+pkg: openvdb/8.0.0+r.1
   # - name: openvdb
   # - description: Hierarchical data structure for volumes
   # - license: MPL-2.0
@@ -20,23 +20,31 @@ build:
     - var: centos  # rebuild if centos version changes
     - pkg: stdfs
     - pkg: gcc/6.3
-    - pkg: python/3.7
+    - pkg: python/~3.7.0
     - pkg: cmake/^3.13
     - pkg: tbb/2019
     - pkg: blosc
     - pkg: zlib
     - pkg: jemalloc
-    - pkg: boost/1.70
+    - pkg: boost/~1.70.0
+    - pkg: boost-python/~1.70.0
     - pkg: llvm/11
     - pkg: cuda/11
+    - var: sse4/on
+      choices: [on, off]
+    - var: avx/off
+      choices: [on, off]
 
   variants:
-    - { gcc: 6.3, python: 2.7 }
-    - { gcc: 6.3, python: 3.7 }
+    - { gcc: 6.3, python: ~2.7.0 }
+    - { gcc: 6.3, python: ~3.7.0 }
     # At SPI, we don't yet have python built for gcc/9. Come back to
     # and do these builds when that has been finished.
 
   script:
+    - export SIMD_OPTS="None"
+    - if [ "$SPK_OPT_sse4" == "on" ] ; then SIMD_OPTS="SSE42" ; fi
+    - if [ "$SPK_OPT_avx" == "on" ] ; then SIMD_OPTS="AVX" ; fi
     - cmake -S openvdb -B build -G Ninja
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DCMAKE_VISIBILITY_INLINES_HIDDEN=ON
@@ -53,8 +61,8 @@ build:
         -DOpenGL_GL_PREFERENCE=GLVND
         -DDISABLE_DEPENDENCY_VERSION_CHECKS=OFF
         -DCMAKE_INSTALL_LIBDIR=lib
-        -DUSE_EXR=OFF
         -DBlosc_ROOT=$PREFIX
+        -DOPENVDB_SIMD=${SIMD_OPTS}
     - cmake --build build --target install
     # Also build nanovdb if this is an openvdb branch that supports it
     - if [ -e openvdb/nanovdb ] ; then
@@ -69,7 +77,7 @@ build:
             -DNANOVDB_ALLOW_FETCHCONTENT=OFF
             -DCMAKE_CUDA_HOST_COMPILER=${PREFIX}/bin/clang
             -DBlosc_ROOT=$PREFIX
-            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON
+            -DOPENVDB_SIMD=${SIMD_OPTS}
             ;
         cmake --build nanobuild --target install
         ;
@@ -89,6 +97,8 @@ install:
     - pkg: zlib
       fromBuildEnv: x.x
     - pkg: boost
+      fromBuildEnv: x.x
+    - pkg: boost-python
       fromBuildEnv: x.x
     - pkg: blosc
       fromBuildEnv: x.x
