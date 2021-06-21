@@ -236,7 +236,7 @@ class BinaryPackageBuilder:
         else:
             source_dir = os.path.abspath(self._source)
 
-        # force the base environment to be setup using sh, so that the
+        # force the base environment to be setup using bash, so that the
         # spfs startup and build environment are predictable and consistent
         # (eg in case the user's shell does not have startup scripts in
         #  the dependencies, is not supported by spfs, etc)
@@ -250,8 +250,8 @@ class BinaryPackageBuilder:
             print(" - to finalize and save the package, run `exit 0`")
             cmd = spkrs.build_interactive_shell_command()
         else:
-            os.environ["SHELL"] = "sh"
-            cmd = spkrs.build_shell_initialized_command("/bin/sh", "-ex", build_script)
+            os.environ["SHELL"] = "bash"
+            cmd = spkrs.build_shell_initialized_command("bash", "-ex", build_script)
         with deferred_signals():
             proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
             proc.wait()

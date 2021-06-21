@@ -97,10 +97,8 @@ class PackageSourceTester:
         with tempfile.NamedTemporaryFile("w+") as script_file:
             script_file.write(self._script)
             script_file.flush()
-            os.environ["SHELL"] = "sh"
-            cmd = spkrs.build_shell_initialized_command(
-                "/bin/sh", "-ex", script_file.name
-            )
+            os.environ["SHELL"] = "bash"
+            cmd = spkrs.build_shell_initialized_command("bash", "-ex", script_file.name)
 
             with build.deferred_signals():
                 proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
