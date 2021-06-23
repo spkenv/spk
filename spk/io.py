@@ -51,7 +51,7 @@ def format_decisions(
         for change in decision.iter_changes():
 
             if isinstance(change, solve.graph.SetPackage):
-                if change.spec.pkg.build == api.Build(api.EMBEDDED):
+                if change.spec.pkg.build == api.EMBEDDED:
                     fill = "."
                 else:
                     fill = ">"
@@ -102,7 +102,7 @@ def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
     if isinstance(change, solve.graph.RequestPackage):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
     elif isinstance(change, solve.graph.RequestVar):
-        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.name(): change.request.value}))}"
+        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.var: change.request.value}))}"
     elif isinstance(change, solve.graph.SetPackageBuild):
         return f"{Fore.YELLOW}BUILD{Fore.RESET} {format_ident(change.spec.pkg)}"
     elif isinstance(change, solve.graph.SetPackage):
@@ -209,11 +209,11 @@ def format_options(options: api.OptionMap) -> str:
     return f"{{{', '.join(formatted)}}}"
 
 
-def format_build(build: api.Build) -> str:
+def format_build(build: str) -> str:
 
-    if build.is_emdeded():
+    if build == api.EMBEDDED:
         return f"{Fore.LIGHTMAGENTA_EX}{build}{Style.RESET_ALL}"
-    elif build.is_source():
+    elif build == api.SRC:
         return f"{Fore.LIGHTYELLOW_EX}{build}{Style.RESET_ALL}"
     else:
         return f"{Style.DIM}{build}{Style.RESET_ALL}"

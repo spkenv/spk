@@ -4,12 +4,15 @@
 
 import io
 
-import spk
+import py.path
 
+import spk
 from ._cmd_new import TEMPLATE
 
 
-def test_template_is_valid() -> None:
+def test_template_is_valid(tmpdir: py.path.local) -> None:
 
     spec = TEMPLATE.format(name="my-package")
-    spk.api.read_spec(io.StringIO(spec))
+    spec_file = tmpdir.join("file")
+    spec_file.write(spec)
+    spk.api.read_spec_file(spec_file.strpath)

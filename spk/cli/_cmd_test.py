@@ -85,14 +85,14 @@ def _test(args: argparse.Namespace) -> None:
 
                 opts.update(variant)
                 opts.update(options)
-                digest = opts.digest()
+                digest = opts.digest
                 if digest in tested:
                     continue
                 tested.add(digest)
 
                 variant_requirements = []
                 for opt in spec.build.options:
-                    opt = opt.clone()
+                    opt = opt.copy()
                     value = opts.get(opt.name())
                     if value:
                         opt.set_value(value)
@@ -106,7 +106,7 @@ def _test(args: argparse.Namespace) -> None:
                     for selector in test.selectors:
                         selected_opts = opts.copy()
                         selected_opts.update(selector)
-                        if selected_opts.digest() == digest:
+                        if selected_opts.digest == digest:
                             break
                     else:
                         if test.selectors:
@@ -122,12 +122,16 @@ def _test(args: argparse.Namespace) -> None:
                         spk.test.PackageInstallTester,
                     ]
                     if stage == "sources":
-                        tester = spk.test.PackageSourceTester(spec.clone(), test.script)
+                        tester = spk.test.PackageSourceTester(
+                            spec.copy(), "\n".join(test.script)
+                        )
                     elif stage == "build":
-                        tester = spk.test.PackageBuildTester(spec.clone(), test.script)
+                        tester = spk.test.PackageBuildTester(
+                            spec.copy(), "\n".join(test.script)
+                        )
                     elif stage == "install":
                         tester = spk.test.PackageInstallTester(
-                            spec.clone(), test.script
+                            spec.copy(), "\n".join(test.script)
                         )
                     else:
                         raise ValueError(

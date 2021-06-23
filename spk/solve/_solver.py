@@ -75,7 +75,7 @@ class Solver:
 
         if isinstance(request, str):
             request = api.PkgRequest.from_dict({"pkg": request})
-            request.required_compat = api.CompatRule.API
+            request.required_compat = "a"
             request = graph.RequestPackage(request)
 
         if isinstance(request, api.PkgRequest):
@@ -104,9 +104,9 @@ class Solver:
             self._validators.insert(0, validation.BinaryOnly())
 
     def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
-        self._initial_state_builders.append(
-            graph.SetOptions(api.OptionMap(options.items()))
-        )
+        if not isinstance(options, api.OptionMap):
+            options = api.OptionMap(options)
+        self._initial_state_builders.append(graph.SetOptions(options))
 
     def get_initial_state(self) -> graph.State:
         state = graph.State.default()
@@ -126,7 +126,7 @@ class Solver:
         for option in spec.build.options:
             if not isinstance(option, api.PkgOpt):
                 continue
-            given = build_options.get(option.name())
+            given = build_options.get(option.pkg)
             request = option.to_request(given)
             self.add_request(request)
 
@@ -198,7 +198,9 @@ class Solver:
                 builds = SortedBuildIterator(node.state.get_option_map(), builds)
                 iterator.set_builds(pkg.version, builds)
             for spec, repo in builds:
-                build_from_source = spec.pkg.is_source() and not request.pkg.is_source()
+                build_from_source = (
+                    spec.pkg.build == api.SRC and not request.pkg.build == api.SRC
+                )
                 if build_from_source:
                     if isinstance(repo, api.Spec):
                         notes.append(
@@ -267,9 +269,11 @@ class Solver:
 
         opts = state.get_option_map()
         for pkg_request in state.pkg_requests:
-            opts.setdefault(pkg_request.pkg.name, str(pkg_request.pkg.version))
+            if pkg_request.pkg.name not in opts:
+                opts[pkg_request.pkg.name] = str(pkg_request.pkg.version)
         for var_request in state.var_requests:
-            opts.setdefault(var_request.var, var_request.value)
+            if var_request.var not in opts:
+                opts[var_request.var] = var_request.value
         solver = Solver()
         solver._repos = self._repos
         solver.update_options(opts)

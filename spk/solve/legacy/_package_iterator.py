@@ -135,7 +135,7 @@ class RepositoryPackageIterator(PackageIterator):
                 _LOGGER.debug(
                     "Published spec is corrupt (has no associated build)", pkg=build
                 )
-                spec.pkg.build = build.build
+                spec.pkg = spec.pkg.with_build(build.build)
 
             return (spec, repo)
 
@@ -144,7 +144,7 @@ class RepositoryPackageIterator(PackageIterator):
         builds = list(repo.list_package_builds(api.Ident(self._package_name, version)))
         # source packages must come last to ensure that building
         # from source is the last option under normal circumstances
-        builds.sort(key=lambda pkg: bool(pkg.build and pkg.build.is_source()))
+        builds.sort(key=lambda pkg: bool(pkg.build and pkg.build == "SRC"))
         self._builds = iter(builds)
 
         return next(self)
@@ -181,7 +181,7 @@ class FilteredPackageIterator(PackageIterator):
     def clone(self) -> "FilteredPackageIterator":
 
         it = FilteredPackageIterator(
-            self._source.clone(), self.request.clone(), self.options.copy()
+            self._source.clone(), self.request.copy(), self.options.copy()
         )
         it._history = self._history.copy()
         return it
@@ -217,7 +217,9 @@ class FilteredPackageIterator(PackageIterator):
 
             # check option compatibility of entire version, if applicable
             if version_spec is not None:
-                compat = self.request.pkg.version.is_satisfied_by(version_spec)
+                compat = api.version_range_is_satisfied_by(
+                    self.request.pkg.version, version_spec, self.request.required_compat
+                )
                 if not compat:
                     self.add_history(candidate.pkg.with_build(None), compat)
                     continue
@@ -246,7 +248,7 @@ class FilteredPackageIterator(PackageIterator):
                 )
                 continue
 
-            if requested_build is None and candidate.pkg.build.is_source():
+            if requested_build is None and candidate.pkg.build == api.SRC:
                 if version_spec is not None:
                     spec = version_spec
                 else:
@@ -275,7 +277,8 @@ class FilteredPackageIterator(PackageIterator):
             # validating
             opts = self.options.copy()
             for name, value in spec.resolve_all_options(opts).items():
-                opts.setdefault(name, value)
+                if name not in opts:
+                    opts[name] = value
             compat = spec.build.validate_options(spec.pkg.name, self.options)
             if not compat:
                 self.add_history(candidate.pkg, compat)

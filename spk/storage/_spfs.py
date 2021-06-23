@@ -7,6 +7,7 @@ import io
 import posixpath
 from functools import lru_cache
 
+from ruamel import yaml
 import spkrs
 import structlog
 
@@ -63,10 +64,10 @@ class SpFSRepository(Repository):
     def force_publish_spec(self, spec: api.Spec) -> None:
 
         assert (
-            spec.pkg.build is None or not spec.pkg.build.is_emdeded()
+            spec.pkg.build is None or not spec.pkg.build == api.EMBEDDED
         ), "Cannot publish embedded package"
         meta_tag = self.build_spec_tag(spec.pkg)
-        spec_data = api.write_spec(spec)
+        spec_data = yaml.safe_dump(spec.to_dict()).encode()  # type: ignore
         self.rs.write_spec(meta_tag, spec_data)
         self.list_packages.cache_clear()
         self.list_package_versions.cache_clear()
@@ -91,7 +92,7 @@ class SpFSRepository(Repository):
             raise PackageNotFoundError(pkg) from None
 
         data = self.rs.read_spec(digest)
-        return api.read_spec(io.StringIO(data))
+        return api.Spec.from_dict(yaml.safe_load(data))
 
     def remove_spec(self, pkg: api.Ident) -> None:
 

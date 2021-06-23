@@ -41,7 +41,7 @@ def _export(args: argparse.Namespace) -> None:
     pkg = _flags.parse_idents(args.package)[0]
     build = ""
     if pkg.build is not None:
-        build = f"_{pkg.build.digest}"
+        build = f"_{pkg.build}"
     if args.filename:
         filename = args.filename
     else:

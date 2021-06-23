@@ -274,7 +274,7 @@ def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) 
     assert isinstance(opt, api.VarOpt), "should be given inherited option"
     assert opt.var == "base.inherited", "should be inherited as package option"
     assert (
-        opt.inheritance is api.Inheritance.weak
+        opt.inheritance == "Weak"
     ), "inherited option should have weak inheritance"
 
     assert len(top_pkg.install.requirements) == 1, "should get install requirement"

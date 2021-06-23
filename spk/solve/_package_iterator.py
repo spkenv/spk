@@ -156,7 +156,7 @@ class RepositoryBuildIterator(BuildIterator):
             _LOGGER.debug(
                 "Published spec is corrupt (has no associated build)", pkg=build
             )
-            spec.pkg.build = build.build
+            spec.pkg = spec.pkg.with_build(build.build)
 
         return (spec, self._repo)
 
@@ -193,7 +193,9 @@ class SortedBuildIterator(BuildIterator):
         version_spec = self.version_spec()
         variant_count = len(version_spec.build.variants) if version_spec else 0
         default_options = (
-            version_spec.resolve_all_options({}) if version_spec else api.OptionMap()
+            version_spec.resolve_all_options(api.OptionMap())
+            if version_spec
+            else api.OptionMap()
         )
 
         def key(entry: Tuple[api.Spec, PackageSource]) -> Tuple[int, str]:
@@ -203,7 +205,7 @@ class SortedBuildIterator(BuildIterator):
             total_options_count = len(spec.build.options)
             # source packages must come last to ensure that building
             # from source is the last option under normal circumstances
-            if spec.pkg.build is None or spec.pkg.build.is_source():
+            if spec.pkg.build is None or spec.pkg.build == api.SRC:
                 return (variant_count + total_options_count + 1, build)
 
             if version_spec is not None:
@@ -219,8 +221,8 @@ class SortedBuildIterator(BuildIterator):
             # and then it's the distance from the default option set,
             # where distance is just the number of differing options
             current_options = dict(
-                (o, self._options[o])
-                for o in spec.resolve_all_options({})
+                (o, v)
+                for o, v in spec.resolve_all_options(api.OptionMap()).items()
                 if o in self._options
             )
             similar_options_count = len(

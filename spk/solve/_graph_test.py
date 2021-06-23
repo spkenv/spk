@@ -15,8 +15,8 @@ def test_resolve_build_same_result() -> None:
     base = graph.State.default()
 
     spec = api.Spec.from_dict({"pkg": "test/1.0.0"})
-    build_spec = spec.clone()
-    build_spec.update_for_build(api.OptionMap(), [])
+    build_spec = spec.copy()
+    build_spec.update_spec_for_build(api.OptionMap(), [])
 
     resolve = graph.ResolvePackage(build_spec, build_spec)
     build = graph.BuildPackage(spec, spec, Solution())

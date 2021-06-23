@@ -21,7 +21,7 @@ class SolvedRequest(NamedTuple):
 
         if not isinstance(self.source, api.Spec):
             return False
-        return self.source.pkg == self.spec.pkg.with_build(None)
+        return bool(self.source.pkg == self.spec.pkg.with_build(None))
 
 
 class Solution:
@@ -29,7 +29,7 @@ class Solution:
 
     def __init__(self, options: api.OptionMap = None) -> None:
 
-        self._options = api.OptionMap(options or {})
+        self._options = options.copy() if options else api.OptionMap()
         self._resolved: Dict[api.PkgRequest, Tuple[api.Spec, PackageSource]] = {}
         self._by_name: Dict[str, api.Spec] = {}
 
@@ -45,7 +45,7 @@ class Solution:
 
     def options(self) -> api.OptionMap:
         """Return the options used to generate this solution."""
-        return api.OptionMap(self._options)
+        return self._options.copy()
 
     def repositories(self) -> List[storage.Repository]:
         """Return the set of repositories in this solution."""
@@ -130,5 +130,5 @@ class Solution:
                 str(p) for p in spec.pkg.version.parts
             )
 
-        out = self.options().to_environment(out)
+        out.update(self.options().to_environment())
         return out

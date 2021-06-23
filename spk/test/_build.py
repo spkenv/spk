@@ -92,7 +92,7 @@ class PackageBuildTester:
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
-            request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
+            request = api.PkgRequest(ident_range, "IncludeAll")
             self._solver.add_request(request)
         solution = self._solver.solve_build_environment(self._spec)
 
@@ -101,10 +101,10 @@ class PackageBuildTester:
 
         specs = list(s for _, s, _ in solution.items())
         self._options.update(solution.options())
-        self._spec.update_for_build(self._options, specs)
+        self._spec.update_spec_for_build(self._options, specs)
 
         env = solution.to_environment(os.environ)
-        env = self._spec.resolve_all_options(solution.options()).to_environment(env)
+        env.update(self._spec.resolve_all_options(solution.options()).to_environment())
         env.update(build.get_package_build_env(self._spec))
         env["PREFIX"] = self._prefix
 
@@ -140,7 +140,7 @@ class PackageBuildTester:
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
-            request = api.PkgRequest(ident_range, api.PreReleasePolicy.IncludeAll)
+            request = api.PkgRequest(ident_range, "IncludeAll")
             self._solver.add_request(request)
 
         return self._solver.solve()

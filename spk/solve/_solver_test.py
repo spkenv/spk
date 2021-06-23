@@ -34,8 +34,8 @@ def make_repo(
     def add_pkg(s: Union[Dict, api.Spec]) -> None:
         if isinstance(s, dict):
             spec = api.Spec.from_dict(s)
-            s = spec.clone()
-            spec.pkg.set_build(None)
+            s = spec.copy()
+            spec.pkg = spec.pkg.with_build(None)
             repo.force_publish_spec(spec)
             s = make_build(s.to_dict(), [], opts)
         repo.publish_package(s, spkrs.EMPTY_DIGEST)
@@ -51,11 +51,11 @@ def make_build(
 ) -> api.Spec:
 
     spec = api.Spec.from_dict(spec_dict)
-    if spec.pkg.build and spec.pkg.build.is_source():
+    if spec.pkg.build == api.SRC:
         return spec
     build_opts = opts.copy()
     build_opts.update(spec.resolve_all_options(build_opts))
-    spec.update_for_build(build_opts, deps)
+    spec.update_spec_for_build(build_opts, deps)
     return spec
 
 
@@ -69,8 +69,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     repo = storage.MemRepository()
 
     options = api.OptionMap()
-    spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
-    spec.pkg.set_build(options.digest())
+    spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
 
     # publish package without publishing spec
     repo.publish_package(spec, spkrs.EMPTY_DIGEST)
@@ -100,7 +99,7 @@ def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> 
     assert len(packages) == 1, "expected one resolved package"
     assert packages.get("my-pkg").spec.pkg.version == "1.0.0"
     assert packages.get("my-pkg").spec.pkg.build is not None
-    assert packages.get("my-pkg").spec.pkg.build.digest != api.SRC  # type: ignore
+    assert packages.get("my-pkg").spec.pkg.build != api.SRC  # type: ignore
 
 
 def test_solver_single_package_simple_deps(
@@ -400,7 +399,7 @@ def test_solver_pre_release_config(solver: Union[Solver, legacy.Solver]) -> None
     solver.reset()
     solver.add_repository(repo)
     solver.add_request(
-        api.Request.from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
+        api.request_from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
     )
 
     solution = solver.solve()
@@ -428,7 +427,10 @@ def test_solver_constraint_only(solver: Union[Solver, legacy.Solver]) -> None:
     )
     solver.add_repository(repo)
     solver.add_request("vnp3")
-    solution = solver.solve()
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
 
     with pytest.raises(KeyError):
         solution.get("python")
@@ -461,8 +463,10 @@ def test_solver_constraint_and_request(solver: Union[Solver, legacy.Solver]) -> 
     )
     solver.add_repository(repo)
     solver.add_request("my-tool")
-    solution = solver.solve()
-    print(io.format_resolve(solver, verbosity=100))
+    try:
+        solution = solver.solve()
+    finally:
+        print(io.format_resolve(solver, verbosity=100))
 
     assert solution.get("python").spec.pkg.version == "3.7.3"
 
@@ -484,6 +488,11 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
             },
         }
     )
+    print(
+        make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})])
+        .build.options[0]
+        .get_value()
+    )
     repo = make_repo(
         [
             make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]),
@@ -502,12 +511,11 @@ def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> No
         finally:
             print(io.format_resolve(solver, verbosity=100))
 
-        assert (
-            solution.get("vnp3")
-            .spec.build.options[0]
-            .get_value()
-            .startswith(f"~{pyver}")
-        )
+        resolved = solution.get("vnp3")
+        opt = resolved.spec.build.options[0]
+        value = opt.get_value()
+        assert value is not None
+        assert value.startswith(f"~{pyver}"), f"{value} should start with ~{pyver}"
 
 
 def test_solver_option_injection() -> None:
@@ -588,9 +596,10 @@ def test_solver_build_from_source() -> None:
     finally:
         print(io.format_resolve(solver, verbosity=100))
 
-    assert solution.get(
-        "my-tool"
-    ).is_source_build(), "Should set unbuilt spec as source"
+    resolved = solution.get("my-tool")
+    assert (
+        resolved.is_source_build()
+    ), f"Should set unbuilt spec as source: {resolved.spec.pkg}"
 
     solver.reset()
     solver.add_repository(repo)
@@ -712,7 +721,7 @@ def test_solver_deprecated_build(solver: Union[Solver, legacy.Solver]) -> None:
 
     solver.reset()
     solver.add_repository(repo)
-    solver.add_request(api.Request.from_dict({"pkg": str(deprecated.pkg)}))
+    solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
     try:
         solution = solver.solve()
@@ -743,7 +752,7 @@ def test_solver_deprecated_version(solver: Union[Solver, legacy.Solver]) -> None
 
     solver.reset()
     solver.add_repository(repo)
-    solver.add_request(api.Request.from_dict({"pkg": str(deprecated.pkg)}))
+    solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
     try:
         solution = solver.solve()
@@ -813,9 +822,9 @@ def test_solver_embedded_package_adds_request(
     finally:
         print(io.format_resolve(solver, verbosity=100))
 
-    assert solution.get("qt").request.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").request.pkg.build == api.EMBEDDED
     assert solution.get("qt").spec.pkg.version == "5.12.6"
-    assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").spec.pkg.build == api.EMBEDDED
 
 
 def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) -> None:
@@ -849,7 +858,7 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
         print(io.format_resolve(solver, verbosity=100))
 
     assert solution.get("qt").spec.pkg.version == "5.12.6"
-    assert solution.get("qt").spec.pkg.build.is_emdeded()  # type: ignore
+    assert solution.get("qt").spec.pkg.build == api.EMBEDDED
 
 
 def test_solver_embedded_package_unsolvable(

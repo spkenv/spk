@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+from spkrs import Runtime
 from typing import List, Dict, Optional, Union, Iterator, Iterable
 from collections import defaultdict
 from functools import lru_cache
@@ -99,6 +100,8 @@ class Decision:
 
     def update_options(self, options: Union[Dict[str, str], api.OptionMap]) -> None:
         """Update the options for this solver state."""
+        if not isinstance(options, api.OptionMap):
+            options = api.OptionMap(options)
         self._options.update(options)
 
     def get_options(self) -> api.OptionMap:
@@ -125,7 +128,7 @@ class Decision:
         request = self.get_merged_request(spec.pkg.name)  # TODO: should this be passed?
         assert request is not None, "Cannot resolve unrequested package " + str(spec)
         self.force_set_resolved(request, spec, source)
-        if spec.pkg.build is not None and spec.pkg.build.is_source():
+        if spec.pkg.build == api.SRC:
             return
         for embedded in spec.install.embedded:
             try:
@@ -142,8 +145,10 @@ class Decision:
 
         self._resolved.add(request, spec, source)
 
-        for name, value in spec.resolve_all_options({}).items():
-            self._options.setdefault(f"{spec.pkg.name}.{name}", value)
+        for name, value in spec.resolve_all_options(api.OptionMap()).items():
+            name = f"{spec.pkg.name}.{name}"
+            if name not in self._options:
+                self._options[name] = value
 
         try:
             del self._unresolved[spec.pkg.name]
@@ -229,7 +234,7 @@ class Decision:
         if isinstance(request, api.Ident):
             request = str(request)
 
-        if not isinstance(request, api.Request):
+        if isinstance(request, str):
             request = api.PkgRequest.from_dict({"pkg": request})
 
         if isinstance(request, api.VarRequest):
@@ -250,7 +255,6 @@ class Decision:
                     pass
                 else:
                     compat = resolved.satisfies_var_request(request)
-                    print("compat:", compat)
                     if not compat:
                         self.set_unresolved(resolved.pkg.name, compat)
 
@@ -290,7 +294,7 @@ class Decision:
 
         copy = {}
         for name, reqs in self._requests.items():
-            copy[name] = list(pkg.clone() for pkg in reqs)
+            copy[name] = list(pkg.copy() for pkg in reqs)
         return copy
 
     def add_branch(self) -> "Decision":
@@ -336,7 +340,7 @@ class Decision:
             req = self.get_merged_request(name)
             if req is None:
                 continue
-            if req.inclusion_policy is api.InclusionPolicy.Always:
+            if req.inclusion_policy == "Always":
                 return req
         return None
 
@@ -399,11 +403,11 @@ class Decision:
         if not requests:
             return None
 
-        merged = requests[0].clone()
+        merged = requests[0].copy()
         for request in requests[1:]:
             try:
                 merged.restrict(request)
-            except ValueError as e:
+            except RuntimeError as e:
                 raise ConflictingRequestsError(str(e), requests)
 
         return merged

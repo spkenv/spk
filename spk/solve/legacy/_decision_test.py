@@ -30,7 +30,7 @@ def test_request_merging() -> None:
         str(decision.get_merged_request("my-pkg").pkg) == "my-pkg/1.0.0"  # type: ignore
     )
 
-    decision.add_request(api.Request.from_dict({"pkg": "my-pkg/1.0/src"}))
+    decision.add_request(api.request_from_dict({"pkg": "my-pkg/1.0/src"}))
 
     assert (
         str(decision.get_merged_request("my-pkg").pkg)  # type: ignore

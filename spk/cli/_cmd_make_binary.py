@@ -82,9 +82,9 @@ def _make_binary(args: argparse.Namespace) -> None:
 
             opts.update(variant)
             opts.update(options)
-            if opts.digest() in built:
+            if opts.digest in built:
                 continue
-            built.add(opts.digest())
+            built.add(opts.digest)
 
             _LOGGER.info("building variant", variant=opts)
             builder = (

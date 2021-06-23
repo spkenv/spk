@@ -77,7 +77,7 @@ class Solver:
         for option in spec.build.options:
             if not isinstance(option, api.PkgOpt):
                 continue
-            given = build_options.get(option.name())
+            given = build_options.get(option.pkg)
             request = option.to_request(given)
             self.add_request(request)
 
@@ -140,7 +140,7 @@ class Solver:
                     if not compat:
                         iterator.add_history(spec.pkg, compat)
                         continue
-                elif not spec.pkg.build.is_source():
+                elif not spec.pkg.build == api.SRC:
                     try:
                         with decision.transaction() as t:
                             for dep in spec.install.requirements:
@@ -188,8 +188,8 @@ class Solver:
         except SolverError as err:
             return api.Compatibility(f"Failed to resolve build env: {err}")
 
-        spec = spec.clone()
-        spec.update_for_build(opts, list(s for _, s, _ in solution.items()))
+        spec = spec.copy()
+        spec.update_spec_for_build(opts, list(s for _, s, _ in solution.items()))
         for request in spec.install.requirements:
             try:
                 state.add_request(request)

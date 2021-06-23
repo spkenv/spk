@@ -135,22 +135,24 @@ class PipImporter:
         assert not info.supported_platforms, "No support for supported platforms field"
 
         spec = api.Spec()
-        spec.pkg.name = _to_spk_name(info.name)
-        spec.pkg.version = api.parse_version(_to_spk_version(info.version))
+        spec.pkg = api.Ident(
+            _to_spk_name(info.name),
+            api.parse_version(_to_spk_version(info.version)),
+        )
         spec.sources = []
-        spec.build.options = [
+        build_spec = spec.build
+        build_spec.options = [
             api.VarOpt("os"),
             api.VarOpt("arch"),
             api.VarOpt("distro"),
             api.PkgOpt("python", self._python_version),
         ]
-        spec.build.script = "\n".join(
-            [
-                "export PYTHONNOUSERSITE=1",
-                "export PYTHONDONTWRITEBYTECODE=1",
-                f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
-            ]
-        )
+        build_spec.script = [
+            "export PYTHONNOUSERSITE=1",
+            "export PYTHONDONTWRITEBYTECODE=1",
+            f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
+        ]
+        spec.build = build_spec
 
         builds = []
         if info.requires_python:
@@ -231,12 +233,24 @@ def _to_spk_version(version: str) -> str:
     python_version = packaging.version.parse(version)
     spk_version = api.parse_version(python_version.base_version)
     if python_version.pre is not None:
+        # rust requires that we take ownership before
+        # editing and then put it back
         name, num = python_version.pre
-        spk_version.pre[name] = num
+        pre = spk_version.pre
+        pre[name] = num
+        spk_version.pre = pre
     if python_version.dev is not None:
-        spk_version.pre["dev"] = int(python_version.dev)  # type: ignore
+        # rust requires that we take ownership before
+        # editing and then put it back
+        pre = spk_version.pre
+        pre["dev"] = int(python_version.dev)  # type: ignore
+        spk_version.pre = pre
     if python_version.post is not None:
-        spk_version.post["post"] = int(python_version.post)  # type: ignore
+        # rust requires that we take ownership before
+        # editing and then put it back
+        post = spk_version.post
+        post["post"] = int(python_version.post)  # type: ignore
+        spk_version.post = post
     if python_version.local:
         # irrelevant information for compatibility of versions and
         # no equal concept in spk versions specs

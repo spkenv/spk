@@ -38,7 +38,7 @@ def current_env() -> solve.Solution:
                 spec = runtime.read_spec(pkg)
                 request = api.PkgRequest(
                     api.parse_ident_range(f"{pkg.name}/={pkg.version}/{pkg.build}"),
-                    prerelease_policy=api.PreReleasePolicy.IncludeAll,
+                    prerelease_policy="IncludeAll",
                 )
                 solution.add(request, spec, runtime)
 

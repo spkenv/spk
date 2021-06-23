@@ -1,5 +1,7 @@
 from typing import List, Optional
 
+from . import api
+
 EMPTY_DIGEST: Digest
 
 class Digest: ...

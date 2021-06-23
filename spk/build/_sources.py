@@ -63,8 +63,8 @@ class SourcePackageBuilder:
             repo = storage.local_repository()
 
         layer = collect_and_commit_sources(self._spec)
-        spec = self._spec.clone()
-        spec.pkg.set_build(api.SRC)
+        spec = self._spec.copy()
+        spec.pkg = spec.pkg.with_build(api.SRC)
         repo.publish_package(spec, layer)
         return spec.pkg
 
@@ -95,14 +95,12 @@ def collect_sources(spec: api.Spec, source_dir: str) -> None:
     os.environ.update(get_package_build_env(spec))
     try:
         for source in spec.sources:
-
             target_dir = source_dir
             subdir = source.subdir
             if subdir:
                 target_dir = os.path.join(source_dir, subdir.lstrip("/"))
-                os.makedirs(target_dir, exist_ok=True)
-
-            source.collect(target_dir)
+            os.makedirs(target_dir, exist_ok=True)
+            api.collect_source(source, target_dir)
     finally:
         os.environ.clear()
         os.environ.update(original_env)

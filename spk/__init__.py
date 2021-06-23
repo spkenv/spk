@@ -4,7 +4,9 @@
 """SPK - an SpFS Package Manager"""
 
 import spkrs
-from . import api, storage, solve, build, exec, test
+
+api = spkrs.api
+from . import storage, solve, build, exec, test
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError
 from ._publish import Publisher
@@ -17,7 +19,6 @@ from .solve import (
     Solution,
     SolverError,
 )
-from .api import read_spec_file
 from .build import (
     SourcePackageBuilder,
     BinaryPackageBuilder,

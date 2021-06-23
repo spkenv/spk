@@ -43,11 +43,9 @@ class MemRepository(Repository):
 
         try:
             if not pkg.build:
-                return self._specs[pkg.name][str(pkg.version)].clone()
+                return self._specs[pkg.name][str(pkg.version)].copy()
             else:
-                return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][
-                    0
-                ].clone()
+                return self._packages[pkg.name][str(pkg.version)][pkg.build][0].copy()
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -56,7 +54,7 @@ class MemRepository(Repository):
         if pkg.build is None:
             raise PackageNotFoundError(pkg)
         try:
-            return self._packages[pkg.name][str(pkg.version)][pkg.build.digest][1]
+            return self._packages[pkg.name][str(pkg.version)][pkg.build][1]
         except KeyError:
             raise PackageNotFoundError(pkg)
 
@@ -70,16 +68,18 @@ class MemRepository(Repository):
 
     def publish_spec(self, spec: api.Spec) -> None:
 
-        assert spec.pkg.build is None, "Spec must be published with no build"
         assert (
-            spec.pkg.build is None or not spec.pkg.build.is_emdedded()
+            spec.pkg.build is None
+        ), f"Spec must be published with no build, got {spec.pkg}"
+        assert (
+            spec.pkg.build is None or not spec.pkg.build == api.EMDEDDED
         ), "Cannot publish embedded package"
         self._specs.setdefault(spec.pkg.name, {})
         versions = self._specs[spec.pkg.name]
         version = str(spec.pkg.version)
         if version in versions:
             raise VersionExistsError(version)
-        versions[version] = spec.clone()
+        versions[version] = spec.copy()
 
     def remove_spec(self, pkg: api.Ident) -> None:
 
@@ -99,8 +99,8 @@ class MemRepository(Repository):
         self._packages.setdefault(spec.pkg.name, {})
         version = str(spec.pkg.version)
         self._packages[spec.pkg.name].setdefault(version, {})
-        build = spec.pkg.build.digest
-        self._packages[spec.pkg.name][version][build] = (spec.clone(), digest)
+        build = spec.pkg.build
+        self._packages[spec.pkg.name][version][build] = (spec.copy(), digest)
 
     def remove_package(self, pkg: api.Ident) -> None:
 
@@ -109,6 +109,6 @@ class MemRepository(Repository):
                 "Package must include a build in order to be removed: " + str(pkg)
             )
         try:
-            del self._packages[pkg.name][str(pkg.version)][pkg.build.digest]
+            del self._packages[pkg.name][str(pkg.version)][pkg.build]
         except KeyError:
             raise PackageNotFoundError(pkg)
