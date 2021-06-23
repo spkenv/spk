@@ -1,7 +1,6 @@
-version: 0.28.3
+version: 0.28.4
 release_notes: |
-  * Add support for env specs when using spfs diff
-  * Update check command to find missing payloads as well
+  * Update dependencies for rust 1.53 support
 
 toolchain:
   - kind: Rust
