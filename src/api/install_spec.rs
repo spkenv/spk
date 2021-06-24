@@ -4,7 +4,9 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{ComponentSpecList, EmbeddedPackagesList, Ident, OptionMap, Request, RequirementsList};
+use super::{
+    ComponentSpecList, EmbeddedPackagesList, EnvOp, Ident, OptionMap, Request, RequirementsList,
+};
 use crate::Result;
 
 #[cfg(test)]
@@ -24,6 +26,9 @@ pub struct InstallSpec {
     #[pyo3(get, set)]
     #[serde(default)]
     pub components: ComponentSpecList,
+    #[pyo3(get, set)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub environment: Vec<EnvOp>,
 }
 
 #[pymethods]
