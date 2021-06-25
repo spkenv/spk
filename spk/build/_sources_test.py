@@ -22,7 +22,9 @@ def test_sources_subdir(tmpdir: py.path.local) -> None:
     source_dir = tmpdir.join("source")
     source_dir.join("file.txt").ensure()
     source_dir.join(".git/gitfile").ensure()
-    dir_source = api.LocalSource.from_dict({"path": source_dir.strpath, "subdir": "local"})
+    dir_source = api.LocalSource.from_dict(
+        {"path": source_dir.strpath, "subdir": "local"}
+    )
     source_file = tmpdir.join("src", "source_file.txt").ensure()
     file_source = api.LocalSource.from_dict(
         {"path": source_file.strpath, "subdir": "local"}
