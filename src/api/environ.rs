@@ -8,6 +8,11 @@ use serde::{Deserialize, Serialize};
 #[path = "./environ_test.rs"]
 mod environ_test;
 
+#[cfg(windows)]
+const DEFAULT_VAR_SEP: &str = ";";
+#[cfg(unix)]
+const DEFAULT_VAR_SEP: &str = ":";
+
 /// An operation performed to the environment
 #[derive(Debug, Clone, Hash, Serialize, Eq, PartialEq, FromPyObject)]
 #[serde(untagged)]
@@ -15,6 +20,26 @@ pub enum EnvOp {
     Append(AppendEnv),
     Prepend(PrependEnv),
     Set(SetEnv),
+}
+
+impl EnvOp {
+    /// Construct the bash source representation for this operation
+    pub fn as_bash_source(&self) -> String {
+        match self {
+            Self::Append(op) => op.as_bash_source(),
+            Self::Prepend(op) => op.as_bash_source(),
+            Self::Set(op) => op.as_bash_source(),
+        }
+    }
+
+    /// Construct the tcsh source representation for this operation
+    pub fn as_tcsh_source(&self) -> String {
+        match self {
+            Self::Append(op) => op.as_tcsh_source(),
+            Self::Prepend(op) => op.as_tcsh_source(),
+            Self::Set(op) => op.as_tcsh_source(),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for EnvOp {
@@ -66,6 +91,47 @@ pub struct AppendEnv {
     separator: Option<String>,
 }
 
+#[pymethods]
+impl AppendEnv {
+    /// Return the separator for this append operation
+    pub fn sep<'a>(&'a self) -> &'a str {
+        self.separator
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or(DEFAULT_VAR_SEP)
+    }
+
+    /// Construct the bash source representation for this operation
+    pub fn as_bash_source(&self) -> String {
+        format!(
+            "export {}=\"${{{}}}{}{}\"",
+            self.append,
+            self.append,
+            self.sep(),
+            self.value
+        )
+    }
+    /// Construct the tcsh source representation for this operation
+    pub fn as_tcsh_source(&self) -> String {
+        // tcsh will complain if we use a variable that is not defined
+        // so there is extra login in here to define it as needed
+        vec![
+            format!("if ( $?{} ) then", self.append),
+            format!(
+                "setenv {} \"${{{}}}{}{}\"",
+                self.append,
+                self.append,
+                self.sep(),
+                self.value,
+            ),
+            "else".to_string(),
+            format!("setenv {} \"{}\"", self.append, self.value),
+            "endif".to_string(),
+        ]
+        .join("\n")
+    }
+}
+
 /// Operates on an environment variable by prepending to the beginning
 ///
 /// The separator used defaults to the path separator for the current
@@ -81,6 +147,47 @@ pub struct PrependEnv {
     separator: Option<String>,
 }
 
+#[pymethods]
+impl PrependEnv {
+    /// Return the separator for this prepend operation
+    pub fn sep<'a>(&'a self) -> &'a str {
+        self.separator
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or(DEFAULT_VAR_SEP)
+    }
+
+    /// Construct the bash source representation for this operation
+    pub fn as_bash_source(&self) -> String {
+        format!(
+            "export {}=\"{}{}${{{}}}\"",
+            self.prepend,
+            self.value,
+            self.sep(),
+            self.prepend,
+        )
+    }
+    /// Construct the tcsh source representation for this operation
+    pub fn as_tcsh_source(&self) -> String {
+        // tcsh will complain if we use a variable that is not defined
+        // so there is extra login in here to define it as needed
+        vec![
+            format!("if ( $?{} ) then", self.prepend),
+            format!(
+                "setenv {} \"{}{}${{{}}}\"",
+                self.prepend,
+                self.value,
+                self.sep(),
+                self.prepend,
+            ),
+            "else".to_string(),
+            format!("setenv {} \"{}\"", self.prepend, self.value),
+            "endif".to_string(),
+        ]
+        .join("\n")
+    }
+}
+
 /// Operates on an environment variable by setting it to a value
 #[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,4 +196,16 @@ pub struct SetEnv {
     set: String,
     #[pyo3(get, set)]
     value: String,
+}
+
+#[pymethods]
+impl SetEnv {
+    /// Construct the bash source representation for this operation
+    pub fn as_bash_source(&self) -> String {
+        format!("export {}=\"{}\"", self.set, self.value)
+    }
+    /// Construct the tcsh source representation for this operation
+    pub fn as_tcsh_source(&self) -> String {
+        format!("setenv {} \"{}\"", self.set, self.value)
+    }
 }
