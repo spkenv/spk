@@ -24,20 +24,20 @@ pub enum EnvOp {
 
 impl EnvOp {
     /// Construct the bash source representation for this operation
-    pub fn as_bash_source(&self) -> String {
+    pub fn bash_source(&self) -> String {
         match self {
-            Self::Append(op) => op.as_bash_source(),
-            Self::Prepend(op) => op.as_bash_source(),
-            Self::Set(op) => op.as_bash_source(),
+            Self::Append(op) => op.bash_source(),
+            Self::Prepend(op) => op.bash_source(),
+            Self::Set(op) => op.bash_source(),
         }
     }
 
     /// Construct the tcsh source representation for this operation
-    pub fn as_tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self) -> String {
         match self {
-            Self::Append(op) => op.as_tcsh_source(),
-            Self::Prepend(op) => op.as_tcsh_source(),
-            Self::Set(op) => op.as_tcsh_source(),
+            Self::Append(op) => op.tcsh_source(),
+            Self::Prepend(op) => op.tcsh_source(),
+            Self::Set(op) => op.tcsh_source(),
         }
     }
 }
@@ -85,8 +85,13 @@ impl<'de> Deserialize<'de> for EnvOp {
 pub struct AppendEnv {
     #[pyo3(get, set)]
     append: String,
+    #[serde(deserialize_with = "super::option_map::string_from_scalar")]
     #[pyo3(get, set)]
     value: String,
+    #[serde(
+        default,
+        deserialize_with = "super::option::optional_string_from_scalar"
+    )]
     #[pyo3(get, set)]
     separator: Option<String>,
 }
@@ -102,7 +107,7 @@ impl AppendEnv {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn as_bash_source(&self) -> String {
+    pub fn bash_source(&self) -> String {
         format!(
             "export {}=\"${{{}}}{}{}\"",
             self.append,
@@ -112,7 +117,7 @@ impl AppendEnv {
         )
     }
     /// Construct the tcsh source representation for this operation
-    pub fn as_tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self) -> String {
         // tcsh will complain if we use a variable that is not defined
         // so there is extra login in here to define it as needed
         vec![
@@ -141,8 +146,13 @@ impl AppendEnv {
 pub struct PrependEnv {
     #[pyo3(get, set)]
     prepend: String,
+    #[serde(deserialize_with = "super::option_map::string_from_scalar")]
     #[pyo3(get, set)]
     value: String,
+    #[serde(
+        default,
+        deserialize_with = "super::option::optional_string_from_scalar"
+    )]
     #[pyo3(get, set)]
     separator: Option<String>,
 }
@@ -158,7 +168,7 @@ impl PrependEnv {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn as_bash_source(&self) -> String {
+    pub fn bash_source(&self) -> String {
         format!(
             "export {}=\"{}{}${{{}}}\"",
             self.prepend,
@@ -168,7 +178,7 @@ impl PrependEnv {
         )
     }
     /// Construct the tcsh source representation for this operation
-    pub fn as_tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self) -> String {
         // tcsh will complain if we use a variable that is not defined
         // so there is extra login in here to define it as needed
         vec![
@@ -194,6 +204,7 @@ impl PrependEnv {
 pub struct SetEnv {
     #[pyo3(get, set)]
     set: String,
+    #[serde(deserialize_with = "super::option_map::string_from_scalar")]
     #[pyo3(get, set)]
     value: String,
 }
@@ -201,11 +212,11 @@ pub struct SetEnv {
 #[pymethods]
 impl SetEnv {
     /// Construct the bash source representation for this operation
-    pub fn as_bash_source(&self) -> String {
+    pub fn bash_source(&self) -> String {
         format!("export {}=\"{}\"", self.set, self.value)
     }
     /// Construct the tcsh source representation for this operation
-    pub fn as_tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self) -> String {
         format!("setenv {} \"{}\"", self.set, self.value)
     }
 }
