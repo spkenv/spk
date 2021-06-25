@@ -159,9 +159,18 @@ pub trait DatabaseView {
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple objects
     fn resolve_full_digest(&self, short_digest: &str) -> Result<encoding::Digest> {
+        let mut short_digest = std::borrow::Cow::Borrowed(short_digest);
+        let missing = short_digest.len() % 8;
+        if missing > 0 {
+            short_digest =
+                std::borrow::Cow::Owned(format!("{}{}", short_digest, "=".repeat(missing)));
+        }
         let decoded = data_encoding::BASE32
             .decode(short_digest.as_bytes())
-            .map_err(|_| InvalidReferenceError::new(short_digest))?;
+            .map_err(|err| {
+                tracing::trace!("{:?}", err);
+                InvalidReferenceError::new(short_digest.to_string())
+            })?;
         if decoded.len() == encoding::DIGEST_SIZE {
             return Ok(encoding::Digest::from_bytes(decoded.as_slice())?);
         }

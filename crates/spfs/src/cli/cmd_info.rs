@@ -81,7 +81,7 @@ fn pretty_print_ref(
                     " {:06o} {} {} {}",
                     node.entry.mode,
                     node.entry.kind,
-                    &node.entry.object.to_string()[..10],
+                    spfs::io::format_digest(node.entry.object.to_string(), Some(&repo))?,
                     node.path.to_string(),
                 );
                 count += 1;
