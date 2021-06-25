@@ -131,7 +131,10 @@ impl std::str::FromStr for PartialDigest {
 
 impl Display for PartialDigest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(BASE32.encode(self.as_slice()).as_ref())
+        let encoded = BASE32.encode(self.as_slice());
+        // ignore padding as it's not needed to reparse this value
+        // eg: "LCI3LNJC2XPQ====" => "LCI3LNJC2XPQ"
+        f.write_str(&encoded.trim_end_matches('='))
     }
 }
 

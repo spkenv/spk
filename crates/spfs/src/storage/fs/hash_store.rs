@@ -138,11 +138,12 @@ impl FSHashStore {
     }
 
     /// Given a shortened digest, resolve the full object path.
-
+    ///
     /// # Errors:
-    /// graph::UnknownObjectError: if the digest cannot be resolved
-    /// graph::AmbiguousReferenceError: if the digest resolves to more than one path
-    pub fn resolve_full_digest_path(&self, short_digest: &str) -> Result<PathBuf> {
+    /// - graph::UnknownObjectError: if the digest cannot be resolved
+    /// - graph::AmbiguousReferenceError: if the digest resolves to more than one path
+    pub fn resolve_full_digest_path(&self, partial: &encoding::PartialDigest) -> Result<PathBuf> {
+        let short_digest = partial.to_string();
         let (dirname, file_prefix) = (&short_digest[..2], &short_digest[2..]);
         let dirpath = self.root.join(dirname);
         if short_digest.len() == encoding::DIGEST_SIZE {
@@ -226,8 +227,11 @@ impl FSHashStore {
     /// # Errors:
     /// - graph::UnknownObjectError: if the digest cannot be resolved
     /// - graph::AmbiguousReferenceError: if the digest resolves to more than one path
-    pub fn resolve_full_digest(self, short_digest: &str) -> Result<encoding::Digest> {
-        let path = self.resolve_full_digest_path(short_digest)?;
+    pub fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<encoding::Digest> {
+        let path = self.resolve_full_digest_path(partial)?;
         self.get_digest_from_path(path)
     }
 }
