@@ -6,7 +6,7 @@
 export LANG=en_US.utf8
 
 cd /source
-yum install make rpm-build python36 deps/*.rpm -y > /dev/null 2>&1
+yum install make rpm-build python36 tcsh deps/*.rpm -y > /dev/null 2>&1
 
 (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y) > /dev/null 2>&1
 source /root/.cargo/env
