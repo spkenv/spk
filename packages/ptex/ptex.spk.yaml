@@ -1,0 +1,44 @@
+pkg: ptex/2.4.0
+  # - name: "Ptex"
+  # - description: "Per-face texture mapping for production rendering"
+  # - license: BSD-3-clause
+  # - url: https://ptex.us
+  # - bindings: [ "C++" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+    filter: [ ]
+  - script:
+    - if [ ! -d ptex ] ; then git clone https://github.com/wdas/ptex.git -b v2.4.0 ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.13
+    - pkg: zlib
+
+  variants:
+    - { gcc: 6.3 }
+    - { gcc: 9.3 }
+
+  script:
+    - cmake -S ptex -B build 
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
+        -DCMAKE_CXX_STANDARD=14
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: zlib
+      fromBuildEnv: x.x

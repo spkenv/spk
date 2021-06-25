@@ -1,6 +1,6 @@
-pkg: opencolorio-apps/2.0.1
+pkg: opencolorio-apps/2.0.1+r.1
   # - name: OpenColorIO-Apps
-  # - description: :OpenColorIO command line tools"
+  # - description: "OpenColorIO command line tools"
   # - license: BSD-3-clause
   # - url: https://opencolorio.org
   # - bindings: [ "cli" ]
@@ -18,8 +18,8 @@ sources:
   # or (c) nothing (does a fresh clone).
   - path: ./
   - script:
-    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b v2.0.1 ; fi
-
+    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b 12ee9db3 ; fi
+  # Note: picked a commit that is v2.0.1 plus two patches that are important.
 
 build:
   options:

@@ -1,4 +1,4 @@
-pkg: opencolorio/2.0.1
+pkg: opencolorio/2.0.1+r.1
   # - name: OpenColorIO
   # - description: "Open source color management library"
   # - license: BSD-3-clause
@@ -18,7 +18,8 @@ sources:
   # or (c) nothing (does a fresh clone from GitHub).
   - path: ./
   - script:
-    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b v2.0.1 ; fi
+    - if [ ! -d OpenColorIO ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenColorIO -b 12ee9db3 ; fi
+  # Note: picked a commit that is v2.0.1 plus two patches that are important.
 
 
 build:
@@ -48,7 +49,8 @@ build:
         -DOCIO_BUILD_GPU_TESTS=OFF
         -DOCIO_BUILD_APPS=OFF
         -DOCIO_BUILD_PYTHON=ON
-        -DPYBIND11_PYTHON_VERSION="${SPK_PKG_python_VERSION_BASE}"
+        -DPYBIND11_PYTHON_VERSION=${SPK_PKG_python_VERSION_MAJOR}.${SPK_PKG_python_VERSION_MINOR}
+        -DOCIO_PYTHON_VERSION=${SPK_PKG_python_VERSION_MAJOR}.${SPK_PKG_python_VERSION_MINOR}
     - cmake --build build --target install
 
 install:
