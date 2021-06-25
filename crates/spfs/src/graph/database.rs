@@ -157,8 +157,8 @@ pub trait DatabaseView {
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple objects
     fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<encoding::Digest> {
-        if partial.len() == encoding::DIGEST_SIZE {
-            return Ok(encoding::Digest::from_bytes(partial.as_slice())?);
+        if let Some(digest) = partial.to_digest() {
+            return Ok(digest);
         }
         let mut options = Vec::new();
         for digest in self.iter_digests() {

@@ -69,7 +69,7 @@ pub trait Repository:
         }
 
         let partial = encoding::PartialDigest::parse(reference)
-            .map_err(|_| graph::InvalidReferenceError::new(reference))?;
+            .map_err(|_| graph::UnknownReferenceError::new(reference))?;
         self.resolve_full_digest(&partial)
     }
 

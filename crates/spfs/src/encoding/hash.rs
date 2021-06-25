@@ -114,10 +114,24 @@ impl PartialDigest {
         if missing > 0 {
             partial = Cow::Owned(format!("{}{}", partial, "=".repeat(missing)));
         }
-        let decoded = data_encoding::BASE32
+        let decoded = BASE32
             .decode(partial.as_bytes())
             .map_err(|err| Error::new(format!("invalid partial digest: {:?}", err)))?;
         Ok(Self(decoded))
+    }
+
+    /// Return true if this partial digest is actually a full digest
+    pub fn is_full(&self) -> bool {
+        self.len() == DIGEST_SIZE
+    }
+
+    /// If this partial digest is actually a full digest, convert it
+    pub fn to_digest(&self) -> Option<Digest> {
+        if let Ok(d) = Digest::from_bytes(self.as_slice()) {
+            Some(d)
+        } else {
+            None
+        }
     }
 }
 

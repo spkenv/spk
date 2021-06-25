@@ -231,6 +231,9 @@ impl FSHashStore {
         &self,
         partial: &encoding::PartialDigest,
     ) -> Result<encoding::Digest> {
+        if let Some(complete) = partial.to_digest() {
+            return Ok(complete);
+        }
         let path = self.resolve_full_digest_path(partial)?;
         self.get_digest_from_path(path)
     }
