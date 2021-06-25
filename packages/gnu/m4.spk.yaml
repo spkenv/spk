@@ -18,7 +18,6 @@ build:
     - ./configure --prefix=/spfs
     - make
     - make install
-    - mkdir -p /spfs/etc/startup.d/
     - rm -r /spfs/share/info
 
 install:

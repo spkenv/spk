@@ -5,6 +5,9 @@ build:
     - mkdir /spfs/{bin,lib,etc}
     - mkdir -p /spfs/etc/spfs/startup.d
     - ln -s lib /spfs/lib64
+    # We are explicitly not using the builtin env support because
+    # this package is expected to initialize the core environment
+    # as early as possible
     # Intitialization for bash environments
     - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.sh
     - export LD_LIBRARY_PATH="/spfs/lib:\${LD_LIBRARY_PATH}"

@@ -29,10 +29,11 @@ build:
       mkdir -p $(dirname $newfile)
       cp $file $newfile
     done
-    mkdir -p /spfs/etc/startup.d/
-    echo "export ACLOCAL_PATH=/spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.sh
-    echo "setenv ACLOCAL_PATH /spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.csh
+
 
 install:
+  environment:
+    - set: ACLOCAL_PATH
+      value: /spfs/share/aclocal
   requirements:
     - pkg: stdfs
