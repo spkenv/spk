@@ -102,6 +102,59 @@ impl Decodable for String {
     }
 }
 
+pub struct PartialDigest(Vec<u8>);
+
+impl PartialDigest {
+    pub fn parse<S: AsRef<str>>(source: S) -> Result<Self> {
+        use std::borrow::Cow;
+
+        let mut partial = Cow::Borrowed(source.as_ref());
+        // BASE32 requires padding in mutliples of 8
+        let missing = partial.len() % 8;
+        if missing > 0 {
+            partial = Cow::Owned(format!("{}{}", partial, "=".repeat(missing)));
+        }
+        let decoded = data_encoding::BASE32
+            .decode(partial.as_bytes())
+            .map_err(|err| Error::new(format!("invalid partial digest: {:?}", err)))?;
+        Ok(Self(decoded))
+    }
+}
+
+impl std::str::FromStr for PartialDigest {
+    type Err = Error;
+
+    fn from_str(source: &str) -> Result<Self> {
+        Self::parse(source)
+    }
+}
+
+impl Display for PartialDigest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(BASE32.encode(self.as_slice()).as_ref())
+    }
+}
+
+impl AsRef<[u8]> for PartialDigest {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl std::ops::Deref for PartialDigest {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<PartialDigest> for PartialDigest {
+    fn as_ref(&self) -> &Self {
+        &self
+    }
+}
+
 /// Digest is the result of a hashing operation over binary data.
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub struct Digest([u8; DIGEST_SIZE]);
@@ -131,6 +184,7 @@ impl AsRef<[u8]> for Digest {
         self.0.as_ref()
     }
 }
+
 impl AsRef<Digest> for Digest {
     fn as_ref(&self) -> &Self {
         &self

@@ -10,7 +10,8 @@ pub use binary::{
 
 mod hash;
 pub use hash::{
-    parse_digest, Decodable, Digest, Encodable, Hasher, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST,
+    parse_digest, Decodable, Digest, Encodable, Hasher, PartialDigest, DIGEST_SIZE, EMPTY_DIGEST,
+    NULL_DIGEST,
 };
 
 pub mod prelude;
