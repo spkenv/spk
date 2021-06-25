@@ -280,12 +280,10 @@ VersionRange = Union[
     VersionFilter,
 ]
 
-
 class AppendEnv:
     append: str
     value: str
     separator: Optional[str]
-
     def sep(self) -> str: ...
     def bash_source(self) -> str: ...
     def tcsh_source(self) -> str: ...
@@ -294,7 +292,6 @@ class PrependEnv:
     prepend: str
     value: str
     separator: Optional[str]
-
     def sep(self) -> str: ...
     def bash_source(self) -> str: ...
     def tcsh_source(self) -> str: ...
@@ -302,7 +299,6 @@ class PrependEnv:
 class SetEnv:
     set: str
     value: str
-
     def bash_source(self) -> str: ...
     def tcsh_source(self) -> str: ...
 
