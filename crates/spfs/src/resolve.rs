@@ -13,6 +13,10 @@ use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
 use storage::{ManifestStorage, Repository};
 
+#[cfg(test)]
+#[path = "./resolve_test.rs"]
+mod resolve_test;
+
 /// Render the given environment in the local repository
 ///
 /// All items in the spec will be merged and rendered, so
