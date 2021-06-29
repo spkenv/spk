@@ -1,7 +1,4 @@
----
-title: spfs
-chapter: False
----
+# SpFS
 
 SpFS is a file system isolation, capture and distribution system for software runtime management. In many ways, it's like docker-lite, providing some of the benefits of a container runtime while not creating too much isolation from the host environment.
 
@@ -13,7 +10,7 @@ SpFS manages all files under the `/spfs` directory on your system. It has the ab
 
 #### Isolation
 
-The contents of `/spfs` are managed _per-process-tree_. This means that one program running through spfs might see and entirely different set of files to another.
+The contents of `/spfs` are managed _per-process-tree_. This means that one program running through spfs might see an entirely different set of files to another.
 
 ### Getting Started
 
@@ -33,19 +30,18 @@ In a separate shell, we can see that the files are not visible.
 ls /spfs
 # <nothing>
 ```
-{{% notice warning %}}
-**Any files that you create, or changes that you make under /spfs are lost when the shell or program exists**. Make sure that you commit any changes that you want to keep or reuse (see below)
-{{% /notice %}}
+:warning: | **Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below).
+:---: | :---
 
 ### Storage & Persistence
 
 #### Persistence
 
-When running in spfs, all file changes are stored in-memory by the underlying file system. This means that when the shell or program exists, all changes are lost. This also means that you can modify and test changes within an spfs runtime without affecting any other processes.
+When running in spfs, all file changes are stored in-memory by the underlying file system. This means that when the shell or program exits, all changes are lost. This also means that you can modify and test changes within an spfs runtime without affecting any other processes.
 
 #### Tags, Layers, and Platforms
 
-Under the hood, SpFS uses a layering system to build up the set of files that you see under the `/spfs` directory. Layers have a unique id which is derived from the files that it contains, but layers can also be tagged with a human-readable name to help keep track of it more easily. Platforms are just a stack of layers, and can also be tagged in the same way.
+Under the hood, spfs uses a layering system to build up the set of files that you see under the `/spfs` directory. Layers have a unique id which is derived from the files that it contains, but layers can also be tagged with a human-readable name to help keep track of it more easily. Platforms are just a stack of layers, and can also be tagged in the same way.
 
 ### Saving Your First Layer
 
@@ -90,7 +86,7 @@ ls /spfs
 
 ### Building a Platform
 
-As mentioned above, a platform is simply a stack of layers. During the _commit_ step, we can optionally commit the entire stack of runtime layers instead of just the changeset. Using spenv with a platform tag is most common, because often a layer only represents a set of changes and the files onto which the changes were made are also important to the runtime environment.
+As mentioned above, a platform is simply a stack of layers. During the _commit_ step, we can optionally commit the entire stack of runtime layers instead of just the changeset. Using spfs with a platform tag is most common, because often a layer only represents a set of changes and the files onto which the changes were made are also important to the runtime environment.
 
 ```bash
 # enter edit mode so that we can make changes on top of 'my-layer'
@@ -111,26 +107,25 @@ spfs info my-platform
 #  refs: XY64NZFA -> my-platform
 #  stack:
 #   - I22PAVLF
-#   - FCQ6LOSW -> my-message
+#   - FCQ6LOSW -> my-layer
 ```
 
 ### Edit Mode
 
-By default, when you run a command or enter into a shell with an existing spfs id or tag, the entire `/spfs` filesytem will be read-only. This means that, regardless of the file permissions, you won't be able to add files, remove files, or modify files in any way. Any active runtime can be made editable using the `spfs edit` command, or by bassing the `--edit` flag to the `spfs run` and `spfs shell` commands.
+By default, when you run a command or enter into a shell with an existing spfs id or tag, the entire `/spfs` filesytem will be read-only. This means that, regardless of the file permissions, you won't be able to add files, remove files, or modify files in any way. Any active runtime can be made editable using the `spfs edit` command, or by passing the `--edit` flag to the `spfs run` and `spfs shell` commands.
 
-In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is not way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
+In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is no way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
 
-{{% notice info %}}
-In edit mode, all changes are stored in memory and are lost when you exit the runtime. The only way to save these changes are to commit them as a layer or platform before exiting.
-{{% /notice %}}
+:point_right: | In edit mode, all changes are stored in memory and are lost when you exit the runtime. The only way to save these changes is to commit them as a layer or platform before exiting.
+:---: | :---
 
 ### Sharing References
 
-The spfs _reference_ is any string that identifies either a layer or a platform (aka a tag or an id). Until now, we've been building and capturing our platforms and layers in the local storage. This means that the files, ids, and tags are only available to us. SpFS also allows us to share these items with others through the idea of remote storage.
+The spfs _reference_ is any string that identifies either a layer or a platform (aka a tag or an id). Until now, we've been building and capturing our platforms and layers in the local storage. This means that the files, ids, and tags are only available to us. Spfs also allows us to share these items with others through the idea of remote storage.
 
 #### Remote Storage
 
-To SpFS a remote storage is simply any storage location that is not the default local storage. Each storage location has a name, with **origin** being the default remote storage (just like git). The set of available remote storages is defined in the spfs [config file](../configuration).
+To spfs a remote storage is simply any storage location that is not the default local storage. Each storage location has a name, with **origin** being the default remote storage (just like git). The set of available remote storages is defined in the spfs [config file](configuration.md).
 
 #### Pushing and Pulling References
 
@@ -149,10 +144,9 @@ SpFS will automatically push all of the required layers for our platform, but it
 spfs push my-layer
 ```
 
-{{% notice tip %}}
-Notice that spfs is very efficient with it's storage, and knows instantly that the layer already exists in the remote storage, so only creates the tag. (see [storage](../storage) for details)
-{{% /notice %}}
+:point_right: | Notice that spfs is very efficient with its storage, and knows instantly that the layer already exists in the remote storage, so only creates the tag.
+:---: | :---
 
 ### Further Reading
 
-- The [Advanced Usage](./usage) documentation covers most of the next-level concepts that should be explored once the basics are understood.
+- The [Advanced Usage](usage.md) documentation covers most of the next-level concepts that should be explored once the basics are understood.

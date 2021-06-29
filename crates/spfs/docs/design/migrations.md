@@ -1,8 +1,6 @@
----
-title: Repository Migrations
-summary: Mechanisms for changing filesystem repository formats
-weight: 999
----
+# Repository Migrations
+
+Mechanisms for changing filesystem repository formats.
 
 The `spfs migrate` command was ported from the original python implementation, and uses the `spfs::storage::fs::migrations` module to handle upgrading repository data on disk. This mechanism was used once in python but the migration itself was not ported to rust.
 

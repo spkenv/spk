@@ -1,12 +1,10 @@
----
-title: Design and Architecture
-summary: General concepts and codebase layout
-weight: 10
----
+# Design and Architecture
+
+General concepts and codebase layout.
 
 ## General Concepts
 
-Conceptually, SpFS has a few distinct layers to it's design which are also mostly represented in the shape of the codebase.
+Conceptually, spfs has a few distinct layers to its design which are also mostly represented in the shape of the codebase.
 
 {{< mermaid >}}
 graph LR;
@@ -32,17 +30,17 @@ tree -->|many| blob
 
 Each of these objects plays a key role in how spfs tracks filesystem data.
 
-- **platform** - A platform specifies any number of layers stacked in a specific order
-- **layer** - A filesystem layer, who's contents are identified by a single contained manifest
-- **manifest** - Represents a complete filesystem tree (all directories and files)
-- **tree** - A single directory, with any number of contained entries which may be other directories or files
-- **blob** - An arbitrary container of opaque data, aka a file in the filesystem
+- **platform** - A platform specifies any number of layers stacked in a specific order.
+- **layer** - A filesystem layer whose contents are identified by a single contained manifest.
+- **manifest** - Represents a complete filesystem tree (all directories and files).
+- **tree** - A single directory, with any number of contained entries which may be other directories or files.
+- **blob** - An arbitrary container of opaque data, aka a file in the filesystem.
 
 ### Object Hashing and Encoding
 
-All objects in the spfs graph API are binary encodable. They can all be deterministically written to and read from a binary representation. This binary form of each object is what spfs uses in order to hash and determin the unique digest/identifier for the object.
+All objects in the spfs graph API are binary encodable. They can all be deterministically written to and read from a binary representation. This binary form of each object is what spfs uses in order to hash and determine the unique digest/identifier for the object.
 
-SpFS uses the **sha256** algorithm to hash objects, and a **base32** encoding of that digest when refering to the digest in a human-readable string.
+SpFS uses the **sha256** algorithm to hash objects, and a **base32** encoding of that digest when referring to the digest in a human-readable string.
 
 These digests are used throughout spfs to uniquely identify and refer to objects.
 
@@ -50,11 +48,11 @@ These digests are used throughout spfs to uniquely identify and refer to objects
 
 The spfs tracking module is concerned with populating object graphs from real filesytem data, providing human-friendly identification for important data within a graph, and comparing data stored within a graph.
 
-The most important concept introduces here is the `tag` which connects a human-readable name to an object in the graph. Tags are stored in a _stream_ which gives them a timestamped history.
+The most important concept introduced here is the `tag` which connects a human-readable name to an object in the graph. Tags are stored in a _stream_ which gives them a timestamped history.
 
 ### Object Storage (Repositories)
 
-Being able to represent all of it's data as a connected graph of objects and identify them with a unique digest is key to the logic of spfs, but the object data needs to be persisted somewhere in order to be useful for users. For this reason, spfs defines an interface through which all object data can be saved and loaded.
+Being able to represent all of its data as a connected graph of objects and identify them with a unique digest is key to the logic of spfs, but the object data needs to be persisted somewhere in order to be useful for users. For this reason, spfs defines an interface through which all object data can be saved and loaded.
 
 As of writing, spfs provides two implementations of the storage api, a local filesystem store and a tar archive store. Note that the tar archive works by unpacking and using a filesystem store at runtime, repacking the tar archive when complete.
 

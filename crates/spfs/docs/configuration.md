@@ -1,8 +1,4 @@
----
-title: Configuring SpFS
-summary: Configuration for SpFS
-weight: 10
----
+# Configuring SpFS
 
 ## Config File
 
