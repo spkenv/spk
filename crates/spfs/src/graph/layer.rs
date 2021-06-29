@@ -14,7 +14,7 @@ mod layer_test;
 /// Layers are considered completely immutable, and are
 /// uniquely identifyable by the computed hash of all
 /// relevant file and metadata.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct Layer {
     pub manifest: encoding::Digest,
 }

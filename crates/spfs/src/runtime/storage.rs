@@ -251,12 +251,18 @@ impl Runtime {
     /// and change the overlayfs options, but not update
     /// any currently running environment automatically.
     pub fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
-        let mut stack = vec![digest.clone()];
-        stack.append(&mut self.config.stack);
-        self.config = Config {
-            stack: stack,
-            ..self.config.clone()
-        };
+        let mut new_stack = Vec::with_capacity(self.config.stack.len() + 1);
+        new_stack.push(digest.clone());
+        for existing in self.config.stack.drain(..) {
+            // we do not want the same layer showing up twice, one for
+            // efficiency and two it causes errors in overlayfs so promote
+            // any existing instance to the new top of the stack
+            if &existing == digest {
+                continue;
+            }
+            new_stack.push(existing);
+        }
+        self.config.stack = new_stack;
         self.write_config()
     }
 

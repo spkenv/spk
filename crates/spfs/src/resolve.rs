@@ -5,12 +5,17 @@
 use std::{collections::HashSet, iter::FromIterator, path::Path};
 
 use indicatif::ParallelProgressIterator;
+use itertools::Itertools;
 use rayon::prelude::*;
 
 use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
 use storage::{ManifestStorage, Repository};
+
+#[cfg(test)]
+#[path = "./resolve_test.rs"]
+mod resolve_test;
 
 /// Render the given environment in the local repository
 ///
@@ -231,7 +236,10 @@ pub fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
         }
     }
 
-    Ok(layers)
+    // ensure that there are not duplicated layers in the final set
+    // because overlayfs will die if the same directory is included
+    // more than once
+    Ok(layers.into_iter().unique().collect_vec())
 }
 
 /// Find an spfs-* subcommand in the current environment
