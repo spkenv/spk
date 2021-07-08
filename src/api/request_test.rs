@@ -58,3 +58,15 @@ fn test_var_request_empty_value_roundtrip() {
         "should be able to round-trip serialize a var request with empty string value"
     );
 }
+
+#[rstest]
+fn test_var_request_pinned_roundtrip() {
+    let req = serde_yaml::from_str::<VarRequest>("{var: python.abi, fromBuildEnv: true}").unwrap();
+    let yaml = serde_yaml::to_string(&req).unwrap();
+    let res = serde_yaml::from_str::<VarRequest>(&yaml);
+    assert!(
+        res.is_ok(),
+        "should be able to round-trip serialize a var request with pin"
+    );
+    assert!(res.unwrap().pin, "should preserve pin value");
+}

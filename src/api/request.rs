@@ -627,5 +627,5 @@ impl<'de> Deserialize<'de> for PkgRequest {
 }
 
 pub(crate) fn is_false(value: &bool) -> bool {
-    *value
+    !*value
 }
