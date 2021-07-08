@@ -33,6 +33,13 @@ impl DatabaseView for super::FSRepository {
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
         graph::DatabaseWalker::new(Box::new(self), root.clone())
     }
+
+    fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> graph::Result<encoding::Digest> {
+        self.objects.resolve_full_digest(partial)
+    }
 }
 
 impl graph::Database for super::FSRepository {

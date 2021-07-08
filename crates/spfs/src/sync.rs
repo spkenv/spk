@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use super::config::load_config;
 use crate::prelude::*;
-use crate::{graph, storage, tracking, Result};
+use crate::{graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./sync_test.rs"]
@@ -57,6 +57,7 @@ pub fn sync_ref<R: AsRef<str>>(
     let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
         match src.resolve_tag(&tag) {
             Ok(tag) => Some(tag),
+            Err(Error::UnknownReference(_)) => None,
             Err(err) => return Err(err),
         }
     } else {

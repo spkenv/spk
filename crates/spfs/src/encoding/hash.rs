@@ -102,6 +102,76 @@ impl Decodable for String {
     }
 }
 
+pub struct PartialDigest(Vec<u8>);
+
+impl PartialDigest {
+    pub fn parse<S: AsRef<str>>(source: S) -> Result<Self> {
+        use std::borrow::Cow;
+
+        let mut partial = Cow::Borrowed(source.as_ref());
+        // BASE32 requires padding in mutliples of 8
+        let missing = partial.len() % 8;
+        if missing > 0 {
+            partial = Cow::Owned(format!("{}{}", partial, "=".repeat(missing)));
+        }
+        let decoded = BASE32
+            .decode(partial.as_bytes())
+            .map_err(|err| Error::new(format!("invalid partial digest: {:?}", err)))?;
+        Ok(Self(decoded))
+    }
+
+    /// Return true if this partial digest is actually a full digest
+    pub fn is_full(&self) -> bool {
+        self.len() == DIGEST_SIZE
+    }
+
+    /// If this partial digest is actually a full digest, convert it
+    pub fn to_digest(&self) -> Option<Digest> {
+        if let Ok(d) = Digest::from_bytes(self.as_slice()) {
+            Some(d)
+        } else {
+            None
+        }
+    }
+}
+
+impl std::str::FromStr for PartialDigest {
+    type Err = Error;
+
+    fn from_str(source: &str) -> Result<Self> {
+        Self::parse(source)
+    }
+}
+
+impl Display for PartialDigest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let encoded = BASE32.encode(self.as_slice());
+        // ignore padding as it's not needed to reparse this value
+        // eg: "LCI3LNJC2XPQ====" => "LCI3LNJC2XPQ"
+        f.write_str(&encoded.trim_end_matches('='))
+    }
+}
+
+impl AsRef<[u8]> for PartialDigest {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl std::ops::Deref for PartialDigest {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<PartialDigest> for PartialDigest {
+    fn as_ref(&self) -> &Self {
+        &self
+    }
+}
+
 /// Digest is the result of a hashing operation over binary data.
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub struct Digest([u8; DIGEST_SIZE]);
@@ -131,6 +201,7 @@ impl AsRef<[u8]> for Digest {
         self.0.as_ref()
     }
 }
+
 impl AsRef<Digest> for Digest {
     fn as_ref(&self) -> &Self {
         &self

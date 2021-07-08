@@ -62,18 +62,15 @@ pub trait Repository:
 
     /// Resolve a tag or digest string into it's absolute digest.
     fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
-        let reference = reference.as_ref();
-        let digest = if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
+        if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
             if let Ok(tag) = self.resolve_tag(&tag_spec) {
-                tag.target
-            } else {
-                self.resolve_full_digest(reference)?
+                return Ok(tag.target);
             }
-        } else {
-            self.resolve_full_digest(reference)?
-        };
+        }
 
-        Ok(digest)
+        let partial = encoding::PartialDigest::parse(reference)
+            .map_err(|_| graph::UnknownReferenceError::new(reference))?;
+        self.resolve_full_digest(&partial)
     }
 
     /// Read an object of unknown type by tag or digest.

@@ -30,8 +30,8 @@ fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
         Some(config.get_remote("origin").unwrap()),
     ) {
         Err(Error::UnknownObject(_)) => (),
-        Err(err) => panic!("expected unknown reference error, got {:?}", err),
-        Ok(_) => panic!("expected unknown reference error, got success"),
+        Err(err) => panic!("expected unknown object error, got {:?}", err),
+        Ok(_) => panic!("expected unknown object error, got success"),
     }
 }
 

@@ -4,9 +4,7 @@
 
 use std::collections::VecDeque;
 
-use super::{
-    AmbiguousReferenceError, InvalidReferenceError, Object, Result, UnknownReferenceError,
-};
+use super::{AmbiguousReferenceError, Object, Result, UnknownReferenceError};
 use crate::encoding;
 
 /// Walks an object tree depth-first starting at some root digest
@@ -158,25 +156,22 @@ pub trait DatabaseView {
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple objects
-    fn resolve_full_digest(&self, short_digest: &str) -> Result<encoding::Digest> {
-        let decoded = data_encoding::BASE32
-            .decode(short_digest.as_bytes())
-            .map_err(|_| InvalidReferenceError::new(short_digest))?;
-        if decoded.len() == encoding::DIGEST_SIZE {
-            return Ok(encoding::Digest::from_bytes(decoded.as_slice())?);
+    fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<encoding::Digest> {
+        if let Some(digest) = partial.to_digest() {
+            return Ok(digest);
         }
         let mut options = Vec::new();
         for digest in self.iter_digests() {
             let digest = digest?;
-            if &digest.as_bytes()[..decoded.len()] == decoded {
+            if &digest.as_bytes()[..partial.len()] == partial.as_slice() {
                 options.push(digest)
             }
         }
 
         match options.len() {
-            0 => Err(UnknownReferenceError::new(short_digest.to_string()).into()),
+            0 => Err(UnknownReferenceError::new(partial.to_string()).into()),
             1 => Ok(options.get(0).unwrap().to_owned()),
-            _ => Err(AmbiguousReferenceError::new(short_digest.to_string()).into()),
+            _ => Err(AmbiguousReferenceError::new(partial.to_string()).into()),
         }
     }
 }
