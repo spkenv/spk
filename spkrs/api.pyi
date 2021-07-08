@@ -34,7 +34,6 @@ def collect_source(source: SourceSpec, path: str) -> None: ...
 def version_range_is_satisfied_by(
     range: VersionRange,
     spec: Spec,
-    required: Optional[str],
 ) -> Compatibility: ...
 
 class Compatibility:
@@ -106,7 +105,6 @@ class PkgRequest:
     pin: Optional[str]
     prerelease_policy: str
     inclusion_policy: str
-    required_compat: str
     @staticmethod
     def from_dict(input: Dict[str, Any]) -> PkgRequest: ...
     @staticmethod

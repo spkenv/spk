@@ -35,7 +35,7 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
     /// Return true if the given package spec satisfies this version range with the given compatibility.
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility;
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility;
 
     /// If applicable, return the broken down set of rules for this range
     fn rules(&self) -> HashSet<VersionRange> {
@@ -122,8 +122,8 @@ impl<T: Ranged> Ranged for &T {
     fn less_than(&self) -> Option<Version> {
         Ranged::less_than(*self)
     }
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        Ranged::is_satisfied_by(*self, spec, required)
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
+        Ranged::is_satisfied_by(*self, spec)
     }
 }
 
@@ -176,19 +176,19 @@ impl Ranged for VersionRange {
         }
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         match self {
-            VersionRange::Semver(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Wildcard(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::LowestSpecified(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::GreaterThan(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::LessThan(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::LessThanOrEqualTo(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Exact(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Excluded(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Compat(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Filter(vr) => vr.is_satisfied_by(spec, required),
+            VersionRange::Semver(vr) => vr.is_satisfied_by(spec),
+            VersionRange::Wildcard(vr) => vr.is_satisfied_by(spec),
+            VersionRange::LowestSpecified(vr) => vr.is_satisfied_by(spec),
+            VersionRange::GreaterThan(vr) => vr.is_satisfied_by(spec),
+            VersionRange::LessThan(vr) => vr.is_satisfied_by(spec),
+            VersionRange::GreaterThanOrEqualTo(vr) => vr.is_satisfied_by(spec),
+            VersionRange::LessThanOrEqualTo(vr) => vr.is_satisfied_by(spec),
+            VersionRange::Exact(vr) => vr.is_satisfied_by(spec),
+            VersionRange::Excluded(vr) => vr.is_satisfied_by(spec),
+            VersionRange::Compat(vr) => vr.is_satisfied_by(spec),
+            VersionRange::Filter(vr) => vr.is_satisfied_by(spec),
         }
     }
 
@@ -313,7 +313,7 @@ impl Ranged for SemverRange {
         Some(Version::from_parts(parts.into_iter()))
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         return self.is_applicable(&spec.pkg.version);
     }
 }
@@ -414,7 +414,7 @@ impl Ranged for WildcardRange {
         Compatibility::Compatible
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         self.is_applicable(&spec.pkg.version)
     }
 }
@@ -477,7 +477,7 @@ impl Ranged for LowestSpecifiedRange {
         Some(Version::from_parts(parts.into_iter()))
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         self.is_applicable(&spec.pkg.version)
     }
 }
@@ -525,7 +525,7 @@ impl Ranged for GreaterThanRange {
         None
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         self.is_applicable(&spec.pkg.version)
     }
 
@@ -573,7 +573,7 @@ impl Ranged for LessThanRange {
         Some(self.bound.clone())
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         self.is_applicable(&spec.pkg.version)
     }
 
@@ -621,7 +621,7 @@ impl Ranged for GreaterThanOrEqualToRange {
         None
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         self.is_applicable(&spec.pkg.version)
     }
 
@@ -669,7 +669,7 @@ impl Ranged for LessThanOrEqualToRange {
         None
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         self.is_applicable(&spec.pkg.version)
     }
 
@@ -719,7 +719,7 @@ impl Ranged for ExactVersion {
         Some(Version::from_parts(parts.into_iter()))
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         if self.version.base() != spec.pkg.version.base() {
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal]",
@@ -795,7 +795,7 @@ impl Ranged for ExcludedVersion {
         Compatibility::Compatible
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         return self.is_applicable(&spec.pkg.version);
     }
 }
@@ -818,12 +818,14 @@ impl Display for ExcludedVersion {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
     base: Version,
+    required: CompatRule,
 }
 
 impl CompatRange {
     pub fn new<V: TryInto<Version, Error = Error>>(minimum: V) -> Result<VersionRange> {
         Ok(VersionRange::Compat(Self {
             base: minimum.try_into()?,
+            required: CompatRule::Binary,
         }))
     }
 }
@@ -843,8 +845,8 @@ impl Ranged for CompatRange {
         None
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        match required {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
+        match self.required {
             CompatRule::None => Compatibility::Compatible,
             CompatRule::API => spec.compat.is_api_compatible(&self.base, &spec.pkg.version),
             CompatRule::Binary => spec
@@ -955,9 +957,9 @@ impl Ranged for VersionFilter {
     }
 
     /// Return true if the given package spec satisfies this version range.
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
         for rule in self.rules.iter() {
-            let compat = rule.is_satisfied_by(spec, required);
+            let compat = rule.is_satisfied_by(spec);
             if !compat.is_ok() {
                 return compat;
             }

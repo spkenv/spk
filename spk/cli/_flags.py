@@ -202,8 +202,6 @@ def parse_requests_using_flags(
                 request_data.setdefault("prereleasePolicy", "IncludeAll")
 
             req = spk.api.PkgRequest.from_dict(request_data)
-            if req.required_compat is None:
-                req.required_compat = "API"
             out.append(req)
 
     return out
