@@ -165,6 +165,14 @@ impl std::fmt::Display for Compat {
     }
 }
 
+impl TryFrom<&str> for Compat {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> crate::Result<Self> {
+        Self::from_str(value)
+    }
+}
+
 impl FromStr for Compat {
     type Err = crate::Error;
 
@@ -238,14 +246,14 @@ impl Compat {
                     continue;
                 }
                 return Compatibility::Incompatible(format!(
-                    "Not {} compatible with {} [{} at pos {}]",
+                    "Not {:?} compatible with {} [{} at pos {}]",
                     required, base, self, i
                 ));
             }
 
             if b < a {
                 return Compatibility::Incompatible(format!(
-                    "Not {} compatible with {} [{} at pos {}]",
+                    "Not {:?} compatible with {} [{} at pos {}]",
                     required, base, self, i
                 ));
             } else {
@@ -254,7 +262,7 @@ impl Compat {
         }
 
         Compatibility::Incompatible(format!(
-            "Not compatible: {} ({}) [{} compatibility not specified]",
+            "Not compatible: {} ({}) [{:?} compatibility not specified]",
             base, self, required,
         ))
     }

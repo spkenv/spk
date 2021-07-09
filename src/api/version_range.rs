@@ -879,6 +879,13 @@ impl Ranged for CompatRange {
 
 impl Display for CompatRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.required {
+            Some(r) => {
+                r.fmt(f)?;
+                f.write_char(':')?;
+            }
+            None => (),
+        }
         f.write_str(&self.base.to_string())
     }
 }
