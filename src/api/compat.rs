@@ -11,6 +11,7 @@ use itertools::izip;
 use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -26,6 +27,20 @@ pub enum CompatRule {
 impl std::fmt::Display for CompatRule {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.as_ref())
+    }
+}
+
+impl std::str::FromStr for CompatRule {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "API" => Ok(Self::API),
+            "Binary" => Ok(Self::Binary),
+            _ => Err(Error::String(format!(
+                "Unknown or unsupported compatibility rule: {}",
+                s
+            ))),
+        }
     }
 }
 

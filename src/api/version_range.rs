@@ -818,15 +818,26 @@ impl Display for ExcludedVersion {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
     base: Version,
-    required: CompatRule,
+    /// if unset, the required compatibilty is based on the type
+    /// of package being validated. Source packages require api
+    /// compat and binary packages require binary compat.
+    required: Option<CompatRule>,
 }
 
 impl CompatRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(minimum: V) -> Result<VersionRange> {
-        Ok(VersionRange::Compat(Self {
-            base: minimum.try_into()?,
-            required: CompatRule::Binary,
-        }))
+    pub fn new<R: AsRef<str>>(range: R) -> Result<VersionRange> {
+        let range = range.as_ref();
+        let compat_range = match range.rsplit_once(":") {
+            Some((prefix, version)) => Self {
+                base: version.try_into()?,
+                required: Some(CompatRule::from_str(prefix)?),
+            },
+            None => Self {
+                base: range.try_into()?,
+                required: None,
+            },
+        };
+        Ok(VersionRange::Compat(compat_range))
     }
 }
 
@@ -846,7 +857,17 @@ impl Ranged for CompatRange {
     }
 
     fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
-        match self.required {
+        let required = match self.required {
+            Some(rule) => rule,
+            None => {
+                if spec.pkg.is_source() || spec.pkg.build.is_none() {
+                    CompatRule::API
+                } else {
+                    CompatRule::Binary
+                }
+            }
+        };
+        match required {
             CompatRule::None => Compatibility::Compatible,
             CompatRule::API => spec.compat.is_api_compatible(&self.base, &spec.pkg.version),
             CompatRule::Binary => spec
