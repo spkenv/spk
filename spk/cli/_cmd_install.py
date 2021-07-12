@@ -73,7 +73,9 @@ def _install(args: argparse.Namespace) -> None:
         elif stage == "build":
             for r in requests:
                 o = spk.api.opt_from_request(r)
-                spec.build.upsert_opt(o)
+                build = spec.build
+                build.upsert_opt(o)
+                spec.build = build
 
         elif stage == "install":
             for r in requests:
