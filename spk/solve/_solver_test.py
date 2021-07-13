@@ -678,7 +678,9 @@ def test_solver_build_from_source_dependency() -> None:
             {
                 "pkg": "my-tool/1.2.0/src",
                 "build": {"options": [{"pkg": "python"}]},
-                "install": {"requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]},
+                "install": {
+                    "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
+                },
             },
             # one existing build exists that used python 3.6.3
             build_with_py36,
