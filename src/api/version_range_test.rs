@@ -73,23 +73,17 @@ fn test_version_range_is_applicable(
 #[case("=1.0.0", spec!{pkg => "test/1.0.0+r.1"}, true)]
 // exact post release compatible with different one: NO
 #[case("=1.0.0+r.2", spec!{pkg => "test/1.0.0+r.1"}, false)]
-// default compat for empty build is api
-#[case("1.0.0", spec!{pkg => "test/1.1.0", compat => "x.a.b"}, true)]
-// default compat for actual build is binay
+// default compat is contextual (given by test function)
 #[case("1.0.0", spec!{pkg => "test/1.1.0/JRSXNRF4", compat => "x.a.b"}, false)]
 // explicit api compat override
 #[case("API:1.0.0", spec!{pkg => "test/1.1.0/JRSXNRF4", compat => "x.a.b"}, true)]
-// default compat for src package is api
-#[case("1.0.0", spec!{pkg => "test/1.1.0/src", compat => "x.a.b"}, true)]
-// explicit binary compat override
-#[case("Binary:1.0.0", spec!{pkg => "test/1.1.0/src", compat => "x.a.b"}, false)]
 fn test_version_range_is_satisfied(
     #[case] range: &str,
     #[case] spec: Spec,
     #[case] expected: bool,
 ) {
     let vr = parse_version_range(range).unwrap();
-    let actual = vr.is_satisfied_by(&spec);
+    let actual = vr.is_satisfied_by(&spec, crate::api::CompatRule::Binary);
 
     assert_eq!(actual.is_ok(), expected, "{}", actual);
 }

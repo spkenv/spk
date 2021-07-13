@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 
 use super::{
-    parse_build, validate_name, version_range::Ranged, Build, Compatibility, ExactVersion, Ident,
-    Spec, Version, VersionFilter,
+    parse_build, validate_name, version_range::Ranged, Build, CompatRule, Compatibility,
+    ExactVersion, Ident, Spec, Version, VersionFilter,
 };
 
 #[cfg(test)]
@@ -111,12 +111,12 @@ impl RangeIdent {
 #[pymethods]
 impl RangeIdent {
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
+    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
         if spec.pkg.name() != self.name {
             return Compatibility::Incompatible("different package names".into());
         }
 
-        let c = self.version.is_satisfied_by(&spec);
+        let c = self.version.is_satisfied_by(&spec, required);
         if !c.is_ok() {
             return c;
         }
@@ -477,6 +477,9 @@ pub struct PkgRequest {
     )]
     #[pyo3(get, set)]
     pub pin: Option<String>,
+    #[serde(rename = "compat", skip_serializing_if = "Option::is_none")]
+    #[pyo3(get, set)]
+    pub required_compat: Option<CompatRule>,
 }
 
 impl PkgRequest {
@@ -486,6 +489,7 @@ impl PkgRequest {
             prerelease_policy: PreReleasePolicy::ExcludeAll,
             inclusion_policy: InclusionPolicy::Always,
             pin: Default::default(),
+            required_compat: Some(CompatRule::Binary),
         }
     }
 
@@ -564,7 +568,9 @@ impl PkgRequest {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }
 
-        return self.pkg.is_satisfied_by(spec);
+        return self
+            .pkg
+            .is_satisfied_by(spec, self.required_compat.unwrap_or(CompatRule::Binary));
     }
 
     /// Reduce the scope of this request to the intersection with another.
@@ -605,6 +611,8 @@ impl<'de> Deserialize<'de> for PkgRequest {
             inclusion_policy: InclusionPolicy,
             #[serde(rename = "fromBuildEnv", default)]
             pin: Option<String>,
+            #[serde(rename = "compat")]
+            required_compat: Option<CompatRule>,
         }
         let unchecked = Unchecked::deserialize(deserializer)?;
         if unchecked.pin.is_some() && !unchecked.pkg.version.is_empty() {
@@ -617,6 +625,7 @@ impl<'de> Deserialize<'de> for PkgRequest {
             prerelease_policy: unchecked.prerelease_policy,
             inclusion_policy: unchecked.inclusion_policy,
             pin: unchecked.pin,
+            required_compat: unchecked.required_compat,
         })
     }
 }

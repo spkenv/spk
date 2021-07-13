@@ -60,9 +60,10 @@ fn collect_source(source: super::SourceSpec, path: &str) -> crate::Result<()> {
 fn version_range_is_satisfied_by(
     range: super::VersionRange,
     spec: &super::Spec,
+    required: Option<super::CompatRule>,
 ) -> super::Compatibility {
     use super::Ranged;
-    range.is_satisfied_by(spec)
+    range.is_satisfied_by(spec, required.unwrap_or(super::CompatRule::Binary))
 }
 
 #[pyclass]

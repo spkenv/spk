@@ -8,8 +8,8 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    parse_ident_range, Compatibility, InclusionPolicy, PkgRequest, PreReleasePolicy, Request,
-    VarRequest,
+    parse_ident_range, CompatRule, Compatibility, InclusionPolicy, PkgRequest, PreReleasePolicy,
+    Request, VarRequest,
 };
 use crate::{Error, Result};
 
@@ -127,6 +127,7 @@ impl TryFrom<Request> for Opt {
                     default: default,
                     prerelease_policy: request.prerelease_policy,
                     value: None,
+                    required_compat: request.required_compat,
                 }))
             }
             Request::Var(_) => Err(Error::String(format!(
@@ -388,6 +389,8 @@ pub struct PkgOpt {
     pub default: String,
     #[pyo3(get, set)]
     pub prerelease_policy: PreReleasePolicy,
+    #[pyo3(get, set)]
+    pub required_compat: Option<CompatRule>,
     #[pyo3(get)]
     value: Option<String>,
 }
@@ -400,6 +403,7 @@ impl PkgOpt {
             default: String::default(),
             prerelease_policy: PreReleasePolicy::default(),
             value: None,
+            required_compat: None,
         })
     }
 }
@@ -487,6 +491,7 @@ impl PkgOpt {
             pin: None,
             prerelease_policy: self.prerelease_policy,
             inclusion_policy: InclusionPolicy::default(),
+            required_compat: self.required_compat,
         }))
     }
 }
@@ -507,6 +512,8 @@ struct PkgOptSchema {
         deserialize_with = "super::option_map::string_from_scalar"
     )]
     value: String,
+    #[serde(rename = "compat")]
+    required_compat: Option<CompatRule>,
     // the default field can be loaded for legacy compatibility but is deprecated
     #[serde(
         default,
@@ -526,6 +533,7 @@ impl Serialize for PkgOpt {
             prerelease_policy: self.prerelease_policy,
             value: self.value.clone().unwrap_or_default(),
             default: None,
+            required_compat: self.required_compat,
         };
         if !self.default.is_empty() {
             out.pkg = format!("{}/{}", self.pkg, self.default);
@@ -546,6 +554,7 @@ impl<'de> Deserialize<'de> for PkgOpt {
             default: "".to_string(),
             prerelease_policy: data.prerelease_policy,
             value: None,
+            required_compat: data.required_compat,
         };
         if let Some(default) = data.default {
             // the default field is deprecated, but we support it for existing packages
