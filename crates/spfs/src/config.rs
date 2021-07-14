@@ -16,6 +16,22 @@ static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
+pub struct User {
+    pub name: String,
+    pub domain: String,
+}
+
+impl Default for User {
+    fn default() -> Self {
+        Self {
+            name: whoami::username(),
+            domain: whoami::hostname(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Filesystem {
     pub max_layers: usize,
     pub tmpfs_size: Option<String>,
@@ -65,6 +81,7 @@ pub struct Remote {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
+    pub user: User,
     pub storage: Storage,
     pub filesystem: Filesystem,
     pub remote: std::collections::HashMap<String, Remote>,

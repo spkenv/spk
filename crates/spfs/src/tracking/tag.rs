@@ -32,7 +32,8 @@ impl Tag {
         name: impl Into<String>,
         target: encoding::Digest,
     ) -> Result<Self> {
-        // we want to ensure these components
+        let config = crate::config::load_config()?;
+        // we want to ensure that these components
         // can build a valid tag spec
         let spec = build_tag_spec(org, name.into(), 0)?;
         Ok(Self {
@@ -40,7 +41,7 @@ impl Tag {
             name: spec.name(),
             target: target,
             parent: encoding::NULL_DIGEST.into(),
-            user: format!("{}@imageworks.com", whoami::username()),
+            user: format!("{}@{}", config.user.name, config.user.domain),
             time: Utc::now().trunc_subsecs(6), // ignore microseconds
         })
     }
