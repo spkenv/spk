@@ -478,10 +478,7 @@ impl PkgOpt {
     }
 
     pub fn to_request(&self, given_value: Option<String>) -> Result<Request> {
-        let mut value = self.default.clone();
-        if let Some(given_value) = given_value {
-            value = given_value;
-        }
+        let value = self.get_value(given_value.as_deref()).unwrap_or_default();
         Ok(Request::Pkg(PkgRequest {
             pkg: parse_ident_range(format!("{}/{}", self.pkg, value))?,
             pin: None,
