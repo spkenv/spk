@@ -19,8 +19,7 @@ const SOURCES_NAME: &'static str = "sources";
 
 impl std::fmt::Display for TestStage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "{}",
+        f.write_str(
             // Note that we need `TestStage::to_string` to produce
             // these exact values in order to match correctly with
             // the spelling on the python side and in the package
@@ -29,8 +28,8 @@ impl std::fmt::Display for TestStage {
                 TestStage::Build => BUILD_NAME,
                 TestStage::Install => INSTALL_NAME,
                 TestStage::Sources => SOURCES_NAME,
-            }
-        ))
+            },
+        )
     }
 }
 
