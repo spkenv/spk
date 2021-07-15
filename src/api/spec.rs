@@ -108,9 +108,9 @@ impl Spec {
                 let exact = opt.get_value(Some(request.value()));
                 if exact.as_ref().map(String::as_str) != Some(request.value()) {
                     Compatibility::Incompatible(format!(
-                        "Incompatible build option '{}': {:?} != '{}'",
+                        "Incompatible build option '{}': '{}' != '{}'",
                         request.var,
-                        exact,
+                        exact.unwrap_or_else(|| "None".to_string()),
                         request.value()
                     ))
                 } else {

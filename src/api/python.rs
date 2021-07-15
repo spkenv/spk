@@ -658,6 +658,39 @@ impl pyo3::PyObjectProtocol for super::OptionMap {
 }
 
 #[pyproto]
+impl pyo3::PyObjectProtocol for super::PkgOpt {
+    fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::VarOpt {
+    fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+#[pyproto]
+impl pyo3::PyObjectProtocol for super::VarRequest {
+    fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+#[pyproto]
 impl pyo3::PyObjectProtocol for super::Spec {
     fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
         use pyo3::class::basic::CompareOp;
@@ -691,5 +724,13 @@ impl pyo3::PyObjectProtocol for super::PkgRequest {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.pkg.name().hash(&mut hasher);
         hasher.finish()
+    }
+
+    fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self)
     }
 }

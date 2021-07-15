@@ -13,9 +13,23 @@ pub enum TestStage {
     Install,
 }
 
+const BUILD_NAME: &'static str = "build";
+const INSTALL_NAME: &'static str = "install";
+const SOURCES_NAME: &'static str = "sources";
+
 impl std::fmt::Display for TestStage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_str(
+            // Note that we need `TestStage::to_string` to produce
+            // these exact values in order to match correctly with
+            // the spelling on the python side and in the package
+            // yaml.
+            match self {
+                TestStage::Build => BUILD_NAME,
+                TestStage::Install => INSTALL_NAME,
+                TestStage::Sources => SOURCES_NAME,
+            },
+        )
     }
 }
 
@@ -24,11 +38,7 @@ impl Serialize for TestStage {
     where
         S: serde::ser::Serializer,
     {
-        match self {
-            TestStage::Sources => "sources".serialize(serializer),
-            TestStage::Build => "build".serialize(serializer),
-            TestStage::Install => "install".serialize(serializer),
-        }
+        self.to_string().serialize(serializer)
     }
 }
 
@@ -39,12 +49,12 @@ impl<'de> Deserialize<'de> for TestStage {
     {
         let value = String::deserialize(deserializer)?;
         match value.as_str() {
-            "sources" => Ok(Self::Sources),
-            "build" => Ok(Self::Build),
-            "install" => Ok(Self::Install),
+            SOURCES_NAME => Ok(Self::Sources),
+            BUILD_NAME => Ok(Self::Build),
+            INSTALL_NAME => Ok(Self::Install),
             other => Err(serde::de::Error::custom(format!(
-                "Invalid test stage '{}', must be one of: source, build, install",
-                other
+                "Invalid test stage '{}', must be one of: {}, {}, {}",
+                other, SOURCES_NAME, BUILD_NAME, INSTALL_NAME,
             ))),
         }
     }
