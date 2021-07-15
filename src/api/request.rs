@@ -91,7 +91,7 @@ impl RangeIdent {
 
     pub fn restrict(&mut self, other: &RangeIdent) -> Result<()> {
         if let Err(err) = self.version.restrict(&other.version) {
-            return Err(Error::wrap(format!("{:?} [{}]", err, self.name), err));
+            return Err(Error::wrap(format!("[{}]", self.name), err));
         }
 
         if other.build.is_none() {
