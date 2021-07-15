@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
@@ -100,10 +100,10 @@ impl RangeIdent {
             self.build = other.build.clone();
             Ok(())
         } else {
-            Err(Error::String(format!(
+            Err(Error::PyErr(PyValueError::new_err(format!(
                 "Incompatible builds: {} && {}",
                 self, other
-            )))
+            ))))
         }
     }
 }

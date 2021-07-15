@@ -12,6 +12,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{Error, Result};
@@ -909,7 +910,7 @@ impl VersionFilter {
 
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
-            return Err(Error::String(msg));
+            return Err(Error::PyErr(PyValueError::new_err(msg)));
         }
 
         self.rules.insert(other.into());
