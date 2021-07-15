@@ -17,6 +17,7 @@ pub enum Error {
     Collection(crate::build::CollectionError),
     Build(crate::build::BuildError),
     String(String),
+    PyErr(PyErr),
 
     // API Errors
     InvalidVersionError(api::InvalidVersionError),
@@ -81,6 +82,7 @@ impl From<Error> for PyErr {
             Error::InvalidNameError(err) => {
                 exceptions::PyValueError::new_err(err.message.to_string())
             }
+            Error::PyErr(err) => err,
         }
     }
 }
