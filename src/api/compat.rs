@@ -17,6 +17,9 @@ use crate::{Error, Result};
 #[path = "./compat_test.rs"]
 mod compat_test;
 
+pub const API_STR: &'static str = "API";
+pub const BINARY_STR: &'static str = "Binary";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompatRule {
     None,
@@ -34,8 +37,8 @@ impl std::str::FromStr for CompatRule {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "API" => Ok(Self::API),
-            "Binary" => Ok(Self::Binary),
+            API_STR => Ok(Self::API),
+            BINARY_STR => Ok(Self::Binary),
             _ => Err(Error::String(format!(
                 "Unknown or unsupported compatibility rule: {}",
                 s
