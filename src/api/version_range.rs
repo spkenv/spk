@@ -1024,7 +1024,17 @@ impl Ranged for VersionFilter {
 
 impl Display for VersionFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
+        let mut rules = self
+            .rules
+            .iter()
+            .map(|r| {
+                if f.alternate() {
+                    format!("{:#}", r)
+                } else {
+                    r.to_string()
+                }
+            })
+            .collect_vec();
         rules.sort_unstable();
 
         let s = rules.join(VERSION_RANGE_SEP);

@@ -160,7 +160,11 @@ impl Serialize for RangeIdent {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        // Request "alternate" format when serializing, to get, e.g.,
+        // "fromBuildEnv: foo/Binary:1.1.2"
+        // instead of
+        // "fromBuildEnv: foo/b:1.1.2"
+        serializer.serialize_str(&format!("{:#}", self))
     }
 }
 

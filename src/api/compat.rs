@@ -29,7 +29,16 @@ pub enum CompatRule {
 
 impl std::fmt::Display for CompatRule {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(self.as_ref())
+        if f.alternate() {
+            // Request for alternate (long form) names.
+            f.write_str(match self {
+                CompatRule::None => unreachable!(),
+                CompatRule::API => API_STR,
+                CompatRule::Binary => BINARY_STR,
+            })
+        } else {
+            f.write_str(self.as_ref())
+        }
     }
 }
 
