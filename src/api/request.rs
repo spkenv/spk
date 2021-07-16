@@ -493,6 +493,13 @@ impl PkgRequest {
         }
     }
 
+    fn rendered_to_pkgrequest(&self, rendered: Vec<char>) -> Result<PkgRequest> {
+        let mut new = self.clone();
+        new.pin = None;
+        new.pkg.version = VersionFilter::from_str(&rendered.into_iter().collect::<String>())?;
+        Ok(new)
+    }
+
     /// Create a copy of this request with it's pin rendered out using 'pkg'.
     pub fn render_pin(&self, pkg: &Ident) -> Result<PkgRequest> {
         match &self.pin {
@@ -512,11 +519,7 @@ impl PkgRequest {
                     }
                 }
 
-                let mut new = self.clone();
-                new.pin = None;
-                new.pkg.version =
-                    VersionFilter::from_str(&rendered.into_iter().collect::<String>())?;
-                Ok(new)
+                self.rendered_to_pkgrequest(rendered)
             }
         }
     }
