@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 
 use super::{
-    parse_build, validate_name, version_range::Ranged, Build, CompatRule, Compatibility,
-    ExactVersion, Ident, Spec, Version, VersionFilter,
+    compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
+    CompatRule, Compatibility, ExactVersion, Ident, Spec, Version, VersionFilter,
 };
 
 #[cfg(test)]
@@ -511,6 +511,34 @@ impl PkgRequest {
                 return Err(Error::String(
                     "Request has no pin to be rendered".to_owned(),
                 ))
+            }
+            Some(pin) if pin == API_STR || pin == BINARY_STR => {
+                // Supply "x.x.x" matching whatever the pkg.version is.
+                let mut rendered: Vec<char> = Vec::with_capacity(
+                    pin.len()
+                        // ':'
+                        + 1
+                        // version component lengths
+                        + pkg
+                            .version
+                            .parts()
+                            .iter()
+                            .fold(0, |acc, el| acc + el.to_string().len())
+                        // '.' separator
+                        + (pkg.version.parts().len() - 1).max(0),
+                );
+                rendered.extend(pin.chars().into_iter());
+                rendered.push(':');
+                let mut first = true;
+                for component in pkg.version.parts() {
+                    if !first {
+                        rendered.push('.');
+                    }
+                    first = false;
+                    rendered.extend(component.to_string().chars().into_iter());
+                }
+
+                self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
                 let mut digits = pkg.version.parts().into_iter().chain(std::iter::repeat(0));
