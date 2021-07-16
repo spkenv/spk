@@ -105,6 +105,10 @@ class PkgRequirementsValidator(Validator):
                 continue
             except ValueError as err:
                 return api.Compatibility(f"conflicting requirement: {err}")
+            except Exception as err:
+                raise RuntimeError(
+                    f"Unexpected error {type(err)} from PkgRequest.restrict: {err}"
+                )
 
             if not isinstance(request, api.PkgRequest):
                 continue

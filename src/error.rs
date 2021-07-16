@@ -17,6 +17,7 @@ pub enum Error {
     Collection(crate::build::CollectionError),
     Build(crate::build::BuildError),
     String(String),
+    PyErr(PyErr),
 
     // API Errors
     InvalidVersionError(api::InvalidVersionError),
@@ -26,8 +27,17 @@ pub enum Error {
 
 impl Error {
     /// Wraps an error message with a prefix, creating a contextual but generic error
-    pub fn wrap<S: AsRef<str>, E: std::error::Error>(prefix: S, err: E) -> Error {
-        Error::String(format!("{}: {:?}", prefix.as_ref(), err))
+    pub fn wrap<S: AsRef<str>>(prefix: S, err: Self) -> Self {
+        // preserve PyErr types
+        match err {
+            Error::PyErr(pyerr) => Error::PyErr(Python::with_gil(|py| {
+                PyErr::from_type(
+                    pyerr.ptype(py),
+                    format!("{}: {}", prefix.as_ref(), pyerr.pvalue(py).to_string()),
+                )
+            })),
+            err => Error::String(format!("{}: {:?}", prefix.as_ref(), err)),
+        }
     }
 
     /// Wraps an error message with a prefix, creating a contextual error
@@ -81,6 +91,7 @@ impl From<Error> for PyErr {
             Error::InvalidNameError(err) => {
                 exceptions::PyValueError::new_err(err.message.to_string())
             }
+            Error::PyErr(err) => err,
         }
     }
 }
