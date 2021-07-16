@@ -407,7 +407,7 @@ class Decision:
         for request in requests[1:]:
             try:
                 merged.restrict(request)
-            except RuntimeError as e:
+            except ValueError as e:
                 raise ConflictingRequestsError(str(e), requests)
 
         return merged
