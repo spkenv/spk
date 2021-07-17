@@ -81,6 +81,7 @@ fn test_var_request_pinned_roundtrip() {
 #[case("1.2.3", "API", "API:1.2.3")]
 #[case("1.2.3.4.5", "API", "API:1.2.3.4.5")]
 #[case("1.2.3", "API:x.x", "API:1.2.0")]
+#[case("1.2.3", "true", "Binary:1.2.3")]
 fn test_pkg_request_pin_rendering(
     #[case] version: &str,
     #[case] pin: &str,

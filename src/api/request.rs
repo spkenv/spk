@@ -632,10 +632,24 @@ impl<'de> Deserialize<'de> for PkgRequest {
             #[serde(rename = "include", default)]
             inclusion_policy: InclusionPolicy,
             #[serde(rename = "fromBuildEnv", default)]
-            pin: Option<String>,
+            pin: Option<serde_yaml::Value>,
         }
         let unchecked = Unchecked::deserialize(deserializer)?;
-        if unchecked.pin.is_some() && !unchecked.pkg.version.is_empty() {
+
+        // fromBuildEnv can either be a boolean or some other scalar.
+        // really only a string makes sense, but some other scalar
+        let pin = match unchecked.pin {
+            Some(serde_yaml::Value::Bool(b)) => match b {
+                true => Some(BINARY_STR.to_string()),
+                false => None,
+            },
+            Some(serde_yaml::Value::String(s)) => Some(s),
+            Some(_) => {
+                return Err(serde::de::Error::custom("expected boolean or string value"));
+            }
+            None => None,
+        };
+        if pin.is_some() && !unchecked.pkg.version.is_empty() {
             return Err(serde::de::Error::custom(
                 "Package request cannot include both a version number and fromBuildEnv",
             ));
@@ -644,7 +658,7 @@ impl<'de> Deserialize<'de> for PkgRequest {
             pkg: unchecked.pkg,
             prerelease_policy: unchecked.prerelease_policy,
             inclusion_policy: unchecked.inclusion_policy,
-            pin: unchecked.pin,
+            pin: pin,
             required_compat: None,
         })
     }
