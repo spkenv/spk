@@ -655,6 +655,14 @@ impl pyo3::PyObjectProtocol for super::OptionMap {
     fn __repr__(&self) -> String {
         self.to_string()
     }
+
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        match op {
+            CompareOp::Eq => self == &other,
+            _ => false,
+        }
+    }
 }
 
 #[pyproto]

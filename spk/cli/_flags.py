@@ -110,7 +110,13 @@ def get_var_requests_from_option_flags(
         pair = pair.strip()
         if pair.startswith("{"):
             for name, value in (yaml.safe_load(pair) or {}).items():
-                yield spk.api.VarRequest(name, value)
+                assert not isinstance(
+                    value, dict
+                ), f"provided value for '{name}' must be a scalar"
+                assert not isinstance(
+                    value, list
+                ), f"provided value for '{name}' must be a scalar"
+                yield spk.api.VarRequest(name, str(value))
             continue
 
         if "=" in pair:
