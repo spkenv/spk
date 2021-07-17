@@ -874,7 +874,10 @@ impl Display for CompatRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.required {
             Some(r) => {
-                r.fmt(f)?;
+                // get the alternate, long form representation
+                // as this is what we expect when parsing
+                // (eg 'Binary' instead of 'b')
+                f.write_fmt(format_args!("{:#}", r))?;
                 f.write_char(':')?;
             }
             None => (),
