@@ -82,7 +82,6 @@ Package options define a package that is required at build time.
 | pkg              | _str_                                   | The name of the package that is required, with optional default value (eg just `package_name`, or `package_name/1.4`)                                                                          |
 | prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                 |
 | static           | _str_                                   | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the version of the package at build time |
-| compat           | _str_                                   | Override the default required compatibilty, which is API at build time (One of "API", "Binary", or "None")                                                                                     |
 
 ### OptionMap
 
@@ -125,7 +124,6 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 | prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                                                                                                                                      |
 | inclusionPolicy  | _[InclusionPolicy](#inclusionpolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                                                                                                                                            |
 | fromBuildEnv     | _str_                                   | The optional template to use to generate this request based on the version of the package resolved into the build environment. This template takes the form `x.x.x`, where any _x_ is replaced by digits in the version number. For example, if `python/2.7.5` is in the build environment, the template `~x.x` would become `~2.7` |
-| compat           | _str_                                   | Override the default required compatibilty, which is "Binary" unless the request was made on the command line (One of "API", "Binary", or "None")                                                                                                                                                                                   |
 
 #### PreReleasePolicy
 

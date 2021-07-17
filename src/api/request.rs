@@ -481,7 +481,7 @@ pub struct PkgRequest {
     )]
     #[pyo3(get, set)]
     pub pin: Option<String>,
-    #[serde(rename = "compat", skip_serializing_if = "Option::is_none")]
+    #[serde(skip)]
     #[pyo3(get, set)]
     pub required_compat: Option<CompatRule>,
 }
@@ -646,8 +646,6 @@ impl<'de> Deserialize<'de> for PkgRequest {
             inclusion_policy: InclusionPolicy,
             #[serde(rename = "fromBuildEnv", default)]
             pin: Option<String>,
-            #[serde(rename = "compat")]
-            required_compat: Option<CompatRule>,
         }
         let unchecked = Unchecked::deserialize(deserializer)?;
         if unchecked.pin.is_some() && !unchecked.pkg.version.is_empty() {
@@ -660,7 +658,7 @@ impl<'de> Deserialize<'de> for PkgRequest {
             prerelease_policy: unchecked.prerelease_policy,
             inclusion_policy: unchecked.inclusion_policy,
             pin: unchecked.pin,
-            required_compat: unchecked.required_compat,
+            required_compat: None,
         })
     }
 }

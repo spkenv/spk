@@ -512,8 +512,6 @@ struct PkgOptSchema {
         deserialize_with = "super::option_map::string_from_scalar"
     )]
     value: String,
-    #[serde(rename = "compat")]
-    required_compat: Option<CompatRule>,
     // the default field can be loaded for legacy compatibility but is deprecated
     #[serde(
         default,
@@ -533,7 +531,6 @@ impl Serialize for PkgOpt {
             prerelease_policy: self.prerelease_policy,
             value: self.value.clone().unwrap_or_default(),
             default: None,
-            required_compat: self.required_compat,
         };
         if !self.default.is_empty() {
             out.pkg = format!("{}/{}", self.pkg, self.default);
@@ -554,7 +551,7 @@ impl<'de> Deserialize<'de> for PkgOpt {
             default: "".to_string(),
             prerelease_policy: data.prerelease_policy,
             value: None,
-            required_compat: data.required_compat,
+            required_compat: None,
         };
         if let Some(default) = data.default {
             // the default field is deprecated, but we support it for existing packages
