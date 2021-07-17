@@ -513,31 +513,18 @@ impl PkgRequest {
                 ))
             }
             Some(pin) if pin == API_STR || pin == BINARY_STR => {
-                // Supply "x.x.x" matching whatever the pkg.version is.
+                // Supply the full base (digit-only) part of the version
+                let base = pkg.version.base();
                 let mut rendered: Vec<char> = Vec::with_capacity(
                     pin.len()
                         // ':'
                         + 1
                         // version component lengths
-                        + pkg
-                            .version
-                            .parts()
-                            .iter()
-                            .fold(0, |acc, el| acc + el.to_string().len())
-                        // '.' separator
-                        + (pkg.version.parts().len() - 1).max(0),
+                        + base.len(),
                 );
                 rendered.extend(pin.chars().into_iter());
                 rendered.push(':');
-                let mut first = true;
-                for component in pkg.version.parts() {
-                    if !first {
-                        rendered.push('.');
-                    }
-                    first = false;
-                    rendered.extend(component.to_string().chars().into_iter());
-                }
-
+                rendered.extend(base.chars().into_iter());
                 self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
