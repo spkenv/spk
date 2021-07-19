@@ -125,7 +125,7 @@ class Node:
         self._state = state
         self._iterators: Dict[str, PackageIterator] = {}
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def __str__(self) -> str:
         encoded_id = base64.b64encode(str(self.id).encode())
         short_id = encoded_id[:6].decode()
