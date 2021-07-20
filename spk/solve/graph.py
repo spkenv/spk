@@ -220,11 +220,13 @@ class State(NamedTuple):
             hash_cache=[],
         )
 
+    @lru_cache(maxsize=None)
     def get_option_map(self) -> api.OptionMap:
 
         return api.OptionMap(dict(self.options))
 
     def get_next_request(self) -> Optional[api.PkgRequest]:
+        # tests reveal this method is not safe to cache.
 
         packages = set(spec.pkg.name for spec, _ in self.packages)
         for request in self.pkg_requests:
@@ -239,6 +241,7 @@ class State(NamedTuple):
         return self.get_merged_request(request.pkg.name)
 
     def get_merged_request(self, name: str) -> api.PkgRequest:
+        # tests reveal this method is not safe to cache.
 
         merged: Optional[api.PkgRequest] = None
         requests = iter(self.pkg_requests)
@@ -259,6 +262,7 @@ class State(NamedTuple):
 
         return merged
 
+    @lru_cache(maxsize=None)
     def get_current_resolve(self, name: str) -> api.Spec:
 
         for spec, _ in self.packages:
