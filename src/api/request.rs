@@ -644,8 +644,11 @@ impl<'de> Deserialize<'de> for PkgRequest {
                 false => None,
             },
             Some(serde_yaml::Value::String(s)) => Some(s),
-            Some(_) => {
-                return Err(serde::de::Error::custom("expected boolean or string value"));
+            Some(v) => {
+                return Err(serde::de::Error::custom(format!(
+                    "expected boolean or string value in 'fromBuildEnv', got {:?}",
+                    v,
+                )));
             }
             None => None,
         };
