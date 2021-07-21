@@ -415,6 +415,9 @@ class RequestPackage(Change):
             packages=base.packages,
         )
 
+    def __repr__(self) -> str:
+        return f"RequestPackage(request={self.request})"
+
 
 class StepBack(Change):
     """Identifies the solver reaching an impass and needing to revert a previous decision."""
@@ -466,6 +469,9 @@ class SetOptions(Change):
             options=tuple(options.items()),
             packages=base.packages,
         )
+
+    def __repr__(self) -> str:
+        return f"SetOptions(options={self.options})"
 
 
 class Note(metaclass=abc.ABCMeta):
