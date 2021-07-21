@@ -177,9 +177,18 @@ class BinaryPackageBuilder:
 
         opts = self._spec.resolve_all_options(self._all_options)
         for opt in self._spec.build.options:
-            if not isinstance(opt, api.PkgOpt):
-                continue
-            yield opt.to_request(opts.get(opt.pkg))
+            if isinstance(opt, api.PkgOpt):
+                yield opt.to_request(opts.get(opt.pkg))
+            elif isinstance(opt, api.VarOpt):
+                opt_value = opts.get(opt.var)
+                if not opt_value:
+                    # If no value was specified in the spec, don't
+                    # turn that into a requirement to find that
+                    # var with an empty string value.
+                    continue
+                yield opt.to_request(opt_value)
+            else:
+                raise RuntimeError(f"Unhandled opt type {type(opt)}")
 
     def _build_and_commit_artifacts(
         self, env: MutableMapping[str, str]
