@@ -51,9 +51,20 @@ The version range specifiers are largely based on those from Rust's Cargo toolch
 
 When a version number is specified with none of the operators below, it is assumes to follow the requested packages compatibility specification. In this case the given version number reresents a minimum version required, allowing newer version only if the requested package recognizes it as compatible with the desired minumum.
 
+When building a package it's direct build dependencies are resolved for API compatibility. Also, when you request a package on the commmand line, the request will by default be for an API compatible version. In all other circumstances, spk will resolve for binary compatibility.
+
 {{% notice tip %}}
 Using the default compatibility is the recommended because it can be specified by the package maintainer.
 {{% /notice %}}
+
+#### Override Compatibility
+
+In some circumstances, it can be necessary to override the default compatibility that spk resolves for. This can be done by prefixing the verision number with the desired compatibility, either `API`, or `Binary`.
+
+```
+   API:1.2.3
+Binary:1.2.3
+```
 
 #### Caret Requirements
 

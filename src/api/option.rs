@@ -127,6 +127,7 @@ impl TryFrom<Request> for Opt {
                     default: default,
                     prerelease_policy: request.prerelease_policy,
                     value: None,
+                    required_compat: request.required_compat,
                 }))
             }
             Request::Var(_) => Err(Error::String(format!(
@@ -388,6 +389,8 @@ pub struct PkgOpt {
     pub default: String,
     #[pyo3(get, set)]
     pub prerelease_policy: PreReleasePolicy,
+    #[pyo3(get, set)]
+    pub required_compat: Option<CompatRule>,
     #[pyo3(get)]
     value: Option<String>,
 }
@@ -400,6 +403,7 @@ impl PkgOpt {
             default: String::default(),
             prerelease_policy: PreReleasePolicy::default(),
             value: None,
+            required_compat: None,
         })
     }
 }
@@ -484,7 +488,7 @@ impl PkgOpt {
             pin: None,
             prerelease_policy: self.prerelease_policy,
             inclusion_policy: InclusionPolicy::default(),
-            required_compat: CompatRule::API,
+            required_compat: self.required_compat,
         }))
     }
 }
@@ -544,6 +548,7 @@ impl<'de> Deserialize<'de> for PkgOpt {
             default: "".to_string(),
             prerelease_policy: data.prerelease_policy,
             value: None,
+            required_compat: None,
         };
         if let Some(default) = data.default {
             // the default field is deprecated, but we support it for existing packages

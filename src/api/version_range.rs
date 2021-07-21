@@ -819,13 +819,26 @@ impl Display for ExcludedVersion {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
     base: Version,
+    /// if unset, the required compatibilty is based on the type
+    /// of package being validated. Source packages require api
+    /// compat and binary packages require binary compat.
+    required: Option<CompatRule>,
 }
 
 impl CompatRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(minimum: V) -> Result<VersionRange> {
-        Ok(VersionRange::Compat(Self {
-            base: minimum.try_into()?,
-        }))
+    pub fn new<R: AsRef<str>>(range: R) -> Result<VersionRange> {
+        let range = range.as_ref();
+        let compat_range = match range.rsplit_once(":") {
+            Some((prefix, version)) => Self {
+                base: version.try_into()?,
+                required: Some(CompatRule::from_str(prefix)?),
+            },
+            None => Self {
+                base: range.try_into()?,
+                required: None,
+            },
+        };
+        Ok(VersionRange::Compat(compat_range))
     }
 }
 
@@ -844,11 +857,14 @@ impl Ranged for CompatRange {
         None
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+    fn is_satisfied_by(&self, spec: &Spec, mut required: CompatRule) -> Compatibility {
+        if let Some(r) = self.required {
+            required = r;
+        }
         match required {
             CompatRule::None => Compatibility::Compatible,
             CompatRule::API => spec.compat.is_api_compatible(&self.base, &spec.pkg.version),
-            CompatRule::ABI => spec
+            CompatRule::Binary => spec
                 .compat
                 .is_binary_compatible(&self.base, &spec.pkg.version),
         }
@@ -857,6 +873,16 @@ impl Ranged for CompatRange {
 
 impl Display for CompatRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.required {
+            Some(r) => {
+                // get the alternate, long form representation
+                // as this is what we expect when parsing
+                // (eg 'Binary' instead of 'b')
+                f.write_fmt(format_args!("{:#}", r))?;
+                f.write_char(':')?;
+            }
+            None => (),
+        }
         f.write_str(&self.base.to_string())
     }
 }
@@ -1002,7 +1028,17 @@ impl Ranged for VersionFilter {
 
 impl Display for VersionFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
+        let mut rules = self
+            .rules
+            .iter()
+            .map(|r| {
+                if f.alternate() {
+                    format!("{:#}", r)
+                } else {
+                    r.to_string()
+                }
+            })
+            .collect_vec();
         rules.sort_unstable();
 
         let s = rules.join(VERSION_RANGE_SEP);

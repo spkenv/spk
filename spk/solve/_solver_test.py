@@ -674,11 +674,13 @@ def test_solver_build_from_source_dependency() -> None:
 
     repo = make_repo(
         [
-            # the source package requires api compatibility with python/3.0.0
+            # the source package pins the build environment package
             {
                 "pkg": "my-tool/1.2.0/src",
                 "build": {"options": [{"pkg": "python"}]},
-                "install": {"requirements": [{"pkg": "python/3.0.0"}]},
+                "install": {
+                    "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
+                },
             },
             # one existing build exists that used python 3.6.3
             build_with_py36,

@@ -11,21 +11,48 @@ use itertools::izip;
 use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
 mod compat_test;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub const API_STR: &'static str = "API";
+pub const BINARY_STR: &'static str = "Binary";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompatRule {
     None,
     API,
-    ABI,
+    Binary,
 }
 
 impl std::fmt::Display for CompatRule {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(self.as_ref())
+        if f.alternate() {
+            // Request for alternate (long form) names.
+            f.write_str(match self {
+                CompatRule::None => unreachable!(),
+                CompatRule::API => API_STR,
+                CompatRule::Binary => BINARY_STR,
+            })
+        } else {
+            f.write_str(self.as_ref())
+        }
+    }
+}
+
+impl std::str::FromStr for CompatRule {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            API_STR => Ok(Self::API),
+            BINARY_STR => Ok(Self::Binary),
+            _ => Err(Error::String(format!(
+                "Unknown or unsupported compatibility rule: {}",
+                s
+            ))),
+        }
     }
 }
 
@@ -36,7 +63,7 @@ impl TryFrom<&char> for CompatRule {
         match c {
             'x' => Ok(CompatRule::None),
             'a' => Ok(CompatRule::API),
-            'b' => Ok(CompatRule::ABI),
+            'b' => Ok(CompatRule::Binary),
             _ => Err(crate::Error::String(format!(
                 "Invalid compatibility rule: {}",
                 c
@@ -50,7 +77,7 @@ impl AsRef<str> for CompatRule {
         match self {
             CompatRule::None => "x",
             CompatRule::API => "a",
-            CompatRule::ABI => "b",
+            CompatRule::Binary => "b",
         }
     }
 }
@@ -63,7 +90,7 @@ impl PartialOrd for CompatRule {
 
 impl Ord for CompatRule {
     // The current logic requires that there is an order to these
-    // enums. For example API is less than ABI because it's considered
+    // enums. For example API is less than Binary because it's considered
     // a subset - aka you cannot provide binary compatibility and not
     // API compatibility
     fn cmp(&self, other: &Self) -> Ordering {
@@ -138,7 +165,7 @@ impl Default for Compat {
         Compat(vec![
             CompatRuleSet::single(CompatRule::None),
             CompatRuleSet::single(CompatRule::API),
-            CompatRuleSet::single(CompatRule::ABI),
+            CompatRuleSet::single(CompatRule::Binary),
         ])
     }
 }
@@ -147,6 +174,14 @@ impl std::fmt::Display for Compat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let str_parts: Vec<_> = self.0.iter().map(|r| r.to_string()).collect();
         f.write_str(&str_parts.join(VERSION_SEP))
+    }
+}
+
+impl TryFrom<&str> for Compat {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> crate::Result<Self> {
+        Self::from_str(value)
     }
 }
 
@@ -189,7 +224,7 @@ impl Compat {
 
     /// Return true if the two version are binary compatible by this compat rule.
     pub fn is_binary_compatible(&self, base: &Version, other: &Version) -> Compatibility {
-        return self.check_compat(base, other, CompatRule::ABI);
+        return self.check_compat(base, other, CompatRule::Binary);
     }
 
     pub fn render(&self, version: &Version) -> String {
@@ -223,14 +258,14 @@ impl Compat {
                     continue;
                 }
                 return Compatibility::Incompatible(format!(
-                    "Not {} compatible with {} [{} at pos {}]",
+                    "Not {:?} compatible with {} [{} at pos {}]",
                     required, base, self, i
                 ));
             }
 
             if b < a {
                 return Compatibility::Incompatible(format!(
-                    "Not {} compatible with {} [{} at pos {}]",
+                    "Not {:?} compatible with {} [{} at pos {}]",
                     required, base, self, i
                 ));
             } else {
@@ -239,7 +274,7 @@ impl Compat {
         }
 
         Compatibility::Incompatible(format!(
-            "Not compatible: {} ({}) [{} compatibility not specified]",
+            "Not compatible: {} ({}) [{:?} compatibility not specified]",
             base, self, required,
         ))
     }

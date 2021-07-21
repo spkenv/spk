@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 
 use super::{
-    parse_build, validate_name, version_range::Ranged, Build, CompatRule, Compatibility,
-    ExactVersion, Ident, Spec, Version, VersionFilter,
+    compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
+    CompatRule, Compatibility, ExactVersion, Ident, Spec, Version, VersionFilter,
 };
 
 #[cfg(test)]
@@ -160,7 +160,11 @@ impl Serialize for RangeIdent {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        // Request "alternate" format when serializing, to get, e.g.,
+        // "fromBuildEnv: foo/Binary:1.1.2"
+        // instead of
+        // "fromBuildEnv: foo/b:1.1.2"
+        serializer.serialize_str(&format!("{:#}", self))
     }
 }
 
@@ -479,7 +483,7 @@ pub struct PkgRequest {
     pub pin: Option<String>,
     #[serde(skip)]
     #[pyo3(get, set)]
-    pub required_compat: CompatRule,
+    pub required_compat: Option<CompatRule>,
 }
 
 impl PkgRequest {
@@ -489,8 +493,15 @@ impl PkgRequest {
             prerelease_policy: PreReleasePolicy::ExcludeAll,
             inclusion_policy: InclusionPolicy::Always,
             pin: Default::default(),
-            required_compat: CompatRule::ABI,
+            required_compat: Some(CompatRule::Binary),
         }
+    }
+
+    fn rendered_to_pkgrequest(&self, rendered: Vec<char>) -> Result<PkgRequest> {
+        let mut new = self.clone();
+        new.pin = None;
+        new.pkg.version = VersionFilter::from_str(&rendered.into_iter().collect::<String>())?;
+        Ok(new)
     }
 
     /// Create a copy of this request with it's pin rendered out using 'pkg'.
@@ -500,6 +511,21 @@ impl PkgRequest {
                 return Err(Error::String(
                     "Request has no pin to be rendered".to_owned(),
                 ))
+            }
+            Some(pin) if pin == API_STR || pin == BINARY_STR => {
+                // Supply the full base (digit-only) part of the version
+                let base = pkg.version.base();
+                let mut rendered: Vec<char> = Vec::with_capacity(
+                    pin.len()
+                        // ':'
+                        + 1
+                        // version component lengths
+                        + base.len(),
+                );
+                rendered.extend(pin.chars().into_iter());
+                rendered.push(':');
+                rendered.extend(base.chars().into_iter());
+                self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
                 let mut digits = pkg.version.parts().into_iter().chain(std::iter::repeat(0));
@@ -512,11 +538,7 @@ impl PkgRequest {
                     }
                 }
 
-                let mut new = self.clone();
-                new.pin = None;
-                new.pkg.version =
-                    VersionFilter::from_str(&rendered.into_iter().collect::<String>())?;
-                Ok(new)
+                self.rendered_to_pkgrequest(rendered)
             }
         }
     }
@@ -568,7 +590,9 @@ impl PkgRequest {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }
 
-        return self.pkg.is_satisfied_by(spec, self.required_compat);
+        return self
+            .pkg
+            .is_satisfied_by(spec, self.required_compat.unwrap_or(CompatRule::Binary));
     }
 
     /// Reduce the scope of this request to the intersection with another.
@@ -608,10 +632,27 @@ impl<'de> Deserialize<'de> for PkgRequest {
             #[serde(rename = "include", default)]
             inclusion_policy: InclusionPolicy,
             #[serde(rename = "fromBuildEnv", default)]
-            pin: Option<String>,
+            pin: Option<serde_yaml::Value>,
         }
         let unchecked = Unchecked::deserialize(deserializer)?;
-        if unchecked.pin.is_some() && !unchecked.pkg.version.is_empty() {
+
+        // fromBuildEnv can either be a boolean or some other scalar.
+        // really only a string makes sense, but some other scalar
+        let pin = match unchecked.pin {
+            Some(serde_yaml::Value::Bool(b)) => match b {
+                true => Some(BINARY_STR.to_string()),
+                false => None,
+            },
+            Some(serde_yaml::Value::String(s)) => Some(s),
+            Some(v) => {
+                return Err(serde::de::Error::custom(format!(
+                    "expected boolean or string value in 'fromBuildEnv', got {:?}",
+                    v,
+                )));
+            }
+            None => None,
+        };
+        if pin.is_some() && !unchecked.pkg.version.is_empty() {
             return Err(serde::de::Error::custom(
                 "Package request cannot include both a version number and fromBuildEnv",
             ));
@@ -620,8 +661,8 @@ impl<'de> Deserialize<'de> for PkgRequest {
             pkg: unchecked.pkg,
             prerelease_policy: unchecked.prerelease_policy,
             inclusion_policy: unchecked.inclusion_policy,
-            pin: unchecked.pin,
-            required_compat: CompatRule::ABI,
+            pin: pin,
+            required_compat: None,
         })
     }
 }

@@ -60,10 +60,10 @@ fn collect_source(source: super::SourceSpec, path: &str) -> crate::Result<()> {
 fn version_range_is_satisfied_by(
     range: super::VersionRange,
     spec: &super::Spec,
-    required: super::CompatRule,
+    required: Option<super::CompatRule>,
 ) -> super::Compatibility {
     use super::Ranged;
-    range.is_satisfied_by(spec, required)
+    range.is_satisfied_by(spec, required.unwrap_or(super::CompatRule::Binary))
 }
 
 #[pyclass]
@@ -186,22 +186,20 @@ impl<'source> FromPyObject<'source> for super::Inheritance {
 
 impl IntoPy<Py<types::PyAny>> for super::CompatRule {
     fn into_py(self, py: Python) -> Py<types::PyAny> {
-        self.to_string().into_py(py)
+        format!("{:?}", self).into_py(py)
     }
 }
 
 impl<'source> FromPyObject<'source> for super::CompatRule {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        use std::convert::TryFrom;
         let string = <&'source str>::extract(ob)?;
-        if string.len() != 1 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "CompatRule must be a single character only",
-            ));
+        match serde_yaml::from_str(string) {
+            Err(err) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid compat rule: {:?}",
+                err
+            ))),
+            Ok(rule) => Ok(rule),
         }
-        Ok(super::CompatRule::try_from(
-            &string.chars().next().unwrap(),
-        )?)
     }
 }
 

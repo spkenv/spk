@@ -25,7 +25,7 @@ pkg: my-package/1.0.0
 compat: x.a.b
 # where major verions are not compatible
 # minor versions are API-compatbile
-# patch versions are ABI compatible.
+# patch versions are binary compatible.
 ```
 
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
