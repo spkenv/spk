@@ -141,12 +141,15 @@ class PipImporter:
         )
         spec.sources = []
         build_spec = spec.build
-        build_spec.options = [
+        options: List[api.Option] = [
             api.VarOpt("os"),
             api.VarOpt("arch"),
             api.VarOpt("distro"),
             api.PkgOpt("python", self._python_version),
         ]
+        if self._python_abi is not None:
+            options.append(api.VarOpt("python.abi", self._python_abi))
+        build_spec.options = options
         build_spec.script = [
             "export PYTHONNOUSERSITE=1",
             "export PYTHONDONTWRITEBYTECODE=1",
@@ -210,14 +213,14 @@ class PipImporter:
                 builds.extend(self.import_package(match.group(1), match.group(3) or ""))
 
         repo = storage.local_repository()
-        options = api.host_options()
+        host_options = api.host_options()
         if self._python_abi is not None:
-            options["python.abi"] = self._python_abi
+            host_options["python.abi"] = self._python_abi
         _LOGGER.info("building generated package spec...", pkg=spec.pkg)
         builder = build.BinaryPackageBuilder().from_spec(spec)
         try:
             created = (
-                builder.with_options(options)
+                builder.with_options(host_options)
                 .with_repository(repo)
                 .with_repository(storage.remote_repository())
                 .with_source(".")
