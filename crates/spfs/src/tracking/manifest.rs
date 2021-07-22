@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::fs::DirEntry;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
+use std::os::unix::prelude::FileTypeExt;
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
@@ -279,7 +281,7 @@ impl<'h> ManifestBuilder<'h> {
             let dir_entry = dir_entry?;
             let path = dirname.as_ref().join(dir_entry.file_name());
             let mut entry = Entry::default();
-            self.compute_node(path, &mut entry)?;
+            self.compute_node(path, &dir_entry, &mut entry)?;
             tree_node
                 .entries
                 .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
@@ -291,9 +293,27 @@ impl<'h> ManifestBuilder<'h> {
     fn compute_node<P: AsRef<std::path::Path>>(
         &mut self,
         path: P,
+        dir_entry: &DirEntry,
         entry: &mut Entry,
     ) -> Result<()> {
-        let stat_result = std::fs::symlink_metadata(&path)?;
+        let stat_result = match std::fs::symlink_metadata(&path) {
+            Ok(r) => r,
+            Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
+                // Heuristic: if lstat fails with ENOENT, but `dir_entry` exists,
+                // then the directory entry exists but it might be a whiteout file.
+                // Assume so if `dir_entry` says it is a character device.
+                match dir_entry.file_type() {
+                    Ok(ft) if ft.is_char_device() => {
+                        // XXX: mode and size?
+                        entry.kind = EntryKind::Mask;
+                        entry.object = encoding::NULL_DIGEST.into();
+                        return Ok(());
+                    }
+                    _ => return Err(lstat_err.into()),
+                }
+            }
+            Err(err) => return Err(err.into()),
+        };
 
         entry.mode = stat_result.mode();
         entry.size = stat_result.size();
