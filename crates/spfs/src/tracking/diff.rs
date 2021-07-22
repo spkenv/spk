@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use relative_path::RelativePathBuf;
 
-use super::{Entry, Manifest};
+use super::{Entry, EntryKind, Manifest};
 
 #[cfg(test)]
 #[path = "./diff_test.rs"]
@@ -124,6 +124,12 @@ fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Diff {
     match (a.get_path(&path), b.get_path(&path)) {
         (None, None) => Diff {
             mode: DiffMode::Unchanged,
+            path: path.clone(),
+            entries: None,
+        },
+
+        (_, Some(b_entry)) if b_entry.kind == EntryKind::Mask => Diff {
+            mode: DiffMode::Removed,
             path: path.clone(),
             entries: None,
         },
