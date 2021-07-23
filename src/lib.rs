@@ -66,8 +66,6 @@ impl Runtime {
 
 #[pymodule]
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
-    use self::{api, storage};
-
     let api_mod = PyModule::new(py, "api")?;
     api::init_module(&py, &api_mod)?;
     m.add_submodule(api_mod)?;
