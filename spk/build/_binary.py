@@ -198,7 +198,7 @@ class BinaryPackageBuilder:
 
         _LOGGER.info("Validating package fileset...")
         try:
-            spkrs.validate_build_changeset()
+            spkrs.build.validate_build_changeset()
         except RuntimeError as e:
             raise BuildError(str(e))
 
