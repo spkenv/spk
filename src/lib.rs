@@ -72,6 +72,10 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     api::init_module(&py, &api_mod)?;
     m.add_submodule(api_mod)?;
 
+    let api_mod = PyModule::new(py, "build")?;
+    api::init_module(&py, &api_mod)?;
+    m.add_submodule(api_mod)?;
+
     #[pyfn(m, "version")]
     fn version(_py: Python) -> &str {
         return env!("CARGO_PKG_VERSION");
