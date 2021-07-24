@@ -5,3 +5,11 @@ use pyo3::prelude::*;
 
 #[pyclass]
 pub struct Solver {}
+
+#[pymethods]
+impl Solver {
+    #[new]
+    fn new() -> Self {
+        Solver {}
+    }
+}
