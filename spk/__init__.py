@@ -19,11 +19,9 @@ from ._publish import Publisher
 __version__ = spkrs.version()
 
 # promote useful front line api functions
-from .solve import (
-    Solver,
-    Solution,
-    SolverError,
-)
+Solution = solve.Solution
+Solver = solve.Solver
+SolverError = solve.SolverError
 from .build import (
     SourcePackageBuilder,
     BinaryPackageBuilder,

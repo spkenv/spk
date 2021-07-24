@@ -3,9 +3,15 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 
+use super::errors::SolverError;
 use super::graph::{Change, Decision, Graph, Node, Note};
 use super::solution::Solution;
 use super::solver::Solver;
+
+fn init_submodule_errors(py: &Python, module: &PyModule) -> PyResult<()> {
+    module.add("SolverError", py.get_type::<SolverError>())?;
+    Ok(())
+}
 
 fn init_submodule_graph(module: &PyModule) -> PyResult<()> {
     module.add_class::<Change>()?;
@@ -28,6 +34,11 @@ fn init_submodule_solver(module: &PyModule) -> PyResult<()> {
 
 pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     {
+        let submod_errors = PyModule::new(*py, "_errors")?;
+        init_submodule_errors(py, submod_errors)?;
+        m.add_submodule(submod_errors)?;
+    }
+    {
         let submod_graph = PyModule::new(*py, "graph")?;
         init_submodule_graph(submod_graph)?;
         m.add_submodule(submod_graph)?;
@@ -46,6 +57,8 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Graph>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Solver>()?;
+
+    m.add("SolverError", py.get_type::<SolverError>())?;
 
     Ok(())
 }
