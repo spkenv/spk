@@ -10,6 +10,7 @@ use super::graph::{
 };
 use super::solution::Solution;
 use super::solver::Solver;
+use super::validation::Validator;
 
 fn init_submodule_errors(py: &Python, module: &PyModule) -> PyResult<()> {
     module.add("SolverError", py.get_type::<SolverError>())?;
@@ -42,6 +43,11 @@ fn init_submodule_solver(module: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+fn init_submodule_validation(module: &PyModule) -> PyResult<()> {
+    module.add_class::<Validator>()?;
+    Ok(())
+}
+
 pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     {
         let submod_errors = PyModule::new(*py, "_errors")?;
@@ -62,6 +68,11 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
         let submod_solution = PyModule::new(*py, "_solution")?;
         init_submodule_solution(submod_solution)?;
         m.add_submodule(submod_solution)?;
+    }
+    {
+        let submod_validation = PyModule::new(*py, "validation")?;
+        init_submodule_validation(submod_validation)?;
+        m.add_submodule(submod_validation)?;
     }
 
     m.add_class::<Graph>()?;
