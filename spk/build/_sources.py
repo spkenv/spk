@@ -80,7 +80,7 @@ def collect_and_commit_sources(spec: api.Spec) -> spkrs.Digest:
 
     _LOGGER.info("Validating package source files...")
     try:
-        spkrs.validate_source_changeset()
+        spkrs.build.validate_source_changeset()
     except RuntimeError as e:
         raise CollectionError(str(e))
 

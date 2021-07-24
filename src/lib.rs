@@ -66,11 +66,13 @@ impl Runtime {
 
 #[pymodule]
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
-    use self::{api, build, storage};
-
     let api_mod = PyModule::new(py, "api")?;
     api::init_module(&py, &api_mod)?;
     m.add_submodule(api_mod)?;
+
+    let build_mod = PyModule::new(py, "build")?;
+    build::init_module(&py, &build_mod)?;
+    m.add_submodule(build_mod)?;
 
     #[pyfn(m, "version")]
     fn version(_py: Python) -> &str {
@@ -136,18 +138,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         };
         let handle: spfs::storage::RepositoryHandle = repo.into();
         Ok(storage::SpFSRepository::from(handle))
-    }
-    #[pyfn(m, "validate_build_changeset")]
-    fn validate_build_changeset() -> Result<()> {
-        let diffs = spfs::diff(None, None)?;
-        build::validate_build_changeset(diffs, "/spfs")?;
-        Ok(())
-    }
-    #[pyfn(m, "validate_source_changeset")]
-    fn validate_source_changeset() -> Result<()> {
-        let diffs = spfs::diff(None, None)?;
-        build::validate_source_changeset(diffs, "/spfs")?;
-        Ok(())
     }
     #[pyfn(m, "reconfigure_runtime")]
     fn reconfigure_runtime(
