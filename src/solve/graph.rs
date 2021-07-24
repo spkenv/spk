@@ -24,3 +24,6 @@ pub struct Note {}
 
 #[pyclass(extends=Change)]
 pub struct RequestPackage {}
+
+#[pyclass(extends=Change)]
+pub struct RequestVar {}
