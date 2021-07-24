@@ -37,6 +37,8 @@ pub struct SetPackage {}
 #[pyclass(extends=SetPackage)]
 pub struct SetPackageBuild {}
 
+pub struct State {}
+
 #[pyclass(extends=Note)]
 pub struct SkipPackageNote {}
 

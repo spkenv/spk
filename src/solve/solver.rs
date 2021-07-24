@@ -5,20 +5,36 @@ use pyo3::prelude::*;
 
 use crate::api::OptionMap;
 
-use super::solution::Solution;
+use super::{
+    graph::{Change, Graph},
+    solution::Solution,
+    validation::{self, Validators},
+};
 
 #[pyclass]
-pub struct Solver {}
+pub struct Solver {
+    repos: Vec<PyObject>,
+    initial_state_builders: Vec<Change>,
+    validators: Vec<Validators>,
+    _last_graph: Graph,
+}
 
 #[pymethods]
 impl Solver {
     #[new]
     fn new() -> Self {
-        Solver {}
+        Solver {
+            repos: Vec::default(),
+            initial_state_builders: Vec::default(),
+            validators: validation::default_validators(),
+            _last_graph: Graph {},
+        }
     }
 
     pub fn reset(&mut self) {
-        todo!()
+        self.repos.clear();
+        self.initial_state_builders.clear();
+        self.validators = validation::default_validators();
     }
 
     /// If true, only solve pre-built binary packages.
