@@ -3,11 +3,15 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 
-use super::graph::Graph;
+use super::graph::{Change, Decision, Graph, Node, Note};
 use super::solver::Solver;
 
 fn init_submodule_graph(module: &PyModule) -> PyResult<()> {
+    module.add_class::<Change>()?;
+    module.add_class::<Decision>()?;
     module.add_class::<Graph>()?;
+    module.add_class::<Node>()?;
+    module.add_class::<Note>()?;
     Ok(())
 }
 

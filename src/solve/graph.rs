@@ -3,5 +3,21 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 
+/// A single change made to a state.
+#[pyclass]
+pub struct Change {}
+
+/// The decision represents a choice made by the solver.
+///
+/// Each decision connects one state to another in the graph.
+#[pyclass]
+pub struct Decision {}
+
 #[pyclass]
 pub struct Graph {}
+
+#[pyclass]
+pub struct Node {}
+
+#[pyclass]
+pub struct Note {}
