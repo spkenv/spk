@@ -36,3 +36,6 @@ pub struct SetPackage {}
 
 #[pyclass(extends=SetPackage)]
 pub struct SetPackageBuild {}
+
+#[pyclass(extends=Change)]
+pub struct StepBack {}
