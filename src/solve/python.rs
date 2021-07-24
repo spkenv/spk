@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use super::errors::SolverError;
 use super::graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
-    SetPackageBuild, StepBack,
+    SetPackageBuild, SkipPackageNote, StepBack,
 };
 use super::solution::Solution;
 use super::solver::Solver;
@@ -27,6 +27,7 @@ fn init_submodule_graph(module: &PyModule) -> PyResult<()> {
     module.add_class::<SetOptions>()?;
     module.add_class::<SetPackage>()?;
     module.add_class::<SetPackageBuild>()?;
+    module.add_class::<SkipPackageNote>()?;
     module.add_class::<StepBack>()?;
     Ok(())
 }

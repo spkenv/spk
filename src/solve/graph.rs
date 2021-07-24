@@ -19,7 +19,7 @@ pub struct Graph {}
 #[pyclass]
 pub struct Node {}
 
-#[pyclass]
+#[pyclass(subclass)]
 pub struct Note {}
 
 #[pyclass(extends=Change)]
@@ -36,6 +36,9 @@ pub struct SetPackage {}
 
 #[pyclass(extends=SetPackage)]
 pub struct SetPackageBuild {}
+
+#[pyclass(extends=Note)]
+pub struct SkipPackageNote {}
 
 #[pyclass(extends=Change)]
 pub struct StepBack {}
