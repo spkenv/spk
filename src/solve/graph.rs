@@ -27,3 +27,9 @@ pub struct RequestPackage {}
 
 #[pyclass(extends=Change)]
 pub struct RequestVar {}
+
+#[pyclass(extends=Change, subclass)]
+pub struct SetPackage {}
+
+#[pyclass(extends=SetPackage)]
+pub struct SetPackageBuild {}
