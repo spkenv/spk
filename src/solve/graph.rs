@@ -1,8 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-mod graph;
-mod python;
-mod solver;
+use pyo3::prelude::*;
 
-pub use python::init_module;
+#[pyclass]
+pub struct Graph {}
