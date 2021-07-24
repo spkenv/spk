@@ -4,7 +4,7 @@
 use pyo3::prelude::*;
 
 /// A single change made to a state.
-#[pyclass]
+#[pyclass(subclass)]
 pub struct Change {}
 
 /// The decision represents a choice made by the solver.
@@ -21,3 +21,6 @@ pub struct Node {}
 
 #[pyclass]
 pub struct Note {}
+
+#[pyclass(extends=Change)]
+pub struct RequestPackage {}
