@@ -29,6 +29,16 @@ impl ValidatorT for DeprecationValidator {
     }
 }
 
+/// Enforces the resolution of binary packages only, denying new builds from source.
+#[pyclass(extends=Validator)]
+pub struct BinaryOnlyValidator {}
+
+impl ValidatorT for BinaryOnlyValidator {
+    fn validate(&self, _state: graph::State, _spec: api::Spec) -> api::Compatibility {
+        todo!()
+    }
+}
+
 pub fn default_validators() -> Vec<Validators> {
     vec![Validators::Deprecation(DeprecationValidator {})]
 }
