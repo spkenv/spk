@@ -8,7 +8,7 @@ use crate::api::OptionMap;
 use super::{
     graph::{self, Changes, Graph},
     solution::Solution,
-    validation::{self, Validators},
+    validation::{self, BinaryOnlyValidator, Validators},
 };
 
 #[pyclass]
@@ -44,8 +44,31 @@ impl Solver {
     /// options are valid for a new build of that source package.
     /// These packages are not actually built as part of the solver process but their
     /// build environments are fully resolved and dependencies included
-    pub fn set_binary_only(&mut self, _binary_only: bool) {
-        todo!()
+    pub fn set_binary_only(&mut self, binary_only: bool) {
+        let has_binary_only = self
+            .validators
+            .iter()
+            .find_map(|v| match v {
+                Validators::BinaryOnly(_) => Some(true),
+                _ => None,
+            })
+            .unwrap_or(false);
+        if !(has_binary_only ^ binary_only) {
+            return;
+        }
+        if binary_only {
+            // Add BinaryOnly validator because it was missing.
+            self.validators
+                .insert(0, Validators::BinaryOnly(BinaryOnlyValidator {}))
+        } else {
+            // Remove all BinaryOnly validators because one was found.
+            self.validators = self
+                .validators
+                .iter()
+                .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
+                .copied()
+                .collect();
+        }
     }
 
     pub fn solve(&self) -> Solution {

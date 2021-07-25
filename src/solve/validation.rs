@@ -7,8 +7,10 @@ use crate::api;
 
 use super::graph;
 
+#[derive(Clone, Copy)]
 pub enum Validators {
     Deprecation(DeprecationValidator),
+    BinaryOnly(BinaryOnlyValidator),
 }
 
 pub trait ValidatorT {
@@ -21,6 +23,7 @@ pub struct Validator {}
 
 /// Ensures that deprecated packages are not included unless specifically requested.
 #[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
 
 impl ValidatorT for DeprecationValidator {
@@ -31,6 +34,7 @@ impl ValidatorT for DeprecationValidator {
 
 /// Enforces the resolution of binary packages only, denying new builds from source.
 #[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
 impl ValidatorT for BinaryOnlyValidator {
