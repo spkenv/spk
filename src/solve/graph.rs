@@ -3,6 +3,14 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 
+use crate::api;
+
+pub enum Changes {
+    SetOptions(SetOptions),
+}
+
+pub trait ChangeT {}
+
 /// A single change made to a state.
 #[pyclass(subclass)]
 pub struct Change {}
@@ -29,7 +37,17 @@ pub struct RequestPackage {}
 pub struct RequestVar {}
 
 #[pyclass(extends=Change, subclass)]
-pub struct SetOptions {}
+pub struct SetOptions {
+    _options: api::OptionMap,
+}
+
+impl SetOptions {
+    pub fn new(options: api::OptionMap) -> Self {
+        SetOptions { _options: options }
+    }
+}
+
+impl ChangeT for SetOptions {}
 
 #[pyclass(extends=Change, subclass)]
 pub struct SetPackage {}

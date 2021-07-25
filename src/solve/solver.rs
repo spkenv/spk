@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use crate::api::OptionMap;
 
 use super::{
-    graph::{Change, Graph},
+    graph::{self, Changes, Graph},
     solution::Solution,
     validation::{self, Validators},
 };
@@ -14,7 +14,7 @@ use super::{
 #[pyclass]
 pub struct Solver {
     repos: Vec<PyObject>,
-    initial_state_builders: Vec<Change>,
+    initial_state_builders: Vec<Changes>,
     validators: Vec<Validators>,
     _last_graph: Graph,
 }
@@ -52,7 +52,8 @@ impl Solver {
         todo!()
     }
 
-    pub fn update_options(&mut self, _options: OptionMap) {
-        todo!()
+    pub fn update_options(&mut self, options: OptionMap) {
+        self.initial_state_builders
+            .push(Changes::SetOptions(graph::SetOptions::new(options)))
     }
 }
