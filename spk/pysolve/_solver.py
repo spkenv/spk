@@ -148,11 +148,15 @@ class Solver:
         self._last_graph = solve_graph
 
         history = []
-        current_node = solve_graph.root
+        current_node = None
         decision: Optional[graph.Decision] = graph.Decision(
             self._initial_state_builders
         )
-        while decision is not None and current_node is not graph.DEAD_STATE:
+        while decision is not None and (
+            current_node is None or current_node.state is not graph.DEAD_STATE
+        ):
+            if current_node is None:
+                current_node = solve_graph.root
 
             yield (current_node, decision)
             try:
