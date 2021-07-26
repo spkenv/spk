@@ -1,6 +1,8 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+#[macro_use]
+extern crate lazy_static;
 
 pub mod api;
 pub mod build;

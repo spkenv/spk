@@ -2199,6 +2199,7 @@ dependencies = [
  "data-encoding",
  "indexmap",
  "itertools",
+ "lazy_static",
  "pyo3",
  "regex",
  "relative-path",
