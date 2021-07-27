@@ -22,7 +22,7 @@ class SpFSRepository(Repository):
         assert isinstance(base, spkrs.SpFSRepository)
         self.rs = base
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def list_packages(self) -> Iterable[str]:
 
         path = "spk/spec"
@@ -33,7 +33,7 @@ class SpFSRepository(Repository):
                 pkgs.append(tag)
         return list(pkgs)
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def list_package_versions(self, name: str) -> Iterable[str]:
 
         path = self.build_spec_tag(api.parse_ident(name))
@@ -43,7 +43,7 @@ class SpFSRepository(Repository):
         versions = (v.replace("..", "+") for v in versions)
         return sorted(list(set(versions)))
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
 
         if not isinstance(pkg, api.Ident):
@@ -83,7 +83,7 @@ class SpFSRepository(Repository):
             raise VersionExistsError(spec.pkg)
         self.force_publish_spec(spec)
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def read_spec(self, pkg: api.Ident) -> api.Spec:
 
         tag_str = self.build_spec_tag(pkg)

@@ -43,6 +43,7 @@ def test_empty_options_do_not_unset() -> None:
         var_requests=tuple(),
         packages=tuple(),
         options=tuple(),
+        hash_cache=[],
     )
 
     assign_empty = graph.SetOptions(api.OptionMap({"something": ""}))

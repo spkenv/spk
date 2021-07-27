@@ -125,7 +125,7 @@ class Node:
         self._state = state
         self._iterators: Dict[str, PackageIterator] = {}
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def __str__(self) -> str:
         encoded_id = base64.b64encode(str(self.id).encode())
         short_id = encoded_id[:6].decode()
@@ -184,18 +184,30 @@ class State(NamedTuple):
     var_requests: Tuple[api.VarRequest, ...]
     packages: Tuple[Tuple[api.Spec, PackageSource], ...]
     options: Tuple[Tuple[str, str], ...]
+    # Cache for State.__hash__, by id.
+    # Using List for interior mutability.
+    # No default can be provided here because it would
+    # be shared across all instances.
+    hash_cache: List[int]
 
     @property
     def id(self) -> int:
         return hash(self)
 
     def __hash__(self) -> int:
+        # lru_cache is not used here because it will call
+        # hash(self) to determine the key.
+        if self.hash_cache:
+            return self.hash_cache[0]
+
         hashes: List[int] = []
         hashes.extend(hash(pr) for pr in self.pkg_requests)
         hashes.extend(hash(vr) for vr in self.var_requests)
         hashes.extend(hash(p) for p, _ in self.packages)
         hashes.extend(hash(o) for o in self.options)
-        return hash(tuple(hashes))
+        h = hash(tuple(hashes))
+        self.hash_cache.append(h)
+        return h
 
     @staticmethod
     def default() -> "State":
@@ -205,13 +217,16 @@ class State(NamedTuple):
             var_requests=tuple(),
             options=tuple(),
             packages=tuple(),
+            hash_cache=[],
         )
 
+    @lru_cache(maxsize=None)
     def get_option_map(self) -> api.OptionMap:
 
         return api.OptionMap(dict(self.options))
 
     def get_next_request(self) -> Optional[api.PkgRequest]:
+        # tests reveal this method is not safe to cache.
 
         packages = set(spec.pkg.name for spec, _ in self.packages)
         for request in self.pkg_requests:
@@ -226,6 +241,7 @@ class State(NamedTuple):
         return self.get_merged_request(request.pkg.name)
 
     def get_merged_request(self, name: str) -> api.PkgRequest:
+        # tests reveal this method is not safe to cache.
 
         merged: Optional[api.PkgRequest] = None
         requests = iter(self.pkg_requests)
@@ -246,6 +262,7 @@ class State(NamedTuple):
 
         return merged
 
+    @lru_cache(maxsize=None)
     def get_current_resolve(self, name: str) -> api.Spec:
 
         for spec, _ in self.packages:
@@ -398,6 +415,7 @@ class RequestVar(Change):
             var_requests=base.var_requests + (self.request,),
             options=tuple(options) + ((self.request.var, self.request.value),),
             packages=base.packages,
+            hash_cache=[],
         )
 
 
@@ -412,6 +430,7 @@ class RequestPackage(Change):
             var_requests=base.var_requests,
             options=base.options,
             packages=base.packages,
+            hash_cache=[],
         )
 
 
@@ -437,6 +456,7 @@ class SetPackage(Change):
             var_requests=base.var_requests,
             packages=base.packages + ((self.spec, self.source),),
             options=base.options,
+            hash_cache=[],
         )
 
 
@@ -464,6 +484,7 @@ class SetOptions(Change):
             var_requests=base.var_requests,
             options=tuple(options.items()),
             packages=base.packages,
+            hash_cache=[],
         )
 
 

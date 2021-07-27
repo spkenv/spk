@@ -35,6 +35,7 @@ def test_src_package_install_requests_are_not_considered() -> None:
         var_requests=tuple(),
         options=(("debug", "off"),),
         packages=tuple(),
+        hash_cache=[],
     )
     for validator in validators:
         msg = "Source package should be valid regardless of requirements"
@@ -52,6 +53,7 @@ def test_empty_options_can_match_anything() -> None:
         # spec file, but is empty so should not cause a conflict
         options=(("python.abi", ""),),
         packages=tuple(),
+        hash_cache=[],
     )
 
     spec = api.Spec.from_dict(
