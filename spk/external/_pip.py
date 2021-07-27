@@ -141,12 +141,15 @@ class PipImporter:
         )
         spec.sources = []
         build_spec = spec.build
-        build_spec.options = [
+        options: List[api.Option] = [
             api.VarOpt("os"),
             api.VarOpt("arch"),
             api.VarOpt("distro"),
             api.PkgOpt("python", self._python_version),
         ]
+        if self._python_abi is not None:
+            options.append(api.VarOpt("python.abi", self._python_abi))
+        build_spec.options = options
         build_spec.script = [
             "export PYTHONNOUSERSITE=1",
             "export PYTHONDONTWRITEBYTECODE=1",
@@ -162,9 +165,13 @@ class PipImporter:
         # python packages can support a wide range of versions, and present dynamic
         # requirements based on the version used - spk does not do this so instead
         # we restrict the package to the python version that it's being imported for
-        spec.install.requirements.append(
+        requirements = spec.install.requirements
+        requirements.append(
             api.PkgRequest(api.parse_ident_range(f"python/{self._python_version}"))
         )
+        install = spec.install
+        install.requirements = requirements
+        spec.install = install
         for requirement_str in info.requires_dist:
 
             if ";" not in requirement_str:
@@ -195,21 +202,25 @@ class PipImporter:
             request = api.PkgRequest(
                 api.parse_ident_range(f"{spk_name}/{spk_version_range}")
             )
-            spec.install.requirements.append(request)
+            requirements = spec.install.requirements
+            requirements.append(request)
+            install = spec.install
+            install.requirements = requirements
+            spec.install = install
 
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
                 builds.extend(self.import_package(match.group(1), match.group(3) or ""))
 
         repo = storage.local_repository()
-        options = api.host_options()
+        host_options = api.host_options()
         if self._python_abi is not None:
-            options["python.abi"] = self._python_abi
+            host_options["python.abi"] = self._python_abi
         _LOGGER.info("building generated package spec...", pkg=spec.pkg)
         builder = build.BinaryPackageBuilder().from_spec(spec)
         try:
             created = (
-                builder.with_options(options)
+                builder.with_options(host_options)
                 .with_repository(repo)
                 .with_repository(storage.remote_repository())
                 .with_source(".")

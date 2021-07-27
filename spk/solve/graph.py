@@ -433,6 +433,9 @@ class RequestPackage(Change):
             hash_cache=[],
         )
 
+    def __repr__(self) -> str:
+        return f"RequestPackage(request={self.request})"
+
 
 class StepBack(Change):
     """Identifies the solver reaching an impass and needing to revert a previous decision."""
@@ -486,6 +489,9 @@ class SetOptions(Change):
             packages=base.packages,
             hash_cache=[],
         )
+
+    def __repr__(self) -> str:
+        return f"SetOptions(options={self.options})"
 
 
 class Note(metaclass=abc.ABCMeta):
