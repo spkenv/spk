@@ -191,13 +191,14 @@ class PipImporter:
             _LOGGER.debug("converting dependency requirement", requirement=version_str)
             match = re.match(r"([^ ]+)( \((.*)\))?", version_str.strip())
             assert match, f"Failed to parse requirement string: {version_str}"
-            spk_name = _to_spk_name(match.group(1))
-            if spk_name in BAKED_PYTHON_PACKAGES:
+            pypi_name = match.group(1)
+            if pypi_name in BAKED_PYTHON_PACKAGES:
                 _LOGGER.warning(
-                    f"skipping requirement for {spk_name}, this package cannot be updated with the "
+                    f"skipping requirement for {pypi_name}, this package cannot be updated with the "
                     "pip conversion since it's baked into the spk python package"
                 )
                 continue
+            spk_name = _to_spk_name(pypi_name)
             spk_version_range = _to_spk_version_range(match.group(3) or "*")
             request = api.PkgRequest(
                 api.parse_ident_range(f"{spk_name}/{spk_version_range}")

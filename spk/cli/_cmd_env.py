@@ -94,4 +94,4 @@ def _env(args: argparse.Namespace) -> None:
         cmd = spkrs.build_interactive_shell_command()
     else:
         cmd = spkrs.build_shell_initialized_command(*command)
-    os.execv(cmd[0], cmd)
+    os.execvp(cmd[0], cmd)
