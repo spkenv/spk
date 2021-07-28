@@ -74,6 +74,18 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     build::init_module(&py, &build_mod)?;
     m.add_submodule(build_mod)?;
 
+    // ensure that from spkrs.submodule import xx works
+    // as expected on the python side by injecting them
+    py.run(
+        "\
+    import sys;\
+    sys.modules['spkrs.api'] = api;\
+    sys.modules['spkrs.build'] = build\
+    ",
+        None,
+        Some(m.dict()),
+    )?;
+
     #[pyfn(m, "version")]
     fn version(_py: Python) -> &str {
         return env!("CARGO_PKG_VERSION");
