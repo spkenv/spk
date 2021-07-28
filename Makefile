@@ -1,7 +1,7 @@
 VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: rpm devel test packages clean lint
+.PHONY: rpm devel test packages clean lint format
 default: devel
 
 packages:
@@ -15,7 +15,10 @@ clean: packages.clean
 
 lint:
 	pipenv run -- mypy spk
-	pipenv run -- black --check spk setup.py
+	pipenv run -- black --check spk setup.py spkrs
+
+format:
+	pipenv run -- black spk setup.py spkrs
 
 devel:
 	cd $(SOURCE_ROOT)
