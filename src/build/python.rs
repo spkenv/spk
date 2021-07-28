@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use pyo3::{prelude::*, wrap_pyfunction};
 
-use crate::Result;
+use crate::{api, Result};
 
 #[pyfunction]
 fn validate_build_changeset() -> Result<()> {
@@ -19,8 +19,41 @@ fn validate_source_changeset() -> Result<()> {
     Ok(())
 }
 
+#[pyfunction]
+fn build_options_path(path: &api::Ident, prefix: Option<&str>) -> String {
+    super::build_options_path(path, prefix.unwrap_or("/spfs"))
+        .to_string_lossy()
+        .to_string()
+}
+
+#[pyfunction]
+fn build_script_path(path: &api::Ident, prefix: Option<&str>) -> String {
+    super::build_script_path(path, prefix.unwrap_or("/spfs"))
+        .to_string_lossy()
+        .to_string()
+}
+
+#[pyfunction]
+fn build_spec_path(path: &api::Ident, prefix: Option<&str>) -> String {
+    super::build_spec_path(path, prefix.unwrap_or("/spfs"))
+        .to_string_lossy()
+        .to_string()
+}
+
+#[pyfunction]
+fn source_package_path(path: &api::Ident, prefix: Option<&str>) -> String {
+    super::source_package_path(path, prefix.unwrap_or("/spfs"))
+        .to_string_lossy()
+        .to_string()
+}
+
 pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_build_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
+    m.add_function(wrap_pyfunction!(build_options_path, m)?)?;
+    m.add_function(wrap_pyfunction!(build_script_path, m)?)?;
+    m.add_function(wrap_pyfunction!(build_spec_path, m)?)?;
+    m.add_function(wrap_pyfunction!(source_package_path, m)?)?;
     Ok(())
 }

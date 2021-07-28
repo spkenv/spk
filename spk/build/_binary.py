@@ -9,6 +9,13 @@ import spkrs
 from .. import api, storage, solve, exec
 from ._env import data_path, deferred_signals
 
+from spkrs.build import (
+    build_options_path,
+    build_script_path,
+    build_spec_path,
+    source_package_path,
+)
+
 _LOGGER = structlog.get_logger("spk.build")
 
 
@@ -275,35 +282,3 @@ def get_package_build_env(spec: api.Spec) -> Dict[str, str]:
             api.VERSION_SEP.join(str(p) for p in spec.pkg.version.parts)
         ),
     }
-
-
-def source_package_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
-    """Return the file path for the given source package's files."""
-    return data_path(pkg, prefix=prefix)
-
-
-def build_spec_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
-    """Return the file path for the given build's spec.yaml file.
-
-    This file is created during a build and stores the full
-    package spec of what was built.
-    """
-    return os.path.join(data_path(pkg, prefix), "spec.yaml")
-
-
-def build_options_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
-    """Return the file path for the given build's options.json file.
-
-    This file is created during a build and stores the set
-    of build options used when creating the package
-    """
-    return os.path.join(data_path(pkg, prefix), "options.json")
-
-
-def build_script_path(pkg: api.Ident, prefix: str = "/spfs") -> str:
-    """Return the file path for the given build's build.sh file.
-
-    This file is created during a build and stores the bash
-    script used to build the package contents
-    """
-    return os.path.join(data_path(pkg, prefix), "build.sh")
