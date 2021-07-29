@@ -58,7 +58,10 @@ class SpFSRepository(Repository):
 
         builds = []
         for build in build_tags:
-            builds.append(pkg.with_build(build))
+            try:
+                builds.append(pkg.with_build(build))
+            except ValueError as e:
+                _LOGGER.warning(f"invalid package tag found in spfs repository: {base}/{build}")
         return builds
 
     def force_publish_spec(self, spec: api.Spec) -> None:
