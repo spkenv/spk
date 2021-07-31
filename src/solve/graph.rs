@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::api;
@@ -12,12 +14,7 @@ use super::{
 };
 
 lazy_static! {
-    pub static ref DEAD_STATE: State = State {
-        options: Vec::default(),
-        packages: Vec::default(),
-        pkg_requests: Vec::default(),
-        var_requests: Vec::default(),
-    };
+    pub static ref DEAD_STATE: State = State::default();
 }
 
 #[derive(Clone)]
@@ -54,7 +51,7 @@ impl Decision {
 #[derive(Clone)]
 pub struct Graph {
     pub root: Arc<Node>,
-    pub nodes: HashMap<usize, Arc<Node>>,
+    pub nodes: HashMap<u64, Arc<Node>>,
 }
 
 impl Graph {
@@ -71,7 +68,7 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, _source_id: usize, _decision: &Decision) -> Arc<Node> {
+    pub fn add_branch(&mut self, _source_id: u64, _decision: &Decision) -> Arc<Node> {
         todo!()
     }
 }
@@ -85,8 +82,8 @@ impl Default for Graph {
 #[pyclass]
 #[derive(Clone)]
 pub struct Node {
-    pub inputs: HashMap<usize, Decision>,
-    pub outputs: HashMap<usize, Decision>,
+    pub inputs: HashMap<u64, Decision>,
+    pub outputs: HashMap<u64, Decision>,
     pub state: State,
     pub iterators: HashMap<String, PackageIterator>,
 }
@@ -102,7 +99,7 @@ impl Node {
     }
 
     #[inline]
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> u64 {
         self.state.id()
     }
 }
@@ -140,20 +137,70 @@ pub struct SetPackageBuild {}
 #[pyclass]
 #[derive(Clone)]
 pub struct State {
-    pub pkg_requests: Vec<api::PkgRequest>,
-    pub var_requests: Vec<api::VarRequest>,
-    pub packages: Vec<(api::Spec, PackageSource)>,
-    pub options: Vec<(String, String)>,
+    pkg_requests: Vec<api::PkgRequest>,
+    var_requests: Vec<api::VarRequest>,
+    packages: Vec<(api::Spec, PackageSource)>,
+    options: Vec<(String, String)>,
+    hash_cache: u64,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State::new(
+            Vec::default(),
+            Vec::default(),
+            Vec::default(),
+            Vec::default(),
+        )
+    }
 }
 
 impl State {
+    pub fn new(
+        pkg_requests: Vec<api::PkgRequest>,
+        var_requests: Vec<api::VarRequest>,
+        packages: Vec<(api::Spec, PackageSource)>,
+        options: Vec<(String, String)>,
+    ) -> Self {
+        // TODO: This pre-calculates the hash but there
+        // may be states constructed where the id is
+        // never accessed. Determine if it is better
+        // to lazily compute this on demand.
+        //
+        // TODO: Since new states are constructed from
+        // old states by modifying one field at a time,
+        // it would be more efficient to save the hash
+        // of each of the four members, so those individual
+        // hashes don't need to be recalculated in the
+        // new object.
+        let mut hasher = DefaultHasher::new();
+        pkg_requests.hash(&mut hasher);
+        var_requests.hash(&mut hasher);
+        for (p, _) in packages.iter() {
+            p.hash(&mut hasher)
+        }
+        options.hash(&mut hasher);
+
+        State {
+            pkg_requests,
+            var_requests,
+            packages,
+            options,
+            hash_cache: hasher.finish(),
+        }
+    }
+
     #[inline]
-    pub fn id(&self) -> usize {
-        todo!()
+    pub fn id(&self) -> u64 {
+        self.hash_cache
     }
 
     pub fn as_solution(&self) -> Solution {
         todo!()
+    }
+
+    pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
+        &self.pkg_requests
     }
 }
 

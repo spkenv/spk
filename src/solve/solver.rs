@@ -113,7 +113,7 @@ impl Solver {
 
         let is_dead = current_node.state.id() == solve_graph.read().unwrap().root.state.id()
             || std::ptr::eq(&current_node.state, &*DEAD_STATE);
-        let is_empty = self.get_initial_state().pkg_requests.is_empty();
+        let is_empty = self.get_initial_state().get_pkg_requests().is_empty();
         if is_dead && !is_empty {
             Err(SolverFailedError::new_err(
                 (*solve_graph).read().unwrap().clone(),
