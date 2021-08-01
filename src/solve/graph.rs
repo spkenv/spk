@@ -22,7 +22,15 @@ pub enum Changes {
     SetOptions(SetOptions),
 }
 
-pub trait ChangeT {}
+pub trait ChangeT {
+    fn apply(&self, base: &State) -> State;
+}
+
+impl ChangeT for Changes {
+    fn apply(&self, _base: &State) -> State {
+        todo!()
+    }
+}
 
 /// A single change made to a state.
 #[pyclass(subclass)]
@@ -44,6 +52,14 @@ impl Decision {
             changes,
             notes: Vec::default(),
         }
+    }
+
+    pub fn apply(&self, base: State) -> State {
+        let mut state = base;
+        for change in self.changes.iter() {
+            state = change.apply(&state);
+        }
+        state
     }
 }
 
@@ -132,8 +148,6 @@ impl SetOptions {
         SetOptions { _options: options }
     }
 }
-
-impl ChangeT for SetOptions {}
 
 #[pyclass(extends=Change, subclass)]
 pub struct SetPackage {}
