@@ -96,11 +96,9 @@ impl Compatibility {
 
 #[pyproto]
 impl pyo3::PyObjectProtocol for Compatibility {
+    #[allow(clippy::nonminimal_bool)]
     fn __bool__(&self) -> bool {
-        match self.inner {
-            super::Compatibility::Compatible => true,
-            super::Compatibility::Incompatible(_) => false,
-        }
+        !!&self.inner
     }
 
     fn __repr__(&self) -> String {
@@ -382,14 +380,13 @@ where
 {
     let locals = pyo3::types::PyDict::new(py);
     let _ = locals.set_item("data", input);
-    py.run("import json; out = json.dumps(data)", None, Some(locals)).map_err(|err| crate::Error::String(format!(
-                "Not a valid dictionary: {:?}",
-                err
-            )))?;
-    let json: &str = locals.get_item("out").unwrap().extract().map_err(|err| crate::Error::String(format!(
-            "Not a valid dictionary: {:?}",
-            err
-        )))?;
+    py.run("import json; out = json.dumps(data)", None, Some(locals))
+        .map_err(|err| crate::Error::String(format!("Not a valid dictionary: {:?}", err)))?;
+    let json: &str = locals
+        .get_item("out")
+        .unwrap()
+        .extract()
+        .map_err(|err| crate::Error::String(format!("Not a valid dictionary: {:?}", err)))?;
     Ok(serde_yaml::from_str(json)?)
 }
 
@@ -412,10 +409,8 @@ where
         "from ruamel import yaml; out = yaml.safe_load(data)",
         None,
         Some(locals),
-    ).map_err(|err| crate::Error::String(format!(
-            "Failed to serialize item: {:?}",
-            err
-        )))?;
+    )
+    .map_err(|err| crate::Error::String(format!("Failed to serialize item: {:?}", err)))?;
     locals.get_item("out").unwrap().extract()
 }
 

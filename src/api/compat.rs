@@ -112,6 +112,17 @@ impl std::fmt::Display for Compatibility {
     }
 }
 
+impl std::ops::Not for &'_ Compatibility {
+    type Output = bool;
+
+    fn not(self) -> Self::Output {
+        match self {
+            super::Compatibility::Compatible => false,
+            super::Compatibility::Incompatible(_) => true,
+        }
+    }
+}
+
 impl Compatibility {
     pub fn is_ok(&self) -> bool {
         matches!(self, &Compatibility::Compatible)
