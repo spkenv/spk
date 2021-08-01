@@ -84,14 +84,14 @@ impl Solver {
         self.last_graph = solve_graph.clone();
 
         let mut history = Vec::new();
-        let mut current_node: Option<Arc<Node>> = None;
+        let mut current_node: Option<Arc<RwLock<Node>>> = None;
         let mut decision = Some(Decision::new(self.initial_state_builders.clone()));
 
         while decision.is_some()
             && (current_node.is_none()
                 || !current_node
                     .as_ref()
-                    .map(|n| std::ptr::eq(&n.state, &*DEAD_STATE))
+                    .map(|n| std::ptr::eq(&n.read().unwrap().state, &*DEAD_STATE))
                     .unwrap_or_default())
         {
             // The python code would `yield (current_node, decision)` here,
@@ -99,27 +99,34 @@ impl Solver {
 
             current_node = Some({
                 let mut sg = solve_graph.write().unwrap();
-                let root_id = sg.root.id();
+                let root_id = sg.root.read().unwrap().id();
                 sg.add_branch(
-                    current_node.map(|n| n.id()).unwrap_or(root_id),
+                    current_node
+                        .map(|n| n.read().unwrap().id())
+                        .unwrap_or(root_id),
                     &decision.unwrap(),
                 )
             });
-            decision = current_node.as_ref().map(|n| self.step_state(n)).flatten();
+            decision = current_node
+                .as_ref()
+                .map(|n| self.step_state(&n.read().unwrap()))
+                .flatten();
             history.push(current_node.clone());
         }
 
         let current_node = current_node.expect("current_node always `is_some` here");
+        let current_node_lock = current_node.read().unwrap();
 
-        let is_dead = current_node.state.id() == solve_graph.read().unwrap().root.state.id()
-            || std::ptr::eq(&current_node.state, &*DEAD_STATE);
+        let is_dead = current_node_lock.state.id()
+            == solve_graph.read().unwrap().root.read().unwrap().state.id()
+            || std::ptr::eq(&current_node_lock.state, &*DEAD_STATE);
         let is_empty = self.get_initial_state().get_pkg_requests().is_empty();
         if is_dead && !is_empty {
             Err(SolverFailedError::new_err(
                 (*solve_graph).read().unwrap().clone(),
             ))
         } else {
-            Ok(current_node.state.as_solution())
+            Ok(current_node_lock.state.as_solution())
         }
     }
 

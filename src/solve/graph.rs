@@ -4,6 +4,7 @@
 use pyo3::prelude::*;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::api;
@@ -66,14 +67,14 @@ impl Decision {
 #[pyclass]
 #[derive(Clone)]
 pub struct Graph {
-    pub root: Arc<Node>,
-    pub nodes: HashMap<u64, Arc<Node>>,
+    pub root: Arc<RwLock<Node>>,
+    pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
 }
 
 impl Graph {
     pub fn new() -> Self {
-        let dead_state = Arc::new(Node::new(DEAD_STATE.clone()));
-        let dead_state_id = dead_state.id();
+        let dead_state = Arc::new(RwLock::new(Node::new(DEAD_STATE.clone())));
+        let dead_state_id = dead_state.read().unwrap().id();
         let nodes = [(dead_state_id, dead_state.clone())]
             .iter()
             .cloned()
@@ -84,8 +85,45 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, _source_id: u64, _decision: &Decision) -> Arc<Node> {
-        todo!()
+    pub fn add_branch(&mut self, source_id: u64, decision: &Decision) -> Arc<RwLock<Node>> {
+        let old_node = self
+            .nodes
+            .get_mut(&source_id)
+            .expect("source_id exists in nodes")
+            .clone();
+        let new_state = decision.apply(old_node.read().unwrap().state.clone());
+        let mut new_node = Arc::new(RwLock::new(Node::new(new_state)));
+        {
+            let mut new_node_lock = new_node.write().unwrap();
+
+            match self.nodes.get(&new_node_lock.id()) {
+                None => {
+                    self.nodes.insert(new_node_lock.id(), new_node.clone());
+                    for (name, iterator) in old_node.read().unwrap().iterators.iter() {
+                        new_node_lock.set_iterator(name, iterator.clone())
+                    }
+                }
+                Some(node) => {
+                    drop(new_node_lock);
+                    new_node = node.clone();
+                }
+            }
+        }
+
+        let mut old_node_lock = old_node.write().unwrap();
+        {
+            // Avoid deadlock if old_node is the same node as new_node
+            if !Arc::ptr_eq(&old_node, &new_node) {
+                let mut new_node_lock = new_node.write().unwrap();
+                old_node_lock.add_output(decision, &new_node_lock.state);
+                new_node_lock.add_input(&old_node_lock.state, decision);
+            } else {
+                let old_state = old_node_lock.state.clone();
+                old_node_lock.add_output(decision, &old_state);
+                old_node_lock.add_input(&old_state, decision);
+            }
+        }
+        new_node
     }
 }
 
@@ -105,6 +143,14 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn add_input(&mut self, _state: &State, _decision: &Decision) {
+        todo!()
+    }
+
+    pub fn add_output(&mut self, _decision: &Decision, _state: &State) {
+        todo!()
+    }
+
     fn new(state: State) -> Self {
         Node {
             inputs: HashMap::default(),
