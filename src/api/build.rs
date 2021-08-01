@@ -47,7 +47,7 @@ impl Build {
         matches!(self, Build::Source)
     }
 
-    pub fn is_emdeded(&self) -> bool {
+    pub fn is_embedded(&self) -> bool {
         matches!(self, Build::Embedded)
     }
 }
