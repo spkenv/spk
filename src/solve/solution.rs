@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::prelude::*;
+use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::HashMap;
 
 use crate::{
@@ -21,7 +21,14 @@ impl PackageSource {
     }
 }
 
-/// Represents a set of resolved packages.
+/// Represents a package request that has been resolved.
+#[pyclass]
+pub struct SolvedRequest {
+    pub request: api::PkgRequest,
+    pub spec: api::Spec,
+    pub source: PackageSource,
+}
+
 #[pyclass]
 pub struct Solution {
     options: api::OptionMap,
@@ -46,8 +53,36 @@ impl Solution {
     }
 }
 
+#[pyclass]
+pub struct SolvedRequestIter {
+    iter: std::collections::hash_map::IntoIter<api::PkgRequest, (api::Spec, PackageSource)>,
+}
+
+#[pyproto]
+impl PyIterProtocol for SolvedRequestIter {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<SolvedRequest> {
+        slf.iter
+            .next()
+            .map(|(request, (spec, source))| SolvedRequest {
+                request,
+                spec,
+                source,
+            })
+    }
+}
+
 #[pymethods]
 impl Solution {
+    pub fn items(&self) -> SolvedRequestIter {
+        SolvedRequestIter {
+            iter: self.resolved.clone().into_iter(),
+        }
+    }
+
     pub fn options(&self) -> api::OptionMap {
         self.options.clone()
     }
