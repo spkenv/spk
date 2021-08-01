@@ -4,7 +4,10 @@
 use pyo3::{create_exception, prelude::*};
 use std::sync::{Arc, RwLock};
 
-use crate::api::OptionMap;
+use crate::{
+    api::OptionMap,
+    solve::graph::{ChangeBaseT, GraphError, StepBack},
+};
 
 use super::{
     errors::SolverError,
@@ -83,7 +86,7 @@ impl Solver {
         let solve_graph = Arc::new(RwLock::new(Graph::new()));
         self.last_graph = solve_graph.clone();
 
-        let mut history = Vec::new();
+        let mut history = Vec::<Arc<RwLock<Node>>>::new();
         let mut current_node: Option<Arc<RwLock<Node>>> = None;
         let mut decision = Some(Decision::new(self.initial_state_builders.clone()));
 
@@ -100,18 +103,42 @@ impl Solver {
             current_node = Some({
                 let mut sg = solve_graph.write().unwrap();
                 let root_id = sg.root.read().unwrap().id();
-                sg.add_branch(
+                match sg.add_branch(
                     current_node
+                        .as_ref()
                         .map(|n| n.read().unwrap().id())
                         .unwrap_or(root_id),
                     &decision.unwrap(),
-                )
+                ) {
+                    Ok(cn) => cn,
+                    Err(GraphError::RecursionError(msg)) => {
+                        match history.pop() {
+                            Some(n) => {
+                                let n_lock = n.read().unwrap();
+                                decision = Some(
+                                    Changes::StepBack(StepBack::new(
+                                        &msg.to_string(),
+                                        &n_lock.state,
+                                    ))
+                                    .as_decision(),
+                                )
+                            }
+                            None => {
+                                decision = Some(
+                                    Changes::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
+                                        .as_decision(),
+                                )
+                            }
+                        }
+                        continue;
+                    }
+                }
             });
             decision = current_node
                 .as_ref()
                 .map(|n| self.step_state(&n.read().unwrap()))
                 .flatten();
-            history.push(current_node.clone());
+            history.push(current_node.as_ref().unwrap().clone());
         }
 
         let current_node = current_node.expect("current_node always `is_some` here");

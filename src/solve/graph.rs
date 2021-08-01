@@ -18,19 +18,42 @@ lazy_static! {
     pub static ref DEAD_STATE: State = State::default();
 }
 
+const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
+
+pub enum GraphError {
+    RecursionError(&'static str),
+}
+
+pub type Result<T> = std::result::Result<T, GraphError>;
+
 #[derive(Clone)]
 pub enum Changes {
     SetOptions(SetOptions),
+    StepBack(StepBack),
+}
+
+pub trait ChangeBaseT {
+    fn as_decision(&self) -> Decision;
 }
 
 pub trait ChangeT {
     fn apply(&self, base: &State) -> State;
 }
 
+impl ChangeBaseT for Changes {
+    fn as_decision(&self) -> Decision {
+        Decision {
+            changes: vec![self.clone()],
+            notes: Vec::default(),
+        }
+    }
+}
+
 impl ChangeT for Changes {
     fn apply(&self, base: &State) -> State {
         match self {
             Changes::SetOptions(so) => so.apply(base),
+            Changes::StepBack(sb) => sb.apply(base),
         }
     }
 }
@@ -87,7 +110,7 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, source_id: u64, decision: &Decision) -> Arc<RwLock<Node>> {
+    pub fn add_branch(&mut self, source_id: u64, decision: &Decision) -> Result<Arc<RwLock<Node>>> {
         let old_node = self
             .nodes
             .get_mut(&source_id)
@@ -117,15 +140,15 @@ impl Graph {
             // Avoid deadlock if old_node is the same node as new_node
             if !Arc::ptr_eq(&old_node, &new_node) {
                 let mut new_node_lock = new_node.write().unwrap();
-                old_node_lock.add_output(decision, &new_node_lock.state);
+                old_node_lock.add_output(decision, &new_node_lock.state)?;
                 new_node_lock.add_input(&old_node_lock.state, decision);
             } else {
                 let old_state = old_node_lock.state.clone();
-                old_node_lock.add_output(decision, &old_state);
+                old_node_lock.add_output(decision, &old_state)?;
                 old_node_lock.add_input(&old_state, decision);
             }
         }
-        new_node
+        Ok(new_node)
     }
 }
 
@@ -149,8 +172,12 @@ impl Node {
         todo!()
     }
 
-    pub fn add_output(&mut self, _decision: &Decision, _state: &State) {
-        todo!()
+    pub fn add_output(&mut self, decision: &Decision, state: &State) -> Result<()> {
+        if self.outputs.contains_key(&state.id()) {
+            return Err(GraphError::RecursionError(BRANCH_ALREADY_ATTEMPTED));
+        }
+        self.outputs.insert(state.id(), decision.clone());
+        Ok(())
     }
 
     fn new(state: State) -> Self {
@@ -299,4 +326,23 @@ impl State {
 pub struct SkipPackageNote {}
 
 #[pyclass(extends=Change)]
-pub struct StepBack {}
+#[derive(Clone)]
+pub struct StepBack {
+    cause: String,
+    destination: State,
+}
+
+impl StepBack {
+    pub fn new(cause: &str, to: &State) -> Self {
+        StepBack {
+            cause: cause.to_owned(),
+            destination: to.clone(),
+        }
+    }
+}
+
+impl ChangeT for StepBack {
+    fn apply(&self, _base: &State) -> State {
+        self.destination.clone()
+    }
+}
