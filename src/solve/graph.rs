@@ -328,7 +328,12 @@ impl State {
     }
 
     pub fn as_solution(&self) -> Solution {
-        todo!()
+        let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
+        for (spec, source) in self.packages.iter() {
+            let req = self.get_merged_request(spec.pkg.name());
+            solution.add(&req, spec, source);
+        }
+        solution
     }
 
     fn get_merged_request(&self, _name: &str) -> api::PkgRequest {
