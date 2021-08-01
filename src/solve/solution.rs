@@ -86,4 +86,59 @@ impl Solution {
     pub fn options(&self) -> api::OptionMap {
         self.options.clone()
     }
+
+    /// Return the data of this solution as environment variables.
+    ///
+    /// If base is given, also clean any existing, conflicting values.
+    pub fn to_environment(&self, base: Option<HashMap<String, String>>) -> HashMap<String, String> {
+        let mut out = if let Some(base) = base {
+            base
+        } else {
+            HashMap::default()
+        };
+
+        out.retain(|name, _| !name.starts_with("SPK_PKG_"));
+
+        out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
+        for (_request, (spec, _source)) in self.resolved.iter() {
+            out.insert(format!("SPK_PKG_{}", spec.pkg.name()), spec.pkg.to_string());
+            out.insert(
+                format!("SPK_PKG_{}_VERSION", spec.pkg.name()),
+                spec.pkg.version.to_string(),
+            );
+            out.insert(
+                format!("SPK_PKG_{}_BUILD", spec.pkg.name()),
+                spec.pkg
+                    .build
+                    .as_ref()
+                    .map(|b| b.to_string())
+                    .unwrap_or_else(|| "None".to_owned()),
+            );
+            out.insert(
+                format!("SPK_PKG_{}_VERSION_MAJOR", spec.pkg.name()),
+                spec.pkg.version.major.to_string(),
+            );
+            out.insert(
+                format!("SPK_PKG_{}_VERSION_MINOR", spec.pkg.name()),
+                spec.pkg.version.minor.to_string(),
+            );
+            out.insert(
+                format!("SPK_PKG_{}_VERSION_PATCH", spec.pkg.name()),
+                spec.pkg.version.patch.to_string(),
+            );
+            out.insert(
+                format!("SPK_PKG_{}_VERSION_BASE", spec.pkg.name()),
+                spec.pkg
+                    .version
+                    .parts()
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(api::VERSION_SEP),
+            );
+        }
+
+        out.extend(self.options.to_environment().into_iter());
+        out
+    }
 }
