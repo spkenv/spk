@@ -168,8 +168,8 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn add_input(&mut self, _state: &State, _decision: &Decision) {
-        todo!()
+    pub fn add_input(&mut self, state: &State, decision: &Decision) {
+        self.inputs.insert(state.id(), decision.clone());
     }
 
     pub fn add_output(&mut self, decision: &Decision, state: &State) -> Result<()> {
