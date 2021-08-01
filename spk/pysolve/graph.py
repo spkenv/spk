@@ -106,6 +106,7 @@ class Graph:
         if new_node.id not in self._nodes:
             self._nodes[new_node.id] = new_node
             for name, iterator in old_node._iterators.items():
+                # XXX: set_iterator also clones iterator
                 new_node.set_iterator(name, iterator.clone())
         else:
             new_node = self._nodes[new_node.id]

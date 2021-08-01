@@ -102,6 +102,13 @@ impl Node {
     pub fn id(&self) -> u64 {
         self.state.id()
     }
+
+    pub fn set_iterator(&mut self, package_name: &str, iterator: PackageIterator) {
+        if self.iterators.contains_key(package_name) {
+            panic!("iterator already exists [INTERNAL ERROR]");
+        }
+        self.iterators.insert(package_name.to_owned(), iterator);
+    }
 }
 
 #[pyclass(subclass)]
