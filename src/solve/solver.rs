@@ -151,7 +151,11 @@ impl Solver {
     }
 
     pub fn get_initial_state(&self) -> State {
-        todo!()
+        let mut state = State::default();
+        for change in self.initial_state_builders.iter() {
+            state = change.apply(&state)
+        }
+        state
     }
 
     pub fn reset(&mut self) {

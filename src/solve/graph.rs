@@ -33,6 +33,15 @@ pub enum Changes {
     StepBack(StepBack),
 }
 
+impl Changes {
+    pub fn apply(&self, base: &State) -> State {
+        match self {
+            Changes::SetOptions(so) => so.apply(base),
+            Changes::StepBack(sb) => sb.apply(base),
+        }
+    }
+}
+
 pub trait ChangeBaseT {
     fn as_decision(&self) -> Decision;
 }
@@ -46,15 +55,6 @@ impl ChangeBaseT for Changes {
         Decision {
             changes: vec![self.clone()],
             notes: Vec::default(),
-        }
-    }
-}
-
-impl ChangeT for Changes {
-    fn apply(&self, base: &State) -> State {
-        match self {
-            Changes::SetOptions(so) => so.apply(base),
-            Changes::StepBack(sb) => sb.apply(base),
         }
     }
 }
