@@ -28,8 +28,10 @@ pub trait ChangeT {
 }
 
 impl ChangeT for Changes {
-    fn apply(&self, _base: &State) -> State {
-        todo!()
+    fn apply(&self, base: &State) -> State {
+        match self {
+            Changes::SetOptions(so) => so.apply(base),
+        }
     }
 }
 
@@ -186,12 +188,25 @@ pub struct RequestVar {}
 #[pyclass(extends=Change, subclass)]
 #[derive(Clone)]
 pub struct SetOptions {
-    _options: api::OptionMap,
+    options: api::OptionMap,
 }
 
 impl SetOptions {
     pub fn new(options: api::OptionMap) -> Self {
-        SetOptions { _options: options }
+        SetOptions { options }
+    }
+}
+
+impl ChangeT for SetOptions {
+    fn apply(&self, base: &State) -> State {
+        let mut options: HashMap<String, String> = base.options.iter().cloned().collect();
+        for (k, v) in self.options.iter() {
+            if v.is_empty() && options.contains_key(k) {
+                continue;
+            }
+            options.insert(k.to_owned(), v.to_owned());
+        }
+        base.with_options(options.into_iter().collect())
     }
 }
 
@@ -268,6 +283,15 @@ impl State {
 
     pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
         &self.pkg_requests
+    }
+
+    fn with_options(&self, options: Vec<(String, String)>) -> Self {
+        State::new(
+            self.pkg_requests.clone(),
+            self.var_requests.clone(),
+            self.packages.clone(),
+            options,
+        )
     }
 }
 
