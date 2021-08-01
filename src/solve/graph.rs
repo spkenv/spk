@@ -3,11 +3,12 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::api::{self, Ident};
+use crate::api::{self, Ident, InclusionPolicy};
 
 use super::{
     package_iterator::PackageIterator,
@@ -330,9 +331,28 @@ impl State {
         todo!()
     }
 
+    fn get_merged_request(&self, _name: &str) -> api::PkgRequest {
+        todo!()
+    }
+
     pub fn get_next_request(&self) -> Option<api::PkgRequest> {
         // tests reveal this method is not safe to cache.
-        todo!()
+        let packages: HashSet<&str> = self
+            .packages
+            .iter()
+            .map(|(spec, _)| spec.pkg.name())
+            .collect();
+        for request in self.pkg_requests.iter() {
+            if packages.contains(request.pkg.name()) {
+                continue;
+            }
+            if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
+                continue;
+            }
+            return Some(self.get_merged_request(request.pkg.name()));
+        }
+
+        None
     }
 
     pub fn get_option_map(&self) -> api::OptionMap {
