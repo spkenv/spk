@@ -5,14 +5,15 @@ use pyo3::{create_exception, prelude::*};
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    api::OptionMap,
+    api::{self, Build, OptionMap},
     solve::graph::{ChangeBaseT, GraphError, StepBack},
 };
 
 use super::{
-    errors::SolverError,
-    graph::{self, Changes, Decision, Graph, Node, State, DEAD_STATE},
-    solution::Solution,
+    errors::{self, SolverError},
+    graph::{self, Changes, Decision, Graph, Node, NoteEnum, SkipPackageNote, State, DEAD_STATE},
+    package_iterator::{BuildIterator, PackageIterator, SortedBuildIterator},
+    solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, Validators},
 };
 
@@ -24,6 +25,117 @@ pub struct Solver {
     initial_state_builders: Vec<Changes>,
     validators: Vec<Validators>,
     last_graph: Arc<RwLock<Graph>>,
+}
+
+// Methods not exposed to Python
+impl Solver {
+    fn get_iterator(&self, _node: &Node, _package_name: &str) -> PackageIterator {
+        todo!()
+    }
+
+    fn resolve_new_build(&self, _spec: &api::Spec, _state: &State) -> errors::Result<Solution> {
+        todo!()
+    }
+
+    fn step_state(&self, node: &Node) -> errors::Result<Option<Decision>> {
+        let mut _notes = Vec::<NoteEnum>::new();
+        let request = if let Some(request) = node.state.get_next_request() {
+            request
+        } else {
+            return Ok(None);
+        };
+
+        let _iterator = self.get_iterator(node, request.pkg.name());
+        for (pkg, builds) in &_iterator {
+            let mut compat = request.is_version_applicable(&pkg.version);
+            if !&compat {
+                _iterator.set_builds(&pkg.version, &BuildIterator::EmptyBuildIterator);
+                _notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                    pkg.clone(),
+                    compat,
+                )));
+                continue;
+            }
+
+            // XXX is this isinstance possible to be true?
+            /* if !isinstance(builds, SortedBuildIterator): */
+            let builds = BuildIterator::SortedBuildIterator(SortedBuildIterator::new(
+                &node.state.get_option_map(),
+                &builds,
+            ));
+            _iterator.set_builds(&pkg.version, &builds);
+
+            for (spec, repo) in builds {
+                // Needed by unreachable code below...
+                // let mut spec = spec;
+                let build_from_source = spec.pkg.build == Some(Build::Source)
+                    && request.pkg.build != Some(Build::Source);
+                if build_from_source {
+                    // Currently irrefutable...
+                    let PackageSource::Spec(spec) = repo;
+                    {
+                        _notes.push(NoteEnum::SkipPackageNote(
+                            SkipPackageNote::new_from_message(
+                                spec.pkg.clone(),
+                                "cannot build embedded source package",
+                            ),
+                        ));
+                        continue;
+                    }
+                    /*
+                    // Currently unreachable...
+                    // FIXME: This should only match `PackageNotFoundError`
+                    match repo.read_spec(&spec.pkg.with_build(None)) {
+                        Ok(s) => spec = s,
+                        Err(_) => {
+                            _notes.push(NoteEnum::SkipPackageNote(
+                                SkipPackageNote::new_from_message(
+                                    &spec.pkg,
+                                    "cannot build from source, version spec not available",
+                                ),
+                            ));
+                            continue;
+                        }
+                    }
+                    */
+                }
+
+                compat = self.validate(&node.state, &spec);
+                if !&compat {
+                    _notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                        spec.pkg, compat,
+                    )));
+                    continue;
+                }
+
+                let mut decision = if build_from_source {
+                    match self.resolve_new_build(&spec, &node.state) {
+                        Ok(build_env) => Decision::build_package(&spec, &repo, &build_env),
+
+                        // FIXME: This should only match `SolverError`
+                        Err(err) => {
+                            _notes.push(NoteEnum::SkipPackageNote(
+                                SkipPackageNote::new_from_message(
+                                    spec.pkg,
+                                    &format!("cannot resolve build env: {:?}", err),
+                                ),
+                            ));
+                            continue;
+                        }
+                    }
+                } else {
+                    Decision::resolve_package(&spec, &repo)
+                };
+                decision.add_notes(_notes.iter());
+                return Ok(Some(decision));
+            }
+        }
+
+        Err(errors::Error::OutOfOptions(errors::OutOfOptions {
+            request,
+            notes: _notes,
+        }))
+    }
 }
 
 #[pymethods]
@@ -134,11 +246,14 @@ impl Solver {
                     }
                 }
             });
-            decision = current_node
+            let current_node = current_node
                 .as_ref()
-                .map(|n| self.step_state(&n.read().unwrap()))
-                .flatten();
-            history.push(current_node.as_ref().unwrap().clone());
+                .expect("current_node always `is_some` here");
+            let current_node_lock = current_node.read().unwrap();
+            decision = self
+                .step_state(&current_node_lock)
+                .map_err(|err| -> PyErr { err.into() })?;
+            history.push(current_node.clone());
         }
 
         let current_node = current_node.expect("current_node always `is_some` here");
@@ -157,12 +272,12 @@ impl Solver {
         }
     }
 
-    fn step_state(&self, _node: &Node) -> Option<Decision> {
-        todo!()
-    }
-
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Changes::SetOptions(graph::SetOptions::new(options)))
+    }
+
+    fn validate(&self, _node: &State, _spec: &api::Spec) -> api::Compatibility {
+        todo!()
     }
 }

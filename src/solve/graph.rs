@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::api;
+use crate::api::{self, Ident};
 
 use super::{
     package_iterator::PackageIterator,
@@ -69,7 +69,7 @@ pub struct Change {}
 #[derive(Clone)]
 pub struct Decision {
     pub changes: Vec<Changes>,
-    pub notes: Vec<Note>,
+    pub notes: Vec<NoteEnum>,
 }
 
 impl Decision {
@@ -80,12 +80,28 @@ impl Decision {
         }
     }
 
+    pub fn add_notes<'a>(&mut self, notes: impl Iterator<Item = &'a NoteEnum>) {
+        self.notes.extend(notes.cloned())
+    }
+
     pub fn apply(&self, base: State) -> State {
         let mut state = base;
         for change in self.changes.iter() {
             state = change.apply(&state);
         }
         state
+    }
+
+    pub fn build_package(
+        _spec: &api::Spec,
+        _source: &PackageSource,
+        _build_env: &Solution,
+    ) -> Decision {
+        todo!()
+    }
+
+    pub fn resolve_package(_spec: &api::Spec, _source: &PackageSource) -> Decision {
+        todo!()
     }
 }
 
@@ -206,6 +222,12 @@ impl Node {
 #[derive(Clone)]
 pub struct Note {}
 
+// XXX this should be called "Note", resolve python interop
+#[derive(Clone, Debug)]
+pub enum NoteEnum {
+    SkipPackageNote(SkipPackageNote),
+}
+
 #[pyclass(extends=Change)]
 pub struct RequestPackage {}
 
@@ -308,6 +330,16 @@ impl State {
         todo!()
     }
 
+    pub fn get_next_request(&self) -> Option<api::PkgRequest> {
+        // tests reveal this method is not safe to cache.
+        todo!()
+    }
+
+    pub fn get_option_map(&self) -> api::OptionMap {
+        // TODO: cache this
+        self.options.iter().cloned().collect()
+    }
+
     pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
         &self.pkg_requests
     }
@@ -322,8 +354,34 @@ impl State {
     }
 }
 
+#[derive(Clone, Debug)]
+enum SkipPackageNoteReason {
+    String(String),
+    Compatibility(api::Compatibility),
+}
+
 #[pyclass(extends=Note)]
-pub struct SkipPackageNote {}
+#[derive(Clone, Debug)]
+pub struct SkipPackageNote {
+    pkg: Ident,
+    reason: SkipPackageNoteReason,
+}
+
+impl SkipPackageNote {
+    pub fn new(pkg: Ident, reason: api::Compatibility) -> Self {
+        SkipPackageNote {
+            pkg,
+            reason: SkipPackageNoteReason::Compatibility(reason),
+        }
+    }
+
+    pub fn new_from_message(pkg: Ident, reason: &str) -> Self {
+        SkipPackageNote {
+            pkg,
+            reason: SkipPackageNoteReason::String(reason.to_owned()),
+        }
+    }
+}
 
 #[pyclass(extends=Change)]
 #[derive(Clone)]
