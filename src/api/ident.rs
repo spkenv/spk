@@ -43,7 +43,11 @@ impl std::fmt::Display for Ident {
 #[pymethods]
 impl Ident {
     #[new]
-    fn newpy(name: &str, version: Option<Version>, build: Option<Build>) -> crate::Result<Self> {
+    pub fn newpy(
+        name: &str,
+        version: Option<Version>,
+        build: Option<Build>,
+    ) -> crate::Result<Self> {
         let mut ident = Self::new(name)?;
         if let Some(version) = version {
             ident.version = version;

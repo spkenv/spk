@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use pyo3::{create_exception, prelude::*};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
     api::{self, Build, CompatRule, OptionMap, Request},
@@ -16,7 +16,8 @@ use super::{
         SkipPackageNote, State, DEAD_STATE,
     },
     package_iterator::{
-        BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
+        BuildIterator, EmptyBuildIterator, PackageIterator, RepositoryPackageIterator,
+        SortedBuildIterator,
     },
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, Validators},
@@ -34,7 +35,7 @@ pub struct Solver {
 
 // Methods not exposed to Python
 impl Solver {
-    fn get_iterator(&self, node: &mut Node, package_name: &str) -> PackageIterator {
+    fn get_iterator(&self, node: &mut Node, package_name: &str) -> Box<dyn PackageIterator> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
@@ -43,15 +44,15 @@ impl Solver {
         iterator
     }
 
-    fn make_iterator(&self, package_name: &str) -> PackageIterator {
+    fn make_iterator(&self, package_name: &str) -> Box<dyn PackageIterator> {
         assert!(!self.repos.is_empty());
-        PackageIterator::RepositoryPackageIterator(RepositoryPackageIterator {
-            package_name: package_name.to_owned(),
-            repos: self.repos.clone(),
-        })
+        Box::new(RepositoryPackageIterator::new(
+            package_name.to_owned(),
+            self.repos.clone(),
+        ))
     }
 
-    fn resolve_new_build(&self, _spec: &api::Spec, _state: &State) -> errors::Result<Solution> {
+    fn resolve_new_build(&self, _spec: &api::Spec, _state: &State) -> crate::Result<Solution> {
         todo!()
     }
 
@@ -63,11 +64,14 @@ impl Solver {
             return Ok(None);
         };
 
-        let _iterator = self.get_iterator(node, request.pkg.name());
-        for (pkg, builds) in &_iterator {
+        let mut iterator = self.get_iterator(node, request.pkg.name());
+        while let Some((pkg, builds)) = iterator.next()? {
             let mut compat = request.is_version_applicable(&pkg.version);
             if !&compat {
-                _iterator.set_builds(&pkg.version, &BuildIterator::EmptyBuildIterator);
+                iterator.set_builds(
+                    &pkg.version,
+                    Arc::new(Mutex::new(EmptyBuildIterator::new())),
+                );
                 notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
                     pkg.clone(),
                     compat,
@@ -77,13 +81,13 @@ impl Solver {
 
             // XXX is this isinstance possible to be true?
             /* if !isinstance(builds, SortedBuildIterator): */
-            let builds = BuildIterator::SortedBuildIterator(SortedBuildIterator::new(
-                &node.state.get_option_map(),
-                &builds,
-            ));
-            _iterator.set_builds(&pkg.version, &builds);
+            let builds = Arc::new(Mutex::new(SortedBuildIterator::new(
+                node.state.get_option_map(),
+                builds.clone(),
+            )));
+            iterator.set_builds(&pkg.version, builds.clone());
 
-            for (spec, repo) in builds {
+            while let Some((spec, repo)) = builds.lock().unwrap().next()? {
                 // Needed by unreachable code below...
                 // let mut spec = spec;
                 let build_from_source = spec.pkg.build == Some(Build::Source)

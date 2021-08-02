@@ -10,8 +10,6 @@ use super::graph::NoteEnum;
 
 create_exception!(errors, SolverError, PyException);
 
-pub type Result<T> = std::result::Result<T, Error>;
-
 #[derive(Debug)]
 pub enum Error {
     SolverError(SolverError),

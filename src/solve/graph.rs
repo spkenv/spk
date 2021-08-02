@@ -186,7 +186,7 @@ pub struct Node {
     pub inputs: HashMap<u64, Decision>,
     pub outputs: HashMap<u64, Decision>,
     pub state: State,
-    pub iterators: HashMap<String, PackageIterator>,
+    pub iterators: HashMap<String, Box<dyn PackageIterator>>,
 }
 
 impl Node {
@@ -202,7 +202,7 @@ impl Node {
         Ok(())
     }
 
-    pub fn get_iterator(&self, package_name: &str) -> Option<PackageIterator> {
+    pub fn get_iterator(&self, package_name: &str) -> Option<Box<dyn PackageIterator>> {
         self.iterators.get(package_name).cloned()
     }
 
@@ -220,7 +220,7 @@ impl Node {
         self.state.id()
     }
 
-    pub fn set_iterator(&mut self, package_name: &str, iterator: PackageIterator) {
+    pub fn set_iterator(&mut self, package_name: &str, iterator: Box<dyn PackageIterator>) {
         if self.iterators.contains_key(package_name) {
             panic!("iterator already exists [INTERNAL ERROR]");
         }
