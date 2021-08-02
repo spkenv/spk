@@ -3,12 +3,13 @@
 // https://github.com/imageworks/spk
 use crate::api;
 use dyn_clone::DynClone;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyTuple};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 
+use super::errors::PackageNotFoundError;
 use super::solution::PackageSource;
 
 pub trait BuildIterator: DynClone + Send + Sync {
@@ -29,33 +30,67 @@ pub trait PackageIterator: DynClone + Send + Sync {
 
 dyn_clone::clone_trait_object!(PackageIterator);
 
-trait VersionIter: Iterator<Item = api::Version> + DynClone + Send + Sync {}
+#[derive(Clone)]
+struct VersionIterator {
+    versions: Vec<api::Version>,
+}
 
-dyn_clone::clone_trait_object!(VersionIter);
+impl Iterator for VersionIterator {
+    type Item = api::Version;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
 
 /// A stateful cursor yielding package builds from a set of repositories.
-#[derive(Clone)]
 pub struct RepositoryPackageIterator {
     pub package_name: String,
     pub repos: Vec<PyObject>,
-    versions: Option<Arc<Mutex<dyn VersionIter>>>,
+    versions: Option<VersionIterator>,
     version_map: HashMap<api::Version, PyObject>,
     builds_map: HashMap<api::Version, Arc<Mutex<dyn BuildIterator>>>,
     active_version: Option<api::Version>,
 }
 
+impl Clone for RepositoryPackageIterator {
+    /// Create a copy of this iterator, with the cursor at the same point.
+    fn clone(&self) -> Self {
+        let version_map = if self.versions.is_none() {
+            match self.build_version_map() {
+                Ok(version_map) => version_map,
+                // XXX: This only caught PackageNotFoundError in the python impl
+                Err(_) => {
+                    return RepositoryPackageIterator::new(
+                        self.package_name.to_owned(),
+                        self.repos.clone(),
+                    )
+                }
+            }
+        } else {
+            self.version_map.clone()
+        };
+
+        RepositoryPackageIterator {
+            package_name: self.package_name.clone(),
+            repos: self.repos.clone(),
+            versions: self.versions.clone(),
+            version_map,
+            // Python custom clone() doesn't clone the remaining fields
+            builds_map: HashMap::default(),
+            active_version: None,
+        }
+    }
+}
+
 impl PackageIterator for RepositoryPackageIterator {
     fn next(&mut self) -> crate::Result<Option<PackageIteratorItem>> {
         if self.versions.is_none() {
-            self.start()
+            self.start()?
         }
 
         if self.active_version.is_none() {
-            self.active_version = self
-                .versions
-                .as_ref()
-                .map(|i| i.lock().unwrap().next())
-                .flatten();
+            self.active_version = self.versions.as_mut().and_then(|i| i.next());
         }
         let version = if let Some(active_version) = self.active_version.as_ref() {
             active_version
@@ -104,8 +139,38 @@ impl RepositoryPackageIterator {
         }
     }
 
-    fn start(&mut self) {
-        todo!()
+    fn build_version_map(&self) -> PyResult<HashMap<api::Version, PyObject>> {
+        let mut version_map = HashMap::default();
+        for repo in self.repos.iter().rev() {
+            let repo_versions: PyResult<Vec<String>> = Python::with_gil(|py| {
+                let args = PyTuple::new(py, &[self.package_name.as_str()]);
+                let iter = repo.call_method1(py, "list_package_versions", args)?;
+                iter.as_ref(py)
+                    .iter()?
+                    .map(|o| o.and_then(PyAny::extract::<String>))
+                    .collect()
+            });
+            for version_str in repo_versions? {
+                let version = api::parse_version(version_str)?;
+                version_map.insert(version, repo.clone());
+            }
+        }
+
+        if version_map.is_empty() {
+            return Err(PackageNotFoundError::new_err(self.package_name.to_owned()));
+        }
+
+        Ok(version_map)
+    }
+
+    fn start(&mut self) -> crate::Result<()> {
+        self.version_map = self.build_version_map()?;
+        let mut versions: Vec<api::Version> =
+            self.version_map.keys().into_iter().cloned().collect();
+        versions.sort();
+        versions.reverse();
+        self.versions = Some(VersionIterator { versions });
+        Ok(())
     }
 }
 
