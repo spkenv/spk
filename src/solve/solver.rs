@@ -55,7 +55,7 @@ impl Solver {
         todo!()
     }
 
-    fn step_state(&self, node: &mut Node) -> errors::Result<Option<Decision>> {
+    fn step_state(&self, node: &mut Node) -> crate::Result<Option<Decision>> {
         let mut notes = Vec::<NoteEnum>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -149,10 +149,7 @@ impl Solver {
             }
         }
 
-        Err(errors::Error::OutOfOptions(errors::OutOfOptions {
-            request,
-            notes,
-        }))
+        Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
     }
 }
 

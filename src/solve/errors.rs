@@ -14,23 +14,22 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    APIError(crate::error::Error),
-    // SolverError(SolverError),
+    SolverError(SolverError),
     OutOfOptions(OutOfOptions),
+}
+
+impl From<Error> for crate::Error {
+    fn from(err: Error) -> Self {
+        crate::Error::Solve(err)
+    }
 }
 
 impl From<Error> for PyErr {
     fn from(err: Error) -> Self {
         match err {
-            Error::APIError(err) => err.into(),
+            Error::SolverError(ref err) => err.into(),
             Error::OutOfOptions(err) => SolverError::new_err(err.to_string()),
         }
-    }
-}
-
-impl From<PyErr> for Error {
-    fn from(err: PyErr) -> Self {
-        Error::APIError(crate::error::Error::PyErr(err))
     }
 }
 

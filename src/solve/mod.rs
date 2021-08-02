@@ -9,4 +9,5 @@ mod solution;
 mod solver;
 mod validation;
 
+pub use errors::Error;
 pub use python::init_module;
