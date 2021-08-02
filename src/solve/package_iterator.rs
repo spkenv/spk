@@ -5,7 +5,7 @@ use crate::api;
 use dyn_clone::DynClone;
 use pyo3::{prelude::*, types::PyTuple};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -32,14 +32,20 @@ dyn_clone::clone_trait_object!(PackageIterator);
 
 #[derive(Clone)]
 struct VersionIterator {
-    versions: Vec<api::Version>,
+    versions: VecDeque<api::Version>,
 }
 
 impl Iterator for VersionIterator {
     type Item = api::Version;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        self.versions.pop_front()
+    }
+}
+
+impl VersionIterator {
+    fn new(versions: VecDeque<api::Version>) -> Self {
+        VersionIterator { versions }
     }
 }
 
@@ -169,7 +175,7 @@ impl RepositoryPackageIterator {
             self.version_map.keys().into_iter().cloned().collect();
         versions.sort();
         versions.reverse();
-        self.versions = Some(VersionIterator { versions });
+        self.versions = Some(VersionIterator::new(versions.into()));
         Ok(())
     }
 }
