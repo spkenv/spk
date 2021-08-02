@@ -15,7 +15,9 @@ use super::{
         self, Changes, Decision, Graph, Node, NoteEnum, RequestPackage, RequestVar,
         SkipPackageNote, State, DEAD_STATE,
     },
-    package_iterator::{BuildIterator, PackageIterator, SortedBuildIterator},
+    package_iterator::{
+        BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
+    },
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, Validators},
 };
@@ -32,16 +34,29 @@ pub struct Solver {
 
 // Methods not exposed to Python
 impl Solver {
-    fn get_iterator(&self, _node: &Node, _package_name: &str) -> PackageIterator {
-        todo!()
+    fn get_iterator(&self, node: &mut Node, package_name: &str) -> PackageIterator {
+        if let Some(iterator) = node.get_iterator(package_name) {
+            return iterator;
+        }
+        let iterator = self.make_iterator(package_name);
+        node.set_iterator(package_name, iterator.clone());
+        iterator
+    }
+
+    fn make_iterator(&self, package_name: &str) -> PackageIterator {
+        assert!(!self.repos.is_empty());
+        PackageIterator::RepositoryPackageIterator(RepositoryPackageIterator {
+            package_name: package_name.to_owned(),
+            repos: self.repos.clone(),
+        })
     }
 
     fn resolve_new_build(&self, _spec: &api::Spec, _state: &State) -> errors::Result<Solution> {
         todo!()
     }
 
-    fn step_state(&self, node: &Node) -> errors::Result<Option<Decision>> {
-        let mut _notes = Vec::<NoteEnum>::new();
+    fn step_state(&self, node: &mut Node) -> errors::Result<Option<Decision>> {
+        let mut notes = Vec::<NoteEnum>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
@@ -53,7 +68,7 @@ impl Solver {
             let mut compat = request.is_version_applicable(&pkg.version);
             if !&compat {
                 _iterator.set_builds(&pkg.version, &BuildIterator::EmptyBuildIterator);
-                _notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
                     pkg.clone(),
                     compat,
                 )));
@@ -77,7 +92,7 @@ impl Solver {
                     // Currently irrefutable...
                     let PackageSource::Spec(spec) = repo;
                     {
-                        _notes.push(NoteEnum::SkipPackageNote(
+                        notes.push(NoteEnum::SkipPackageNote(
                             SkipPackageNote::new_from_message(
                                 spec.pkg.clone(),
                                 "cannot build embedded source package",
@@ -91,7 +106,7 @@ impl Solver {
                     match repo.read_spec(&spec.pkg.with_build(None)) {
                         Ok(s) => spec = s,
                         Err(_) => {
-                            _notes.push(NoteEnum::SkipPackageNote(
+                            notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
                                     &spec.pkg,
                                     "cannot build from source, version spec not available",
@@ -105,7 +120,7 @@ impl Solver {
 
                 compat = self.validate(&node.state, &spec);
                 if !&compat {
-                    _notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                    notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg, compat,
                     )));
                     continue;
@@ -117,7 +132,7 @@ impl Solver {
 
                         // FIXME: This should only match `SolverError`
                         Err(err) => {
-                            _notes.push(NoteEnum::SkipPackageNote(
+                            notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
                                     spec.pkg,
                                     &format!("cannot resolve build env: {:?}", err),
@@ -129,14 +144,14 @@ impl Solver {
                 } else {
                     Decision::resolve_package(&spec, &repo)
                 };
-                decision.add_notes(_notes.iter());
+                decision.add_notes(notes.iter());
                 return Ok(Some(decision));
             }
         }
 
         Err(errors::Error::OutOfOptions(errors::OutOfOptions {
             request,
-            notes: _notes,
+            notes,
         }))
     }
 }
@@ -300,9 +315,9 @@ impl Solver {
             let current_node = current_node
                 .as_ref()
                 .expect("current_node always `is_some` here");
-            let current_node_lock = current_node.read().unwrap();
+            let mut current_node_lock = current_node.write().unwrap();
             decision = self
-                .step_state(&current_node_lock)
+                .step_state(&mut current_node_lock)
                 .map_err(|err| -> PyErr { err.into() })?;
             history.push(current_node.clone());
         }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use crate::api;
+use pyo3::prelude::*;
 
 use super::solution::PackageSource;
 
@@ -19,7 +20,9 @@ impl Iterator for BuildIterator {
 }
 
 #[derive(Clone)]
-pub enum PackageIterator {}
+pub enum PackageIterator {
+    RepositoryPackageIterator(RepositoryPackageIterator),
+}
 
 impl Iterator for &PackageIterator {
     type Item = (api::Ident, BuildIterator);
@@ -34,6 +37,13 @@ impl PackageIterator {
     pub fn set_builds(&self, _version: &api::Version, _builds: &BuildIterator) {
         todo!()
     }
+}
+
+/// A stateful cursor yielding package builds from a set of repositories.
+#[derive(Clone)]
+pub struct RepositoryPackageIterator {
+    pub package_name: String,
+    pub repos: Vec<PyObject>,
 }
 
 pub struct SortedBuildIterator {

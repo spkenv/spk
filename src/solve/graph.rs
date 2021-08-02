@@ -202,6 +202,10 @@ impl Node {
         Ok(())
     }
 
+    pub fn get_iterator(&self, package_name: &str) -> Option<PackageIterator> {
+        self.iterators.get(package_name).cloned()
+    }
+
     fn new(state: State) -> Self {
         Node {
             inputs: HashMap::default(),
