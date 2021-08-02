@@ -150,6 +150,11 @@ impl Solver {
         }
     }
 
+    /// Add a repository where the solver can get packages.
+    pub fn add_repository(&mut self, repo: PyObject) {
+        self.repos.push(repo);
+    }
+
     pub fn get_initial_state(&self) -> State {
         let mut state = State::default();
         for change in self.initial_state_builders.iter() {
