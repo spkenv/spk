@@ -538,6 +538,11 @@ impl PkgRequest {
         self.clone()
     }
 
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        super::python::from_dict(input, py)
+    }
+
     ///Return true if the given version number is applicable to this request.
     ///
     /// This is used a cheap preliminary way to prune package
@@ -578,6 +583,10 @@ impl PkgRequest {
         self.prerelease_policy = min(self.prerelease_policy, other.prerelease_policy);
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
         self.pkg.restrict(&other.pkg)
+    }
+
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
+        super::python::to_dict(self, py)
     }
 
     #[staticmethod]

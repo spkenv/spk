@@ -80,6 +80,10 @@ impl BuildSpec {
         resolved
     }
 
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
+        super::python::to_dict(self, py)
+    }
+
     /// Validate the given options against the options in this spec.
     pub fn validate_options(&self, package_name: &str, given_options: &OptionMap) -> Compatibility {
         let mut must_exist = given_options.package_options_without_global(&package_name);

@@ -337,25 +337,6 @@ impl IntoPy<Py<PyAny>> for super::VersionRange {
 }
 
 #[pymethods]
-impl super::Spec {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        from_dict(input, py)
-    }
-
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        to_dict(self, py)
-    }
-}
-
-#[pymethods]
-impl super::BuildSpec {
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        to_dict(self, py)
-    }
-}
-
-#[pymethods]
 impl super::TarSource {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
@@ -372,30 +353,10 @@ impl super::GitSource {
 }
 
 #[pymethods]
-impl super::LocalSource {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        from_dict(input, py)
-    }
-}
-
-#[pymethods]
 impl super::ScriptSource {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
         from_dict(input, py)
-    }
-}
-
-#[pymethods]
-impl super::PkgRequest {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        from_dict(input, py)
-    }
-
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        to_dict(self, py)
     }
 }
 
@@ -415,7 +376,7 @@ fn request_from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Resul
     from_dict(input, py)
 }
 
-fn from_dict<T>(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<T>
+pub fn from_dict<T>(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -432,7 +393,7 @@ where
     Ok(serde_yaml::from_str(json)?)
 }
 
-fn to_dict<T>(input: &T, py: Python) -> PyResult<Py<pyo3::types::PyDict>>
+pub fn to_dict<T>(input: &T, py: Python) -> PyResult<Py<pyo3::types::PyDict>>
 where
     T: serde::ser::Serialize,
 {

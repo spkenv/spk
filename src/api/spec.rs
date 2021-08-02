@@ -65,6 +65,11 @@ impl Spec {
         self.clone()
     }
 
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        super::python::from_dict(input, py)
+    }
+
     /// Return the full set of resolved build options using the given ones.
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
         self.build.resolve_all_options(Some(self.pkg.name()), given)
@@ -147,6 +152,10 @@ impl Spec {
             "Package and request differ in builds: requested {:?}, got {:?}",
             request.pkg.build, self.pkg.build
         ))
+    }
+
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
+        super::python::to_dict(self, py)
     }
 
     fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {

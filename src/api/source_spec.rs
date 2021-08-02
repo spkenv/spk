@@ -80,6 +80,11 @@ impl Default for LocalSource {
 
 #[pymethods]
 impl LocalSource {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        super::python::from_dict(input, py)
+    }
+
     #[getter]
     fn get_path(&self) -> String {
         self.path.to_string_lossy().into()

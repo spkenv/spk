@@ -84,12 +84,14 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Some(m.dict()),
     )?;
 
-    #[pyfn(m, "version")]
+    #[pyfn(m)]
+    #[pyo3(name = "version")]
     fn version(_py: Python) -> &str {
         return env!("CARGO_PKG_VERSION");
     }
 
-    #[pyfn(m, "configure_logging")]
+    #[pyfn(m)]
+    #[pyo3(name = "configure_logging")]
     fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
         if verbosity == 0 {
             let parse_result = std::env::var("SPFS_VERBOSITY")
@@ -123,20 +125,24 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         tracing::subscriber::set_global_default(sub).unwrap();
         Ok(())
     }
-    #[pyfn(m, "active_runtime")]
+    #[pyfn(m)]
+    #[pyo3(name = "active_runtime")]
     fn active_runtime(_py: Python) -> Result<Runtime> {
         let rt = spfs::active_runtime()?;
         Ok(Runtime { inner: rt })
     }
-    #[pyfn(m, "local_repository")]
+    #[pyfn(m)]
+    #[pyo3(name = "local_repository")]
     fn local_repository(_py: Python) -> Result<storage::SpFSRepository> {
         storage::local_repository()
     }
-    #[pyfn(m, "remote_repository")]
+    #[pyfn(m)]
+    #[pyo3(name = "remote_repository")]
     fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
         storage::remote_repository(path)
     }
-    #[pyfn(m, "open_tar_repository")]
+    #[pyfn(m)]
+    #[pyo3(name = "open_tar_repository")]
     fn open_tar_repository(
         _py: Python,
         path: &str,
@@ -149,7 +155,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let handle: spfs::storage::RepositoryHandle = repo.into();
         Ok(storage::SpFSRepository::from(handle))
     }
-    #[pyfn(m, "reconfigure_runtime")]
+    #[pyfn(m)]
+    #[pyo3(name = "reconfigure_runtime")]
     fn reconfigure_runtime(
         editable: Option<bool>,
         reset: Option<Vec<String>>,
@@ -178,7 +185,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Ok(())
     }
 
-    #[pyfn(m, "build_shell_initialized_command", args = "*")]
+    #[pyfn(m, args = "*")]
+    #[pyo3(name = "build_shell_initialized_command")]
     fn build_shell_initialized_command(cmd: String, args: Vec<String>) -> Result<Vec<String>> {
         let cmd = std::ffi::OsString::from(cmd);
         let mut args = args.into_iter().map(std::ffi::OsString::from).collect();
@@ -189,7 +197,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
             .collect();
         Ok(cmd)
     }
-    #[pyfn(m, "build_interactive_shell_command")]
+    #[pyfn(m)]
+    #[pyo3(name = "build_interactive_shell_command")]
     fn build_interactive_shell_command() -> Result<Vec<String>> {
         let rt = spfs::active_runtime()?;
         let cmd = spfs::build_interactive_shell_cmd(&rt)?;
@@ -199,12 +208,14 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
             .collect();
         Ok(cmd)
     }
-    #[pyfn(m, "commit_layer")]
+    #[pyfn(m)]
+    #[pyo3(name = "commit_layer")]
     fn commit_layer(runtime: &mut Runtime) -> Result<Digest> {
         let layer = spfs::commit_layer(&mut runtime.inner)?;
         Ok(Digest::from(layer.digest()?))
     }
-    #[pyfn(m, "find_layer_by_filename")]
+    #[pyfn(m)]
+    #[pyo3(name = "find_layer_by_filename")]
     fn find_layer_by_filename(path: &str) -> Result<Digest> {
         let runtime = spfs::active_runtime()?;
         let repo = spfs::load_config()?.get_repository()?.into();
@@ -220,7 +231,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Err(spfs::graph::UnknownReferenceError::new(path).into())
     }
 
-    #[pyfn(m, "render_into_dir")]
+    #[pyfn(m)]
+    #[pyo3(name = "render_into_dir")]
     fn render_into_dir(stack: Vec<Digest>, path: &str) -> Result<()> {
         let items: Vec<String> = stack.into_iter().map(|d| d.inner.to_string()).collect();
         let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;
