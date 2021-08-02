@@ -29,6 +29,8 @@ pub type Result<T> = std::result::Result<T, GraphError>;
 
 #[derive(Clone)]
 pub enum Changes {
+    RequestPackage(RequestPackage),
+    RequestVar(RequestVar),
     SetOptions(SetOptions),
     StepBack(StepBack),
 }
@@ -36,6 +38,8 @@ pub enum Changes {
 impl Changes {
     pub fn apply(&self, base: &State) -> State {
         match self {
+            Changes::RequestPackage(rp) => rp.apply(base),
+            Changes::RequestVar(rv) => rv.apply(base),
             Changes::SetOptions(so) => so.apply(base),
             Changes::StepBack(sb) => sb.apply(base),
         }
@@ -61,6 +65,7 @@ impl ChangeBaseT for Changes {
 
 /// A single change made to a state.
 #[pyclass(subclass)]
+#[derive(Clone)]
 pub struct Change {}
 
 /// The decision represents a choice made by the solver.
@@ -230,10 +235,28 @@ pub enum NoteEnum {
 }
 
 #[pyclass(extends=Change)]
-pub struct RequestPackage {}
+#[derive(Clone)]
+pub struct RequestPackage {
+    pub request: api::PkgRequest,
+}
+
+impl ChangeT for RequestPackage {
+    fn apply(&self, _base: &State) -> State {
+        todo!()
+    }
+}
 
 #[pyclass(extends=Change)]
-pub struct RequestVar {}
+#[derive(Clone)]
+pub struct RequestVar {
+    pub request: api::VarRequest,
+}
+
+impl ChangeT for RequestVar {
+    fn apply(&self, _base: &State) -> State {
+        todo!()
+    }
+}
 
 #[pyclass(extends=Change, subclass)]
 #[derive(Clone)]

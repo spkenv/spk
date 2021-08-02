@@ -5,13 +5,16 @@ use pyo3::{create_exception, prelude::*};
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    api::{self, Build, OptionMap},
+    api::{self, Build, CompatRule, OptionMap, Request},
     solve::graph::{ChangeBaseT, GraphError, StepBack},
 };
 
 use super::{
     errors::{self, SolverError},
-    graph::{self, Changes, Decision, Graph, Node, NoteEnum, SkipPackageNote, State, DEAD_STATE},
+    graph::{
+        self, Changes, Decision, Graph, Node, NoteEnum, RequestPackage, RequestVar,
+        SkipPackageNote, State, DEAD_STATE,
+    },
     package_iterator::{BuildIterator, PackageIterator, SortedBuildIterator},
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, Validators},
@@ -138,6 +141,13 @@ impl Solver {
     }
 }
 
+#[derive(FromPyObject)]
+pub enum RequestEnum {
+    Ident(api::Ident),
+    Request(api::Request),
+    String(String),
+}
+
 #[pymethods]
 impl Solver {
     #[new]
@@ -153,6 +163,38 @@ impl Solver {
     /// Add a repository where the solver can get packages.
     pub fn add_repository(&mut self, repo: PyObject) {
         self.repos.push(repo);
+    }
+
+    /// Add a request to this solver.
+    pub fn add_request(&mut self, request: RequestEnum) -> PyResult<()> {
+        let mut request = request;
+        let request = loop {
+            match request {
+                RequestEnum::Ident(r) => {
+                    request = RequestEnum::String(r.to_string());
+                    continue;
+                }
+                RequestEnum::String(request) => {
+                    let mut request = serde_yaml::from_str::<api::PkgRequest>(&format!(
+                        "{{\"pkg\": {}}}",
+                        request
+                    ))
+                    .map_err(|err| {
+                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+                    })?;
+                    request.required_compat = Some(CompatRule::API);
+                    break Changes::RequestPackage(RequestPackage { request });
+                }
+                RequestEnum::Request(request) => match request {
+                    Request::Pkg(request) => {
+                        break Changes::RequestPackage(RequestPackage { request })
+                    }
+                    Request::Var(request) => break Changes::RequestVar(RequestVar { request }),
+                },
+            }
+        };
+        self.initial_state_builders.push(request);
+        Ok(())
     }
 
     pub fn get_initial_state(&self) -> State {

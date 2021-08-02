@@ -526,7 +526,7 @@ impl PkgRequest {
 #[pymethods]
 impl PkgRequest {
     #[new]
-    fn init(pkg: RangeIdent, prerelease_policy: Option<PreReleasePolicy>) -> Self {
+    pub fn init(pkg: RangeIdent, prerelease_policy: Option<PreReleasePolicy>) -> Self {
         let mut req = Self::new(pkg);
         if let Some(prp) = prerelease_policy {
             req.prerelease_policy = prp
