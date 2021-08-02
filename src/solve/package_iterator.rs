@@ -117,7 +117,7 @@ impl PackageIterator for RepositoryPackageIterator {
                 Arc::new(Mutex::new(RepositoryBuildIterator::new(
                     pkg.clone(),
                     repo.clone(),
-                ))),
+                )?)),
             );
         }
         let builds = self.builds_map.get(version).unwrap();
@@ -184,11 +184,13 @@ impl RepositoryPackageIterator {
 pub struct RepositoryBuildIterator {
     pkg: api::Ident,
     repo: PyObject,
+    builds: VecDeque<api::Ident>,
+    spec: Option<api::Spec>,
 }
 
 impl BuildIterator for RepositoryBuildIterator {
     fn is_empty(&self) -> bool {
-        todo!()
+        self.builds.is_empty()
     }
 
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
@@ -197,8 +199,32 @@ impl BuildIterator for RepositoryBuildIterator {
 }
 
 impl RepositoryBuildIterator {
-    fn new(pkg: api::Ident, repo: PyObject) -> Self {
-        RepositoryBuildIterator { pkg, repo }
+    fn new(pkg: api::Ident, repo: PyObject) -> PyResult<Self> {
+        let (builds, spec) = Python::with_gil(|py| {
+            // XXX: Ident: ToPyObject missing?
+            let args = PyTuple::new(py, &[pkg.to_string()]);
+            let iter = repo.call_method1(py, "list_package_builds", args)?;
+            let builds: PyResult<Vec<api::Ident>> = iter
+                .as_ref(py)
+                .iter()?
+                .map(|o| o.and_then(PyAny::extract::<api::Ident>))
+                .collect();
+            let builds = builds?;
+
+            let spec = match repo.call_method1(py, "read_spec", args) {
+                Ok(spec) => Some(spec.as_ref(py).extract::<api::Spec>()?),
+                // FIXME: This should only catch PackageNotFoundError
+                Err(_) => None,
+            };
+
+            PyResult::Ok((builds, spec))
+        })?;
+        Ok(RepositoryBuildIterator {
+            pkg,
+            repo,
+            builds: builds.into(),
+            spec,
+        })
     }
 }
 
