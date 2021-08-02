@@ -241,8 +241,12 @@ pub struct RequestPackage {
 }
 
 impl ChangeT for RequestPackage {
-    fn apply(&self, _base: &State) -> State {
-        todo!()
+    fn apply(&self, base: &State) -> State {
+        // XXX: An immutable data structure for pkg_requests would
+        // allow for sharing.
+        let mut new_requests = base.pkg_requests.clone();
+        new_requests.push(self.request.clone());
+        base.with_pkg_requests(new_requests)
     }
 }
 
@@ -253,8 +257,19 @@ pub struct RequestVar {
 }
 
 impl ChangeT for RequestVar {
-    fn apply(&self, _base: &State) -> State {
-        todo!()
+    fn apply(&self, base: &State) -> State {
+        // XXX: An immutable data structure for var_requests would
+        // allow for sharing.
+        let mut new_requests = base.var_requests.clone();
+        new_requests.push(self.request.clone());
+        let mut options = base
+            .options
+            .iter()
+            .cloned()
+            .filter(|(var, _)| *var != self.request.var)
+            .collect::<Vec<_>>();
+        options.push((self.request.var.to_owned(), self.request.value.to_owned()));
+        base.with_var_requests_and_options(new_requests, options)
     }
 }
 
@@ -396,6 +411,28 @@ impl State {
         State::new(
             self.pkg_requests.clone(),
             self.var_requests.clone(),
+            self.packages.clone(),
+            options,
+        )
+    }
+
+    fn with_pkg_requests(&self, pkg_requests: Vec<api::PkgRequest>) -> Self {
+        State::new(
+            pkg_requests,
+            self.var_requests.clone(),
+            self.packages.clone(),
+            self.options.clone(),
+        )
+    }
+
+    fn with_var_requests_and_options(
+        &self,
+        var_requests: Vec<api::VarRequest>,
+        options: Vec<(String, String)>,
+    ) -> Self {
+        State::new(
+            self.pkg_requests.clone(),
+            var_requests,
             self.packages.clone(),
             options,
         )
