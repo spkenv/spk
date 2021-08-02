@@ -365,20 +365,38 @@ impl State {
         self.hash_cache
     }
 
-    pub fn as_solution(&self) -> Solution {
+    pub fn as_solution(&self) -> PyResult<Solution> {
         let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
         for (spec, source) in self.packages.iter() {
-            let req = self.get_merged_request(spec.pkg.name());
+            let req = self.get_merged_request(spec.pkg.name())?;
             solution.add(&req, spec, source);
         }
-        solution
+        Ok(solution)
     }
 
-    fn get_merged_request(&self, _name: &str) -> api::PkgRequest {
-        todo!()
+    fn get_merged_request(&self, name: &str) -> PyResult<api::PkgRequest> {
+        // tests reveal this method is not safe to cache.
+        let mut merged: Option<api::PkgRequest> = None;
+        for request in self.pkg_requests.iter() {
+            match merged.as_mut() {
+                None => {
+                    if request.pkg.name() != name {
+                        continue;
+                    }
+                    merged = Some(request.clone());
+                }
+                Some(merged) => {
+                    if request.pkg.name() != merged.pkg.name() {
+                        continue;
+                    }
+                    merged.restrict(request)?;
+                }
+            }
+        }
+        Ok(merged.unwrap_or_else(|| panic!("No requests for '{}' [INTERNAL ERROR]", name)))
     }
 
-    pub fn get_next_request(&self) -> Option<api::PkgRequest> {
+    pub fn get_next_request(&self) -> PyResult<Option<api::PkgRequest>> {
         // tests reveal this method is not safe to cache.
         let packages: HashSet<&str> = self
             .packages
@@ -392,10 +410,10 @@ impl State {
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
                 continue;
             }
-            return Some(self.get_merged_request(request.pkg.name()));
+            return Ok(Some(self.get_merged_request(request.pkg.name())?));
         }
 
-        None
+        Ok(None)
     }
 
     pub fn get_option_map(&self) -> api::OptionMap {

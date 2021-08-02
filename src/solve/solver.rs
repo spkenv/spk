@@ -42,7 +42,7 @@ impl Solver {
 
     fn step_state(&self, node: &Node) -> errors::Result<Option<Decision>> {
         let mut _notes = Vec::<NoteEnum>::new();
-        let request = if let Some(request) = node.state.get_next_request() {
+        let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
             return Ok(None);
@@ -319,7 +319,7 @@ impl Solver {
                 (*solve_graph).read().unwrap().clone(),
             ))
         } else {
-            Ok(current_node_lock.state.as_solution())
+            Ok(current_node_lock.state.as_solution()?)
         }
     }
 
