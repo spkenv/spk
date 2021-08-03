@@ -20,7 +20,7 @@ use super::{
         SortedBuildIterator,
     },
     solution::{PackageSource, Solution},
-    validation::{self, BinaryOnlyValidator, Validators},
+    validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
 };
 
 create_exception!(errors, SolverFailedError, SolverError);
@@ -339,7 +339,13 @@ impl Solver {
             .push(Changes::SetOptions(graph::SetOptions::new(options)))
     }
 
-    fn validate(&self, _node: &State, _spec: &api::Spec) -> api::Compatibility {
-        todo!()
+    fn validate(&self, node: &State, spec: &api::Spec) -> api::Compatibility {
+        for validator in &self.validators {
+            let compat = validator.validate(node, spec);
+            if !&compat {
+                return compat;
+            }
+        }
+        api::Compatibility::Compatible
     }
 }

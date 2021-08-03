@@ -15,7 +15,16 @@ pub enum Validators {
 
 pub trait ValidatorT {
     /// Check if the given package is appropriate for the provided state.
-    fn validate(&self, state: graph::State, spec: api::Spec) -> api::Compatibility;
+    fn validate(&self, state: &graph::State, spec: &api::Spec) -> api::Compatibility;
+}
+
+impl ValidatorT for Validators {
+    fn validate(&self, state: &graph::State, spec: &api::Spec) -> api::Compatibility {
+        match self {
+            Validators::Deprecation(v) => v.validate(state, spec),
+            Validators::BinaryOnly(v) => v.validate(state, spec),
+        }
+    }
 }
 
 #[pyclass(subclass)]
@@ -27,7 +36,7 @@ pub struct Validator {}
 pub struct DeprecationValidator {}
 
 impl ValidatorT for DeprecationValidator {
-    fn validate(&self, _state: graph::State, _spec: api::Spec) -> api::Compatibility {
+    fn validate(&self, _state: &graph::State, _spec: &api::Spec) -> api::Compatibility {
         todo!()
     }
 }
@@ -38,7 +47,7 @@ impl ValidatorT for DeprecationValidator {
 pub struct BinaryOnlyValidator {}
 
 impl ValidatorT for BinaryOnlyValidator {
-    fn validate(&self, _state: graph::State, _spec: api::Spec) -> api::Compatibility {
+    fn validate(&self, _state: &graph::State, _spec: &api::Spec) -> api::Compatibility {
         todo!()
     }
 }
