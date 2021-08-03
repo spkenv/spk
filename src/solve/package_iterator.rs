@@ -129,8 +129,8 @@ impl PackageIterator for RepositoryPackageIterator {
         Ok(Some((pkg, builds.clone())))
     }
 
-    fn set_builds(&mut self, _version: &api::Version, _builds: Arc<Mutex<dyn BuildIterator>>) {
-        todo!()
+    fn set_builds(&mut self, version: &api::Version, builds: Arc<Mutex<dyn BuildIterator>>) {
+        self.builds_map.insert(version.clone(), builds);
     }
 }
 
