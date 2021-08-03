@@ -12,7 +12,7 @@ use std::{
 use super::errors::PackageNotFoundError;
 use super::solution::PackageSource;
 
-pub trait BuildIterator: DynClone + Send + Sync {
+pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_empty(&self) -> bool;
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>>;
     fn version_spec(&self) -> Option<api::Spec>;
@@ -22,7 +22,7 @@ dyn_clone::clone_trait_object!(BuildIterator);
 
 type PackageIteratorItem = (api::Ident, Arc<Mutex<dyn BuildIterator>>);
 
-pub trait PackageIterator: DynClone + Send + Sync {
+pub trait PackageIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn next(&mut self) -> crate::Result<Option<PackageIteratorItem>>;
 
     /// Replaces the internal build iterator for version with the given one.
@@ -31,7 +31,7 @@ pub trait PackageIterator: DynClone + Send + Sync {
 
 dyn_clone::clone_trait_object!(PackageIterator);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct VersionIterator {
     versions: VecDeque<api::Version>,
 }
@@ -51,6 +51,7 @@ impl VersionIterator {
 }
 
 /// A stateful cursor yielding package builds from a set of repositories.
+#[derive(Debug)]
 pub struct RepositoryPackageIterator {
     pub package_name: String,
     pub repos: Vec<PyObject>,
@@ -181,7 +182,7 @@ impl RepositoryPackageIterator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
     pkg: api::Ident,
     repo: PyObject,
@@ -268,7 +269,7 @@ impl RepositoryBuildIterator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EmptyBuildIterator {}
 
 impl BuildIterator for EmptyBuildIterator {
@@ -291,7 +292,7 @@ impl EmptyBuildIterator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
     options: api::OptionMap,
     source: Arc<Mutex<dyn BuildIterator>>,

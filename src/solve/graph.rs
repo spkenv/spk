@@ -21,13 +21,14 @@ lazy_static! {
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 
+#[derive(Debug)]
 pub enum GraphError {
     RecursionError(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, GraphError>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Changes {
     RequestPackage(RequestPackage),
     RequestVar(RequestVar),
@@ -74,7 +75,7 @@ pub struct Change {}
 ///
 /// Each decision connects one state to another in the graph.
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Decision {
     pub changes: Vec<Changes>,
     pub notes: Vec<NoteEnum>,
@@ -168,7 +169,7 @@ impl Decision {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Graph {
     pub root: Arc<RwLock<Node>>,
     pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
@@ -237,7 +238,7 @@ impl Default for Graph {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Node {
     pub inputs: HashMap<u64, Decision>,
     pub outputs: HashMap<u64, Decision>,
@@ -295,7 +296,7 @@ pub enum NoteEnum {
 }
 
 #[pyclass(extends=Change)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RequestPackage {
     request: api::PkgRequest,
 }
@@ -317,7 +318,7 @@ impl ChangeT for RequestPackage {
 }
 
 #[pyclass(extends=Change)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RequestVar {
     request: api::VarRequest,
 }
@@ -346,7 +347,7 @@ impl ChangeT for RequestVar {
 }
 
 #[pyclass(extends=Change, subclass)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SetOptions {
     options: api::OptionMap,
 }
@@ -371,7 +372,7 @@ impl ChangeT for SetOptions {
 }
 
 #[pyclass(extends=Change, subclass)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SetPackage {
     spec: api::Spec,
     source: PackageSource,
@@ -393,7 +394,7 @@ impl ChangeT for SetPackage {
 pub struct SetPackageBuild {}
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct State {
     pkg_requests: Vec<api::PkgRequest>,
     var_requests: Vec<api::VarRequest>,
@@ -587,7 +588,7 @@ impl SkipPackageNote {
 }
 
 #[pyclass(extends=Change)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StepBack {
     cause: String,
     destination: State,

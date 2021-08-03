@@ -9,7 +9,7 @@ use crate::{
     error,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PackageSource {
     Repository(PyObject),
     Spec(Box<api::Spec>),
@@ -30,6 +30,7 @@ pub struct SolvedRequest {
 }
 
 #[pyclass]
+#[derive(Debug)]
 pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (api::Spec, PackageSource)>,
