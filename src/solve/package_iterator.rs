@@ -234,7 +234,7 @@ impl BuildIterator for RepositoryBuildIterator {
     }
 
     fn version_spec(&self) -> Option<api::Spec> {
-        todo!()
+        self.spec.clone()
     }
 }
 
