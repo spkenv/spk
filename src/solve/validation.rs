@@ -43,10 +43,24 @@ pub struct DeprecationValidator {}
 impl ValidatorT for DeprecationValidator {
     fn validate(
         &self,
-        _state: &graph::State,
-        _spec: &api::Spec,
+        state: &graph::State,
+        spec: &api::Spec,
     ) -> crate::Result<api::Compatibility> {
-        todo!()
+        if !spec.deprecated {
+            return Ok(api::Compatibility::Compatible);
+        }
+        if spec.pkg.build.is_none() {
+            return Ok(api::Compatibility::Incompatible(
+                "package version is deprecated".to_owned(),
+            ));
+        }
+        let request = state.get_merged_request(spec.pkg.name())?;
+        if request.pkg.build == spec.pkg.build {
+            return Ok(api::Compatibility::Compatible);
+        }
+        Ok(api::Compatibility::Incompatible(
+            "build is deprecated (and not requested exactly)".to_owned(),
+        ))
     }
 }
 
