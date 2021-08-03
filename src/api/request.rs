@@ -590,7 +590,7 @@ impl PkgRequest {
     }
 
     #[staticmethod]
-    fn from_ident(pkg: &Ident) -> Self {
+    pub fn from_ident(pkg: &Ident) -> Self {
         Self::from(pkg)
     }
 }

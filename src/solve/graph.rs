@@ -32,6 +32,7 @@ pub enum Changes {
     RequestPackage(RequestPackage),
     RequestVar(RequestVar),
     SetOptions(SetOptions),
+    SetPackage(Box<SetPackage>),
     StepBack(StepBack),
 }
 
@@ -41,6 +42,7 @@ impl Changes {
             Changes::RequestPackage(rp) => rp.apply(base),
             Changes::RequestVar(rv) => rv.apply(base),
             Changes::SetOptions(so) => so.apply(base),
+            Changes::SetPackage(sp) => sp.apply(base),
             Changes::StepBack(sb) => sb.apply(base),
         }
     }
@@ -106,8 +108,62 @@ impl Decision {
         todo!()
     }
 
-    pub fn resolve_package(_spec: &api::Spec, _source: &PackageSource) -> Decision {
-        todo!()
+    pub fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
+        let generate_changes = || {
+            let mut changes = vec![Changes::SetPackage(Box::new(SetPackage::new(
+                spec.clone(),
+                source,
+            )))];
+
+            // installation options are not relevant for source packages
+            if spec.pkg.is_source() {
+                return changes;
+            }
+
+            for req in &spec.install.requirements {
+                match req {
+                    api::Request::Pkg(req) => {
+                        changes.push(Changes::RequestPackage(RequestPackage::new(req.clone())))
+                    }
+                    api::Request::Var(req) => {
+                        changes.push(Changes::RequestVar(RequestVar::new(req.clone())))
+                    }
+                }
+            }
+
+            for embedded in &spec.install.embedded {
+                changes.push(Changes::RequestPackage(RequestPackage::new(
+                    api::PkgRequest::from_ident(&embedded.pkg),
+                )));
+                changes.push(Changes::SetPackage(Box::new(SetPackage::new(
+                    embedded.clone(),
+                    PackageSource::Spec(Box::new(spec.clone())),
+                ))));
+            }
+
+            let mut opts = api::OptionMap::default();
+            opts.insert(
+                spec.pkg.name().to_owned(),
+                spec.compat.render(&spec.pkg.version),
+            );
+            for opt in &spec.build.options {
+                let value = opt.get_value(None);
+                if !value.is_empty() {
+                    let name = opt.namespaced_name(spec.pkg.name());
+                    opts.insert(name, value);
+                }
+            }
+            if !opts.is_empty() {
+                changes.push(Changes::SetOptions(SetOptions::new(opts)));
+            }
+
+            changes
+        };
+
+        Decision {
+            changes: generate_changes(),
+            notes: Vec::default(),
+        }
     }
 }
 
@@ -241,7 +297,13 @@ pub enum NoteEnum {
 #[pyclass(extends=Change)]
 #[derive(Clone)]
 pub struct RequestPackage {
-    pub request: api::PkgRequest,
+    request: api::PkgRequest,
+}
+
+impl RequestPackage {
+    pub fn new(request: api::PkgRequest) -> Self {
+        RequestPackage { request }
+    }
 }
 
 impl ChangeT for RequestPackage {
@@ -257,7 +319,13 @@ impl ChangeT for RequestPackage {
 #[pyclass(extends=Change)]
 #[derive(Clone)]
 pub struct RequestVar {
-    pub request: api::VarRequest,
+    request: api::VarRequest,
+}
+
+impl RequestVar {
+    pub fn new(request: api::VarRequest) -> Self {
+        RequestVar { request }
+    }
 }
 
 impl ChangeT for RequestVar {
@@ -303,7 +371,23 @@ impl ChangeT for SetOptions {
 }
 
 #[pyclass(extends=Change, subclass)]
-pub struct SetPackage {}
+#[derive(Clone)]
+pub struct SetPackage {
+    spec: api::Spec,
+    source: PackageSource,
+}
+
+impl SetPackage {
+    fn new(spec: api::Spec, source: PackageSource) -> Self {
+        SetPackage { spec, source }
+    }
+}
+
+impl ChangeT for SetPackage {
+    fn apply(&self, base: &State) -> State {
+        base.with_package(self.spec.clone(), self.source.clone())
+    }
+}
 
 #[pyclass(extends=SetPackage)]
 pub struct SetPackageBuild {}
@@ -435,6 +519,18 @@ impl State {
             self.var_requests.clone(),
             self.packages.clone(),
             options,
+        )
+    }
+
+    fn with_package(&self, spec: api::Spec, source: PackageSource) -> Self {
+        let mut new_packages = self.packages.clone();
+        new_packages.push((spec, source));
+
+        State::new(
+            self.pkg_requests.clone(),
+            self.var_requests.clone(),
+            new_packages,
+            self.options.clone(),
         )
     }
 

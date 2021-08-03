@@ -141,7 +141,7 @@ impl Solver {
                         }
                     }
                 } else {
-                    Decision::resolve_package(&spec, &repo)
+                    Decision::resolve_package(&spec, repo)
                 };
                 decision.add_notes(notes.iter());
                 return Ok(Some(decision));
@@ -194,13 +194,13 @@ impl Solver {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
                     })?;
                     request.required_compat = Some(CompatRule::API);
-                    break Changes::RequestPackage(RequestPackage { request });
+                    break Changes::RequestPackage(RequestPackage::new(request));
                 }
                 RequestEnum::Request(request) => match request {
                     Request::Pkg(request) => {
-                        break Changes::RequestPackage(RequestPackage { request })
+                        break Changes::RequestPackage(RequestPackage::new(request))
                     }
-                    Request::Var(request) => break Changes::RequestVar(RequestVar { request }),
+                    Request::Var(request) => break Changes::RequestVar(RequestVar::new(request)),
                 },
             }
         };
