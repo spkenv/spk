@@ -378,7 +378,7 @@ impl State {
         Ok(solution)
     }
 
-    fn get_merged_request(&self, name: &str) -> PyResult<api::PkgRequest> {
+    pub fn get_merged_request(&self, name: &str) -> PyResult<api::PkgRequest> {
         // tests reveal this method is not safe to cache.
         let mut merged: Option<api::PkgRequest> = None;
         for request in self.pkg_requests.iter() {

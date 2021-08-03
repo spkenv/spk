@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 
-use crate::api;
+use crate::api::{self, Build};
 
 use super::graph;
 
@@ -15,11 +15,16 @@ pub enum Validators {
 
 pub trait ValidatorT {
     /// Check if the given package is appropriate for the provided state.
-    fn validate(&self, state: &graph::State, spec: &api::Spec) -> api::Compatibility;
+    fn validate(&self, state: &graph::State, spec: &api::Spec)
+        -> crate::Result<api::Compatibility>;
 }
 
 impl ValidatorT for Validators {
-    fn validate(&self, state: &graph::State, spec: &api::Spec) -> api::Compatibility {
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
         match self {
             Validators::Deprecation(v) => v.validate(state, spec),
             Validators::BinaryOnly(v) => v.validate(state, spec),
@@ -36,7 +41,11 @@ pub struct Validator {}
 pub struct DeprecationValidator {}
 
 impl ValidatorT for DeprecationValidator {
-    fn validate(&self, _state: &graph::State, _spec: &api::Spec) -> api::Compatibility {
+    fn validate(
+        &self,
+        _state: &graph::State,
+        _spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
         todo!()
     }
 }
@@ -46,9 +55,26 @@ impl ValidatorT for DeprecationValidator {
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
+const ONLY_BINARY_PACKAGES_ALLOWED: &str = "only binary packages are allowed";
+
 impl ValidatorT for BinaryOnlyValidator {
-    fn validate(&self, _state: &graph::State, _spec: &api::Spec) -> api::Compatibility {
-        todo!()
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        if spec.pkg.build.is_none() {
+            return Ok(api::Compatibility::Incompatible(
+                ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
+            ));
+        }
+        let request = state.get_merged_request(spec.pkg.name())?;
+        if spec.pkg.build == Some(Build::Source) && request.pkg.build != spec.pkg.build {
+            return Ok(api::Compatibility::Incompatible(
+                ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
+            ));
+        }
+        Ok(api::Compatibility::Compatible)
     }
 }
 

@@ -117,7 +117,7 @@ impl Solver {
                     }
                 }
 
-                compat = self.validate(&node.state, &spec);
+                compat = self.validate(&node.state, &spec)?;
                 if !&compat {
                     notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg, compat,
@@ -339,13 +339,13 @@ impl Solver {
             .push(Changes::SetOptions(graph::SetOptions::new(options)))
     }
 
-    fn validate(&self, node: &State, spec: &api::Spec) -> api::Compatibility {
+    fn validate(&self, node: &State, spec: &api::Spec) -> crate::Result<api::Compatibility> {
         for validator in &self.validators {
-            let compat = validator.validate(node, spec);
+            let compat = validator.validate(node, spec)?;
             if !&compat {
-                return compat;
+                return Ok(compat);
             }
         }
-        api::Compatibility::Compatible
+        Ok(api::Compatibility::Compatible)
     }
 }
