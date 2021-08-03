@@ -268,7 +268,7 @@ impl Solver {
             && (current_node.is_none()
                 || !current_node
                     .as_ref()
-                    .map(|n| std::ptr::eq(&n.read().unwrap().state, &*DEAD_STATE))
+                    .map(|n| Arc::ptr_eq(&n.read().unwrap().state, &DEAD_STATE))
                     .unwrap_or_default())
         {
             // The python code would `yield (current_node, decision)` here,
@@ -323,7 +323,7 @@ impl Solver {
 
         let is_dead = current_node_lock.state.id()
             == solve_graph.read().unwrap().root.read().unwrap().state.id()
-            || std::ptr::eq(&current_node_lock.state, &*DEAD_STATE);
+            || Arc::ptr_eq(&current_node_lock.state, &DEAD_STATE);
         let is_empty = self.get_initial_state().get_pkg_requests().is_empty();
         if is_dead && !is_empty {
             Err(SolverFailedError::new_err(

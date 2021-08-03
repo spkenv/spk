@@ -16,7 +16,7 @@ use super::{
 };
 
 lazy_static! {
-    pub static ref DEAD_STATE: State = State::default();
+    pub static ref DEAD_STATE: Arc<State> = Arc::new(State::default());
 }
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
@@ -195,8 +195,8 @@ impl Graph {
             .get_mut(&source_id)
             .expect("source_id exists in nodes")
             .clone();
-        let new_state = decision.apply(old_node.read().unwrap().state.clone());
-        let mut new_node = Arc::new(RwLock::new(Node::new(new_state)));
+        let new_state = decision.apply((*old_node.read().unwrap().state).clone());
+        let mut new_node = Arc::new(RwLock::new(Node::new(Arc::new(new_state))));
         {
             let mut new_node_lock = new_node.write().unwrap();
 
@@ -242,7 +242,7 @@ impl Default for Graph {
 pub struct Node {
     pub inputs: HashMap<u64, Decision>,
     pub outputs: HashMap<u64, Decision>,
-    pub state: State,
+    pub state: Arc<State>,
     pub iterators: HashMap<String, Box<dyn PackageIterator>>,
 }
 
@@ -263,7 +263,7 @@ impl Node {
         self.iterators.get(package_name).cloned()
     }
 
-    fn new(state: State) -> Self {
+    fn new(state: Arc<State>) -> Self {
         Node {
             inputs: HashMap::default(),
             outputs: HashMap::default(),
