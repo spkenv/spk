@@ -15,6 +15,15 @@ pub enum PackageSource {
     Spec(Box<api::Spec>),
 }
 
+impl IntoPy<Py<PyAny>> for PackageSource {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            PackageSource::Repository(s) => s,
+            PackageSource::Spec(s) => s.into_py(py),
+        }
+    }
+}
+
 impl PackageSource {
     pub fn read_spec(&self, _ident: &Ident) -> error::Result<api::Spec> {
         todo!()
@@ -56,7 +65,7 @@ impl Solution {
 
 #[pyclass]
 pub struct SolvedRequestIter {
-    iter: std::collections::hash_map::IntoIter<api::PkgRequest, (api::Spec, PackageSource)>,
+    iter: std::vec::IntoIter<(api::PkgRequest, api::Spec, PackageSource)>,
 }
 
 #[pyproto]
@@ -65,14 +74,8 @@ impl PyIterProtocol for SolvedRequestIter {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<SolvedRequest> {
-        slf.iter
-            .next()
-            .map(|(request, (spec, source))| SolvedRequest {
-                request,
-                spec,
-                source,
-            })
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<(api::PkgRequest, api::Spec, PackageSource)> {
+        slf.iter.next()
     }
 }
 
@@ -80,7 +83,13 @@ impl PyIterProtocol for SolvedRequestIter {
 impl Solution {
     pub fn items(&self) -> SolvedRequestIter {
         SolvedRequestIter {
-            iter: self.resolved.clone().into_iter(),
+            iter: self
+                .resolved
+                .clone()
+                .into_iter()
+                .map(|(request, (spec, source))| (request, spec, source))
+                .collect::<Vec<_>>()
+                .into_iter(),
         }
     }
 
