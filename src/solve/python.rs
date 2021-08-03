@@ -9,7 +9,7 @@ use super::graph::{
     SetPackageBuild, SkipPackageNote, StepBack,
 };
 use super::solution::Solution;
-use super::solver::Solver;
+use super::solver::{Solver, SolverFailedError};
 use super::validation::Validator;
 
 fn init_submodule_errors(py: &Python, module: &PyModule) -> PyResult<()> {
@@ -38,7 +38,8 @@ fn init_submodule_solution(module: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-fn init_submodule_solver(module: &PyModule) -> PyResult<()> {
+fn init_submodule_solver(py: &Python, module: &PyModule) -> PyResult<()> {
+    module.add("SolverFailedError", py.get_type::<SolverFailedError>())?;
     module.add_class::<Solver>()?;
     Ok(())
 }
@@ -61,7 +62,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     }
     {
         let submod_solver = PyModule::new(*py, "_solver")?;
-        init_submodule_solver(submod_solver)?;
+        init_submodule_solver(py, submod_solver)?;
         m.add_submodule(submod_solver)?;
     }
     {
@@ -80,6 +81,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Solver>()?;
 
     m.add("SolverError", py.get_type::<SolverError>())?;
+    m.add("SolverFailedError", py.get_type::<SolverFailedError>())?;
 
     Ok(())
 }
