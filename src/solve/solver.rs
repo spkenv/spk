@@ -84,7 +84,7 @@ impl Solver {
             let builds = Arc::new(Mutex::new(SortedBuildIterator::new(
                 node.state.get_option_map(),
                 builds.clone(),
-            )));
+            )?));
             iterator.set_builds(&pkg.version, builds.clone());
 
             while let Some((spec, repo)) = builds.lock().unwrap().next()? {

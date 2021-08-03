@@ -1,11 +1,11 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use crate::api;
+use crate::api::{self, Build};
 use dyn_clone::DynClone;
 use pyo3::{prelude::*, types::PyTuple};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -15,6 +15,7 @@ use super::solution::PackageSource;
 pub trait BuildIterator: DynClone + Send + Sync {
     fn is_empty(&self) -> bool;
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>>;
+    fn version_spec(&self) -> Option<api::Spec>;
 }
 
 dyn_clone::clone_trait_object!(BuildIterator);
@@ -196,6 +197,10 @@ impl BuildIterator for RepositoryBuildIterator {
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
         todo!()
     }
+
+    fn version_spec(&self) -> Option<api::Spec> {
+        todo!()
+    }
 }
 
 impl RepositoryBuildIterator {
@@ -239,6 +244,10 @@ impl BuildIterator for EmptyBuildIterator {
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
         Ok(None)
     }
+
+    fn version_spec(&self) -> Option<api::Spec> {
+        todo!()
+    }
 }
 
 impl EmptyBuildIterator {
@@ -250,7 +259,8 @@ impl EmptyBuildIterator {
 #[derive(Clone)]
 pub struct SortedBuildIterator {
     options: api::OptionMap,
-    source: Box<dyn BuildIterator>,
+    source: Arc<Mutex<dyn BuildIterator>>,
+    builds: VecDeque<(api::Spec, PackageSource)>,
 }
 
 impl BuildIterator for SortedBuildIterator {
@@ -261,10 +271,96 @@ impl BuildIterator for SortedBuildIterator {
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
         todo!()
     }
+
+    fn version_spec(&self) -> Option<api::Spec> {
+        self.source.lock().unwrap().version_spec()
+    }
 }
 
 impl SortedBuildIterator {
-    pub fn new(_options: api::OptionMap, _source: Arc<Mutex<dyn BuildIterator>>) -> Self {
-        todo!()
+    pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> PyResult<Self> {
+        let mut builds = VecDeque::<(api::Spec, PackageSource)>::new();
+        {
+            let mut source_lock = source.lock().unwrap();
+            while let Some(item) = source_lock.next()? {
+                builds.push_back(item);
+            }
+        }
+
+        let mut sbi = SortedBuildIterator {
+            options,
+            source,
+            builds,
+        };
+
+        sbi.sort();
+
+        Ok(sbi)
+    }
+
+    #[allow(clippy::nonminimal_bool)]
+    fn sort(&mut self) {
+        let version_spec = self.version_spec();
+        let variant_count = version_spec
+            .as_ref()
+            .map(|s| s.build.variants.len())
+            .unwrap_or(0);
+        let default_options = version_spec
+            .as_ref()
+            .map(|s| s.resolve_all_options(&api::OptionMap::default()))
+            .unwrap_or_else(api::OptionMap::default);
+
+        let self_options = self.options.clone();
+
+        self.builds
+            .make_contiguous()
+            .sort_by_cached_key(|(spec, _)| {
+                let build = spec
+                    .pkg
+                    .build
+                    .as_ref()
+                    .map(|b| b.to_string())
+                    .unwrap_or_else(|| "None".to_owned());
+                let total_options_count = spec.build.options.len();
+                // source packages must come last to ensure that building
+                // from source is the last option under normal circumstances
+                if spec.pkg.build.is_none() || spec.pkg.build == Some(Build::Source) {
+                    return ((variant_count + total_options_count + 1) as i64, build);
+                }
+
+                if let Some(version_spec) = &version_spec {
+                    // if this spec is compatible with the default options, it's the
+                    // most valuable
+                    if !!&spec
+                        .build
+                        .validate_options(spec.pkg.name(), &default_options)
+                    {
+                        return (-1, build);
+                    }
+                    // then we sort based on the first defined variant that seems valid
+                    for (i, variant) in version_spec.build.variants.iter().enumerate() {
+                        if !!&spec.build.validate_options(spec.pkg.name(), variant) {
+                            return (i as i64, build);
+                        }
+                    }
+                }
+
+                // and then it's the distance from the default option set,
+                // where distance is just the number of differing options
+                let current_options_unfiltered =
+                    spec.resolve_all_options(&api::OptionMap::default());
+                let current_options: HashSet<(&String, &String)> = current_options_unfiltered
+                    .iter()
+                    .filter(|&(o, _)| self_options.contains_key(o))
+                    .collect();
+                let similar_options_count = default_options
+                    .iter()
+                    .collect::<HashSet<_>>()
+                    .intersection(&current_options)
+                    .collect::<HashSet<_>>()
+                    .len();
+                let distance_from_default = (total_options_count - similar_options_count).max(0);
+                ((variant_count + distance_from_default) as i64, build)
+            });
     }
 }
