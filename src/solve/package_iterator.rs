@@ -304,7 +304,7 @@ impl BuildIterator for SortedBuildIterator {
     }
 
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
-        todo!()
+        Ok(self.builds.pop_front())
     }
 
     fn version_spec(&self) -> Option<api::Spec> {
