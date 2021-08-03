@@ -195,7 +195,42 @@ impl BuildIterator for RepositoryBuildIterator {
     }
 
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
-        todo!()
+        let build = if let Some(build) = self.builds.pop_front() {
+            build
+        } else {
+            return Ok(None);
+        };
+
+        let spec: PyResult<Option<api::Spec>> = Python::with_gil(|py| {
+            // XXX: Ident: ToPyObject missing?
+            let args = PyTuple::new(py, &[build.to_string()]);
+            match self.repo.call_method1(py, "read_spec", args) {
+                Ok(spec) => Ok(Some(spec.as_ref(py).extract::<api::Spec>()?)),
+                // FIXME: This should only catch PackageNotFoundError
+                Err(_) => {
+                    tracing::warn!(
+                        "Repository listed build with no spec: {} from {}",
+                        build,
+                        self.repo
+                    );
+                    Ok(None)
+                }
+            }
+        });
+        let mut spec = if let Some(spec) = spec? {
+            spec
+        } else {
+            return self.next();
+        };
+        if spec.pkg.build.is_none() {
+            tracing::warn!(
+                "Published spec is corrupt (has no associated build), pkg={}",
+                build,
+            );
+            spec.pkg = spec.pkg.with_build(build.build);
+        }
+
+        Ok(Some((spec, PackageSource::Repository(self.repo.clone()))))
     }
 
     fn version_spec(&self) -> Option<api::Spec> {

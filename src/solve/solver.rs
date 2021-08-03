@@ -88,14 +88,11 @@ impl Solver {
             iterator.set_builds(&pkg.version, builds.clone());
 
             while let Some((spec, repo)) = builds.lock().unwrap().next()? {
-                // Needed by unreachable code below...
-                // let mut spec = spec;
+                let mut spec = spec;
                 let build_from_source = spec.pkg.build == Some(Build::Source)
                     && request.pkg.build != Some(Build::Source);
                 if build_from_source {
-                    // Currently irrefutable...
-                    let PackageSource::Spec(spec) = repo;
-                    {
+                    if let PackageSource::Spec(spec) = repo {
                         notes.push(NoteEnum::SkipPackageNote(
                             SkipPackageNote::new_from_message(
                                 spec.pkg.clone(),
@@ -104,22 +101,20 @@ impl Solver {
                         ));
                         continue;
                     }
-                    /*
-                    // Currently unreachable...
+
                     // FIXME: This should only match `PackageNotFoundError`
                     match repo.read_spec(&spec.pkg.with_build(None)) {
                         Ok(s) => spec = s,
                         Err(_) => {
                             notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
-                                    &spec.pkg,
+                                    spec.pkg,
                                     "cannot build from source, version spec not available",
                                 ),
                             ));
                             continue;
                         }
                     }
-                    */
                 }
 
                 compat = self.validate(&node.state, &spec);

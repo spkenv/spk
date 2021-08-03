@@ -11,8 +11,8 @@ use crate::{
 
 #[derive(Clone)]
 pub enum PackageSource {
-    // todo!() Repository(Repository),
-    Spec(api::Spec),
+    Repository(PyObject),
+    Spec(Box<api::Spec>),
 }
 
 impl PackageSource {
