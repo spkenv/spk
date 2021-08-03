@@ -23,6 +23,8 @@ fn test_sources_relative_to_spec_file() {
     let tmpdir = tempdir::TempDir::new("spk_test").unwrap();
     let spec_dir = tmpdir.path().join("dir");
     std::fs::create_dir(&spec_dir).unwrap();
+    // canonicalize because read_spec_file does that too otherwise assert below fails
+    let spec_dir = spec_dir.canonicalize().unwrap();
     let spec_file = spec_dir.join("package.spk.yaml");
     let mut file = std::fs::File::create(&spec_file).unwrap();
     file.write_all(b"{}").unwrap();
