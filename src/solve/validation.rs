@@ -11,6 +11,7 @@ use super::graph;
 pub enum Validators {
     Deprecation(DeprecationValidator),
     BinaryOnly(BinaryOnlyValidator),
+    PackageRequest(PkgRequestValidator),
 }
 
 pub trait ValidatorT {
@@ -28,6 +29,7 @@ impl ValidatorT for Validators {
         match self {
             Validators::Deprecation(v) => v.validate(state, spec),
             Validators::BinaryOnly(v) => v.validate(state, spec),
+            Validators::PackageRequest(v) => v.validate(state, spec),
         }
     }
 }
@@ -92,6 +94,40 @@ impl ValidatorT for BinaryOnlyValidator {
     }
 }
 
+/// Ensures that a package meets all requested version criteria.
+#[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
+pub struct PkgRequestValidator {}
+
+impl ValidatorT for PkgRequestValidator {
+    #[allow(clippy::nonminimal_bool)]
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        let request = match state.get_merged_request(spec.pkg.name()) {
+            Ok(request) => request,
+            // FIXME: This should only catch KeyError
+            Err(_) => {
+                return Ok(api::Compatibility::Incompatible(
+                    "package was not requested [INTERNAL ERROR]".to_owned(),
+                ))
+            }
+        };
+        // the initial check is more general and provides more user
+        // friendly error messages that we'd like to get
+        let mut compat = request.is_version_applicable(&spec.pkg.version);
+        if !!&compat {
+            compat = request.is_satisfied_by(spec)
+        }
+        Ok(compat)
+    }
+}
+
 pub fn default_validators() -> Vec<Validators> {
-    vec![Validators::Deprecation(DeprecationValidator {})]
+    vec![
+        Validators::Deprecation(DeprecationValidator {}),
+        Validators::PackageRequest(PkgRequestValidator {}),
+    ]
 }
