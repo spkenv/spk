@@ -1,7 +1,11 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{prelude::*, types::PyTuple, PyIterProtocol};
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyTuple},
+    PyIterProtocol,
+};
 use std::collections::HashMap;
 
 use crate::api::{self, Ident};
@@ -87,6 +91,14 @@ impl PyIterProtocol for SolvedRequestIter {
     }
 }
 
+#[derive(FromPyObject)]
+pub enum BaseEnvironment<'a> {
+    Dict(HashMap<String, String>),
+    // Handle being called with `os.environ`.
+    // '_Environ' object cannot be converted to 'PyDict'
+    Other(&'a PyAny),
+}
+
 #[pymethods]
 impl Solution {
     pub fn items(&self) -> SolvedRequestIter {
@@ -108,11 +120,22 @@ impl Solution {
     /// Return the data of this solution as environment variables.
     ///
     /// If base is given, also clean any existing, conflicting values.
-    pub fn to_environment(&self, base: Option<HashMap<String, String>>) -> HashMap<String, String> {
-        let mut out = if let Some(base) = base {
-            base
-        } else {
-            HashMap::default()
+    pub fn to_environment(
+        &self,
+        base: Option<BaseEnvironment>,
+    ) -> PyResult<HashMap<String, String>> {
+        let mut out = match base {
+            Some(BaseEnvironment::Dict(base)) => base,
+            Some(BaseEnvironment::Other(base)) => {
+                Python::with_gil(|py| {
+                    // Try to coerce given object into a dictionary, as in:
+                    //
+                    //     dict(os.environ)
+                    let dict = py.get_type::<PyDict>();
+                    dict.call1((base,))?.extract::<HashMap<String, String>>()
+                })?
+            }
+            None => HashMap::default(),
         };
 
         out.retain(|name, _| !name.starts_with("SPK_PKG_"));
@@ -157,6 +180,6 @@ impl Solution {
         }
 
         out.extend(self.options.to_environment().into_iter());
-        out
+        Ok(out)
     }
 }
