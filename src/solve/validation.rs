@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 
 use crate::api::{self, Build};
 
+use super::errors;
 use super::graph;
 
 #[derive(Clone, Copy)]
@@ -14,6 +15,7 @@ pub enum Validators {
     PackageRequest(PkgRequestValidator),
     Options(OptionsValidator),
     VarRequirements(VarRequirementsValidator),
+    PkgRequirements(PkgRequirementsValidator),
 }
 
 pub trait ValidatorT {
@@ -34,6 +36,7 @@ impl ValidatorT for Validators {
             Validators::PackageRequest(v) => v.validate(state, spec),
             Validators::Options(v) => v.validate(state, spec),
             Validators::VarRequirements(v) => v.validate(state, spec),
+            Validators::PkgRequirements(v) => v.validate(state, spec),
         }
     }
 }
@@ -153,6 +156,63 @@ impl ValidatorT for PkgRequestValidator {
     }
 }
 
+/// Validates that the pkg install requirements do not conflict with the existing resolve.
+#[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
+pub struct PkgRequirementsValidator {}
+
+impl ValidatorT for PkgRequirementsValidator {
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        if spec.pkg.is_source() {
+            // source packages are not being "installed" so requests don't matter
+            return Ok(api::Compatibility::Compatible);
+        }
+
+        for request in &spec.install.requirements {
+            if let api::Request::Pkg(request) = request {
+                let mut existing = match state.get_merged_request(request.pkg.name()) {
+                    Ok(request) => request,
+                    Err(errors::GetMergedRequestError::NoRequestFor(_)) => continue,
+                    // XXX: KeyError or ValueError still possible here?
+                    Err(err) => return Err(err.into()),
+                };
+
+                let request = match existing.restrict(request) {
+                    Ok(_) => existing,
+                    // FIXME: only match ValueError
+                    Err(crate::Error::PyErr(err)) => {
+                        return Ok(api::Compatibility::Incompatible(format!(
+                            "conflicting requirement: {}",
+                            err
+                        )))
+                    }
+                    Err(err) => return Err(err),
+                };
+
+                let resolved = match state.get_current_resolve(request.pkg.name()) {
+                    Ok(resolved) => resolved,
+                    Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => continue,
+                };
+
+                let compat = resolved.satisfies_pkg_request(&request);
+                if !&compat {
+                    return Ok(api::Compatibility::Incompatible(format!(
+                        "conflicting requirement: '{}' {}",
+                        request.pkg.name(),
+                        compat
+                    )));
+                }
+            }
+        }
+
+        Ok(api::Compatibility::Compatible)
+    }
+}
+
 /// Validates that the var install requirements do not conflict with the existing options.
 #[pyclass(extends=Validator)]
 #[derive(Clone, Copy)]
@@ -201,5 +261,6 @@ pub fn default_validators() -> Vec<Validators> {
         Validators::PackageRequest(PkgRequestValidator {}),
         Validators::Options(OptionsValidator {}),
         Validators::VarRequirements(VarRequirementsValidator {}),
+        Validators::PkgRequirements(PkgRequirementsValidator {}),
     ]
 }
