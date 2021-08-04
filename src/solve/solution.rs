@@ -75,6 +75,13 @@ impl Solution {
     }
 }
 
+#[pyproto]
+impl pyo3::PyObjectProtocol for Solution {
+    fn __repr__(&self) -> String {
+        format!("{:#?}", self)
+    }
+}
+
 #[pyclass]
 pub struct SolvedRequestIter {
     iter: std::vec::IntoIter<(api::PkgRequest, api::Spec, PackageSource)>,
