@@ -16,6 +16,14 @@ pub enum PackageSource {
     Spec(Box<api::Spec>),
 }
 
+impl<'source> FromPyObject<'source> for PackageSource {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        ob.extract::<api::Spec>()
+            .map(|s| PackageSource::Spec(Box::new(s)))
+            .or_else(|_| Ok(PackageSource::Repository(ob.into())))
+    }
+}
+
 impl IntoPy<Py<PyAny>> for PackageSource {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
@@ -58,22 +66,7 @@ pub struct Solution {
     by_name: HashMap<String, api::Spec>,
 }
 
-impl Solution {
-    pub fn new(options: Option<api::OptionMap>) -> Self {
-        Self {
-            options: options.unwrap_or_default(),
-            resolved: HashMap::default(),
-            by_name: HashMap::default(),
-        }
-    }
-
-    pub fn add(&mut self, request: &api::PkgRequest, package: &api::Spec, source: &PackageSource) {
-        self.resolved
-            .insert(request.clone(), (package.clone(), source.clone()));
-        self.by_name
-            .insert(request.pkg.name().to_owned(), package.clone());
-    }
-}
+impl Solution {}
 
 #[pyproto]
 impl pyo3::PyObjectProtocol for Solution {
@@ -98,7 +91,7 @@ impl PyIterProtocol for SolvedRequestIter {
     }
 }
 
-#[derive(FromPyObject)]
+#[derive(Debug, FromPyObject)]
 pub enum BaseEnvironment<'a> {
     Dict(HashMap<String, String>),
     // Handle being called with `os.environ`.
@@ -108,6 +101,22 @@ pub enum BaseEnvironment<'a> {
 
 #[pymethods]
 impl Solution {
+    #[new]
+    pub fn new(options: Option<api::OptionMap>) -> Self {
+        Self {
+            options: options.unwrap_or_default(),
+            resolved: HashMap::default(),
+            by_name: HashMap::default(),
+        }
+    }
+
+    pub fn add(&mut self, request: &api::PkgRequest, package: &api::Spec, source: PackageSource) {
+        self.resolved
+            .insert(request.clone(), (package.clone(), source));
+        self.by_name
+            .insert(request.pkg.name().to_owned(), package.clone());
+    }
+
     pub fn items(&self) -> SolvedRequestIter {
         SolvedRequestIter {
             iter: self
