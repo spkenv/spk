@@ -80,7 +80,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         "\
     import sys;\
     sys.modules['spkrs.api'] = api;\
-    sys.modules['spkrs.build'] = build\
+    sys.modules['spkrs.build'] = build;\
     ",
         None,
         Some(m.dict()),
