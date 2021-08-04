@@ -16,6 +16,7 @@ pub enum Validators {
     Options(OptionsValidator),
     VarRequirements(VarRequirementsValidator),
     PkgRequirements(PkgRequirementsValidator),
+    EmbeddedPackage(EmbeddedPackageValidator),
 }
 
 pub trait ValidatorT {
@@ -37,6 +38,7 @@ impl ValidatorT for Validators {
             Validators::Options(v) => v.validate(state, spec),
             Validators::VarRequirements(v) => v.validate(state, spec),
             Validators::PkgRequirements(v) => v.validate(state, spec),
+            Validators::EmbeddedPackage(v) => v.validate(state, spec),
         }
     }
 }
@@ -97,6 +99,41 @@ impl ValidatorT for BinaryOnlyValidator {
                 ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
             ));
         }
+        Ok(api::Compatibility::Compatible)
+    }
+}
+
+#[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
+pub struct EmbeddedPackageValidator {}
+
+impl ValidatorT for EmbeddedPackageValidator {
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        if spec.pkg.is_source() {
+            // source packages are not being "installed" so requests don't matter
+            return Ok(api::Compatibility::Compatible);
+        }
+
+        for embedded in &spec.install.embedded {
+            let existing = match state.get_merged_request(embedded.pkg.name()) {
+                Ok(request) => request,
+                Err(errors::GetMergedRequestError::NoRequestFor(_)) => continue,
+                Err(err) => return Err(err.into()),
+            };
+
+            let compat = existing.is_satisfied_by(embedded);
+            if !&compat {
+                return Ok(api::Compatibility::Incompatible(format!(
+                    "embedded package '{}' is incompatible: {}",
+                    embedded.pkg, compat
+                )));
+            }
+        }
+
         Ok(api::Compatibility::Compatible)
     }
 }
@@ -262,5 +299,6 @@ pub fn default_validators() -> Vec<Validators> {
         Validators::Options(OptionsValidator {}),
         Validators::VarRequirements(VarRequirementsValidator {}),
         Validators::PkgRequirements(PkgRequirementsValidator {}),
+        Validators::EmbeddedPackage(EmbeddedPackageValidator {}),
     ]
 }
