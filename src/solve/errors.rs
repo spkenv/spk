@@ -34,6 +34,43 @@ impl From<Error> for PyErr {
     }
 }
 
+pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestError>;
+
+pub enum GetMergedRequestError {
+    NoRequestFor(String),
+    Other(crate::Error),
+}
+
+impl From<GetMergedRequestError> for crate::Error {
+    fn from(err: GetMergedRequestError) -> Self {
+        match err {
+            GetMergedRequestError::NoRequestFor(s) => crate::Error::String(s),
+            GetMergedRequestError::Other(err) => err,
+        }
+    }
+}
+
+impl From<GetMergedRequestError> for PyErr {
+    fn from(err: GetMergedRequestError) -> Self {
+        match err {
+            GetMergedRequestError::NoRequestFor(s) => SolverError::new_err(s),
+            GetMergedRequestError::Other(err) => err.into(),
+        }
+    }
+}
+
+impl From<PyErr> for GetMergedRequestError {
+    fn from(err: PyErr) -> Self {
+        GetMergedRequestError::Other(crate::Error::PyErr(err))
+    }
+}
+
+impl From<crate::Error> for GetMergedRequestError {
+    fn from(err: crate::Error) -> Self {
+        GetMergedRequestError::Other(err)
+    }
+}
+
 #[derive(Debug)]
 pub struct OutOfOptions {
     pub request: api::PkgRequest,

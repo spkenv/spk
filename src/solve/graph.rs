@@ -10,6 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::api::{self, Ident, InclusionPolicy};
 
+use super::errors;
 use super::{
     package_iterator::PackageIterator,
     solution::{PackageSource, Solution},
@@ -463,7 +464,10 @@ impl State {
         Ok(solution)
     }
 
-    pub fn get_merged_request(&self, name: &str) -> PyResult<api::PkgRequest> {
+    pub fn get_merged_request(
+        &self,
+        name: &str,
+    ) -> errors::GetMergedRequestResult<api::PkgRequest> {
         // tests reveal this method is not safe to cache.
         let mut merged: Option<api::PkgRequest> = None;
         for request in self.pkg_requests.iter() {
@@ -482,7 +486,13 @@ impl State {
                 }
             }
         }
-        Ok(merged.unwrap_or_else(|| panic!("No requests for '{}' [INTERNAL ERROR]", name)))
+        match merged {
+            Some(merged) => Ok(merged),
+            None => Err(errors::GetMergedRequestError::NoRequestFor(format!(
+                "No requests for '{}' [INTERNAL ERROR]",
+                name
+            ))),
+        }
     }
 
     pub fn get_next_request(&self) -> PyResult<Option<api::PkgRequest>> {
