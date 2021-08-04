@@ -12,6 +12,7 @@ pub enum Validators {
     Deprecation(DeprecationValidator),
     BinaryOnly(BinaryOnlyValidator),
     PackageRequest(PkgRequestValidator),
+    Options(OptionsValidator),
 }
 
 pub trait ValidatorT {
@@ -30,6 +31,7 @@ impl ValidatorT for Validators {
             Validators::Deprecation(v) => v.validate(state, spec),
             Validators::BinaryOnly(v) => v.validate(state, spec),
             Validators::PackageRequest(v) => v.validate(state, spec),
+            Validators::Options(v) => v.validate(state, spec),
         }
     }
 }
@@ -94,6 +96,30 @@ impl ValidatorT for BinaryOnlyValidator {
     }
 }
 
+/// Ensures that a package is compatible with all requested options.
+#[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
+pub struct OptionsValidator {}
+
+impl ValidatorT for OptionsValidator {
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        for request in state.get_var_requests() {
+            let compat = spec.satisfies_var_request(request);
+            if !&compat {
+                return Ok(api::Compatibility::Incompatible(format!(
+                    "doesn't satisfy requested option: {}",
+                    compat
+                )));
+            }
+        }
+        Ok(api::Compatibility::Compatible)
+    }
+}
+
 /// Ensures that a package meets all requested version criteria.
 #[pyclass(extends=Validator)]
 #[derive(Clone, Copy)]
@@ -129,5 +155,6 @@ pub fn default_validators() -> Vec<Validators> {
     vec![
         Validators::Deprecation(DeprecationValidator {}),
         Validators::PackageRequest(PkgRequestValidator {}),
+        Validators::Options(OptionsValidator {}),
     ]
 }

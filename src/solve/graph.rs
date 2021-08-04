@@ -514,6 +514,10 @@ impl State {
         &self.pkg_requests
     }
 
+    pub fn get_var_requests(&self) -> &Vec<api::VarRequest> {
+        &self.var_requests
+    }
+
     fn with_options(&self, options: Vec<(String, String)>) -> Self {
         State::new(
             self.pkg_requests.clone(),
