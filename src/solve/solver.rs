@@ -334,6 +334,22 @@ impl Solver {
         }
     }
 
+    /// Adds requests for all build requirements and solves
+    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> crate::Result<Solution> {
+        let state = self.get_initial_state();
+
+        let build_options = spec.resolve_all_options(&state.get_option_map());
+        for option in &spec.build.options {
+            if let api::Opt::Pkg(option) = option {
+                let given = build_options.get(&option.pkg);
+                let request = option.to_request(given.cloned())?;
+                self.add_request(RequestEnum::Request(request))?;
+            }
+        }
+
+        Ok(self.solve()?)
+    }
+
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Changes::SetOptions(graph::SetOptions::new(options)))
