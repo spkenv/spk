@@ -301,7 +301,7 @@ pub struct SortedBuildIterator {
 
 impl BuildIterator for SortedBuildIterator {
     fn is_empty(&self) -> bool {
-        todo!()
+        self.builds.is_empty()
     }
 
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
