@@ -464,6 +464,19 @@ impl State {
         Ok(solution)
     }
 
+    pub fn get_current_resolve(&self, name: &str) -> errors::GetCurrentResolveResult<api::Spec> {
+        // TODO: cache this
+        for (spec, _) in &self.packages {
+            if spec.pkg.name() == name {
+                return Ok(spec.clone());
+            }
+        }
+        Err(errors::GetCurrentResolveError::PackageNotResolved(format!(
+            "Has not been resolved: '{}'",
+            name
+        )))
+    }
+
     pub fn get_merged_request(
         &self,
         name: &str,

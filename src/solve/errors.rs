@@ -34,6 +34,12 @@ impl From<Error> for PyErr {
     }
 }
 
+pub type GetCurrentResolveResult<T> = std::result::Result<T, GetCurrentResolveError>;
+
+pub enum GetCurrentResolveError {
+    PackageNotResolved(String),
+}
+
 pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestError>;
 
 pub enum GetMergedRequestError {
