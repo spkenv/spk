@@ -1,13 +1,10 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{prelude::*, PyIterProtocol};
+use pyo3::{prelude::*, types::PyTuple, PyIterProtocol};
 use std::collections::HashMap;
 
-use crate::{
-    api::{self, Ident},
-    error,
-};
+use crate::api::{self, Ident};
 
 #[derive(Clone, Debug)]
 pub enum PackageSource {
@@ -25,8 +22,19 @@ impl IntoPy<Py<PyAny>> for PackageSource {
 }
 
 impl PackageSource {
-    pub fn read_spec(&self, _ident: &Ident) -> error::Result<api::Spec> {
-        todo!()
+    pub fn read_spec(&self, ident: &Ident) -> PyResult<api::Spec> {
+        match self {
+            PackageSource::Spec(s) => Ok((**s).clone()),
+            PackageSource::Repository(repo) => {
+                Python::with_gil(|py| {
+                    // XXX: Ident: ToPyObject missing?
+                    let args = PyTuple::new(py, &[ident.to_string()]);
+                    repo.call_method1(py, "read_spec", args)?
+                        .as_ref(py)
+                        .extract::<api::Spec>()
+                })
+            }
+        }
     }
 }
 
