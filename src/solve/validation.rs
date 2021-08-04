@@ -13,6 +13,7 @@ pub enum Validators {
     BinaryOnly(BinaryOnlyValidator),
     PackageRequest(PkgRequestValidator),
     Options(OptionsValidator),
+    VarRequirements(VarRequirementsValidator),
 }
 
 pub trait ValidatorT {
@@ -32,6 +33,7 @@ impl ValidatorT for Validators {
             Validators::BinaryOnly(v) => v.validate(state, spec),
             Validators::PackageRequest(v) => v.validate(state, spec),
             Validators::Options(v) => v.validate(state, spec),
+            Validators::VarRequirements(v) => v.validate(state, spec),
         }
     }
 }
@@ -151,10 +153,53 @@ impl ValidatorT for PkgRequestValidator {
     }
 }
 
+/// Validates that the var install requirements do not conflict with the existing options.
+#[pyclass(extends=Validator)]
+#[derive(Clone, Copy)]
+pub struct VarRequirementsValidator {}
+
+impl ValidatorT for VarRequirementsValidator {
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        if spec.pkg.is_source() {
+            // source packages are not being "installed" so requests don't matter
+            return Ok(api::Compatibility::Compatible);
+        }
+
+        let options = state.get_option_map();
+        for request in &spec.install.requirements {
+            if let api::Request::Var(request) = request {
+                for (name, value) in options.iter() {
+                    if *name != request.var
+                        && !name.ends_with(&[".", request.var.as_str()].concat())
+                    {
+                        continue;
+                    }
+                    if value.is_empty() {
+                        // empty option values do not provide a valuable opinion on the resolve
+                        continue;
+                    }
+                    if request.value != *value {
+                        return Ok(api::Compatibility::Incompatible(format!(
+                            "package wants {}={}, resolve has {}={}",
+                            request.var, request.value, name, value,
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(api::Compatibility::Compatible)
+    }
+}
+
 pub fn default_validators() -> Vec<Validators> {
     vec![
         Validators::Deprecation(DeprecationValidator {}),
         Validators::PackageRequest(PkgRequestValidator {}),
         Validators::Options(OptionsValidator {}),
+        Validators::VarRequirements(VarRequirementsValidator {}),
     ]
 }
