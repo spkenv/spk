@@ -253,13 +253,17 @@ impl RepositoryBuildIterator {
                 .iter()?
                 .map(|o| o.and_then(PyAny::extract::<api::Ident>))
                 .collect();
-            let builds = builds?;
+            let mut builds = builds?;
 
             let spec = match repo.call_method1(py, "read_spec", args) {
                 Ok(spec) => Some(spec.as_ref(py).extract::<api::Spec>()?),
                 // FIXME: This should only catch PackageNotFoundError
                 Err(_) => None,
             };
+
+            // source packages must come last to ensure that building
+            // from source is the last option under normal circumstances
+            builds.sort_by_key(|pkg| !pkg.is_source());
 
             PyResult::Ok((builds, spec))
         })?;
