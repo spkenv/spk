@@ -35,6 +35,7 @@ pub enum Changes {
     RequestVar(RequestVar),
     SetOptions(SetOptions),
     SetPackage(Box<SetPackage>),
+    SetPackageBuild(Box<SetPackageBuild>),
     StepBack(StepBack),
 }
 
@@ -45,6 +46,7 @@ impl Changes {
             Changes::RequestVar(rv) => rv.apply(base),
             Changes::SetOptions(so) => so.apply(base),
             Changes::SetPackage(sp) => sp.apply(base),
+            Changes::SetPackageBuild(spb) => spb.apply(base),
             Changes::StepBack(sb) => sb.apply(base),
         }
     }
@@ -391,8 +393,19 @@ impl ChangeT for SetPackage {
     }
 }
 
+/// Sets a package in the resolve, denoting is as a new build.
 #[pyclass(extends=SetPackage)]
-pub struct SetPackageBuild {}
+#[derive(Clone, Debug)]
+pub struct SetPackageBuild {
+    spec: api::Spec,
+    source: PackageSource,
+}
+
+impl ChangeT for SetPackageBuild {
+    fn apply(&self, base: &State) -> State {
+        base.with_package(self.spec.clone(), self.source.clone())
+    }
+}
 
 #[pyclass]
 #[derive(Clone, Debug)]
