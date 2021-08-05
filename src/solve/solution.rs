@@ -80,6 +80,14 @@ pub struct SolvedRequestIter {
     iter: std::vec::IntoIter<(api::PkgRequest, api::Spec, PackageSource)>,
 }
 
+impl Iterator for SolvedRequestIter {
+    type Item = (api::PkgRequest, api::Spec, PackageSource);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 #[pyproto]
 impl PyIterProtocol for SolvedRequestIter {
     fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {

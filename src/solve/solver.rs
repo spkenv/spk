@@ -127,7 +127,7 @@ impl Solver {
 
                 let mut decision = if build_from_source {
                     match self.resolve_new_build(&spec, &node.state) {
-                        Ok(build_env) => Decision::build_package(&spec, &repo, &build_env),
+                        Ok(build_env) => Decision::build_package(spec, &repo, &build_env)?,
 
                         // FIXME: This should only match `SolverError`
                         Err(err) => {

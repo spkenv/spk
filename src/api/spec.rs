@@ -158,7 +158,11 @@ impl Spec {
         super::python::to_dict(self, py)
     }
 
-    fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {
+    pub fn update_spec_for_build(
+        &mut self,
+        options: &OptionMap,
+        resolved: Vec<Spec>,
+    ) -> Result<()> {
         self.update_for_build(options, resolved.iter())
     }
 }

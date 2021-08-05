@@ -105,11 +105,58 @@ impl Decision {
     }
 
     pub fn build_package(
-        _spec: &api::Spec,
+        spec: api::Spec,
         _source: &PackageSource,
-        _build_env: &Solution,
-    ) -> Decision {
-        todo!()
+        build_env: &Solution,
+    ) -> crate::Result<Decision> {
+        let self_spec = spec;
+
+        let generate_changes = || -> crate::Result<Vec<_>> {
+            let mut changes = Vec::<Changes>::new();
+
+            let specs = build_env.items().map(|(_, s, _)| s).collect::<Vec<_>>();
+            let options = build_env.options();
+            let mut spec = self_spec.clone();
+            spec.update_spec_for_build(&options, specs)?;
+
+            changes.push(Changes::SetPackageBuild(Box::new(SetPackageBuild::new(
+                spec.clone(),
+                self_spec.clone(),
+            ))));
+            for req in &spec.install.requirements {
+                match req {
+                    api::Request::Pkg(req) => {
+                        changes.push(Changes::RequestPackage(RequestPackage::new(req.clone())))
+                    }
+                    api::Request::Var(req) => {
+                        changes.push(Changes::RequestVar(RequestVar::new(req.clone())))
+                    }
+                }
+            }
+
+            let mut opts = api::OptionMap::default();
+            opts.insert(
+                self_spec.pkg.name().to_owned(),
+                self_spec.compat.render(&self_spec.pkg.version),
+            );
+            for opt in &spec.build.options {
+                let value = opt.get_value(None);
+                if !value.is_empty() {
+                    let name = opt.namespaced_name(spec.pkg.name());
+                    opts.insert(name, value);
+                }
+            }
+            if !opts.is_empty() {
+                changes.push(Changes::SetOptions(SetOptions::new(opts)));
+            }
+
+            Ok(changes)
+        };
+
+        Ok(Decision {
+            changes: generate_changes()?,
+            notes: Vec::default(),
+        })
     }
 
     pub fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
@@ -399,6 +446,15 @@ impl ChangeT for SetPackage {
 pub struct SetPackageBuild {
     spec: api::Spec,
     source: PackageSource,
+}
+
+impl SetPackageBuild {
+    fn new(spec: api::Spec, source: api::Spec) -> Self {
+        SetPackageBuild {
+            spec,
+            source: PackageSource::Spec(Box::new(source)),
+        }
+    }
 }
 
 impl ChangeT for SetPackageBuild {
