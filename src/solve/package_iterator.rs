@@ -14,6 +14,9 @@ use super::solution::PackageSource;
 
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_empty(&self) -> bool;
+    fn is_sorted_build_iterator(&self) -> bool {
+        false
+    }
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>>;
     fn version_spec(&self) -> Option<api::Spec>;
 }
@@ -302,6 +305,10 @@ pub struct SortedBuildIterator {
 impl BuildIterator for SortedBuildIterator {
     fn is_empty(&self) -> bool {
         self.builds.is_empty()
+    }
+
+    fn is_sorted_build_iterator(&self) -> bool {
+        true
     }
 
     fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
