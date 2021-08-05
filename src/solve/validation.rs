@@ -43,8 +43,19 @@ impl ValidatorT for Validators {
     }
 }
 
-#[pyclass(subclass)]
-pub struct Validator {}
+impl IntoPy<Py<PyAny>> for Validators {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            Validators::Deprecation(v) => v.into_py(py),
+            Validators::BinaryOnly(v) => v.into_py(py),
+            Validators::PackageRequest(v) => v.into_py(py),
+            Validators::Options(v) => v.into_py(py),
+            Validators::VarRequirements(v) => v.into_py(py),
+            Validators::PkgRequirements(v) => v.into_py(py),
+            Validators::EmbeddedPackage(v) => v.into_py(py),
+        }
+    }
+}
 
 /// Ensures that deprecated packages are not included unless specifically requested.
 #[pyclass]

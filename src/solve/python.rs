@@ -3,22 +3,48 @@
 // https://github.com/imageworks/spk
 use pyo3::prelude::*;
 use pyo3::py_run;
+use pyo3::wrap_pyfunction;
 
-use super::errors::SolverError;
+use crate::api;
+
+use super::errors::{PackageNotFoundError, SolverError};
 use super::graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
-    SetPackageBuild, SkipPackageNote, StepBack,
+    SetPackageBuild, SkipPackageNote, State, StepBack,
 };
-use super::solution::Solution;
+use super::solution::{PackageSource, Solution};
 use super::solver::{Solver, SolverFailedError};
-use super::validation::Validator;
+use super::validation::{self, Validators, VarRequirementsValidator};
 
 fn init_submodule_errors(py: &Python, module: &PyModule) -> PyResult<()> {
+    module.add(
+        "PackageNotFoundError",
+        py.get_type::<PackageNotFoundError>(),
+    )?;
     module.add("SolverError", py.get_type::<SolverError>())?;
     Ok(())
 }
 
+#[pyfunction]
+#[pyo3(name = "BuildPackage")]
+fn build_package(
+    spec: &api::Spec,
+    source: PackageSource,
+    build_env: &Solution,
+) -> crate::Result<Decision> {
+    super::graph::Decision::build_package(spec.clone(), &source, build_env)
+}
+
+#[pyfunction]
+#[pyo3(name = "ResolvePackage")]
+fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
+    super::graph::Decision::resolve_package(spec, source)
+}
+
 fn init_submodule_graph(_py: &Python, module: &PyModule) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(build_package, module)?)?;
+    module.add_function(wrap_pyfunction!(resolve_package, module)?)?;
+
     module.add_class::<Change>()?;
     module.add_class::<Decision>()?;
     module.add_class::<Graph>()?;
@@ -30,6 +56,7 @@ fn init_submodule_graph(_py: &Python, module: &PyModule) -> PyResult<()> {
     module.add_class::<SetPackage>()?;
     module.add_class::<SetPackageBuild>()?;
     module.add_class::<SkipPackageNote>()?;
+    module.add_class::<State>()?;
     module.add_class::<StepBack>()?;
     Ok(())
 }
@@ -45,8 +72,15 @@ fn init_submodule_solver(py: &Python, module: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+#[pyfunction]
+fn default_validators() -> Vec<Validators> {
+    validation::default_validators()
+}
+
 fn init_submodule_validation(_py: &Python, module: &PyModule) -> PyResult<()> {
-    module.add_class::<Validator>()?;
+    module.add_function(wrap_pyfunction!(default_validators, module)?)?;
+
+    module.add_class::<VarRequirementsValidator>()?;
     Ok(())
 }
 

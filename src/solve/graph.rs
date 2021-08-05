@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::prelude::*;
+use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
@@ -52,6 +52,19 @@ impl Changes {
     }
 }
 
+impl IntoPy<Py<PyAny>> for Changes {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            Changes::RequestPackage(rp) => rp.into_py(py),
+            Changes::RequestVar(rv) => rv.into_py(py),
+            Changes::SetOptions(so) => so.into_py(py),
+            Changes::SetPackage(sp) => sp.into_py(py),
+            Changes::SetPackageBuild(spb) => spb.into_py(py),
+            Changes::StepBack(sb) => sb.into_py(py),
+        }
+    }
+}
+
 pub trait ChangeBaseT {
     fn as_decision(&self) -> Decision;
 }
@@ -66,6 +79,22 @@ impl ChangeBaseT for Changes {
             changes: vec![self.clone()],
             notes: Vec::default(),
         }
+    }
+}
+
+#[pyclass]
+pub struct ChangesIter {
+    iter: std::vec::IntoIter<Changes>,
+}
+
+#[pyproto]
+impl PyIterProtocol for ChangesIter {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<Changes> {
+        slf.iter.next()
     }
 }
 
@@ -84,6 +113,23 @@ pub struct Decision {
     pub notes: Vec<NoteEnum>,
 }
 
+#[pymethods]
+impl Decision {
+    pub fn apply(&self, base: State) -> State {
+        let mut state = base;
+        for change in self.changes.iter() {
+            state = change.apply(&state);
+        }
+        state
+    }
+
+    pub fn iter_changes(&self) -> ChangesIter {
+        ChangesIter {
+            iter: self.changes.clone().into_iter(),
+        }
+    }
+}
+
 impl Decision {
     pub fn new(changes: Vec<Changes>) -> Self {
         Self {
@@ -94,14 +140,6 @@ impl Decision {
 
     pub fn add_notes<'a>(&mut self, notes: impl Iterator<Item = &'a NoteEnum>) {
         self.notes.extend(notes.cloned())
-    }
-
-    pub fn apply(&self, base: State) -> State {
-        let mut state = base;
-        for change in self.changes.iter() {
-            state = change.apply(&state);
-        }
-        state
     }
 
     pub fn build_package(
@@ -399,12 +437,20 @@ impl ChangeT for RequestVar {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetOptions {
+    #[pyo3(get)]
     options: api::OptionMap,
 }
 
+#[pymethods]
 impl SetOptions {
+    #[new]
     pub fn new(options: api::OptionMap) -> Self {
         SetOptions { options }
+    }
+
+    #[pyo3(name = "apply")]
+    pub fn py_apply(&self, base: &State) -> State {
+        self.apply(base)
     }
 }
 
@@ -424,6 +470,7 @@ impl ChangeT for SetOptions {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackage {
+    #[pyo3(get)]
     spec: api::Spec,
     source: PackageSource,
 }
@@ -444,6 +491,7 @@ impl ChangeT for SetPackage {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackageBuild {
+    #[pyo3(get)]
     spec: api::Spec,
     source: PackageSource,
 }
@@ -469,17 +517,25 @@ pub struct State {
     var_requests: Vec<api::VarRequest>,
     packages: Vec<(api::Spec, PackageSource)>,
     options: Vec<(String, String)>,
+    #[pyo3(get, name = "id")]
     hash_cache: u64,
 }
 
-impl Default for State {
-    fn default() -> Self {
+#[pymethods]
+impl State {
+    #[staticmethod]
+    pub fn default() -> Self {
         State::new(
             Vec::default(),
             Vec::default(),
             Vec::default(),
             Vec::default(),
         )
+    }
+
+    pub fn get_option_map(&self) -> api::OptionMap {
+        // TODO: cache this
+        self.options.iter().cloned().collect()
     }
 }
 
@@ -594,11 +650,6 @@ impl State {
         }
 
         Ok(None)
-    }
-
-    pub fn get_option_map(&self) -> api::OptionMap {
-        // TODO: cache this
-        self.options.iter().cloned().collect()
     }
 
     pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
