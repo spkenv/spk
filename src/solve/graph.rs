@@ -345,7 +345,7 @@ pub enum NoteEnum {
     SkipPackageNote(SkipPackageNote),
 }
 
-#[pyclass(extends=Change)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
     request: api::PkgRequest,
@@ -367,7 +367,7 @@ impl ChangeT for RequestPackage {
     }
 }
 
-#[pyclass(extends=Change)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct RequestVar {
     request: api::VarRequest,
@@ -396,7 +396,7 @@ impl ChangeT for RequestVar {
     }
 }
 
-#[pyclass(extends=Change, subclass)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetOptions {
     options: api::OptionMap,
@@ -421,7 +421,7 @@ impl ChangeT for SetOptions {
     }
 }
 
-#[pyclass(extends=Change, subclass)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackage {
     spec: api::Spec,
@@ -441,7 +441,7 @@ impl ChangeT for SetPackage {
 }
 
 /// Sets a package in the resolve, denoting is as a new build.
-#[pyclass(extends=SetPackage)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackageBuild {
     spec: api::Spec,
@@ -462,7 +462,6 @@ impl ChangeT for SetPackageBuild {
         base.with_package(self.spec.clone(), self.source.clone())
     }
 }
-
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct State {
@@ -683,7 +682,7 @@ impl SkipPackageNote {
     }
 }
 
-#[pyclass(extends=Change)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct StepBack {
     cause: String,

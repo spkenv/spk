@@ -47,7 +47,7 @@ impl ValidatorT for Validators {
 pub struct Validator {}
 
 /// Ensures that deprecated packages are not included unless specifically requested.
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
 
@@ -76,7 +76,7 @@ impl ValidatorT for DeprecationValidator {
 }
 
 /// Enforces the resolution of binary packages only, denying new builds from source.
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
@@ -103,7 +103,7 @@ impl ValidatorT for BinaryOnlyValidator {
     }
 }
 
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
 
@@ -139,7 +139,7 @@ impl ValidatorT for EmbeddedPackageValidator {
 }
 
 /// Ensures that a package is compatible with all requested options.
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct OptionsValidator {}
 
@@ -163,7 +163,7 @@ impl ValidatorT for OptionsValidator {
 }
 
 /// Ensures that a package meets all requested version criteria.
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct PkgRequestValidator {}
 
@@ -194,7 +194,7 @@ impl ValidatorT for PkgRequestValidator {
 }
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct PkgRequirementsValidator {}
 
@@ -251,7 +251,7 @@ impl ValidatorT for PkgRequirementsValidator {
 }
 
 /// Validates that the var install requirements do not conflict with the existing options.
-#[pyclass(extends=Validator)]
+#[pyclass]
 #[derive(Clone, Copy)]
 pub struct VarRequirementsValidator {}
 
