@@ -37,15 +37,12 @@ impl PackageSource {
     pub fn read_spec(&self, ident: &Ident) -> PyResult<api::Spec> {
         match self {
             PackageSource::Spec(s) => Ok((**s).clone()),
-            PackageSource::Repository(repo) => {
-                Python::with_gil(|py| {
-                    // XXX: Ident: ToPyObject missing?
-                    let args = PyTuple::new(py, &[ident.to_string()]);
-                    repo.call_method1(py, "read_spec", args)?
-                        .as_ref(py)
-                        .extract::<api::Spec>()
-                })
-            }
+            PackageSource::Repository(repo) => Python::with_gil(|py| {
+                let args = PyTuple::new(py, &[ident.clone().into_py(py)]);
+                repo.call_method1(py, "read_spec", args)?
+                    .as_ref(py)
+                    .extract::<api::Spec>()
+            }),
         }
     }
 }

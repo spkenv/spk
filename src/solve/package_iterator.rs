@@ -206,8 +206,7 @@ impl BuildIterator for RepositoryBuildIterator {
         };
 
         let spec: PyResult<Option<api::Spec>> = Python::with_gil(|py| {
-            // XXX: Ident: ToPyObject missing?
-            let args = PyTuple::new(py, &[build.to_string()]);
+            let args = PyTuple::new(py, &[build.clone().into_py(py)]);
             match self.repo.call_method1(py, "read_spec", args) {
                 Ok(spec) => Ok(Some(spec.as_ref(py).extract::<api::Spec>()?)),
                 // FIXME: This should only catch PackageNotFoundError
@@ -245,8 +244,7 @@ impl BuildIterator for RepositoryBuildIterator {
 impl RepositoryBuildIterator {
     fn new(pkg: api::Ident, repo: PyObject) -> PyResult<Self> {
         let (builds, spec) = Python::with_gil(|py| {
-            // XXX: Ident: ToPyObject missing?
-            let args = PyTuple::new(py, &[pkg.to_string()]);
+            let args = PyTuple::new(py, &[pkg.clone().into_py(py)]);
             let iter = repo.call_method1(py, "list_package_builds", args)?;
             let builds: PyResult<Vec<api::Ident>> = iter
                 .as_ref(py)
