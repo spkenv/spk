@@ -79,14 +79,15 @@ impl Solver {
             }
 
             let builds = if !builds.lock().unwrap().is_sorted_build_iterator() {
-                Arc::new(Mutex::new(SortedBuildIterator::new(
+                let builds = Arc::new(Mutex::new(SortedBuildIterator::new(
                     node.state.get_option_map(),
                     builds.clone(),
-                )?))
+                )?));
+                iterator.set_builds(&pkg.version, builds.clone());
+                builds
             } else {
                 builds
             };
-            iterator.set_builds(&pkg.version, builds.clone());
 
             while let Some((spec, repo)) = builds.lock().unwrap().next()? {
                 let mut spec = spec;
