@@ -291,10 +291,10 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, source_id: u64, decision: &Decision) -> Result<Arc<RwLock<Node>>> {
+    pub fn add_branch(&mut self, source_id: u64, decision: Decision) -> Result<Arc<RwLock<Node>>> {
         let old_node = self
             .nodes
-            .get_mut(&source_id)
+            .get(&source_id)
             .expect("source_id exists in nodes")
             .clone();
         let new_state = decision.apply((*old_node.read().unwrap().state).clone());
@@ -321,11 +321,11 @@ impl Graph {
             // Avoid deadlock if old_node is the same node as new_node
             if !Arc::ptr_eq(&old_node, &new_node) {
                 let mut new_node_lock = new_node.write().unwrap();
-                old_node_lock.add_output(decision, &new_node_lock.state)?;
+                old_node_lock.add_output(decision.clone(), &new_node_lock.state)?;
                 new_node_lock.add_input(&old_node_lock.state, decision);
             } else {
                 let old_state = old_node_lock.state.clone();
-                old_node_lock.add_output(decision, &old_state)?;
+                old_node_lock.add_output(decision.clone(), &old_state)?;
                 old_node_lock.add_input(&old_state, decision);
             }
         }
@@ -460,17 +460,17 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn add_input(&mut self, state: &State, decision: &Decision) {
+    pub fn add_input(&mut self, state: &State, decision: Decision) {
         self.inputs.insert(state.id());
-        self.inputs_decisions.push(decision.clone());
+        self.inputs_decisions.push(decision);
     }
 
-    pub fn add_output(&mut self, decision: &Decision, state: &State) -> Result<()> {
+    pub fn add_output(&mut self, decision: Decision, state: &State) -> Result<()> {
         if self.outputs.contains(&state.id()) {
             return Err(GraphError::RecursionError(BRANCH_ALREADY_ATTEMPTED));
         }
         self.outputs.insert(state.id());
-        self.outputs_decisions.push(decision.clone());
+        self.outputs_decisions.push(decision);
         Ok(())
     }
 

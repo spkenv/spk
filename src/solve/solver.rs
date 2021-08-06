@@ -287,7 +287,7 @@ impl Solver {
                         .as_ref()
                         .map(|n| n.read().unwrap().id())
                         .unwrap_or(root_id),
-                    &decision.unwrap(),
+                    decision.unwrap(),
                 ) {
                     Ok(cn) => cn,
                     Err(GraphError::RecursionError(msg)) => {
