@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use pyo3::{prelude::*, PyIterProtocol};
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashSet;
+use std::collections::hash_map::{DefaultHasher, Entry};
+use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
+use std::iter::FromIterator;
 use std::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
 
@@ -263,6 +264,13 @@ pub struct Graph {
     pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
 }
 
+#[pymethods]
+impl Graph {
+    pub fn walk(&self) -> GraphIter {
+        GraphIter::new(self.clone())
+    }
+}
+
 impl Graph {
     pub fn new() -> Self {
         let dead_state = Arc::new(RwLock::new(Node::new(DEAD_STATE.clone())));
@@ -322,6 +330,120 @@ impl Graph {
 impl Default for Graph {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+enum WalkState {
+    ToProcessNonEmpty,
+    YieldOuts,
+    YieldNextNode(Decision),
+}
+
+#[pyclass]
+pub struct GraphIter {
+    graph: Graph,
+    node_outputs: HashMap<u64, VecDeque<Decision>>,
+    to_process: VecDeque<Arc<RwLock<Node>>>,
+    /// Which entry of node_outputs is currently being worked on.
+    outs: Option<u64>,
+    iter_node: Arc<RwLock<Node>>,
+    walk_state: WalkState,
+}
+
+impl GraphIter {
+    fn new(graph: Graph) -> Self {
+        let to_process = VecDeque::from_iter([graph.root.clone()]);
+        let iter_node = graph.root.clone();
+        GraphIter {
+            graph,
+            node_outputs: HashMap::default(),
+            to_process,
+            outs: None,
+            iter_node,
+            walk_state: WalkState::ToProcessNonEmpty,
+        }
+    }
+}
+
+impl Iterator for GraphIter {
+    type Item = (Node, Decision);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.walk_state {
+                WalkState::ToProcessNonEmpty => {
+                    if self.to_process.is_empty() {
+                        self.walk_state = WalkState::YieldOuts;
+                        continue;
+                    }
+
+                    let node = self.to_process.pop_front().unwrap();
+                    let node_lock = node.read().unwrap();
+
+                    if let Entry::Vacant(e) = self.node_outputs.entry(node_lock.id()) {
+                        e.insert(node_lock.outputs.values().cloned().collect());
+
+                        for decision in node_lock
+                            .outputs
+                            .values()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .iter()
+                            .rev()
+                        {
+                            let destination = decision.apply((*node_lock.state).clone());
+                            self.to_process.push_front(
+                                self.graph.nodes.get(&destination.id()).unwrap().clone(),
+                            );
+                        }
+                    }
+
+                    self.outs = Some(node_lock.id());
+                    let outs = self.node_outputs.get_mut(&node_lock.id()).unwrap();
+                    if outs.is_empty() {
+                        continue;
+                    }
+
+                    self.to_process.push_back(node.clone());
+                    let decision = outs.pop_front().unwrap();
+                    return Some((node_lock.clone(), decision));
+                }
+                WalkState::YieldOuts => {
+                    let outs = self.node_outputs.get_mut(&self.outs.unwrap()).unwrap();
+                    if outs.is_empty() {
+                        return None;
+                    }
+
+                    let node_lock = self.iter_node.read().unwrap();
+
+                    let decision = outs.pop_front().unwrap();
+                    self.walk_state = WalkState::YieldNextNode(decision.clone());
+                    return Some((node_lock.clone(), decision));
+                }
+                WalkState::YieldNextNode(ref decision) => {
+                    let next_state_id = {
+                        let node_lock = self.iter_node.read().unwrap();
+
+                        let next_state = decision.apply((*node_lock.state).clone());
+                        next_state.id()
+                    };
+                    self.iter_node = self.graph.nodes.get(&next_state_id).unwrap().clone();
+                    self.walk_state = WalkState::YieldOuts;
+                    continue;
+                }
+            }
+        }
+    }
+}
+
+#[pyproto]
+impl PyIterProtocol for GraphIter {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<(Node, Decision)> {
+        slf.next()
     }
 }
 
