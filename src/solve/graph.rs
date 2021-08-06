@@ -610,14 +610,44 @@ impl SetOptions {
 
 impl ChangeT for SetOptions {
     fn apply(&self, base: &State) -> State {
-        let mut options: HashMap<String, String> = base.options.iter().cloned().collect();
+        // Update options while preserving order to match
+        // python dictionary behavior. "Updating a key
+        // does not affect the order."
+        let mut insertion_order = 0;
+        // Build a lookup hash with an insertion order.
+        let mut options: HashMap<String, (i32, String)> = base
+            .options
+            .iter()
+            .cloned()
+            .map(|(var, value)| {
+                let i = insertion_order;
+                insertion_order += 1;
+                (var, (i, value))
+            })
+            .collect();
+        // Update base options with request options...
         for (k, v) in self.options.iter() {
-            if v.is_empty() && options.contains_key(k) {
-                continue;
-            }
-            options.insert(k.to_owned(), v.to_owned());
+            match options.get_mut(k) {
+                // Unless already present and request option value is empty.
+                Some(_) if v.is_empty() => continue,
+                // If option already existed, keep same insertion order.
+                Some((_, value)) => *value = v.to_owned(),
+                // New options are inserted at the end.
+                None => {
+                    let i = insertion_order;
+                    insertion_order += 1;
+                    options.insert(k.to_owned(), (i, v.to_owned()));
+                }
+            };
         }
-        base.with_options(options.into_iter().collect())
+        let mut options = options.into_iter().collect::<Vec<_>>();
+        options.sort_by_key(|(_, (i, _))| *i);
+        base.with_options(
+            options
+                .into_iter()
+                .map(|(var, (_, value))| (var, value))
+                .collect::<Vec<_>>(),
+        )
     }
 }
 
