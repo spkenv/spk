@@ -317,9 +317,37 @@ impl Solver {
                 .as_ref()
                 .expect("current_node always `is_some` here");
             let mut current_node_lock = current_node.write().unwrap();
-            decision = self
-                .step_state(&mut current_node_lock)
-                .map_err(|err| -> PyErr { err.into() })?;
+            decision = match self.step_state(&mut current_node_lock) {
+                Ok(decision) => decision,
+                Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
+                    match history.pop() {
+                        Some(n) => {
+                            let n_lock = n.read().unwrap();
+                            decision = Some(
+                                Changes::StepBack(StepBack::new(
+                                    &format!("could not satisfy '{}'", err.request.pkg),
+                                    &n_lock.state,
+                                ))
+                                .as_decision(),
+                            )
+                        }
+                        None => {
+                            decision = Some(
+                                Changes::StepBack(StepBack::new(
+                                    &format!("could not satisfy '{}'", err.request.pkg),
+                                    &DEAD_STATE,
+                                ))
+                                .as_decision(),
+                            )
+                        }
+                    }
+                    if let Some(d) = decision.as_mut() {
+                        d.add_notes(err.notes.iter())
+                    }
+                    continue;
+                }
+                Err(err) => return Err(err.into()),
+            };
             history.push(current_node.clone());
         }
 
