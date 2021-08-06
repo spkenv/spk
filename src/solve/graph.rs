@@ -387,16 +387,9 @@ impl Iterator for GraphIter {
                     let node_lock = node.read().unwrap();
 
                     if let Entry::Vacant(e) = self.node_outputs.entry(node_lock.id()) {
-                        e.insert(node_lock.outputs.values().cloned().collect());
+                        e.insert(node_lock.outputs_decisions.iter().cloned().collect());
 
-                        for decision in node_lock
-                            .outputs
-                            .values()
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .iter()
-                            .rev()
-                        {
+                        for decision in node_lock.outputs_decisions.iter().rev() {
                             let destination = decision.apply((*node_lock.state).clone());
                             self.to_process.push_front(
                                 self.graph.nodes.get(&destination.id()).unwrap().clone(),
@@ -456,22 +449,28 @@ impl PyIterProtocol for GraphIter {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct Node {
-    pub inputs: HashMap<u64, Decision>,
-    pub outputs: HashMap<u64, Decision>,
+    // Preserve order of inputs/outputs for iterating
+    // in the same order.
+    inputs: HashSet<u64>,
+    inputs_decisions: Vec<Decision>,
+    outputs: HashSet<u64>,
+    outputs_decisions: Vec<Decision>,
     pub state: Arc<State>,
-    pub iterators: HashMap<String, Box<dyn PackageIterator>>,
+    iterators: HashMap<String, Box<dyn PackageIterator>>,
 }
 
 impl Node {
     pub fn add_input(&mut self, state: &State, decision: &Decision) {
-        self.inputs.insert(state.id(), decision.clone());
+        self.inputs.insert(state.id());
+        self.inputs_decisions.push(decision.clone());
     }
 
     pub fn add_output(&mut self, decision: &Decision, state: &State) -> Result<()> {
-        if self.outputs.contains_key(&state.id()) {
+        if self.outputs.contains(&state.id()) {
             return Err(GraphError::RecursionError(BRANCH_ALREADY_ATTEMPTED));
         }
-        self.outputs.insert(state.id(), decision.clone());
+        self.outputs.insert(state.id());
+        self.outputs_decisions.push(decision.clone());
         Ok(())
     }
 
@@ -481,8 +480,10 @@ impl Node {
 
     fn new(state: Arc<State>) -> Self {
         Node {
-            inputs: HashMap::default(),
-            outputs: HashMap::default(),
+            inputs: HashSet::default(),
+            inputs_decisions: Vec::default(),
+            outputs: HashSet::default(),
+            outputs_decisions: Vec::default(),
             state,
             iterators: HashMap::default(),
         }
