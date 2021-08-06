@@ -864,11 +864,21 @@ enum SkipPackageNoteReason {
     Compatibility(api::Compatibility),
 }
 
+impl IntoPy<Py<PyAny>> for SkipPackageNoteReason {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            SkipPackageNoteReason::String(s) => s.into_py(py),
+            SkipPackageNoteReason::Compatibility(c) => c.into_py(py),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SkipPackageNote {
     #[pyo3(get)]
     pkg: Ident,
+    #[pyo3(get)]
     reason: SkipPackageNoteReason,
 }
 
