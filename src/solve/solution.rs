@@ -64,6 +64,7 @@ pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (api::Spec, PackageSource)>,
     by_name: HashMap<String, api::Spec>,
+    insertion_order: HashMap<api::PkgRequest, usize>,
 }
 
 impl Solution {}
@@ -84,11 +85,11 @@ impl pyo3::PyObjectProtocol for Solution {
 
 #[pyclass]
 pub struct SolvedRequestIter {
-    iter: std::vec::IntoIter<(api::PkgRequest, api::Spec, PackageSource)>,
+    iter: std::vec::IntoIter<SolvedRequest>,
 }
 
 impl Iterator for SolvedRequestIter {
-    type Item = (api::PkgRequest, api::Spec, PackageSource);
+    type Item = SolvedRequest;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
@@ -101,7 +102,7 @@ impl PyIterProtocol for SolvedRequestIter {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<(api::PkgRequest, api::Spec, PackageSource)> {
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<SolvedRequest> {
         slf.iter.next()
     }
 }
@@ -122,25 +123,39 @@ impl Solution {
             options: options.unwrap_or_default(),
             resolved: HashMap::default(),
             by_name: HashMap::default(),
+            insertion_order: HashMap::default(),
         }
     }
 
     pub fn add(&mut self, request: &api::PkgRequest, package: &api::Spec, source: PackageSource) {
-        self.resolved
-            .insert(request.clone(), (package.clone(), source));
+        if self
+            .resolved
+            .insert(request.clone(), (package.clone(), source))
+            .is_none()
+        {
+            self.insertion_order
+                .insert(request.clone(), self.insertion_order.len());
+        }
         self.by_name
             .insert(request.pkg.name().to_owned(), package.clone());
     }
 
     pub fn items(&self) -> SolvedRequestIter {
+        let mut items = self
+            .resolved
+            .clone()
+            .into_iter()
+            .map(|(request, (spec, source))| SolvedRequest {
+                request,
+                spec,
+                source,
+            })
+            .collect::<Vec<_>>();
+        // Test suite expects these items to be returned in original insertion order.
+        items.sort_by_key(|sr| self.insertion_order.get(&sr.request).unwrap());
+
         SolvedRequestIter {
-            iter: self
-                .resolved
-                .clone()
-                .into_iter()
-                .map(|(request, (spec, source))| (request, spec, source))
-                .collect::<Vec<_>>()
-                .into_iter(),
+            iter: items.into_iter(),
         }
     }
 
