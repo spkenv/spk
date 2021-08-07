@@ -55,8 +55,26 @@ impl Solver {
         ))))
     }
 
-    fn resolve_new_build(&self, _spec: &api::Spec, _state: &State) -> crate::Result<Solution> {
-        todo!()
+    fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> crate::Result<Solution> {
+        let mut opts = state.get_option_map();
+        for pkg_request in state.get_pkg_requests() {
+            if !opts.contains_key(pkg_request.pkg.name()) {
+                opts.insert(
+                    pkg_request.pkg.name().to_owned(),
+                    pkg_request.pkg.version.to_string(),
+                );
+            }
+        }
+        for var_request in state.get_var_requests() {
+            if !opts.contains_key(&var_request.var) {
+                opts.insert(var_request.var.clone(), var_request.value.clone());
+            }
+        }
+
+        let mut solver = Solver::new();
+        solver.repos = self.repos.clone();
+        solver.update_options(opts);
+        solver.solve_build_environment(spec)
     }
 
     fn step_state(&self, node: &mut Node) -> crate::Result<Option<Decision>> {
