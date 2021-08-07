@@ -6,7 +6,7 @@ use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::api::{self, Ident, InclusionPolicy};
@@ -306,7 +306,7 @@ impl Graph {
                 None => {
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
                     for (name, iterator) in old_node.read().unwrap().iterators.iter() {
-                        new_node_lock.set_iterator(name, iterator.clone())
+                        new_node_lock.set_iterator(name, iterator)
                     }
                 }
                 Some(node) => {
@@ -456,7 +456,7 @@ pub struct Node {
     outputs: HashSet<u64>,
     outputs_decisions: Vec<Decision>,
     pub state: Arc<State>,
-    iterators: HashMap<String, Box<dyn PackageIterator>>,
+    iterators: HashMap<String, Arc<Mutex<Box<dyn PackageIterator>>>>,
 }
 
 impl Node {
@@ -474,7 +474,7 @@ impl Node {
         Ok(())
     }
 
-    pub fn get_iterator(&self, package_name: &str) -> Option<Box<dyn PackageIterator>> {
+    pub fn get_iterator(&self, package_name: &str) -> Option<Arc<Mutex<Box<dyn PackageIterator>>>> {
         self.iterators.get(package_name).cloned()
     }
 
@@ -494,11 +494,18 @@ impl Node {
         self.state.id()
     }
 
-    pub fn set_iterator(&mut self, package_name: &str, iterator: Box<dyn PackageIterator>) {
+    pub fn set_iterator(
+        &mut self,
+        package_name: &str,
+        iterator: &Arc<Mutex<Box<dyn PackageIterator>>>,
+    ) {
         if self.iterators.contains_key(package_name) {
             panic!("iterator already exists [INTERNAL ERROR]");
         }
-        self.iterators.insert(package_name.to_owned(), iterator);
+        self.iterators.insert(
+            package_name.to_owned(),
+            Arc::new(Mutex::new(iterator.lock().unwrap().clone())),
+        );
     }
 }
 

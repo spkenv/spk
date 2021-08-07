@@ -34,21 +34,25 @@ pub struct Solver {
 
 // Methods not exposed to Python
 impl Solver {
-    fn get_iterator(&self, node: &mut Node, package_name: &str) -> Box<dyn PackageIterator> {
+    fn get_iterator(
+        &self,
+        node: &mut Node,
+        package_name: &str,
+    ) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
         let iterator = self.make_iterator(package_name);
-        node.set_iterator(package_name, iterator.clone());
+        node.set_iterator(package_name, &iterator);
         iterator
     }
 
-    fn make_iterator(&self, package_name: &str) -> Box<dyn PackageIterator> {
+    fn make_iterator(&self, package_name: &str) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         assert!(!self.repos.is_empty());
-        Box::new(RepositoryPackageIterator::new(
+        Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
             package_name.to_owned(),
             self.repos.clone(),
-        ))
+        ))))
     }
 
     fn resolve_new_build(&self, _spec: &api::Spec, _state: &State) -> crate::Result<Solution> {
@@ -63,11 +67,12 @@ impl Solver {
             return Ok(None);
         };
 
-        let mut iterator = self.get_iterator(node, request.pkg.name());
-        while let Some((pkg, builds)) = iterator.next()? {
+        let iterator = self.get_iterator(node, request.pkg.name());
+        let mut iterator_lock = iterator.lock().unwrap();
+        while let Some((pkg, builds)) = iterator_lock.next()? {
             let mut compat = request.is_version_applicable(&pkg.version);
             if !&compat {
-                iterator.set_builds(
+                iterator_lock.set_builds(
                     &pkg.version,
                     Arc::new(Mutex::new(EmptyBuildIterator::new())),
                 );
@@ -83,7 +88,7 @@ impl Solver {
                     node.state.get_option_map(),
                     builds.clone(),
                 )?));
-                iterator.set_builds(&pkg.version, builds.clone());
+                iterator_lock.set_builds(&pkg.version, builds.clone());
                 builds
             } else {
                 builds
