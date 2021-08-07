@@ -217,6 +217,10 @@ impl Solver {
         state
     }
 
+    pub fn get_last_solve_graph(&self) -> Graph {
+        self.last_graph.read().unwrap().clone()
+    }
+
     pub fn reset(&mut self) {
         self.repos.clear();
         self.initial_state_builders.clear();

@@ -50,8 +50,11 @@ impl PackageSource {
 /// Represents a package request that has been resolved.
 #[pyclass]
 pub struct SolvedRequest {
+    #[pyo3(get)]
     pub request: api::PkgRequest,
+    #[pyo3(get)]
     pub spec: api::Spec,
+    #[pyo3(get)]
     pub source: PackageSource,
 }
 
@@ -64,6 +67,13 @@ pub struct Solution {
 }
 
 impl Solution {}
+
+#[pyproto]
+impl pyo3::mapping::PyMappingProtocol for Solution {
+    fn __len__(self) -> usize {
+        self.resolved.len()
+    }
+}
 
 #[pyproto]
 impl pyo3::PyObjectProtocol for Solution {
@@ -132,6 +142,19 @@ impl Solution {
                 .collect::<Vec<_>>()
                 .into_iter(),
         }
+    }
+
+    pub fn get(&self, name: &str) -> PyResult<SolvedRequest> {
+        for (request, (spec, source)) in &self.resolved {
+            if request.pkg.name() == name {
+                return Ok(SolvedRequest {
+                    request: request.clone(),
+                    spec: spec.clone(),
+                    source: source.clone(),
+                });
+            }
+        }
+        Err(pyo3::exceptions::PyKeyError::new_err(name.to_owned()))
     }
 
     pub fn options(&self) -> api::OptionMap {

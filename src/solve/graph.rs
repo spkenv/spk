@@ -129,6 +129,12 @@ impl Decision {
             iter: self.changes.clone().into_iter(),
         }
     }
+
+    pub fn iter_notes(&self) -> NotesIter {
+        NotesIter {
+            iter: self.notes.clone().into_iter(),
+        }
+    }
 }
 
 impl Decision {
@@ -505,9 +511,34 @@ pub enum NoteEnum {
     SkipPackageNote(SkipPackageNote),
 }
 
+impl IntoPy<Py<PyAny>> for NoteEnum {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            NoteEnum::SkipPackageNote(n) => n.into_py(py),
+        }
+    }
+}
+
+#[pyclass]
+pub struct NotesIter {
+    iter: std::vec::IntoIter<NoteEnum>,
+}
+
+#[pyproto]
+impl PyIterProtocol for NotesIter {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<NoteEnum> {
+        slf.iter.next()
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
+    #[pyo3(get)]
     request: api::PkgRequest,
 }
 
@@ -832,9 +863,10 @@ enum SkipPackageNoteReason {
     Compatibility(api::Compatibility),
 }
 
-#[pyclass(extends=Note)]
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SkipPackageNote {
+    #[pyo3(get)]
     pkg: Ident,
     reason: SkipPackageNoteReason,
 }
