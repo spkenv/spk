@@ -62,6 +62,18 @@ impl IntoPy<Py<PyAny>> for Validators {
 #[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
 
+#[pymethods]
+impl DeprecationValidator {
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec)
+    }
+}
+
 impl ValidatorT for DeprecationValidator {
     fn validate(
         &self,
@@ -118,6 +130,18 @@ impl ValidatorT for BinaryOnlyValidator {
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
 
+#[pymethods]
+impl EmbeddedPackageValidator {
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec)
+    }
+}
+
 impl ValidatorT for EmbeddedPackageValidator {
     fn validate(
         &self,
@@ -154,6 +178,18 @@ impl ValidatorT for EmbeddedPackageValidator {
 #[derive(Clone, Copy)]
 pub struct OptionsValidator {}
 
+#[pymethods]
+impl OptionsValidator {
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec)
+    }
+}
+
 impl ValidatorT for OptionsValidator {
     fn validate(
         &self,
@@ -177,6 +213,18 @@ impl ValidatorT for OptionsValidator {
 #[pyclass]
 #[derive(Clone, Copy)]
 pub struct PkgRequestValidator {}
+
+#[pymethods]
+impl PkgRequestValidator {
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec)
+    }
+}
 
 impl ValidatorT for PkgRequestValidator {
     #[allow(clippy::nonminimal_bool)]
@@ -208,6 +256,18 @@ impl ValidatorT for PkgRequestValidator {
 #[pyclass]
 #[derive(Clone, Copy)]
 pub struct PkgRequirementsValidator {}
+
+#[pymethods]
+impl PkgRequirementsValidator {
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec)
+    }
+}
 
 impl ValidatorT for PkgRequirementsValidator {
     fn validate(
@@ -265,6 +325,23 @@ impl ValidatorT for PkgRequirementsValidator {
 #[pyclass]
 #[derive(Clone, Copy)]
 pub struct VarRequirementsValidator {}
+
+#[pymethods]
+impl VarRequirementsValidator {
+    #[new]
+    fn new() -> Self {
+        VarRequirementsValidator {}
+    }
+
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec)
+    }
+}
 
 impl ValidatorT for VarRequirementsValidator {
     fn validate(

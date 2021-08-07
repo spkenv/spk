@@ -68,6 +68,23 @@ impl SolvedRequest {
     }
 }
 
+// Support code that treats a SolvedRequest as a 3-tuple
+#[pyproto]
+impl pyo3::PySequenceProtocol for SolvedRequest {
+    fn __getitem__(&self, idx: isize) -> PyResult<PyObject> {
+        Python::with_gil(|py| match idx {
+            0 => Ok(self.request.clone().into_py(py)),
+            1 => Ok(self.spec.clone().into_py(py)),
+            2 => Ok(self.source.clone().into_py(py)),
+            _ => Err(pyo3::exceptions::PyIndexError::new_err("")),
+        })
+    }
+
+    fn __len__(&self) -> usize {
+        3
+    }
+}
+
 /// Represents a set of resolved packages.
 #[pyclass]
 #[derive(Debug)]

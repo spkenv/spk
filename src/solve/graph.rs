@@ -569,6 +569,7 @@ impl ChangeT for RequestPackage {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct RequestVar {
+    #[pyo3(get)]
     request: api::VarRequest,
 }
 
@@ -714,6 +715,17 @@ pub struct State {
 
 #[pymethods]
 impl State {
+    #[new]
+    pub fn newpy(
+        pkg_requests: Vec<api::PkgRequest>,
+        var_requests: Vec<api::VarRequest>,
+        options: Vec<(String, String)>,
+        packages: Vec<(api::Spec, PackageSource)>,
+        #[allow(unused_variables)] hash_cache: Vec<u64>,
+    ) -> Self {
+        State::new(pkg_requests, var_requests, packages, options)
+    }
+
     #[staticmethod]
     pub fn default() -> Self {
         State::new(
@@ -938,6 +950,7 @@ impl SkipPackageNote {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct StepBack {
+    #[pyo3(get)]
     cause: String,
     destination: State,
 }
