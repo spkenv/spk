@@ -6,7 +6,7 @@ from typing import Iterable, Sequence, TextIO, Tuple, Union
 from colorama import Fore, Style
 import io
 
-from . import api, solve
+from . import api, pysolve, solve
 
 
 def format_ident(pkg: api.Ident) -> str:
@@ -50,12 +50,12 @@ def format_decisions(
         level_change = 1
         for change in decision.iter_changes():
 
-            if isinstance(change, solve.graph.SetPackage):
+            if isinstance(change, (pysolve.graph.SetPackage, solve.graph.SetPackage)):
                 if change.spec.pkg.build == api.EMBEDDED:
                     fill = "."
                 else:
                     fill = ">"
-            elif isinstance(change, solve.graph.StepBack):
+            elif isinstance(change, (pysolve.graph.StepBack, solve.graph.StepBack)):
                 fill = "!"
                 level_change = -1
             else:
@@ -71,6 +71,11 @@ def format_decisions(
 def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) -> bool:
 
     levels = {
+        pysolve.graph.SetPackage: 1,
+        pysolve.graph.StepBack: 1,
+        pysolve.graph.RequestPackage: 2,
+        pysolve.graph.RequestVar: 2,
+        pysolve.graph.SetOptions: 3,
         solve.graph.SetPackage: 1,
         solve.graph.StepBack: 1,
         solve.graph.RequestPackage: 2,
@@ -99,17 +104,19 @@ def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) ->
 
 def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
 
-    if isinstance(change, solve.graph.RequestPackage):
+    if isinstance(change, (pysolve.graph.RequestPackage, solve.graph.RequestPackage)):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
-    elif isinstance(change, solve.graph.RequestVar):
+    elif isinstance(change, (pysolve.graph.RequestVar, solve.graph.RequestVar)):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.var: change.request.value}))}"
-    elif isinstance(change, solve.graph.SetPackageBuild):
+    elif isinstance(
+        change, (pysolve.graph.SetPackageBuild, solve.graph.SetPackageBuild)
+    ):
         return f"{Fore.YELLOW}BUILD{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, solve.graph.SetPackage):
+    elif isinstance(change, (pysolve.graph.SetPackage, solve.graph.SetPackage)):
         return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, solve.graph.SetOptions):
+    elif isinstance(change, (pysolve.graph.SetOptions, solve.graph.SetOptions)):
         return f"{Fore.CYAN}ASSIGN{Fore.RESET} {format_options(change.options)}"
-    elif isinstance(change, solve.graph.StepBack):
+    elif isinstance(change, (pysolve.graph.StepBack, solve.graph.StepBack)):
         return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
     else:
         return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
@@ -117,7 +124,7 @@ def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
 
 def format_note(note: solve.graph.Note) -> str:
 
-    if isinstance(note, solve.graph.SkipPackageNote):
+    if isinstance(note, (pysolve.graph.SkipPackageNote, solve.graph.SkipPackageNote)):
         return f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(note.pkg)} - {note.reason}"
     else:
         return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
