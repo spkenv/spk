@@ -58,6 +58,17 @@ pub struct SolvedRequest {
     pub source: PackageSource,
 }
 
+#[pymethods]
+impl SolvedRequest {
+    pub fn is_source_build(&self) -> bool {
+        match &self.source {
+            PackageSource::Repository(_) => false,
+            PackageSource::Spec(spec) => spec.pkg == self.spec.pkg.with_build(None),
+        }
+    }
+}
+
+/// Represents a set of resolved packages.
 #[pyclass]
 #[derive(Debug)]
 pub struct Solution {
