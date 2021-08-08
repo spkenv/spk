@@ -27,7 +27,7 @@ pub struct InvalidVersionError {
 }
 
 impl InvalidVersionError {
-    pub fn new(msg: String) -> crate::Error {
+    pub fn new_error(msg: String) -> crate::Error {
         crate::Error::InvalidVersionError(Self { message: msg })
     }
 }
@@ -51,13 +51,13 @@ impl TagSet {
     pub fn single<S: Into<String>>(name: S, value: u32) -> TagSet {
         let mut tag_set = TagSet::default();
         tag_set.tags.insert(name.into(), value);
-        return tag_set;
+        tag_set
     }
     pub fn double<S: Into<String>>(name_1: S, value_1: u32, name_2: S, value_2: u32) -> TagSet {
         let mut tag_set = TagSet::default();
         tag_set.tags.insert(name_1.into(), value_1);
         tag_set.tags.insert(name_2.into(), value_2);
-        return tag_set;
+        tag_set
     }
     pub fn is_empty(&self) -> bool {
         self.tags.keys().len() == 0
@@ -92,17 +92,17 @@ impl Ord for TagSet {
 
         for ((self_name, self_value), (other_name, other_value)) in self_entries.zip(other_entries)
         {
-            match self_name.cmp(&other_name) {
+            match self_name.cmp(other_name) {
                 Ordering::Equal => (),
                 res => return res,
             }
-            match self_value.cmp(&other_value) {
+            match self_value.cmp(other_value) {
                 Ordering::Equal => (),
                 res => return res,
             }
         }
 
-        return self.tags.len().cmp(&other.tags.len());
+        self.tags.len().cmp(&other.tags.len())
     }
 }
 
@@ -124,7 +124,7 @@ impl pyo3::mapping::PyMappingProtocol for TagSet {
         self.tags
             .get(&key)
             .map(u32::to_owned)
-            .ok_or(pyo3::exceptions::PyKeyError::new_err(key))
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key))
     }
 
     fn __setitem__(&mut self, key: String, value: u32) {
@@ -145,7 +145,7 @@ impl pyo3::mapping::PyMappingProtocol for TagSet {
 pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
     let tags = tags.as_ref();
     let mut tag_set = TagSet::default();
-    if tags.len() == 0 {
+    if tags.is_empty() {
         return Ok(tag_set);
     }
 
@@ -153,14 +153,17 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
         let (name, num) = break_string(tag, TAG_SEP);
         match (name, num) {
             ("", _) | (_, "") => {
-                return Err(InvalidVersionError::new(format!(
+                return Err(InvalidVersionError::new_error(format!(
                     "Version tag segment must be of the form <name>.<int>, got [{}]",
                     tag
                 )))
             }
             _ => {
                 if tag_set.tags.contains_key(name) {
-                    return Err(InvalidVersionError::new(format!("duplicate tag: {}", name)));
+                    return Err(InvalidVersionError::new_error(format!(
+                        "duplicate tag: {}",
+                        name
+                    )));
                 }
                 validate_tag_name(name)?;
                 match num.parse() {
@@ -168,7 +171,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
                         tag_set.tags.insert(name.to_string(), num);
                     }
                     Err(_) => {
-                        return Err(InvalidVersionError::new(format!(
+                        return Err(InvalidVersionError::new_error(format!(
                             "Version tag segment must be of the form <name>.<int>, got [{}]",
                             tag
                         )))
@@ -204,9 +207,9 @@ impl Version {
     #[new(major = 0, minor = 0, patch = 0)]
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {
-            major: major,
-            minor: minor,
-            patch: patch,
+            major,
+            minor,
+            patch,
             ..Default::default()
         }
     }
@@ -267,10 +270,10 @@ impl FromStr for Version {
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut base = self.base();
-        if self.pre.tags.len() > 0 {
+        if !self.pre.tags.is_empty() {
             base = format!("{}-{}", base, self.pre.to_string());
         }
-        if self.post.tags.len() > 0 {
+        if !self.post.tags.is_empty() {
             base = format!("{}+{}", base, self.post.to_string());
         }
         f.write_str(&base)
@@ -301,7 +304,7 @@ impl Ord for Version {
             }
         }
 
-        if let Some(_) = other_parts.next() {
+        if other_parts.next().is_some() {
             // other has more base parts than we do
             return Ordering::Less;
         }
@@ -323,7 +326,7 @@ impl Ord for Version {
 /// Parse a string as a version specifier.
 pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
     let version = version.as_ref();
-    if version.len() == 0 {
+    if version.is_empty() {
         return Ok(Version::default());
     }
 
@@ -336,7 +339,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
         match p.parse() {
             Ok(p) => parts.push(p),
             Err(_) => {
-                return Err(InvalidVersionError::new(format!(
+                return Err(InvalidVersionError::new_error(format!(
                     "Version must be a sequence of integers, got '{}' in position {} [{}]",
                     p, i, version
                 )))

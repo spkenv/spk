@@ -34,7 +34,7 @@ pub struct RangeIdent {
 }
 
 impl RangeIdent {
-    pub fn name<'a>(&'a self) -> &'a str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
@@ -80,9 +80,7 @@ impl RangeIdent {
             return compat;
         }
 
-        if other.build.is_none() {
-            Compatibility::Compatible
-        } else if self.build == other.build || self.build.is_none() {
+        if other.build.is_none() || self.build == other.build || self.build.is_none() {
             Compatibility::Compatible
         } else {
             Compatibility::Incompatible(format!("Incompatible builds: {} && {}", self, other))
@@ -116,7 +114,7 @@ impl RangeIdent {
             return Compatibility::Incompatible("different package names".into());
         }
 
-        let c = self.version.is_satisfied_by(&spec, required);
+        let c = self.version.is_satisfied_by(spec, required);
         if !c.is_ok() {
             return c;
         }
@@ -135,7 +133,7 @@ impl RangeIdent {
 impl Display for RangeIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.name.fmt(f)?;
-        if self.version.len() > 0 {
+        if !self.version.is_empty() {
             f.write_char('/')?;
             self.version.fmt(f)?;
         }
@@ -188,18 +186,12 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// parse_ident_range("maya/^2020.0").unwrap()
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
-    let mut parts = source.as_ref().split("/");
-    let name = match parts.next() {
-        Some(s) => s,
-        None => "",
-    };
-    let version = match parts.next() {
-        Some(s) => s,
-        None => "",
-    };
+    let mut parts = source.as_ref().split('/');
+    let name = parts.next().unwrap_or("");
+    let version = parts.next().unwrap_or("");
     let build = parts.next();
 
-    if let Some(_) = parts.next() {
+    if parts.next().is_some() {
         return Err(Error::String(format!(
             "Too many tokens in range identifier: {}",
             source.as_ref()
@@ -225,11 +217,7 @@ pub enum PreReleasePolicy {
 
 impl PreReleasePolicy {
     pub fn is_default(&self) -> bool {
-        if let PreReleasePolicy::ExcludeAll = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, &PreReleasePolicy::ExcludeAll)
     }
 }
 
@@ -260,11 +248,7 @@ pub enum InclusionPolicy {
 
 impl InclusionPolicy {
     pub fn is_default(&self) -> bool {
-        if let InclusionPolicy::Always = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, &InclusionPolicy::Always)
     }
 }
 
@@ -362,7 +346,7 @@ impl VarRequest {
         }
     }
 
-    pub fn value<'a>(&'a self) -> &'a str {
+    pub fn value(&self) -> &str {
         self.value.as_str()
     }
 
@@ -393,8 +377,8 @@ impl VarRequest {
 
     /// Return the name of the package that this var refers to (if any)
     pub fn package(&self) -> Option<String> {
-        if self.var.contains(".") {
-            Some(self.var.split(".").next().unwrap().to_string())
+        if self.var.contains('.') {
+            Some(self.var.split('.').next().unwrap().to_string())
         } else {
             None
         }
@@ -408,7 +392,7 @@ impl<'de> Deserialize<'de> for VarRequest {
     {
         let spec = VarRequestSchema::deserialize(deserializer)?;
 
-        let mut parts = spec.var.splitn(2, "/");
+        let mut parts = spec.var.splitn(2, '/');
         let mut out = Self {
             var: parts.next().unwrap().to_string(),
             value: Default::default(),
@@ -441,15 +425,12 @@ impl Serialize for VarRequest {
         S: serde::Serializer,
     {
         let mut var = self.var.clone();
-        if self.value != "" || !self.pin {
+        if !self.value.is_empty() || !self.pin {
             // serialize an empty value if not pinning, otherwise it
             // wont be valid to load back in
             var = format!("{}/{}", var, self.value);
         }
-        let out = VarRequestSchema {
-            var: var,
-            pin: self.pin,
-        };
+        let out = VarRequestSchema { var, pin: self.pin };
         out.serialize(serializer)
     }
 }
@@ -489,7 +470,7 @@ pub struct PkgRequest {
 impl PkgRequest {
     pub fn new(pkg: RangeIdent) -> Self {
         Self {
-            pkg: pkg,
+            pkg,
             prerelease_policy: PreReleasePolicy::ExcludeAll,
             inclusion_policy: InclusionPolicy::Always,
             pin: Default::default(),
@@ -507,11 +488,9 @@ impl PkgRequest {
     /// Create a copy of this request with it's pin rendered out using 'pkg'.
     pub fn render_pin(&self, pkg: &Ident) -> Result<PkgRequest> {
         match &self.pin {
-            None => {
-                return Err(Error::String(
-                    "Request has no pin to be rendered".to_owned(),
-                ))
-            }
+            None => Err(Error::String(
+                "Request has no pin to be rendered".to_owned(),
+            )),
             Some(pin) if pin == API_STR || pin == BINARY_STR => {
                 // Supply the full base (digit-only) part of the version
                 let base = pkg.version.base();
@@ -590,9 +569,8 @@ impl PkgRequest {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }
 
-        return self
-            .pkg
-            .is_satisfied_by(spec, self.required_compat.unwrap_or(CompatRule::Binary));
+        self.pkg
+            .is_satisfied_by(spec, self.required_compat.unwrap_or(CompatRule::Binary))
     }
 
     /// Reduce the scope of this request to the intersection with another.
@@ -612,7 +590,7 @@ impl From<&Ident> for PkgRequest {
     fn from(pkg: &Ident) -> PkgRequest {
         let ri = RangeIdent {
             name: pkg.name().to_owned(),
-            version: VersionFilter::single(ExactVersion::new(pkg.version.clone())),
+            version: VersionFilter::single(ExactVersion::version_range(pkg.version.clone())),
             build: pkg.build.clone(),
         };
         PkgRequest::new(ri)
@@ -661,7 +639,7 @@ impl<'de> Deserialize<'de> for PkgRequest {
             pkg: unchecked.pkg,
             prerelease_policy: unchecked.prerelease_policy,
             inclusion_policy: unchecked.inclusion_policy,
-            pin: pin,
+            pin,
             required_compat: None,
         })
     }

@@ -9,7 +9,7 @@ pub struct InvalidNameError {
 }
 
 impl InvalidNameError {
-    pub fn new(msg: String) -> crate::Error {
+    pub fn new_error(msg: String) -> crate::Error {
         crate::Error::InvalidNameError(Self { message: msg })
     }
 }
@@ -26,7 +26,7 @@ pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.chars().nth(index).unwrap(),
             &name[(index + 1)..]
         );
-        Err(InvalidNameError::new(format!(
+        Err(InvalidNameError::new_error(format!(
             "Invalid package name at pos {}: {}",
             index, err_str
         )))
@@ -47,7 +47,7 @@ pub fn validate_tag_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.chars().nth(index).unwrap(),
             &name[(index + 1)..]
         );
-        Err(InvalidNameError::new(format!(
+        Err(InvalidNameError::new_error(format!(
             "Invalid release tag name at pos {}: {}",
             index, err_str
         )))
@@ -69,5 +69,5 @@ where
         }
         return i as isize;
     }
-    return -1;
+    -1
 }

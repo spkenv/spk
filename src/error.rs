@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use pyo3::{exceptions, prelude::*};
-use spfs;
 
 use super::api;
 
@@ -79,18 +78,12 @@ impl From<Error> for PyErr {
             Error::SPFS(spfs::Error::IO(err)) => err.into(),
             Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
             Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
-            Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
-            Error::String(msg) => exceptions::PyRuntimeError::new_err(msg.to_string()),
-            Error::InvalidBuildError(err) => {
-                exceptions::PyValueError::new_err(err.message.to_string())
-            }
-            Error::InvalidVersionError(err) => {
-                exceptions::PyValueError::new_err(err.message.to_string())
-            }
-            Error::InvalidNameError(err) => {
-                exceptions::PyValueError::new_err(err.message.to_string())
-            }
+            Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message),
+            Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message),
+            Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
+            Error::InvalidBuildError(err) => exceptions::PyValueError::new_err(err.message),
+            Error::InvalidVersionError(err) => exceptions::PyValueError::new_err(err.message),
+            Error::InvalidNameError(err) => exceptions::PyValueError::new_err(err.message),
             Error::PyErr(err) => err,
         }
     }

@@ -41,14 +41,12 @@ impl pyo3::PyObjectProtocol for Digest {
 
 impl From<spfs::encoding::Digest> for Digest {
     fn from(inner: spfs::encoding::Digest) -> Self {
-        Self { inner: inner }
+        Self { inner }
     }
 }
 impl From<&spfs::encoding::Digest> for Digest {
     fn from(inner: &spfs::encoding::Digest) -> Self {
-        Self {
-            inner: inner.clone(),
-        }
+        Self { inner: *inner }
     }
 }
 
@@ -67,11 +65,11 @@ impl Runtime {
 #[pymodule]
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     let api_mod = PyModule::new(py, "api")?;
-    api::init_module(&py, &api_mod)?;
+    api::init_module(&py, api_mod)?;
     m.add_submodule(api_mod)?;
 
     let build_mod = PyModule::new(py, "build")?;
-    build::init_module(&py, &build_mod)?;
+    build::init_module(&py, build_mod)?;
     m.add_submodule(build_mod)?;
 
     // ensure that from spkrs.submodule import xx works
@@ -95,7 +93,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
         if verbosity == 0 {
             let parse_result = std::env::var("SPFS_VERBOSITY")
-                .unwrap_or("0".to_string())
+                .unwrap_or_else(|_| "0".to_string())
                 .parse::<usize>();
             if let Ok(parsed) = parse_result {
                 verbosity = usize::max(parsed, verbosity);
@@ -103,7 +101,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         }
         std::env::set_var("SPFS_VERBOSITY", verbosity.to_string());
         use tracing_subscriber::layer::SubscriberExt;
-        if !std::env::var("RUST_LOG").is_ok() {
+        if std::env::var("RUST_LOG").is_err() {
             std::env::set_var("RUST_LOG", "spfs=trace");
         }
         let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
@@ -132,11 +130,11 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     }
     #[pyfn(m, "local_repository")]
     fn local_repository(_py: Python) -> Result<storage::SpFSRepository> {
-        Ok(storage::local_repository()?)
+        storage::local_repository()
     }
     #[pyfn(m, "remote_repository")]
     fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
-        Ok(storage::remote_repository(path)?)
+        storage::remote_repository(path)
     }
     #[pyfn(m, "open_tar_repository")]
     fn open_tar_repository(
@@ -183,10 +181,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m, "build_shell_initialized_command", args = "*")]
     fn build_shell_initialized_command(cmd: String, args: Vec<String>) -> Result<Vec<String>> {
         let cmd = std::ffi::OsString::from(cmd);
-        let mut args = args
-            .into_iter()
-            .map(|a| std::ffi::OsString::from(a))
-            .collect();
+        let mut args = args.into_iter().map(std::ffi::OsString::from).collect();
         let cmd = spfs::build_shell_initialized_command(cmd, &mut args)?;
         let cmd = cmd
             .into_iter()
@@ -218,7 +213,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
         for layer in layers.iter().rev() {
             let manifest = repo.read_manifest(&layer.manifest)?.unlock();
-            if let Some(_) = manifest.get_path(&path) {
+            if manifest.get_path(&path).is_some() {
                 return Ok(layer.digest()?.into());
             }
         }

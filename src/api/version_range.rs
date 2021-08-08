@@ -51,12 +51,12 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// this cannot be fully determined without a complete package spec.
     fn is_applicable(&self, other: &Version) -> Compatibility {
         if let Some(gt) = self.greater_or_equal_to() {
-            if !(other >= &gt) {
+            if other < &gt {
                 return Compatibility::Incompatible("version too low".to_string());
             }
         }
         if let Some(lt) = self.less_than() {
-            if !(other < &lt) {
+            if other >= &lt {
                 return Compatibility::Incompatible("version too high".to_string());
             }
         }
@@ -243,7 +243,7 @@ impl Ranged for VersionRange {
 
     fn rules(&self) -> HashSet<VersionRange> {
         match self {
-            VersionRange::Filter(f) => return f.rules(),
+            VersionRange::Filter(f) => f.rules(),
             _ => Ranged::rules(self),
         }
     }
@@ -280,7 +280,9 @@ pub struct SemverRange {
 }
 
 impl SemverRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(minimum: V) -> Result<VersionRange> {
+    pub fn new_version_range<V: TryInto<Version, Error = Error>>(
+        minimum: V,
+    ) -> Result<VersionRange> {
         Ok(VersionRange::Semver(SemverRange {
             minimum: minimum.try_into()?,
         }))
@@ -315,7 +317,7 @@ impl Ranged for SemverRange {
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        return self.is_applicable(&spec.pkg.version);
+        self.is_applicable(&spec.pkg.version)
     }
 }
 
@@ -334,7 +336,7 @@ pub struct WildcardRange {
 }
 
 impl WildcardRange {
-    pub fn new<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
+    pub fn new_version_range<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
         let mut parts = Vec::new();
         for part in minimum.as_ref().split(VERSION_SEP) {
             if part == "*" {
@@ -353,7 +355,7 @@ impl WildcardRange {
         }
         let range = WildcardRange {
             specified: parts.len(),
-            parts: parts,
+            parts,
         };
         if range.parts.iter().filter(|p| p.is_none()).count() != 1 {
             return Err(Error::String(format!(
@@ -377,21 +379,13 @@ impl Ranged for WildcardRange {
             .parts
             .clone()
             .into_iter()
-            .map(|p| match p {
-                Some(p) => p,
-                None => 0,
-            })
+            .map(|p| p.unwrap_or(0))
             .collect_vec();
         Some(Version::from_parts(parts.into_iter()))
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self
-            .parts
-            .clone()
-            .into_iter()
-            .filter_map(|p| p)
-            .collect_vec();
+        let mut parts = self.parts.clone().into_iter().flatten().collect_vec();
         if let Some(last) = parts.last_mut() {
             *last += 1;
         } else {
@@ -443,7 +437,7 @@ pub struct LowestSpecifiedRange {
 }
 
 impl LowestSpecifiedRange {
-    pub fn new<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
+    pub fn new_version_range<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
         let range = Self {
             specified: minimum.as_ref().split(VERSION_SEP).count(),
             base: parse_version(minimum.as_ref())?,
@@ -504,7 +498,9 @@ pub struct GreaterThanRange {
 }
 
 impl GreaterThanRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new_version_range<V: TryInto<Version, Error = Error>>(
+        boundary: V,
+    ) -> Result<VersionRange> {
         Ok(VersionRange::GreaterThan(Self {
             bound: boundary.try_into()?,
         }))
@@ -552,7 +548,9 @@ pub struct LessThanRange {
 }
 
 impl LessThanRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new_version_range<V: TryInto<Version, Error = Error>>(
+        boundary: V,
+    ) -> Result<VersionRange> {
         Ok(VersionRange::LessThan(Self {
             bound: boundary.try_into()?,
         }))
@@ -600,7 +598,9 @@ pub struct GreaterThanOrEqualToRange {
 }
 
 impl GreaterThanOrEqualToRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new_version_range<V: TryInto<Version, Error = Error>>(
+        boundary: V,
+    ) -> Result<VersionRange> {
         Ok(VersionRange::GreaterThanOrEqualTo(Self {
             bound: boundary.try_into()?,
         }))
@@ -648,7 +648,9 @@ pub struct LessThanOrEqualToRange {
 }
 
 impl LessThanOrEqualToRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new_version_range<V: TryInto<Version, Error = Error>>(
+        boundary: V,
+    ) -> Result<VersionRange> {
         Ok(VersionRange::LessThanOrEqualTo(Self {
             bound: boundary.try_into()?,
         }))
@@ -696,8 +698,8 @@ pub struct ExactVersion {
 }
 
 impl ExactVersion {
-    pub fn new(version: Version) -> VersionRange {
-        VersionRange::Exact(Self { version: version })
+    pub fn version_range(version: Version) -> VersionRange {
+        VersionRange::Exact(Self { version })
     }
 }
 
@@ -765,7 +767,7 @@ pub struct ExcludedVersion {
 }
 
 impl ExcludedVersion {
-    pub fn new<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
+    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
         let range = Self {
             specified: exclude.as_ref().split(VERSION_SEP).count(),
             base: parse_version(exclude)?,
@@ -797,7 +799,7 @@ impl Ranged for ExcludedVersion {
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        return self.is_applicable(&spec.pkg.version);
+        self.is_applicable(&spec.pkg.version)
     }
 }
 
@@ -826,7 +828,7 @@ pub struct CompatRange {
 }
 
 impl CompatRange {
-    pub fn new<R: AsRef<str>>(range: R) -> Result<VersionRange> {
+    pub fn new_version_range<R: AsRef<str>>(range: R) -> Result<VersionRange> {
         let range = range.as_ref();
         let compat_range = match range.rsplit_once(":") {
             Some((prefix, version)) => Self {
@@ -873,15 +875,12 @@ impl Ranged for CompatRange {
 
 impl Display for CompatRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.required {
-            Some(r) => {
-                // get the alternate, long form representation
-                // as this is what we expect when parsing
-                // (eg 'Binary' instead of 'b')
-                f.write_fmt(format_args!("{:#}", r))?;
-                f.write_char(':')?;
-            }
-            None => (),
+        if let Some(r) = self.required {
+            // get the alternate, long form representation
+            // as this is what we expect when parsing
+            // (eg 'Binary' instead of 'b')
+            f.write_fmt(format_args!("{:#}", r))?;
+            f.write_char(':')?;
         }
         f.write_str(&self.base.to_string())
     }
@@ -893,6 +892,7 @@ pub struct VersionFilter {
     rules: HashSet<VersionRange>,
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
 impl Hash for VersionFilter {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         let rules = self.sorted_rules();
@@ -955,16 +955,12 @@ impl Ranged for VersionFilter {
         self.rules
             .iter()
             .map(|r| r.greater_or_equal_to())
-            .filter_map(|v| v)
+            .flatten()
             .max()
     }
 
     fn less_than(&self) -> Option<Version> {
-        self.rules
-            .iter()
-            .map(|r| r.less_than())
-            .filter_map(|v| v)
-            .min()
+        self.rules.iter().map(|r| r.less_than()).flatten().min()
     }
 
     /// Return true if the given version number is applicable to this range.
@@ -1055,32 +1051,32 @@ impl FromStr for VersionFilter {
             return Ok(out);
         }
         for rule_str in range.split(VERSION_RANGE_SEP) {
-            let rule = if rule_str.len() == 0 {
+            let rule = if rule_str.is_empty() {
                 return Err(Error::String(format!(
                     "Empty segment not allowed in version range, got: {}",
                     range
                 )));
-            } else if rule_str.starts_with("^") {
-                SemverRange::new(&rule_str[1..])?
-            } else if rule_str.starts_with("~") {
-                LowestSpecifiedRange::new(&rule_str[1..])?
-            } else if rule_str.starts_with(">=") {
-                GreaterThanOrEqualToRange::new(&rule_str[2..])?
-            } else if rule_str.starts_with("<=") {
-                LessThanOrEqualToRange::new(&rule_str[2..])?
-            } else if rule_str.starts_with(">") {
-                GreaterThanRange::new(&rule_str[1..])?
-            } else if rule_str.starts_with("<") {
-                LessThanRange::new(&rule_str[1..])?
-            } else if rule_str.starts_with("=") {
-                let version = Version::from_str(&rule_str[1..])?;
-                ExactVersion::new(version)
-            } else if rule_str.starts_with("!=") {
-                ExcludedVersion::new(&rule_str[2..])?
+            } else if let Some(end) = rule_str.strip_prefix('^') {
+                SemverRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix('~') {
+                LowestSpecifiedRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix(">=") {
+                GreaterThanOrEqualToRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix("<=") {
+                LessThanOrEqualToRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix('>') {
+                GreaterThanRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix('<') {
+                LessThanRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix('=') {
+                let version = Version::from_str(end)?;
+                ExactVersion::version_range(version)
+            } else if let Some(end) = rule_str.strip_prefix("!=") {
+                ExcludedVersion::new_version_range(end)?
             } else if rule_str.contains('*') {
-                WildcardRange::new(rule_str)?
+                WildcardRange::new_version_range(rule_str)?
             } else {
-                CompatRange::new(rule_str)?
+                CompatRange::new_version_range(rule_str)?
             };
             out.rules.insert(rule);
         }

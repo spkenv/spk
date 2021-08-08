@@ -42,7 +42,7 @@ impl BuildSpec {
         self == &Self::default()
     }
 
-    fn is_default_variants(variants: &Vec<OptionMap>) -> bool {
+    fn is_default_variants(variants: &[OptionMap]) -> bool {
         if variants.len() != 1 {
             return false;
         }
@@ -55,7 +55,7 @@ impl BuildSpec {
     #[new]
     fn init(options: Vec<Opt>) -> Self {
         Self {
-            options: options,
+            options,
             ..Self::default()
         }
     }
@@ -69,7 +69,7 @@ impl BuildSpec {
             if let Some(name) = &package_name {
                 given_value = given.get(&opt.namespaced_name(name))
             }
-            if let None = &given_value {
+            if given_value.is_none() {
                 given_value = given.get(name)
             }
 
@@ -137,7 +137,7 @@ impl<'de> Deserialize<'de> for BuildSpec {
             let mut build_opts = variant.clone();
             build_opts.append(&mut bs.resolve_all_options(None, variant));
             let digest = build_opts.digest();
-            variant_builds.push((digest.clone(), variant.clone()));
+            variant_builds.push((digest, variant.clone()));
             unique_variants.insert(digest);
         }
         if unique_variants.len() < variant_builds.len() {
@@ -211,7 +211,7 @@ where
     match value {
         Value::Sequence(seq) => Vec::<String>::deserialize(Value::Sequence(seq))
             .map_err(|err| serde::de::Error::custom(err.to_string())),
-        Value::String(string) => Ok(string.split("\n").map(String::from).collect_vec()),
+        Value::String(string) => Ok(string.split('\n').map(String::from).collect_vec()),
         _ => Err(serde::de::Error::custom(
             "expected string or list of strings",
         )),

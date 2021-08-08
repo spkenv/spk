@@ -90,7 +90,7 @@ impl Compatibility {
         } else {
             super::Compatibility::Incompatible(msg.to_string())
         };
-        Compatibility { inner: inner }
+        Compatibility { inner }
     }
 }
 
@@ -421,19 +421,14 @@ where
 {
     let locals = pyo3::types::PyDict::new(py);
     let _ = locals.set_item("data", input);
-    py.run("import json; out = json.dumps(data)", None, Some(locals))
-        .or_else(|err| {
-            Err(crate::Error::String(format!(
+    py.run("import json; out = json.dumps(data)", None, Some(locals)).map_err(|err| crate::Error::String(format!(
                 "Not a valid dictionary: {:?}",
                 err
-            )))
-        })?;
-    let json: &str = locals.get_item("out").unwrap().extract().or_else(|err| {
-        Err(crate::Error::String(format!(
+            )))?;
+    let json: &str = locals.get_item("out").unwrap().extract().map_err(|err| crate::Error::String(format!(
             "Not a valid dictionary: {:?}",
             err
-        )))
-    })?;
+        )))?;
     Ok(serde_yaml::from_str(json)?)
 }
 
@@ -456,13 +451,10 @@ where
         "from ruamel import yaml; out = yaml.safe_load(data)",
         None,
         Some(locals),
-    )
-    .or_else(|err| {
-        Err(crate::Error::String(format!(
+    ).map_err(|err| crate::Error::String(format!(
             "Failed to serialize item: {:?}",
             err
-        )))
-    })?;
+        )))?;
     locals.get_item("out").unwrap().extract()
 }
 

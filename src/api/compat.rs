@@ -4,7 +4,6 @@
 use std::cmp::{Ord, Ordering};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
-use std::iter::FromIterator;
 use std::str::FromStr;
 
 use itertools::izip;
@@ -17,8 +16,8 @@ use crate::{Error, Result};
 #[path = "./compat_test.rs"]
 mod compat_test;
 
-pub const API_STR: &'static str = "API";
-pub const BINARY_STR: &'static str = "Binary";
+pub const API_STR: &str = "API";
+pub const BINARY_STR: &str = "Binary";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompatRule {
@@ -108,20 +107,17 @@ impl std::fmt::Display for Compatibility {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Compatibility::Compatible => f.write_str(""),
-            Compatibility::Incompatible(msg) => f.write_str(&msg),
+            Compatibility::Incompatible(msg) => f.write_str(msg),
         }
     }
 }
 
 impl Compatibility {
     pub fn is_ok(&self) -> bool {
-        match self {
-            Compatibility::Compatible => true,
-            _ => false,
-        }
+        matches!(self, &Compatibility::Compatible)
     }
 
-    pub fn message<'a>(&'a self) -> &'a str {
+    pub fn message(&self) -> &str {
         match self {
             Compatibility::Compatible => "",
             Compatibility::Incompatible(msg) => msg.as_ref(),
@@ -142,16 +138,16 @@ impl std::fmt::Display for CompatRuleSet {
 impl CompatRuleSet {
     /// Create a compat rule set with one part
     pub fn single(first: CompatRule) -> Self {
-        CompatRuleSet(BTreeSet::from_iter(vec![first].into_iter()))
+        CompatRuleSet(vec![first].into_iter().collect())
     }
     /// Create a compat rule set with two parts
     pub fn double(first: CompatRule, second: CompatRule) -> Self {
-        CompatRuleSet(BTreeSet::from_iter(vec![first, second].into_iter()))
+        CompatRuleSet(vec![first, second].into_iter().collect())
     }
 
     /// Create a compat rule set with three parts
     pub fn triple(first: CompatRule, second: CompatRule, third: CompatRule) -> Self {
-        CompatRuleSet(BTreeSet::from_iter(vec![first, second, third].into_iter()))
+        CompatRuleSet(vec![first, second, third].into_iter().collect())
     }
 }
 
@@ -190,7 +186,7 @@ impl FromStr for Compat {
 
     fn from_str(value: &str) -> crate::Result<Self> {
         let mut parts = Vec::new();
-        for part in value.split(".") {
+        for part in value.split('.') {
             let mut rule_set = CompatRuleSet::default();
             for c in part.chars() {
                 rule_set.0.insert(CompatRule::try_from(&c)?);
@@ -219,12 +215,12 @@ impl Compat {
 
     /// Return true if the two version are api compatible by this compat rule.
     pub fn is_api_compatible(&self, base: &Version, other: &Version) -> Compatibility {
-        return self.check_compat(base, other, CompatRule::API);
+        self.check_compat(base, other, CompatRule::API)
     }
 
     /// Return true if the two version are binary compatible by this compat rule.
     pub fn is_binary_compatible(&self, base: &Version, other: &Version) -> Compatibility {
-        return self.check_compat(base, other, CompatRule::Binary);
+        self.check_compat(base, other, CompatRule::Binary)
     }
 
     pub fn render(&self, version: &Version) -> String {
