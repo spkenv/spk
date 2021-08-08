@@ -1,9 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use indexmap::set::IndexSet;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -174,20 +174,23 @@ pub struct VarOpt {
     pub var: String,
     #[pyo3(get, set)]
     pub default: String,
-    #[pyo3(get, set)]
-    pub choices: HashSet<String>,
+    pub choices: IndexSet<String>,
     #[pyo3(get, set)]
     pub inheritance: Inheritance,
     #[pyo3(get)]
     value: Option<String>,
 }
 
+// This is safe to allow because choices is IndexSet and has
+// deterministic iteration order.
+#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for VarOpt {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.var.hash(state);
         self.default.hash(state);
         for (i, choice) in self.choices.iter().enumerate() {
             i.hash(state);
+
             choice.hash(state);
         }
         self.inheritance.hash(state);
@@ -200,7 +203,7 @@ impl VarOpt {
         Self {
             var: var.as_ref().to_string(),
             default: String::default(),
-            choices: HashSet::default(),
+            choices: IndexSet::default(),
             inheritance: Inheritance::default(),
             value: None,
         }
@@ -211,6 +214,19 @@ impl VarOpt {
 impl VarOpt {
     fn copy(&self) -> Self {
         self.clone()
+    }
+
+    #[getter]
+    pub fn get_choices(&self) -> PyResult<PyObject> {
+        Python::with_gil(|py| {
+            let set = pyo3::types::PySet::empty(py)?;
+            {
+                for val in &self.choices {
+                    set.add(val.into_py(py))?;
+                }
+            }
+            Ok(set.into())
+        })
     }
 
     fn name(&self) -> String {
