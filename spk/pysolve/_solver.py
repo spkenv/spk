@@ -174,6 +174,7 @@ class Solver:
                 previous = history.pop().state if len(history) else graph.DEAD_STATE
                 decision = graph.StepBack(f"{err}", previous).as_decision()
 
+        assert current_node is not None
         is_dead = current_node.state in (solve_graph.root.state, graph.DEAD_STATE)
         is_empty = len(self.get_initial_state().pkg_requests) == 0
         if is_dead and not is_empty:
