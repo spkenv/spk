@@ -1,4 +1,4 @@
-VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
+VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 
 .PHONY: rpm devel test packages clean
 default: devel
