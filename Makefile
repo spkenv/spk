@@ -1,24 +1,20 @@
-VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
-SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 
 .PHONY: rpm devel test packages clean
 default: devel
 
 packages:
-	cd $(SOURCE_ROOT)/packages && \
-	$(MAKE) packages
+	$(MAKE) -C packages packages
 
 packages.%:
-	cd $(SOURCE_ROOT)/packages && $(MAKE) $*
+	$(MAKE) -C packages $*
 
 clean: packages.clean
 
 devel:
-	cd $(SOURCE_ROOT)
 	pipenv run -- python setup.py develop
 
 test:
-	cd $(SOURCE_ROOT)
 	mkdir -p /tmp/spfs-runtimes
 	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
 	pipenv run -- spfs run - -- pytest -x -vvv
