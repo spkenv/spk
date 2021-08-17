@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
-    Opt, OptionMap, PkgRequest, Request, SourceSpec, TestSpec, VarRequest,
+    Meta, Opt, OptionMap, PkgRequest, Request, SourceSpec, TestSpec, VarRequest,
 };
 use crate::{Error, Result};
 
@@ -33,6 +33,9 @@ pub struct Spec {
     #[pyo3(get, set)]
     #[serde(default)]
     pub pkg: Ident,
+    #[pyo3(get, set)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<Meta>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
@@ -237,6 +240,8 @@ impl<'de> Deserialize<'de> for Spec {
             #[serde(default)]
             pkg: Ident,
             #[serde(default)]
+            meta: Option<Meta>,
+            #[serde(default)]
             compat: Compat,
             #[serde(default)]
             deprecated: bool,
@@ -262,6 +267,7 @@ impl<'de> Deserialize<'de> for Spec {
 
         Ok(Spec {
             pkg: unchecked.pkg,
+            meta: unchecked.meta,
             compat: unchecked.compat,
             deprecated: unchecked.deprecated,
             sources: unchecked
