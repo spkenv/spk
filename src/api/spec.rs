@@ -34,8 +34,8 @@ pub struct Spec {
     #[serde(default)]
     pub pkg: Ident,
     #[pyo3(get, set)]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub meta: Option<Meta>,
+    #[serde(default, skip_serializing_if = "Meta::is_default")]
+    pub meta: Meta,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
@@ -240,7 +240,7 @@ impl<'de> Deserialize<'de> for Spec {
             #[serde(default)]
             pkg: Ident,
             #[serde(default)]
-            meta: Option<Meta>,
+            meta: Meta,
             #[serde(default)]
             compat: Compat,
             #[serde(default)]

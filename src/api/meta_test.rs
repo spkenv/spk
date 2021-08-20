@@ -5,14 +5,17 @@
 use rstest::rstest;
 
 #[rstest]
-fn test_package_meta_absent() {
+fn test_package_meta_missing() {
     let spec: serde_yaml::Result<crate::api::Spec> = serde_yaml::from_str(
         r#"{
         pkg: meta/1.0.0
     }"#,
     );
     assert!(spec.is_ok());
-    assert!(spec.unwrap().meta.is_none())
+    assert_eq!(
+        spec.unwrap().meta.license,
+        crate::api::meta::Meta::default_license()
+    );
 }
 
 #[rstest]
@@ -22,16 +25,15 @@ fn test_package_meta_basic() {
         pkg: meta/1.0.0
         meta:
             description: package description
-            license: MIT
             labels:
                 department: fx
     "#,
     );
     assert!(spec.is_ok());
     let spec = spec.unwrap();
-    assert!(spec.meta.is_some());
-    let meta = spec.meta.unwrap();
+    let meta = spec.meta;
+    assert_eq!(meta.license, crate::api::meta::Meta::default_license());
     assert!(meta.description.is_some());
     assert!(meta.homepage.is_none());
-    assert!(meta.labels.unwrap().contains_key("department"));
+    assert!(meta.labels.contains_key("department"));
 }
