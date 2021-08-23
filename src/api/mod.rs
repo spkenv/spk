@@ -18,12 +18,12 @@ mod test_spec;
 mod version;
 mod version_range;
 
-pub use build::{parse_build, Build, InvalidBuildError};
+pub use build::{parse_build, Build};
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
-pub use name::{validate_name, validate_tag_name, InvalidNameError};
+pub use name::{validate_name, validate_tag_name};
 pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub use option_map::{host_options, OptionMap};
 pub use request::{
@@ -35,9 +35,7 @@ pub use spec::{read_spec_file, save_spec_file, Spec};
 
 pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};
-pub use version::{
-    parse_version, InvalidVersionError, TagSet, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP,
-};
+pub use version::{parse_version, TagSet, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP};
 pub use version_range::{
     parse_version_range, CompatRange, ExactVersion, ExcludedVersion, GreaterThanOrEqualToRange,
     GreaterThanRange, LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, Ranged,

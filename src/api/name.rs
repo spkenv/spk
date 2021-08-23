@@ -2,19 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-/// Denotes that an invalid package name was given.
-#[derive(Debug)]
-pub struct InvalidNameError {
-    pub message: String,
-}
-
-impl InvalidNameError {
-    pub fn new(msg: String) -> crate::Error {
-        crate::Error::InvalidNameError(Self { message: msg })
-    }
-}
-
-/// Return 'name' if it's a valide package name
+/// Return 'name' if it's a validate package name
 pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     let index = validate_source_str(&name, |c: char| c.is_ascii_alphanumeric() || c == '-');
     if index > -1 {
@@ -26,7 +14,7 @@ pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.chars().nth(index).unwrap(),
             &name[(index + 1)..]
         );
-        Err(InvalidNameError::new(format!(
+        Err(crate::SpkError::InvalidPackageName(format!(
             "Invalid package name at pos {}: {}",
             index, err_str
         )))
@@ -35,7 +23,7 @@ pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     }
 }
 
-/// Return 'name' if it's a valide pre/post release tag name
+/// Return 'name' if it's a validate pre/post release tag name
 pub fn validate_tag_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     let index = validate_source_str(&name, |c: char| c.is_ascii_alphanumeric());
     if index > -1 {
@@ -47,7 +35,7 @@ pub fn validate_tag_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.chars().nth(index).unwrap(),
             &name[(index + 1)..]
         );
-        Err(InvalidNameError::new(format!(
+        Err(crate::SpkError::InvalidVersionTag(format!(
             "Invalid release tag name at pos {}: {}",
             index, err_str
         )))

@@ -11,7 +11,7 @@ use itertools::izip;
 use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
-use crate::{Error, Result};
+use crate::{Result, SpkError};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -43,12 +43,12 @@ impl std::fmt::Display for CompatRule {
 }
 
 impl std::str::FromStr for CompatRule {
-    type Err = Error;
+    type Err = SpkError;
     fn from_str(s: &str) -> Result<Self> {
         match s {
             API_STR => Ok(Self::API),
             BINARY_STR => Ok(Self::Binary),
-            _ => Err(Error::String(format!(
+            _ => Err(SpkError::String(format!(
                 "Unknown or unsupported compatibility rule: {}",
                 s
             ))),
@@ -57,14 +57,14 @@ impl std::str::FromStr for CompatRule {
 }
 
 impl TryFrom<&char> for CompatRule {
-    type Error = crate::Error;
+    type Error = SpkError;
 
     fn try_from(c: &char) -> crate::Result<CompatRule> {
         match c {
             'x' => Ok(CompatRule::None),
             'a' => Ok(CompatRule::API),
             'b' => Ok(CompatRule::Binary),
-            _ => Err(crate::Error::String(format!(
+            _ => Err(SpkError::String(format!(
                 "Invalid compatibility rule: {}",
                 c
             ))),
@@ -142,16 +142,16 @@ impl std::fmt::Display for CompatRuleSet {
 impl CompatRuleSet {
     /// Create a compat rule set with one part
     pub fn single(first: CompatRule) -> Self {
-        CompatRuleSet(BTreeSet::from_iter(vec![first].into_iter()))
+        CompatRuleSet(BTreeSet::from_iter([first]))
     }
     /// Create a compat rule set with two parts
     pub fn double(first: CompatRule, second: CompatRule) -> Self {
-        CompatRuleSet(BTreeSet::from_iter(vec![first, second].into_iter()))
+        CompatRuleSet(BTreeSet::from_iter([first, second]))
     }
 
     /// Create a compat rule set with three parts
     pub fn triple(first: CompatRule, second: CompatRule, third: CompatRule) -> Self {
-        CompatRuleSet(BTreeSet::from_iter(vec![first, second, third].into_iter()))
+        CompatRuleSet(BTreeSet::from_iter([first, second, third]))
     }
 }
 
@@ -178,7 +178,7 @@ impl std::fmt::Display for Compat {
 }
 
 impl TryFrom<&str> for Compat {
-    type Error = crate::Error;
+    type Error = SpkError;
 
     fn try_from(value: &str) -> crate::Result<Self> {
         Self::from_str(value)
@@ -186,7 +186,7 @@ impl TryFrom<&str> for Compat {
 }
 
 impl FromStr for Compat {
-    type Err = crate::Error;
+    type Err = SpkError;
 
     fn from_str(value: &str) -> crate::Result<Self> {
         let mut parts = Vec::new();

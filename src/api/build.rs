@@ -13,18 +13,6 @@ mod build_test;
 const SRC: &str = "src";
 const EMBEDDED: &str = "embedded";
 
-/// Denotes that an invalid build digest was given.
-#[derive(Debug)]
-pub struct InvalidBuildError {
-    pub message: String,
-}
-
-impl InvalidBuildError {
-    pub fn new(msg: String) -> crate::Error {
-        crate::Error::InvalidBuildError(Self { message: msg })
-    }
-}
-
 /// Build represents a package build identifier.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Build {
@@ -51,7 +39,7 @@ impl Build {
         }
     }
 
-    pub fn is_emdeded(&self) -> bool {
+    pub fn is_embedded(&self) -> bool {
         if let Build::Embedded = self {
             true
         } else {
@@ -72,7 +60,7 @@ impl std::fmt::Display for Build {
 }
 
 impl FromStr for Build {
-    type Err = crate::Error;
+    type Err = crate::SpkError;
 
     fn from_str(source: &str) -> crate::Result<Self> {
         match source {
@@ -80,7 +68,7 @@ impl FromStr for Build {
             EMBEDDED => Ok(Build::Embedded),
             _ => {
                 if let Err(err) = data_encoding::BASE32.decode(source.as_bytes()) {
-                    return Err(InvalidBuildError::new(format!(
+                    return Err(crate::SpkError::InvalidBuildDigest(format!(
                         "Invalid build digest '{}': {:?}",
                         source, err
                     )));
@@ -89,7 +77,7 @@ impl FromStr for Build {
                 match source.chars().collect_vec().try_into() {
                     Ok(chars) => Ok(Build::Digest(chars)),
 
-                    Err(err) => Err(InvalidBuildError::new(format!(
+                    Err(err) => Err(crate::SpkError::InvalidBuildDigest(format!(
                         "Invalid build digest '{}': {:?}",
                         source, err
                     ))),

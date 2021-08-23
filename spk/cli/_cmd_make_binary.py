@@ -5,6 +5,7 @@
 from typing import Any
 import argparse
 import os
+import time
 
 import structlog
 
@@ -95,6 +96,7 @@ def _make_binary(args: argparse.Namespace) -> None:
             if args.here:
                 builder = builder.with_source(os.getcwd())
             builder.set_interactive(args.interactive)
+            start = time.time()
             try:
                 out = builder.build()
             except (ValueError, spk.SolverError):
@@ -104,6 +106,7 @@ def _make_binary(args: argparse.Namespace) -> None:
                     print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
                 raise
             else:
+                _LOGGER.info("finished in %d sec", time.time() - start)
                 _LOGGER.info("created", pkg=out.pkg)
             if args.env:
                 cmd = ["spk", "env", "-l", str(out.pkg)]

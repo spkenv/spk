@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Error, Result};
+use crate::{Result, SpkError};
 
 #[cfg(test)]
 #[path = "./source_spec_test.rs"]
@@ -118,7 +118,7 @@ impl LocalSource {
         rsync.current_dir(&dirname);
         match rsync.status()?.code() {
             Some(0) => Ok(()),
-            code => Err(Error::String(format!(
+            code => Err(SpkError::String(format!(
                 "rsync command failed with exit code {:?}",
                 code
             ))),
@@ -181,7 +181,7 @@ impl GitSource {
             match cmd.status()?.code() {
                 Some(0) => (),
                 code => {
-                    return Err(Error::String(format!(
+                    return Err(SpkError::String(format!(
                         "git command failed with exit code {:?}",
                         code
                     )))
@@ -219,7 +219,7 @@ impl TarSource {
             match wget.status()?.code() {
                 Some(0) => (),
                 code => {
-                    return Err(Error::String(format!(
+                    return Err(SpkError::String(format!(
                         "wget command failed with exit code {:?}",
                         code
                     )))
@@ -237,7 +237,7 @@ impl TarSource {
         match cmd.status()?.code() {
             Some(0) => Ok(()),
             code => {
-                return Err(Error::String(format!(
+                return Err(SpkError::String(format!(
                     "tar command failed with exit code {:?}",
                     code
                 )))
@@ -269,24 +269,20 @@ impl ScriptSource {
 
         tracing::debug!("running sources script");
         let mut child = bash.spawn()?;
-        let stdin = match child.stdin.as_mut() {
-            Some(s) => s,
-            None => {
-                return Err(Error::String(
-                    "failed to get stdin handle for bash".to_string(),
-                ))
-            }
-        };
-        if let Err(err) = stdin.write_all(self.script.join("\n").as_bytes()) {
-            return Err(Error::wrap_io("failed to write source script to bash", err));
-        }
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or(SpkError::ScriptSourceIo(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Could not get stdin handle for bash",
+            )))?;
+        stdin
+            .write_all(self.script.join("\n").as_bytes())
+            .map_err(SpkError::ScriptSourceIo)?;
 
         match child.wait()?.code() {
             Some(0) => Ok(()),
-            code => Err(Error::String(format!(
-                "source script failed with exit code {:?}",
-                code
-            ))),
+            code => Err(SpkError::ScriptSourceExec(code)),
         }
     }
 }

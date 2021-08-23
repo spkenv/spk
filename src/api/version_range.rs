@@ -15,7 +15,7 @@ use itertools::Itertools;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{Error, Result};
+use crate::{Result, SpkError};
 
 use super::{parse_version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
 
@@ -280,7 +280,7 @@ pub struct SemverRange {
 }
 
 impl SemverRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(minimum: V) -> Result<VersionRange> {
+    pub fn new<V: TryInto<Version, Error = SpkError>>(minimum: V) -> Result<VersionRange> {
         Ok(VersionRange::Semver(SemverRange {
             minimum: minimum.try_into()?,
         }))
@@ -344,7 +344,7 @@ impl WildcardRange {
             match part.parse() {
                 Ok(num) => parts.push(Some(num)),
                 Err(_) => {
-                    return Err(Error::String(format!(
+                    return Err(SpkError::String(format!(
                         "must consist only of numbers and '*', got: {}",
                         minimum.as_ref(),
                     )));
@@ -356,7 +356,7 @@ impl WildcardRange {
             parts: parts,
         };
         if range.parts.iter().filter(|p| p.is_none()).count() != 1 {
-            return Err(Error::String(format!(
+            return Err(SpkError::String(format!(
                 "Expected exactly one wildcard in version range, got: {}",
                 range
             )));
@@ -449,7 +449,7 @@ impl LowestSpecifiedRange {
             base: parse_version(minimum.as_ref())?,
         };
         if range.specified < 2 {
-            Err(Error::String(format!(
+            Err(SpkError::String(format!(
                 "Expected at least two digits in version range, got: {}",
                 minimum.as_ref()
             )))
@@ -504,7 +504,7 @@ pub struct GreaterThanRange {
 }
 
 impl GreaterThanRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new<V: TryInto<Version, Error = SpkError>>(boundary: V) -> Result<VersionRange> {
         Ok(VersionRange::GreaterThan(Self {
             bound: boundary.try_into()?,
         }))
@@ -552,7 +552,7 @@ pub struct LessThanRange {
 }
 
 impl LessThanRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new<V: TryInto<Version, Error = SpkError>>(boundary: V) -> Result<VersionRange> {
         Ok(VersionRange::LessThan(Self {
             bound: boundary.try_into()?,
         }))
@@ -600,7 +600,7 @@ pub struct GreaterThanOrEqualToRange {
 }
 
 impl GreaterThanOrEqualToRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new<V: TryInto<Version, Error = SpkError>>(boundary: V) -> Result<VersionRange> {
         Ok(VersionRange::GreaterThanOrEqualTo(Self {
             bound: boundary.try_into()?,
         }))
@@ -648,7 +648,7 @@ pub struct LessThanOrEqualToRange {
 }
 
 impl LessThanOrEqualToRange {
-    pub fn new<V: TryInto<Version, Error = Error>>(boundary: V) -> Result<VersionRange> {
+    pub fn new<V: TryInto<Version, Error = SpkError>>(boundary: V) -> Result<VersionRange> {
         Ok(VersionRange::LessThanOrEqualTo(Self {
             bound: boundary.try_into()?,
         }))
@@ -936,7 +936,7 @@ impl VersionFilter {
 
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
-            return Err(Error::PyErr(PyValueError::new_err(msg)));
+            return Err(SpkError::PyErr(PyValueError::new_err(msg)));
         }
 
         self.rules.insert(other.into());
@@ -1047,7 +1047,7 @@ impl Display for VersionFilter {
 }
 
 impl FromStr for VersionFilter {
-    type Err = Error;
+    type Err = SpkError;
 
     fn from_str(range: &str) -> Result<Self> {
         let mut out = VersionFilter::default();
@@ -1056,7 +1056,7 @@ impl FromStr for VersionFilter {
         }
         for rule_str in range.split(VERSION_RANGE_SEP) {
             let rule = if rule_str.len() == 0 {
-                return Err(Error::String(format!(
+                return Err(SpkError::String(format!(
                     "Empty segment not allowed in version range, got: {}",
                     range
                 )));

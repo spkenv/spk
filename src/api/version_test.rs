@@ -57,14 +57,24 @@ fn test_parse_version(#[case] string: &str, #[case] expected: Version) {
 #[rstest]
 #[case("1.a.0")]
 #[case("my-version")]
-#[case("1.0+post.1-pre.2")]
-#[case("1.2.5-alpha.a")]
 fn test_parse_version_invalid(#[case] string: &str) {
     let result = parse_version(string);
-    if let Err(crate::Error::InvalidVersionError(_)) = result {
+    if let Err(crate::SpkError::InvalidVersion(_)) = result {
         // ok
     } else {
         panic!("expected InvalidVersionError, got: {:?}", result)
+    }
+}
+
+#[rstest]
+#[case("1.2.5-alpha.a")]
+#[case("1.0+post.1-pre.2")]
+fn test_parse_version_tag_invalid(#[case] string: &str) {
+    let result = parse_version(string);
+    if let Err(crate::SpkError::InvalidVersionTag(_)) = result {
+        // ok
+    } else {
+        panic!("expected InvalidVersionTagError, got: {:?}", result)
     }
 }
 

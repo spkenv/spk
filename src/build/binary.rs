@@ -5,25 +5,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use super::env::data_path;
-use crate::{api, Result};
+use crate::{api, Result, SpkError};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
 mod binary_test;
-
-/// Denotes an error during the build process.
-#[derive(Debug)]
-pub struct BuildError {
-    pub message: String,
-}
-
-impl BuildError {
-    pub fn new(format_args: std::fmt::Arguments) -> crate::Error {
-        crate::Error::Build(Self {
-            message: std::fmt::format(format_args),
-        })
-    }
-}
 
 pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
     mut diffs: Vec<spfs::tracking::Diff>,
@@ -35,7 +21,7 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
         .collect();
 
     if diffs.len() == 0 {
-        return Err(BuildError::new(format_args!(
+        return Err(SpkError::Build(format!(
             "Build process created no files under {}",
             prefix.as_ref(),
         )));
@@ -66,7 +52,7 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
                     }
                 }
             }
-            return Err(BuildError::new(format_args!(
+            return Err(SpkError::Build(format!(
                 "Existing file was {:?}: {:?}",
                 &diff.mode, &diff.path
             )));

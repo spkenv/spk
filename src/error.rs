@@ -3,95 +3,84 @@
 // https://github.com/imageworks/spk
 
 use pyo3::{exceptions, prelude::*};
-use spfs;
 
-use super::api;
+pub type Result<T> = std::result::Result<T, SpkError>;
 
-pub type Result<T> = std::result::Result<T, Error>;
+#[derive(thiserror::Error, Debug)]
+pub enum SpkError {
+    #[error("Failed to write sources script to bash stdin: {0}")]
+    ScriptSourceIo(#[from] std::io::Error),
+    #[error("Failed to execute sources script: exit code {0:?}")]
+    ScriptSourceExec(Option<i32>),
+    #[error(transparent)]
+    Spfs(#[from] spfs::Error),
+    #[error(transparent)]
+    Serde(#[from] serde_yaml::Error),
+    #[error(transparent)]
+    PyErr(#[from] PyErr),
+    #[error("Collection: {0}")]
+    Collection(String),
+    #[error("Build: {0}")]
+    Build(String),
+    #[error("String: {0}")]
+    String(String), // TODO: To general
 
-#[derive(Debug)]
-pub enum Error {
-    IO(std::io::Error),
-    SPFS(spfs::Error),
-    Serde(serde_yaml::Error),
-    Collection(crate::build::CollectionError),
-    Build(crate::build::BuildError),
-    String(String),
-    PyErr(PyErr),
+    #[error("InstallSpec: {0}")]
+    InstallSpec(String),
 
     // API Errors
-    InvalidVersionError(api::InvalidVersionError),
-    InvalidNameError(api::InvalidNameError),
-    InvalidBuildError(api::InvalidBuildError),
+    #[error("InvalidVersion: {0}")]
+    InvalidVersion(String),
+    #[error("InvalidVersionTag: {0}")]
+    InvalidVersionTag(String),
+    #[error("InvalidPackageName: {0}")]
+    InvalidPackageName(String),
+    #[error("InvalidBuildDigest: {0}")]
+    InvalidBuildDigest(String),
+    #[error("Too many tokens in range identifier")]
+    InvalidRangeIdent,
+    #[error("Invalid value '{value}' for option '{option}': {message}")]
+    InvalidPkgOption {
+        value: String,
+        option: String,
+        message: String,
+    },
 }
 
-impl Error {
+impl SpkError {
     /// Wraps an error message with a prefix, creating a contextual but generic error
     pub fn wrap<S: AsRef<str>>(prefix: S, err: Self) -> Self {
         // preserve PyErr types
         match err {
-            Error::PyErr(pyerr) => Error::PyErr(Python::with_gil(|py| {
+            SpkError::PyErr(pyerr) => SpkError::PyErr(Python::with_gil(|py| {
                 PyErr::from_type(
                     pyerr.ptype(py),
                     format!("{}: {}", prefix.as_ref(), pyerr.pvalue(py).to_string()),
                 )
             })),
-            err => Error::String(format!("{}: {:?}", prefix.as_ref(), err)),
+            err => SpkError::String(format!("{}: {}", prefix.as_ref(), err)),
         }
     }
-
-    /// Wraps an error message with a prefix, creating a contextual error
-    pub fn wrap_io<S: AsRef<str>>(prefix: S, err: std::io::Error) -> Error {
-        Error::String(format!("{}: {:?}", prefix.as_ref(), err))
-    }
 }
 
-impl std::error::Error for Error {}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        Error::IO(err)
-    }
-}
-
-impl From<spfs::Error> for Error {
-    fn from(err: spfs::Error) -> Error {
-        Error::SPFS(err)
-    }
-}
-
-impl From<serde_yaml::Error> for Error {
-    fn from(err: serde_yaml::Error) -> Error {
-        Error::Serde(err)
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&format!("{:?}", self))
-    }
-}
-
-impl From<Error> for PyErr {
-    fn from(err: Error) -> PyErr {
+impl From<SpkError> for PyErr {
+    fn from(err: SpkError) -> PyErr {
+        use SpkError::*;
         match err {
-            Error::IO(err) => err.into(),
-            Error::SPFS(spfs::Error::IO(err)) => err.into(),
-            Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
-            Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
-            Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
-            Error::String(msg) => exceptions::PyRuntimeError::new_err(msg.to_string()),
-            Error::InvalidBuildError(err) => {
-                exceptions::PyValueError::new_err(err.message.to_string())
+            Spfs(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
+
+            Serde(_) | Build(_) | Collection(_) | String(_) | InstallSpec(_)
+            | ScriptSourceIo(_) | ScriptSourceExec(_) => {
+                exceptions::PyRuntimeError::new_err(err.to_string())
             }
-            Error::InvalidVersionError(err) => {
-                exceptions::PyValueError::new_err(err.message.to_string())
-            }
-            Error::InvalidNameError(err) => {
-                exceptions::PyValueError::new_err(err.message.to_string())
-            }
-            Error::PyErr(err) => err,
+
+            InvalidPackageName(_)
+            | InvalidVersion(_)
+            | InvalidVersionTag(_)
+            | InvalidBuildDigest(_)
+            | InvalidRangeIdent { .. }
+            | InvalidPkgOption { .. } => exceptions::PyValueError::new_err(err.to_string()),
+            PyErr(err) => err,
         }
     }
 }

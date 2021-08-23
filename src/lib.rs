@@ -10,7 +10,7 @@ pub mod storage;
 #[cfg(test)]
 mod fixtures;
 
-pub use error::{Error, Result};
+pub use error::{Result, SpkError};
 
 // -- begin python wrappers --
 
@@ -94,9 +94,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m, "configure_logging")]
     fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
         if verbosity == 0 {
-            let parse_result = std::env::var("SPFS_VERBOSITY")
-                .unwrap_or("0".to_string())
-                .parse::<usize>();
+            let parse_result =
+                std::env::var("SPFS_VERBOSITY").map(|v| v.parse::<usize>().unwrap_or(0));
             if let Ok(parsed) = parse_result {
                 verbosity = usize::max(parsed, verbosity);
             }

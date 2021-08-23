@@ -7,7 +7,7 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 use pyo3::prelude::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{parse_build, parse_version, validate_name, Build, InvalidNameError, Version};
+use super::{parse_build, parse_version, validate_name, Build, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -101,7 +101,7 @@ impl Ident {
 }
 
 impl TryFrom<&str> for Ident {
-    type Error = crate::Error;
+    type Error = crate::SpkError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::from_str(value)
@@ -109,7 +109,7 @@ impl TryFrom<&str> for Ident {
 }
 
 impl FromStr for Ident {
-    type Err = crate::Error;
+    type Err = crate::SpkError;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
@@ -119,7 +119,7 @@ impl FromStr for Ident {
         let build = parts.next();
 
         if let Some(_) = parts.next() {
-            return Err(InvalidNameError::new(format!(
+            return Err(crate::SpkError::InvalidPackageName(format!(
                 "Too many tokens in package identifier, expected at most 2 slashes ('/'): {}",
                 source
             )));

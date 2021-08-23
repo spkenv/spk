@@ -11,7 +11,7 @@ use super::{
     parse_ident_range, CompatRule, Compatibility, InclusionPolicy, PkgRequest, PreReleasePolicy,
     Request, VarRequest,
 };
-use crate::{Error, Result};
+use crate::{Result, SpkError};
 
 #[cfg(test)]
 #[path = "./option_test.rs"]
@@ -35,7 +35,7 @@ impl std::fmt::Display for Inheritance {
 }
 
 impl std::str::FromStr for Inheritance {
-    type Err = crate::Error;
+    type Err = crate::SpkError;
     fn from_str(value: &str) -> crate::Result<Self> {
         Ok(serde_yaml::from_str(value)?)
     }
@@ -110,7 +110,7 @@ impl Opt {
 }
 
 impl TryFrom<Request> for Opt {
-    type Error = Error;
+    type Error = SpkError;
     /// Create a build option from the given request."""
     fn try_from(request: Request) -> Result<Opt> {
         match request {
@@ -130,7 +130,7 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(_) => Err(Error::String(format!(
+            Request::Var(_) => Err(SpkError::String(format!(
                 "Cannot convert {:?} to option",
                 request
             ))),
@@ -143,26 +143,29 @@ impl<'de> Deserialize<'de> for Opt {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde_yaml::Value;
-        let value = Value::deserialize(deserializer)?;
-        let mapping = match value {
-            Value::Mapping(m) => m,
-            _ => return Err(serde::de::Error::custom("expected mapping")),
-        };
-        if mapping.get(&Value::String("var".to_string())).is_some() {
+        use serde_yaml::{Mapping, Value};
+        let mapping = Mapping::deserialize(deserializer)?;
+        if mapping.contains_key(&Value::String("var".to_string())) {
             Ok(Opt::Var(
                 VarOpt::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+                    .map_err(|e| serde::de::Error::custom(format!("{}", e)))?,
             ))
-        } else if mapping.get(&Value::String("pkg".to_string())).is_some() {
+        } else if mapping.contains_key(&Value::String("pkg".to_string())) {
             Ok(Opt::Pkg(
                 PkgOpt::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+                    .map_err(|e| serde::de::Error::custom(format!("{}", e)))?,
             ))
         } else {
-            Err(serde::de::Error::custom(
-                "failed to determine option type: must have one of 'var' or 'pkg' fields",
-            ))
+            // Unsupported option, try to grab the first key to show in the error message
+            let key = match mapping.iter().next() {
+                None => String::new(),
+                Some((key, _)) => key.as_str().map_or(format!("{:?}", key), String::from),
+            };
+
+            Err(serde::de::Error::custom(format!(
+                r#"Invalid option type: '{}' must have one of 'var' or 'pkg' fields"#,
+                key
+            )))
         }
     }
 }
@@ -244,7 +247,7 @@ impl VarOpt {
     pub fn set_value(&mut self, value: String) -> Result<()> {
         if self.choices.len() > 0 && !value.is_empty() {
             if !self.choices.contains(&value) {
-                return Err(Error::String(format!(
+                return Err(SpkError::String(format!(
                     "Invalid value '{}' for option '{}', must be one of {:?}",
                     value, self.var, self.choices
                 )));
@@ -431,14 +434,12 @@ impl PkgOpt {
 
     pub fn set_value(&mut self, value: String) -> Result<()> {
         let ident = format!("{}/{}", self.pkg, value);
-        if let Err(err) = parse_ident_range(ident) {
-            return Err(Error::wrap(
-                format!(
-                    "Invalid value '{}' for option '{}', not a valid package request",
-                    value, self.pkg
-                ),
-                err,
-            ));
+        if parse_ident_range(ident).is_err() {
+            return Err(SpkError::InvalidPkgOption {
+                value,
+                option: self.pkg.clone(),
+                message: "Not a valid package request".to_string(),
+            });
         }
         self.value = Some(value);
         Ok(())

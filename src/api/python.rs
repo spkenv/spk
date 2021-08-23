@@ -423,13 +423,13 @@ where
     let _ = locals.set_item("data", input);
     py.run("import json; out = json.dumps(data)", None, Some(locals))
         .or_else(|err| {
-            Err(crate::Error::String(format!(
+            Err(crate::SpkError::String(format!(
                 "Not a valid dictionary: {:?}",
                 err
             )))
         })?;
     let json: &str = locals.get_item("out").unwrap().extract().or_else(|err| {
-        Err(crate::Error::String(format!(
+        Err(crate::SpkError::String(format!(
             "Not a valid dictionary: {:?}",
             err
         )))
@@ -458,7 +458,7 @@ where
         Some(locals),
     )
     .or_else(|err| {
-        Err(crate::Error::String(format!(
+        Err(crate::SpkError::String(format!(
             "Failed to serialize item: {:?}",
             err
         )))

@@ -42,7 +42,7 @@ pub fn host_options() -> crate::Result<OptionMap> {
     let info = match sys_info::linux_os_release() {
         Ok(i) => i,
         Err(err) => {
-            return Err(crate::Error::String(format!(
+            return Err(crate::SpkError::String(format!(
                 "Failed to get linux info: {:?}",
                 err
             )))
@@ -274,22 +274,12 @@ impl<'de> Deserialize<'de> for OptionMap {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde_yaml::Value;
-        let value = Value::deserialize(deserializer)?;
-        let mapping = match value {
-            Value::Mapping(m) => m,
-            _ => {
-                return Err(serde::de::Error::custom(
-                    "expected yaml mapping for OptionMap",
-                ))
-            }
-        };
+        use serde_yaml::Mapping;
+        let mapping = Mapping::deserialize(deserializer)?;
         let mut options = OptionMap::default();
         for (name, value) in mapping.into_iter() {
-            let name = String::deserialize(name)
-                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
-            let value = string_from_scalar(value)
-                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
+            let name = String::deserialize(name).map_err(|err| serde::de::Error::custom(err))?;
+            let value = string_from_scalar(value).map_err(|err| serde::de::Error::custom(err))?;
             options.options.insert(name, value);
         }
         Ok(options)
