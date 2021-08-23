@@ -9,12 +9,23 @@ weight: 110
 | Field      | Type                              | Description                                                                                                                                           |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pkg        | _[Identifier](#identifier)_       | The name and version number of this package                                                                                                           |
+| meta       |  [Meta](#meta)                    | Extra package metadata such as description, license, etc                                                                                              |
 | compat     | _[Compat](#compat)_               | The compatibility semantics of this packages versioning scheme                                                                                        |
 | deprecated | _boolean_                         | True if this package has been deprecated, this is usually reserved for internal use only and should not generally be specified directly in spec files |
 | sources    | _List[[SourceSpec](#sourcespec)]_ | Specifies where to get source files for building this package                                                                                         |
 | build      | _[BuildSpec](#buildspec)_         | Specifies how the package is to be built                                                                                                              |
 | tests      | _List[[TestSpec](#testspec)]_     | Specifies any number of tests to validate the package and software                                                                                    |
 | install    | _[InstallSpec](#installspec)_     | Specifies how the package is to be installed                                                                                                          |
+
+
+## Meta
+
+|    Value    | Description
+| ----------- | ------------------------------------------------------------------------
+| description | (Optional) A concise, one sentence description of the package
+| homepage    | (Optional) URL where the package lives
+| license     | (Optional) Package license. If not specified, defaults to *Unlicensed*
+| labels      | (Optional) A storage for arbitrary key-value data
 
 ## SourceSpec
 
@@ -136,12 +147,12 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 | Value            | Description                                                                                                                                   |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Always (default) | Always include the requested package in the envrionment                                                                                       |
+| Always (default) | Always include the requested package in the environment                                                                                       |
 | IfAlreadyPresent | Only include this package in the environment if it is already in the environment or another request exists with the `Always` inclusion policy |
 
 ## Identifier
 
-The package identifer takes the form `<name>[/<version>[/<build>]]`, where:
+The package identifier takes the form `<name>[/<version>[/<build>]]`, where:
 
 | Component | Description                                                                                                                                                                                                                                                                       |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
