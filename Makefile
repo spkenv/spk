@@ -1,5 +1,8 @@
 VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 
+# Create a file called "config.mak" to configure variables.
+-include config.mak
+
 .PHONY: rpm devel test packages clean
 default: devel
 
