@@ -25,6 +25,10 @@ test:
 	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
 	pipenv run -- spfs run - -- pytest -x -vvv
 
+.PHONY: cargo-test
+cargo-test:
+	cargo test --no-default-features
+
 .PHONY: rpm
 rpm: SPFS_PULL_USERNAME ?= $(shell read -p "Github Username: " user; echo $$user)
 rpm: SPFS_PULL_PASSWORD ?= $(shell read -s -p "Github Password/Access Token: " pass; echo $$pass)

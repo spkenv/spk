@@ -96,7 +96,7 @@ spfs run - -- pytest
 Additionally, there are some rust unit tests that can be executed using `cargo`.
 
 ```sh
-cargo test
+make cargo-test
 ```
 
 From this shell, you can run the local build of the `spk` command as well as all tests with pytest. **NOTE**: running the local development version of spk, and running the unit tests will require that `spfs` is installed on the local machine. The pytest test suite must also be run from within an spfs environment in order to work properly.
