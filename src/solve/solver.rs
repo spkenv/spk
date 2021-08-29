@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use pyo3::{create_exception, prelude::*};
 use std::{
+    borrow::Cow,
     mem::take,
     sync::{Arc, Mutex, RwLock},
 };
@@ -31,7 +32,7 @@ create_exception!(errors, SolverFailedError, SolverError);
 pub struct Solver {
     repos: Vec<PyObject>,
     initial_state_builders: Vec<Change>,
-    validators: Vec<Validators>,
+    validators: Cow<'static, [Validators]>,
     last_graph: Arc<RwLock<Graph>>,
 }
 
@@ -203,7 +204,7 @@ impl Solver {
         Solver {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
-            validators: validation::default_validators(),
+            validators: Cow::from(validation::default_validators()),
             last_graph: Arc::new(RwLock::new(Graph::new())),
         }
     }
@@ -256,7 +257,7 @@ impl Solver {
     pub fn reset(&mut self) {
         self.repos.clear();
         self.initial_state_builders.clear();
-        self.validators = validation::default_validators();
+        self.validators = Cow::from(validation::default_validators());
     }
 
     /// If true, only solve pre-built binary packages.
@@ -281,10 +282,11 @@ impl Solver {
         if binary_only {
             // Add BinaryOnly validator because it was missing.
             self.validators
+                .to_mut()
                 .insert(0, Validators::BinaryOnly(BinaryOnlyValidator {}))
         } else {
             // Remove all BinaryOnly validators because one was found.
-            self.validators = take(&mut self.validators)
+            self.validators = take(self.validators.to_mut())
                 .into_iter()
                 .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
                 .collect();
@@ -419,7 +421,7 @@ impl Solver {
     }
 
     fn validate(&self, node: &State, spec: &api::Spec) -> crate::Result<api::Compatibility> {
-        for validator in &self.validators {
+        for validator in self.validators.as_ref() {
             let compat = validator.validate(node, spec)?;
             if !&compat {
                 return Ok(compat);

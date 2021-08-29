@@ -380,8 +380,8 @@ impl ValidatorT for VarRequirementsValidator {
     }
 }
 
-pub fn default_validators() -> Vec<Validators> {
-    vec![
+pub const fn default_validators() -> &'static [Validators] {
+    &[
         Validators::Deprecation(DeprecationValidator {}),
         Validators::PackageRequest(PkgRequestValidator {}),
         Validators::Options(OptionsValidator {}),

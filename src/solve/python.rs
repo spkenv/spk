@@ -80,7 +80,7 @@ fn init_submodule_solver(py: &Python, module: &PyModule) -> PyResult<()> {
 
 #[pyfunction]
 fn default_validators() -> Vec<Validators> {
-    validation::default_validators()
+    validation::default_validators().into()
 }
 
 fn init_submodule_validation(_py: &Python, module: &PyModule) -> PyResult<()> {
