@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use once_cell::sync::Lazy;
 use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashSet, VecDeque};
@@ -17,9 +18,7 @@ use super::{
     solution::{PackageSource, Solution},
 };
 
-lazy_static! {
-    pub static ref DEAD_STATE: Arc<State> = Arc::new(State::default());
-}
+pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(|| Arc::new(State::default()));
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 

@@ -2206,7 +2206,7 @@ dependencies = [
  "dyn-clone",
  "indexmap",
  "itertools",
- "lazy_static",
+ "once_cell",
  "pyo3",
  "regex",
  "relative-path",
