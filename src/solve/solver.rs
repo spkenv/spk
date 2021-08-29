@@ -37,6 +37,15 @@ pub struct Solver {
 
 // Methods not exposed to Python
 impl Solver {
+    /// Add a request to this solver.
+    pub fn add_request(&mut self, request: api::Request) {
+        let request = match request {
+            Request::Pkg(request) => Change::RequestPackage(RequestPackage::new(request)),
+            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
+        };
+        self.initial_state_builders.push(request);
+    }
+
     fn get_iterator(
         &self,
         node: &mut Node,
@@ -205,7 +214,8 @@ impl Solver {
     }
 
     /// Add a request to this solver.
-    pub fn add_request(&mut self, request: RequestEnum) -> PyResult<()> {
+    #[pyo3(name = "add_request")]
+    pub fn py_add_request(&mut self, request: RequestEnum) -> PyResult<()> {
         let mut request = request;
         let request = loop {
             match request {
@@ -222,17 +232,12 @@ impl Solver {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
                     })?;
                     request.required_compat = Some(CompatRule::API);
-                    break Change::RequestPackage(RequestPackage::new(request));
+                    break api::Request::Pkg(request);
                 }
-                RequestEnum::Request(request) => match request {
-                    Request::Pkg(request) => {
-                        break Change::RequestPackage(RequestPackage::new(request))
-                    }
-                    Request::Var(request) => break Change::RequestVar(RequestVar::new(request)),
-                },
+                RequestEnum::Request(request) => break request,
             }
         };
-        self.initial_state_builders.push(request);
+        self.add_request(request);
         Ok(())
     }
 
@@ -401,7 +406,7 @@ impl Solver {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(&option.pkg);
                 let request = option.to_request(given.cloned())?;
-                self.add_request(RequestEnum::Request(request))?;
+                self.add_request(request)
             }
         }
 
