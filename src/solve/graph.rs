@@ -65,16 +65,8 @@ impl IntoPy<Py<PyAny>> for Change {
     }
 }
 
-pub trait ChangeBaseT {
-    fn as_decision(&self) -> Decision;
-}
-
-pub trait ChangeT {
-    fn apply(&self, base: &State) -> State;
-}
-
-impl ChangeBaseT for Change {
-    fn as_decision(&self) -> Decision {
+impl Change {
+    pub fn as_decision(&self) -> Decision {
         Decision {
             changes: vec![self.clone()],
             notes: Vec::default(),
@@ -553,9 +545,7 @@ impl RequestPackage {
     pub fn new(request: api::PkgRequest) -> Self {
         RequestPackage { request }
     }
-}
 
-impl ChangeT for RequestPackage {
     fn apply(&self, base: &State) -> State {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
@@ -576,9 +566,7 @@ impl RequestVar {
     pub fn new(request: api::VarRequest) -> Self {
         RequestVar { request }
     }
-}
 
-impl ChangeT for RequestVar {
     fn apply(&self, base: &State) -> State {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
@@ -615,7 +603,7 @@ impl SetOptions {
     }
 }
 
-impl ChangeT for SetOptions {
+impl SetOptions {
     fn apply(&self, base: &State) -> State {
         // Update options while preserving order to match
         // python dictionary behavior. "Updating a key
@@ -669,6 +657,10 @@ impl SetPackage {
     fn new(spec: Arc<api::Spec>, source: PackageSource) -> Self {
         SetPackage { spec, source }
     }
+
+    fn apply(&self, base: &State) -> State {
+        base.with_package(self.spec.clone(), self.source.clone())
+    }
 }
 
 #[pymethods]
@@ -676,12 +668,6 @@ impl SetPackage {
     #[getter]
     fn spec(&self) -> api::Spec {
         (*self.spec).clone()
-    }
-}
-
-impl ChangeT for SetPackage {
-    fn apply(&self, base: &State) -> State {
-        base.with_package(self.spec.clone(), self.source.clone())
     }
 }
 
@@ -700,6 +686,10 @@ impl SetPackageBuild {
             source: PackageSource::Spec(source),
         }
     }
+
+    fn apply(&self, base: &State) -> State {
+        base.with_package(self.spec.clone(), self.source.clone())
+    }
 }
 
 #[pymethods]
@@ -710,11 +700,6 @@ impl SetPackageBuild {
     }
 }
 
-impl ChangeT for SetPackageBuild {
-    fn apply(&self, base: &State) -> State {
-        base.with_package(self.spec.clone(), self.source.clone())
-    }
-}
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct State {
@@ -986,9 +971,7 @@ impl StepBack {
             destination: to.clone(),
         }
     }
-}
 
-impl ChangeT for StepBack {
     fn apply(&self, _base: &State) -> State {
         self.destination.clone()
     }

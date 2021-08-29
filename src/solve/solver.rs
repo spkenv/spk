@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     api::{self, Build, CompatRule, OptionMap, Request},
-    solve::graph::{ChangeBaseT, GraphError, StepBack},
+    solve::graph::{GraphError, StepBack},
 };
 
 use super::{
