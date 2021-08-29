@@ -198,8 +198,7 @@ impl OptionMap {
     /// Return only the options in this map that are not package-specific
     pub fn global_options(&self) -> Self {
         self.iter()
-            .filter(|(k, _)| !k.contains('.'))
-            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .filter_map(|(k, v)| (!k.contains('.')).then(|| (k.to_owned(), v.to_owned())))
             .collect()
     }
 
