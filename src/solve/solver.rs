@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use pyo3::{create_exception, prelude::*};
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    mem::take,
+    sync::{Arc, Mutex, RwLock},
+};
 
 use crate::{
     api::{self, Build, CompatRule, OptionMap, Request},
@@ -276,11 +279,9 @@ impl Solver {
                 .insert(0, Validators::BinaryOnly(BinaryOnlyValidator {}))
         } else {
             // Remove all BinaryOnly validators because one was found.
-            self.validators = self
-                .validators
-                .iter()
+            self.validators = take(&mut self.validators)
+                .into_iter()
                 .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
-                .copied()
                 .collect();
         }
     }
