@@ -30,7 +30,7 @@ pub enum GraphError {
 pub type Result<T> = std::result::Result<T, GraphError>;
 
 #[derive(Clone, Debug)]
-pub enum Changes {
+pub enum Change {
     RequestPackage(RequestPackage),
     RequestVar(RequestVar),
     SetOptions(SetOptions),
@@ -39,28 +39,28 @@ pub enum Changes {
     StepBack(StepBack),
 }
 
-impl Changes {
+impl Change {
     pub fn apply(&self, base: &State) -> State {
         match self {
-            Changes::RequestPackage(rp) => rp.apply(base),
-            Changes::RequestVar(rv) => rv.apply(base),
-            Changes::SetOptions(so) => so.apply(base),
-            Changes::SetPackage(sp) => sp.apply(base),
-            Changes::SetPackageBuild(spb) => spb.apply(base),
-            Changes::StepBack(sb) => sb.apply(base),
+            Change::RequestPackage(rp) => rp.apply(base),
+            Change::RequestVar(rv) => rv.apply(base),
+            Change::SetOptions(so) => so.apply(base),
+            Change::SetPackage(sp) => sp.apply(base),
+            Change::SetPackageBuild(spb) => spb.apply(base),
+            Change::StepBack(sb) => sb.apply(base),
         }
     }
 }
 
-impl IntoPy<Py<PyAny>> for Changes {
+impl IntoPy<Py<PyAny>> for Change {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
-            Changes::RequestPackage(rp) => rp.into_py(py),
-            Changes::RequestVar(rv) => rv.into_py(py),
-            Changes::SetOptions(so) => so.into_py(py),
-            Changes::SetPackage(sp) => sp.into_py(py),
-            Changes::SetPackageBuild(spb) => spb.into_py(py),
-            Changes::StepBack(sb) => sb.into_py(py),
+            Change::RequestPackage(rp) => rp.into_py(py),
+            Change::RequestVar(rv) => rv.into_py(py),
+            Change::SetOptions(so) => so.into_py(py),
+            Change::SetPackage(sp) => sp.into_py(py),
+            Change::SetPackageBuild(spb) => spb.into_py(py),
+            Change::StepBack(sb) => sb.into_py(py),
         }
     }
 }
@@ -73,7 +73,7 @@ pub trait ChangeT {
     fn apply(&self, base: &State) -> State;
 }
 
-impl ChangeBaseT for Changes {
+impl ChangeBaseT for Change {
     fn as_decision(&self) -> Decision {
         Decision {
             changes: vec![self.clone()],
@@ -84,7 +84,7 @@ impl ChangeBaseT for Changes {
 
 #[pyclass]
 pub struct ChangesIter {
-    iter: std::vec::IntoIter<Changes>,
+    iter: std::vec::IntoIter<Change>,
 }
 
 #[pyproto]
@@ -93,15 +93,10 @@ impl PyIterProtocol for ChangesIter {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<Changes> {
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<Change> {
         slf.iter.next()
     }
 }
-
-/// A single change made to a state.
-#[pyclass(subclass)]
-#[derive(Clone)]
-pub struct Change {}
 
 /// The decision represents a choice made by the solver.
 ///
@@ -109,7 +104,7 @@ pub struct Change {}
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct Decision {
-    pub changes: Vec<Changes>,
+    pub changes: Vec<Change>,
     pub notes: Vec<NoteEnum>,
 }
 
@@ -137,7 +132,7 @@ impl Decision {
 }
 
 impl Decision {
-    pub fn new(changes: Vec<Changes>) -> Self {
+    pub fn new(changes: Vec<Change>) -> Self {
         Self {
             changes,
             notes: Vec::default(),
@@ -156,7 +151,7 @@ impl Decision {
         let self_spec = spec;
 
         let generate_changes = || -> crate::Result<Vec<_>> {
-            let mut changes = Vec::<Changes>::new();
+            let mut changes = Vec::<Change>::new();
 
             let specs = build_env.items().map(|s| s.spec);
             let options = build_env.options();
@@ -167,17 +162,17 @@ impl Decision {
             )?;
             let spec = Arc::new(spec);
 
-            changes.push(Changes::SetPackageBuild(Box::new(SetPackageBuild::new(
+            changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
                 spec.clone(),
                 self_spec.clone(),
             ))));
             for req in &spec.install.requirements {
                 match req {
                     api::Request::Pkg(req) => {
-                        changes.push(Changes::RequestPackage(RequestPackage::new(req.clone())))
+                        changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
                     }
                     api::Request::Var(req) => {
-                        changes.push(Changes::RequestVar(RequestVar::new(req.clone())))
+                        changes.push(Change::RequestVar(RequestVar::new(req.clone())))
                     }
                 }
             }
@@ -195,7 +190,7 @@ impl Decision {
                 }
             }
             if !opts.is_empty() {
-                changes.push(Changes::SetOptions(SetOptions::new(opts)));
+                changes.push(Change::SetOptions(SetOptions::new(opts)));
             }
 
             Ok(changes)
@@ -210,7 +205,7 @@ impl Decision {
     pub fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
         let spec = Arc::new(spec.clone());
         let generate_changes = || {
-            let mut changes = vec![Changes::SetPackage(Box::new(SetPackage::new(
+            let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
                 spec.clone(),
                 source,
             )))];
@@ -223,19 +218,19 @@ impl Decision {
             for req in &spec.install.requirements {
                 match req {
                     api::Request::Pkg(req) => {
-                        changes.push(Changes::RequestPackage(RequestPackage::new(req.clone())))
+                        changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
                     }
                     api::Request::Var(req) => {
-                        changes.push(Changes::RequestVar(RequestVar::new(req.clone())))
+                        changes.push(Change::RequestVar(RequestVar::new(req.clone())))
                     }
                 }
             }
 
             for embedded in &spec.install.embedded {
-                changes.push(Changes::RequestPackage(RequestPackage::new(
+                changes.push(Change::RequestPackage(RequestPackage::new(
                     api::PkgRequest::from_ident(&embedded.pkg),
                 )));
-                changes.push(Changes::SetPackage(Box::new(SetPackage::new(
+                changes.push(Change::SetPackage(Box::new(SetPackage::new(
                     Arc::new(embedded.clone()),
                     PackageSource::Spec(spec.clone()),
                 ))));
@@ -254,7 +249,7 @@ impl Decision {
                 }
             }
             if !opts.is_empty() {
-                changes.push(Changes::SetOptions(SetOptions::new(opts)));
+                changes.push(Change::SetOptions(SetOptions::new(opts)));
             }
 
             changes

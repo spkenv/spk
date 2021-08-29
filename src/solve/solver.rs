@@ -12,8 +12,8 @@ use crate::{
 use super::{
     errors::{self, SolverError},
     graph::{
-        self, Changes, Decision, Graph, Node, NoteEnum, RequestPackage, RequestVar,
-        SkipPackageNote, State, DEAD_STATE,
+        self, Change, Decision, Graph, Node, NoteEnum, RequestPackage, RequestVar, SkipPackageNote,
+        State, DEAD_STATE,
     },
     package_iterator::{
         EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
@@ -27,7 +27,7 @@ create_exception!(errors, SolverFailedError, SolverError);
 #[pyclass]
 pub struct Solver {
     repos: Vec<PyObject>,
-    initial_state_builders: Vec<Changes>,
+    initial_state_builders: Vec<Change>,
     validators: Vec<Validators>,
     last_graph: Arc<RwLock<Graph>>,
 }
@@ -219,13 +219,13 @@ impl Solver {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
                     })?;
                     request.required_compat = Some(CompatRule::API);
-                    break Changes::RequestPackage(RequestPackage::new(request));
+                    break Change::RequestPackage(RequestPackage::new(request));
                 }
                 RequestEnum::Request(request) => match request {
                     Request::Pkg(request) => {
-                        break Changes::RequestPackage(RequestPackage::new(request))
+                        break Change::RequestPackage(RequestPackage::new(request))
                     }
-                    Request::Var(request) => break Changes::RequestVar(RequestVar::new(request)),
+                    Request::Var(request) => break Change::RequestVar(RequestVar::new(request)),
                 },
             }
         };
@@ -319,7 +319,7 @@ impl Solver {
                             Some(n) => {
                                 let n_lock = n.read().unwrap();
                                 decision = Some(
-                                    Changes::StepBack(StepBack::new(
+                                    Change::StepBack(StepBack::new(
                                         &msg.to_string(),
                                         &n_lock.state,
                                     ))
@@ -328,7 +328,7 @@ impl Solver {
                             }
                             None => {
                                 decision = Some(
-                                    Changes::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
+                                    Change::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
                                         .as_decision(),
                                 )
                             }
@@ -348,7 +348,7 @@ impl Solver {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
                             decision = Some(
-                                Changes::StepBack(StepBack::new(
+                                Change::StepBack(StepBack::new(
                                     &format!("could not satisfy '{}'", err.request.pkg),
                                     &n_lock.state,
                                 ))
@@ -357,7 +357,7 @@ impl Solver {
                         }
                         None => {
                             decision = Some(
-                                Changes::StepBack(StepBack::new(
+                                Change::StepBack(StepBack::new(
                                     &format!("could not satisfy '{}'", err.request.pkg),
                                     &DEAD_STATE,
                                 ))
@@ -409,7 +409,7 @@ impl Solver {
 
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
-            .push(Changes::SetOptions(graph::SetOptions::new(options)))
+            .push(Change::SetOptions(graph::SetOptions::new(options)))
     }
 
     fn validate(&self, node: &State, spec: &api::Spec) -> crate::Result<api::Compatibility> {

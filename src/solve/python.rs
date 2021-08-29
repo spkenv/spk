@@ -10,7 +10,7 @@ use crate::api;
 
 use super::errors::{PackageNotFoundError, SolverError};
 use super::graph::{
-    Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
+    Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
     SetPackageBuild, SkipPackageNote, State, StepBack,
 };
 use super::solution::{PackageSource, Solution};
@@ -41,6 +41,11 @@ fn build_package(
 fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
     super::graph::Decision::resolve_package(spec, source)
 }
+
+/// A single change made to a state.
+#[pyclass(subclass)]
+#[derive(Clone)]
+pub struct Change {}
 
 fn init_submodule_graph(_py: &Python, module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(build_package, module)?)?;
