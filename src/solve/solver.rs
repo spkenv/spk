@@ -112,8 +112,7 @@ impl Solver {
                 builds
             };
 
-            while let Some((spec, repo)) = builds.lock().unwrap().next()? {
-                let mut spec = spec;
+            while let Some((mut spec, repo)) = builds.lock().unwrap().next()? {
                 let build_from_source = spec.pkg.build == Some(Build::Source)
                     && request.pkg.build != Some(Build::Source);
                 if build_from_source {
@@ -129,11 +128,11 @@ impl Solver {
 
                     // FIXME: This should only match `PackageNotFoundError`
                     match repo.read_spec(&spec.pkg.with_build(None)) {
-                        Ok(s) => spec = s,
+                        Ok(s) => spec = Arc::new(s),
                         Err(_) => {
                             notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
-                                    spec.pkg,
+                                    spec.pkg.clone(),
                                     "cannot build from source, version spec not available",
                                 ),
                             ));
@@ -145,7 +144,8 @@ impl Solver {
                 compat = self.validate(&node.state, &spec)?;
                 if !&compat {
                     notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
-                        spec.pkg, compat,
+                        spec.pkg.clone(),
+                        compat,
                     )));
                     continue;
                 }
@@ -158,7 +158,7 @@ impl Solver {
                         Err(err) => {
                             notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
-                                    spec.pkg,
+                                    spec.pkg.clone(),
                                     &format!("cannot resolve build env: {:?}", err),
                                 ),
                             ));

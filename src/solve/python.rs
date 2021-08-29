@@ -4,6 +4,7 @@
 use pyo3::prelude::*;
 use pyo3::py_run;
 use pyo3::wrap_pyfunction;
+use std::sync::Arc;
 
 use crate::api;
 
@@ -32,7 +33,7 @@ fn build_package(
     source: PackageSource,
     build_env: &Solution,
 ) -> crate::Result<Decision> {
-    super::graph::Decision::build_package(spec.clone(), &source, build_env)
+    super::graph::Decision::build_package(Arc::new(spec.clone()), &source, build_env)
 }
 
 #[pyfunction]

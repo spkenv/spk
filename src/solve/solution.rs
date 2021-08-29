@@ -6,20 +6,20 @@ use pyo3::{
     types::{PyDict, PyTuple},
     PyIterProtocol,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::api::{self, Ident};
 
 #[derive(Clone, Debug)]
 pub enum PackageSource {
     Repository(PyObject),
-    Spec(Box<api::Spec>),
+    Spec(Arc<api::Spec>),
 }
 
 impl<'source> FromPyObject<'source> for PackageSource {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
         ob.extract::<api::Spec>()
-            .map(|s| PackageSource::Spec(Box::new(s)))
+            .map(|s| PackageSource::Spec(Arc::new(s)))
             .or_else(|_| Ok(PackageSource::Repository(ob.into())))
     }
 }
@@ -28,7 +28,7 @@ impl IntoPy<Py<PyAny>> for PackageSource {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
             PackageSource::Repository(s) => s,
-            PackageSource::Spec(s) => s.into_py(py),
+            PackageSource::Spec(s) => (*s).clone().into_py(py),
         }
     }
 }
@@ -52,14 +52,18 @@ impl PackageSource {
 pub struct SolvedRequest {
     #[pyo3(get)]
     pub request: api::PkgRequest,
-    #[pyo3(get)]
-    pub spec: api::Spec,
+    pub spec: Arc<api::Spec>,
     #[pyo3(get)]
     pub source: PackageSource,
 }
 
 #[pymethods]
 impl SolvedRequest {
+    #[getter]
+    pub fn spec(&self) -> api::Spec {
+        (*self.spec).clone()
+    }
+
     pub fn is_source_build(&self) -> bool {
         match &self.source {
             PackageSource::Repository(_) => false,
@@ -74,7 +78,7 @@ impl pyo3::PySequenceProtocol for SolvedRequest {
     fn __getitem__(&self, idx: isize) -> PyResult<PyObject> {
         Python::with_gil(|py| match idx {
             0 => Ok(self.request.clone().into_py(py)),
-            1 => Ok(self.spec.clone().into_py(py)),
+            1 => Ok((*self.spec).clone().into_py(py)),
             2 => Ok(self.source.clone().into_py(py)),
             _ => Err(pyo3::exceptions::PyIndexError::new_err("")),
         })
@@ -90,8 +94,8 @@ impl pyo3::PySequenceProtocol for SolvedRequest {
 #[derive(Debug)]
 pub struct Solution {
     options: api::OptionMap,
-    resolved: HashMap<api::PkgRequest, (api::Spec, PackageSource)>,
-    by_name: HashMap<String, api::Spec>,
+    resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,
+    by_name: HashMap<String, Arc<api::Spec>>,
     insertion_order: HashMap<api::PkgRequest, usize>,
 }
 
@@ -155,7 +159,8 @@ impl Solution {
         }
     }
 
-    pub fn add(&mut self, request: &api::PkgRequest, package: &api::Spec, source: PackageSource) {
+    pub fn add(&mut self, request: &api::PkgRequest, package: api::Spec, source: PackageSource) {
+        let package = Arc::new(package);
         if self
             .resolved
             .insert(request.clone(), (package.clone(), source))
@@ -164,8 +169,7 @@ impl Solution {
             self.insertion_order
                 .insert(request.clone(), self.insertion_order.len());
         }
-        self.by_name
-            .insert(request.pkg.name().to_owned(), package.clone());
+        self.by_name.insert(request.pkg.name().to_owned(), package);
     }
 
     pub fn items(&self) -> SolvedRequestIter {

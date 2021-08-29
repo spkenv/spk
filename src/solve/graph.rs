@@ -149,7 +149,7 @@ impl Decision {
     }
 
     pub fn build_package(
-        spec: api::Spec,
+        spec: Arc<api::Spec>,
         _source: &PackageSource,
         build_env: &Solution,
     ) -> crate::Result<Decision> {
@@ -158,10 +158,14 @@ impl Decision {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Changes>::new();
 
-            let specs = build_env.items().map(|s| s.spec).collect::<Vec<_>>();
+            let specs = build_env.items().map(|s| s.spec);
             let options = build_env.options();
-            let mut spec = self_spec.clone();
-            spec.update_spec_for_build(&options, specs)?;
+            let mut spec = (*self_spec).clone();
+            spec.update_spec_for_build(
+                &options,
+                specs.into_iter().map(|s| (*s).clone()).collect(),
+            )?;
+            let spec = Arc::new(spec);
 
             changes.push(Changes::SetPackageBuild(Box::new(SetPackageBuild::new(
                 spec.clone(),
@@ -204,6 +208,7 @@ impl Decision {
     }
 
     pub fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
+        let spec = Arc::new(spec.clone());
         let generate_changes = || {
             let mut changes = vec![Changes::SetPackage(Box::new(SetPackage::new(
                 spec.clone(),
@@ -231,8 +236,8 @@ impl Decision {
                     api::PkgRequest::from_ident(&embedded.pkg),
                 )));
                 changes.push(Changes::SetPackage(Box::new(SetPackage::new(
-                    embedded.clone(),
-                    PackageSource::Spec(Box::new(spec.clone())),
+                    Arc::new(embedded.clone()),
+                    PackageSource::Spec(spec.clone()),
                 ))));
             }
 
@@ -661,14 +666,21 @@ impl ChangeT for SetOptions {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackage {
-    #[pyo3(get)]
-    spec: api::Spec,
+    spec: Arc<api::Spec>,
     source: PackageSource,
 }
 
 impl SetPackage {
-    fn new(spec: api::Spec, source: PackageSource) -> Self {
+    fn new(spec: Arc<api::Spec>, source: PackageSource) -> Self {
         SetPackage { spec, source }
+    }
+}
+
+#[pymethods]
+impl SetPackage {
+    #[getter]
+    fn spec(&self) -> api::Spec {
+        (*self.spec).clone()
     }
 }
 
@@ -682,17 +694,24 @@ impl ChangeT for SetPackage {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackageBuild {
-    #[pyo3(get)]
-    spec: api::Spec,
+    spec: Arc<api::Spec>,
     source: PackageSource,
 }
 
 impl SetPackageBuild {
-    fn new(spec: api::Spec, source: api::Spec) -> Self {
+    fn new(spec: Arc<api::Spec>, source: Arc<api::Spec>) -> Self {
         SetPackageBuild {
             spec,
-            source: PackageSource::Spec(Box::new(source)),
+            source: PackageSource::Spec(source),
         }
+    }
+}
+
+#[pymethods]
+impl SetPackageBuild {
+    #[getter]
+    fn spec(&self) -> api::Spec {
+        (*self.spec).clone()
     }
 }
 
@@ -706,7 +725,7 @@ impl ChangeT for SetPackageBuild {
 pub struct State {
     pkg_requests: Vec<api::PkgRequest>,
     var_requests: Vec<api::VarRequest>,
-    packages: Vec<(api::Spec, PackageSource)>,
+    packages: Vec<(Arc<api::Spec>, PackageSource)>,
     options: Vec<(String, String)>,
     #[pyo3(get, name = "id")]
     hash_cache: u64,
@@ -722,7 +741,15 @@ impl State {
         packages: Vec<(api::Spec, PackageSource)>,
         #[allow(unused_variables)] hash_cache: Vec<u64>,
     ) -> Self {
-        State::new(pkg_requests, var_requests, packages, options)
+        State::new(
+            pkg_requests,
+            var_requests,
+            packages
+                .into_iter()
+                .map(|(s, ps)| (Arc::new(s), ps))
+                .collect(),
+            options,
+        )
     }
 
     #[staticmethod]
@@ -745,7 +772,7 @@ impl State {
     pub fn new(
         pkg_requests: Vec<api::PkgRequest>,
         var_requests: Vec<api::VarRequest>,
-        packages: Vec<(api::Spec, PackageSource)>,
+        packages: Vec<(Arc<api::Spec>, PackageSource)>,
         options: Vec<(String, String)>,
     ) -> Self {
         // TODO: This pre-calculates the hash but there
@@ -785,12 +812,15 @@ impl State {
         let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
         for (spec, source) in self.packages.iter() {
             let req = self.get_merged_request(spec.pkg.name())?;
-            solution.add(&req, spec, source.clone());
+            solution.add(&req, (**spec).clone(), source.clone());
         }
         Ok(solution)
     }
 
-    pub fn get_current_resolve(&self, name: &str) -> errors::GetCurrentResolveResult<api::Spec> {
+    pub fn get_current_resolve(
+        &self,
+        name: &str,
+    ) -> errors::GetCurrentResolveResult<Arc<api::Spec>> {
         // TODO: cache this
         for (spec, _) in &self.packages {
             if spec.pkg.name() == name {
@@ -871,7 +901,7 @@ impl State {
         )
     }
 
-    fn with_package(&self, spec: api::Spec, source: PackageSource) -> Self {
+    fn with_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
         let mut new_packages = self.packages.clone();
         new_packages.push((spec, source));
 

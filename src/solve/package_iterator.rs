@@ -17,8 +17,8 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_sorted_build_iterator(&self) -> bool {
         false
     }
-    fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>>;
-    fn version_spec(&self) -> Option<api::Spec>;
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>>;
+    fn version_spec(&self) -> Option<Arc<api::Spec>>;
 }
 
 dyn_clone::clone_trait_object!(BuildIterator);
@@ -190,7 +190,7 @@ pub struct RepositoryBuildIterator {
     pkg: api::Ident,
     repo: PyObject,
     builds: VecDeque<api::Ident>,
-    spec: Option<api::Spec>,
+    spec: Option<Arc<api::Spec>>,
 }
 
 impl BuildIterator for RepositoryBuildIterator {
@@ -198,7 +198,7 @@ impl BuildIterator for RepositoryBuildIterator {
         self.builds.is_empty()
     }
 
-    fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
         let build = if let Some(build) = self.builds.pop_front() {
             build
         } else {
@@ -233,10 +233,13 @@ impl BuildIterator for RepositoryBuildIterator {
             spec.pkg = spec.pkg.with_build(build.build);
         }
 
-        Ok(Some((spec, PackageSource::Repository(self.repo.clone()))))
+        Ok(Some((
+            Arc::new(spec),
+            PackageSource::Repository(self.repo.clone()),
+        )))
     }
 
-    fn version_spec(&self) -> Option<api::Spec> {
+    fn version_spec(&self) -> Option<Arc<api::Spec>> {
         self.spec.clone()
     }
 }
@@ -254,7 +257,7 @@ impl RepositoryBuildIterator {
             let mut builds = builds?;
 
             let spec = match repo.call_method1(py, "read_spec", args) {
-                Ok(spec) => Some(spec.as_ref(py).extract::<api::Spec>()?),
+                Ok(spec) => Some(Arc::new(spec.as_ref(py).extract::<api::Spec>()?)),
                 // FIXME: This should only catch PackageNotFoundError
                 Err(_) => None,
             };
@@ -282,11 +285,11 @@ impl BuildIterator for EmptyBuildIterator {
         true
     }
 
-    fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
         Ok(None)
     }
 
-    fn version_spec(&self) -> Option<api::Spec> {
+    fn version_spec(&self) -> Option<Arc<api::Spec>> {
         todo!()
     }
 }
@@ -301,7 +304,7 @@ impl EmptyBuildIterator {
 pub struct SortedBuildIterator {
     options: api::OptionMap,
     source: Arc<Mutex<dyn BuildIterator>>,
-    builds: VecDeque<(api::Spec, PackageSource)>,
+    builds: VecDeque<(Arc<api::Spec>, PackageSource)>,
 }
 
 impl BuildIterator for SortedBuildIterator {
@@ -313,18 +316,18 @@ impl BuildIterator for SortedBuildIterator {
         true
     }
 
-    fn next(&mut self) -> crate::Result<Option<(api::Spec, PackageSource)>> {
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
         Ok(self.builds.pop_front())
     }
 
-    fn version_spec(&self) -> Option<api::Spec> {
+    fn version_spec(&self) -> Option<Arc<api::Spec>> {
         self.source.lock().unwrap().version_spec()
     }
 }
 
 impl SortedBuildIterator {
     pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> PyResult<Self> {
-        let mut builds = VecDeque::<(api::Spec, PackageSource)>::new();
+        let mut builds = VecDeque::<(Arc<api::Spec>, PackageSource)>::new();
         {
             let mut source_lock = source.lock().unwrap();
             while let Some(item) = source_lock.next()? {
