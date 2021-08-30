@@ -56,6 +56,12 @@ Being able to represent all of its data as a connected graph of objects and iden
 
 As of writing, spfs provides two implementations of the storage api, a local filesystem store and a tar archive store. Note that the tar archive works by unpacking and using a filesystem store at runtime, repacking the tar archive when complete.
 
+Initializing a filesystem repository that can be used as your "origin" remote currently requires that you manually create the repository directory structure on disk when using `file:...` repositories.
+
+```bash
+mkdir -p /path/to/remote/spfs-storage/{objects,payloads,tags}
+```
+
 ### SpFS
 
 Above these core layers sits the main spfs API layer, which provides high level functions that deal with syncing data between two repositories, cleaning orphaned objects from a repository, creating new layers from an active filesystem, and orchestrating with the runtime environment.
