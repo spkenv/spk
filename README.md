@@ -103,7 +103,7 @@ From this shell, you can run the local build of the `spk` command as well as all
 
 ```sh
 # run the unit test suite
-spfs run - -- pytest
+make test
 ```
 
 ### Bootstrapping
