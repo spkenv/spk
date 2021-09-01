@@ -243,7 +243,7 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
             nix::sys::stat::Mode::empty(),
             0,
         ) {
-            return Err(Error::wrap_nix(err, "Failed to create file mask"));
+            return Err(Error::wrap_nix(err, format!("Failed to create file mask: {:?}", fullpath)));
         }
     }
 
