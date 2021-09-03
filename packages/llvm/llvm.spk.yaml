@@ -1,4 +1,4 @@
-pkg: llvm/12.0.0
+pkg: llvm/12.0.1+r.1
   # - name: "LLVM+Clang"
   # - description: "LLVM compiler infrastructure and Clang compiler and tools"
   # - license: "Apache-2.0 WITH LLVM-exception"
@@ -12,7 +12,7 @@ sources:
   - path: ./
     filter: [ ]
   - script:
-    - if [ ! -d llvm-project ] ; then git clone https://github.com/llvm/llvm-project -b llvmorg-12.0.0 ; fi
+    - if [ ! -d llvm-project ] ; then git clone https://github.com/llvm/llvm-project -b llvmorg-12.0.1 ; fi
 
 build:
   options:
@@ -23,7 +23,7 @@ build:
     - pkg: gcc/6
     - pkg: cmake/^3.13
     - pkg: cuda
-    - pkg: ncurses
+    # - pkg: ncurses
 
   variants:
     - { gcc: 6.3 }
@@ -39,5 +39,5 @@ install:
     - pkg: stdfs
     - pkg: gcc
       fromBuildEnv: x.x
-    - pkg: ncurses
-      fromBuildEnv: x.x
+    # - pkg: ncurses
+    #   fromBuildEnv: x.x

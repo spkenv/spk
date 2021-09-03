@@ -1,6 +1,6 @@
-pkg: fmt/7.1.3
+pkg: fmt/8.0.1+r.1
   # - name: fmt
-  # - description: Header-only C++ string formatting like C++20 std::format
+  # - description: "Header-only C++ string formatting like C++20 std::format"
   # - url: https://github.com/fmtlib/fmt
   # - license: MIT
   # - bindings: [ "C++" ]
@@ -12,7 +12,7 @@ sources:
   # or (c) nothing (does a fresh clone).
   - path: ./
   - script:
-    - if [ ! -d fmt ] ; then git clone https://github.com/fmtlib/fmt.git -b v7.1.3 ; fi
+    - if [ ! -d fmt ] ; then git clone https://github.com/fmtlib/fmt.git -b 8.0.1 ; fi
 
 
 build:
@@ -20,7 +20,7 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - pkg: gcc/6
+    - pkg: gcc/6.3
     - pkg: cmake/^3.13
 
   variants:
@@ -33,5 +33,3 @@ build:
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DFMT_TEST=OFF
     - cmake --build build --target install
-    - exit 0
-
