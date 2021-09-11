@@ -38,8 +38,8 @@ main!(Opt);
                   \n    init         run a command in the current spfs shell environment\
                   \n    run          run a command in an spfs environment\
                   \n    shell        create a new shell in an spfs environment\
-                  \n    push         pull one or more object to the local repository\
-                  \n    pull         push one or more objects to a remote repository\
+                  \n    pull         pull one or more object to the local repository\
+                  \n    push         push one or more objects to a remote repository\
                   \n    render       render the contents of an environment or layer\
                   "
 )]
