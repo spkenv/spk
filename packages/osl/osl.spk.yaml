@@ -1,0 +1,139 @@
+pkg: osl/1.11.15.0
+  # - name: "Open Shading Language"
+  # - description: "Shading language for modern physically based renderers"
+  # - url: https://github.com/AcademySoftwareFoundation/OpenShadingLanguage
+  # - author: "Larry Gritz <lg@larrygritz.com>"
+  # - license: BSD-3-clause
+  # - bindings: [ "C++", "Python", "cli" ]
+
+# If building off the master/development branch of OSL, there is no
+# guarantee of API or ABI compatibility (except for the most minor level of
+# patches), so be stricter than usual, with "x.x.a.b". If building from a
+# release branch, however, the usual x.a.b correctly reflects OSL's
+# compatibility promises for release branches.
+#
+# Downstream packages should require
+#    - pkg: osl
+#      fromBuildEnv: Binary
+#
+compat: x.x.a.b
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone from GitHub).
+  - path: ./
+  - script:
+    - if [ ! -d OpenShadingLanguage ] ; then git clone https://github.com/AcademySoftwareFoundation/OpenShadingLanguage -b v1.11.15.0 ; fi
+
+
+build:
+
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - var: python.abi
+    - pkg: cmake/^3.13
+    - pkg: gcc/~6.3.0
+    - pkg: llvm/~12.0.1
+    - pkg: openimageio/~2.3.7
+    - pkg: python/~3.7.0
+    - pkg: pybind11/2.6.2
+    - pkg: boost/~1.70.0
+    - pkg: imath/~3.1.2
+    - pkg: pugixml
+    - pkg: zlib
+    - pkg: cuda/~11.3
+    - pkg: optix/~7.3
+    - pkg: partio/~1.11.0
+    - var: cxx/14
+      choices: [14, 17]
+    - var: debug/off
+      choices: [on, off]
+    - var: sse4/on
+      choices: [on, off]
+    - var: avx2/off
+      choices: [on, off]
+    - var: avx512f/off
+      choices: [on, off]
+    - var: osloptix/on
+      choices: [on, off]
+    - var: oslbatch
+    - var: oslcudatarget/sm_61
+
+  # variants declares the default set of variants to build and publish
+  # using the spk build and make-* commands
+  variants:
+    # VFX Platform 2019-ish, Maya 2020, Houdini 18
+    - { gcc: ~6.3.0, cxx: 14, python: ~2.7.0, python.abi: "cp27mu", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    # VFX Platform 2020-ish (Nuke 13?)
+    - { gcc: 6.3, cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    # VFX Platform 2021-ish, Maya 2022, Houdini 19
+    - { gcc: 9.3, cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    # VFX Platform 2022-ish (including newer Imath + OpenEXR versions)
+    - { gcc: 9.3, cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~3.1.0, imath: ~3.1.2 }
+
+  script:
+    - env | sort
+    - export SIMD_OPTS="-DUSE_SIMD=sse2"
+    - if [ "$SPK_OPT_sse4" == "on" ] ; then SIMD_OPTS+=",sse4.2" ; fi
+    - if [ "$SPK_OPT_avx2" == "on" ] ; then SIMD_OPTS+=",avx2" ; fi
+    - if [ "$SPK_OPT_avx512f" == "on" ] ; then SIMD_OPTS+=",avx512f" ; fi
+    - export CMAKE_BUILD_TYPE=Release
+    - if [ "${SPK_OPT_debug}" == "debug" ] ; then export CMAKE_BUILD_TYPE=Debug ; fi
+    - export CI=1
+    - cmake -S OpenShadingLanguage -B build -G Ninja
+        -DVERBOSE=1
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        -DCMAKE_PREFIX_PATH=${PREFIX}
+        -DCMAKE_CXX_STANDARD=${SPK_OPT_cxx}
+        ${SIMD_OPTS}
+        -DUSE_BATCHED=${SPK_OPT_batch}
+        -DUSE_OPTIX=${SPK_OPT_osloptix}
+        -DPYBIND11_PYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
+        -DPYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
+        -DOSL_SITE:STRING=spi
+        -DTBB_USE_DEBUG_BUILD=0
+        -DCUDA_TOOLKIT_ROOT_DIR=${CUDA_ROOT}
+        -DCUDA_TARGET_ARCH=${SPK_OPT_oslcudatarget}
+        -DEXTRA_CPP_ARGS:STRING=-DOSL_SPI=1
+        -DOSL_EXTRA_NVCC_ARGS="--compiler-bindir=/opt/rh/devtoolset-6/root/bin/gcc"
+    # Note: We reference devtoolset-6 here because we compile the code into
+    # PTX in C++14 mode, due to limitations of nvcc.
+    - cmake --build build --target install
+
+
+install:
+  requirements:
+    - pkg: gcc
+      fromBuildEnv: Binary
+    - pkg: python
+      fromBuildEnv: Binary
+      # If python is already in the environment/resolve then we
+      # we require it to be compatible with what we built with.
+      # But no python at all is also okay.
+      include: IfAlreadyPresent
+    - { var: python.abi, fromBuildEnv: true }
+    - pkg: openimageio
+      fromBuildEnv: Binary
+    - pkg: llvm
+      fromBuildEnv: Binary
+    - pkg: boost
+      fromBuildEnv: Binary
+    - pkg: imath
+      fromBuildEnv: Binary
+    - pkg: openexr
+      fromBuildEnv: Binary
+    - pkg: fmt
+      fromBuildEnv: Binary
+    - pkg: pugixml
+      fromBuildEnv: Binary
+    - pkg: zlib
+      fromBuildEnv: Binary
+    - pkg: cuda
+      fromBuildEnv: Binary
+    - pkg: optix
+      fromBuildEnv: Binary
+    - pkg: partio
+      fromBuildEnv: x.x

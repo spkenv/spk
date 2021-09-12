@@ -1,4 +1,4 @@
-pkg: alembic/1.8.1
+pkg: alembic/1.8.2+r.3
   # - name: "Alembic"
   # - description: "Baked scene data format and library"
   # - license: BSD-3-clause
@@ -10,30 +10,50 @@ sources:
   # or (c) nothing (does a fresh clone from GitHub).
   - path: ./
   - script:
-    - if [ ! -d alembic ] ; then git clone https://github.com/alembic/alembic -b 1.8.1 ; fi
+    - if [ ! -d alembic ] ; then git clone https://github.com/alembic/alembic -b 1.8.2 ; fi
 
 build:
   options:
     - var: arch
     - var: os
     - var: centos
+    - var: python.abi
     - pkg: stdfs
     - pkg: gcc/6.3
-    - pkg: python/3.7
-    - pkg: imath/3
+    - pkg: python/~3.7.0
+    - pkg: boost-python/~1.70.0
+    - pkg: imath/~3.1.0
     - pkg: cmake/^3.13
-    - pkg: boost/1.70
   variants:
-    - { gcc: 6.3, python: 2.7, boost: 1.70 }
-    - { gcc: 6.3, python: 3.7, boost: 1.70 }
-    # TODO: add gcc 9.3 variants. Awaiting a proper spk python+gcc9 build.
+    # VFX 2019-ish, Maya 2020, Houdini 18
+    - { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu", imath: 2.4 }
+    # VFX2020-ish, Nuke 13?
+    - { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m", imath: 2.4 }
+    # VFX 2021-ish, Maya 2022, Houdini 19
+    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: 2.4 }
+    # Cutting edge version: VFX Platform 2022 will look like this
+    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: ~3.1.0 }
+    # Not sure if any of these are needed yet, but standing by:
+    #- { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
+    #- { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
+    #- { gcc: 9.3, python: ~2.7.0, boost-python: ~1.73.0, python.abi: "cp27mu" }
   script:
+    # OpenEXR 2's exported cmake config doesn't have everything we need. A
+    # little extra hinting is necessary.
+    - if [[ ${SPK_PKG_imath_VERSION_MAJOR} == 2 ]] ; then
+          CMAKE_ARGS+=" -DALEMBIC_PYILMBASE_ROOT=$PREFIX" ;
+          CMAKE_ARGS+=" -DALEMBIC_PYILMBASE_PYIMATH_LIB=$PREFIX/lib/libPyImath_Python${SPK_PKG_python_VERSION_MAJOR}_${SPK_PKG_python_VERSION_MINOR}-${SPK_PKG_imath_VERSION_MAJOR}_${SPK_PKG_imath_VERSION_MINOR}.so" ;
+          CMAKE_ARGS+=" -DALEMBIC_ILMBASE_IMATH_LIB=$PREFIX/lib/libImath-${SPK_PKG_imath_VERSION_MAJOR}_${SPK_PKG_imath_VERSION_MINOR}.so" ;
+          CMAKE_ARGS+=" -DALEMBIC_PYILMBASE_INCLUDE_DIRECTORY=$PREFIX/lib/OpenEXR" ;
+      fi
     - cmake -S alembic -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DCMAKE_PREFIX_PATH=$PREFIX
+        -DPYILMBASE_ROOT=$PREFIX
         -DUSE_PYALEMBIC=ON
         -DPYALEMBIC_PYTHON_MAJOR=${SPK_PKG_python_VERSION_MAJOR}
+        ${CMAKE_ARGS}
     - cmake --build build --target install
 
 install:
@@ -41,7 +61,7 @@ install:
     - pkg: stdfs
     - pkg: gcc
       fromBuildEnv: x.x
-    - pkg: boost
+    - pkg: boost-python
       fromBuildEnv: x.x
     - pkg: python
       fromBuildEnv: x.x
@@ -52,12 +72,19 @@ install:
 tests:
   - stage: build
     script:
+      - if [[ ${SPK_PKG_imath_VERSION_MAJOR} == 2 ]] ; then
+            CMAKE_ARGS+=" -DALEMBIC_PYILMBASE_ROOT=$PREFIX" ;
+            CMAKE_ARGS+=" -DALEMBIC_PYILMBASE_PYIMATH_LIB=$PREFIX/lib/libPyImath_Python${SPK_PKG_python_VERSION_MAJOR}_${SPK_PKG_python_VERSION_MINOR}-${SPK_PKG_imath_VERSION_MAJOR}_${SPK_PKG_imath_VERSION_MINOR}.so" ;
+            CMAKE_ARGS+=" -DALEMBIC_ILMBASE_IMATH_LIB=$PREFIX/lib/libImath-${SPK_PKG_imath_VERSION_MAJOR}_${SPK_PKG_imath_VERSION_MINOR}.so" ;
+            CMAKE_ARGS+=" -DALEMBIC_PYILMBASE_INCLUDE_DIRECTORY=$PREFIX/lib/OpenEXR" ;
+        fi
       - cmake -S alembic -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DCMAKE_PREFIX_PATH=$PREFIX
         -DUSE_PYALEMBIC=ON
         -DPYALEMBIC_PYTHON_MAJOR=${SPK_PKG_python_VERSION_MAJOR}
+        ${CMAKE_ARGS}
       - cmake --build build
       - cd build
       - ctest

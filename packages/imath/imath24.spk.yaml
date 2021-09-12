@@ -1,0 +1,29 @@
+pkg: imath/2.4.0+r.1
+  # - name: "Imath"
+  # - description: "Basic vector, matrix, and math for 3D graphics"
+  # - license: BSD-3-clause
+  # - url: https://github.com/AcademySoftwareFoundation/Imath
+  # - bindings: [ "C++", "python" ]
+
+sources:
+  # There is no Imath 2.x, this is a dummy package.
+  - path: ./
+
+
+build:
+  options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: stdfs
+    - pkg: openexr/~2.4.0
+
+  script:
+    - echo 'all done'
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: openexr
+      fromBuildEnv: x.x
+
