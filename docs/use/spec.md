@@ -4,7 +4,7 @@ summary: Write package spec files for creating packages.
 weight: 20
 ---
 
-The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [API Reference](../reference) for a more detailed and complete set of documentation.
+The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema](/ref/spec) for a more complete set of available fields.
 
 ### Name and Version
 

@@ -1,9 +1,14 @@
 ---
-title: API Reference
+title: Package Spec Schema
 summary: Detailed package specification information
 weight: 110
 ---
+
+This document details each data structure and field that does or can exist within a package spec file for spk.
+
 ## Package Spec
+
+The root package spec defines which fields can and should exist at the top level of a spec file.
 
 | Field      | Type                              | Description                                                                                                                                           |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -193,7 +198,7 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 #### RangeIdentifier
 
-Like an [Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning). Additionally, range identifiers can be used to identify one or more package components. The `name:component` syntax can be used when only one component is desired, and the `:{component,component}` syntax for when multiple are desired:
+Like an [Identifier](#identifier) but with a version range rather than an exact version, see [versioning](../versioning). Additionally, range identifiers can be used to identify one or more package components. The `name:component` syntax can be used when only one component is desired, and the `:{component,component}` syntax for when multiple are desired:
 
 ```txt
 mypkg:lib/1.0.0
@@ -229,4 +234,4 @@ The package identifier takes the form `<name>[/<version>[/<build>]]`, where:
 
 ## Compat
 
-Specifies the compatilbility contract of a version number. The compat string is a dot-separated set of characters that define contract, for example `x.a.b` (the default contract) says that major version changes are not compatible, minor version changes provides **A**PI compatibility, and patch version changes provide **B**inary compatibility.
+Specifies the compatibility contract of a version number. The compat string is a dot-separated set of characters that define contract, for example `x.a.b` (the default contract) says that major version changes are not compatible, minor version changes provides **A**PI compatibility, and patch version changes provide **B**inary compatibility.
