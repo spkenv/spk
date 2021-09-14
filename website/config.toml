@@ -1,0 +1,12 @@
+baseURL = "http://example.org/"
+languageCode = "en-us"
+title = "SPK - Software Packaging System"
+
+[params]
+editUrl = "https://github.com/imageworks/spk/docs"
+disableLandingPage = false
+showVisitedLinks = false
+themeVariant = "blue"
+
+[outputs]
+home = [ "HTML", "RSS", "JSON"]
