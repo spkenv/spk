@@ -1,0 +1,77 @@
+pkg: partio/1.14.0
+  # - name: "partio"
+  # - description: "Read/write/manipulate common particle formats"
+  # - license: BSD-3-clause
+  # - url: https://partio.us
+  # - bindings: [ "C++" ]
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+    filter: [ ]
+    subdir: partio
+  - script:
+    - if [ ! -d partio ] ; then git clone https://github.com/wdas/partio.git -b v1.14.0 ; fi
+
+build:
+  options:
+    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+    - var: python.abi
+    - pkg: gcc/6.3
+    - pkg: cmake/^3.15
+    - pkg: blosc
+    - pkg: alembic/~1.8.0
+    - pkg: tbb/2019
+    - pkg: openvdb/~8.0.0
+    - pkg: python/~2.7.0
+    - pkg: imath/~2.4.0
+
+  variants:
+    # VFX 2019-ish, Maya 2020, Houdini 18
+    - { gcc: 6.3, python: ~2.7.0, python.abi: "cp27mu", imath: 2.4 }
+    # VFX2020-ish, Nuke 13?
+    - { gcc: 6.3, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
+    # VFX 2021-ish, Maya 2022, Houdini 19
+    - { gcc: 9.3, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
+    # Cutting edge version: VFX Platform 2022 will look like this
+    - { gcc: 9.3, python: ~3.7.0, python.abi: "cp37m", imath: ~3.1.0 }
+
+  script:
+    - ls -l
+    - echo src
+    - ls -l partio
+    - cmake -S partio -B build 
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
+        -DCMAKE_CXX_STANDARD=14
+        -DOpenVDB_ROOT=$PREFIX
+        -DTBB_ROOT=$PREFIX
+    - cmake --build build --target install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+    - pkg: blosc
+      fromBuildEnv: x.x
+    - pkg: alembic
+      fromBuildEnv: x.x
+    - pkg: tbb
+      fromBuildEnv: x.x
+    - pkg: openvdb
+      fromBuildEnv: x.x
+    - pkg: imath
+      fromBuildEnv: x.x
+    - pkg: python
+      fromBuildEnv: x.x
+      # If python is already in the environment/resolve then we
+      # we require it to be compatible with what we built with.
+      # But no python at all is also okay.
+      include: IfAlreadyPresent
+    - { var: python.abi, fromBuildEnv: true }

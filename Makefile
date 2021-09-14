@@ -1,35 +1,44 @@
-VERSION = $(shell cat spk.spec | grep Version | cut -d ' ' -f 2)
-SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 
-.PHONY: rpm devel test packages clean lint format
+# Create a file called "config.mak" to configure variables.
+-include config.mak
+
 default: devel
 
+.PHONY: packages
 packages:
-	cd $(SOURCE_ROOT)/packages && \
-	$(MAKE) packages
+	$(MAKE) -C packages packages
 
 packages.%:
-	cd $(SOURCE_ROOT)/packages && $(MAKE) $*
+	$(MAKE) -C packages $*
 
+.PHONY: clean
 clean: packages.clean
 
+.PHONY: lint
 lint:
 	pipenv run -- mypy spk
 	pipenv run -- black --check spk setup.py spkrs
 
+.PHONY: format
 format:
 	pipenv run -- black spk setup.py spkrs
 
+.PHONY: devel
 devel:
-	cd $(SOURCE_ROOT)
 	pipenv run -- python setup.py develop
 
+.PHONY: test
 test:
-	cd $(SOURCE_ROOT)
 	mkdir -p /tmp/spfs-runtimes
 	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
 	pipenv run -- spfs run - -- pytest -x -vvv
 
+.PHONY: cargo-test
+cargo-test:
+	cargo test --no-default-features
+
+.PHONY: rpm
 rpm: SPFS_PULL_USERNAME ?= $(shell read -p "Github Username: " user; echo $$user)
 rpm: SPFS_PULL_PASSWORD ?= $(shell read -s -p "Github Password/Access Token: " pass; echo $$pass)
 rpm:

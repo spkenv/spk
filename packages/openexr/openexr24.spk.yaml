@@ -26,22 +26,23 @@ sources:
 
 
 build:
-
   options:
     - var: arch
     - var: os
     - var: centos
+    - var: python.abi
     - pkg: stdfs
     - pkg: cmake/^3.13
     - pkg: gcc/6.3
     - pkg: zlib
-    - pkg: python/3.7
-    - pkg: boost/1.70
+    - pkg: python/~3.7.0
+    - pkg: boost-python/~1.70.0
 
   variants:
-    - { gcc: 6.3, python: 2.7 }
-    - { gcc: 6.3, python: 3.7 }
-    # TODO: Add gcc-9.3 after we fix the gcc9+python combinations at SPI.
+    - { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
+    - { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
+    - { gcc: 9.3, python: ~2.7.0, boost-python: ~1.73.0, python.abi: "cp27mu" }
+    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m" }
 
   script:
     - if [ "${SPK_PKG_python_VERSION_MAJOR}" == "2" ] ; then
@@ -52,10 +53,14 @@ build:
     - cmake -S openexr -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
         -DOPENEXR_VIEWERS_ENABLE=OFF
         -DOPENEXR_BUILD_UTILS=OFF
         $pycmd
     - cmake --build build --target install
+    # In this OLD version of OpenEXR, the cmake build scripts are broken and
+    # failed to copy this header. So we do it by hand.
+    - cp build/PyIlmBase/config/PyIlmBaseConfigInternal.h $PREFIX/include/OpenEXR
 
 install:
   requirements:
@@ -64,11 +69,13 @@ install:
       fromBuildEnv: x.x
     - pkg: zlib
       fromBuildEnv: x.x
-    - pkg: boost
+    - pkg: boost-python
       fromBuildEnv: x.x
     - pkg: python
       fromBuildEnv: x.x
       include: IfAlreadyPresent
+    - { var: python.abi, fromBuildEnv: true }
+
 
 tests:
   - stage: build
@@ -76,6 +83,7 @@ tests:
       - cmake -S openexr -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_INSTALL_PREFIX=$PREFIX
+          -DCMAKE_PREFIX_PATH=$PREFIX
       - cmake --build build
       - cd build
       - ctest

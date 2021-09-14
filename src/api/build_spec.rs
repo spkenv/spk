@@ -98,8 +98,7 @@ impl BuildSpec {
             must_exist.remove(option.name());
         }
 
-        let missing = must_exist.keys();
-        if missing.len() != 0 {
+        if !must_exist.is_empty() {
             let missing = must_exist.iter().collect::<Vec<_>>();
             return Compatibility::Incompatible(format!(
                 "Package does not define requested build options: {:?}",

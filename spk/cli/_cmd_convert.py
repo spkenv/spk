@@ -178,7 +178,7 @@ def _convert_pip_packages(args: argparse.Namespace) -> None:
     specs = []
     for name in args.packages:
         version = ""
-        match = re.match(r"^(.*)([<>=~]+.*)?$", name)
+        match = re.match(r"^(.*?)([<>=~]+.*)?$", name)
         if match:
             name, version = match.group(1), match.group(2) or ""
 
