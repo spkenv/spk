@@ -9,7 +9,7 @@ The `spk` command line has a great number of useful commands to explore, simply 
 ### Run an Environment
 
 ```bash
-# enter a shell envrionment with an existing package installed
+# enter a shell environment with an existing package installed
 $ spk env python/2
 $ which python
 /spfs/bin/python

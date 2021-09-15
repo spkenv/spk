@@ -229,7 +229,7 @@ install:
       fromBuildEnv: x.x
 ```
 
-In this example, we might get two build envrionments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
+In this example, we might get two build environments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
 
 {{% notice tip %}}
 Install requirements can also be updated in the command line: `spk install --save @install build-dependency/1.0`
@@ -322,7 +322,7 @@ install:
 
 #### Embedded Packages
 
-Some software, like Maya or other DCC applications, come bundled with their own specific version of many libraries. SPK can represent this bundled software natively, so that environments can be properly resolved using it. For example, Maya bundles it's own version of `qt`, and no other version of qt should be resolved into the environment. By defining `qt` as an embedded package, users who request envrionments with both `maya` and `qt`, will have qt resolved to the one bundled in the `maya` package, if compatible. If maya embeds `qt/5.12` but the user requests `qt/4.8` then the resolve will fail as expected since this environment is unsafe.
+Some software, like Maya or other DCC applications, come bundled with their own specific version of many libraries. SPK can represent this bundled software natively, so that environments can be properly resolved using it. For example, Maya bundles it's own version of `qt`, and no other version of qt should be resolved into the environment. By defining `qt` as an embedded package, users who request environments with both `maya` and `qt`, will have qt resolved to the one bundled in the `maya` package, if compatible. If maya embeds `qt/5.12` but the user requests `qt/4.8` then the resolve will fail as expected since this environment is unsafe.
 
 ```yaml
 pkg: maya/2019.2.0

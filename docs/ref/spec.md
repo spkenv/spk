@@ -217,10 +217,10 @@ mypkg:{lib,dev,debug}/1.0.0
 
 #### InclusionPolicy
 
-| Value            | Description                                                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Always (default) | Always include the requested package in the environment                                                                                      |
-| IfAlreadyPresent | Only include this package in the environment if it is already in the environment or another request exists with the`Always` inclusion policy |
+| Value            | Description                                                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Always (default) | Always include the requested package in the environment                                                                                       |
+| IfAlreadyPresent | Only include this package in the environment if it is already in the environment or another request exists with the `Always` inclusion policy |
 
 ## Identifier
 

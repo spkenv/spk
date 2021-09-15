@@ -17,7 +17,7 @@ The `dev env` command will place you into a shell that's properly configured for
 
 The `dev build` and `dev test` commands can be used independantly to build and test the codebase, but the `spk` and `pytest` commands can also be invoked separately for local execution and testing, respectively.
 
-Before running spk as a local command, it will need to be installed into the virtual envrionment in development mode. From within the `dev env` shell, run `python setup.py develop` to accomplish this. You may also need to execute this command any time that you change the rust portion of the spk codebase, to trigger a rebuild of the extension.
+Before running spk as a local command, it will need to be installed into the virtual environment in development mode. From within the `dev env` shell, run `python setup.py develop` to accomplish this. You may also need to execute this command any time that you change the rust portion of the spk codebase, to trigger a rebuild of the extension.
 
 ### Unit Testing
 
