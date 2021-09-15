@@ -5,7 +5,7 @@
 
 import spkrs
 
-api = spkrs.api
+from spkrs import api
 from . import storage, solve, build, exec, test
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError

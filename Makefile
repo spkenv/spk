@@ -15,6 +15,15 @@ packages.%:
 .PHONY: clean
 clean: packages.clean
 
+.PHONY: lint
+lint:
+	pipenv run -- mypy spk
+	pipenv run -- black --check spk setup.py spkrs
+
+.PHONY: format
+format:
+	pipenv run -- black spk setup.py spkrs
+
 .PHONY: devel
 devel:
 	pipenv run -- python setup.py develop

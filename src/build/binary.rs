@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 
-use crate::Result;
+use super::env::data_path;
+use crate::{api, Result};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -57,7 +59,7 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
                         let perms = std::fs::Permissions::from_mode(a.mode);
                         std::fs::set_permissions(
                             diff.path
-                                .to_path(std::path::PathBuf::from(prefix.as_ref().to_string())),
+                                .to_path(PathBuf::from(prefix.as_ref().to_string())),
                             perms,
                         )?;
                         continue;
@@ -71,4 +73,33 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
         }
     }
     Ok(())
+}
+
+/// Return the file path for the given source package's files.
+pub fn source_package_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
+    data_path(pkg, prefix)
+}
+
+/// Return the file path for the given build's spec.yaml file.
+///
+/// This file is created during a build and stores the full
+/// package spec of what was built.
+pub fn build_spec_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
+    data_path(pkg, prefix).join("spec.yaml")
+}
+
+/// Return the file path for the given build's options.json file.
+///
+/// This file is created during a build and stores the set
+/// of build options used when creating the package
+pub fn build_options_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
+    data_path(pkg, prefix).join("options.json")
+}
+
+/// Return the file path for the given build's build.sh file.
+///
+/// This file is created during a build and stores the bash
+/// script used to build the package contents
+pub fn build_script_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
+    data_path(pkg, prefix).join("build.sh")
 }
