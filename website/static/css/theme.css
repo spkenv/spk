@@ -45,10 +45,6 @@ body {
 body #chapter h1 {
     font-size: 3.5rem;
 }
-body #chapter ul {
-    display: table;
-    margin: 0 auto;
-}
 @media only all and (min-width: 48em) and (max-width: 59.938em) {
     body #chapter h1 {
         font-size: 3rem;
@@ -440,8 +436,10 @@ textarea:focus, input[type="email"]:focus, input[type="number"]:focus, input[typ
     border-bottom: 4px solid #F0F2F4;
 }
 #chapter p {
-    text-align: center;
     font-size: 1.2rem;
+}
+#chapter ul {
+    font-size: 0.9rem;
 }
 #footer {
     padding: 3rem 1rem;
