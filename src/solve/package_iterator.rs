@@ -290,7 +290,7 @@ impl BuildIterator for EmptyBuildIterator {
     }
 
     fn version_spec(&self) -> Option<Arc<api::Spec>> {
-        todo!()
+        None
     }
 }
 
