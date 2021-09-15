@@ -45,6 +45,10 @@ body {
 body #chapter h1 {
     font-size: 3.5rem;
 }
+body #chapter ul {
+    display: table;
+    margin: 0 auto;
+}
 @media only all and (min-width: 48em) and (max-width: 59.938em) {
     body #chapter h1 {
         font-size: 3rem;
