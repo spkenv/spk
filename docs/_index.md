@@ -14,4 +14,4 @@ Driven by the unique requirements of the visual effects industry, SPK has a few 
 - Fast, Dynamic Build and Runtime Environments
 - Reliable and Natural Definition of Platforms and Constraints
 
-More details on these goals can be found [here](/develop/design).
+More details on these goals can be found [here](/develop/design), or jump right into [getting started](/use).
