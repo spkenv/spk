@@ -90,7 +90,7 @@ You can include sources from mulitple location, but will need to specify a subdi
 ```yaml
 sources:
   # clones this git repo into the 'someproject' subdirectory
-  - git: https://gitlab.spimageworks.com/someproject
+  - git: https://github.com/someuser/someproject
     ref: master
     subdir: someproject
     # copies the contents of the spec file's location into the 'src' subdirectory
