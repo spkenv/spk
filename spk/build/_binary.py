@@ -1,4 +1,4 @@
-from typing import List, Iterable, Optional, MutableMapping, Union, Dict
+from typing import List, Iterable, Optional, MutableMapping, Union
 import os
 import json
 import subprocess
@@ -17,12 +17,6 @@ from spkrs.build import (
 )
 
 _LOGGER = structlog.get_logger("spk.build")
-
-
-class BuildError(RuntimeError):
-    """Denotes an error during the build process."""
-
-    pass
 
 
 class BinaryPackageBuilder:

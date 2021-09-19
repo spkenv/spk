@@ -4,7 +4,7 @@
 
 use pyo3::{exceptions, prelude::*};
 
-use super::api;
+use super::{api, build};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -27,6 +27,9 @@ pub enum Error {
     // Storage Errors
     PackageNotFoundError(api::Ident),
     VersionExistsError(api::Ident),
+
+    // Build Errors
+    BuildError(build::BuildError),
 }
 
 impl Error {
@@ -102,6 +105,7 @@ impl From<Error> for PyErr {
             Error::VersionExistsError(pkg) => {
                 exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
             }
+            Error::BuildError(err) => exceptions::PyRuntimeError::new_err(err.message.clone()),
             Error::PyErr(err) => err,
         }
     }
