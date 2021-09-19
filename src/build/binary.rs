@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -23,6 +24,45 @@ impl BuildError {
             message: std::fmt::format(format_args),
         })
     }
+}
+
+/// Return the environment variables to be set for a build of the given package spec.
+pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
+    let mut env = HashMap::with_capacity(7);
+    env.insert("SPK_PKG".to_string(), spec.pkg.to_string());
+    env.insert("SPK_PKG_NAME".to_string(), spec.pkg.name().to_string());
+    env.insert("SPK_PKG_VERSION".to_string(), spec.pkg.version.to_string());
+    env.insert(
+        "SPK_PKG_BUILD".to_string(),
+        spec.pkg
+            .build
+            .as_ref()
+            .map(api::Build::to_string)
+            .unwrap_or_default(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_MAJOR".to_string(),
+        spec.pkg.version.major.to_string(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_MINOR".to_string(),
+        spec.pkg.version.minor.to_string(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_PATCH".to_string(),
+        spec.pkg.version.patch.to_string(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_BASE".to_string(),
+        spec.pkg
+            .version
+            .parts()
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(api::VERSION_SEP),
+    );
+    env
 }
 
 // Reset all file permissions in spfs if permissions is the
