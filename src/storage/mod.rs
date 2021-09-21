@@ -3,7 +3,9 @@
 // https://github.com/imageworks/spk
 
 mod python;
+mod repository;
 mod spfs;
 
 pub use self::spfs::{local_repository, remote_repository, SpFSRepository};
 pub use python::init_module;
+pub use repository::Repository;
