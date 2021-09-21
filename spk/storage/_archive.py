@@ -40,7 +40,7 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
     else:
         to_transfer.add(pkg.with_build(None))
 
-    target_repo = SpFSRepository(spkrs.open_tar_repository(filename, create=True))
+    target_repo = SpFSRepository(spkrs.storage.open_tar_repository(filename, create=True))
 
     for pkg in to_transfer:
         for src_repo in (local_repository(), remote_repository()):
@@ -62,7 +62,7 @@ def import_package(filename: str) -> None:
     # does not exist, but we want to ensure that for importing,
     # the archive is already present
     os.stat(filename)
-    tar_repo = spkrs.open_tar_repository(filename)
+    tar_repo = spkrs.storage.open_tar_repository(filename)
     local_repo = local_repository()
     for tag in tar_repo.ls_all_tags():
         _LOGGER.info("importing", ref=str(tag))

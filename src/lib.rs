@@ -74,6 +74,10 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     build::init_module(&py, &build_mod)?;
     m.add_submodule(build_mod)?;
 
+    let storage_mod = PyModule::new(py, "storage")?;
+    storage::init_module(&py, &storage_mod)?;
+    m.add_submodule(storage_mod)?;
+
     // ensure that from spkrs.submodule import xx works
     // as expected on the python side by injecting them
     py.run(
@@ -81,6 +85,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     import sys;\
     sys.modules['spkrs.api'] = api;\
     sys.modules['spkrs.build'] = build;\
+    sys.modules['spkrs.storage'] = storage;\
     ",
         None,
         Some(m.dict()),
@@ -129,27 +134,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     fn active_runtime(_py: Python) -> Result<Runtime> {
         let rt = spfs::active_runtime()?;
         Ok(Runtime { inner: rt })
-    }
-    #[pyfn(m, "local_repository")]
-    fn local_repository(_py: Python) -> Result<storage::SpFSRepository> {
-        Ok(storage::local_repository()?)
-    }
-    #[pyfn(m, "remote_repository")]
-    fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
-        Ok(storage::remote_repository(path)?)
-    }
-    #[pyfn(m, "open_tar_repository")]
-    fn open_tar_repository(
-        _py: Python,
-        path: &str,
-        create: Option<bool>,
-    ) -> Result<storage::SpFSRepository> {
-        let repo = match create {
-            Some(true) => spfs::storage::tar::TarRepository::create(path)?,
-            _ => spfs::storage::tar::TarRepository::open(path)?,
-        };
-        let handle: spfs::storage::RepositoryHandle = repo.into();
-        Ok(storage::SpFSRepository::from(handle))
     }
     #[pyfn(m, "reconfigure_runtime")]
     fn reconfigure_runtime(

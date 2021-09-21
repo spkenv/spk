@@ -46,7 +46,7 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
 def test_example(stage: str, spec_file: str) -> None:
 
     try:
-        spkrs.remote_repository("origin")
+        spkrs.storage.remote_repository("origin")
     except FileNotFoundError:
         pytest.skip("examples depend on external packages")
 
