@@ -219,7 +219,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
-    m.add_class::<self::storage::SpFSRepository>()?;
 
     let empty_spfs: spfs::encoding::Digest = spfs::encoding::EMPTY_DIGEST.into();
     let empty_spk = Digest::from(empty_spfs);

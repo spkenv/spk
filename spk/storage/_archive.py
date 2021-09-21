@@ -40,7 +40,9 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
     else:
         to_transfer.add(pkg.with_build(None))
 
-    target_repo = SpFSRepository(spkrs.storage.open_tar_repository(filename, create=True))
+    target_repo = SpFSRepository(
+        spkrs.storage.open_tar_repository(filename, create=True)
+    )
 
     for pkg in to_transfer:
         for src_repo in (local_repository(), remote_repository()):

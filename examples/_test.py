@@ -36,7 +36,7 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
     r.join("objects").ensure(dir=True)
     r.join("payloads").ensure(dir=True)
     r.join("tags").ensure(dir=True)
-    yield spk.storage.SpFSRepository(spkrs.SpFSRepository("file:" + root))
+    yield spk.storage.SpFSRepository(spkrs.storage.SpFSRepository("file:" + root))
     tmpdir.remove(rec=1)
 
 

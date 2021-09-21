@@ -28,7 +28,7 @@ spkrs.configure_logging(0)
 
 
 @pytest.fixture
-def tmprepo(tmpspfs: spkrs.SpFSRepository) -> spk.storage.SpFSRepository:
+def tmprepo(tmpspfs: spkrs.storage.SpFSRepository) -> spk.storage.SpFSRepository:
 
     from spk import storage
 
@@ -36,7 +36,7 @@ def tmprepo(tmpspfs: spkrs.SpFSRepository) -> spk.storage.SpFSRepository:
 
 
 @pytest.fixture(autouse=True)
-def spfs_editable(tmpspfs: spkrs.SpFSRepository) -> None:
+def spfs_editable(tmpspfs: spkrs.storage.SpFSRepository) -> None:
 
     try:
         spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
@@ -48,7 +48,7 @@ def spfs_editable(tmpspfs: spkrs.SpFSRepository) -> None:
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.SpFSRepository:
+def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.storage.SpFSRepository:
 
     root = tmpdir.join("spfs_repo").strpath
     origin_root = tmpdir.join("spfs_origin").strpath
@@ -62,5 +62,5 @@ def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.SpFSRepository:
         r.join("objects").ensure(dir=True)
         r.join("payloads").ensure(dir=True)
         r.join("tags").ensure(dir=True)
-    spkrs.SpFSRepository("file:" + origin_root)
-    return spkrs.SpFSRepository("file:" + root)
+    spkrs.storage.SpFSRepository("file:" + origin_root)
+    return spkrs.storage.SpFSRepository("file:" + root)

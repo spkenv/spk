@@ -29,7 +29,7 @@ def repo(tmpspfs: None, request: Any, tmpdir: py.path.local) -> Repository:
         repo.join("objects").ensure_dir()
         repo.join("payloads").ensure_dir()
         repo.join("tags").ensure_dir()
-        return SpFSRepository(spkrs.SpFSRepository("file:" + repo.strpath))
+        return SpFSRepository(spkrs.storage.SpFSRepository("file:" + repo.strpath))
 
     raise NotImplementedError(
         "Unknown repository type to be tested: " + str(request.param)

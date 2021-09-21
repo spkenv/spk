@@ -18,8 +18,8 @@ _LOGGER = structlog.get_logger("spk.storage.spfs")
 
 
 class SpFSRepository(Repository):
-    def __init__(self, base: spkrs.SpFSRepository) -> None:
-        assert isinstance(base, spkrs.SpFSRepository)
+    def __init__(self, base: spkrs.storage.SpFSRepository) -> None:
+        assert isinstance(base, spkrs.storage.SpFSRepository)
         self.rs = base
 
     @lru_cache(maxsize=None)

@@ -29,5 +29,8 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(local_repository, m)?)?;
     m.add_function(wrap_pyfunction!(remote_repository, m)?)?;
     m.add_function(wrap_pyfunction!(open_tar_repository, m)?)?;
+
+    m.add_class::<super::SpFSRepository>()?;
+
     Ok(())
 }
