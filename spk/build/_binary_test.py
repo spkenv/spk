@@ -27,7 +27,7 @@ def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) ->
     assert err.strip() == tmpdir.strpath
 
 
-def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
+def test_build_package_options(tmprepo: storage.Repository) -> None:
 
     dep_spec = api.Spec.from_dict(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -74,7 +74,7 @@ def test_build_package_options(tmprepo: storage.SpFSRepository) -> None:
     assert build_options.get("dep") == "~1.0.0"
 
 
-def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
+def test_build_package_pinning(tmprepo: storage.Repository) -> None:
 
     dep_spec = api.Spec.from_dict(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -109,7 +109,7 @@ def test_build_package_pinning(tmprepo: storage.SpFSRepository) -> None:
     assert str(req.pkg) == "dep/~1.0"
 
 
-def test_build_package_missing_deps(tmprepo: storage.SpFSRepository) -> None:
+def test_build_package_missing_deps(tmprepo: storage.Repository) -> None:
 
     spec = api.Spec.from_dict(
         {
@@ -129,7 +129,7 @@ def test_build_package_missing_deps(tmprepo: storage.SpFSRepository) -> None:
     )
 
 
-def test_build_var_pinning(tmprepo: storage.SpFSRepository) -> None:
+def test_build_var_pinning(tmprepo: storage.Repository) -> None:
 
     dep_spec = api.Spec.from_dict(
         {
@@ -204,7 +204,7 @@ def test_build_bad_options() -> None:
         )
 
 
-def test_build_package_source_cleanup(tmprepo: storage.SpFSRepository) -> None:
+def test_build_package_source_cleanup(tmprepo: storage.Repository) -> None:
 
     spec = api.Spec.from_dict(
         {
@@ -239,7 +239,7 @@ def test_build_package_source_cleanup(tmprepo: storage.SpFSRepository) -> None:
     assert not out, "no files should be committed from source path"
 
 
-def test_build_package_requirement_propagation(tmprepo: storage.SpFSRepository) -> None:
+def test_build_package_requirement_propagation(tmprepo: storage.Repository) -> None:
 
     base_spec = api.Spec.from_dict(
         {

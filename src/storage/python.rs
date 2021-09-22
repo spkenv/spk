@@ -12,7 +12,7 @@ fn local_repository() -> Result<Repository> {
     })?)
 }
 
-#[pyfunction]
+#[pyfunction(path = "\"origin\"")]
 fn remote_repository(path: &str) -> Result<Repository> {
     Ok(super::remote_repository(path).map(|r| Repository {
         handle: super::RepositoryHandle::SPFS(r),
