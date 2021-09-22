@@ -5,7 +5,7 @@
 from typing import Any, Iterable, Union
 import abc
 
-import spkrs
+from spkrs.storage import Repository
 
 from .. import api
 

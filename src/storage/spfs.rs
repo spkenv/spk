@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use pyo3::prelude::*;
 use spfs;
 
 use super::Repository;
-use crate::{Digest, Result};
+use crate::{api, Digest, Result};
 
+#[derive(Debug)]
 pub struct SPFSRepository {
     inner: spfs::storage::RepositoryHandle,
 }
@@ -27,144 +27,152 @@ impl SPFSRepository {
 }
 
 impl Repository for SPFSRepository {
-    @lru_cache(maxsize=None)
-    def list_packages(self) -> Iterable[str]:
+    fn list_packages(&self) -> Result<Vec<String>> {
+        // path = "spk/spec"
+        // pkgs = []
+        // for tag in self.rs.ls_tags(path):
+        //     if tag.endswith("/"):
+        //         tag = tag[:-1]
+        //         pkgs.append(tag)
+        // return list(pkgs)
+        todo!()
+    }
 
-        path = "spk/spec"
-        pkgs = []
-        for tag in self.rs.ls_tags(path):
-            if tag.endswith("/"):
-                tag = tag[:-1]
-                pkgs.append(tag)
-        return list(pkgs)
+    fn list_package_versions(&self, name: &str) -> Result<Vec<String>> {
+        // path = self.build_spec_tag(api.parse_ident(name))
+        // versions: Iterable[str] = self.rs.ls_tags(path)
+        // versions = map(lambda v: v.rstrip("/"), versions)
+        // # undo our encoding of the invalid '+' character in spfs tags
+        // versions = (v.replace("..", "+") for v in versions)
+        // return sorted(list(set(versions)))
+        todo!()
+    }
 
-    @lru_cache(maxsize=None)
-    def list_package_versions(self, name: str) -> Iterable[str]:
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+        // if not isinstance(pkg, api.Ident):
+        //     pkg = api.parse_ident(pkg)
 
-        path = self.build_spec_tag(api.parse_ident(name))
-        versions: Iterable[str] = self.rs.ls_tags(path)
-        versions = map(lambda v: v.rstrip("/"), versions)
-        # undo our encoding of the invalid '+' character in spfs tags
-        versions = (v.replace("..", "+") for v in versions)
-        return sorted(list(set(versions)))
+        // pkg = pkg.with_build(api.SRC)
+        // base = posixpath.dirname(self.build_package_tag(pkg))
+        // try:
+        //     build_tags = self.rs.ls_tags(base)
+        // except KeyError:
+        //     return []
 
-    @lru_cache(maxsize=None)
-    def list_package_builds(self, pkg: Union[str, api.Ident]) -> Iterable[api.Ident]:
+        // builds = []
+        // for build in build_tags:
+        //     builds.append(pkg.with_build(build))
+        // return builds
+        todo!()
+    }
 
-        if not isinstance(pkg, api.Ident):
-            pkg = api.parse_ident(pkg)
+    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+        // tag_str = self.build_spec_tag(pkg)
+        // digest = self.rs.resolve_tag_to_digest(tag_str)
+        // if digest is None:
+        // raise PackageNotFoundError(pkg) from None
 
-        pkg = pkg.with_build(api.SRC)
-        base = posixpath.dirname(self.build_package_tag(pkg))
-        try:
-            build_tags = self.rs.ls_tags(base)
-        except KeyError:
-            return []
+        // data = self.rs.read_spec(digest)
+        // return api.Spec.from_dict(yaml.safe_load(data))
+        todo!()
+    }
 
-        builds = []
-        for build in build_tags:
-            builds.append(pkg.with_build(build))
-        return builds
+    fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
+        // tag_str = self.build_package_tag(pkg)
+        // digest = self.rs.resolve_tag_to_digest(tag_str)
+        // if digest is None:
+        //     raise PackageNotFoundError(tag_str) from None
 
-    def force_publish_spec(self, spec: api.Spec) -> None:
+        // return digest
+        todo!()
+    }
 
-        assert (
-            spec.pkg.build is None or not spec.pkg.build == api.EMBEDDED
-        ), "Cannot publish embedded package"
-        meta_tag = self.build_spec_tag(spec.pkg)
-        spec_data = yaml.safe_dump(spec.to_dict()).encode()  # type: ignore
-        self.rs.write_spec(meta_tag, spec_data)
-        self.list_packages.cache_clear()
-        self.list_package_versions.cache_clear()
-        self.list_package_builds.cache_clear()
+    fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
+        // assert spec.pkg.build is None, "Spec must be published with no build"
+        // meta_tag = self.build_spec_tag(spec.pkg)
+        // if self.rs.has_tag(meta_tag):
+        //     # BUG(rbottriell): this creates a race condition but is not super dangerous
+        //     # because of the non-destructive tag history
+        //     raise VersionExistsError(spec.pkg)
+        // self.force_publish_spec(spec)
+        todo!()
+    }
 
-    def publish_spec(self, spec: api.Spec) -> None:
+    fn remove_spec(&mut self, pkg: api::Ident) -> Result<()> {
+        // tag_str = self.build_spec_tag(pkg)
+        // try:
+        //     self.rs.remove_tag_stream(tag_str)
+        // except RuntimeError:
+        //     raise PackageNotFoundError(pkg) from None
+        // self.list_packages.cache_clear()
+        // self.list_package_versions.cache_clear()
+        // self.list_package_builds.cache_clear()
+        todo!()
+    }
 
-        assert spec.pkg.build is None, "Spec must be published with no build"
-        meta_tag = self.build_spec_tag(spec.pkg)
-        if self.rs.has_tag(meta_tag):
-            # BUG(rbottriell): this creates a race condition but is not super dangerous
-            # because of the non-destructive tag history
-            raise VersionExistsError(spec.pkg)
-        self.force_publish_spec(spec)
+    fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
+        // assert (
+        //     spec.pkg.build is None or not spec.pkg.build == api.EMBEDDED
+        // ), "Cannot publish embedded package"
+        // meta_tag = self.build_spec_tag(spec.pkg)
+        // spec_data = yaml.safe_dump(spec.to_dict()).encode()  # type: ignore
+        // self.rs.write_spec(meta_tag, spec_data)
+        // self.list_packages.cache_clear()
+        // self.list_package_versions.cache_clear()
+        // self.list_package_builds.cache_clear()
+        todo!()
+    }
 
-    @lru_cache(maxsize=None)
-    def read_spec(self, pkg: api.Ident) -> api.Spec:
+    fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
+        // try:
+        //     self.read_spec(spec.pkg.with_build(None))
+        // except PackageNotFoundError:
+        //     _LOGGER.debug(
+        //         "Internal warning: version spec must be published before a specific build"
+        //     )
+        // tag_string = self.build_package_tag(spec.pkg)
+        // self.force_publish_spec(spec)
+        // self.rs.push_tag(tag_string, digest)
+        todo!()
+    }
 
-        tag_str = self.build_spec_tag(pkg)
-        digest = self.rs.resolve_tag_to_digest(tag_str)
-        if digest is None:
-            raise PackageNotFoundError(pkg) from None
-
-        data = self.rs.read_spec(digest)
-        return api.Spec.from_dict(yaml.safe_load(data))
-
-    def remove_spec(self, pkg: api.Ident) -> None:
-
-        tag_str = self.build_spec_tag(pkg)
-        try:
-            self.rs.remove_tag_stream(tag_str)
-        except RuntimeError:
-            raise PackageNotFoundError(pkg) from None
-        self.list_packages.cache_clear()
-        self.list_package_versions.cache_clear()
-        self.list_package_builds.cache_clear()
-
-    def publish_package(self, spec: api.Spec, digest: spkrs.Digest) -> None:
-
-        try:
-            self.read_spec(spec.pkg.with_build(None))
-        except PackageNotFoundError:
-            _LOGGER.debug(
-                "Internal warning: version spec must be published before a specific build"
-            )
-        tag_string = self.build_package_tag(spec.pkg)
-        self.force_publish_spec(spec)
-        self.rs.push_tag(tag_string, digest)
-
-    def get_package(self, pkg: api.Ident) -> spkrs.Digest:
-
-        tag_str = self.build_package_tag(pkg)
-        digest = self.rs.resolve_tag_to_digest(tag_str)
-        if digest is None:
-            raise PackageNotFoundError(tag_str) from None
-
-        return digest
-
-    def remove_package(self, pkg: api.Ident) -> None:
-
-        tag_str = self.build_package_tag(pkg)
-        try:
-            self.rs.remove_tag_stream(tag_str)
-        except RuntimeError:
-            raise PackageNotFoundError(pkg) from None
-        self.list_packages.cache_clear()
-        self.list_package_versions.cache_clear()
-        self.list_package_builds.cache_clear()
-
-    def build_package_tag(self, pkg: api.Ident) -> str:
-        """Construct an spfs tag string to represent a binary package layer."""
-
-        assert pkg.build is not None, "Package must have associated build digest"
-
-        tag = f"spk/pkg/{pkg}"
-
-        # the "+" character is not a valid spfs tag character,
-        # so we 'encode' it with two dots, which is not a valid sequence
-        # for spk package names
-        return tag.replace("+", "..")
-
-    def build_spec_tag(self, pkg: api.Ident) -> str:
-        """construct an spfs tag string to represent a spec file blob."""
-
-        tag = f"spk/spec/{pkg}"
-
-        # the "+" character is not a valid spfs tag character,
-        # see above ^
-        return tag.replace("+", "..")
+    fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
+        // tag_str = self.build_package_tag(pkg)
+        // try:
+        //     self.rs.remove_tag_stream(tag_str)
+        // except RuntimeError:
+        //     raise PackageNotFoundError(pkg) from None
+        // self.list_packages.cache_clear()
+        // self.list_package_versions.cache_clear()
+        // self.list_package_builds.cache_clear()
+        todo!()
+    }
 }
 
 impl SPFSRepository {
+    /// Construct an spfs tag string to represent a binary package layer.
+    fn build_package_tag(&self, pkg: &api::Ident) -> String {
+        // assert pkg.build is not None, "Package must have associated build digest"
+
+        // tag = f"spk/pkg/{pkg}"
+
+        // # the "+" character is not a valid spfs tag character,
+        // # so we 'encode' it with two dots, which is not a valid sequence
+        // # for spk package names
+        // return tag.replace("+", "..")
+        todo!()
+    }
+
+    /// Construct an spfs tag string to represent a spec file blob.
+    fn build_spec_tag(&self, pkg: &api::Ident) -> String {
+        // tag = f"spk/spec/{pkg}"
+
+        // # the "+" character is not a valid spfs tag character,
+        // # see above ^
+        // return tag.replace("+", "..")
+        todo!()
+    }
+
     pub fn has_tag(&self, tag: &str) -> bool {
         match tag.parse() {
             Ok(tag) => self.inner.has_tag(&tag),
