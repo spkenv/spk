@@ -4,11 +4,10 @@
 
 from typing import List
 import py.path
-import getpass
 import tarfile
 
 from .. import build, api, storage
-from ._archive import export_package, import_package
+from . import export_package, import_package
 
 
 def test_archive_io(tmpdir: py.path.local) -> None:
