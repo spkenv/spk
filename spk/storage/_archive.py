@@ -54,7 +54,7 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
             raise PackageNotFoundError(pkg)
 
     _LOGGER.info("building archive", path=filename)
-    target_repo.rs.flush()
+    target_repo.flush()
 
 
 def import_package(filename: str) -> None:
@@ -67,7 +67,7 @@ def import_package(filename: str) -> None:
     local_repo = local_repository()
     for tag in tar_repo.ls_all_tags():
         _LOGGER.info("importing", ref=str(tag))
-        tar_repo.push_ref(str(tag), local_repo.rs)
+        tar_repo.push_ref(str(tag), local_repo)
 
 
 def _copy_package(
@@ -82,5 +82,5 @@ def _copy_package(
 
     digest = src_repo.get_package(pkg)
     _LOGGER.info("exporting", pkg=str(pkg))
-    src_repo.rs.push_digest(digest, dst_repo.rs)
+    src_repo.push_digest(digest, dst_repo)
     dst_repo.publish_package(spec, digest)

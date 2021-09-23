@@ -80,5 +80,5 @@ class Publisher:
             elif not self._to.is_spfs():
                 _LOGGER.warn("Target is not an spfs repo, skipping package payload")
             else:
-                self._from.rs.push_digest(digest, self._to.rs)
+                self._from.push_digest(digest, self._to)
             self._to.publish_package(spec, digest)

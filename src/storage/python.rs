@@ -1,21 +1,21 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::{exceptions, prelude::*, wrap_pyfunction};
 
-use crate::{api, Result};
+use crate::{api, storage::RepositoryHandle, Result};
 
 #[pyfunction]
 fn local_repository() -> Result<Repository> {
     Ok(super::local_repository().map(|r| Repository {
-        handle: super::RepositoryHandle::SPFS(r),
+        handle: RepositoryHandle::SPFS(r),
     })?)
 }
 
 #[pyfunction(path = "\"origin\"")]
 fn remote_repository(path: &str) -> Result<Repository> {
     Ok(super::remote_repository(path).map(|r| Repository {
-        handle: super::RepositoryHandle::SPFS(r),
+        handle: RepositoryHandle::SPFS(r),
     })?)
 }
 
@@ -27,7 +27,7 @@ fn open_tar_repository(path: &str, create: Option<bool>) -> Result<Repository> {
     };
     let handle: spfs::storage::RepositoryHandle = repo.into();
     Ok(Repository {
-        handle: super::RepositoryHandle::from(super::SPFSRepository::from(handle)),
+        handle: RepositoryHandle::from(super::SPFSRepository::from(handle)),
     })
 }
 
@@ -39,26 +39,26 @@ fn open_spfs_repository(path: &str, create: Option<bool>) -> Result<Repository> 
     };
     let handle: spfs::storage::RepositoryHandle = repo.into();
     Ok(Repository {
-        handle: super::RepositoryHandle::from(super::SPFSRepository::from(handle)),
+        handle: RepositoryHandle::from(super::SPFSRepository::from(handle)),
     })
 }
 
 #[pyfunction]
 fn mem_repository() -> Repository {
     Repository {
-        handle: super::RepositoryHandle::Mem(Default::default()),
+        handle: RepositoryHandle::Mem(Default::default()),
     }
 }
 
 #[pyclass]
 struct Repository {
-    handle: super::RepositoryHandle,
+    handle: RepositoryHandle,
 }
 
 #[pymethods]
 impl Repository {
     fn is_spfs(&self) -> bool {
-        if let super::RepositoryHandle::SPFS(_) = self.handle {
+        if let RepositoryHandle::SPFS(_) = self.handle {
             true
         } else {
             false
@@ -95,6 +95,34 @@ impl Repository {
     }
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
         self.handle.remove_package(pkg)
+    }
+    pub fn has_digest(&self, digest: &crate::Digest) -> Result<bool> {
+        if let RepositoryHandle::SPFS(repo) = &self.handle {
+            Ok(repo.has_digest(&digest))
+        } else {
+            Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
+                "Not an spfs repository",
+            )))
+        }
+    }
+    pub fn push_digest(&self, digest: &crate::Digest, dest: &mut Self) -> Result<()> {
+        match (&self.handle, &mut dest.handle) {
+            (RepositoryHandle::SPFS(src), RepositoryHandle::SPFS(dest)) => {
+                src.push_digest(&digest, dest)
+            }
+            _ => Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
+                "Source and dest must both be spfs repositories",
+            ))),
+        }
+    }
+    pub fn localize_digest(&self, digest: &crate::Digest) -> Result<()> {
+        if let RepositoryHandle::SPFS(repo) = &self.handle {
+            repo.localize_digest(&digest)
+        } else {
+            Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
+                "Not an spfs repository",
+            )))
+        }
     }
 }
 
