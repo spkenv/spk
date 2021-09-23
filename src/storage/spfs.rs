@@ -98,7 +98,7 @@ impl Repository for SPFSRepository {
         todo!()
     }
 
-    fn remove_spec(&mut self, pkg: api::Ident) -> Result<()> {
+    fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
         // tag_str = self.build_spec_tag(pkg)
         // try:
         //     self.rs.remove_tag_stream(tag_str)

@@ -38,7 +38,7 @@ pub trait Repository {
     /// This will not untag builds for this package, but make it unresolvable
     /// and unsearchable. It's recommended that you remove all existing builds
     /// before removing the spec in order to keep the repository clean.
-    fn remove_spec(&mut self, pkg: api::Ident) -> Result<()>;
+    fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()>;
 
     /// Publish a package spec to this repository.
     ///

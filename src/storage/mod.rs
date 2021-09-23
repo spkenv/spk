@@ -3,11 +3,13 @@
 // https://github.com/imageworks/spk
 
 mod handle;
+mod mem;
 mod python;
 mod repository;
 mod spfs;
 
 pub use self::spfs::{local_repository, remote_repository, SPFSRepository};
 pub use handle::RepositoryHandle;
+pub use mem::MemRepository;
 pub use python::init_module;
 pub use repository::Repository;

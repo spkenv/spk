@@ -65,7 +65,7 @@ impl Repository {
     fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
         self.handle.publish_spec(spec)
     }
-    fn remove_spec(&mut self, pkg: api::Ident) -> Result<()> {
+    fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
         self.handle.remove_spec(pkg)
     }
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
