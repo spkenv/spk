@@ -9,10 +9,11 @@ import spkrs
 import structlog
 
 from .. import api
-from ._spfs import (
+from spkrs.storage import (
     local_repository,
-    SpFSRepository,
+    Repository,
     remote_repository,
+    open_spfs_repository, open_tar_repository,
     PackageNotFoundError,
 )
 
@@ -40,9 +41,7 @@ def export_package(pkg: Union[str, api.Ident], filename: str) -> None:
     else:
         to_transfer.add(pkg.with_build(None))
 
-    target_repo = SpFSRepository(
-        spkrs.storage.open_tar_repository(filename, create=True)
-    )
+    target_repo = open_tar_repository(filename, create=True)
 
     for pkg in to_transfer:
         for src_repo in (local_repository(), remote_repository()):
@@ -72,7 +71,7 @@ def import_package(filename: str) -> None:
 
 
 def _copy_package(
-    pkg: api.Ident, src_repo: SpFSRepository, dst_repo: SpFSRepository
+    pkg: api.Ident, src_repo: Repository, dst_repo: Repository
 ) -> None:
 
     spec = src_repo.read_spec(pkg)

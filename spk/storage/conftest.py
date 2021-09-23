@@ -22,14 +22,10 @@ def pytest_generate_tests(metafunc: Any) -> None:
 def repo(tmpspfs: None, request: Any, tmpdir: py.path.local) -> Repository:
 
     if request.param is MemRepository:
-        return MemRepository()
+        return spkrs.storage.mem_repository()
     if request.param is SpFSRepository:
-        repo = tmpdir.join("repo")
-        repo.join("renders").ensure_dir()
-        repo.join("objects").ensure_dir()
-        repo.join("payloads").ensure_dir()
-        repo.join("tags").ensure_dir()
-        return SpFSRepository(spkrs.storage.SpFSRepository("file:" + repo.strpath))
+        repo = tmpdir.join("repo").ensure_dir()
+        return spkrs.storage.open_spfs_repository("file:" + repo.strpath, create=True)
 
     raise NotImplementedError(
         "Unknown repository type to be tested: " + str(request.param)

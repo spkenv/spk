@@ -31,6 +31,25 @@ fn open_tar_repository(path: &str, create: Option<bool>) -> Result<Repository> {
     })
 }
 
+#[pyfunction]
+fn open_spfs_repository(path: &str, create: Option<bool>) -> Result<Repository> {
+    let repo = match create {
+        Some(true) => spfs::storage::fs::FSRepository::create(path)?,
+        _ => spfs::storage::fs::FSRepository::open(path)?,
+    };
+    let handle: spfs::storage::RepositoryHandle = repo.into();
+    Ok(Repository {
+        handle: super::RepositoryHandle::from(super::SPFSRepository::from(handle)),
+    })
+}
+
+#[pyfunction]
+fn mem_repository() -> Repository {
+    Repository {
+        handle: super::RepositoryHandle::Mem(Default::default()),
+    }
+}
+
 #[pyclass]
 struct Repository {
     handle: super::RepositoryHandle,
@@ -83,6 +102,8 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(local_repository, m)?)?;
     m.add_function(wrap_pyfunction!(remote_repository, m)?)?;
     m.add_function(wrap_pyfunction!(open_tar_repository, m)?)?;
+    m.add_function(wrap_pyfunction!(open_spfs_repository, m)?)?;
+    m.add_function(wrap_pyfunction!(mem_repository, m)?)?;
 
     m.add_class::<Repository>()?;
 

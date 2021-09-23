@@ -27,9 +27,9 @@ def solver(request: Any) -> Union[legacy.Solver, Solver]:
 
 def make_repo(
     specs: List[Union[Dict, api.Spec]], opts: api.OptionMap = api.OptionMap()
-) -> storage.MemRepository:
+) -> storage.Repository:
 
-    repo = storage.MemRepository()
+    repo = spkrs.storage.mem_repository()
 
     def add_pkg(s: Union[Dict, api.Spec]) -> None:
         if isinstance(s, dict):
@@ -66,7 +66,7 @@ def test_solver_no_requests(solver: Union[Solver, legacy.Solver]) -> None:
 
 def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> None:
 
-    repo = storage.MemRepository()
+    repo = spkrs.storage.mem_repository()
 
     options = api.OptionMap()
     spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
