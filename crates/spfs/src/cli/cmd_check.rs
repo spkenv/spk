@@ -4,7 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
 use spfs::prelude::*;
 
 #[derive(Debug, StructOpt)]
@@ -32,7 +31,7 @@ impl CmdCheck {
         for error in errors.iter() {
             tracing::error!("{:?}", error);
         }
-        if errors.len() > 0 {
+        if !errors.is_empty() {
             return Ok(1);
         }
         tracing::info!("repository OK");

@@ -56,9 +56,9 @@ impl<'t> std::ops::DerefMut for Hasher<'t> {
 
 impl<'t> Write for Hasher<'t> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.ctx.update(&buf);
+        self.ctx.update(buf);
         if let Some(target) = self.target.as_mut() {
-            target.write_all(&buf)?;
+            target.write_all(buf)?;
         }
         Ok(buf.len())
     }
@@ -148,7 +148,7 @@ impl Display for PartialDigest {
         let encoded = BASE32.encode(self.as_slice());
         // ignore padding as it's not needed to reparse this value
         // eg: "LCI3LNJC2XPQ====" => "LCI3LNJC2XPQ"
-        f.write_str(&encoded.trim_end_matches('='))
+        f.write_str(encoded.trim_end_matches('='))
     }
 }
 
@@ -168,7 +168,7 @@ impl std::ops::Deref for PartialDigest {
 
 impl AsRef<PartialDigest> for PartialDigest {
     fn as_ref(&self) -> &Self {
-        &self
+        self
     }
 }
 
@@ -204,7 +204,7 @@ impl AsRef<[u8]> for Digest {
 
 impl AsRef<Digest> for Digest {
     fn as_ref(&self) -> &Self {
-        &self
+        self
     }
 }
 
@@ -315,7 +315,7 @@ impl Encodable for Digest {
     }
 
     fn digest(&self) -> Result<Digest> {
-        Ok(self.clone())
+        Ok(*self)
     }
 }
 

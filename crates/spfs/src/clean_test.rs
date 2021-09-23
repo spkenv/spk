@@ -202,12 +202,12 @@ fn test_clean_manifest_renders(tmprepo: TempRepo) {
         .unwrap();
 
     let files = list_files(tmprepo.objects.root());
-    assert!(files.len() != 0, "should have stored data");
+    assert!(!files.is_empty(), "should have stored data");
 
     clean_untagged_objects(&tmprepo.clone().into()).expect("failed to clean repo");
 
     let files = list_files(tmprepo.renders.unwrap().root());
-    assert!(files.len() == 0, "should remove all created data files");
+    assert!(files.is_empty(), "should remove all created data files");
 }
 
 fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
@@ -220,5 +220,5 @@ fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
         }
         all_files.push(entry.path().to_owned().to_string_lossy().to_string())
     }
-    return all_files;
+    all_files
 }

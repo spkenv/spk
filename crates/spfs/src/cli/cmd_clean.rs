@@ -6,7 +6,6 @@ use chrono::prelude::*;
 use colored::*;
 use structopt::StructOpt;
 
-use spfs;
 use spfs::prelude::*;
 use std::io::Write;
 
@@ -63,7 +62,7 @@ impl CmdClean {
 
         let mut unattached = spfs::get_all_unattached_objects(&repo)?;
         unattached.extend(spfs::get_all_unattached_payloads(&repo)?);
-        if unattached.len() == 0 {
+        if unattached.is_empty() {
             tracing::info!("no objects to remove");
             return Ok(0);
         }
@@ -115,7 +114,7 @@ impl CmdClean {
 
         tracing::info!("searching for tags to prune...");
         let to_prune = spfs::get_prunable_tags(repo, &params)?;
-        if to_prune.len() == 0 {
+        if to_prune.is_empty() {
             tracing::info!("no tags to prune");
             return Ok(());
         }
@@ -146,7 +145,7 @@ impl CmdClean {
         }
 
         for tag in to_prune.iter() {
-            repo.remove_tag(&tag)?;
+            repo.remove_tag(tag)?;
         }
         Ok(())
     }

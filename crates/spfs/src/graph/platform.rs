@@ -35,7 +35,7 @@ impl Platform {
 
     /// Return the digests of objects that this manifest refers to.
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
-        self.stack.iter().map(|d| d.clone()).collect()
+        self.stack.iter().copied().collect()
     }
 }
 

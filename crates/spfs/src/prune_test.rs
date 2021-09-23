@@ -37,7 +37,7 @@ fn test_prunable_tags_age(tmprepo: TempRepo) {
     let tags = get_prunable_tags(
         &mut tmprepo,
         &PruneParameters {
-            prune_if_older_than: Some(cutoff.clone()),
+            prune_if_older_than: Some(cutoff),
             ..Default::default()
         },
     )
@@ -48,7 +48,7 @@ fn test_prunable_tags_age(tmprepo: TempRepo) {
     let tags = get_prunable_tags(
         &mut tmprepo,
         &PruneParameters {
-            prune_if_older_than: Some(cutoff.clone()),
+            prune_if_older_than: Some(cutoff),
             keep_if_newer_than: Some(Utc.timestamp(0, 0)),
             ..Default::default()
         },
@@ -202,6 +202,6 @@ fn random_digest() -> encoding::Digest {
     let mut buf = Vec::with_capacity(64);
     buf.resize(64, 0);
     rng.fill(buf.as_mut_slice());
-    hasher.update(&buf.as_slice());
+    hasher.update(buf.as_slice());
     hasher.digest()
 }

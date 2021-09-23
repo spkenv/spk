@@ -4,8 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
-
 #[macro_use]
 mod args;
 

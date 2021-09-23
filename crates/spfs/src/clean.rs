@@ -16,7 +16,7 @@ mod clean_test;
 /// Clean all untagged objects from the given repo.
 pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
     let unattached = get_all_unattached_objects(repo)?;
-    if unattached.len() == 0 {
+    if unattached.is_empty() {
         tracing::info!("nothing to clean!");
     } else {
         tracing::info!("removing orphaned data");
@@ -43,7 +43,7 @@ pub fn purge_objects(
         .progress_with(bar)
         .map(|digest| {
             let res = clean_object(repo, digest.clone());
-            if let Ok(_) = res {
+            if res.is_ok() {
                 tracing::trace!(?digest, "successfully removed object");
             }
             res
@@ -57,14 +57,14 @@ pub fn purge_objects(
             .progress_with(bar)
             .map(|digest| {
                 let res = clean_payload(repo, digest.clone());
-                if let Ok(_) = res {
+                if res.is_ok() {
                     tracing::trace!(?digest, "successfully removed payload");
                 }
                 res
             })
             .collect(),
     );
-    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style.clone());
+    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style);
     bar.set_message("3/3 cleaning renders");
     results.append(
         &mut objects
@@ -72,7 +72,7 @@ pub fn purge_objects(
             .progress_with(bar)
             .map(|digest| {
                 let res = clean_render(repo, digest.clone());
-                if let Ok(_) = res {
+                if res.is_ok() {
                     tracing::trace!(?digest, "successfully removed render");
                 }
                 res
@@ -85,13 +85,13 @@ pub fn purge_objects(
         .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
         .collect();
 
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         let msg = format!(
             "{:?}, and {} more errors during clean",
             errors[0],
             errors.len() - 1
         );
-        return Err(msg.into());
+        Err(msg.into())
     } else {
         Ok(())
     }
@@ -99,7 +99,7 @@ pub fn purge_objects(
 
 fn clean_object(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_object(&digest);
+    let res = repo.remove_object(digest);
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -109,7 +109,7 @@ fn clean_object(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
 
 fn clean_payload(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_payload(&digest);
+    let res = repo.remove_payload(digest);
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -120,7 +120,7 @@ fn clean_payload(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> 
 fn clean_render(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     let repo = storage::open_repository(repo_addr)?;
     let viewer = repo.renders()?;
-    let res = viewer.remove_rendered_manifest(&digest);
+    let res = viewer.remove_rendered_manifest(digest);
     if let Err(crate::Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -137,7 +137,7 @@ pub fn get_all_unattached_objects(
         digests.insert(digest?);
     }
     let attached = &get_all_attached_objects(repo)?;
-    Ok(digests.difference(&attached).map(|d| d.clone()).collect())
+    Ok(digests.difference(attached).copied().collect())
 }
 
 pub fn get_all_unattached_payloads(
@@ -151,7 +151,7 @@ pub fn get_all_unattached_payloads(
             Err(Error::UnknownObject(_)) => {
                 orphaned_payloads.insert(digest);
             }
-            Err(err) => return Err(err.into()),
+            Err(err) => return Err(err),
             Ok(_) => continue,
         }
     }
@@ -189,7 +189,7 @@ pub fn get_all_attached_objects(
                     },
                 };
                 to_process.extend(obj.child_objects());
-                reachable_objects.insert(digest.clone());
+                reachable_objects.insert(digest);
             }
         }
     }

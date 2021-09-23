@@ -112,10 +112,10 @@ impl Runtime {
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
             config: Config {
-                name: name,
+                name,
                 ..Default::default()
             },
-            root: root,
+            root,
         };
         rt.read_config()?;
         Ok(rt)
@@ -151,7 +151,7 @@ impl Runtime {
     /// that allow changes to be made to the runtime filesystem and
     /// committed back as layers.
     pub fn is_editable(&self) -> bool {
-        return self.config.editable;
+        self.config.editable
     }
 
     /// Mark this runtime as currently running or not.
@@ -163,7 +163,7 @@ impl Runtime {
 
     /// Return true if this runtime is currently running.
     pub fn is_running(&self) -> bool {
-        return self.config.running;
+        self.config.running
     }
 
     /// Mark the process that owns this runtime, this should be the spfs
@@ -176,7 +176,7 @@ impl Runtime {
 
     /// Return the pid of this runtime's init process, if any.
     pub fn get_pid(&self) -> Option<u32> {
-        return self.config.pid.clone();
+        self.config.pid
     }
 
     /// Reset the config for this runtime to its default state.
@@ -193,7 +193,7 @@ impl Runtime {
     /// If no paths are specified, reset all changes.
     pub fn reset<S: AsRef<str>>(&self, paths: &[S]) -> Result<()> {
         let paths = paths
-            .into_iter()
+            .iter()
             .map(|pat| gitignore::Pattern::new(pat.as_ref(), &self.upper_dir))
             .map(|res| match res {
                 Err(err) => Err(Error::from(err)),
@@ -208,7 +208,7 @@ impl Runtime {
             }
             for pattern in paths.iter() {
                 let is_dir = entry.metadata()?.file_type().is_dir();
-                if pattern.is_excluded(&fullpath, is_dir) {
+                if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
                         std::fs::remove_dir_all(&fullpath)?;
                     } else {
@@ -252,7 +252,7 @@ impl Runtime {
     /// any currently running environment automatically.
     pub fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
         let mut new_stack = Vec::with_capacity(self.config.stack.len() + 1);
-        new_stack.push(digest.clone());
+        new_stack.push(*digest);
         for existing in self.config.stack.drain(..) {
             // we do not want the same layer showing up twice, one for
             // efficiency and two it causes errors in overlayfs so promote
@@ -321,7 +321,7 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
                 // only become fatal if the mount fails for this runtime in spfs-enter
                 // so we defer to that point
             } else {
-                return Err(err.into());
+                return Err(err);
             }
         }
     }
@@ -398,7 +398,7 @@ impl Storage {
             }
             Err(err) => match err.kind() {
                 std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
-                _ => return Box::new(vec![Err(err.into())].into_iter()),
+                _ => Box::new(vec![Err(err.into())].into_iter()),
             },
         }
     }

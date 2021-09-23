@@ -63,7 +63,7 @@ impl From<&tracking::Entry> for Manifest {
                         name: node.path.to_string(),
                     }
                 }
-                _ => Entry::from(node.path.to_string(), &node.entry),
+                _ => Entry::from(node.path.to_string(), node.entry),
             };
             root.entries.insert(converted);
         }
@@ -84,11 +84,11 @@ impl Manifest {
         for tree in self.list_trees().into_iter() {
             for entry in tree.entries.iter() {
                 if let tracking::EntryKind::Blob = entry.kind {
-                    children.insert(entry.object.clone());
+                    children.insert(entry.object);
                 }
             }
         }
-        return children.into_iter().collect();
+        children.into_iter().collect()
     }
 
     /// Add a tree to be tracked in this manifest, returning
@@ -104,7 +104,7 @@ impl Manifest {
     }
 
     pub fn get_tree<'a>(&'a self, digest: &encoding::Digest) -> Option<&'a Tree> {
-        match self.trees.get(&digest) {
+        match self.trees.get(digest) {
             None => {
                 if digest == &self.root.digest().unwrap() {
                     Some(&self.root)
@@ -123,7 +123,7 @@ impl Manifest {
     pub fn list_trees<'a>(&'a self) -> Vec<&'a Tree> {
         let mut trees = vec![&self.root];
         for digest in &self.tree_order {
-            match self.trees.get(&digest) {
+            match self.trees.get(digest) {
                 Some(tree) => trees.push(tree),
                 None => {
                     panic!("manifest is internally inconsistent (missing indexed tree)");
@@ -169,7 +169,7 @@ impl Manifest {
             }
         }
 
-        iter_tree(&self, &self.root, &mut root);
+        iter_tree(self, &self.root, &mut root);
         tracking::Manifest::new(root)
     }
 }
@@ -179,7 +179,7 @@ impl Encodable for Manifest {
         self.root().encode(&mut writer)?;
         encoding::write_uint(&mut writer, self.tree_order.len() as u64)?;
         for digest in &self.tree_order {
-            match self.trees.get(&digest) {
+            match self.trees.get(digest) {
                 Some(tree) => tree.encode(writer)?,
                 None => {
                     return Err("manifest is internally inconsistent (missing indexed tree)".into())

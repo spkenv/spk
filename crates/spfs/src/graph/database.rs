@@ -22,10 +22,7 @@ impl<'db> DatabaseWalker<'db> {
     pub fn new(db: Box<&'db dyn DatabaseView>, root: encoding::Digest) -> Self {
         let mut queue = VecDeque::new();
         queue.push_back(root);
-        DatabaseWalker {
-            db: db,
-            queue: queue,
-        }
+        DatabaseWalker { db, queue }
     }
 }
 
@@ -37,13 +34,13 @@ impl<'db> Iterator for DatabaseWalker<'db> {
         match &next {
             None => None,
             Some(next) => {
-                let obj = self.db.read_object(&next);
+                let obj = self.db.read_object(next);
                 match obj {
                     Ok(obj) => {
                         for digest in obj.child_objects() {
                             self.queue.push_back(digest);
                         }
-                        Some(Ok((next.clone(), obj)))
+                        Some(Ok((*next, obj)))
                     }
                     Err(err) => Some(Err(err)),
                 }
@@ -66,10 +63,7 @@ impl<'db> DatabaseIterator<'db> {
     /// The same as [`DatabaseView::read_object`]
     pub fn new(db: Box<&'db dyn DatabaseView>) -> Self {
         let iter = db.iter_digests();
-        DatabaseIterator {
-            db: db,
-            inner: iter,
-        }
+        DatabaseIterator { db, inner: iter }
     }
 }
 
@@ -85,7 +79,7 @@ impl<'db> Iterator for DatabaseIterator<'db> {
                 Ok(next) => {
                     let obj = self.db.read_object(&next);
                     match obj {
-                        Ok(obj) => Some(Ok((next.clone(), obj))),
+                        Ok(obj) => Some(Ok((next, obj))),
                         Err(err) => Some(Err(err)),
                     }
                 }
@@ -169,9 +163,9 @@ pub trait DatabaseView {
         }
 
         match options.len() {
-            0 => Err(UnknownReferenceError::new(partial.to_string()).into()),
+            0 => Err(UnknownReferenceError::new(partial.to_string())),
             1 => Ok(options.get(0).unwrap().to_owned()),
-            _ => Err(AmbiguousReferenceError::new(partial.to_string()).into()),
+            _ => Err(AmbiguousReferenceError::new(partial.to_string())),
         }
     }
 }

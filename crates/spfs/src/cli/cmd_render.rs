@@ -4,7 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
 use spfs::prelude::*;
 
 #[macro_use]

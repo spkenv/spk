@@ -11,9 +11,9 @@ use graph::DatabaseView;
 
 impl DatabaseView for super::FSRepository {
     fn read_object<'db>(&'db self, digest: &encoding::Digest) -> graph::Result<graph::Object> {
-        let filepath = self.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(digest);
         let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => graph::UnknownObjectError::new(&digest),
+            std::io::ErrorKind::NotFound => graph::UnknownObjectError::new(digest),
             _ => Error::from(err),
         })?;
         Object::decode(&mut reader)
@@ -22,7 +22,7 @@ impl DatabaseView for super::FSRepository {
     fn iter_digests<'db>(&'db self) -> Box<dyn Iterator<Item = graph::Result<encoding::Digest>>> {
         match self.objects.iter() {
             Ok(iter) => Box::new(iter),
-            Err(err) => Box::new(vec![Err(Error::from(err))].into_iter()),
+            Err(err) => Box::new(vec![Err(err)].into_iter()),
         }
     }
 
@@ -31,7 +31,7 @@ impl DatabaseView for super::FSRepository {
     }
 
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        graph::DatabaseWalker::new(Box::new(self), root.clone())
+        graph::DatabaseWalker::new(Box::new(self), *root)
     }
 
     fn resolve_full_digest(
@@ -64,7 +64,7 @@ impl graph::Database for super::FSRepository {
             .open(&working_file)?;
         if let Err(err) = obj.encode(&mut writer) {
             let _ = std::fs::remove_file(&working_file);
-            return Err(err.into());
+            return Err(err);
         }
         self.objects.ensure_base_dir(&filepath)?;
         match std::fs::rename(&working_file, &filepath) {
@@ -80,7 +80,7 @@ impl graph::Database for super::FSRepository {
     }
 
     fn remove_object(&mut self, digest: &encoding::Digest) -> crate::Result<()> {
-        let filepath = self.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(digest);
 
         // this might fail but we don't consider that fatal just yet
         let _ = std::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777));

@@ -47,11 +47,11 @@ pub fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform
 
     match commit_layer(runtime) {
         Ok(_) | Err(Error::NothingToCommit(_)) => (),
-        Err(err) => return Err(err.into()),
+        Err(err) => return Err(err),
     }
 
     let stack = runtime.get_stack();
-    if stack.len() == 0 {
+    if stack.is_empty() {
         Err(NothingToCommitError::new("platform would be empty"))
     } else {
         repo.create_platform(stack.clone())

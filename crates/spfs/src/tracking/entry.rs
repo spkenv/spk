@@ -161,7 +161,7 @@ impl Entry {
             .iter()
             .map(|(name, entry)| super::manifest::ManifestNode {
                 path: name.into(),
-                entry: entry,
+                entry,
             })
     }
 

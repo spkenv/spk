@@ -53,10 +53,7 @@ impl FSRepository {
 
 impl TagStorage for FSRepository {
     fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        let version = self
-            .read_tag(&tag_spec)?
-            .skip(tag_spec.version() as usize)
-            .next();
+        let version = self.read_tag(tag_spec)?.nth(tag_spec.version() as usize);
         match version {
             Some(version) => Ok(version),
             None => Err(graph::UnknownReferenceError::new(tag_spec.to_string())),
@@ -77,7 +74,7 @@ impl TagStorage for FSRepository {
         for entry in read_dir {
             let entry = entry?;
             let path = entry.path();
-            if path.extension() == Some(&std::ffi::OsStr::new(TAG_EXT)) {
+            if path.extension() == Some(std::ffi::OsStr::new(TAG_EXT)) {
                 match path.file_stem() {
                     None => continue,
                     Some(tag_name) => {

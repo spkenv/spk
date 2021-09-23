@@ -32,7 +32,7 @@ pub trait LayerStorage: graph::Database {
     fn read_layer<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Layer(layer)) => Ok(layer),
             Ok(_) => Err(format!("Object is not a layer: {:?}", digest).into()),
         }

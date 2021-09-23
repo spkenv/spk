@@ -34,7 +34,7 @@ pub trait BlobStorage: graph::Database {
     fn read_blob<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Blob> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Blob(blob)) => Ok(blob),
             Ok(_) => Err(format!("Object is not a blob: {:?}", digest).into()),
         }

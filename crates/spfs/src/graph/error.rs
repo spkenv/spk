@@ -62,6 +62,5 @@ impl InvalidReferenceError {
         Self {
             message: format!("Invalid reference: {}", reference.as_ref()),
         }
-        .into()
     }
 }

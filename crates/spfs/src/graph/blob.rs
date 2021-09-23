@@ -14,14 +14,11 @@ pub struct Blob {
 
 impl Blob {
     pub fn new(payload: encoding::Digest, size: u64) -> Self {
-        Self {
-            payload: payload,
-            size: size,
-        }
+        Self { payload, size }
     }
 
     pub fn digest(&self) -> encoding::Digest {
-        return self.payload;
+        self.payload
     }
 
     /// Return the child object of this one in the object DG.

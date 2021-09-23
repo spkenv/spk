@@ -27,7 +27,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         match std::fs::File::open(&path) {
             Ok(file) => Ok(Box::new(file)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(graph::UnknownObjectError::new(&digest)),
+                ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest)),
                 _ => Err(err.into()),
             },
         }
@@ -38,7 +38,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest).into()),
+                ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest)),
                 _ => Err(err.into()),
             },
         }

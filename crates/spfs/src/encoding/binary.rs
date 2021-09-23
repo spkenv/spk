@@ -20,7 +20,7 @@ pub fn consume_header(mut reader: impl Read, header: &[u8]) -> Result<()> {
     let mut buf = Vec::with_capacity(header.len() + 1);
     buf.resize(header.len() + 1, 0);
     reader.read_exact(buf.as_mut_slice())?;
-    if buf[0..header.len()] != *header || buf.last() != Some(&('\n' as u8)) {
+    if buf[0..header.len()] != *header || buf.last() != Some(&b'\n') {
         Err(Error::from(format!(
             "Invalid header: expected {:?}, got {:?}",
             header, buf
@@ -71,14 +71,14 @@ pub fn write_digest(mut writer: impl Write, digest: &Digest) -> Result<()> {
 
 /// Read a digest from the given binary stream.
 pub fn read_digest(mut reader: impl Read) -> Result<Digest> {
-    let mut buf: [u8; DIGEST_SIZE] = NULL_DIGEST.clone();
+    let mut buf: [u8; DIGEST_SIZE] = NULL_DIGEST;
     reader.read_exact(buf.as_mut())?;
-    Ok(Digest::from_bytes(&buf)?)
+    Digest::from_bytes(&buf)
 }
 
 /// Write a string to the given binary stream.
 pub fn write_string(mut writer: impl Write, string: &str) -> Result<()> {
-    if string.contains("\x00") {
+    if string.contains('\x00') {
         return Err(Error::from(
             "Cannot encode string with null character".to_string(),
         ));

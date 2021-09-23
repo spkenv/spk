@@ -340,7 +340,10 @@ pub fn mount_env<P: AsRef<Path>>(
     cmd.arg("none");
     cmd.arg(SPFS_DIR);
     match cmd.status() {
-        Err(err) => Err(Error::wrap_io(err, "Failed to run mount command for overlay").into()),
+        Err(err) => Err(Error::wrap_io(
+            err,
+            "Failed to run mount command for overlay",
+        )),
         Ok(status) => match status.code() {
             Some(0) => Ok(()),
             _ => Err("Failed to mount overlayfs".into()),

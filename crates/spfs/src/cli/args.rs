@@ -6,8 +6,6 @@ use std::borrow::Cow;
 
 use sentry::IntoDsn;
 
-use spfs;
-
 pub static SPFS_VERBOSITY: &str = "SPFS_VERBOSITY";
 
 pub fn configure_sentry() {
@@ -81,7 +79,7 @@ pub fn configure_logging(mut verbosity: usize) {
     }
     std::env::set_var(SPFS_VERBOSITY, verbosity.to_string());
     use tracing_subscriber::layer::SubscriberExt;
-    if !std::env::var("RUST_LOG").is_ok() {
+    if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "spfs=trace");
     }
     let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();

@@ -51,7 +51,7 @@ impl FSHashStore {
     ///
     /// Upon error, false is returned
     pub fn has_digest(&self, digest: &encoding::Digest) -> bool {
-        let path = self.build_digest_path(&digest);
+        let path = self.build_digest_path(digest);
         path.exists()
     }
 
@@ -153,9 +153,7 @@ impl FSHashStore {
         let entries: Vec<std::ffi::OsString> = match std::fs::read_dir(&dirpath) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => {
-                        Err(graph::UnknownReferenceError::new(short_digest).into())
-                    }
+                    ErrorKind::NotFound => Err(graph::UnknownReferenceError::new(short_digest)),
                     _ => Err(err.into()),
                 }
             }
@@ -175,9 +173,9 @@ impl FSHashStore {
             .filter(|x| x.to_string_lossy().starts_with(file_prefix))
             .collect();
         match options.len() {
-            0 => Err(graph::UnknownReferenceError::new(short_digest).into()),
+            0 => Err(graph::UnknownReferenceError::new(short_digest)),
             1 => Ok(dirpath.join(options.get(0).unwrap())),
-            _ => Err(graph::AmbiguousReferenceError::new(short_digest).into()),
+            _ => Err(graph::AmbiguousReferenceError::new(short_digest)),
         }
     }
 
@@ -190,7 +188,7 @@ impl FSHashStore {
         let entries: Vec<_> = match std::fs::read_dir(filepath.parent().unwrap()) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest).into()),
+                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest)),
                     _ => Err(err.into()),
                 };
             }

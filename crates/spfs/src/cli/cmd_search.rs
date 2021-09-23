@@ -4,8 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
-
 #[derive(Debug, StructOpt)]
 pub struct CmdSearch {
     #[structopt(value_name = "TERM", about = "The search term/substring to look for")]

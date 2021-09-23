@@ -35,7 +35,7 @@ pub trait ManifestStorage: graph::Database {
     fn read_manifest(&self, digest: &encoding::Digest) -> Result<graph::Manifest> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Manifest(manifest)) => Ok(manifest),
             Ok(_) => Err(format!("Object is not a manifest: {:?}", digest).into()),
         }

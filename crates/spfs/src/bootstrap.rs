@@ -32,7 +32,7 @@ pub fn build_command_for_runtime(
                 command,
             ];
             spfs_args.append(args);
-            build_spfs_enter_command(&runtime, &mut spfs_args)
+            build_spfs_enter_command(runtime, &mut spfs_args)
         }
     }
 }
@@ -112,8 +112,8 @@ pub fn build_shell_initialized_command(
         .to_string_lossy()
         .to_string();
     let startup_file = match shell_name.as_str() {
-        "bash" | "sh" => runtime.sh_startup_file.clone(),
-        "tcsh" | "csh" => runtime.csh_startup_file.clone(),
+        "bash" | "sh" => runtime.sh_startup_file,
+        "tcsh" | "csh" => runtime.csh_startup_file,
         _ => return Err("No supported shell found, or no support for current shell".into()),
     };
 

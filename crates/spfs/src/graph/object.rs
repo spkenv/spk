@@ -26,7 +26,7 @@ impl Object {
             Self::Platform(platform) => platform.child_objects(),
             Self::Layer(layer) => layer.child_objects(),
             Self::Manifest(manifest) => manifest.child_objects(),
-            Self::Tree(tree) => tree.entries.iter().map(|e| e.object.clone()).collect(),
+            Self::Tree(tree) => tree.entries.iter().map(|e| e.object).collect(),
             Self::Blob(_blob) => Vec::new(),
             Self::Mask => Vec::new(),
         }

@@ -44,7 +44,7 @@ impl PruneParameters {
             }
         }
 
-        return false;
+        false
     }
 }
 
@@ -73,7 +73,7 @@ pub fn prune_tags(
     repo: &mut storage::RepositoryHandle,
     params: &PruneParameters,
 ) -> Result<HashSet<tracking::Tag>> {
-    let to_prune = get_prunable_tags(&repo, &params)?;
+    let to_prune = get_prunable_tags(repo, params)?;
     for tag in to_prune.iter() {
         tracing::trace!(tag = ?tag, "removing tag");
         repo.remove_tag(tag)?;

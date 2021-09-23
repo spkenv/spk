@@ -26,7 +26,7 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn new(root: Entry) -> Self {
-        Self { root: root }
+        Self { root }
     }
 
     pub fn root<'a>(&'a self) -> &'a Entry {
@@ -54,7 +54,7 @@ impl Manifest {
         if path.is_empty() {
             return Some(entry);
         }
-        for step in path.split("/").into_iter() {
+        for step in path.split('/').into_iter() {
             if let EntryKind::Tree = entry.kind {
                 let next = entry.entries.get(step);
                 entry = match next {
@@ -76,7 +76,7 @@ impl Manifest {
     pub fn list_dir(&self, path: &str) -> Option<Vec<String>> {
         let entry = self.get_path(path)?;
         match entry.kind {
-            EntryKind::Tree => Some(entry.entries.keys().map(|k| k.clone()).collect()),
+            EntryKind::Tree => Some(entry.entries.keys().cloned().collect()),
             _ => None,
         }
     }
@@ -114,7 +114,7 @@ impl Manifest {
             match step {
                 relative_path::Component::Normal(step) => {
                     let entries = &mut entry.entries;
-                    if let None = entries.get_mut(step) {
+                    if entries.get_mut(step).is_none() {
                         entries.insert(step.to_string(), Entry::default());
                     }
                     entry = entries.get_mut(step).unwrap();
@@ -232,7 +232,7 @@ impl<'m> Iterator for ManifestWalker<'m> {
                 }
                 Some(ManifestNode {
                     path: self.prefix.join(name),
-                    entry: &child,
+                    entry: child,
                 })
             }
         }

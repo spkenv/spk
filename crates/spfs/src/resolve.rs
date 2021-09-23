@@ -98,7 +98,7 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
         for repo in repos.iter() {
             match repo.read_ref(&tag_spec.to_string()) {
                 Ok(obj) => {
-                    item_manifest = Some(compute_object_manifest(obj, &repo)?);
+                    item_manifest = Some(compute_object_manifest(obj, repo)?);
                     break;
                 }
                 Err(Error::UnknownObject(_)) => {
@@ -128,7 +128,7 @@ pub fn compute_object_manifest(
     match obj {
         graph::Object::Layer(obj) => Ok(repo.read_manifest(&obj.manifest)?.unlock()),
         graph::Object::Platform(obj) => {
-            let layers = resolve_stack_to_layers(obj.stack.iter(), Some(&repo))?;
+            let layers = resolve_stack_to_layers(obj.stack.iter(), Some(repo))?;
             let mut manifest = tracking::Manifest::default();
             for layer in layers.iter().rev() {
                 let layer_manifest = repo.read_manifest(&layer.manifest)?;
@@ -148,7 +148,7 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
     let config = load_config()?;
     let mut repo = config.get_repository()?.into();
     let mut overlay_dirs = Vec::new();
-    let layers = resolve_stack_to_layers(runtime.get_stack().into_iter(), Some(&repo))?;
+    let layers = resolve_stack_to_layers(runtime.get_stack().iter(), Some(&repo))?;
     let manifests: Result<Vec<_>> = layers
         .into_par_iter()
         .map(|layer| repo.read_manifest(&layer.manifest))
@@ -172,15 +172,15 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
         manifests
             .iter()
             .map(|m| m.digest().unwrap())
-            .filter(|digest| !renders.has_rendered_manifest(&digest)),
+            .filter(|digest| !renders.has_rendered_manifest(digest)),
     );
-    if to_render.len() > 0 {
+    if !to_render.is_empty() {
         tracing::info!("{} layers require rendering", to_render.len());
 
         let style = indicatif::ProgressStyle::default_bar()
             .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
             .progress_chars("=>-");
-        let bar = indicatif::ProgressBar::new(to_render.len() as u64).with_style(style.clone());
+        let bar = indicatif::ProgressBar::new(to_render.len() as u64).with_style(style);
         bar.set_message("rendering layers");
         let results: Result<Vec<_>> = to_render
             .into_par_iter()
@@ -260,7 +260,7 @@ pub fn which_spfs<S: AsRef<str>>(subcommand: S) -> Option<std::path::PathBuf> {
 /// Find a command
 pub fn which<S: AsRef<str>>(name: S) -> Option<std::path::PathBuf> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
-    let search_paths = path.split(":");
+    let search_paths = path.split(':');
     for path in search_paths {
         let filepath = Path::new(path).join(name.as_ref());
         if is_exe(&filepath) {
@@ -275,9 +275,7 @@ fn is_exe<P: AsRef<Path>>(filepath: P) -> bool {
 
     if !filepath.as_ref().is_file() {
         false
-    } else if filepath.as_ref().executable() {
-        true
     } else {
-        false
+        filepath.as_ref().executable()
     }
 }

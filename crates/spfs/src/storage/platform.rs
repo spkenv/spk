@@ -31,7 +31,7 @@ pub trait PlatformStorage: graph::Database {
     fn read_platform(&self, digest: &encoding::Digest) -> Result<graph::Platform> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Platform(platform)) => Ok(platform),
             Ok(_) => Err(format!("Object is not a platform: {:?}", digest).into()),
         }

@@ -87,7 +87,7 @@ fn test_ls_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
-    for tag in vec![
+    for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",
         "spi/stable",
@@ -130,7 +130,7 @@ fn test_rm_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
-    for tag in vec![
+    for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",
         "spi/latest/my_tag",
