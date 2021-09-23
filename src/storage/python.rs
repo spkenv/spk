@@ -51,6 +51,13 @@ fn mem_repository() -> Repository {
 }
 
 #[pyfunction]
+fn runtime_repository() -> Repository {
+    Repository {
+        handle: RepositoryHandle::Runtime(Default::default()),
+    }
+}
+
+#[pyfunction]
 fn export_package(pkg: &api::Ident, filename: &str) -> Result<()> {
     super::export_package(pkg, filename)
 }
@@ -142,6 +149,7 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(open_tar_repository, m)?)?;
     m.add_function(wrap_pyfunction!(open_spfs_repository, m)?)?;
     m.add_function(wrap_pyfunction!(mem_repository, m)?)?;
+    m.add_function(wrap_pyfunction!(runtime_repository, m)?)?;
     m.add_function(wrap_pyfunction!(export_package, m)?)?;
     m.add_function(wrap_pyfunction!(import_package, m)?)?;
 
