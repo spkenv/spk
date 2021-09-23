@@ -38,6 +38,13 @@ struct Repository {
 
 #[pymethods]
 impl Repository {
+    fn is_spfs(&self) -> bool {
+        if let super::RepositoryHandle::SPFS(_) = self.handle {
+            true
+        } else {
+            false
+        }
+    }
     fn list_packages(&self) -> Result<Vec<String>> {
         self.handle.list_packages()
     }

@@ -75,9 +75,9 @@ class Publisher:
             _LOGGER.info("publishing package", pkg=build)
             spec = self._from.read_spec(build)
             digest = self._from.get_package(build)
-            if not isinstance(self._from, storage.SpFSRepository):
+            if not self._from.is_spfs():
                 _LOGGER.warn("Source is not an spfs repo, skipping package payload")
-            elif not isinstance(self._to, storage.SpFSRepository):
+            elif not self._to.is_spfs():
                 _LOGGER.warn("Target is not an spfs repo, skipping package payload")
             else:
                 self._from.rs.push_digest(digest, self._to.rs)
