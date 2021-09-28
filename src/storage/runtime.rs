@@ -28,7 +28,7 @@ impl Repository for RuntimeRepository {
         todo!()
     }
 
-    fn list_package_versions(&self, name: &str) -> Result<Vec<String>> {
+    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
         // try:
         //     return os.listdir(f"/spfs/spk/pkg/{name}")
         // except FileNotFoundError:

@@ -84,7 +84,7 @@ impl Repository {
     fn list_packages(&self) -> Result<Vec<String>> {
         self.handle.list_packages()
     }
-    fn list_package_versions(&self, name: &str) -> Result<Vec<String>> {
+    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
         self.handle.list_package_versions(name)
     }
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {

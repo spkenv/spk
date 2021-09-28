@@ -38,7 +38,7 @@ impl Repository for SPFSRepository {
         todo!()
     }
 
-    fn list_package_versions(&self, name: &str) -> Result<Vec<String>> {
+    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
         // path = self.build_spec_tag(api.parse_ident(name))
         // versions: Iterable[str] = self.rs.ls_tags(path)
         // versions = map(lambda v: v.rstrip("/"), versions)

@@ -5,7 +5,7 @@ pub trait Repository {
     fn list_packages(&self) -> Result<Vec<String>>;
 
     /// Return the set of versions available for the named package.
-    fn list_package_versions(&self, name: &str) -> Result<Vec<String>>;
+    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>>;
 
     /// Return the set of builds for the given package name and version.
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
