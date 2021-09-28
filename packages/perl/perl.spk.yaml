@@ -17,7 +17,13 @@ build:
        -Dprefix=/spfs
        -Dvendorprefix=/spfs
        -Dusethreads
+     # The "touch" below is a workaround for the following issue:
+     #    https://github.com/Perl/perl5/issues/18252
+     # The dist/Devel-PPPort/t/01_test.t test file is read-only when building from a
+     # tarball. The Makefile attempts to write-append to this file and fails.
+     # This may not be needed in newer versions of perl.
+     - touch dist/Devel-PPPort/t/01_test.t
      - make
      - make install
      # do not keep man pages in the spk package
-     - rm -rf /spfs/man
+     - rm -rf /spfs/share/man
