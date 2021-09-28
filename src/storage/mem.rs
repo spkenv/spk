@@ -8,36 +8,39 @@ use crate::{api, Result};
 
 #[derive(Default, Clone, Debug)]
 pub struct MemRepository {
-    specs: HashMap<String, HashMap<String, api::Spec>>,
-    packages:
-        HashMap<String, HashMap<String, HashMap<String, (api::Spec, spfs::encoding::Digest)>>>,
+    specs: HashMap<String, HashMap<api::Version, api::Spec>>,
+    packages: HashMap<
+        String,
+        HashMap<api::Version, HashMap<api::Build, (api::Spec, spfs::encoding::Digest)>>,
+    >,
 }
 
 impl Repository for MemRepository {
     fn list_packages(&self) -> Result<Vec<String>> {
-        // return list(self._specs.keys())
-        todo!()
+        Ok(self.specs.keys().map(|s| s.to_owned()).collect())
     }
 
-    fn list_package_versions(&self, name: &str) -> Result<Vec<String>> {
-        // try:
-        //     return list(self._specs[name].keys())
-        // except KeyError:
-        //     return []
-        todo!()
+    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
+        if let Some(specs) = self.specs.get(name) {
+            Ok(specs.keys().map(|v| v.to_owned()).collect())
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        // if not isinstance(pkg, api.Ident):
-        //     pkg = api.parse_ident(pkg)
-
-        // pkg = pkg.with_build(None)
-        // try:
-        //     for build in self._packages[pkg.name][str(pkg.version)].keys():
-        //         yield pkg.with_build(build)
-        // except KeyError:
-        //     return []
-        todo!()
+        if let Some(versions) = self.packages.get(pkg.name()) {
+            if let Some(builds) = versions.get(&pkg.version) {
+                Ok(builds
+                    .keys()
+                    .map(|b| pkg.with_build(Some(b.clone())))
+                    .collect())
+            } else {
+                Ok(Vec::new())
+            }
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
