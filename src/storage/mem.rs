@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use super::Repository;
-use crate::{api, Result};
+use crate::{api, Error, Result};
 
 #[derive(Default, Clone, Debug)]
 pub struct MemRepository {
@@ -44,24 +44,39 @@ impl Repository for MemRepository {
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
-        // try:
-        //     if not pkg.build:
-        //         return self._specs[pkg.name][str(pkg.version)].copy()
-        //     else:
-        //         return self._packages[pkg.name][str(pkg.version)][pkg.build][0].copy()
-        // except KeyError:
-        //     raise PackageNotFoundError(pkg)
-        todo!()
+        match &pkg.build {
+            None => self
+                .specs
+                .get(pkg.name())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(&pkg.version)
+                .map(|s| s.to_owned())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
+            Some(build) => self
+                .packages
+                .get(pkg.name())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(&pkg.version)
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(build)
+                .map(|(b, _)| b.to_owned())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
+        }
     }
 
     fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
-        // if pkg.build is None:
-        //     raise PackageNotFoundError(pkg)
-        // try:
-        //     return self._packages[pkg.name][str(pkg.version)][pkg.build][1]
-        // except KeyError:
-        //     raise PackageNotFoundError(pkg)
-        todo!()
+        match &pkg.build {
+            None => Err(Error::PackageNotFoundError(pkg.clone())),
+            Some(build) => self
+                .packages
+                .get(pkg.name())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(&pkg.version)
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(build)
+                .map(|(_, d)| d.to_owned())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
+        }
     }
 
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
