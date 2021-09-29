@@ -18,8 +18,8 @@ fn test_tag_stream(tmpdir: tempdir::TempDir) {
 
     let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
 
-    let digest1 = encoding::Hasher::new().digest();
-    let mut h = encoding::Hasher::new();
+    let digest1 = encoding::Hasher::default().digest();
+    let mut h = encoding::Hasher::default();
     h.update(b"hello");
     let digest2 = h.digest();
 

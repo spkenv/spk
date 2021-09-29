@@ -19,13 +19,6 @@ pub struct Hasher<'t> {
 }
 
 impl<'t> Hasher<'t> {
-    pub fn new() -> Self {
-        Self {
-            ctx: Context::new(&SHA256),
-            target: None,
-        }
-    }
-
     pub fn with_target(mut self, writer: &'t mut impl Write) -> Self {
         self.target.replace(writer);
         self
@@ -38,6 +31,15 @@ impl<'t> Hasher<'t> {
             Ok(b) => b,
         };
         Digest(bytes)
+    }
+}
+
+impl<'t> Default for Hasher<'t> {
+    fn default() -> Self {
+        Self {
+            ctx: Context::new(&SHA256),
+            target: None,
+        }
     }
 }
 
@@ -74,7 +76,7 @@ where
     Self: Sized,
 {
     fn digest(&self) -> Result<Digest> {
-        let mut hasher = Hasher::new();
+        let mut hasher = Hasher::default();
         self.encode(&mut hasher)?;
         Ok(hasher.digest())
     }

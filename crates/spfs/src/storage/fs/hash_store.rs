@@ -69,7 +69,7 @@ impl FSHashStore {
             .read(true)
             .write(true)
             .open(&working_file)?;
-        let mut hasher = encoding::Hasher::new().with_target(&mut writer);
+        let mut hasher = encoding::Hasher::default().with_target(&mut writer);
         let copied = match std::io::copy(&mut reader, &mut hasher) {
             Err(err) => {
                 let _ = std::fs::remove_file(working_file);
