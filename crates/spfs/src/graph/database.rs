@@ -101,11 +101,7 @@ pub trait DatabaseView {
 
     /// Return true if this database contains the identified object
     fn has_object(&self, digest: &encoding::Digest) -> bool {
-        if let Ok(_) = self.read_object(digest) {
-            true
-        } else {
-            false
-        }
+        self.read_object(digest).is_ok()
     }
 
     /// Iterate all the object in this database.

@@ -45,25 +45,13 @@ impl Ord for EntryKind {
 
 impl EntryKind {
     pub fn is_tree(&self) -> bool {
-        if let Self::Tree = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Tree)
     }
     pub fn is_blob(&self) -> bool {
-        if let Self::Blob = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Blob)
     }
     pub fn is_mask(&self) -> bool {
-        if let Self::Mask = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Mask)
     }
 }
 

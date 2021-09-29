@@ -34,32 +34,16 @@ impl std::fmt::Display for DiffMode {
 
 impl DiffMode {
     pub fn is_unchanged(&self) -> bool {
-        if let Self::Unchanged = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Unchanged)
     }
     pub fn is_changed(&self) -> bool {
-        if let Self::Changed = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Changed)
     }
     pub fn is_added(&self) -> bool {
-        if let Self::Added = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Added)
     }
     pub fn is_removed(&self) -> bool {
-        if let Self::Removed = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Removed)
     }
 }
 
