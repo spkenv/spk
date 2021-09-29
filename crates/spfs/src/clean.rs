@@ -21,7 +21,7 @@ pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
     } else {
         tracing::info!("removing orphaned data");
         let count = unattached.len();
-        purge_objects(&unattached.iter().collect(), repo)?;
+        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo)?;
         tracing::info!("cleaned {} objects", count);
     }
     Ok(())
@@ -29,7 +29,7 @@ pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
 
 /// Remove the identified objects from the given repository.
 pub fn purge_objects(
-    objects: &Vec<&encoding::Digest>,
+    objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
 ) -> Result<()> {
     let repo = &repo.address();
