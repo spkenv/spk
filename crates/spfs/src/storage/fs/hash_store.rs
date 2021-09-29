@@ -43,7 +43,7 @@ impl FSHashStore {
         self.root.join(&WORK_DIRNAME)
     }
 
-    pub fn iter<'a>(&'a self) -> Result<FSHashStoreIter> {
+    pub fn iter(&self) -> Result<FSHashStoreIter> {
         FSHashStoreIter::new(&self.root())
     }
 

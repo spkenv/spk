@@ -74,7 +74,7 @@ impl From<&tracking::Entry> for Manifest {
 
 impl Manifest {
     /// Return the root tree object of this manifest.
-    pub fn root<'a>(&'a self) -> &'a Tree {
+    pub fn root(&self) -> &Tree {
         &self.root
     }
 
@@ -120,7 +120,7 @@ impl Manifest {
     ///
     /// Will panic if this menifest is internally inconsistent, though this
     /// would point to a programming error or bug.
-    pub fn list_trees<'a>(&'a self) -> Vec<&'a Tree> {
+    pub fn list_trees(&self) -> Vec<&Tree> {
         let mut trees = vec![&self.root];
         for digest in &self.tree_order {
             match self.trees.get(digest) {
@@ -134,7 +134,7 @@ impl Manifest {
     }
 
     /// Iterate all of the entries in this manifest.
-    pub fn list_entries<'a>(&'a self) -> Vec<&'a Entry> {
+    pub fn list_entries(&self) -> Vec<&Entry> {
         let mut children = Vec::new();
         for tree in self.list_trees().into_iter() {
             for entry in tree.entries.iter() {

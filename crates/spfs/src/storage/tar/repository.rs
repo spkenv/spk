@@ -104,7 +104,7 @@ impl graph::DatabaseView for TarRepository {
         self.repo.iter_digests()
     }
 
-    fn iter_objects<'db>(&'db self) -> graph::DatabaseIterator<'db> {
+    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
         self.repo.iter_objects()
     }
 

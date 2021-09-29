@@ -20,7 +20,7 @@ pub enum Object {
 
 impl Object {
     /// Identify the set of children to this object in the graph.
-    pub fn child_objects<'a>(&'a self) -> std::vec::IntoIter<&'a encoding::Digest> {
+    pub fn child_objects(&self) -> std::vec::IntoIter<&encoding::Digest> {
         let empty = Vec::new();
         empty.into_iter()
     }

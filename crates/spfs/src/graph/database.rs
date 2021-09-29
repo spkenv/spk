@@ -109,7 +109,7 @@ pub trait DatabaseView {
     }
 
     /// Iterate all the object in this database.
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db>;
+    fn iter_objects(&self) -> DatabaseIterator<'_>;
 
     /// Walk all objects connected to the given root object.
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db>;
@@ -179,7 +179,7 @@ impl<T: DatabaseView> DatabaseView for &T {
         DatabaseView::iter_digests(&**self)
     }
 
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
+    fn iter_objects(&self) -> DatabaseIterator<'_> {
         DatabaseView::iter_objects(&**self)
     }
 
@@ -197,7 +197,7 @@ impl<T: DatabaseView> DatabaseView for &mut T {
         DatabaseView::iter_digests(&**self)
     }
 
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
+    fn iter_objects(&self) -> DatabaseIterator<'_> {
         DatabaseView::iter_objects(&**self)
     }
 

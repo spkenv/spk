@@ -31,7 +31,7 @@ pub trait BlobStorage: graph::Database {
     }
 
     /// Return the blob identified by the given digest.
-    fn read_blob<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Blob> {
+    fn read_blob(&self, digest: &encoding::Digest) -> Result<graph::Blob> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err),

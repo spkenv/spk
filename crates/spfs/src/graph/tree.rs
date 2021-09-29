@@ -28,7 +28,7 @@ impl Tree {
         }
     }
 
-    pub fn get<'a, S: AsRef<str>>(&'a self, name: S) -> Option<&'a Entry> {
+    pub fn get<S: AsRef<str>>(&self, name: S) -> Option<&Entry> {
         for entry in self.entries.iter() {
             if entry.name == name.as_ref() {
                 return Some(entry);
@@ -58,7 +58,7 @@ impl Tree {
         self.add(entry)
     }
 
-    pub fn remove<'a, S: AsRef<str>>(&'a mut self, name: S) -> Option<&'a Entry> {
+    pub fn remove<S: AsRef<str>>(&mut self, name: S) -> Option<&Entry> {
         for entry in self.entries.iter() {
             if entry.name == name.as_ref() {
                 return Some(entry);
@@ -67,7 +67,7 @@ impl Tree {
         None
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Entry> {
+    pub fn iter(&self) -> impl Iterator<Item = &Entry> {
         self.entries.iter()
     }
 }

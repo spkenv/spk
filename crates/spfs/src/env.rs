@@ -159,7 +159,7 @@ pub fn become_root() -> Result<Uids> {
     })
 }
 
-pub fn mount_runtime<'a>(tmpfs_opts: Option<&'a str>) -> Result<()> {
+pub fn mount_runtime(tmpfs_opts: Option<&str>) -> Result<()> {
     use nix::mount::{mount, MsFlags};
 
     tracing::debug!("mounting runtime...");

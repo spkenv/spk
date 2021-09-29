@@ -29,7 +29,7 @@ pub trait LayerStorage: graph::Database {
     }
 
     /// Return the layer identified by the given digest.
-    fn read_layer<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Layer> {
+    fn read_layer(&self, digest: &encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err),

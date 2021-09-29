@@ -156,7 +156,7 @@ impl Entry {
         (libc::S_IFMT & self.mode) == libc::S_IFREG
     }
 
-    pub fn iter_entries<'a>(&'a self) -> impl Iterator<Item = super::manifest::ManifestNode<'a>> {
+    pub fn iter_entries(&self) -> impl Iterator<Item = super::manifest::ManifestNode<'_>> {
         self.entries
             .iter()
             .map(|(name, entry)| super::manifest::ManifestNode {

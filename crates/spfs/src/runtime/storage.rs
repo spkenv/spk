@@ -121,11 +121,11 @@ impl Runtime {
         Ok(rt)
     }
 
-    pub fn name<'a>(&'a self) -> &'a str {
+    pub fn name(&self) -> &str {
         self.config.name.as_ref()
     }
 
-    pub fn root<'a>(&'a self) -> &'a Path {
+    pub fn root(&self) -> &Path {
         self.root.as_ref()
     }
 
@@ -241,7 +241,7 @@ impl Runtime {
     }
 
     /// Return this runtime's current object stack.
-    pub fn get_stack<'a>(&'a self) -> &'a Vec<encoding::Digest> {
+    pub fn get_stack(&self) -> &Vec<encoding::Digest> {
         &self.config.stack
     }
 
@@ -266,7 +266,7 @@ impl Runtime {
         self.write_config()
     }
 
-    pub fn get_config<'a>(&'a self) -> &'a Config {
+    pub fn get_config(&self) -> &Config {
         &self.config
     }
 
@@ -280,7 +280,7 @@ impl Runtime {
         Ok(())
     }
 
-    fn read_config<'a>(&'a mut self) -> Result<&'a mut Config> {
+    fn read_config(&mut self) -> Result<&mut Config> {
         match std::fs::File::open(&self.config_file) {
             Ok(file) => {
                 let config = serde_json::from_reader(file)?;
