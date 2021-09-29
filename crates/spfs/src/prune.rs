@@ -5,7 +5,7 @@
 use chrono::prelude::*;
 
 use crate::{storage, tracking, Result};
-use std::collections::HashSet;
+use std::{collections::HashSet, convert::TryInto};
 
 #[cfg(test)]
 #[path = "./prune_test.rs"]
@@ -56,13 +56,15 @@ pub fn get_prunable_tags(
     for res in tags.iter_tag_streams() {
         let (spec, stream) = res?;
         tracing::debug!("searching for history to prune in {}", spec.to_string());
-        let mut version = 0;
-        for tag in stream {
-            let versioned_spec = tracking::build_tag_spec(spec.org(), spec.name(), version)?;
+        for (version, tag) in stream.enumerate() {
+            let versioned_spec = tracking::build_tag_spec(
+                spec.org(),
+                spec.name(),
+                version.try_into().expect("usize fits into u64"),
+            )?;
             if params.should_prune(&versioned_spec, &tag) {
                 to_prune.insert(tag);
             }
-            version += 1;
         }
     }
 
