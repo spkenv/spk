@@ -159,9 +159,9 @@ pub trait DatabaseView {
         }
 
         match options.len() {
-            0 => Err(UnknownReferenceError::new(partial.to_string())),
+            0 => Err(UnknownReferenceError::new_err(partial.to_string())),
             1 => Ok(options.get(0).unwrap().to_owned()),
-            _ => Err(AmbiguousReferenceError::new(partial.to_string())),
+            _ => Err(AmbiguousReferenceError::new_err(partial.to_string())),
         }
     }
 }

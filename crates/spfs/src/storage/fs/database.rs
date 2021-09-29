@@ -13,7 +13,7 @@ impl DatabaseView for super::FSRepository {
     fn read_object(&self, digest: &encoding::Digest) -> graph::Result<graph::Object> {
         let filepath = self.objects.build_digest_path(digest);
         let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => graph::UnknownObjectError::new(digest),
+            std::io::ErrorKind::NotFound => graph::UnknownObjectError::new_err(digest),
             _ => Error::from(err),
         })?;
         Object::decode(&mut reader)

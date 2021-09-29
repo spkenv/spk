@@ -56,7 +56,7 @@ impl TagStorage for FSRepository {
         let version = self.read_tag(tag_spec)?.nth(tag_spec.version() as usize);
         match version {
             Some(version) => Ok(version),
-            None => Err(graph::UnknownReferenceError::new(tag_spec.to_string())),
+            None => Err(graph::UnknownReferenceError::new_err(tag_spec.to_string())),
         }
     }
 
@@ -133,7 +133,7 @@ impl TagStorage for FSRepository {
         let path = tag.to_path(self.tags_root());
         match read_tag_file(path) {
             Err(err) => match err.raw_os_error() {
-                Some(libc::ENOENT) => Err(graph::UnknownReferenceError::new(tag.to_string())),
+                Some(libc::ENOENT) => Err(graph::UnknownReferenceError::new_err(tag.to_string())),
                 _ => Err(err),
             },
             Ok(iter) => {
@@ -165,7 +165,9 @@ impl TagStorage for FSRepository {
             Ok(_) => (),
             Err(err) => {
                 return match err.raw_os_error() {
-                    Some(libc::ENOENT) => Err(graph::UnknownReferenceError::new(tag.to_string())),
+                    Some(libc::ENOENT) => {
+                        Err(graph::UnknownReferenceError::new_err(tag.to_string()))
+                    }
                     _ => Err(err.into()),
                 }
             }

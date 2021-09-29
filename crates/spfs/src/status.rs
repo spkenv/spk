@@ -14,7 +14,7 @@ pub struct NoRuntimeError {
 }
 
 impl NoRuntimeError {
-    pub fn new<S: AsRef<str>>(details: Option<S>) -> Error {
+    pub fn new_err<S: AsRef<str>>(details: Option<S>) -> Error {
         let mut msg = "No active runtime".to_string();
         if let Some(details) = details {
             msg = format!("{}: {}", msg, details.as_ref());
@@ -79,7 +79,7 @@ pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manif
 /// Return the active runtime, or raise a NoRuntimeError.
 pub fn active_runtime() -> Result<runtime::Runtime> {
     let name =
-        std::env::var(SPFS_RUNTIME).map_err(|_| NoRuntimeError::new(Option::<&str>::None))?;
+        std::env::var(SPFS_RUNTIME).map_err(|_| NoRuntimeError::new_err(Option::<&str>::None))?;
     let config = load_config()?;
     let storage = config.get_runtime_storage()?;
     storage.read_runtime(name)

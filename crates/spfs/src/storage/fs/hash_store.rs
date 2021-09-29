@@ -150,7 +150,7 @@ impl FSHashStore {
         let entries: Vec<std::ffi::OsString> = match std::fs::read_dir(&dirpath) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => Err(graph::UnknownReferenceError::new(short_digest)),
+                    ErrorKind::NotFound => Err(graph::UnknownReferenceError::new_err(short_digest)),
                     _ => Err(err.into()),
                 }
             }
@@ -170,9 +170,9 @@ impl FSHashStore {
             .filter(|x| x.to_string_lossy().starts_with(file_prefix))
             .collect();
         match options.len() {
-            0 => Err(graph::UnknownReferenceError::new(short_digest)),
+            0 => Err(graph::UnknownReferenceError::new_err(short_digest)),
             1 => Ok(dirpath.join(options.get(0).unwrap())),
-            _ => Err(graph::AmbiguousReferenceError::new(short_digest)),
+            _ => Err(graph::AmbiguousReferenceError::new_err(short_digest)),
         }
     }
 
@@ -185,7 +185,7 @@ impl FSHashStore {
         let entries: Vec<_> = match std::fs::read_dir(filepath.parent().unwrap()) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest)),
+                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
                     _ => Err(err.into()),
                 };
             }
