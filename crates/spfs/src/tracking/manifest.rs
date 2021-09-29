@@ -131,8 +131,10 @@ impl Manifest {
 
     /// Make a new file entry in this manifest
     pub fn mkfile<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry> {
-        let mut entry = Entry::default();
-        entry.kind = EntryKind::Blob;
+        let entry = Entry {
+            kind: EntryKind::Blob,
+            ..Default::default()
+        };
         self.mknod(path, entry)
     }
 

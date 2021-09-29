@@ -150,10 +150,12 @@ impl Manifest {
 
         fn iter_tree(source: &Manifest, tree: &Tree, parent: &mut tracking::Entry) {
             for entry in tree.entries.iter() {
-                let mut new_entry = tracking::Entry::default();
-                new_entry.kind = entry.kind;
-                new_entry.mode = entry.mode;
-                new_entry.size = entry.size;
+                let mut new_entry = tracking::Entry {
+                    kind: entry.kind,
+                    mode: entry.mode,
+                    size: entry.size,
+                    ..Default::default()
+                };
                 if let tracking::EntryKind::Tree = entry.kind {
                     iter_tree(
                         source,
@@ -192,8 +194,10 @@ impl Encodable for Manifest {
 
 impl Decodable for Manifest {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        let mut manifest = Manifest::default();
-        manifest.root = Tree::decode(&mut reader)?;
+        let mut manifest = Manifest {
+            root: Tree::decode(&mut reader)?,
+            ..Default::default()
+        };
         let num_trees = encoding::read_uint(&mut reader)?;
         for _ in 0..num_trees {
             let tree = Tree::decode(reader)?;
