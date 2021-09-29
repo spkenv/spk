@@ -12,10 +12,7 @@ pub trait PayloadStorage {
 
     /// Return true if the identified payload exists.
     fn has_payload(&self, digest: &encoding::Digest) -> bool {
-        match self.open_payload(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.open_payload(digest).is_ok()
     }
 
     /// Store the contents of the given stream, returning its digest and size

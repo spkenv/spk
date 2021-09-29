@@ -355,7 +355,7 @@ impl Storage {
     /// Access a runtime in this storage.
     pub fn read_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
-        if let Ok(_) = std::fs::symlink_metadata(&runtime_dir) {
+        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
             Runtime::new(runtime_dir)
         } else {
             Err(format!("runtime does not exist: {:?}", reference.as_ref()).into())
@@ -378,7 +378,7 @@ impl Storage {
 
     pub fn create_named_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
-        if let Ok(_) = std::fs::symlink_metadata(&runtime_dir) {
+        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
             Err(format!("Runtime already exists: {:?}", reference.as_ref()).into())
         } else {
             ensure_runtime(runtime_dir)

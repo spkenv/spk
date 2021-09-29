@@ -24,10 +24,7 @@ pub trait BlobStorage: graph::Database {
 
     /// Return true if the identified blob exists in this storage.
     fn has_blob(&self, digest: &encoding::Digest) -> bool {
-        match self.read_blob(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.read_blob(digest).is_ok()
     }
 
     /// Return the blob identified by the given digest.

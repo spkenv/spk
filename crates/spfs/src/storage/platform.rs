@@ -21,10 +21,7 @@ pub trait PlatformStorage: graph::Database {
 
     /// Return true if the identified platform exists in this storage.
     fn has_platform(&self, digest: &encoding::Digest) -> bool {
-        match self.read_platform(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.read_platform(digest).is_ok()
     }
 
     /// Return the platform identified by the given digest.

@@ -25,10 +25,7 @@ pub trait ManifestStorage: graph::Database {
 
     /// Return true if the identified manifest exists in this storage.
     fn has_manifest(&self, digest: &encoding::Digest) -> bool {
-        match self.read_manifest(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.read_manifest(digest).is_ok()
     }
 
     /// Return the manifest identified by the given digest.

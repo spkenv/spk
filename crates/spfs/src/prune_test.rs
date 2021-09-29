@@ -190,7 +190,7 @@ fn test_prune_tags(tmprepo: TempRepo) {
         },
     )
     .unwrap();
-    if let Ok(_) = tmprepo.read_tag(&tag) {
+    if tmprepo.read_tag(&tag).is_ok() {
         panic!("should not have any pruned tag left")
     }
 }

@@ -10,10 +10,7 @@ use relative_path::RelativePath;
 pub trait TagStorage {
     /// Return true if the given tag exists in this storage.
     fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
-        match self.resolve_tag(tag) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.resolve_tag(tag).is_ok()
     }
 
     /// Return the digest identified by the given tag spec.
