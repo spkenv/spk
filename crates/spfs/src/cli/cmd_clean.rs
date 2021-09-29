@@ -71,12 +71,11 @@ impl CmdClean {
             print!("  >--> Do you wish to proceed with the removal of these objects? [y/N]: ");
             let _ = std::io::stdout().flush();
             use std::io::BufRead;
-            for line in std::io::stdin().lock().lines() {
+            if let Some(line) = std::io::stdin().lock().lines().next() {
                 let line = line?;
                 if line != "y" {
                     return Ok(2);
                 }
-                break;
             }
         }
 
@@ -141,12 +140,11 @@ impl CmdClean {
             print!("  >--> Do you wish to proceed with the removal of these tag versions? [y/N]: ");
             let _ = std::io::stdout().flush();
             use std::io::BufRead;
-            for line in std::io::stdin().lock().lines() {
+            if let Some(line) = std::io::stdin().lock().lines().next() {
                 let line = line?;
                 if line != "y" {
                     return Err("Operation cancelled by user".into());
                 }
-                break;
             }
         }
 
