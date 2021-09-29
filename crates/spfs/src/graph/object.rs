@@ -46,10 +46,7 @@ impl Object {
 
     /// Return true if this Object kind also has a payload
     pub fn has_payload(&self) -> bool {
-        match self {
-            Self::Blob(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Blob(_))
     }
 }
 

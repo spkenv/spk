@@ -224,12 +224,12 @@ impl Runtime {
     pub fn is_dirty(&self) -> bool {
         match std::fs::metadata(&self.upper_dir) {
             Ok(meta) => meta.size() != 0,
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => false,
-                // this is not strictly accurate, but not worth the
-                // trouble of needing to return an error from this function
-                _ => true,
-            },
+            Err(err) => {
+                // Treating other error types as dirty is not strictly
+                // accurate, but it is not worth the trouble of needing
+                // to return an error from this function
+                !matches!(err.kind(), std::io::ErrorKind::NotFound)
+            }
         }
     }
 
