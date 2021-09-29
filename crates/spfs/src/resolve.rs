@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, iter::FromIterator, path::Path};
+use std::{collections::HashSet, path::Path};
 
 use indicatif::ParallelProgressIterator;
 use itertools::Itertools;
@@ -165,12 +165,11 @@ pub fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path:
     }
 
     let renders = repo.renders()?;
-    let to_render: HashSet<encoding::Digest> = HashSet::from_iter(
-        manifests
-            .iter()
-            .map(|m| m.digest().unwrap())
-            .filter(|digest| !renders.has_rendered_manifest(digest)),
-    );
+    let to_render: HashSet<encoding::Digest> = manifests
+        .iter()
+        .map(|m| m.digest().unwrap())
+        .filter(|digest| !renders.has_rendered_manifest(digest))
+        .collect::<HashSet<_>>();
     if !to_render.is_empty() {
         tracing::info!("{} layers require rendering", to_render.len());
 
