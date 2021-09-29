@@ -118,14 +118,9 @@ impl Repository for MemRepository {
     fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
         let versions = match self.specs.get_mut(pkg.name()) {
             Some(v) => v,
-            None => {
-                self.specs
-                    .insert(pkg.name().to_string(), Default::default());
-                self.specs.get_mut(pkg.name()).unwrap()
-            }
+            None => return Err(Error::PackageNotFoundError(pkg.clone())),
         };
-        let existing = versions.remove(&pkg.version);
-        if existing.is_none() {
+        if versions.remove(&pkg.version).is_none() {
             Err(Error::PackageNotFoundError(pkg.clone()))
         } else {
             Ok(())
@@ -133,29 +128,62 @@ impl Repository for MemRepository {
     }
 
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
-        // if spec.pkg.build is None:
-        //     raise ValueError(
-        //         "Package must include a build in order to be published: "
-        //         + str(spec.pkg)
-        //     )
+        let build = match &spec.pkg.build {
+            Some(b) => b.to_owned(),
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be published: {}",
+                    spec.pkg
+                )))
+            }
+        };
 
-        // self._packages.setdefault(spec.pkg.name, {})
-        // version = str(spec.pkg.version)
-        // self._packages[spec.pkg.name].setdefault(version, {})
-        // build = spec.pkg.build
-        // self._packages[spec.pkg.name][version][build] = (spec.copy(), digest)
-        todo!()
+        let versions = match self.packages.get_mut(spec.pkg.name()) {
+            Some(v) => v,
+            None => {
+                self.packages
+                    .insert(spec.pkg.name().to_string(), Default::default());
+                self.packages.get_mut(spec.pkg.name()).unwrap()
+            }
+        };
+
+        let builds = match versions.get_mut(&spec.pkg.version) {
+            Some(v) => v,
+            None => {
+                versions.insert(spec.pkg.version.clone(), Default::default());
+                versions.get_mut(&spec.pkg.version).unwrap()
+            }
+        };
+
+        builds.insert(build, (spec, digest));
+        Ok(())
     }
 
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
-        // if pkg.build is None:
-        //     raise ValueError(
-        //         "Package must include a build in order to be removed: " + str(pkg)
-        //     )
-        // try:
-        //     del self._packages[pkg.name][str(pkg.version)][pkg.build]
-        // except KeyError:
-        //     raise PackageNotFoundError(pkg)
-        todo!()
+        let build = match &pkg.build {
+            Some(b) => b,
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be removed: {}",
+                    pkg
+                )))
+            }
+        };
+
+        let versions = match self.packages.get_mut(pkg.name()) {
+            Some(v) => v,
+            None => return Err(Error::PackageNotFoundError(pkg.clone())),
+        };
+
+        let builds = match versions.get_mut(&pkg.version) {
+            Some(v) => v,
+            None => return Err(Error::PackageNotFoundError(pkg.clone())),
+        };
+
+        if builds.remove(build).is_none() {
+            Err(Error::PackageNotFoundError(pkg.clone()))
+        } else {
+            Ok(())
+        }
     }
 }
