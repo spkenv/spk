@@ -207,9 +207,7 @@ impl FSHashStore {
         let mut shortest_size = 8;
         let mut shortest = &digest_str[2..shortest_size];
         for other in entries {
-            if &other[0..shortest_size] != shortest {
-                continue;
-            } else if other == digest_str[2..] {
+            if &other[0..shortest_size] != shortest || other == digest_str[2..] {
                 continue;
             }
             while &other[0..shortest_size] == shortest {
