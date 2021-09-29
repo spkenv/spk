@@ -59,8 +59,8 @@ fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
         .unwrap();
 
     assert_eq!(tag1, tag2);
-    let tags: Vec<_> = storage.read_tag(&spec).unwrap().collect();
-    assert_eq!(tags.len(), 1);
+
+    assert_eq!(storage.read_tag(&spec).unwrap().count(), 1);
 }
 
 #[rstest]
