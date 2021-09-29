@@ -11,7 +11,11 @@ use std::{
 use relative_path::RelativePath;
 
 use super::FSRepository;
-use crate::{encoding, graph, storage::TagStorage, tracking, Result};
+use crate::{
+    encoding, graph,
+    storage::{tag::TagSpecAndTagIter, TagStorage},
+    tracking, Result,
+};
 use encoding::{Decodable, Encodable};
 
 #[cfg(test)]
@@ -121,11 +125,7 @@ impl TagStorage for FSRepository {
     }
 
     /// Iterate through the available tags in this storage.
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    > {
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
         Box::new(TagStreamIter::new(&self.tags_root()))
     }
 

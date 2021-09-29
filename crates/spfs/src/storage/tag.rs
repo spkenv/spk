@@ -6,6 +6,8 @@ use crate::{encoding, tracking, Result};
 use encoding::Encodable;
 use relative_path::RelativePath;
 
+pub(crate) type TagSpecAndTagIter = (tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>);
+
 /// A location where tags are tracked and persisted.
 pub trait TagStorage {
     /// Return true if the given tag exists in this storage.
@@ -45,11 +47,7 @@ pub trait TagStorage {
     }
 
     /// Iterate through the available tags in this storage by stream.
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    >;
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>>;
 
     /// Read the entire tag stream for the given tag.
     ///
@@ -111,11 +109,7 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::find_tags(&**self, digest)
     }
 
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    > {
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
         TagStorage::iter_tag_streams(&**self)
     }
 

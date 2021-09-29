@@ -7,6 +7,7 @@ use std::path::Path;
 use tar::{Archive, Builder};
 
 use crate::graph;
+use crate::storage::tag::TagSpecAndTagIter;
 use crate::Result;
 use crate::{encoding, prelude::*, tracking};
 
@@ -168,11 +169,7 @@ impl TagStorage for TarRepository {
         self.repo.find_tags(digest)
     }
 
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    > {
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
         self.repo.iter_tag_streams()
     }
 
