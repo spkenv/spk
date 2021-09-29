@@ -33,11 +33,8 @@ pub fn render(spec: &tracking::EnvSpec) -> Result<std::path::PathBuf> {
     tracing::debug!("{:?}", cmd);
     let output = cmd.output()?;
     let mut bytes = output.stdout.as_slice();
-    loop {
-        match bytes.strip_suffix(&[b'\n']) {
-            Some(b) => bytes = b,
-            None => break,
-        }
+    while let Some(b) = bytes.strip_suffix(&[b'\n']) {
+        bytes = b
     }
     match output.status.code() {
         Some(0) => Ok(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes))),
