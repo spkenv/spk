@@ -198,9 +198,9 @@ impl std::fmt::Display for TagSpec {
     }
 }
 
-impl Into<(Option<String>, String, u64)> for TagSpec {
-    fn into(self) -> (Option<String>, String, u64) {
-        (self.0, self.1, self.2)
+impl From<TagSpec> for (Option<String>, String, u64) {
+    fn from(spec: TagSpec) -> Self {
+        (spec.0, spec.1, spec.2)
     }
 }
 
