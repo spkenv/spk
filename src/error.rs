@@ -26,6 +26,7 @@ pub enum Error {
 
     // Storage Errors
     PackageNotFoundError(api::Ident),
+    VersionExistsError(api::Ident),
 }
 
 impl Error {
@@ -94,10 +95,12 @@ impl From<Error> for PyErr {
             Error::InvalidNameError(err) => {
                 exceptions::PyValueError::new_err(err.message.to_string())
             }
-            Error::PackageNotFoundError(pkg) => exceptions::PyFileNotFoundError::new_err(format!(
-                "Package not found: {}",
-                pkg.to_string()
-            )),
+            Error::PackageNotFoundError(pkg) => {
+                exceptions::PyFileNotFoundError::new_err(format!("Package not found: {}", pkg))
+            }
+            Error::VersionExistsError(pkg) => {
+                exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
+            }
             Error::PyErr(err) => err,
         }
     }

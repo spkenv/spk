@@ -80,36 +80,56 @@ impl Repository for MemRepository {
     }
 
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
-        // try:
-        //     del self._specs[spec.pkg.name][str(spec.pkg.version)]
-        // except KeyError:
-        //     pass
-        // self.publish_spec(spec)
-        todo!()
+        let versions = match self.specs.get_mut(spec.pkg.name()) {
+            Some(v) => v,
+            None => {
+                self.specs
+                    .insert(spec.pkg.name().to_string(), Default::default());
+                self.specs.get_mut(spec.pkg.name()).unwrap()
+            }
+        };
+        versions.remove(&spec.pkg.version);
+        self.publish_spec(spec)
     }
 
     fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
-        // assert (
-        //     spec.pkg.build is None
-        // ), f"Spec must be published with no build, got {spec.pkg}"
-        // assert (
-        //     spec.pkg.build is None or not spec.pkg.build == api.EMDEDDED
-        // ), "Cannot publish embedded package"
-        // self._specs.setdefault(spec.pkg.name, {})
-        // versions = self._specs[spec.pkg.name]
-        // version = str(spec.pkg.version)
-        // if version in versions:
-        //     raise VersionExistsError(version)
-        // versions[version] = spec.copy()
-        todo!()
+        if spec.pkg.build.is_some() {
+            return Err(Error::String(format!(
+                "Spec must be published with no build, got {}",
+                spec.pkg
+            )));
+        }
+        let versions = match self.specs.get_mut(spec.pkg.name()) {
+            Some(v) => v,
+            None => {
+                self.specs
+                    .insert(spec.pkg.name().to_string(), Default::default());
+                self.specs.get_mut(spec.pkg.name()).unwrap()
+            }
+        };
+        if versions.contains_key(&spec.pkg.version) {
+            Err(Error::VersionExistsError(spec.pkg.clone()))
+        } else {
+            versions.insert(spec.pkg.version.clone(), spec);
+            Ok(())
+        }
     }
 
     fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
-        // try:
-        //     del self._specs[pkg.name][str(pkg.version)]
-        // except KeyError:
-        //     raise PackageNotFoundError(pkg)
-        todo!()
+        let versions = match self.specs.get_mut(pkg.name()) {
+            Some(v) => v,
+            None => {
+                self.specs
+                    .insert(pkg.name().to_string(), Default::default());
+                self.specs.get_mut(pkg.name()).unwrap()
+            }
+        };
+        let existing = versions.remove(&pkg.version);
+        if existing.is_none() {
+            Err(Error::PackageNotFoundError(pkg.clone()))
+        } else {
+            Ok(())
+        }
     }
 
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
