@@ -81,15 +81,12 @@ impl FSHashStore {
         let digest = hasher.digest();
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
-        match std::fs::rename(&working_file, &path) {
-            Err(err) => {
-                let _ = std::fs::remove_file(working_file);
-                match err.kind() {
-                    ErrorKind::AlreadyExists => (),
-                    _ => return Err(Error::wrap_io(err, "Failed to store object")),
-                }
+        if let Err(err) = std::fs::rename(&working_file, &path) {
+            let _ = std::fs::remove_file(working_file);
+            match err.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ => return Err(Error::wrap_io(err, "Failed to store object")),
             }
-            Ok(_) => (),
         }
         if let Err(err) = std::fs::set_permissions(
             &path,

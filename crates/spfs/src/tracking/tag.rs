@@ -226,9 +226,8 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
 
     let name_version = parts.pop().unwrap();
     let mut name_version: Vec<_> = name_version.splitn(2, '~').collect();
-    match name_version.len() {
-        1 => name_version.push("0"),
-        _ => (),
+    if name_version.len() == 1 {
+        name_version.push("0")
     };
 
     let org = parts.pop().unwrap();
