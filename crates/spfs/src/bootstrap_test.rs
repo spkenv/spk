@@ -144,7 +144,7 @@ fn test_find_alternate_bash(shell: &str, tmpdir: tempdir::TempDir) {
     std::env::set_var("SHELL", original_shell);
 }
 
-fn make_exe(path: &std::path::PathBuf) {
+fn make_exe(path: &std::path::Path) {
     use std::os::unix::fs::PermissionsExt;
     let file = std::fs::File::create(&path).unwrap();
     drop(file);

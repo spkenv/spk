@@ -208,7 +208,7 @@ impl FSRepository {
 /// that need to be removed but on which the user doesn't have enough permissions.
 /// It does assume that the current user owns the file, as it may not be possible to
 /// change permissions before removal otherwise.
-fn open_perms_and_remove_all(root: &PathBuf) -> Result<()> {
+fn open_perms_and_remove_all(root: &Path) -> Result<()> {
     for entry in std::fs::read_dir(&root)? {
         let entry = entry?;
         let entry_path = root.join(entry.file_name());

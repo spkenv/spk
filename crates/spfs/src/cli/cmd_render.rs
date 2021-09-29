@@ -54,7 +54,7 @@ impl CmdRender {
     fn render_to_dir(
         &self,
         env_spec: spfs::tracking::EnvSpec,
-        target: &std::path::PathBuf,
+        target: &std::path::Path,
     ) -> spfs::Result<std::path::PathBuf> {
         std::fs::create_dir_all(&target)?;
         let target_dir = target.canonicalize()?;
