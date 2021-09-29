@@ -15,10 +15,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    fn write_data(
-        &mut self,
-        reader: Box<&mut dyn std::io::Read>,
-    ) -> Result<(encoding::Digest, u64)> {
+    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader)
     }
 

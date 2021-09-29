@@ -132,10 +132,7 @@ impl PayloadStorage for TarRepository {
         self.repo.iter_payload_digests()
     }
 
-    fn write_data(
-        &mut self,
-        reader: Box<&mut dyn std::io::Read>,
-    ) -> Result<(encoding::Digest, u64)> {
+    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
         let res = self.repo.write_data(reader)?;
         self.up_to_date = false;
         Ok(res)

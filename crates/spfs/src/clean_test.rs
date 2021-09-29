@@ -20,7 +20,7 @@ fixtures!();
 fn test_get_attached_objects(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(&mut reader).unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
     tmprepo.write_blob(blob).unwrap();
 
@@ -42,7 +42,7 @@ fn test_get_attached_objects(tmprepo: TempRepo) {
 fn test_get_attached_payloads(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(&mut reader).unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(

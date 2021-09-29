@@ -9,7 +9,7 @@ use crate::encoding;
 
 /// Walks an object tree depth-first starting at some root digest
 pub struct DatabaseWalker<'db> {
-    db: Box<&'db dyn DatabaseView>,
+    db: &'db dyn DatabaseView,
     queue: VecDeque<encoding::Digest>,
 }
 
@@ -19,7 +19,7 @@ impl<'db> DatabaseWalker<'db> {
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: Box<&'db dyn DatabaseView>, root: encoding::Digest) -> Self {
+    pub fn new(db: &'db dyn DatabaseView, root: encoding::Digest) -> Self {
         let mut queue = VecDeque::new();
         queue.push_back(root);
         DatabaseWalker { db, queue }
@@ -51,7 +51,7 @@ impl<'db> Iterator for DatabaseWalker<'db> {
 
 /// Iterates all objects in a database, in no particular order
 pub struct DatabaseIterator<'db> {
-    db: Box<&'db dyn DatabaseView>,
+    db: &'db dyn DatabaseView,
     inner: Box<dyn Iterator<Item = Result<encoding::Digest>>>,
 }
 
@@ -61,7 +61,7 @@ impl<'db> DatabaseIterator<'db> {
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: Box<&'db dyn DatabaseView>) -> Self {
+    pub fn new(db: &'db dyn DatabaseView) -> Self {
         let iter = db.iter_digests();
         DatabaseIterator { db, inner: iter }
     }

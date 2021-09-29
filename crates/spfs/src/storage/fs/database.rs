@@ -27,11 +27,11 @@ impl DatabaseView for super::FSRepository {
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        graph::DatabaseIterator::new(Box::new(self))
+        graph::DatabaseIterator::new(self)
     }
 
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        graph::DatabaseWalker::new(Box::new(self), *root)
+        graph::DatabaseWalker::new(self, *root)
     }
 
     fn resolve_full_digest(

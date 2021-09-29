@@ -203,7 +203,7 @@ fn sync_blob(
     } else {
         let mut payload = src.open_payload(&blob.payload)?;
         tracing::debug!(digest = ?blob.payload, "syncing payload");
-        dest.write_data(Box::new(&mut *payload))?;
+        dest.write_data(&mut *payload)?;
     }
     dest.write_blob(blob.clone())?;
     Ok(())
