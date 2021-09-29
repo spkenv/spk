@@ -199,8 +199,7 @@ fn random_digest() -> encoding::Digest {
     use rand::Rng;
     let mut hasher = encoding::Hasher::new();
     let mut rng = rand::thread_rng();
-    let mut buf = Vec::with_capacity(64);
-    buf.resize(64, 0);
+    let mut buf = vec![0; 64];
     rng.fill(buf.as_mut_slice());
     hasher.update(buf.as_slice());
     hasher.digest()

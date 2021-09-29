@@ -17,8 +17,7 @@ mod binary_test;
 
 /// Read and validate the given header from a binary stream.
 pub fn consume_header(mut reader: impl Read, header: &[u8]) -> Result<()> {
-    let mut buf = Vec::with_capacity(header.len() + 1);
-    buf.resize(header.len() + 1, 0);
+    let mut buf = vec![0; header.len() + 1];
     reader.read_exact(buf.as_mut_slice())?;
     if buf[0..header.len()] != *header || buf.last() != Some(&b'\n') {
         Err(Error::from(format!(
