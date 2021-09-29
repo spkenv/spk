@@ -156,7 +156,7 @@ pub fn sync_manifest(
         .map(move |entry| {
             let src = storage::open_repository(src_address)?;
             let mut dest = storage::open_repository(dest_address)?;
-            sync_entry(entry.clone(), &src, &mut dest)
+            sync_entry(entry, &src, &mut dest)
         })
         .collect();
 

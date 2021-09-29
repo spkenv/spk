@@ -331,7 +331,7 @@ impl Encodable for &Digest {
     }
 
     fn digest(&self) -> Result<Digest> {
-        Ok(self.clone().to_owned())
+        Ok(*self.to_owned())
     }
 }
 

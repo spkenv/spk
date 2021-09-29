@@ -42,7 +42,7 @@ pub fn purge_objects(
         .par_iter()
         .progress_with(bar)
         .map(|digest| {
-            let res = clean_object(repo, digest.clone());
+            let res = clean_object(repo, digest);
             if res.is_ok() {
                 tracing::trace!(?digest, "successfully removed object");
             }
@@ -56,7 +56,7 @@ pub fn purge_objects(
             .par_iter()
             .progress_with(bar)
             .map(|digest| {
-                let res = clean_payload(repo, digest.clone());
+                let res = clean_payload(repo, digest);
                 if res.is_ok() {
                     tracing::trace!(?digest, "successfully removed payload");
                 }
@@ -71,7 +71,7 @@ pub fn purge_objects(
             .par_iter()
             .progress_with(bar)
             .map(|digest| {
-                let res = clean_render(repo, digest.clone());
+                let res = clean_render(repo, digest);
                 if res.is_ok() {
                     tracing::trace!(?digest, "successfully removed render");
                 }
