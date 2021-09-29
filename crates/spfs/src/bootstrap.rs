@@ -42,8 +42,9 @@ pub fn build_command_for_runtime(
 /// The returned command properly sets up and runs an interactive
 /// shell session in the current runtime.
 pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString>> {
-    let mut shell_path =
-        std::path::PathBuf::from(std::env::var("SHELL").unwrap_or("<not-set>".to_string()));
+    let mut shell_path = std::path::PathBuf::from(
+        std::env::var("SHELL").unwrap_or_else(|_| "<not-set>".to_string()),
+    );
     let shell_name = shell_path
         .file_name()
         .unwrap_or_else(|| OsStr::new("bash"))

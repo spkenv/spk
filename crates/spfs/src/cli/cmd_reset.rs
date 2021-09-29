@@ -61,7 +61,7 @@ fn strip_spfs_prefix(paths: &Vec<String>) -> Vec<String> {
         .iter()
         .map(|path| {
             path.strip_prefix("/spfs")
-                .unwrap_or(path.as_ref())
+                .unwrap_or_else(|| path.as_ref())
                 .to_owned()
         })
         .collect()

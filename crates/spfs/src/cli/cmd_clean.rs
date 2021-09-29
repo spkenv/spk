@@ -90,10 +90,16 @@ impl CmdClean {
     }
 
     fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
-        let prune_if_older_than =
-            age_to_date(self.prune_if_older_than.clone().unwrap_or("9w".into()))?;
-        let keep_if_newer_than =
-            age_to_date(self.keep_if_newer_than.clone().unwrap_or("1w".into()))?;
+        let prune_if_older_than = age_to_date(
+            self.prune_if_older_than
+                .clone()
+                .unwrap_or_else(|| "9w".into()),
+        )?;
+        let keep_if_newer_than = age_to_date(
+            self.keep_if_newer_than
+                .clone()
+                .unwrap_or_else(|| "1w".into()),
+        )?;
         let prune_if_more_than = self.prune_if_more_than.unwrap_or(50);
         let keep_if_less_than = self.keep_if_less_than.unwrap_or(10);
 
