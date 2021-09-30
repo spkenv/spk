@@ -24,8 +24,9 @@ def test_repo_list_package_versions_empty(repo: Repository) -> None:
 
 def test_repo_list_package_builds_empty(repo: Repository) -> None:
 
+    nothing = api.parse_ident("nothing/1.0.0")
     assert (
-        list(repo.list_package_builds("nothing/1.0.0")) == []
+        list(repo.list_package_builds(nothing)) == []
     ), "should not fail with unknown package"
 
 

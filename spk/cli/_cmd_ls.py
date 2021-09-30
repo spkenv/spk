@@ -67,7 +67,7 @@ def _ls(args: argparse.Namespace) -> None:
     elif "/" not in args.package:
         for repo in repos.values():
             for version in repo.list_package_versions(args.package):
-                results.add(version)
+                results.add(str(version))
 
     else:
         for repo in repos.values():

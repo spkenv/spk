@@ -38,8 +38,7 @@ def _search(args: argparse.Namespace) -> None:
         for name in repo.list_packages():
             if args.term in name:
                 versions = list(
-                    spk.api.Ident(name, spk.api.parse_version(v))
-                    for v in repo.list_package_versions(name)
+                    spk.api.Ident(name, v) for v in repo.list_package_versions(name)
                 )
                 for v in versions:
                     print(
