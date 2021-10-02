@@ -193,21 +193,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let layer = spfs::commit_layer(&mut runtime.inner)?;
         Ok(Digest::from(layer.digest()?))
     }
-    #[pyfn(m, "find_layer_by_filename")]
-    fn find_layer_by_filename(path: &str) -> Result<Digest> {
-        let runtime = spfs::active_runtime()?;
-        let repo = spfs::load_config()?.get_repository()?.into();
-
-        let stack = runtime.get_stack();
-        let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
-        for layer in layers.iter().rev() {
-            let manifest = repo.read_manifest(&layer.manifest)?.unlock();
-            if let Some(_) = manifest.get_path(&path) {
-                return Ok(layer.digest()?.into());
-            }
-        }
-        Err(spfs::graph::UnknownReferenceError::new(path).into())
-    }
 
     #[pyfn(m, "render_into_dir")]
     fn render_into_dir(stack: Vec<Digest>, path: &str) -> Result<()> {

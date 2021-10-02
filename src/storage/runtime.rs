@@ -4,6 +4,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use spfs::prelude::*;
+
 use super::Repository;
 use crate::{api, Error, Result};
 
@@ -161,4 +163,19 @@ fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> 
             name
         })
         .collect())
+}
+
+fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
+    let runtime = spfs::active_runtime()?;
+    let repo = spfs::load_config()?.get_repository()?.into();
+
+    let stack = runtime.get_stack();
+    let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
+    for layer in layers.iter().rev() {
+        let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+        if let Some(_) = manifest.get_path(&path) {
+            return Ok(layer.digest()?.into());
+        }
+    }
+    Err(spfs::graph::UnknownReferenceError::new(path).into())
 }
