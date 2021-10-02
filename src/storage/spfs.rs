@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use relative_path::RelativePathBuf;
 use spfs;
 
 use super::Repository;
@@ -28,42 +29,64 @@ impl SPFSRepository {
 
 impl Repository for SPFSRepository {
     fn list_packages(&self) -> Result<Vec<String>> {
-        // path = "spk/spec"
-        // pkgs = []
-        // for tag in self.rs.ls_tags(path):
-        //     if tag.endswith("/"):
-        //         tag = tag[:-1]
-        //         pkgs.append(tag)
-        // return list(pkgs)
-        todo!()
+        let path = relative_path::RelativePath::new("spk/spec");
+        Ok(self
+            .inner
+            .ls_tags(&path)?
+            .filter_map(|entry| {
+                if entry.ends_with("/") {
+                    Some(entry[0..entry.len() - 1].to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>())
     }
 
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
-        // path = self.build_spec_tag(api.parse_ident(name))
-        // versions: Iterable[str] = self.rs.ls_tags(path)
-        // versions = map(lambda v: v.rstrip("/"), versions)
-        // # undo our encoding of the invalid '+' character in spfs tags
-        // versions = (v.replace("..", "+") for v in versions)
-        // return sorted(list(set(versions)))
-        todo!()
+        let path = self.build_spec_tag(&api::parse_ident(name)?);
+        let mut versions: Vec<_> = self
+            .inner
+            .ls_tags(&path)?
+            .filter_map(|entry| {
+                if entry.ends_with("/") {
+                    let stripped = &entry[0..entry.len() - 1];
+                    // undo our encoding of the invalid '+' character in spfs tags
+                    Some(stripped.replace("..", "+"))
+                } else {
+                    None
+                }
+            })
+            .filter_map(|v| match api::parse_version(&v) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    tracing::warn!("Invalid version found in spfs tags: {}", v);
+                    None
+                }
+            })
+            .collect();
+        versions.sort();
+        Ok(versions)
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        // if not isinstance(pkg, api.Ident):
-        //     pkg = api.parse_ident(pkg)
+        let pkg = pkg.with_build(Some(api::Build::Source));
+        let mut base = self.build_package_tag(&pkg)?;
+        base.pop();
 
-        // pkg = pkg.with_build(api.SRC)
-        // base = posixpath.dirname(self.build_package_tag(pkg))
-        // try:
-        //     build_tags = self.rs.ls_tags(base)
-        // except KeyError:
-        //     return []
-
-        // builds = []
-        // for build in build_tags:
-        //     builds.append(pkg.with_build(build))
-        // return builds
-        todo!()
+        Ok(self
+            .inner
+            .ls_tags(&base)?
+            .filter(|entry| !entry.ends_with("/"))
+            .filter_map(|b| match api::parse_build(&b) {
+                Ok(b) => Some(b),
+                Err(_) => {
+                    tracing::warn!("Invalid build found in spfs tags: {}", b);
+                    None
+                }
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect())
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
@@ -151,26 +174,32 @@ impl Repository for SPFSRepository {
 
 impl SPFSRepository {
     /// Construct an spfs tag string to represent a binary package layer.
-    fn build_package_tag(&self, pkg: &api::Ident) -> String {
-        // assert pkg.build is not None, "Package must have associated build digest"
+    fn build_package_tag(&self, pkg: &api::Ident) -> Result<RelativePathBuf> {
+        if pkg.build.is_none() {
+            return Err(api::InvalidBuildError::new(
+                "Package must have associated build digest".to_string(),
+            ));
+        }
 
-        // tag = f"spk/pkg/{pkg}"
+        let mut tag = RelativePathBuf::from("spk");
+        tag.push("pkg");
+        // the "+" character is not a valid spfs tag character,
+        // so we 'encode' it with two dots, which is not a valid sequence
+        // for spk package names
+        tag.push(pkg.to_string().replace("+", ".."));
 
-        // # the "+" character is not a valid spfs tag character,
-        // # so we 'encode' it with two dots, which is not a valid sequence
-        // # for spk package names
-        // return tag.replace("+", "..")
-        todo!()
+        Ok(tag)
     }
 
     /// Construct an spfs tag string to represent a spec file blob.
-    fn build_spec_tag(&self, pkg: &api::Ident) -> String {
-        // tag = f"spk/spec/{pkg}"
+    fn build_spec_tag(&self, pkg: &api::Ident) -> RelativePathBuf {
+        let mut tag = RelativePathBuf::from("spk");
+        tag.push("spec");
+        // the "+" character is not a valid spfs tag character,
+        // see above ^
+        tag.push(pkg.to_string().replace("+", ".."));
 
-        // # the "+" character is not a valid spfs tag character,
-        // # see above ^
-        // return tag.replace("+", "..")
-        todo!()
+        tag
     }
 
     pub fn has_tag(&self, tag: &str) -> bool {
