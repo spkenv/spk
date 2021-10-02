@@ -112,14 +112,20 @@ impl Repository for SPFSRepository {
     }
 
     fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
-        // assert spec.pkg.build is None, "Spec must be published with no build"
-        // meta_tag = self.build_spec_tag(spec.pkg)
-        // if self.rs.has_tag(meta_tag):
-        //     # BUG(rbottriell): this creates a race condition but is not super dangerous
-        //     # because of the non-destructive tag history
-        //     raise VersionExistsError(spec.pkg)
-        // self.force_publish_spec(spec)
-        todo!()
+        if spec.pkg.build.is_some() {
+            return Err(api::InvalidBuildError::new(
+                "Spec must be published with no build".to_string(),
+            ));
+        }
+        let tag_path = self.build_spec_tag(&spec.pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        if self.inner.has_tag(&tag_spec) {
+            // BUG(rbottriell): this creates a race condition but is not super dangerous
+            // because of the non-destructive tag history
+            Err(Error::VersionExistsError(spec.pkg))
+        } else {
+            self.force_publish_spec(spec)
+        }
     }
 
     fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
@@ -135,16 +141,23 @@ impl Repository for SPFSRepository {
     }
 
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
-        // assert (
-        //     spec.pkg.build is None or not spec.pkg.build == api.EMBEDDED
-        // ), "Cannot publish embedded package"
-        // meta_tag = self.build_spec_tag(spec.pkg)
-        // spec_data = yaml.safe_dump(spec.to_dict()).encode()  # type: ignore
-        // self.rs.write_spec(meta_tag, spec_data)
-        // self.list_packages.cache_clear()
-        // self.list_package_versions.cache_clear()
-        // self.list_package_builds.cache_clear()
-        todo!()
+        if let Some(api::Build::Embedded) = spec.pkg.build {
+            return Err(api::InvalidBuildError::new(
+                "Cannot publish embedded package".to_string(),
+            ));
+        }
+        let tag_path = self.build_spec_tag(&spec.pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+        let payload = serde_yaml::to_vec(&spec)?;
+
+        let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
+        let blob = spfs::graph::Blob {
+            payload: digest.clone(),
+            size: size,
+        };
+        self.inner.write_blob(blob)?;
+        self.inner.push_tag(&tag_spec, &digest)?;
+        Ok(())
     }
 
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
@@ -254,18 +267,6 @@ impl SPFSRepository {
     pub fn remove_tag_stream(&mut self, tag: &str) -> Result<()> {
         let tag = tag.parse()?;
         self.inner.remove_tag_stream(&tag)?;
-        Ok(())
-    }
-
-    pub fn write_spec(&mut self, tag: &str, payload: Vec<u8>) -> Result<()> {
-        let tag = tag.parse()?;
-        let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
-        let blob = spfs::graph::Blob {
-            payload: digest.clone(),
-            size: size,
-        };
-        self.inner.write_blob(blob)?;
-        self.inner.push_tag(&tag, &digest)?;
         Ok(())
     }
 
