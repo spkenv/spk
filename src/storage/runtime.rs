@@ -22,9 +22,19 @@ impl Default for RuntimeRepository {
     }
 }
 
+impl RuntimeRepository {
+    #[cfg(test)]
+    pub fn new(root: std::path::PathBuf) -> Self {
+        // this function is not allowed outside of testing because get_package
+        // makes assumptions about the runtime directory which cannot be
+        // reasonably altered
+        Self { root: root }
+    }
+}
+
 impl Repository for RuntimeRepository {
     fn list_packages(&self) -> Result<Vec<String>> {
-        Ok(get_all_filenames("/spfs/spk/pkg")?
+        Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
                 if entry.ends_with("/") {
@@ -37,7 +47,7 @@ impl Repository for RuntimeRepository {
     }
 
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
-        Ok(get_all_filenames(format!("/spfs/spk/pkg/{}", name))?
+        Ok(get_all_filenames(self.root.join(name))?
             .into_iter()
             .filter_map(|entry| {
                 if entry.ends_with("/") {
@@ -61,8 +71,7 @@ impl Repository for RuntimeRepository {
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let mut base = PathBuf::from("/spfs/spk/pkg");
-        base.push(pkg.name());
+        let mut base = self.root.join(pkg.name());
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
             .into_iter()
@@ -78,7 +87,8 @@ impl Repository for RuntimeRepository {
                 Ok(b) => Some(pkg.with_build(Some(b))),
                 Err(err) => {
                     tracing::debug!(
-                        "Skipping invalid build in /spfs/spk: [{}] {:?}",
+                        "Skipping invalid build in {:?}: [{}] {:?}",
+                        self.root,
                         candidate,
                         err
                     );
@@ -89,8 +99,7 @@ impl Repository for RuntimeRepository {
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
-        let mut path = PathBuf::from("/spfs/spk/pkg");
-        path.push(pkg.to_string());
+        let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
         match api::read_spec_file(&path) {
