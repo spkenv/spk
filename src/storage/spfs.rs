@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 
@@ -45,7 +46,7 @@ impl Repository for SPFSRepository {
 
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
         let path = self.build_spec_tag(&api::parse_ident(name)?);
-        let mut versions: Vec<_> = self
+        let mut versions = self
             .inner
             .ls_tags(&path)?
             .filter_map(|entry| {
@@ -54,7 +55,7 @@ impl Repository for SPFSRepository {
                     // undo our encoding of the invalid '+' character in spfs tags
                     Some(stripped.replace("..", "+"))
                 } else {
-                    None
+                    Some(entry.replace("..", "+"))
                 }
             })
             .filter_map(|v| match api::parse_version(&v) {
@@ -64,7 +65,8 @@ impl Repository for SPFSRepository {
                     None
                 }
             })
-            .collect();
+            .unique()
+            .collect_vec();
         versions.sort();
         Ok(versions)
     }
@@ -148,8 +150,8 @@ impl Repository for SPFSRepository {
         }
         let tag_path = self.build_spec_tag(&spec.pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-        let payload = serde_yaml::to_vec(&spec)?;
 
+        let payload = serde_yaml::to_vec(&spec)?;
         let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
         let blob = spfs::graph::Blob {
             payload: digest.clone(),
