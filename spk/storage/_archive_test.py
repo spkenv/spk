@@ -49,3 +49,19 @@ def test_archive_io(tmpdir: py.path.local) -> None:
         "tags/spk/spec/spk-archive-test/0.0.1/3I42H3S6.tag",
     ]
     import_package(filename)
+
+
+def test_archive_create_parents(tmpdir: py.path.local) -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "spk-archive-test/0.0.1",
+            "build": {"script": "touch /spfs/file.txt"},
+        }
+    )
+    repo = storage.local_repository()
+    repo.publish_spec(spec)
+    builder = build.BinaryPackageBuilder.from_spec(spec).with_source(".")
+    spec = builder.build()
+    filename = tmpdir.join("deep/nested/path/achive.spk").strpath
+    export_package(spec.pkg, filename)

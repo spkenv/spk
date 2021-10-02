@@ -20,6 +20,11 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
         }
     }
 
+    filename
+        .parent()
+        .map(std::fs::create_dir_all)
+        .unwrap_or_else(|| Ok(()))?;
+
     let local_repo = super::local_repository()?;
     let remote_repo = super::remote_repository("origin")?;
     let mut target_repo = super::SPFSRepository::from(spfs::storage::RepositoryHandle::from(
