@@ -3,10 +3,10 @@
 // https://github.com/imageworks/spk
 
 use relative_path::RelativePathBuf;
-use spfs;
+use spfs::prelude::*;
 
 use super::Repository;
-use crate::{api, Digest, Result};
+use crate::{api, Digest, Error, Result};
 
 #[derive(Debug)]
 pub struct SPFSRepository {
@@ -90,24 +90,25 @@ impl Repository for SPFSRepository {
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
-        // tag_str = self.build_spec_tag(pkg)
-        // digest = self.rs.resolve_tag_to_digest(tag_str)
-        // if digest is None:
-        // raise PackageNotFoundError(pkg) from None
+        let tag_path = self.build_spec_tag(&pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
+            spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+            err => err.into(),
+        })?;
 
-        // data = self.rs.read_spec(digest)
-        // return api.Spec.from_dict(yaml.safe_load(data))
-        todo!()
+        let reader = self.inner.open_payload(&tag.target)?;
+        Ok(serde_yaml::from_reader(reader)?)
     }
 
     fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
-        // tag_str = self.build_package_tag(pkg)
-        // digest = self.rs.resolve_tag_to_digest(tag_str)
-        // if digest is None:
-        //     raise PackageNotFoundError(tag_str) from None
-
-        // return digest
-        todo!()
+        let tag_path = self.build_package_tag(&pkg)?;
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
+            spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+            err => err.into(),
+        })?;
+        Ok(tag.target)
     }
 
     fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
@@ -227,15 +228,6 @@ impl SPFSRepository {
         let mut local_repo = spfs::load_config()?.get_repository()?.into();
         spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut local_repo)?;
         Ok(())
-    }
-
-    pub fn resolve_tag_to_digest(&self, tag: &str) -> Result<Option<Digest>> {
-        let tag = tag.parse()?;
-        match self.inner.resolve_tag(&tag) {
-            Ok(tag) => Ok(Some(tag.target.into())),
-            Err(spfs::Error::UnknownReference(_)) => Ok(None),
-            Err(err) => Err(err.into()),
-        }
     }
 
     pub fn push_tag(&mut self, tag: &str, target: &Digest) -> Result<()> {
