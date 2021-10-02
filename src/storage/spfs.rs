@@ -14,6 +14,20 @@ pub struct SPFSRepository {
     inner: spfs::storage::RepositoryHandle,
 }
 
+impl std::ops::Deref for SPFSRepository {
+    type Target = spfs::storage::RepositoryHandle;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl std::ops::DerefMut for SPFSRepository {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
 impl From<spfs::storage::RepositoryHandle> for SPFSRepository {
     fn from(repo: spfs::storage::RepositoryHandle) -> Self {
         Self { inner: repo }
@@ -229,11 +243,6 @@ impl SPFSRepository {
 
     pub fn has_digest(&self, digest: &Digest) -> bool {
         self.inner.has_object(&digest.inner)
-    }
-
-    pub fn push_ref(&self, reference: &str, dest: &mut Self) -> Result<()> {
-        spfs::sync_ref(reference, &self.inner, &mut dest.inner)?;
-        Ok(())
     }
 
     pub fn push_digest(&self, digest: &Digest, dest: &mut Self) -> Result<()> {

@@ -3,57 +3,69 @@
 // https://github.com/imageworks/spk
 use std::path::Path;
 
-use super::SPFSRepository;
+use spfs::prelude::*;
+
+use super::{Repository, SPFSRepository};
 use crate::{api, Result};
 
 pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<()> {
-    // # Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
-    // # relative paths properly.
-    // filename = os.path.abspath(filename)
+    // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
+    // relative paths properly.
+    let filename = std::env::current_dir()?.join(filename);
 
-    // if not isinstance(pkg, api.Ident):
-    //     pkg = api.parse_ident(pkg)
+    if let Err(err) = std::fs::remove_file(&filename) {
+        match err.kind() {
+            std::io::ErrorKind::NotFound => (),
+            _ => tracing::warn!("Error trying to remove old file: {:?}", err),
+        }
+    }
 
-    // try:
-    //     os.remove(filename)
-    // except FileNotFoundError:
-    //     pass
+    let local_repo = super::local_repository()?;
+    let remote_repo = super::remote_repository("origin")?;
+    let mut target_repo = super::SPFSRepository::from(spfs::storage::RepositoryHandle::from(
+        spfs::storage::tar::TarRepository::create(&filename)?,
+    ));
 
-    // to_transfer = {pkg}
-    // if pkg.build is None:
-    //     to_transfer |= set(local_repository().list_package_builds(pkg))
-    //     to_transfer |= set(remote_repository().list_package_builds(pkg))
-    // else:
-    //     to_transfer.add(pkg.with_build(None))
+    let mut to_transfer = std::collections::HashSet::new();
+    to_transfer.insert(pkg.clone());
+    if pkg.build.is_none() {
+        to_transfer.extend(local_repo.list_package_builds(pkg)?);
+        to_transfer.extend(remote_repo.list_package_builds(pkg)?);
+    } else {
+        to_transfer.insert(pkg.with_build(None));
+    }
 
-    // target_repo = open_tar_repository(filename, create=True)
+    for pkg in to_transfer.into_iter() {
+        if copy_package(&pkg, &local_repo, &mut target_repo).is_ok() {
+            continue;
+        }
+        if copy_package(&pkg, &remote_repo, &mut target_repo).is_ok() {
+            continue;
+        }
+        return Err(crate::Error::PackageNotFoundError(pkg.clone()));
+    }
 
-    // for pkg in to_transfer:
-    //     for src_repo in (local_repository(), remote_repository()):
-    //         try:
-    //             _copy_package(pkg, src_repo, target_repo)
-    //             break
-    //         except (RuntimeError, PackageNotFoundError):
-    //             continue
-    //     else:
-    //         raise PackageNotFoundError(pkg)
-
-    // _LOGGER.info("building archive", path=filename)
-    // target_repo.flush()
-    todo!()
+    tracing::info!(path=?filename, "building archive");
+    use std::ops::DerefMut;
+    match target_repo.deref_mut() {
+        spfs::storage::RepositoryHandle::Tar(tar) => tar.flush()?,
+        _ => (),
+    }
+    Ok(())
 }
 
 pub fn import_package<P: AsRef<Path>>(filename: P) -> Result<()> {
-    // # spfs by default will create a new tar file if the file
-    // # does not exist, but we want to ensure that for importing,
-    // # the archive is already present
-    // os.stat(filename)
-    // tar_repo = spkrs.storage.open_tar_repository(filename)
-    // local_repo = local_repository()
-    // for tag in tar_repo.ls_all_tags():
-    //     _LOGGER.info("importing", ref=str(tag))
-    //     tar_repo.push_ref(str(tag), local_repo)
-    todo!()
+    let config = spfs::load_config()?;
+    let mut tar_repo: spfs::storage::RepositoryHandle =
+        spfs::storage::tar::TarRepository::open(filename)?.into();
+    let local_repo = super::local_repository()?;
+
+    for entry in tar_repo.iter_tags() {
+        let (tag, _) = entry?;
+        tracing::info!(?tag, "importing");
+        spfs::sync_ref(tag.to_string(), &local_repo, &mut tar_repo)?;
+    }
+    Ok(())
 }
 
 fn copy_package(
@@ -61,15 +73,16 @@ fn copy_package(
     src_repo: &SPFSRepository,
     dst_repo: &mut SPFSRepository,
 ) -> Result<()> {
-    // spec = src_repo.read_spec(pkg)
-    // if pkg.build is None:
-    //     _LOGGER.info("exporting", pkg=str(pkg))
-    //     dst_repo.publish_spec(spec)
-    //     return
+    let spec = src_repo.read_spec(&pkg)?;
+    if pkg.build.is_none() {
+        tracing::info!(?pkg, "exporting");
+        dst_repo.publish_spec(spec)?;
+        return Ok(());
+    }
 
-    // digest = src_repo.get_package(pkg)
-    // _LOGGER.info("exporting", pkg=str(pkg))
-    // src_repo.push_digest(digest, dst_repo)
-    // dst_repo.publish_package(spec, digest)
-    todo!()
+    let digest = src_repo.get_package(pkg)?;
+    tracing::info!(?pkg, "exporting");
+    spfs::sync_ref(digest.to_string(), &src_repo, dst_repo)?;
+    dst_repo.publish_package(spec, digest)?;
+    Ok(())
 }
