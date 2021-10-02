@@ -106,37 +106,40 @@ impl Repository for RuntimeRepository {
     }
 
     fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
-        // spec_path = os.path.join("/spk/pkg", str(pkg), "spec.yaml")
-        // try:
-        //     return spkrs.find_layer_by_filename(spec_path)
-        // except RuntimeError:
-        //     raise PackageNotFoundError(pkg)
-        todo!()
+        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
+        path.push(pkg.to_string());
+        path.push("spec.yaml");
+
+        match find_layer_by_filename(&path) {
+            Err(Error::SPFS(spfs::Error::UnknownReference(_))) => {
+                Err(Error::PackageNotFoundError(pkg.clone()))
+            }
+            res => res,
+        }
     }
 
-    fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
-        // raise NotImplementedError("Cannot modify a runtime repository")
-        todo!()
+    fn force_publish_spec(&mut self, _spec: api::Spec) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
-        // raise NotImplementedError("Cannot publish to a runtime repository")
-        todo!()
+    fn publish_spec(&mut self, _spec: api::Spec) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
     }
 
-    fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
-        // raise NotImplementedError("Cannot modify a runtime repository")
-        todo!()
+    fn remove_spec(&mut self, _pkg: &api::Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
-        // raise NotImplementedError("Cannot publish to a runtime repository")
-        todo!()
+    fn publish_package(&mut self, _spec: api::Spec, _digest: spfs::encoding::Digest) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
     }
 
-    fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
-        // raise NotImplementedError("Cannot modify a runtime repository")
-        todo!()
+    fn remove_package(&mut self, _pkg: &api::Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }
 
