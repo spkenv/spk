@@ -162,7 +162,7 @@ impl Repository for SPFSRepository {
 
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
         #[cfg(test)]
-        match self.read_spec(spec.pkg.with_build(None)) {
+        match self.read_spec(&spec.pkg.with_build(None)) {
             Err(Error::PackageNotFoundError(pkg)) => {
                 return Err(Error::String(format!(
                     "[INTERNAL] version spec must be published before a specific build: {:?}",
@@ -245,40 +245,6 @@ impl SPFSRepository {
         let mut local_repo = spfs::load_config()?.get_repository()?.into();
         spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut local_repo)?;
         Ok(())
-    }
-
-    pub fn push_tag(&mut self, tag: &str, target: &Digest) -> Result<()> {
-        let tag = tag.parse()?;
-        self.inner.push_tag(&tag, &target.inner)?;
-        Ok(())
-    }
-
-    pub fn ls_all_tags(&self) -> Result<Vec<String>> {
-        let tags: spfs::Result<Vec<_>> = self.inner.iter_tags().collect();
-        let tags = tags?
-            .into_iter()
-            .map(|(spec, _)| spec.to_string())
-            .collect();
-        Ok(tags)
-    }
-
-    pub fn ls_tags(&self, base: &str) -> Result<Vec<String>> {
-        let path = relative_path::RelativePath::new(base);
-        let tags: Vec<_> = self.inner.ls_tags(&path)?.collect();
-        Ok(tags)
-    }
-
-    pub fn remove_tag_stream(&mut self, tag: &str) -> Result<()> {
-        let tag = tag.parse()?;
-        self.inner.remove_tag_stream(&tag)?;
-        Ok(())
-    }
-
-    pub fn read_spec(&self, digest: &Digest) -> Result<String> {
-        let mut buf = Vec::new();
-        let mut payload = self.inner.open_payload(&digest.inner)?;
-        std::io::copy(&mut payload, &mut buf)?;
-        Ok(unsafe { String::from_utf8_unchecked(buf) })
     }
 
     pub fn flush(&mut self) -> Result<()> {
