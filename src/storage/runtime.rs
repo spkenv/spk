@@ -21,36 +21,66 @@ impl Default for RuntimeRepository {
 
 impl Repository for RuntimeRepository {
     fn list_packages(&self) -> Result<Vec<String>> {
-        // try:
-        //     return os.listdir("/spfs/spk/pkg")
-        // except FileNotFoundError:
-        //     return []
-        todo!()
+        Ok(get_all_filenames("/spfs/spk/pkg")?
+            .into_iter()
+            .filter_map(|entry| {
+                if entry.ends_with("/") {
+                    Some(entry[0..entry.len() - 1].to_string())
+                } else {
+                    None
+                }
+            })
+            .collect())
     }
 
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
-        // try:
-        //     return os.listdir(f"/spfs/spk/pkg/{name}")
-        // except FileNotFoundError:
-        //     return []
-        todo!()
+        Ok(get_all_filenames(format!("/spfs/spk/pkg/{}", name))?
+            .into_iter()
+            .filter_map(|entry| {
+                if entry.ends_with("/") {
+                    Some(entry[0..entry.len() - 1].to_string())
+                } else {
+                    None
+                }
+            })
+            .filter_map(|candidate| match api::parse_version(&candidate) {
+                Ok(v) => Some(v),
+                Err(err) => {
+                    tracing::debug!(
+                        "Skipping invalid version in /spfs/spk: [{}], {:?}",
+                        candidate,
+                        err
+                    );
+                    None
+                }
+            })
+            .collect())
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        // if isinstance(pkg, str):
-        //     pkg = api.parse_ident(pkg)
-
-        // try:
-        //     builds = os.listdir(f"/spfs/spk/pkg/{pkg.name}/{pkg.version}")
-        // except FileNotFoundError:
-        //     return
-
-        // for build in builds:
-        //     if os.path.isfile(
-        //         f"/spfs/spk/pkg/{pkg.name}/{pkg.version}/{build}/spec.yaml"
-        //     ):
-        //         yield pkg.with_build(build)
-        todo!()
+        Ok(
+            get_all_filenames(format!("/spfs/spk/pkg/{}/{}", pkg.name(), pkg.version))?
+                .into_iter()
+                .filter_map(|entry| {
+                    if entry.ends_with("/") {
+                        Some(entry[0..entry.len() - 1].to_string())
+                    } else {
+                        None
+                    }
+                })
+                .filter_map(|candidate| match api::parse_build(&candidate) {
+                    Ok(b) => Some(pkg.with_build(Some(b))),
+                    Err(err) => {
+                        tracing::debug!(
+                            "Skipping invalid build in /spfs/spk: [{}] {:?}",
+                            candidate,
+                            err
+                        );
+                        None
+                    }
+                })
+                .collect(),
+        )
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
@@ -95,4 +125,29 @@ impl Repository for RuntimeRepository {
         // raise NotImplementedError("Cannot modify a runtime repository")
         todo!()
     }
+}
+
+/// Works like ls_tags, returning strings that end with '/' for directories
+/// and not for regular files
+fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> {
+    let entries = match std::fs::read_dir(path) {
+        Err(err) => {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(Default::default()),
+                _ => Err(err.into()),
+            }
+        }
+        Ok(e) => e.collect::<std::io::Result<Vec<_>>>(),
+    };
+    Ok(entries?
+        .into_iter()
+        .map(|entry| {
+            let mut name = entry.file_name().to_string_lossy().to_string();
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => name.push('/'),
+                _ => (),
+            }
+            name
+        })
+        .collect())
 }
