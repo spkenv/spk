@@ -3,8 +3,6 @@
 // https://github.com/imageworks/spk
 use std::path::Path;
 
-use spfs::prelude::*;
-
 use super::{Repository, SPFSRepository};
 use crate::{api, Result};
 
@@ -60,7 +58,6 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
 }
 
 pub fn import_package<P: AsRef<Path>>(filename: P) -> Result<()> {
-    let config = spfs::load_config()?;
     let mut tar_repo: spfs::storage::RepositoryHandle =
         spfs::storage::tar::TarRepository::open(filename)?.into();
     let local_repo = super::local_repository()?;

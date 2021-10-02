@@ -4,7 +4,6 @@
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
-use spfs::prelude::*;
 
 use super::Repository;
 use crate::{api, Digest, Error, Result};
