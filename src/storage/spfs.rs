@@ -163,16 +163,22 @@ impl Repository for SPFSRepository {
     }
 
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
-        // try:
-        //     self.read_spec(spec.pkg.with_build(None))
-        // except PackageNotFoundError:
-        //     _LOGGER.debug(
-        //         "Internal warning: version spec must be published before a specific build"
-        //     )
-        // tag_string = self.build_package_tag(spec.pkg)
-        // self.force_publish_spec(spec)
-        // self.rs.push_tag(tag_string, digest)
-        todo!()
+        #[cfg(test)]
+        match self.read_spec(spec.pkg.with_build(None)) {
+            Err(Error::PackageNotFoundError(pkg)) => {
+                return Err(Error::String(format!(
+                    "[INTERNAL] version spec must be published before a specific build: {:?}",
+                    pkg
+                )))
+            }
+            _ => (),
+        }
+
+        let tag_path = self.build_package_tag(&spec.pkg)?;
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        self.force_publish_spec(spec)?;
+        self.inner.push_tag(&tag_spec, &digest)?;
+        Ok(())
     }
 
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
