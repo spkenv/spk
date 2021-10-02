@@ -131,15 +131,13 @@ impl Repository for SPFSRepository {
     }
 
     fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
-        // tag_str = self.build_spec_tag(pkg)
-        // try:
-        //     self.rs.remove_tag_stream(tag_str)
-        // except RuntimeError:
-        //     raise PackageNotFoundError(pkg) from None
-        // self.list_packages.cache_clear()
-        // self.list_package_versions.cache_clear()
-        // self.list_package_builds.cache_clear()
-        todo!()
+        let tag_path = self.build_spec_tag(&pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        match self.inner.remove_tag_stream(&tag_spec) {
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),
+            Err(err) => Err(err.into()),
+            Ok(_) => Ok(()),
+        }
     }
 
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
@@ -182,15 +180,13 @@ impl Repository for SPFSRepository {
     }
 
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
-        // tag_str = self.build_package_tag(pkg)
-        // try:
-        //     self.rs.remove_tag_stream(tag_str)
-        // except RuntimeError:
-        //     raise PackageNotFoundError(pkg) from None
-        // self.list_packages.cache_clear()
-        // self.list_package_versions.cache_clear()
-        // self.list_package_builds.cache_clear()
-        todo!()
+        let tag_path = self.build_package_tag(&pkg)?;
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        match self.inner.remove_tag_stream(&tag_spec) {
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),
+            Err(err) => Err(err.into()),
+            Ok(_) => Ok(()),
+        }
     }
 }
 
