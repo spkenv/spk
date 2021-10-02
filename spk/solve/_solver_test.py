@@ -787,7 +787,7 @@ def test_solver_build_from_source_deprecated(
     )
     spec = repo.read_spec(api.Ident("my-tool", api.Version(1, 2, 0)))
     spec.deprecated = True
-    repo.publish_spec(spec)
+    repo.force_publish_spec(spec)
 
     solver.add_repository(repo)
     solver.add_request(api.VarRequest("debug", "on"))
