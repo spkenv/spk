@@ -11,7 +11,7 @@ pub struct UnknownObjectError {
 }
 
 impl UnknownObjectError {
-    pub fn new(digest: &encoding::Digest) -> Error {
+    pub fn new_err(digest: &encoding::Digest) -> Error {
         Self {
             message: format!("Unknown object: {}", digest.to_string()),
         }
@@ -26,7 +26,7 @@ pub struct UnknownReferenceError {
 }
 
 impl UnknownReferenceError {
-    pub fn new(reference: impl AsRef<str>) -> Error {
+    pub fn new_err(reference: impl AsRef<str>) -> Error {
         Self {
             message: format!("Unknown reference: {}", reference.as_ref()),
         }
@@ -41,7 +41,7 @@ pub struct AmbiguousReferenceError {
 }
 
 impl AmbiguousReferenceError {
-    pub fn new(reference: impl AsRef<str>) -> Error {
+    pub fn new_err(reference: impl AsRef<str>) -> Error {
         Self {
             message: format!("Ambiguous reference [too short]: {}", reference.as_ref()),
         }
@@ -62,6 +62,5 @@ impl InvalidReferenceError {
         Self {
             message: format!("Invalid reference: {}", reference.as_ref()),
         }
-        .into()
     }
 }

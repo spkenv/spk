@@ -35,9 +35,9 @@ fn test_prunable_tags_age(tmprepo: TempRepo) {
     tmprepo.push_raw_tag(&new).unwrap();
 
     let tags = get_prunable_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
-            prune_if_older_than: Some(cutoff.clone()),
+            prune_if_older_than: Some(cutoff),
             ..Default::default()
         },
     )
@@ -46,9 +46,9 @@ fn test_prunable_tags_age(tmprepo: TempRepo) {
     assert!(!tags.contains(&new));
 
     let tags = get_prunable_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
-            prune_if_older_than: Some(cutoff.clone()),
+            prune_if_older_than: Some(cutoff),
             keep_if_newer_than: Some(Utc.timestamp(0, 0)),
             ..Default::default()
         },
@@ -82,7 +82,7 @@ fn test_prunable_tags_version(tmprepo: TempRepo) {
         .unwrap();
 
     let tags = get_prunable_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
             prune_if_version_more_than: Some(2),
             ..Default::default()
@@ -97,7 +97,7 @@ fn test_prunable_tags_version(tmprepo: TempRepo) {
     assert!(tags.contains(&tag5));
 
     let tags = get_prunable_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
             prune_if_version_more_than: Some(2),
             keep_if_version_less_than: Some(4),
@@ -190,18 +190,17 @@ fn test_prune_tags(tmprepo: TempRepo) {
         },
     )
     .unwrap();
-    if let Ok(_) = tmprepo.read_tag(&tag) {
+    if tmprepo.read_tag(&tag).is_ok() {
         panic!("should not have any pruned tag left")
     }
 }
 
 fn random_digest() -> encoding::Digest {
     use rand::Rng;
-    let mut hasher = encoding::Hasher::new();
+    let mut hasher = encoding::Hasher::default();
     let mut rng = rand::thread_rng();
-    let mut buf = Vec::with_capacity(64);
-    buf.resize(64, 0);
+    let mut buf = vec![0; 64];
     rng.fill(buf.as_mut_slice());
-    hasher.update(&buf.as_slice());
+    hasher.update(buf.as_slice());
     hasher.digest()
 }

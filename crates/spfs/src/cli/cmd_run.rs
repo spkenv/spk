@@ -6,7 +6,6 @@ use std::ffi::OsString;
 
 use structopt::StructOpt;
 
-use spfs;
 use spfs::prelude::*;
 
 #[derive(Debug, StructOpt)]

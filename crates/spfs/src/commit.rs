@@ -18,7 +18,7 @@ pub struct NothingToCommitError {
 }
 
 impl NothingToCommitError {
-    pub fn new<S: AsRef<str>>(message: S) -> Error {
+    pub fn new_err<S: AsRef<str>>(message: S) -> Error {
         Error::NothingToCommit(Self {
             message: format!("Nothing to commit: {}", message.as_ref()),
         })
@@ -31,7 +31,7 @@ pub fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
     let mut repo = config.get_repository()?;
     let manifest = repo.commit_dir(runtime.upper_dir.as_path())?;
     if manifest.is_empty() {
-        return Err(NothingToCommitError::new("layer would be empty"));
+        return Err(NothingToCommitError::new_err("layer would be empty"));
     }
     let layer = repo.create_layer(&graph::Manifest::from(&manifest))?;
     runtime.push_digest(&layer.digest()?)?;
@@ -47,12 +47,12 @@ pub fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform
 
     match commit_layer(runtime) {
         Ok(_) | Err(Error::NothingToCommit(_)) => (),
-        Err(err) => return Err(err.into()),
+        Err(err) => return Err(err),
     }
 
     let stack = runtime.get_stack();
-    if stack.len() == 0 {
-        Err(NothingToCommitError::new("platform would be empty"))
+    if stack.is_empty() {
+        Err(NothingToCommitError::new_err("platform would be empty"))
     } else {
         repo.create_platform(stack.clone())
     }

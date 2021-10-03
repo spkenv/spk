@@ -46,7 +46,7 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
                     abouts.push(format!("mode {{{:06o}=>{:06o}}}", a.mode, b.mode));
                 }
                 if a.object != b.object {
-                    abouts.push(format!("object"));
+                    abouts.push("object".to_string());
                 }
                 if a.size != b.size {
                     abouts.push(format!("size {{{}=>{}}}", a.size, b.size));
@@ -54,7 +54,7 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
             }
             None => (),
         }
-        let about = if abouts.len() > 0 {
+        let about = if !abouts.is_empty() {
             format!(" [{}]", abouts.join(", ")).dimmed().to_string()
         } else {
             "".to_string()
@@ -76,7 +76,7 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
 
 /// Return a string rendering of any given diffs which represent change.
 pub fn format_changes<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> String {
-    format_diffs(diffs.filter(|x| if x.mode.is_unchanged() { false } else { true }))
+    format_diffs(diffs.filter(|x| !x.mode.is_unchanged()))
 }
 
 /// Return a human-readable file size in bytes.

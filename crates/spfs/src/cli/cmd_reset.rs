@@ -56,12 +56,12 @@ impl CmdReset {
     }
 }
 
-fn strip_spfs_prefix(paths: &Vec<String>) -> Vec<String> {
+fn strip_spfs_prefix(paths: &[String]) -> Vec<String> {
     paths
-        .into_iter()
+        .iter()
         .map(|path| {
             path.strip_prefix("/spfs")
-                .unwrap_or(path.as_ref())
+                .unwrap_or_else(|| path.as_ref())
                 .to_owned()
         })
         .collect()

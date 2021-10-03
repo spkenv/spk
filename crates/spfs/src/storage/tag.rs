@@ -6,14 +6,13 @@ use crate::{encoding, tracking, Result};
 use encoding::Encodable;
 use relative_path::RelativePath;
 
+pub(crate) type TagSpecAndTagIter = (tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>);
+
 /// A location where tags are tracked and persisted.
 pub trait TagStorage {
     /// Return true if the given tag exists in this storage.
     fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
-        match self.resolve_tag(tag) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.resolve_tag(tag).is_ok()
     }
 
     /// Return the digest identified by the given tag spec.
@@ -42,20 +41,13 @@ pub trait TagStorage {
     /// Iterate through the available tags in this storage.
     fn iter_tags(&self) -> Box<dyn Iterator<Item = Result<(tracking::TagSpec, tracking::Tag)>>> {
         Box::new(self.iter_tag_streams().filter_map(|res| match res {
-            Ok((spec, mut stream)) => match stream.next() {
-                Some(next) => Some(Ok((spec, next))),
-                None => None,
-            },
+            Ok((spec, mut stream)) => stream.next().map(|next| Ok((spec, next))),
             Err(err) => Some(Err(err)),
         }))
     }
 
     /// Iterate through the available tags in this storage by stream.
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    >;
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>>;
 
     /// Read the entire tag stream for the given tag.
     ///
@@ -69,7 +61,7 @@ pub trait TagStorage {
         tag: &tracking::TagSpec,
         target: &encoding::Digest,
     ) -> Result<tracking::Tag> {
-        let parent = self.resolve_tag(&tag).ok();
+        let parent = self.resolve_tag(tag).ok();
         let parent_ref = match parent {
             Some(parent) => {
                 // do not push redundant/unchanged head tag
@@ -82,7 +74,7 @@ pub trait TagStorage {
             None => encoding::NULL_DIGEST.into(),
         };
 
-        let mut new_tag = tracking::Tag::new(tag.org(), tag.name(), target.clone())?;
+        let mut new_tag = tracking::Tag::new(tag.org(), tag.name(), *target)?;
         new_tag.parent = parent_ref;
 
         self.push_raw_tag(&new_tag)?;
@@ -117,11 +109,7 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::find_tags(&**self, digest)
     }
 
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    > {
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
         TagStorage::iter_tag_streams(&**self)
     }
 

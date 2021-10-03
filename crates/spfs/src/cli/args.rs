@@ -6,8 +6,6 @@ use std::borrow::Cow;
 
 use sentry::IntoDsn;
 
-use spfs;
-
 pub static SPFS_VERBOSITY: &str = "SPFS_VERBOSITY";
 
 pub fn configure_sentry() {
@@ -17,7 +15,7 @@ pub fn configure_sentry() {
             .unwrap_or(None),
         environment: Some(
             std::env::var("SENTRY_ENVIRONMENT")
-                .unwrap_or("production".to_string())
+                .unwrap_or_else(|_| "production".to_string())
                 .into(),
         ),
         // spdev follows sentry recommendation of using the release
@@ -73,7 +71,7 @@ pub fn configure_spops(_verbosity: usize) {
 pub fn configure_logging(mut verbosity: usize) {
     if verbosity == 0 {
         let parse_result = std::env::var(SPFS_VERBOSITY)
-            .unwrap_or("0".to_string())
+            .unwrap_or_else(|_| "0".to_string())
             .parse::<usize>();
         if let Ok(parsed) = parse_result {
             verbosity = usize::max(parsed, verbosity);
@@ -81,7 +79,7 @@ pub fn configure_logging(mut verbosity: usize) {
     }
     std::env::set_var(SPFS_VERBOSITY, verbosity.to_string());
     use tracing_subscriber::layer::SubscriberExt;
-    if !std::env::var("RUST_LOG").is_ok() {
+    if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "spfs=trace");
     }
     let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();

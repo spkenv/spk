@@ -32,7 +32,7 @@ pub fn build_command_for_runtime(
                 command,
             ];
             spfs_args.append(args);
-            build_spfs_enter_command(&runtime, &mut spfs_args)
+            build_spfs_enter_command(runtime, &mut spfs_args)
         }
     }
 }
@@ -42,8 +42,9 @@ pub fn build_command_for_runtime(
 /// The returned command properly sets up and runs an interactive
 /// shell session in the current runtime.
 pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString>> {
-    let mut shell_path =
-        std::path::PathBuf::from(std::env::var("SHELL").unwrap_or("<not-set>".to_string()));
+    let mut shell_path = std::path::PathBuf::from(
+        std::env::var("SHELL").unwrap_or_else(|_| "<not-set>".to_string()),
+    );
     let shell_name = shell_path
         .file_name()
         .unwrap_or_else(|| OsStr::new("bash"))
@@ -112,8 +113,8 @@ pub fn build_shell_initialized_command(
         .to_string_lossy()
         .to_string();
     let startup_file = match shell_name.as_str() {
-        "bash" | "sh" => runtime.sh_startup_file.clone(),
-        "tcsh" | "csh" => runtime.csh_startup_file.clone(),
+        "bash" | "sh" => runtime.sh_startup_file,
+        "tcsh" | "csh" => runtime.csh_startup_file,
         _ => return Err("No supported shell found, or no support for current shell".into()),
     };
 

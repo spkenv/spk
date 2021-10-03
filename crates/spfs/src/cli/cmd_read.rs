@@ -34,7 +34,7 @@ impl CmdRead {
                             format!("PATH must be given to read from {:?}", item.kind()).into()
                         )
                     }
-                    Some(p) => p.strip_prefix("/spfs").unwrap_or(&p).to_string(),
+                    Some(p) => p.strip_prefix("/spfs").unwrap_or(p).to_string(),
                 };
                 let manifest = spfs::compute_object_manifest(item, &repo)?;
                 let entry = match manifest.get_path(&path) {

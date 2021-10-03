@@ -112,20 +112,20 @@ impl Runtime {
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
             config: Config {
-                name: name,
+                name,
                 ..Default::default()
             },
-            root: root,
+            root,
         };
         rt.read_config()?;
         Ok(rt)
     }
 
-    pub fn name<'a>(&'a self) -> &'a str {
+    pub fn name(&self) -> &str {
         self.config.name.as_ref()
     }
 
-    pub fn root<'a>(&'a self) -> &'a Path {
+    pub fn root(&self) -> &Path {
         self.root.as_ref()
     }
 
@@ -151,7 +151,7 @@ impl Runtime {
     /// that allow changes to be made to the runtime filesystem and
     /// committed back as layers.
     pub fn is_editable(&self) -> bool {
-        return self.config.editable;
+        self.config.editable
     }
 
     /// Mark this runtime as currently running or not.
@@ -163,7 +163,7 @@ impl Runtime {
 
     /// Return true if this runtime is currently running.
     pub fn is_running(&self) -> bool {
-        return self.config.running;
+        self.config.running
     }
 
     /// Mark the process that owns this runtime, this should be the spfs
@@ -176,7 +176,7 @@ impl Runtime {
 
     /// Return the pid of this runtime's init process, if any.
     pub fn get_pid(&self) -> Option<u32> {
-        return self.config.pid.clone();
+        self.config.pid
     }
 
     /// Reset the config for this runtime to its default state.
@@ -193,7 +193,7 @@ impl Runtime {
     /// If no paths are specified, reset all changes.
     pub fn reset<S: AsRef<str>>(&self, paths: &[S]) -> Result<()> {
         let paths = paths
-            .into_iter()
+            .iter()
             .map(|pat| gitignore::Pattern::new(pat.as_ref(), &self.upper_dir))
             .map(|res| match res {
                 Err(err) => Err(Error::from(err)),
@@ -208,7 +208,7 @@ impl Runtime {
             }
             for pattern in paths.iter() {
                 let is_dir = entry.metadata()?.file_type().is_dir();
-                if pattern.is_excluded(&fullpath, is_dir) {
+                if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
                         std::fs::remove_dir_all(&fullpath)?;
                     } else {
@@ -224,12 +224,12 @@ impl Runtime {
     pub fn is_dirty(&self) -> bool {
         match std::fs::metadata(&self.upper_dir) {
             Ok(meta) => meta.size() != 0,
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => false,
-                // this is not strictly accurate, but not worth the
-                // trouble of needing to return an error from this function
-                _ => true,
-            },
+            Err(err) => {
+                // Treating other error types as dirty is not strictly
+                // accurate, but it is not worth the trouble of needing
+                // to return an error from this function
+                !matches!(err.kind(), std::io::ErrorKind::NotFound)
+            }
         }
     }
 
@@ -241,7 +241,7 @@ impl Runtime {
     }
 
     /// Return this runtime's current object stack.
-    pub fn get_stack<'a>(&'a self) -> &'a Vec<encoding::Digest> {
+    pub fn get_stack(&self) -> &Vec<encoding::Digest> {
         &self.config.stack
     }
 
@@ -252,7 +252,7 @@ impl Runtime {
     /// any currently running environment automatically.
     pub fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
         let mut new_stack = Vec::with_capacity(self.config.stack.len() + 1);
-        new_stack.push(digest.clone());
+        new_stack.push(*digest);
         for existing in self.config.stack.drain(..) {
             // we do not want the same layer showing up twice, one for
             // efficiency and two it causes errors in overlayfs so promote
@@ -266,7 +266,7 @@ impl Runtime {
         self.write_config()
     }
 
-    pub fn get_config<'a>(&'a self) -> &'a Config {
+    pub fn get_config(&self) -> &Config {
         &self.config
     }
 
@@ -280,7 +280,7 @@ impl Runtime {
         Ok(())
     }
 
-    fn read_config<'a>(&'a mut self) -> Result<&'a mut Config> {
+    fn read_config(&mut self) -> Result<&mut Config> {
         match std::fs::File::open(&self.config_file) {
             Ok(file) => {
                 let config = serde_json::from_reader(file)?;
@@ -321,7 +321,7 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
                 // only become fatal if the mount fails for this runtime in spfs-enter
                 // so we defer to that point
             } else {
-                return Err(err.into());
+                return Err(err);
             }
         }
     }
@@ -355,7 +355,7 @@ impl Storage {
     /// Access a runtime in this storage.
     pub fn read_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
-        if let Ok(_) = std::fs::symlink_metadata(&runtime_dir) {
+        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
             Runtime::new(runtime_dir)
         } else {
             Err(format!("runtime does not exist: {:?}", reference.as_ref()).into())
@@ -378,7 +378,7 @@ impl Storage {
 
     pub fn create_named_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
-        if let Ok(_) = std::fs::symlink_metadata(&runtime_dir) {
+        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
             Err(format!("Runtime already exists: {:?}", reference.as_ref()).into())
         } else {
             ensure_runtime(runtime_dir)
@@ -398,7 +398,7 @@ impl Storage {
             }
             Err(err) => match err.kind() {
                 std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
-                _ => return Box::new(vec![Err(err.into())].into_iter()),
+                _ => Box::new(vec![Err(err.into())].into_iter()),
             },
         }
     }

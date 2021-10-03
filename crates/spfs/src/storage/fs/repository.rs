@@ -85,11 +85,11 @@ impl Clone for FSRepository {
         Self {
             objects: FSHashStore::open_unchecked(root.join("objects")),
             payloads: FSHashStore::open_unchecked(root.join("payloads")),
-            renders: match &self.renders {
-                Some(r) => Some(FSHashStore::open_unchecked(r.root())),
-                None => None,
-            },
-            root: root,
+            renders: self
+                .renders
+                .as_ref()
+                .map(|r| FSHashStore::open_unchecked(r.root())),
+            root,
         }
     }
 }
@@ -128,7 +128,7 @@ pub fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Ve
     };
 
     let mut version = version.trim();
-    if version == "" {
+    if version.is_empty() {
         version = crate::VERSION;
     }
     match semver::Version::parse(version) {

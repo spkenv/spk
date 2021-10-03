@@ -15,10 +15,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    fn write_data(
-        &mut self,
-        reader: Box<&mut dyn std::io::Read>,
-    ) -> Result<(encoding::Digest, u64)> {
+    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader)
     }
 
@@ -27,7 +24,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         match std::fs::File::open(&path) {
             Ok(file) => Ok(Box::new(file)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(graph::UnknownObjectError::new(&digest)),
+                ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
                 _ => Err(err.into()),
             },
         }
@@ -38,7 +35,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest).into()),
+                ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
                 _ => Err(err.into()),
             },
         }

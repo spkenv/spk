@@ -159,7 +159,7 @@ pub fn become_root() -> Result<Uids> {
     })
 }
 
-pub fn mount_runtime<'a>(tmpfs_opts: Option<&'a str>) -> Result<()> {
+pub fn mount_runtime(tmpfs_opts: Option<&str>) -> Result<()> {
     use nix::mount::{mount, MsFlags};
 
     tracing::debug!("mounting runtime...");
@@ -243,7 +243,10 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
             nix::sys::stat::Mode::empty(),
             0,
         ) {
-            return Err(Error::wrap_nix(err, format!("Failed to create file mask: {:?}", fullpath)));
+            return Err(Error::wrap_nix(
+                err,
+                format!("Failed to create file mask: {:?}", fullpath),
+            ));
         }
     }
 
@@ -337,7 +340,10 @@ pub fn mount_env<P: AsRef<Path>>(
     cmd.arg("none");
     cmd.arg(SPFS_DIR);
     match cmd.status() {
-        Err(err) => Err(Error::wrap_io(err, "Failed to run mount command for overlay").into()),
+        Err(err) => Err(Error::wrap_io(
+            err,
+            "Failed to run mount command for overlay",
+        )),
         Ok(status) => match status.code() {
             Some(0) => Ok(()),
             _ => Err("Failed to mount overlayfs".into()),

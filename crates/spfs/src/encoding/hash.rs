@@ -19,13 +19,6 @@ pub struct Hasher<'t> {
 }
 
 impl<'t> Hasher<'t> {
-    pub fn new() -> Self {
-        Self {
-            ctx: Context::new(&SHA256),
-            target: None,
-        }
-    }
-
     pub fn with_target(mut self, writer: &'t mut impl Write) -> Self {
         self.target.replace(writer);
         self
@@ -38,6 +31,15 @@ impl<'t> Hasher<'t> {
             Ok(b) => b,
         };
         Digest(bytes)
+    }
+}
+
+impl<'t> Default for Hasher<'t> {
+    fn default() -> Self {
+        Self {
+            ctx: Context::new(&SHA256),
+            target: None,
+        }
     }
 }
 
@@ -56,9 +58,9 @@ impl<'t> std::ops::DerefMut for Hasher<'t> {
 
 impl<'t> Write for Hasher<'t> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.ctx.update(&buf);
+        self.ctx.update(buf);
         if let Some(target) = self.target.as_mut() {
-            target.write_all(&buf)?;
+            target.write_all(buf)?;
         }
         Ok(buf.len())
     }
@@ -74,7 +76,7 @@ where
     Self: Sized,
 {
     fn digest(&self) -> Result<Digest> {
-        let mut hasher = Hasher::new();
+        let mut hasher = Hasher::default();
         self.encode(&mut hasher)?;
         Ok(hasher.digest())
     }
@@ -148,7 +150,7 @@ impl Display for PartialDigest {
         let encoded = BASE32.encode(self.as_slice());
         // ignore padding as it's not needed to reparse this value
         // eg: "LCI3LNJC2XPQ====" => "LCI3LNJC2XPQ"
-        f.write_str(&encoded.trim_end_matches('='))
+        f.write_str(encoded.trim_end_matches('='))
     }
 }
 
@@ -168,7 +170,7 @@ impl std::ops::Deref for PartialDigest {
 
 impl AsRef<PartialDigest> for PartialDigest {
     fn as_ref(&self) -> &Self {
-        &self
+        self
     }
 }
 
@@ -204,16 +206,13 @@ impl AsRef<[u8]> for Digest {
 
 impl AsRef<Digest> for Digest {
     fn as_ref(&self) -> &Self {
-        &self
+        self
     }
 }
 
 impl<'a> Digest {
     pub fn as_bytes(&'a self) -> &'a [u8] {
         self.0.as_ref()
-    }
-    pub fn to_string(&self) -> String {
-        BASE32.encode(self.as_bytes())
     }
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {
@@ -315,7 +314,7 @@ impl Encodable for Digest {
     }
 
     fn digest(&self) -> Result<Digest> {
-        Ok(self.clone())
+        Ok(*self)
     }
 }
 
@@ -331,7 +330,7 @@ impl Encodable for &Digest {
     }
 
     fn digest(&self) -> Result<Digest> {
-        Ok(self.clone().to_owned())
+        Ok(*self.to_owned())
     }
 }
 

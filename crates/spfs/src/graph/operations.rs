@@ -20,7 +20,7 @@ pub fn check_database_integrity<'db>(db: impl DatabaseView + PayloadStorage + 'd
                     if visited.contains(&digest) {
                         continue;
                     }
-                    visited.insert(digest.clone());
+                    visited.insert(digest);
                     match db.read_object(&digest) {
                         Err(err) => errors.push(err),
                         Ok(obj) if obj.has_payload() => match db.open_payload(&digest) {

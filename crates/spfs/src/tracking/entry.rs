@@ -45,25 +45,13 @@ impl Ord for EntryKind {
 
 impl EntryKind {
     pub fn is_tree(&self) -> bool {
-        if let Self::Tree = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Tree)
     }
     pub fn is_blob(&self) -> bool {
-        if let Self::Blob = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Blob)
     }
     pub fn is_mask(&self) -> bool {
-        if let Self::Mask = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Mask)
     }
 }
 
@@ -156,12 +144,12 @@ impl Entry {
         (libc::S_IFMT & self.mode) == libc::S_IFREG
     }
 
-    pub fn iter_entries<'a>(&'a self) -> impl Iterator<Item = super::manifest::ManifestNode<'a>> {
+    pub fn iter_entries(&self) -> impl Iterator<Item = super::manifest::ManifestNode<'_>> {
         self.entries
             .iter()
             .map(|(name, entry)| super::manifest::ManifestNode {
                 path: name.into(),
-                entry: entry,
+                entry,
             })
     }
 

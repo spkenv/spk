@@ -43,7 +43,7 @@ impl FSHashStore {
         self.root.join(&WORK_DIRNAME)
     }
 
-    pub fn iter<'a>(&'a self) -> Result<FSHashStoreIter> {
+    pub fn iter(&self) -> Result<FSHashStoreIter> {
         FSHashStoreIter::new(&self.root())
     }
 
@@ -51,14 +51,14 @@ impl FSHashStore {
     ///
     /// Upon error, false is returned
     pub fn has_digest(&self, digest: &encoding::Digest) -> bool {
-        let path = self.build_digest_path(&digest);
+        let path = self.build_digest_path(digest);
         path.exists()
     }
 
     /// Write all data in the given reader to a file in this storage
     pub fn write_data(
         &mut self,
-        mut reader: Box<&mut dyn std::io::Read>,
+        mut reader: &mut dyn std::io::Read,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.workdir().join(uuid);
@@ -69,7 +69,7 @@ impl FSHashStore {
             .read(true)
             .write(true)
             .open(&working_file)?;
-        let mut hasher = encoding::Hasher::new().with_target(&mut writer);
+        let mut hasher = encoding::Hasher::default().with_target(&mut writer);
         let copied = match std::io::copy(&mut reader, &mut hasher) {
             Err(err) => {
                 let _ = std::fs::remove_file(working_file);
@@ -81,15 +81,12 @@ impl FSHashStore {
         let digest = hasher.digest();
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
-        match std::fs::rename(&working_file, &path) {
-            Err(err) => {
-                let _ = std::fs::remove_file(working_file);
-                match err.kind() {
-                    ErrorKind::AlreadyExists => (),
-                    _ => return Err(Error::wrap_io(err, "Failed to store object")),
-                }
+        if let Err(err) = std::fs::rename(&working_file, &path) {
+            let _ = std::fs::remove_file(working_file);
+            match err.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ => return Err(Error::wrap_io(err, "Failed to store object")),
             }
-            Ok(_) => (),
         }
         if let Err(err) = std::fs::set_permissions(
             &path,
@@ -153,9 +150,7 @@ impl FSHashStore {
         let entries: Vec<std::ffi::OsString> = match std::fs::read_dir(&dirpath) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => {
-                        Err(graph::UnknownReferenceError::new(short_digest).into())
-                    }
+                    ErrorKind::NotFound => Err(graph::UnknownReferenceError::new_err(short_digest)),
                     _ => Err(err.into()),
                 }
             }
@@ -175,9 +170,9 @@ impl FSHashStore {
             .filter(|x| x.to_string_lossy().starts_with(file_prefix))
             .collect();
         match options.len() {
-            0 => Err(graph::UnknownReferenceError::new(short_digest).into()),
+            0 => Err(graph::UnknownReferenceError::new_err(short_digest)),
             1 => Ok(dirpath.join(options.get(0).unwrap())),
-            _ => Err(graph::AmbiguousReferenceError::new(short_digest).into()),
+            _ => Err(graph::AmbiguousReferenceError::new_err(short_digest)),
         }
     }
 
@@ -190,7 +185,7 @@ impl FSHashStore {
         let entries: Vec<_> = match std::fs::read_dir(filepath.parent().unwrap()) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new(digest).into()),
+                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
                     _ => Err(err.into()),
                 };
             }
@@ -209,9 +204,7 @@ impl FSHashStore {
         let mut shortest_size = 8;
         let mut shortest = &digest_str[2..shortest_size];
         for other in entries {
-            if &other[0..shortest_size] != shortest {
-                continue;
-            } else if other == digest_str[2..] {
+            if &other[0..shortest_size] != shortest || other == digest_str[2..] {
                 continue;
             }
             while &other[0..shortest_size] == shortest {

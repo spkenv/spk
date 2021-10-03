@@ -20,7 +20,7 @@ fixtures!();
 fn test_get_attached_objects(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(&mut reader).unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
     tmprepo.write_blob(blob).unwrap();
 
@@ -42,7 +42,7 @@ fn test_get_attached_objects(tmprepo: TempRepo) {
 fn test_get_attached_payloads(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.write_data(Box::new(&mut reader)).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(&mut reader).unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
@@ -202,12 +202,12 @@ fn test_clean_manifest_renders(tmprepo: TempRepo) {
         .unwrap();
 
     let files = list_files(tmprepo.objects.root());
-    assert!(files.len() != 0, "should have stored data");
+    assert!(!files.is_empty(), "should have stored data");
 
     clean_untagged_objects(&tmprepo.clone().into()).expect("failed to clean repo");
 
     let files = list_files(tmprepo.renders.unwrap().root());
-    assert!(files.len() == 0, "should remove all created data files");
+    assert!(files.is_empty(), "should remove all created data files");
 }
 
 fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
@@ -220,5 +220,5 @@ fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
         }
         all_files.push(entry.path().to_owned().to_string_lossy().to_string())
     }
-    return all_files;
+    all_files
 }

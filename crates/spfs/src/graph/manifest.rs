@@ -63,7 +63,7 @@ impl From<&tracking::Entry> for Manifest {
                         name: node.path.to_string(),
                     }
                 }
-                _ => Entry::from(node.path.to_string(), &node.entry),
+                _ => Entry::from(node.path.to_string(), node.entry),
             };
             root.entries.insert(converted);
         }
@@ -74,7 +74,7 @@ impl From<&tracking::Entry> for Manifest {
 
 impl Manifest {
     /// Return the root tree object of this manifest.
-    pub fn root<'a>(&'a self) -> &'a Tree {
+    pub fn root(&self) -> &Tree {
         &self.root
     }
 
@@ -84,11 +84,11 @@ impl Manifest {
         for tree in self.list_trees().into_iter() {
             for entry in tree.entries.iter() {
                 if let tracking::EntryKind::Blob = entry.kind {
-                    children.insert(entry.object.clone());
+                    children.insert(entry.object);
                 }
             }
         }
-        return children.into_iter().collect();
+        children.into_iter().collect()
     }
 
     /// Add a tree to be tracked in this manifest, returning
@@ -104,7 +104,7 @@ impl Manifest {
     }
 
     pub fn get_tree<'a>(&'a self, digest: &encoding::Digest) -> Option<&'a Tree> {
-        match self.trees.get(&digest) {
+        match self.trees.get(digest) {
             None => {
                 if digest == &self.root.digest().unwrap() {
                     Some(&self.root)
@@ -120,10 +120,10 @@ impl Manifest {
     ///
     /// Will panic if this menifest is internally inconsistent, though this
     /// would point to a programming error or bug.
-    pub fn list_trees<'a>(&'a self) -> Vec<&'a Tree> {
+    pub fn list_trees(&self) -> Vec<&Tree> {
         let mut trees = vec![&self.root];
         for digest in &self.tree_order {
-            match self.trees.get(&digest) {
+            match self.trees.get(digest) {
                 Some(tree) => trees.push(tree),
                 None => {
                     panic!("manifest is internally inconsistent (missing indexed tree)");
@@ -134,7 +134,7 @@ impl Manifest {
     }
 
     /// Iterate all of the entries in this manifest.
-    pub fn list_entries<'a>(&'a self) -> Vec<&'a Entry> {
+    pub fn list_entries(&self) -> Vec<&Entry> {
         let mut children = Vec::new();
         for tree in self.list_trees().into_iter() {
             for entry in tree.entries.iter() {
@@ -150,10 +150,12 @@ impl Manifest {
 
         fn iter_tree(source: &Manifest, tree: &Tree, parent: &mut tracking::Entry) {
             for entry in tree.entries.iter() {
-                let mut new_entry = tracking::Entry::default();
-                new_entry.kind = entry.kind;
-                new_entry.mode = entry.mode;
-                new_entry.size = entry.size;
+                let mut new_entry = tracking::Entry {
+                    kind: entry.kind,
+                    mode: entry.mode,
+                    size: entry.size,
+                    ..Default::default()
+                };
                 if let tracking::EntryKind::Tree = entry.kind {
                     iter_tree(
                         source,
@@ -169,7 +171,7 @@ impl Manifest {
             }
         }
 
-        iter_tree(&self, &self.root, &mut root);
+        iter_tree(self, &self.root, &mut root);
         tracking::Manifest::new(root)
     }
 }
@@ -179,7 +181,7 @@ impl Encodable for Manifest {
         self.root().encode(&mut writer)?;
         encoding::write_uint(&mut writer, self.tree_order.len() as u64)?;
         for digest in &self.tree_order {
-            match self.trees.get(&digest) {
+            match self.trees.get(digest) {
                 Some(tree) => tree.encode(writer)?,
                 None => {
                     return Err("manifest is internally inconsistent (missing indexed tree)".into())
@@ -192,8 +194,10 @@ impl Encodable for Manifest {
 
 impl Decodable for Manifest {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        let mut manifest = Manifest::default();
-        manifest.root = Tree::decode(&mut reader)?;
+        let mut manifest = Manifest {
+            root: Tree::decode(&mut reader)?,
+            ..Default::default()
+        };
         let num_trees = encoding::read_uint(&mut reader)?;
         for _ in 0..num_trees {
             let tree = Tree::decode(reader)?;

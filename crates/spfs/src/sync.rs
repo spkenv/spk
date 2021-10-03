@@ -21,7 +21,7 @@ pub fn push_ref<R: AsRef<str>>(
     let local = config.get_repository()?.into();
     let mut remote = match remote.take() {
         Some(remote) => remote,
-        None => config.get_remote("origin")?.into(),
+        None => config.get_remote("origin")?,
     };
     sync_ref(reference, &local, &mut remote)
 }
@@ -101,7 +101,7 @@ pub fn sync_platform(
     }
     tracing::info!(digest = ?digest, "syncing platform");
     for digest in &platform.stack {
-        let obj = src.read_object(&digest)?;
+        let obj = src.read_object(digest)?;
         sync_object(&obj, src, dest)?;
     }
 
@@ -121,7 +121,7 @@ pub fn sync_layer(
 
     tracing::info!(digest = ?layer_digest, "syncing layer");
     let manifest = src.read_manifest(&layer.manifest)?;
-    sync_manifest(&manifest, &src, dest)?;
+    sync_manifest(&manifest, src, dest)?;
     dest.write_object(&graph::Object::Layer(layer.clone()))?;
     Ok(())
 }
@@ -146,7 +146,7 @@ pub fn sync_manifest(
     let style = indicatif::ProgressStyle::default_bar()
         .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
         .progress_chars("=>-");
-    let bar = indicatif::ProgressBar::new(entries.len() as u64).with_style(style.clone());
+    let bar = indicatif::ProgressBar::new(entries.len() as u64).with_style(style);
     bar.set_message("syncing manifest");
     let src_address = &src.address();
     let dest_address = &dest.address();
@@ -156,7 +156,7 @@ pub fn sync_manifest(
         .map(move |entry| {
             let src = storage::open_repository(src_address)?;
             let mut dest = storage::open_repository(dest_address)?;
-            sync_entry(entry.clone(), &src, &mut dest)
+            sync_entry(entry, &src, &mut dest)
         })
         .collect();
 
@@ -165,7 +165,7 @@ pub fn sync_manifest(
         .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
         .collect();
 
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         return Err(format!(
             "{:?}, and {} more errors during sync",
             errors[0],
@@ -203,7 +203,7 @@ fn sync_blob(
     } else {
         let mut payload = src.open_payload(&blob.payload)?;
         tracing::debug!(digest = ?blob.payload, "syncing payload");
-        dest.write_data(Box::new(&mut *payload))?;
+        dest.write_data(&mut *payload)?;
     }
     dest.write_blob(blob.clone())?;
     Ok(())

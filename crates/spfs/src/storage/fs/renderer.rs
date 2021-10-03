@@ -28,7 +28,7 @@ impl ManifestViewer for FSRepository {
             Some(renders) => renders,
             None => return false,
         };
-        let rendered_dir = renders.build_digest_path(&digest);
+        let rendered_dir = renders.build_digest_path(digest);
         was_render_completed(&rendered_dir)
     }
 
@@ -52,7 +52,7 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(&manifest, &working_dir, RenderType::HardLink)?;
+        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
         match std::fs::rename(&working_dir, &rendered_dirpath) {
@@ -77,7 +77,7 @@ impl ManifestViewer for FSRepository {
             Some(renders) => renders,
             None => return Ok(()),
         };
-        let rendered_dirpath = renders.build_digest_path(&digest);
+        let rendered_dirpath = renders.build_digest_path(digest);
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_dirpath = renders.workdir().join(uuid);
         renders.ensure_base_dir(&working_dirpath)?;
@@ -120,7 +120,7 @@ impl FSRepository {
                     }
                     tracking::EntryKind::Mask => continue,
                     tracking::EntryKind::Blob => {
-                        self.render_blob(node.path.to_path("/"), &node.entry, &render_type)
+                        self.render_blob(node.path.to_path("/"), node.entry, &render_type)
                     }
                 };
                 if let Err(err) = res {
@@ -208,7 +208,7 @@ impl FSRepository {
 /// that need to be removed but on which the user doesn't have enough permissions.
 /// It does assume that the current user owns the file, as it may not be possible to
 /// change permissions before removal otherwise.
-fn open_perms_and_remove_all(root: &PathBuf) -> Result<()> {
+fn open_perms_and_remove_all(root: &Path) -> Result<()> {
     for entry in std::fs::read_dir(&root)? {
         let entry = entry?;
         let entry_path = root.join(entry.file_name());

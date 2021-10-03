@@ -4,8 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
-
 #[derive(Debug, StructOpt)]
 pub struct CmdEdit {
     #[structopt(long = "off", about = "Disable edit mode instead")]

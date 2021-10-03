@@ -14,7 +14,7 @@ pub struct NoRuntimeError {
 }
 
 impl NoRuntimeError {
-    pub fn new<S: AsRef<str>>(details: Option<S>) -> Error {
+    pub fn new_err<S: AsRef<str>>(details: Option<S>) -> Error {
         let mut msg = "No active runtime".to_string();
         if let Some(details) = details {
             msg = format!("{}: {}", msg, details.as_ref());
@@ -68,7 +68,7 @@ pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manif
     let repo = config.get_repository()?;
 
     let stack = rt.get_stack();
-    let layers = resolve_stack_to_layers(stack.into_iter(), None)?;
+    let layers = resolve_stack_to_layers(stack.iter(), None)?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers.iter().rev() {
         manifest.update(&repo.read_manifest(&layer.manifest)?.unlock())
@@ -79,7 +79,7 @@ pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manif
 /// Return the active runtime, or raise a NoRuntimeError.
 pub fn active_runtime() -> Result<runtime::Runtime> {
     let name =
-        std::env::var(SPFS_RUNTIME).map_err(|_| NoRuntimeError::new(Option::<&str>::None))?;
+        std::env::var(SPFS_RUNTIME).map_err(|_| NoRuntimeError::new_err(Option::<&str>::None))?;
     let config = load_config()?;
     let storage = config.get_runtime_storage()?;
     storage.read_runtime(name)
@@ -87,9 +87,9 @@ pub fn active_runtime() -> Result<runtime::Runtime> {
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
 pub fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
-    let dirs = resolve_overlay_dirs(&rt)?;
+    let dirs = resolve_overlay_dirs(rt)?;
     tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(&rt)?;
+    let manifest = compute_runtime_manifest(rt)?;
 
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
@@ -103,9 +103,9 @@ pub fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
 
 /// Initialize the current runtime as rt.
 pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
-    let dirs = resolve_overlay_dirs(&rt)?;
+    let dirs = resolve_overlay_dirs(rt)?;
     tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(&rt)?;
+    let manifest = compute_runtime_manifest(rt)?;
 
     let tmpfs_opts = config
         .filesystem
@@ -117,7 +117,7 @@ pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> 
     let original = env::become_root()?;
     env::privatize_existing_mounts()?;
     env::ensure_mount_targets_exist()?;
-    env::mount_runtime(tmpfs_opts.as_ref().map(|s| s.as_str()))?;
+    env::mount_runtime(tmpfs_opts.as_deref())?;
     env::setup_runtime()?;
     env::mount_env(rt.is_editable(), &dirs)?;
     env::mask_files(&manifest, original.uid)?;

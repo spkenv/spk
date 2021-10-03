@@ -18,8 +18,8 @@ fn test_tag_stream(tmpdir: tempdir::TempDir) {
 
     let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
 
-    let digest1 = encoding::Hasher::new().digest();
-    let mut h = encoding::Hasher::new();
+    let digest1 = encoding::Hasher::default().digest();
+    let mut h = encoding::Hasher::default();
     h.update(b"hello");
     let digest2 = h.digest();
 
@@ -59,8 +59,8 @@ fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
         .unwrap();
 
     assert_eq!(tag1, tag2);
-    let tags: Vec<_> = storage.read_tag(&spec).unwrap().collect();
-    assert_eq!(tags.len(), 1);
+
+    assert_eq!(storage.read_tag(&spec).unwrap().count(), 1);
 }
 
 #[rstest]
@@ -87,7 +87,7 @@ fn test_ls_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
-    for tag in vec![
+    for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",
         "spi/stable",
@@ -130,7 +130,7 @@ fn test_rm_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
-    for tag in vec![
+    for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",
         "spi/latest/my_tag",

@@ -25,17 +25,14 @@ pub trait ManifestStorage: graph::Database {
 
     /// Return true if the identified manifest exists in this storage.
     fn has_manifest(&self, digest: &encoding::Digest) -> bool {
-        match self.read_manifest(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.read_manifest(digest).is_ok()
     }
 
     /// Return the manifest identified by the given digest.
     fn read_manifest(&self, digest: &encoding::Digest) -> Result<graph::Manifest> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Manifest(manifest)) => Ok(manifest),
             Ok(_) => Err(format!("Object is not a manifest: {:?}", digest).into()),
         }

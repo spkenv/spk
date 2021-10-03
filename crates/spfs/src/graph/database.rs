@@ -9,7 +9,7 @@ use crate::encoding;
 
 /// Walks an object tree depth-first starting at some root digest
 pub struct DatabaseWalker<'db> {
-    db: Box<&'db dyn DatabaseView>,
+    db: &'db dyn DatabaseView,
     queue: VecDeque<encoding::Digest>,
 }
 
@@ -19,13 +19,10 @@ impl<'db> DatabaseWalker<'db> {
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: Box<&'db dyn DatabaseView>, root: encoding::Digest) -> Self {
+    pub fn new(db: &'db dyn DatabaseView, root: encoding::Digest) -> Self {
         let mut queue = VecDeque::new();
         queue.push_back(root);
-        DatabaseWalker {
-            db: db,
-            queue: queue,
-        }
+        DatabaseWalker { db, queue }
     }
 }
 
@@ -37,13 +34,13 @@ impl<'db> Iterator for DatabaseWalker<'db> {
         match &next {
             None => None,
             Some(next) => {
-                let obj = self.db.read_object(&next);
+                let obj = self.db.read_object(next);
                 match obj {
                     Ok(obj) => {
                         for digest in obj.child_objects() {
                             self.queue.push_back(digest);
                         }
-                        Some(Ok((next.clone(), obj)))
+                        Some(Ok((*next, obj)))
                     }
                     Err(err) => Some(Err(err)),
                 }
@@ -54,7 +51,7 @@ impl<'db> Iterator for DatabaseWalker<'db> {
 
 /// Iterates all objects in a database, in no particular order
 pub struct DatabaseIterator<'db> {
-    db: Box<&'db dyn DatabaseView>,
+    db: &'db dyn DatabaseView,
     inner: Box<dyn Iterator<Item = Result<encoding::Digest>>>,
 }
 
@@ -64,12 +61,9 @@ impl<'db> DatabaseIterator<'db> {
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: Box<&'db dyn DatabaseView>) -> Self {
+    pub fn new(db: &'db dyn DatabaseView) -> Self {
         let iter = db.iter_digests();
-        DatabaseIterator {
-            db: db,
-            inner: iter,
-        }
+        DatabaseIterator { db, inner: iter }
     }
 }
 
@@ -85,7 +79,7 @@ impl<'db> Iterator for DatabaseIterator<'db> {
                 Ok(next) => {
                     let obj = self.db.read_object(&next);
                     match obj {
-                        Ok(obj) => Some(Ok((next.clone(), obj))),
+                        Ok(obj) => Some(Ok((next, obj))),
                         Err(err) => Some(Err(err)),
                     }
                 }
@@ -107,15 +101,11 @@ pub trait DatabaseView {
 
     /// Return true if this database contains the identified object
     fn has_object(&self, digest: &encoding::Digest) -> bool {
-        if let Ok(_) = self.read_object(digest) {
-            true
-        } else {
-            false
-        }
+        self.read_object(digest).is_ok()
     }
 
     /// Iterate all the object in this database.
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db>;
+    fn iter_objects(&self) -> DatabaseIterator<'_>;
 
     /// Walk all objects connected to the given root object.
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db>;
@@ -169,9 +159,9 @@ pub trait DatabaseView {
         }
 
         match options.len() {
-            0 => Err(UnknownReferenceError::new(partial.to_string()).into()),
+            0 => Err(UnknownReferenceError::new_err(partial.to_string())),
             1 => Ok(options.get(0).unwrap().to_owned()),
-            _ => Err(AmbiguousReferenceError::new(partial.to_string()).into()),
+            _ => Err(AmbiguousReferenceError::new_err(partial.to_string())),
         }
     }
 }
@@ -185,7 +175,7 @@ impl<T: DatabaseView> DatabaseView for &T {
         DatabaseView::iter_digests(&**self)
     }
 
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
+    fn iter_objects(&self) -> DatabaseIterator<'_> {
         DatabaseView::iter_objects(&**self)
     }
 
@@ -203,7 +193,7 @@ impl<T: DatabaseView> DatabaseView for &mut T {
         DatabaseView::iter_digests(&**self)
     }
 
-    fn iter_objects<'db>(&'db self) -> DatabaseIterator<'db> {
+    fn iter_objects(&self) -> DatabaseIterator<'_> {
         DatabaseView::iter_objects(&**self)
     }
 

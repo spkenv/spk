@@ -7,6 +7,7 @@ use std::path::Path;
 use tar::{Archive, Builder};
 
 use crate::graph;
+use crate::storage::tag::TagSpecAndTagIter;
 use crate::Result;
 use crate::{encoding, prelude::*, tracking};
 
@@ -104,7 +105,7 @@ impl graph::DatabaseView for TarRepository {
         self.repo.iter_digests()
     }
 
-    fn iter_objects<'db>(&'db self) -> graph::DatabaseIterator<'db> {
+    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
         self.repo.iter_objects()
     }
 
@@ -132,10 +133,7 @@ impl PayloadStorage for TarRepository {
         self.repo.iter_payload_digests()
     }
 
-    fn write_data(
-        &mut self,
-        reader: Box<&mut dyn std::io::Read>,
-    ) -> Result<(encoding::Digest, u64)> {
+    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
         let res = self.repo.write_data(reader)?;
         self.up_to_date = false;
         Ok(res)
@@ -171,11 +169,7 @@ impl TagStorage for TarRepository {
         self.repo.find_tags(digest)
     }
 
-    fn iter_tag_streams(
-        &self,
-    ) -> Box<
-        dyn Iterator<Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>>,
-    > {
+    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
         self.repo.iter_tag_streams()
     }
 

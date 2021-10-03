@@ -78,7 +78,7 @@ fn test_read_write_string(i: u64) {
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_string(&mut stream, &value).unwrap();
     write_string(&mut stream, &postfix).unwrap();
-    stream.write(b"postfix").unwrap();
+    stream.write_all(b"postfix").unwrap();
     stream.seek(SeekFrom::Start(0)).unwrap();
     assert_eq!(read_string(&mut stream).unwrap(), value);
     assert_eq!(read_string(&mut stream).unwrap(), postfix);

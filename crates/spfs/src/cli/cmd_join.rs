@@ -27,13 +27,13 @@ impl CmdJoin {
         let storage = config.get_runtime_storage()?;
         let rt = storage.read_runtime(&self.runtime)?;
         spfs::env::join_runtime(&rt)?;
-        let result = exec_runtime_command(self.cmd.clone());
-        Ok(result?)
+
+        exec_runtime_command(self.cmd.clone())
     }
 }
 
 fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
-    if cmd.len() == 0 || cmd[0] == OsString::from("") {
+    if cmd.is_empty() || cmd[0] == *"" {
         cmd = spfs::build_interactive_shell_cmd(&spfs::active_runtime()?)?;
         tracing::debug!("starting interactive shell environment");
     } else {

@@ -22,17 +22,14 @@ pub trait LayerStorage: graph::Database {
 
     /// Return true if the identified layer exists in this storage.
     fn has_layer(&self, digest: &encoding::Digest) -> bool {
-        match self.read_layer(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.read_layer(digest).is_ok()
     }
 
     /// Return the layer identified by the given digest.
-    fn read_layer<'db>(&'db self, digest: &encoding::Digest) -> Result<graph::Layer> {
+    fn read_layer(&self, digest: &encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Layer(layer)) => Ok(layer),
             Ok(_) => Err(format!("Object is not a layer: {:?}", digest).into()),
         }

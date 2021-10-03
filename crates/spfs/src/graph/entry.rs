@@ -26,7 +26,7 @@ impl Entry {
             kind: entry.kind,
             mode: entry.mode,
             size: entry.size,
-            name: name,
+            name,
         }
     }
 }

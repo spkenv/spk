@@ -6,7 +6,6 @@ use chrono::prelude::*;
 use colored::*;
 use structopt::StructOpt;
 
-use spfs;
 use spfs::prelude::*;
 use std::io::Write;
 
@@ -63,7 +62,7 @@ impl CmdClean {
 
         let mut unattached = spfs::get_all_unattached_objects(&repo)?;
         unattached.extend(spfs::get_all_unattached_payloads(&repo)?);
-        if unattached.len() == 0 {
+        if unattached.is_empty() {
             tracing::info!("no objects to remove");
             return Ok(0);
         }
@@ -72,16 +71,15 @@ impl CmdClean {
             print!("  >--> Do you wish to proceed with the removal of these objects? [y/N]: ");
             let _ = std::io::stdout().flush();
             use std::io::BufRead;
-            for line in std::io::stdin().lock().lines() {
+            if let Some(line) = std::io::stdin().lock().lines().next() {
                 let line = line?;
                 if line != "y" {
                     return Ok(2);
                 }
-                break;
             }
         }
 
-        match spfs::purge_objects(&unattached.iter().collect(), &repo) {
+        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo) {
             Err(err) => Err(err),
             Ok(_) => {
                 tracing::info!("clean successfull");
@@ -91,10 +89,16 @@ impl CmdClean {
     }
 
     fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
-        let prune_if_older_than =
-            age_to_date(self.prune_if_older_than.clone().unwrap_or("9w".into()))?;
-        let keep_if_newer_than =
-            age_to_date(self.keep_if_newer_than.clone().unwrap_or("1w".into()))?;
+        let prune_if_older_than = age_to_date(
+            self.prune_if_older_than
+                .clone()
+                .unwrap_or_else(|| "9w".into()),
+        )?;
+        let keep_if_newer_than = age_to_date(
+            self.keep_if_newer_than
+                .clone()
+                .unwrap_or_else(|| "1w".into()),
+        )?;
         let prune_if_more_than = self.prune_if_more_than.unwrap_or(50);
         let keep_if_less_than = self.keep_if_less_than.unwrap_or(10);
 
@@ -115,7 +119,7 @@ impl CmdClean {
 
         tracing::info!("searching for tags to prune...");
         let to_prune = spfs::get_prunable_tags(repo, &params)?;
-        if to_prune.len() == 0 {
+        if to_prune.is_empty() {
             tracing::info!("no tags to prune");
             return Ok(());
         }
@@ -136,17 +140,16 @@ impl CmdClean {
             print!("  >--> Do you wish to proceed with the removal of these tag versions? [y/N]: ");
             let _ = std::io::stdout().flush();
             use std::io::BufRead;
-            for line in std::io::stdin().lock().lines() {
+            if let Some(line) = std::io::stdin().lock().lines().next() {
                 let line = line?;
                 if line != "y" {
                     return Err("Operation cancelled by user".into());
                 }
-                break;
             }
         }
 
         for tag in to_prune.iter() {
-            repo.remove_tag(&tag)?;
+            repo.remove_tag(tag)?;
         }
         Ok(())
     }

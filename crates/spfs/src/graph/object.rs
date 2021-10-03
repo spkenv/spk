@@ -26,7 +26,7 @@ impl Object {
             Self::Platform(platform) => platform.child_objects(),
             Self::Layer(layer) => layer.child_objects(),
             Self::Manifest(manifest) => manifest.child_objects(),
-            Self::Tree(tree) => tree.entries.iter().map(|e| e.object.clone()).collect(),
+            Self::Tree(tree) => tree.entries.iter().map(|e| e.object).collect(),
             Self::Blob(_blob) => Vec::new(),
             Self::Mask => Vec::new(),
         }
@@ -46,10 +46,7 @@ impl Object {
 
     /// Return true if this Object kind also has a payload
     pub fn has_payload(&self) -> bool {
-        match self {
-            Self::Blob(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Blob(_))
     }
 }
 

@@ -62,7 +62,7 @@ impl Error {
                     _ => None,
                 },
             },
-            Error::Errno(_, errno) => Some(errno.clone()),
+            Error::Errno(_, errno) => Some(*errno),
             Error::Nix(err) => {
                 let errno = err.as_errno();
                 if let Some(e) = errno {

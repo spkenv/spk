@@ -57,5 +57,5 @@ fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     for diff in diffs.iter() {
         println!("{}, {:?}", diff, diff.entries);
     }
-    assert!(diffs.len() == 0, "Should read out the way it went in");
+    assert!(diffs.is_empty(), "Should read out the way it went in");
 }

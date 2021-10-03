@@ -21,7 +21,7 @@ pub struct Layer {
 
 impl Layer {
     pub fn new(manifest: encoding::Digest) -> Self {
-        Layer { manifest: manifest }
+        Layer { manifest }
     }
 
     /// Return the child object of this one in the object DG.

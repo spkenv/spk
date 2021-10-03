@@ -81,7 +81,7 @@ pub fn parse_env_spec<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
         items.push(EnvSpecItem::TagSpec(tag_spec));
     }
 
-    if items.len() == 0 {
+    if items.is_empty() {
         return Err(Error::new("must specify at least one digest or tag"));
     }
 

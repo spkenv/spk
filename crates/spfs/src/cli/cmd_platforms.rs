@@ -4,7 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
 #[derive(Debug, StructOpt)]
 pub struct CmdPlatforms {
     #[structopt(

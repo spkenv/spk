@@ -12,17 +12,11 @@ pub trait PayloadStorage {
 
     /// Return true if the identified payload exists.
     fn has_payload(&self, digest: &encoding::Digest) -> bool {
-        match self.open_payload(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.open_payload(digest).is_ok()
     }
 
     /// Store the contents of the given stream, returning its digest and size
-    fn write_data(
-        &mut self,
-        reader: Box<&mut dyn std::io::Read>,
-    ) -> Result<(encoding::Digest, u64)>;
+    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle to the full content of a payload.
     ///
@@ -42,10 +36,7 @@ impl<T: PayloadStorage> PayloadStorage for &mut T {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
-    fn write_data(
-        &mut self,
-        reader: Box<&mut dyn std::io::Read>,
-    ) -> Result<(encoding::Digest, u64)> {
+    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
         PayloadStorage::write_data(&mut **self, reader)
     }
 

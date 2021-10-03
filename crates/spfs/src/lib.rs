@@ -7,7 +7,7 @@
 #[macro_use]
 extern crate serde_derive;
 
-pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 #[macro_use]

@@ -6,8 +6,6 @@ use std::ffi::OsString;
 
 use structopt::StructOpt;
 
-use spfs;
-
 #[macro_use]
 mod args;
 
@@ -74,7 +72,7 @@ impl CmdEnter {
                 Some(cmd) => cmd,
                 None => return Err("command is required and was not given".into()),
             };
-            spfs::initialize_runtime(&runtime, &config)?;
+            spfs::initialize_runtime(&runtime, config)?;
 
             tracing::trace!("{:?} {:?}", cmd, self.args);
             use std::os::unix::ffi::OsStrExt;

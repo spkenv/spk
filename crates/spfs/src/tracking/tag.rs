@@ -39,7 +39,7 @@ impl Tag {
         Ok(Self {
             org: spec.org(),
             name: spec.name(),
-            target: target,
+            target,
             parent: encoding::NULL_DIGEST.into(),
             user: format!("{}@{}", config.user.name, config.user.domain),
             time: Utc::now().trunc_subsecs(6), // ignore microseconds
@@ -112,7 +112,7 @@ impl encoding::Decodable for Tag {
             _ => Some(org),
         };
         Ok(Tag {
-            org: org,
+            org,
             name: encoding::read_string(&mut reader)?,
             target: encoding::read_digest(&mut reader)?,
             user: encoding::read_string(&mut reader)?,
@@ -198,9 +198,9 @@ impl std::fmt::Display for TagSpec {
     }
 }
 
-impl Into<(Option<String>, String, u64)> for TagSpec {
-    fn into(self) -> (Option<String>, String, u64) {
-        (self.0, self.1, self.2)
+impl From<TagSpec> for (Option<String>, String, u64) {
+    fn from(spec: TagSpec) -> Self {
+        (spec.0, spec.1, spec.2)
     }
 }
 
@@ -217,7 +217,7 @@ pub fn build_tag_spec(org: Option<String>, name: String, version: u64) -> Result
 }
 
 pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
-    let mut parts: Vec<_> = spec.rsplitn(2, "/").collect();
+    let mut parts: Vec<_> = spec.rsplitn(2, '/').collect();
     parts.reverse();
     if parts.len() == 1 {
         // if there was no leading org, insert an empty one
@@ -225,10 +225,9 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
     }
 
     let name_version = parts.pop().unwrap();
-    let mut name_version: Vec<_> = name_version.splitn(2, "~").collect();
-    match name_version.len() {
-        1 => name_version.push("0"),
-        _ => (),
+    let mut name_version: Vec<_> = name_version.splitn(2, '~').collect();
+    if name_version.len() == 1 {
+        name_version.push("0")
     };
 
     let org = parts.pop().unwrap();
@@ -276,13 +275,13 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
         Some(org.to_string())
     };
 
-    return Ok(TagSpec(
+    Ok(TagSpec(
         org,
         name.to_string(),
         version
             .parse()
             .map_err(|_| Error::from("Invalid version number, cannot parse as integer"))?,
-    ));
+    ))
 }
 
 fn _find_name_error(org: &str) -> Option<usize> {

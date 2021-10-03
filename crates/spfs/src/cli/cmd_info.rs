@@ -19,7 +19,7 @@ pub struct CmdInfo {
 impl CmdInfo {
     pub fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository()?.into();
-        if self.refs.len() == 0 {
+        if self.refs.is_empty() {
             print_global_info(&repo)?;
         } else {
             for reference in self.refs.iter() {
@@ -43,13 +43,13 @@ fn pretty_print_ref(
             println!(
                 " {} {}",
                 "refs:".bright_blue(),
-                spfs::io::format_digest(obj.digest()?.to_string(), Some(&repo))?
+                spfs::io::format_digest(obj.digest()?.to_string(), Some(repo))?
             );
             println!("{}", "stack:".bright_blue());
             for reference in obj.stack {
                 println!(
                     "  - {}",
-                    spfs::io::format_digest(reference.to_string(), Some(&repo))?
+                    spfs::io::format_digest(reference.to_string(), Some(repo))?
                 );
             }
         }
@@ -59,12 +59,12 @@ fn pretty_print_ref(
             println!(
                 " {} {}",
                 "refs:".bright_blue(),
-                spfs::io::format_digest(obj.digest()?.to_string(), Some(&repo))?
+                spfs::io::format_digest(obj.digest()?.to_string(), Some(repo))?
             );
             println!(
                 " {} {}",
                 "manifest:".bright_blue(),
-                spfs::io::format_digest(obj.manifest.to_string(), Some(&repo))?
+                spfs::io::format_digest(obj.manifest.to_string(), Some(repo))?
             );
         }
 
@@ -81,7 +81,7 @@ fn pretty_print_ref(
                     " {:06o} {} {} {}",
                     node.entry.mode,
                     node.entry.kind,
-                    spfs::io::format_digest(node.entry.object.to_string(), Some(&repo))?,
+                    spfs::io::format_digest(node.entry.object.to_string(), Some(repo))?,
                     node.path.to_string(),
                 );
                 count += 1;
@@ -97,7 +97,7 @@ fn pretty_print_ref(
             println!(
                 " {} {}",
                 "digest:".bright_blue(),
-                spfs::io::format_digest(obj.payload.to_string(), Some(&repo))?
+                spfs::io::format_digest(obj.payload.to_string(), Some(repo))?
             );
             println!(
                 " {} {}",
@@ -126,10 +126,10 @@ fn print_global_info(repo: &spfs::storage::RepositoryHandle) -> spfs::Result<()>
     for digest in stack {
         println!(
             "  - {}",
-            spfs::io::format_digest(digest.to_string(), Some(&repo))?
+            spfs::io::format_digest(digest.to_string(), Some(repo))?
         );
     }
-    println!("");
+    println!();
 
     if !runtime.is_dirty() {
         println!("{}", "No Active Changes".red());

@@ -21,17 +21,14 @@ pub trait PlatformStorage: graph::Database {
 
     /// Return true if the identified platform exists in this storage.
     fn has_platform(&self, digest: &encoding::Digest) -> bool {
-        match self.read_platform(digest) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.read_platform(digest).is_ok()
     }
 
     /// Return the platform identified by the given digest.
     fn read_platform(&self, digest: &encoding::Digest) -> Result<graph::Platform> {
         use graph::Object;
         match self.read_object(digest) {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Object::Platform(platform)) => Ok(platform),
             Ok(_) => Err(format!("Object is not a platform: {:?}", digest).into()),
         }

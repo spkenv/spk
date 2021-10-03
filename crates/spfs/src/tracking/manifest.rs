@@ -26,10 +26,10 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn new(root: Entry) -> Self {
-        Self { root: root }
+        Self { root }
     }
 
-    pub fn root<'a>(&'a self) -> &'a Entry {
+    pub fn root(&self) -> &Entry {
         &self.root
     }
 
@@ -43,7 +43,7 @@ impl Manifest {
     }
 
     /// Get an entry in this manifest given it's filepath.
-    pub fn get_path<'a, P: AsRef<str>>(&'a self, path: P) -> Option<&'a Entry> {
+    pub fn get_path<P: AsRef<str>>(&self, path: P) -> Option<&Entry> {
         const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];
         let path = path
@@ -54,7 +54,7 @@ impl Manifest {
         if path.is_empty() {
             return Some(entry);
         }
-        for step in path.split("/").into_iter() {
+        for step in path.split('/').into_iter() {
             if let EntryKind::Tree = entry.kind {
                 let next = entry.entries.get(step);
                 entry = match next {
@@ -76,23 +76,23 @@ impl Manifest {
     pub fn list_dir(&self, path: &str) -> Option<Vec<String>> {
         let entry = self.get_path(path)?;
         match entry.kind {
-            EntryKind::Tree => Some(entry.entries.keys().map(|k| k.clone()).collect()),
+            EntryKind::Tree => Some(entry.entries.keys().cloned().collect()),
             _ => None,
         }
     }
 
     /// Walk the contents of this manifest top-down and depth-first.
-    pub fn walk<'m>(&'m self) -> ManifestWalker<'m> {
+    pub fn walk(&self) -> ManifestWalker<'_> {
         ManifestWalker::new(&self.root)
     }
 
     /// Same as walk(), but joins all entry paths to the given root.
-    pub fn walk_abs<'m, P: AsRef<str>>(&'m self, root: P) -> ManifestWalker<'m> {
+    pub fn walk_abs<P: AsRef<str>>(&self, root: P) -> ManifestWalker<'_> {
         self.walk().with_prefix(root)
     }
 
     /// Add a new directory entry to this manifest
-    pub fn mkdir<'m, P: AsRef<str>>(&'m mut self, path: P) -> Result<&'m mut Entry> {
+    pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry> {
         let entry = Entry::default();
         self.mknod(path, entry)
     }
@@ -102,7 +102,7 @@ impl Manifest {
     /// Entries that do not exist are created with a resonable default
     /// file mode, but can and should be replaced by a new entry in the
     /// case where this is not desired.
-    pub fn mkdirs<'m, P: AsRef<str>>(&'m mut self, path: P) -> Result<&'m mut Entry> {
+    pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry> {
         static TRIM_PAT: &[char] = &['/', '.'];
         let path = path.as_ref().trim_start_matches(TRIM_PAT);
         if path.is_empty() {
@@ -114,7 +114,7 @@ impl Manifest {
             match step {
                 relative_path::Component::Normal(step) => {
                     let entries = &mut entry.entries;
-                    if let None = entries.get_mut(step) {
+                    if entries.get_mut(step).is_none() {
                         entries.insert(step.to_string(), Entry::default());
                     }
                     entry = entries.get_mut(step).unwrap();
@@ -131,16 +131,14 @@ impl Manifest {
 
     /// Make a new file entry in this manifest
     pub fn mkfile<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry> {
-        let mut entry = Entry::default();
-        entry.kind = EntryKind::Blob;
+        let entry = Entry {
+            kind: EntryKind::Blob,
+            ..Default::default()
+        };
         self.mknod(path, entry)
     }
 
-    pub fn mknod<'m, P: AsRef<str>>(
-        &'m mut self,
-        path: P,
-        new_entry: Entry,
-    ) -> Result<&'m mut Entry> {
+    pub fn mknod<P: AsRef<str>>(&mut self, path: P, new_entry: Entry) -> Result<&mut Entry> {
         use relative_path::Component;
         static TRIM_PAT: &[char] = &['/', '.'];
 
@@ -232,7 +230,7 @@ impl<'m> Iterator for ManifestWalker<'m> {
                 }
                 Some(ManifestNode {
                     path: self.prefix.join(name),
-                    entry: &child,
+                    entry: child,
                 })
             }
         }

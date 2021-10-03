@@ -4,7 +4,6 @@
 
 use structopt::StructOpt;
 
-use spfs;
 use spfs::prelude::*;
 
 #[macro_use]
@@ -55,14 +54,11 @@ impl CmdRender {
     fn render_to_dir(
         &self,
         env_spec: spfs::tracking::EnvSpec,
-        target: &std::path::PathBuf,
+        target: &std::path::Path,
     ) -> spfs::Result<std::path::PathBuf> {
         std::fs::create_dir_all(&target)?;
         let target_dir = target.canonicalize()?;
-        for _ in std::fs::read_dir(&target_dir)? {
-            if self.allow_existing {
-                break;
-            }
+        if std::fs::read_dir(&target_dir)?.next().is_some() && !self.allow_existing {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
