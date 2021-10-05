@@ -13,17 +13,21 @@ from ._repository import Repository
 
 def pytest_generate_tests(metafunc: Any) -> None:
     if "repo" in metafunc.fixturenames:
-        metafunc.parametrize("repo", ["SPFS", "Mem"], indirect=True)
+        metafunc.parametrize(
+            "repo",
+            [spkrs.storage.open_spfs_repository, spkrs.storage.mem_repository],
+            indirect=True,
+        )
 
 
 @pytest.fixture
 def repo(tmpspfs: None, request: Any, tmpdir: py.path.local) -> Repository:
 
-    if request.param is "Mem":
-        return spkrs.storage.mem_repository()
-    if request.param is "SPFS":
+    if request.param is spkrs.storage.mem_repository:
+        return request.param()
+    if request.param is spkrs.storage.open_spfs_repository:
         repo = tmpdir.join("repo").ensure_dir()
-        return spkrs.storage.open_spfs_repository(repo.strpath, create=True)
+        return request.param(repo.strpath, create=True)
 
     raise NotImplementedError(
         "Unknown repository type to be tested: " + str(request.param)
