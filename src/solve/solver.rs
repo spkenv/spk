@@ -165,7 +165,21 @@ impl Solver {
 
                 let mut decision = if build_from_source {
                     match self.resolve_new_build(&spec, &node.state) {
-                        Ok(build_env) => Decision::build_package(spec, &repo, &build_env)?,
+                        Ok(build_env) => {
+                            match Decision::build_package(spec.clone(), &repo, &build_env) {
+                                Ok(decision) => decision,
+
+                                Err(err) => {
+                                    notes.push(NoteEnum::SkipPackageNote(
+                                        SkipPackageNote::new_from_message(
+                                            spec.pkg.clone(),
+                                            &format!("cannot build package: {:?}", err),
+                                        ),
+                                    ));
+                                    continue;
+                                }
+                            }
+                        }
 
                         // FIXME: This should only match `SolverError`
                         Err(err) => {
