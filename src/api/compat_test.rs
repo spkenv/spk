@@ -41,3 +41,16 @@ fn test_compat_abi(#[case] compat: &str, #[case] a: &str, #[case] b: &str, #[cas
     println!("{}", actual);
     assert_eq!(actual.is_ok(), expected);
 }
+
+#[rstest]
+#[case("x.x.x", "1", "~1.0.0")]
+#[case("x.x.x", "1.0", "~1.0.0")]
+#[case("x.x.x.x", "1", "~1.0.0.0")]
+#[case("x.x.x.x", "1.0", "~1.0.0.0")]
+#[case("x.x.x.x", "1.2.3.4.5", "~1.2.3.4")]
+fn test_render(#[case] compat: &str, #[case] v: &str, #[case] expected: &str) {
+    let rendered = parse_compat(compat)
+        .unwrap()
+        .render(&parse_version(v).unwrap());
+    assert_eq!(rendered, expected);
+}

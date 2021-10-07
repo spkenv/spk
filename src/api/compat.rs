@@ -230,7 +230,9 @@ impl Compat {
     pub fn render(&self, version: &Version) -> String {
         let parts: Vec<_> = version
             .parts()
-            .drain(..self.0.len())
+            .into_iter()
+            .chain(std::iter::repeat(0))
+            .take(self.0.len())
             .map(|p| p.to_string())
             .collect();
         format!("~{}", parts.join(VERSION_SEP))
