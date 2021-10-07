@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::str::FromStr;
 
-use itertools::izip;
+use itertools::{izip, Itertools};
 use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
@@ -228,14 +228,13 @@ impl Compat {
     }
 
     pub fn render(&self, version: &Version) -> String {
-        let parts: Vec<_> = version
+        let parts = version
             .parts()
             .into_iter()
             .chain(std::iter::repeat(0))
             .take(self.0.len())
-            .map(|p| p.to_string())
-            .collect();
-        format!("~{}", parts.join(VERSION_SEP))
+            .map(|p| p.to_string());
+        format!("~{}", parts.format(VERSION_SEP))
     }
 
     fn check_compat(&self, base: &Version, other: &Version, required: CompatRule) -> Compatibility {
