@@ -10,7 +10,7 @@ use std::{
 use pyo3::prelude::*;
 
 use super::validate_tag_name;
-use crate::SpkError;
+use crate::Error;
 
 #[cfg(test)]
 #[path = "./version_test.rs"]
@@ -95,7 +95,7 @@ impl Ord for TagSet {
 }
 
 impl FromStr for TagSet {
-    type Err = SpkError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse_tag_set(s)
@@ -141,14 +141,14 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
         let (name, num) = break_string(tag, TAG_SEP);
         match (name, num) {
             ("", _) | (_, "") => {
-                return Err(SpkError::InvalidVersion(format!(
+                return Err(Error::InvalidVersion(format!(
                     "Version tag segment must be of the form <name>.<int>, got [{}]",
                     tag
                 )))
             }
             _ => {
                 if tag_set.tags.contains_key(name) {
-                    return Err(SpkError::InvalidVersionTag(format!(
+                    return Err(Error::InvalidVersionTag(format!(
                         "duplicate tag: {}",
                         name
                     )));
@@ -159,7 +159,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
                         tag_set.tags.insert(name.to_string(), num);
                     }
                     Err(_) => {
-                        return Err(SpkError::InvalidVersionTag(format!(
+                        return Err(Error::InvalidVersionTag(format!(
                             "Version tag segment must be of the form <name>.<int>, got [{}]",
                             tag
                         )))
@@ -240,7 +240,7 @@ impl Version {
 }
 
 impl TryFrom<&str> for Version {
-    type Error = crate::SpkError;
+    type Error = crate::Error;
 
     fn try_from(value: &str) -> crate::Result<Self> {
         parse_version(value)
@@ -248,7 +248,7 @@ impl TryFrom<&str> for Version {
 }
 
 impl FromStr for Version {
-    type Err = SpkError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse_version(s)
@@ -327,7 +327,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
         match p.parse() {
             Ok(p) => parts.push(p),
             Err(_) => {
-                return Err(SpkError::InvalidVersion(format!(
+                return Err(Error::InvalidVersion(format!(
                     "Version must be a sequence of integers, got '{}' in position {} [{}]",
                     p, i, version
                 )))

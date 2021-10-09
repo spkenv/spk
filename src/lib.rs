@@ -10,7 +10,7 @@ pub mod storage;
 #[cfg(test)]
 mod fixtures;
 
-pub use error::{Result, SpkError};
+pub use error::{Result, Error};
 
 // -- begin python wrappers --
 

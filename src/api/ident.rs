@@ -101,7 +101,7 @@ impl Ident {
 }
 
 impl TryFrom<&str> for Ident {
-    type Error = crate::SpkError;
+    type Error = crate::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::from_str(value)
@@ -109,7 +109,7 @@ impl TryFrom<&str> for Ident {
 }
 
 impl FromStr for Ident {
-    type Err = crate::SpkError;
+    type Err = crate::Error;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
@@ -119,7 +119,7 @@ impl FromStr for Ident {
         let build = parts.next();
 
         if let Some(_) = parts.next() {
-            return Err(crate::SpkError::InvalidPackageName(format!(
+            return Err(crate::Error::InvalidPackageName(format!(
                 "Too many tokens in package identifier, expected at most 2 slashes ('/'): {}",
                 source
             )));

@@ -14,7 +14,7 @@ pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.chars().nth(index).unwrap(),
             &name[(index + 1)..]
         );
-        Err(crate::SpkError::InvalidPackageName(format!(
+        Err(crate::Error::InvalidPackageName(format!(
             "Invalid package name at pos {}: {}",
             index, err_str
         )))
@@ -35,7 +35,7 @@ pub fn validate_tag_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.chars().nth(index).unwrap(),
             &name[(index + 1)..]
         );
-        Err(crate::SpkError::InvalidVersionTag(format!(
+        Err(crate::Error::InvalidVersionTag(format!(
             "Invalid release tag name at pos {}: {}",
             index, err_str
         )))

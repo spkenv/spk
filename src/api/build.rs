@@ -60,7 +60,7 @@ impl std::fmt::Display for Build {
 }
 
 impl FromStr for Build {
-    type Err = crate::SpkError;
+    type Err = crate::Error;
 
     fn from_str(source: &str) -> crate::Result<Self> {
         match source {
@@ -68,7 +68,7 @@ impl FromStr for Build {
             EMBEDDED => Ok(Build::Embedded),
             _ => {
                 if let Err(err) = data_encoding::BASE32.decode(source.as_bytes()) {
-                    return Err(crate::SpkError::InvalidBuildDigest(format!(
+                    return Err(crate::Error::InvalidBuildDigest(format!(
                         "Invalid build digest '{}': {:?}",
                         source, err
                     )));
@@ -77,7 +77,7 @@ impl FromStr for Build {
                 match source.chars().collect_vec().try_into() {
                     Ok(chars) => Ok(Build::Digest(chars)),
 
-                    Err(err) => Err(crate::SpkError::InvalidBuildDigest(format!(
+                    Err(err) => Err(crate::Error::InvalidBuildDigest(format!(
                         "Invalid build digest '{}': {:?}",
                         source, err
                     ))),

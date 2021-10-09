@@ -4,10 +4,10 @@
 
 use pyo3::{exceptions, prelude::*};
 
-pub type Result<T> = std::result::Result<T, SpkError>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
-pub enum SpkError {
+pub enum Error {
     #[error("Failed to write sources script to bash stdin: {0}")]
     ScriptSourceIo(#[from] std::io::Error),
     #[error("Failed to execute sources script: exit code {0:?}")]
@@ -47,25 +47,25 @@ pub enum SpkError {
     },
 }
 
-impl SpkError {
+impl Error {
     /// Wraps an error message with a prefix, creating a contextual but generic error
     pub fn wrap<S: AsRef<str>>(prefix: S, err: Self) -> Self {
         // preserve PyErr types
         match err {
-            SpkError::PyErr(pyerr) => SpkError::PyErr(Python::with_gil(|py| {
+            Error::PyErr(pyerr) => Error::PyErr(Python::with_gil(|py| {
                 PyErr::from_type(
                     pyerr.ptype(py),
                     format!("{}: {}", prefix.as_ref(), pyerr.pvalue(py).to_string()),
                 )
             })),
-            err => SpkError::String(format!("{}: {}", prefix.as_ref(), err)),
+            err => Error::String(format!("{}: {}", prefix.as_ref(), err)),
         }
     }
 }
 
-impl From<SpkError> for PyErr {
-    fn from(err: SpkError) -> PyErr {
-        use SpkError::*;
+impl From<Error> for PyErr {
+    fn from(err: Error) -> PyErr {
+        use Error::*;
         match err {
             Spfs(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
 

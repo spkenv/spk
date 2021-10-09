@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Result, SpkError};
+use crate::{Result, Error};
 
 #[cfg(test)]
 #[path = "./source_spec_test.rs"]
@@ -118,7 +118,7 @@ impl LocalSource {
         rsync.current_dir(&dirname);
         match rsync.status()?.code() {
             Some(0) => Ok(()),
-            code => Err(SpkError::String(format!(
+            code => Err(Error::String(format!(
                 "rsync command failed with exit code {:?}",
                 code
             ))),
@@ -181,7 +181,7 @@ impl GitSource {
             match cmd.status()?.code() {
                 Some(0) => (),
                 code => {
-                    return Err(SpkError::String(format!(
+                    return Err(Error::String(format!(
                         "git command failed with exit code {:?}",
                         code
                     )))
@@ -219,7 +219,7 @@ impl TarSource {
             match wget.status()?.code() {
                 Some(0) => (),
                 code => {
-                    return Err(SpkError::String(format!(
+                    return Err(Error::String(format!(
                         "wget command failed with exit code {:?}",
                         code
                     )))
@@ -237,7 +237,7 @@ impl TarSource {
         match cmd.status()?.code() {
             Some(0) => Ok(()),
             code => {
-                return Err(SpkError::String(format!(
+                return Err(Error::String(format!(
                     "tar command failed with exit code {:?}",
                     code
                 )))
@@ -272,17 +272,17 @@ impl ScriptSource {
         let stdin = child
             .stdin
             .as_mut()
-            .ok_or(SpkError::ScriptSourceIo(std::io::Error::new(
+            .ok_or(Error::ScriptSourceIo(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Could not get stdin handle for bash",
             )))?;
         stdin
             .write_all(self.script.join("\n").as_bytes())
-            .map_err(SpkError::ScriptSourceIo)?;
+            .map_err(Error::ScriptSourceIo)?;
 
         match child.wait()?.code() {
             Some(0) => Ok(()),
-            code => Err(SpkError::ScriptSourceExec(code)),
+            code => Err(Error::ScriptSourceExec(code)),
         }
     }
 }

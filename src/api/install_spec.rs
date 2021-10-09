@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{Build, BuildSpec, Ident, OptionMap, Request, Spec};
-use crate::{Result, SpkError};
+use crate::{Result, Error};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
@@ -66,7 +66,7 @@ impl InstallSpec {
                     }
                     match by_name.get(&request.pkg.name()) {
                         None => {
-                            return Err(SpkError::InstallSpec(
+                            return Err(Error::InstallSpec(
                                 format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name())
                             ));
                         }
@@ -87,7 +87,7 @@ impl InstallSpec {
                     };
                     match opts.get(var) {
                         None => {
-                            return Err(SpkError::InstallSpec(
+                            return Err(Error::InstallSpec(
                                 format!("Cannot resolve fromBuildEnv, variable not set: {}\nIs it missing from the package build options?", request.var)
                             ));
                         }

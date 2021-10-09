@@ -11,7 +11,7 @@ use super::{
     parse_ident_range, CompatRule, Compatibility, InclusionPolicy, PkgRequest, PreReleasePolicy,
     Request, VarRequest,
 };
-use crate::{Result, SpkError};
+use crate::{Result, Error};
 
 #[cfg(test)]
 #[path = "./option_test.rs"]
@@ -35,7 +35,7 @@ impl std::fmt::Display for Inheritance {
 }
 
 impl std::str::FromStr for Inheritance {
-    type Err = crate::SpkError;
+    type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
         Ok(serde_yaml::from_str(value)?)
     }
@@ -110,7 +110,7 @@ impl Opt {
 }
 
 impl TryFrom<Request> for Opt {
-    type Error = SpkError;
+    type Error = Error;
     /// Create a build option from the given request."""
     fn try_from(request: Request) -> Result<Opt> {
         match request {
@@ -130,7 +130,7 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(_) => Err(SpkError::String(format!(
+            Request::Var(_) => Err(Error::String(format!(
                 "Cannot convert {:?} to option",
                 request
             ))),
@@ -247,7 +247,7 @@ impl VarOpt {
     pub fn set_value(&mut self, value: String) -> Result<()> {
         if self.choices.len() > 0 && !value.is_empty() {
             if !self.choices.contains(&value) {
-                return Err(SpkError::String(format!(
+                return Err(Error::String(format!(
                     "Invalid value '{}' for option '{}', must be one of {:?}",
                     value, self.var, self.choices
                 )));
@@ -435,7 +435,7 @@ impl PkgOpt {
     pub fn set_value(&mut self, value: String) -> Result<()> {
         let ident = format!("{}/{}", self.pkg, value);
         if parse_ident_range(ident).is_err() {
-            return Err(SpkError::InvalidPkgOption {
+            return Err(Error::InvalidPkgOption {
                 value,
                 option: self.pkg.clone(),
                 message: "Not a valid package request".to_string(),

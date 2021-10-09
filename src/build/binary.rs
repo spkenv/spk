@@ -5,7 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use super::env::data_path;
-use crate::{api, Result, SpkError};
+use crate::{api, Result, Error};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -21,7 +21,7 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
         .collect();
 
     if diffs.len() == 0 {
-        return Err(SpkError::Build(format!(
+        return Err(Error::Build(format!(
             "Build process created no files under {}",
             prefix.as_ref(),
         )));
@@ -52,7 +52,7 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
                     }
                 }
             }
-            return Err(SpkError::Build(format!(
+            return Err(Error::Build(format!(
                 "Existing file was {:?}: {:?}",
                 &diff.mode, &diff.path
             )));

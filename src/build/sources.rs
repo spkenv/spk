@@ -16,7 +16,7 @@ pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
     source_dir: P,
 ) -> Result<()> {
     if diffs.len() == 0 {
-        return Err(crate::SpkError::Collection(
+        return Err(crate::Error::Collection(
             "No source files collected, source package would be empty".to_string(),
         ));
     }
@@ -35,7 +35,7 @@ pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
             // the path is to a parent directory of the source path
             continue;
         }
-        return Err(crate::SpkError::Collection(format!(
+        return Err(crate::Error::Collection(format!(
             "Invalid source file path found: {} (not under {})",
             &diff.path, source_dir
         )));

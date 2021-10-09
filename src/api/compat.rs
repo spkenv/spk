@@ -11,7 +11,7 @@ use itertools::izip;
 use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
-use crate::{Result, SpkError};
+use crate::{Result, Error};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -43,12 +43,12 @@ impl std::fmt::Display for CompatRule {
 }
 
 impl std::str::FromStr for CompatRule {
-    type Err = SpkError;
+    type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         match s {
             API_STR => Ok(Self::API),
             BINARY_STR => Ok(Self::Binary),
-            _ => Err(SpkError::String(format!(
+            _ => Err(Error::String(format!(
                 "Unknown or unsupported compatibility rule: {}",
                 s
             ))),
@@ -57,14 +57,14 @@ impl std::str::FromStr for CompatRule {
 }
 
 impl TryFrom<&char> for CompatRule {
-    type Error = SpkError;
+    type Error = Error;
 
     fn try_from(c: &char) -> crate::Result<CompatRule> {
         match c {
             'x' => Ok(CompatRule::None),
             'a' => Ok(CompatRule::API),
             'b' => Ok(CompatRule::Binary),
-            _ => Err(SpkError::String(format!(
+            _ => Err(Error::String(format!(
                 "Invalid compatibility rule: {}",
                 c
             ))),
@@ -178,7 +178,7 @@ impl std::fmt::Display for Compat {
 }
 
 impl TryFrom<&str> for Compat {
-    type Error = SpkError;
+    type Error = Error;
 
     fn try_from(value: &str) -> crate::Result<Self> {
         Self::from_str(value)
@@ -186,7 +186,7 @@ impl TryFrom<&str> for Compat {
 }
 
 impl FromStr for Compat {
-    type Err = SpkError;
+    type Err = Error;
 
     fn from_str(value: &str) -> crate::Result<Self> {
         let mut parts = Vec::new();

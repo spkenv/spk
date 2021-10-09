@@ -10,7 +10,7 @@ use std::{
 use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, SpkError};
+use crate::{Result, Error};
 
 use super::{
     compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
@@ -97,7 +97,7 @@ impl RangeIdent {
             self.build = other.build.clone();
             Ok(())
         } else {
-            Err(SpkError::PyErr(PyValueError::new_err(format!(
+            Err(Error::PyErr(PyValueError::new_err(format!(
                 "Incompatible builds: {} && {}",
                 self, other
             ))))
@@ -145,7 +145,7 @@ impl Display for RangeIdent {
 }
 
 impl FromStr for RangeIdent {
-    type Err = crate::SpkError;
+    type Err = crate::Error;
 
     fn from_str(s: &str) -> crate::Result<Self> {
         parse_ident_range(s)
@@ -197,7 +197,7 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     let build = parts.next();
 
     if let Some(_) = parts.next() {
-        return Err(SpkError::InvalidRangeIdent);
+        return Err(Error::InvalidRangeIdent);
     }
 
     validate_name(name)?;
@@ -234,7 +234,7 @@ impl std::fmt::Display for PreReleasePolicy {
 }
 
 impl std::str::FromStr for PreReleasePolicy {
-    type Err = crate::SpkError;
+    type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
         Ok(serde_yaml::from_str(value)?)
     }
@@ -269,7 +269,7 @@ impl std::fmt::Display for InclusionPolicy {
 }
 
 impl std::str::FromStr for InclusionPolicy {
-    type Err = crate::SpkError;
+    type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
         Ok(serde_yaml::from_str(value)?)
     }
@@ -363,7 +363,7 @@ impl VarRequest {
     /// Create a copy of this request with it's pin rendered out using 'var'.
     pub fn render_pin<S: Into<String>>(&self, value: S) -> Result<VarRequest> {
         if !self.pin {
-            return Err(SpkError::String(
+            return Err(Error::String(
                 "Request has no pin to be rendered".to_string(),
             ));
         }
@@ -502,7 +502,7 @@ impl PkgRequest {
     pub fn render_pin(&self, pkg: &Ident) -> Result<PkgRequest> {
         match &self.pin {
             None => {
-                return Err(SpkError::String(
+                return Err(Error::String(
                     "Request has no pin to be rendered".to_owned(),
                 ))
             }

@@ -42,7 +42,7 @@ pub fn host_options() -> crate::Result<OptionMap> {
     let info = match sys_info::linux_os_release() {
         Ok(i) => i,
         Err(err) => {
-            return Err(crate::SpkError::String(format!(
+            return Err(crate::Error::String(format!(
                 "Failed to get linux info: {:?}",
                 err
             )))

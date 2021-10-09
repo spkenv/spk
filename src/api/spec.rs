@@ -11,7 +11,7 @@ use super::{
     request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
     Opt, OptionMap, PkgRequest, Request, SourceSpec, TestSpec, VarRequest,
 };
-use crate::{Result, SpkError};
+use crate::{Result, Error};
 
 #[cfg(test)]
 #[path = "./spec_test.rs"]
@@ -205,7 +205,7 @@ impl Spec {
                     let spec = specs.get(&opt.pkg.as_str());
                     match spec {
                         None => {
-                            return Err(SpkError::String(format!(
+                            return Err(Error::String(format!(
                                 "PkgOpt missing in resolved: {}",
                                 opt.pkg
                             )));
