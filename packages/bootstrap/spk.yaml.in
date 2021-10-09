@@ -21,7 +21,7 @@ build:
       echo "NAME is not installed on this system"
       exit 1
     fi
-    files="$(rpm -ql NAME | grep -v /doc/)"
+    files="$(rpm -ql NAME | grep -v /doc/ | grep -v /lib/)"
     mkdir -p /spfs/share/aclocal
     for file in $files; do
       [ -f $file ] || continue
