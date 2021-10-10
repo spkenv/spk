@@ -96,10 +96,10 @@ pub fn sync_platform(
 ) -> Result<()> {
     let digest = platform.digest()?;
     if dest.has_platform(&digest) {
-        tracing::debug!(digest = ?digest, "platform already synced");
+        tracing::debug!(?digest, "platform already synced");
         return Ok(());
     }
-    tracing::info!(digest = ?digest, "syncing platform");
+    tracing::info!(?digest, "syncing platform");
     for digest in &platform.stack {
         let obj = src.read_object(digest)?;
         sync_object(&obj, src, dest)?;

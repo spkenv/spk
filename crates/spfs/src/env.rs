@@ -223,7 +223,7 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
             tracing::trace!(?parent, "build parent dir for mask");
             runtime::makedirs_with_perms(parent, 0o777)?;
         }
-        tracing::trace!(path = ?node.path, "Creating file mask");
+        tracing::trace!(?node.path, "Creating file mask");
 
         let existing = fullpath.symlink_metadata().ok();
         if let Some(meta) = existing {

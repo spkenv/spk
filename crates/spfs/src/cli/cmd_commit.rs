@@ -51,7 +51,7 @@ impl CmdCommit {
                 }
             };
             repo.push_tag(&tag_spec, &result.digest()?)?;
-            tracing::info!(tag = ?tag, "created");
+            tracing::info!(?tag, "created");
         }
 
         tracing::info!("edit mode disabled");
