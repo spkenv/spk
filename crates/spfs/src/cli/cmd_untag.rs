@@ -12,8 +12,16 @@ pub struct CmdUntag {
         about = "Remove tags in a remote repository instead of the local one"
     )]
     remote: Option<String>,
-    #[structopt(value_name = "TAG", required = true, help = "The tag(s) to remove")]
-    tags: Vec<String>,
+    #[structopt(long = "latest", help = "only remove the latest version of this tag")]
+    latest: bool,
+    #[structopt(
+        short = "a",
+        long = "all",
+        help = "only remove the latest version of this tag"
+    )]
+    all: bool,
+    #[structopt(value_name = "TAG", required = true, help = "The tag to remove")]
+    tag: String,
 }
 
 impl CmdUntag {
@@ -23,11 +31,22 @@ impl CmdUntag {
             None => config.get_repository()?.into(),
         };
 
-        for tag in self.tags.iter() {
-            let tag = tag.parse()?;
-            repo.remove_tag_stream(&tag)?;
-            tracing::info!(?tag, "removed");
+        let has_version = self.tag.contains("~") || self.latest;
+        let mut tag = spfs::tracking::TagSpec::parse(&self.tag)?;
+        if self.latest {
+            tag = tag.with_version(0);
         }
+        if !self.all && !has_version {
+            tracing::error!("You must specify one of --all, --latest or provide a tag with an explicit version number");
+        }
+
+        if self.all {
+            repo.remove_tag_stream(&tag)?;
+        } else {
+            let resolved = repo.resolve_tag(&tag)?;
+            repo.remove_tag(&resolved)?;
+        }
+        tracing::info!(?tag, "removed");
         Ok(0)
     }
 }
