@@ -133,7 +133,7 @@ impl Config {
                 }
             }
         };
-        tracing::debug!(addr = ?addr, "opening repository");
+        tracing::debug!(addr = addr.as_str(), "opening repository");
         storage::open_repository(addr)
     }
 }
