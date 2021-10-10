@@ -4,10 +4,14 @@
 
 use structopt::StructOpt;
 
-use spfs::{self, prelude::*};
-
 #[derive(Debug, StructOpt)]
 pub struct CmdLsTags {
+    #[structopt(
+        long = "remote",
+        short = "r",
+        about = "List tags from a remote repository instead of the local one"
+    )]
+    remote: Option<String>,
     #[structopt(
         default_value = "/",
         about = "The tag path to list under, defaults to the root ('/')"
@@ -17,7 +21,10 @@ pub struct CmdLsTags {
 
 impl CmdLsTags {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_repository()?;
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote)?,
+            None => config.get_repository()?.into(),
+        };
 
         let path = relative_path::RelativePathBuf::from(&self.path);
         let names = repo.ls_tags(&path)?;
