@@ -4,10 +4,14 @@
 
 use structopt::StructOpt;
 
-use spfs::{self, prelude::*};
-
 #[derive(Debug, StructOpt)]
 pub struct CmdLs {
+    #[structopt(
+        long = "remote",
+        short = "r",
+        about = "Operate on a remote repository instead of the local one"
+    )]
+    remote: Option<String>,
     #[structopt(
         value_name = "REF",
         about = "The tag or digest of the file tree to read from"
@@ -22,7 +26,10 @@ pub struct CmdLs {
 
 impl CmdLs {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo: RepositoryHandle = config.get_repository()?.into();
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote)?,
+            None => config.get_repository()?.into(),
+        };
         let item = repo.read_ref(self.reference.as_str())?;
 
         let path = self
