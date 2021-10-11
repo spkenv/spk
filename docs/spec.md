@@ -14,6 +14,10 @@ The only required field in a package spec file is the name and version number of
 pkg: my-package/1.0.0
 ```
 
+{{% notice note %}}
+Package names can only be composed of lowercase ascii letters, digits and dashes (`-`). This is done to try and make sure that packages are easier to find and predict, rather than having a whole bunch of different ways to name them (eg: myPackage, MyPackage, My_Package, my_package, my-package, etc...). This restricted character set also provides the greatest freedom for us extend the naming specification in the future, if needed.
+{{% /notice %}}
+
 ### Compatibility
 
 The optional `compat` field of a package specifies the compatibility between versions of this package. The compat field takes a version number, with each digit replaced by one or more characters denoting compatibility (`a` for api compatibility, `b` for binary compatbility and `x` for no compatibility). Multiple characters can be put together if necessary: `x.ab`.
