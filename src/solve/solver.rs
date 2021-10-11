@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{create_exception, prelude::*};
+use pyo3::{create_exception, prelude::*, PyIterProtocol};
 use std::{
     borrow::Cow,
     mem::take,
@@ -34,6 +34,7 @@ pub struct Solver {
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
     last_graph: Arc<RwLock<Graph>>,
+    steps: Vec<(Node, Decision)>,
 }
 
 // Methods not exposed to Python
@@ -220,6 +221,7 @@ impl Solver {
             initial_state_builders: Vec::default(),
             validators: Cow::from(validation::default_validators()),
             last_graph: Arc::new(RwLock::new(Graph::new())),
+            steps: Vec::default(),
         }
     }
 
@@ -274,6 +276,14 @@ impl Solver {
         self.validators = Cow::from(validation::default_validators());
     }
 
+    pub fn run(&mut self) -> PyResult<SolverRuntime> {
+        let solution = self.solve()?;
+        Ok(SolverRuntime {
+            solution,
+            steps: self.steps.clone(),
+        })
+    }
+
     /// If true, only solve pre-built binary packages.
     ///
     /// When false, the solver may return packages where the build is not set.
@@ -310,6 +320,7 @@ impl Solver {
     pub fn solve(&mut self) -> PyResult<Solution> {
         let solve_graph = Arc::new(RwLock::new(Graph::new()));
         self.last_graph = solve_graph.clone();
+        self.steps = Vec::default();
 
         let mut history = Vec::<Arc<RwLock<Node>>>::new();
         let mut current_node: Option<Arc<RwLock<Node>>> = None;
@@ -322,8 +333,14 @@ impl Solver {
                     .map(|n| Arc::ptr_eq(&n.read().unwrap().state, &DEAD_STATE))
                     .unwrap_or_default())
         {
-            // The python code would `yield (current_node, decision)` here,
-            // capturing the yielded value into SolverRuntime.solution.
+            self.steps.push((
+                // A clone of Some(current_node) or the root node
+                current_node
+                    .as_ref()
+                    .map(|n| n.read().unwrap().clone())
+                    .unwrap_or_else(|| solve_graph.read().unwrap().root.read().unwrap().clone()),
+                decision.as_ref().expect("decision is some").clone(),
+            ));
 
             current_node = Some({
                 let mut sg = solve_graph.write().unwrap();
@@ -442,5 +459,38 @@ impl Solver {
             }
         }
         Ok(api::Compatibility::Compatible)
+    }
+}
+
+#[pyclass]
+pub struct SolverRuntimeIter {
+    inner: std::vec::IntoIter<(Node, Decision)>,
+}
+
+#[pyproto]
+impl PyIterProtocol for SolverRuntimeIter {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<(Node, Decision)> {
+        slf.inner.next()
+    }
+}
+
+#[pyclass]
+pub struct SolverRuntime {
+    #[pyo3(get)]
+    pub solution: Solution,
+    pub steps: Vec<(Node, Decision)>,
+}
+
+#[pyproto]
+impl PyIterProtocol for SolverRuntime {
+    fn __iter__(slf: PyRef<Self>) -> PyResult<Py<SolverRuntimeIter>> {
+        let iter = SolverRuntimeIter {
+            inner: slf.steps.clone().into_iter(),
+        };
+        Py::new(slf.py(), iter)
     }
 }

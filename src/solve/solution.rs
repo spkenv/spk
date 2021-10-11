@@ -6,7 +6,10 @@ use pyo3::{
     types::{PyDict, PyTuple},
     PyIterProtocol,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::api::{self, Ident};
 
@@ -91,15 +94,13 @@ impl pyo3::PySequenceProtocol for SolvedRequest {
 
 /// Represents a set of resolved packages.
 #[pyclass]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,
     by_name: HashMap<String, Arc<api::Spec>>,
     insertion_order: HashMap<api::PkgRequest, usize>,
 }
-
-impl Solution {}
 
 #[pyproto]
 impl pyo3::mapping::PyMappingProtocol for Solution {
@@ -206,6 +207,26 @@ impl Solution {
 
     pub fn options(&self) -> api::OptionMap {
         self.options.clone()
+    }
+
+    /// Return the set of repositories in this solution.
+    pub fn repositories(&self) -> PyResult<Vec<PyObject>> {
+        Python::with_gil(|py| {
+            let builtins = PyModule::import(py, "builtins")?;
+            let mut seen = HashSet::new();
+            let mut repos = Vec::new();
+            for (_, source) in self.resolved.values() {
+                if let PackageSource::Repository(repo) = source {
+                    let repo_id = builtins.getattr("id")?.call1((repo,))?.extract::<usize>()?;
+                    if seen.contains(&repo_id) {
+                        continue;
+                    }
+                    repos.push(repo.clone());
+                    seen.insert(repo_id);
+                }
+            }
+            Ok(repos)
+        })
     }
 
     /// Return the data of this solution as environment variables.
