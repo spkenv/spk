@@ -18,6 +18,7 @@ use crate::{Error, Result};
 mod spec_test;
 
 #[macro_export]
+#[allow(clippy::field_reassign_with_default)]
 macro_rules! spec {
     ($($k:ident => $v:expr),* $(,)?) => {{
         use std::convert::TryInto;
@@ -67,10 +68,14 @@ impl Spec {
         self.clone()
     }
 
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        super::python::from_dict(input, py)
+    }
+
     /// Return the full set of resolved build options using the given ones.
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
-        self.build
-            .resolve_all_options(Some(&self.pkg.name()), given)
+        self.build.resolve_all_options(Some(self.pkg.name()), given)
     }
     /// Check if this package spec satisfies the given request.
     pub fn sastisfies_request(&self, request: Request) -> Compatibility {
@@ -82,7 +87,7 @@ impl Spec {
 
     /// Check if this package spec satisfies the given var request.
     pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.package().as_ref().map(String::as_str) == Some(self.pkg.name());
+        let opt_required = request.package().as_deref() == Some(self.pkg.name());
         let mut opt: Option<&Opt> = None;
         let request_name = &request.var;
         for o in self.build.options.iter() {
@@ -104,12 +109,12 @@ impl Spec {
                         request.var
                     ));
                 }
-                return Compatibility::Compatible;
+                Compatibility::Compatible
             }
             Some(Opt::Pkg(opt)) => opt.validate(Some(request.value())),
             Some(Opt::Var(opt)) => {
                 let exact = opt.get_value(Some(request.value()));
-                if exact.as_ref().map(String::as_str) != Some(request.value()) {
+                if exact.as_deref() != Some(request.value()) {
                     Compatibility::Incompatible(format!(
                         "Incompatible build option '{}': '{}' != '{}'",
                         request.var,
@@ -152,7 +157,15 @@ impl Spec {
         ))
     }
 
-    fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {
+    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
+        super::python::to_dict(self, py)
+    }
+
+    pub fn update_spec_for_build(
+        &mut self,
+        options: &OptionMap,
+        resolved: Vec<Spec>,
+    ) -> Result<()> {
         self.update_for_build(options, resolved.iter())
     }
 }
@@ -172,7 +185,7 @@ impl Spec {
                         continue;
                     }
                     let mut inherited_opt = opt.clone();
-                    if !inherited_opt.var.contains(".") {
+                    if !inherited_opt.var.contains('.') {
                         inherited_opt.var = format!("{}.{}", dep_name, opt.var);
                     }
                     inherited_opt.inheritance = Inheritance::Weak;

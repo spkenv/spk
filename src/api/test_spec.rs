@@ -13,9 +13,9 @@ pub enum TestStage {
     Install,
 }
 
-const BUILD_NAME: &'static str = "build";
-const INSTALL_NAME: &'static str = "install";
-const SOURCES_NAME: &'static str = "sources";
+const BUILD_NAME: &str = "build";
+const INSTALL_NAME: &str = "install";
+const SOURCES_NAME: &str = "sources";
 
 impl std::fmt::Display for TestStage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

@@ -20,7 +20,7 @@ pub struct InvalidBuildError {
 }
 
 impl InvalidBuildError {
-    pub fn new(msg: String) -> crate::Error {
+    pub fn new_error(msg: String) -> crate::Error {
         crate::Error::InvalidBuildError(Self { message: msg })
     }
 }
@@ -44,19 +44,11 @@ impl Build {
     }
 
     pub fn is_source(&self) -> bool {
-        if let Build::Source = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Build::Source)
     }
 
-    pub fn is_emdeded(&self) -> bool {
-        if let Build::Embedded = self {
-            true
-        } else {
-            false
-        }
+    pub fn is_embedded(&self) -> bool {
+        matches!(self, Build::Embedded)
     }
 }
 impl std::fmt::Debug for Build {
@@ -80,7 +72,7 @@ impl FromStr for Build {
             EMBEDDED => Ok(Build::Embedded),
             _ => {
                 if let Err(err) = data_encoding::BASE32.decode(source.as_bytes()) {
-                    return Err(InvalidBuildError::new(format!(
+                    return Err(InvalidBuildError::new_error(format!(
                         "Invalid build digest '{}': {:?}",
                         source, err
                     )));
@@ -89,7 +81,7 @@ impl FromStr for Build {
                 match source.chars().collect_vec().try_into() {
                     Ok(chars) => Ok(Build::Digest(chars)),
 
-                    Err(err) => Err(InvalidBuildError::new(format!(
+                    Err(err) => Err(InvalidBuildError::new_error(format!(
                         "Invalid build digest '{}': {:?}",
                         source, err
                     ))),

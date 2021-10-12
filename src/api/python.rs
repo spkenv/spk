@@ -90,17 +90,15 @@ impl Compatibility {
         } else {
             super::Compatibility::Incompatible(msg.to_string())
         };
-        Compatibility { inner: inner }
+        Compatibility { inner }
     }
 }
 
 #[pyproto]
 impl pyo3::PyObjectProtocol for Compatibility {
+    #[allow(clippy::nonminimal_bool)]
     fn __bool__(&self) -> bool {
-        match self.inner {
-            super::Compatibility::Compatible => true,
-            super::Compatibility::Incompatible(_) => false,
-        }
+        !!&self.inner
     }
 
     fn __repr__(&self) -> String {
@@ -337,25 +335,6 @@ impl IntoPy<Py<PyAny>> for super::VersionRange {
 }
 
 #[pymethods]
-impl super::Spec {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        from_dict(input, py)
-    }
-
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        to_dict(self, py)
-    }
-}
-
-#[pymethods]
-impl super::BuildSpec {
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        to_dict(self, py)
-    }
-}
-
-#[pymethods]
 impl super::TarSource {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
@@ -372,30 +351,10 @@ impl super::GitSource {
 }
 
 #[pymethods]
-impl super::LocalSource {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        from_dict(input, py)
-    }
-}
-
-#[pymethods]
 impl super::ScriptSource {
     #[staticmethod]
     fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
         from_dict(input, py)
-    }
-}
-
-#[pymethods]
-impl super::PkgRequest {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        from_dict(input, py)
-    }
-
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        to_dict(self, py)
     }
 }
 
@@ -415,29 +374,23 @@ fn request_from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Resul
     from_dict(input, py)
 }
 
-fn from_dict<T>(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<T>
+pub fn from_dict<T>(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
     let locals = pyo3::types::PyDict::new(py);
     let _ = locals.set_item("data", input);
     py.run("import json; out = json.dumps(data)", None, Some(locals))
-        .or_else(|err| {
-            Err(crate::Error::String(format!(
-                "Not a valid dictionary: {:?}",
-                err
-            )))
-        })?;
-    let json: &str = locals.get_item("out").unwrap().extract().or_else(|err| {
-        Err(crate::Error::String(format!(
-            "Not a valid dictionary: {:?}",
-            err
-        )))
-    })?;
+        .map_err(|err| crate::Error::String(format!("Not a valid dictionary: {:?}", err)))?;
+    let json: &str = locals
+        .get_item("out")
+        .unwrap()
+        .extract()
+        .map_err(|err| crate::Error::String(format!("Not a valid dictionary: {:?}", err)))?;
     Ok(serde_yaml::from_str(json)?)
 }
 
-fn to_dict<T>(input: &T, py: Python) -> PyResult<Py<pyo3::types::PyDict>>
+pub fn to_dict<T>(input: &T, py: Python) -> PyResult<Py<pyo3::types::PyDict>>
 where
     T: serde::ser::Serialize,
 {
@@ -457,12 +410,7 @@ where
         None,
         Some(locals),
     )
-    .or_else(|err| {
-        Err(crate::Error::String(format!(
-            "Failed to serialize item: {:?}",
-            err
-        )))
-    })?;
+    .map_err(|err| crate::Error::String(format!("Failed to serialize item: {:?}", err)))?;
     locals.get_item("out").unwrap().extract()
 }
 

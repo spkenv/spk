@@ -27,10 +27,10 @@ impl SourceSpec {
     /// Optional directory under the main source folder to place these sources.
     pub fn subdir(&self) -> Option<RelativePathBuf> {
         match self {
-            SourceSpec::Local(source) => source.subdir.as_ref().map(|s| RelativePathBuf::from(s)),
-            SourceSpec::Git(source) => source.subdir.as_ref().map(|s| RelativePathBuf::from(s)),
-            SourceSpec::Tar(source) => source.subdir.as_ref().map(|s| RelativePathBuf::from(s)),
-            SourceSpec::Script(source) => source.subdir.as_ref().map(|s| RelativePathBuf::from(s)),
+            SourceSpec::Local(source) => source.subdir.as_ref().map(RelativePathBuf::from),
+            SourceSpec::Git(source) => source.subdir.as_ref().map(RelativePathBuf::from),
+            SourceSpec::Tar(source) => source.subdir.as_ref().map(RelativePathBuf::from),
+            SourceSpec::Script(source) => source.subdir.as_ref().map(RelativePathBuf::from),
         }
     }
 
@@ -80,6 +80,11 @@ impl Default for LocalSource {
 
 #[pymethods]
 impl LocalSource {
+    #[staticmethod]
+    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
+        super::python::from_dict(input, py)
+    }
+
     #[getter]
     fn get_path(&self) -> String {
         self.path.to_string_lossy().into()
@@ -102,7 +107,7 @@ impl LocalSource {
         // require a trailing '/' on destination also so that rsync doesn't
         // add aditional levels to the resulting structure
         let dirname = dirname.join("");
-        if let Ok(_) = std::env::var("SPK_DEBUG") {
+        if std::env::var("SPK_DEBUG").is_ok() {
             rsync.arg("--verbose");
         }
         for filter_rule in self.filter.iter() {
@@ -294,7 +299,7 @@ impl ScriptSource {
 pub fn git_supports_submodule_depth() -> bool {
     let v = git_version();
     match v {
-        None => return false,
+        None => false,
         Some(v) => v.as_str() >= "2.0",
     }
 }
@@ -310,7 +315,7 @@ pub fn git_version() -> Option<String> {
 
     // eg: git version 1.83.6
     let out = String::from_utf8_lossy(out.stdout.as_slice());
-    out.trim().split(" ").last().map(|s| s.to_string())
+    out.trim().split(' ').last().map(|s| s.to_string())
 }
 
 fn default_git_clone_depth() -> u32 {

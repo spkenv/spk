@@ -80,7 +80,7 @@ impl SpFSRepository {
 
     pub fn ls_tags(&self, base: &str) -> Result<Vec<String>> {
         let path = relative_path::RelativePath::new(base);
-        let tags: Vec<_> = self.inner.ls_tags(&path)?.collect();
+        let tags: Vec<_> = self.inner.ls_tags(path)?.collect();
         Ok(tags)
     }
 
@@ -94,8 +94,8 @@ impl SpFSRepository {
         let tag = tag.parse()?;
         let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
         let blob = spfs::graph::Blob {
-            payload: digest.clone(),
-            size: size,
+            payload: digest,
+            size,
         };
         self.inner.write_blob(blob)?;
         self.inner.push_tag(&tag, &digest)?;
