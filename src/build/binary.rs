@@ -18,7 +18,7 @@ pub struct BuildError {
 }
 
 impl BuildError {
-    pub fn new(format_args: std::fmt::Arguments) -> crate::Error {
+    pub fn new_error(format_args: std::fmt::Arguments) -> crate::Error {
         crate::Error::Build(Self {
             message: std::fmt::format(format_args),
         })
@@ -34,8 +34,8 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
         .filter(|diff| diff.mode != spfs::tracking::DiffMode::Unchanged)
         .collect();
 
-    if diffs.len() == 0 {
-        return Err(BuildError::new(format_args!(
+    if diffs.is_empty() {
+        return Err(BuildError::new_error(format_args!(
             "Build process created no files under {}",
             prefix.as_ref(),
         )));
@@ -66,7 +66,7 @@ pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
                     }
                 }
             }
-            return Err(BuildError::new(format_args!(
+            return Err(BuildError::new_error(format_args!(
                 "Existing file was {:?}: {:?}",
                 &diff.mode, &diff.path
             )));

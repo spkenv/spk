@@ -43,7 +43,11 @@ impl std::fmt::Display for Ident {
 #[pymethods]
 impl Ident {
     #[new]
-    fn newpy(name: &str, version: Option<Version>, build: Option<Build>) -> crate::Result<Self> {
+    pub fn newpy(
+        name: &str,
+        version: Option<Version>,
+        build: Option<Build>,
+    ) -> crate::Result<Self> {
         let mut ident = Self::new(name)?;
         if let Some(version) = version {
             ident.version = version;
@@ -82,7 +86,7 @@ impl Ident {
         })
     }
 
-    pub fn name<'a>(&'a self) -> &'a str {
+    pub fn name(&self) -> &str {
         self.name.as_str()
     }
 
@@ -113,13 +117,13 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
-        let mut parts = source.split("/");
+        let mut parts = source.split('/');
         let name = parts.next().unwrap_or_default();
         let version = parts.next();
         let build = parts.next();
 
-        if let Some(_) = parts.next() {
-            return Err(InvalidNameError::new(format!(
+        if parts.next().is_some() {
+            return Err(InvalidNameError::new_error(format!(
                 "Too many tokens in package identifier, expected at most 2 slashes ('/'): {}",
                 source
             )));

@@ -57,8 +57,8 @@ perl: gnu perl/perl.spk
 
 .PHONY: python python2 python3
 python: python2 python3
-python2: bootstrap bzip2 python/python2.spk
-python3: bootstrap bzip2 python/python3.spk
+python2: bootstrap bzip2/bzip2.spk python/python2.spk
+python3: bootstrap bzip2/bzip2.spk python/python3.spk
 
 .PHONY: clean
 clean:
@@ -68,7 +68,6 @@ clean:
 import:
 	find . -name "bootstrap" -prune -o -name "*.spk" -exec spk import {} \;
 
-# bzip2: bzip2/bzip2.spk
 %: $</$<.spk
 
 %.spk : %.spk.yaml

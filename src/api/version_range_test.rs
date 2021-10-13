@@ -68,14 +68,19 @@ fn test_version_range_is_applicable(
 
 #[rstest]
 // exact version compatible with itself: YES
+#[allow(clippy::field_reassign_with_default)]
 #[case("=1.0.0", spec!{pkg => "test/1.0.0"}, true)]
 // exact version compatible with different post-relese: YES
+#[allow(clippy::field_reassign_with_default)]
 #[case("=1.0.0", spec!{pkg => "test/1.0.0+r.1"}, true)]
 // exact post release compatible with different one: NO
+#[allow(clippy::field_reassign_with_default)]
 #[case("=1.0.0+r.2", spec!{pkg => "test/1.0.0+r.1"}, false)]
 // default compat is contextual (given by test function)
+#[allow(clippy::field_reassign_with_default)]
 #[case("1.0.0", spec!{pkg => "test/1.1.0/JRSXNRF4", compat => "x.a.b"}, false)]
 // explicit api compat override
+#[allow(clippy::field_reassign_with_default)]
 #[case("API:1.0.0", spec!{pkg => "test/1.1.0/JRSXNRF4", compat => "x.a.b"}, true)]
 fn test_version_range_is_satisfied(
     #[case] range: &str,

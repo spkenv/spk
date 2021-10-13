@@ -26,4 +26,5 @@ setup(
             binding=Binding.PyO3,
         )
     ],
+    zip_safe=False,
 )

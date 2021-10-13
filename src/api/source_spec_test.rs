@@ -84,7 +84,7 @@ fn test_tar_sources() {
 fn test_script_sources() {
     let _guard = init_logging();
     let tmpdir = tempdir::TempDir::new("").unwrap();
-    let spec = format!("{{script: ['mkdir spk', 'touch spk/__init__.py']}}");
+    let spec = "{script: ['mkdir spk', 'touch spk/__init__.py']}".to_string();
     let source: ScriptSource = serde_yaml::from_str(&spec).unwrap();
     source.collect(tmpdir.path()).unwrap();
 

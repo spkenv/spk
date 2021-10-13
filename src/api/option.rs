@@ -1,9 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use indexmap::set::IndexSet;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -62,7 +62,7 @@ pub enum Opt {
 }
 
 impl Opt {
-    pub fn name<'a>(&'a self) -> &'a str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Pkg(opt) => &opt.pkg,
             Self::Var(opt) => &opt.var,
@@ -124,7 +124,7 @@ impl TryFrom<Request> for Opt {
                     .collect();
                 Ok(Opt::Pkg(PkgOpt {
                     pkg: request.pkg.name().to_owned(),
-                    default: default,
+                    default,
                     prerelease_policy: request.prerelease_policy,
                     value: None,
                     required_compat: request.required_compat,
@@ -174,20 +174,23 @@ pub struct VarOpt {
     pub var: String,
     #[pyo3(get, set)]
     pub default: String,
-    #[pyo3(get, set)]
-    pub choices: HashSet<String>,
+    pub choices: IndexSet<String>,
     #[pyo3(get, set)]
     pub inheritance: Inheritance,
     #[pyo3(get)]
     value: Option<String>,
 }
 
+// This is safe to allow because choices is IndexSet and has
+// deterministic iteration order.
+#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for VarOpt {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.var.hash(state);
         self.default.hash(state);
         for (i, choice) in self.choices.iter().enumerate() {
             i.hash(state);
+
             choice.hash(state);
         }
         self.inheritance.hash(state);
@@ -200,7 +203,7 @@ impl VarOpt {
         Self {
             var: var.as_ref().to_string(),
             default: String::default(),
-            choices: HashSet::default(),
+            choices: IndexSet::default(),
             inheritance: Inheritance::default(),
             value: None,
         }
@@ -213,12 +216,25 @@ impl VarOpt {
         self.clone()
     }
 
+    #[getter]
+    pub fn get_choices(&self) -> PyResult<PyObject> {
+        Python::with_gil(|py| {
+            let set = pyo3::types::PySet::empty(py)?;
+            {
+                for val in &self.choices {
+                    set.add(val.into_py(py))?;
+                }
+            }
+            Ok(set.into())
+        })
+    }
+
     fn name(&self) -> String {
         self.var.clone()
     }
 
     pub fn namespaced_name(&self, pkg: &str) -> String {
-        if self.var.contains(".") {
+        if self.var.contains('.') {
             self.var.clone()
         } else {
             format!("{}.{}", pkg, self.var)
@@ -242,13 +258,11 @@ impl VarOpt {
     }
 
     pub fn set_value(&mut self, value: String) -> Result<()> {
-        if self.choices.len() > 0 && !value.is_empty() {
-            if !self.choices.contains(&value) {
-                return Err(Error::String(format!(
-                    "Invalid value '{}' for option '{}', must be one of {:?}",
-                    value, self.var, self.choices
-                )));
-            }
+        if !self.choices.is_empty() && !value.is_empty() && !self.choices.contains(&value) {
+            return Err(Error::String(format!(
+                "Invalid value '{}' for option '{}', must be one of {:?}",
+                value, self.var, self.choices
+            )));
         }
         self.value = Some(value);
         Ok(())
@@ -256,14 +270,14 @@ impl VarOpt {
 
     pub fn validate(&self, value: Option<&str>) -> Compatibility {
         if value.is_none() && self.value.is_some() {
-            return self.validate(self.value.as_ref().map(String::as_str));
+            return self.validate(self.value.as_deref());
         }
-        let assigned = self.value.as_ref().map(String::as_str);
+        let assigned = self.value.as_deref();
         match (value, assigned) {
             (None, Some(_)) => Compatibility::Compatible,
             (Some(value), Some(assigned)) => {
                 if value == assigned {
-                    return Compatibility::Compatible;
+                    Compatibility::Compatible
                 } else {
                     Compatibility::Incompatible(format!(
                         "incompatible option, wanted '{}', got '{}'",
@@ -272,7 +286,7 @@ impl VarOpt {
                 }
             }
             (Some(value), _) => {
-                if self.choices.len() > 0 && !self.choices.contains(value) {
+                if !self.choices.is_empty() && !self.choices.contains(value) {
                     return Compatibility::Incompatible(format!(
                         "invalid value '{}', must be one of {:?}",
                         value, self.choices
@@ -287,11 +301,11 @@ impl VarOpt {
 
     pub fn to_request(&self, given_value: Option<&str>) -> VarRequest {
         let value = self.get_value(given_value).unwrap_or_default();
-        return VarRequest {
+        VarRequest {
             var: self.var.clone(),
-            value: value,
+            value,
             pin: false,
-        };
+        }
     }
 
     #[new]
@@ -366,9 +380,9 @@ impl<'de> Deserialize<'de> for VarOpt {
         };
         if let Some(default) = data.default {
             // the default field is deprecated, but we support it for existing packages
-            out.default = default.clone();
+            out.default = default;
         } else {
-            let mut split = data.var.split("/");
+            let mut split = data.var.split('/');
             out.var = split.next().unwrap().to_string();
             out.default = split.collect::<Vec<_>>().join("");
         }
@@ -453,7 +467,7 @@ impl PkgOpt {
 
         // skip any default that might exist since
         // that does not represent a definitive range
-        let base = self.value.as_ref().map(String::as_str).unwrap_or_default();
+        let base = self.value.as_deref().unwrap_or_default();
         let base_range = match parse_ident_range(format!("{}/{}", self.pkg, base)) {
             Err(err) => {
                 return Compatibility::Incompatible(format!(
@@ -552,9 +566,9 @@ impl<'de> Deserialize<'de> for PkgOpt {
         };
         if let Some(default) = data.default {
             // the default field is deprecated, but we support it for existing packages
-            out.default = default.to_owned();
+            out.default = default;
         } else {
-            let mut split = data.pkg.split("/");
+            let mut split = data.pkg.split('/');
             out.pkg = split.next().unwrap().to_string();
             out.default = split.collect::<Vec<_>>().join("");
         }
@@ -601,15 +615,11 @@ where
     use serde_yaml::Value;
     let value = Value::deserialize(deserializer)?;
     match value {
-        Value::Sequence(b) => {
-            return b
-                .into_iter()
-                .map(|v| super::option_map::string_from_scalar(v))
-                .collect::<serde_yaml::Result<Vec<String>>>()
-                .map_err(|err| {
-                    serde::de::Error::custom(format!("expected list of scalars: {}", err))
-                })
-        }
+        Value::Sequence(b) => b
+            .into_iter()
+            .map(super::option_map::string_from_scalar)
+            .collect::<serde_yaml::Result<Vec<String>>>()
+            .map_err(|err| serde::de::Error::custom(format!("expected list of scalars: {}", err))),
         _ => Err(serde::de::Error::custom("expected list of scalars")),
     }
 }

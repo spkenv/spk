@@ -5,8 +5,13 @@
 
 import spkrs
 
-from spkrs import api
-from . import storage, solve, build, exec, test
+from spkrs import api, solve
+
+from . import pysolve
+
+solve.legacy = pysolve.legacy
+
+from . import storage, build, exec, test
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError
 from ._publish import Publisher
@@ -14,11 +19,9 @@ from ._publish import Publisher
 __version__ = spkrs.version()
 
 # promote useful front line api functions
-from .solve import (
-    Solver,
-    Solution,
-    SolverError,
-)
+Solution = solve.Solution
+Solver = solve.Solver
+SolverError = solve.SolverError
 from .build import (
     SourcePackageBuilder,
     BinaryPackageBuilder,

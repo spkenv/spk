@@ -14,7 +14,7 @@ pub struct CollectionError {
 }
 
 impl CollectionError {
-    pub fn new(format_args: std::fmt::Arguments) -> crate::Error {
+    pub fn new_error(format_args: std::fmt::Arguments) -> crate::Error {
         crate::Error::Collection(Self {
             message: std::fmt::format(format_args),
         })
@@ -29,8 +29,8 @@ pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
     diffs: Vec<spfs::tracking::Diff>,
     source_dir: P,
 ) -> Result<()> {
-    if diffs.len() == 0 {
-        return Err(CollectionError::new(format_args!(
+    if diffs.is_empty() {
+        return Err(CollectionError::new_error(format_args!(
             "No source files collected, source package would be empty"
         )));
     }
@@ -49,7 +49,7 @@ pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
             // the path is to a parent directory of the source path
             continue;
         }
-        return Err(CollectionError::new(format_args!(
+        return Err(CollectionError::new_error(format_args!(
             "Invalid source file path found: {} (not under {})",
             &diff.path, source_dir
         )));

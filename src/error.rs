@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use pyo3::{exceptions, prelude::*};
-use spfs;
 
 use super::api;
 
@@ -16,6 +15,7 @@ pub enum Error {
     Serde(serde_yaml::Error),
     Collection(crate::build::CollectionError),
     Build(crate::build::BuildError),
+    Solve(crate::solve::Error),
     String(String),
     PyErr(PyErr),
 
@@ -52,6 +52,12 @@ impl Error {
 
 impl std::error::Error for Error {}
 
+impl From<PyErr> for Error {
+    fn from(err: PyErr) -> Error {
+        Error::PyErr(err)
+    }
+}
+
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
         Error::IO(err)
@@ -86,6 +92,7 @@ impl From<Error> for PyErr {
             Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
             Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message.to_string()),
             Error::String(msg) => exceptions::PyRuntimeError::new_err(msg.to_string()),
+            Error::Solve(err) => err.into(),
             Error::InvalidBuildError(err) => {
                 exceptions::PyValueError::new_err(err.message.to_string())
             }

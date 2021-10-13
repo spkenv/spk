@@ -52,7 +52,7 @@ pub fn host_options() -> crate::Result<OptionMap> {
     if let Some(id) = info.id {
         opts.insert("distro".into(), id.clone());
         if let Some(version_id) = info.version_id {
-            opts.insert(id.into(), version_id.into());
+            opts.insert(id, version_id);
         }
     }
 
@@ -197,11 +197,9 @@ impl OptionMap {
 
     /// Return only the options in this map that are not package-specific
     pub fn global_options(&self) -> Self {
-        let items = self
-            .iter()
-            .filter(|(k, _)| !k.contains("."))
-            .map(|(k, v)| (k.to_owned(), v.to_owned()));
-        OptionMap::from_iter(items)
+        self.iter()
+            .filter_map(|(k, v)| (!k.contains('.')).then(|| (k.to_owned(), v.to_owned())))
+            .collect()
     }
 
     /// Return the set of options given for the specific named package.
@@ -246,7 +244,7 @@ impl pyo3::mapping::PyMappingProtocol for OptionMap {
         self.options
             .get(&key)
             .map(String::clone)
-            .ok_or(pyo3::exceptions::PyKeyError::new_err(key))
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key))
     }
 
     fn __setitem__(&mut self, key: String, value: String) {

@@ -1,10 +1,10 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
 pub mod api;
 pub mod build;
 mod error;
+pub mod solve;
 pub mod storage;
 
 #[cfg(test)]
@@ -41,14 +41,12 @@ impl pyo3::PyObjectProtocol for Digest {
 
 impl From<spfs::encoding::Digest> for Digest {
     fn from(inner: spfs::encoding::Digest) -> Self {
-        Self { inner: inner }
+        Self { inner }
     }
 }
 impl From<&spfs::encoding::Digest> for Digest {
     fn from(inner: &spfs::encoding::Digest) -> Self {
-        Self {
-            inner: inner.clone(),
-        }
+        Self { inner: *inner }
     }
 }
 
@@ -67,16 +65,20 @@ impl Runtime {
 #[pymodule]
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     let api_mod = PyModule::new(py, "api")?;
-    api::init_module(&py, &api_mod)?;
+    api::init_module(&py, api_mod)?;
     m.add_submodule(api_mod)?;
 
     let build_mod = PyModule::new(py, "build")?;
-    build::init_module(&py, &build_mod)?;
+    build::init_module(&py, build_mod)?;
     m.add_submodule(build_mod)?;
 
     let storage_mod = PyModule::new(py, "storage")?;
     storage::init_module(&py, &storage_mod)?;
     m.add_submodule(storage_mod)?;
+
+    let solve_mod = PyModule::new(py, "solve")?;
+    solve::init_module(&py, solve_mod)?;
+    m.add_submodule(solve_mod)?;
 
     // ensure that from spkrs.submodule import xx works
     // as expected on the python side by injecting them
@@ -86,21 +88,24 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     sys.modules['spkrs.api'] = api;\
     sys.modules['spkrs.build'] = build;\
     sys.modules['spkrs.storage'] = storage;\
+    sys.modules['spkrs.solve'] = solve;\
     ",
         None,
         Some(m.dict()),
     )?;
 
-    #[pyfn(m, "version")]
+    #[pyfn(m)]
+    #[pyo3(name = "version")]
     fn version(_py: Python) -> &str {
         return env!("CARGO_PKG_VERSION");
     }
 
-    #[pyfn(m, "configure_logging")]
+    #[pyfn(m)]
+    #[pyo3(name = "configure_logging")]
     fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
         if verbosity == 0 {
             let parse_result = std::env::var("SPFS_VERBOSITY")
-                .unwrap_or("0".to_string())
+                .unwrap_or_else(|_| "0".to_string())
                 .parse::<usize>();
             if let Ok(parsed) = parse_result {
                 verbosity = usize::max(parsed, verbosity);
@@ -108,7 +113,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         }
         std::env::set_var("SPFS_VERBOSITY", verbosity.to_string());
         use tracing_subscriber::layer::SubscriberExt;
-        if !std::env::var("RUST_LOG").is_ok() {
+        if std::env::var("RUST_LOG").is_err() {
             std::env::set_var("RUST_LOG", "spfs=trace");
         }
         let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
@@ -130,12 +135,39 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         tracing::subscriber::set_global_default(sub).unwrap();
         Ok(())
     }
-    #[pyfn(m, "active_runtime")]
+    #[pyfn(m)]
+    #[pyo3(name = "active_runtime")]
     fn active_runtime(_py: Python) -> Result<Runtime> {
         let rt = spfs::active_runtime()?;
         Ok(Runtime { inner: rt })
     }
-    #[pyfn(m, "reconfigure_runtime")]
+
+    #[pyfn(m)]
+    #[pyo3(name = "local_repository")]
+    fn local_repository(_py: Python) -> Result<storage::SpFSRepository> {
+        storage::local_repository()
+    }
+    #[pyfn(m)]
+    #[pyo3(name = "remote_repository")]
+    fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
+        storage::remote_repository(path)
+    }
+    #[pyfn(m)]
+    #[pyo3(name = "open_tar_repository")]
+    fn open_tar_repository(
+        _py: Python,
+        path: &str,
+        create: Option<bool>,
+    ) -> Result<storage::SpFSRepository> {
+        let repo = match create {
+            Some(true) => spfs::storage::tar::TarRepository::create(path)?,
+            _ => spfs::storage::tar::TarRepository::open(path)?,
+        };
+        let handle: spfs::storage::RepositoryHandle = repo.into();
+        Ok(storage::SpFSRepository::from(handle))
+    }
+    #[pyfn(m)]
+    #[pyo3(name = "reconfigure_runtime")]
     fn reconfigure_runtime(
         editable: Option<bool>,
         reset: Option<Vec<String>>,
@@ -164,13 +196,11 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Ok(())
     }
 
-    #[pyfn(m, "build_shell_initialized_command", args = "*")]
+    #[pyfn(m, args = "*")]
+    #[pyo3(name = "build_shell_initialized_command")]
     fn build_shell_initialized_command(cmd: String, args: Vec<String>) -> Result<Vec<String>> {
         let cmd = std::ffi::OsString::from(cmd);
-        let mut args = args
-            .into_iter()
-            .map(|a| std::ffi::OsString::from(a))
-            .collect();
+        let mut args = args.into_iter().map(std::ffi::OsString::from).collect();
         let cmd = spfs::build_shell_initialized_command(cmd, &mut args)?;
         let cmd = cmd
             .into_iter()
@@ -178,7 +208,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
             .collect();
         Ok(cmd)
     }
-    #[pyfn(m, "build_interactive_shell_command")]
+    #[pyfn(m)]
+    #[pyo3(name = "build_interactive_shell_command")]
     fn build_interactive_shell_command() -> Result<Vec<String>> {
         let rt = spfs::active_runtime()?;
         let cmd = spfs::build_interactive_shell_cmd(&rt)?;
@@ -188,13 +219,31 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
             .collect();
         Ok(cmd)
     }
-    #[pyfn(m, "commit_layer")]
+    #[pyfn(m)]
+    #[pyo3(name = "commit_layer")]
     fn commit_layer(runtime: &mut Runtime) -> Result<Digest> {
         let layer = spfs::commit_layer(&mut runtime.inner)?;
         Ok(Digest::from(layer.digest()?))
     }
+    #[pyfn(m)]
+    #[pyo3(name = "find_layer_by_filename")]
+    fn find_layer_by_filename(path: &str) -> Result<Digest> {
+        let runtime = spfs::active_runtime()?;
+        let repo = spfs::load_config()?.get_repository()?.into();
 
-    #[pyfn(m, "render_into_dir")]
+        let stack = runtime.get_stack();
+        let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
+        for layer in layers.iter().rev() {
+            let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+            if manifest.get_path(&path).is_some() {
+                return Ok(layer.digest()?.into());
+            }
+        }
+        Err(spfs::graph::UnknownReferenceError::new(path).into())
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "render_into_dir")]
     fn render_into_dir(stack: Vec<Digest>, path: &str) -> Result<()> {
         let items: Vec<String> = stack.into_iter().map(|d| d.inner.to_string()).collect();
         let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;

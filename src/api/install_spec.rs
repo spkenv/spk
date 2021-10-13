@@ -80,7 +80,7 @@ impl InstallSpec {
                     if !request.pin {
                         continue;
                     }
-                    let mut split = request.var.splitn(2, ".");
+                    let mut split = request.var.splitn(2, '.');
                     let (var, opts) = match (split.next().unwrap(), split.next()) {
                         (package, Some(var)) => (var, options.package_options(package)),
                         (var, None) => (var, options.clone()),

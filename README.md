@@ -135,3 +135,30 @@ Some of these package specs have not yet been used or tested fully or ironed out
 - The make `packages.gnu` target can be used to bootstrap just enought to get "native" spk packages for gcc48 and gcc63
 
 Of course, the packages themselves can also be build with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.
+
+The following RPM packages must be installed in order to create the bootstrap packages.
+
+```bash
+sudo yum install -y \
+    autoconf \
+    autoconf-archive \
+    autogen \
+    automake \
+    binutils \
+    bison \
+    coreutils \
+    flex \
+    gcc \
+    gettext \
+    glibc \
+    grep \
+    help2man \
+    libtool \
+    m4 \
+    make \
+    perl \
+    sed \
+    texinfo \
+    zip \
+    zlib
+```
