@@ -128,7 +128,7 @@ impl Repository for SPFSRepository {
 
     fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
         if spec.pkg.build.is_some() {
-            return Err(api::InvalidBuildError::new(
+            return Err(api::InvalidBuildError::new_error(
                 "Spec must be published with no build".to_string(),
             ));
         }
@@ -155,7 +155,7 @@ impl Repository for SPFSRepository {
 
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
         if let Some(api::Build::Embedded) = spec.pkg.build {
-            return Err(api::InvalidBuildError::new(
+            return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
             ));
         }
@@ -207,7 +207,7 @@ impl SPFSRepository {
     /// Construct an spfs tag string to represent a binary package layer.
     fn build_package_tag(&self, pkg: &api::Ident) -> Result<RelativePathBuf> {
         if pkg.build.is_none() {
-            return Err(api::InvalidBuildError::new(
+            return Err(api::InvalidBuildError::new_error(
                 "Package must have associated build digest".to_string(),
             ));
         }

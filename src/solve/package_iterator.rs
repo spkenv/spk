@@ -153,16 +153,15 @@ impl RepositoryPackageIterator {
     fn build_version_map(&self) -> PyResult<HashMap<api::Version, PyObject>> {
         let mut version_map = HashMap::default();
         for repo in self.repos.iter().rev() {
-            let repo_versions: PyResult<Vec<String>> = Python::with_gil(|py| {
+            let repo_versions: PyResult<Vec<api::Version>> = Python::with_gil(|py| {
                 let args = PyTuple::new(py, &[self.package_name.as_str()]);
                 let iter = repo.call_method1(py, "list_package_versions", args)?;
                 iter.as_ref(py)
                     .iter()?
-                    .map(|o| o.and_then(PyAny::extract::<String>))
+                    .map(|o| o.and_then(PyAny::extract::<api::Version>))
                     .collect()
             });
-            for version_str in repo_versions? {
-                let version = api::parse_version(version_str)?;
+            for version in repo_versions? {
                 version_map.insert(version, repo.clone());
             }
         }

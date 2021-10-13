@@ -143,30 +143,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "local_repository")]
-    fn local_repository(_py: Python) -> Result<storage::SpFSRepository> {
-        storage::local_repository()
-    }
-    #[pyfn(m)]
-    #[pyo3(name = "remote_repository")]
-    fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
-        storage::remote_repository(path)
-    }
-    #[pyfn(m)]
-    #[pyo3(name = "open_tar_repository")]
-    fn open_tar_repository(
-        _py: Python,
-        path: &str,
-        create: Option<bool>,
-    ) -> Result<storage::SpFSRepository> {
-        let repo = match create {
-            Some(true) => spfs::storage::tar::TarRepository::create(path)?,
-            _ => spfs::storage::tar::TarRepository::open(path)?,
-        };
-        let handle: spfs::storage::RepositoryHandle = repo.into();
-        Ok(storage::SpFSRepository::from(handle))
-    }
-    #[pyfn(m)]
     #[pyo3(name = "reconfigure_runtime")]
     fn reconfigure_runtime(
         editable: Option<bool>,
