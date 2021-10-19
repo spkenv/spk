@@ -1,51 +1,50 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{
-    prelude::*,
-    types::{PyDict, PyTuple},
-    PyIterProtocol,
-};
+use pyo3::{prelude::*, types::PyDict, PyIterProtocol};
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
-use crate::api::{self, Ident};
+use crate::{
+    api::{self, Ident},
+    storage, Result,
+};
 
 #[derive(Clone, Debug)]
 pub enum PackageSource {
-    Repository(PyObject),
+    Repository(Arc<Mutex<storage::RepositoryHandle>>),
     Spec(Arc<api::Spec>),
 }
 
 impl<'source> FromPyObject<'source> for PackageSource {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        ob.extract::<api::Spec>()
-            .map(|s| PackageSource::Spec(Arc::new(s)))
-            .or_else(|_| Ok(PackageSource::Repository(ob.into())))
+        if let Ok(s) = ob.extract::<api::Spec>() {
+            Ok(PackageSource::Spec(Arc::new(s)))
+        } else {
+            ob.extract::<storage::python::Repository>()
+                .map(|r| PackageSource::Repository(r.handle))
+        }
     }
 }
 
 impl IntoPy<Py<PyAny>> for PackageSource {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
-            PackageSource::Repository(s) => s,
+            PackageSource::Repository(s) => {
+                storage::python::Repository { handle: s.clone() }.into_py(py)
+            }
             PackageSource::Spec(s) => (*s).clone().into_py(py),
         }
     }
 }
 
 impl PackageSource {
-    pub fn read_spec(&self, ident: &Ident) -> PyResult<api::Spec> {
+    pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
         match self {
             PackageSource::Spec(s) => Ok((**s).clone()),
-            PackageSource::Repository(repo) => Python::with_gil(|py| {
-                let args = PyTuple::new(py, &[ident.clone().into_py(py)]);
-                repo.call_method1(py, "read_spec", args)?
-                    .as_ref(py)
-                    .extract::<api::Spec>()
-            }),
+            PackageSource::Repository(repo) => repo.lock().unwrap().read_spec(&ident),
         }
     }
 }
@@ -210,23 +209,22 @@ impl Solution {
     }
 
     /// Return the set of repositories in this solution.
-    pub fn repositories(&self) -> PyResult<Vec<PyObject>> {
-        Python::with_gil(|py| {
-            let builtins = PyModule::import(py, "builtins")?;
-            let mut seen = HashSet::new();
-            let mut repos = Vec::new();
-            for (_, source) in self.resolved.values() {
-                if let PackageSource::Repository(repo) = source {
-                    let repo_id = builtins.getattr("id")?.call1((repo,))?.extract::<usize>()?;
-                    if seen.contains(&repo_id) {
-                        continue;
-                    }
-                    repos.push(repo.clone());
-                    seen.insert(repo_id);
+    pub fn repositories(&self) -> Result<Vec<storage::python::Repository>> {
+        let mut seen = HashSet::new();
+        let mut repos = Vec::new();
+        for (_, source) in self.resolved.values() {
+            if let PackageSource::Repository(repo) = source {
+                let addr = repo.lock().unwrap().address();
+                if seen.contains(&addr) {
+                    continue;
                 }
+                repos.push(storage::python::Repository {
+                    handle: repo.clone(),
+                });
+                seen.insert(addr);
             }
-            Ok(repos)
-        })
+        }
+        Ok(repos)
     }
 
     /// Return the data of this solution as environment variables.
