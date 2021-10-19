@@ -5,7 +5,7 @@
 mod archive;
 mod handle;
 mod mem;
-mod python;
+pub mod python;
 mod repository;
 mod runtime;
 mod spfs;
