@@ -47,10 +47,10 @@ impl graph::Database for super::FSRepository {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {
-            tracing::trace!(digest = ?digest, "object already exists");
+            tracing::trace!(?digest, "object already exists");
             return Ok(());
         }
-        tracing::trace!(digest = ?digest, kind = ?obj.kind(), "writing object to db");
+        tracing::trace!(?digest, kind = ?obj.kind(), "writing object to db");
 
         // we need to use a temporary file here, so that
         // other processes don't try to read our incomplete

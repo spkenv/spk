@@ -272,7 +272,7 @@ impl Iterator for FSHashStoreIter {
                         }
                         Err(err) => match err.raw_os_error() {
                             Some(libc::ENOTDIR) => {
-                                tracing::debug!(path = ?path, "found non-directory in hash storage");
+                                tracing::debug!(?path, "found non-directory in hash storage");
                                 continue;
                             }
                             _ => break Some(Err(err.into())),

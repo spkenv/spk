@@ -177,7 +177,7 @@ pub fn get_all_attached_objects(
                 if reachable_objects.contains(&digest) {
                     continue;
                 }
-                tracing::debug!(digest = ?digest, "walking");
+                tracing::debug!(?digest, "walking");
                 let obj = match repo.read_object(&digest) {
                     Ok(obj) => obj,
                     Err(err) => match err {

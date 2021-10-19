@@ -49,7 +49,7 @@ impl FSRepository {
 
         let perms = std::fs::Permissions::from_mode(0o777);
         if let Err(err) = std::fs::set_permissions(&filepath, perms) {
-            tracing::warn!(err = ?err, filepath = ?filepath,"Failed to set tag permissions");
+            tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
         }
         Ok(())
     }
@@ -178,7 +178,7 @@ impl TagStorage for FSRepository {
         let mut filepath = filepath.as_path();
         while filepath.starts_with(self.tags_root()) {
             if let Some(parent) = filepath.parent() {
-                tracing::trace!(parent = ?parent, "seeing if parent needs removing");
+                tracing::trace!(?parent, "seeing if parent needs removing");
                 match std::fs::remove_dir(self.tags_root().join(parent)) {
                     Ok(_) => {
                         tracing::debug!(path = ?parent, "removed tag parent dir");
@@ -216,7 +216,7 @@ impl TagStorage for FSRepository {
             std::fs::rename(&backup_path, &filepath)?;
             Err(err)
         } else if let Err(err) = std::fs::remove_file(&backup_path) {
-            tracing::warn!(err = ?err, "failed to cleanup tag backup file");
+            tracing::warn!(?err, "failed to cleanup tag backup file");
             Ok(())
         } else {
             Ok(())
@@ -367,7 +367,7 @@ impl TagLock {
 impl Drop for TagLock {
     fn drop(&mut self) {
         if let Err(err) = std::fs::remove_file(&self.0) {
-            tracing::warn!(err = ?err, "Failed to remove tag lock file");
+            tracing::warn!(?err, "Failed to remove tag lock file");
         }
     }
 }
