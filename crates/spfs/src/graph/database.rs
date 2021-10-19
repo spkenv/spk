@@ -80,7 +80,9 @@ impl<'db> Iterator for DatabaseIterator<'db> {
                     let obj = self.db.read_object(&next);
                     match obj {
                         Ok(obj) => Some(Ok((next, obj))),
-                        Err(err) => Some(Err(err)),
+                        Err(err) => Some(Err(
+                            format!("Error reading object {}: {}", &next, err).into()
+                        )),
                     }
                 }
             },

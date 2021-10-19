@@ -14,7 +14,7 @@ pub fn check_database_integrity<'db>(db: impl DatabaseView + PayloadStorage + 'd
     let mut visited = HashSet::new();
     for obj in db.iter_objects() {
         match obj {
-            Err(err) => errors.push(err),
+            Err(err) => errors.push(format!("Error in iter_objects: {}", err).into()),
             Ok((_digest, obj)) => {
                 for digest in obj.child_objects() {
                     if visited.contains(&digest) {
@@ -22,13 +22,16 @@ pub fn check_database_integrity<'db>(db: impl DatabaseView + PayloadStorage + 'd
                     }
                     visited.insert(digest);
                     match db.read_object(&digest) {
-                        Err(err) => errors.push(err),
+                        Err(err) => {
+                            errors.push(format!("Error reading object {}: {}", &digest, err).into())
+                        }
                         Ok(obj) if obj.has_payload() => match db.open_payload(&digest) {
                             Err(Error::UnknownObject(_)) => errors.push(
                                 format!("{} object missing payload: {}", obj.to_string(), digest)
                                     .into(),
                             ),
-                            Err(err) => errors.push(err),
+                            Err(err) => errors
+                                .push(format!("Error opening payload {}: {}", &digest, err).into()),
                             Ok(_) => (),
                         },
                         Ok(_) => (),
