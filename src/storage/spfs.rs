@@ -13,6 +13,20 @@ pub struct SPFSRepository {
     inner: spfs::storage::RepositoryHandle,
 }
 
+impl std::hash::Hash for SPFSRepository {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.address().hash(state);
+    }
+}
+
+impl PartialEq for SPFSRepository {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.address() == other.inner.address()
+    }
+}
+
+impl Eq for SPFSRepository {}
+
 impl std::ops::Deref for SPFSRepository {
     type Target = spfs::storage::RepositoryHandle;
 

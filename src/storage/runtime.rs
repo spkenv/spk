@@ -6,9 +6,27 @@ use spfs::prelude::*;
 use super::Repository;
 use crate::{api, Error, Result};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
     root: std::path::PathBuf,
+}
+
+impl RuntimeRepository {
+    pub fn address(&self) -> url::Url {
+        let address = format!("runtime://{}", self.root.display());
+        match url::Url::parse(&address) {
+            Ok(a) => a,
+            Err(err) => {
+                tracing::error!(
+                    "failed to create valid address for path {:?}: {:?}",
+                    self.root,
+                    err
+                );
+                url::Url::parse(&format!("runtime://{}", self.root.to_string_lossy()))
+                    .expect("Failed to create url from path (fallback)")
+            }
+        }
+    }
 }
 
 impl Default for RuntimeRepository {
