@@ -4,6 +4,7 @@
 use super::Repository;
 
 #[derive(Debug, Hash)]
+#[allow(clippy::derive_hash_xor_eq)]
 pub enum RepositoryHandle {
     SPFS(super::SPFSRepository),
     Mem(super::MemRepository),

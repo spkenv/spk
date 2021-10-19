@@ -32,9 +32,7 @@ impl<'source> FromPyObject<'source> for PackageSource {
 impl IntoPy<Py<PyAny>> for PackageSource {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
-            PackageSource::Repository(s) => {
-                storage::python::Repository { handle: s.clone() }.into_py(py)
-            }
+            PackageSource::Repository(s) => storage::python::Repository { handle: s }.into_py(py),
             PackageSource::Spec(s) => (*s).clone().into_py(py),
         }
     }
@@ -44,7 +42,7 @@ impl PackageSource {
     pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
         match self {
             PackageSource::Spec(s) => Ok((**s).clone()),
-            PackageSource::Repository(repo) => repo.lock().unwrap().read_spec(&ident),
+            PackageSource::Repository(repo) => repo.lock().unwrap().read_spec(ident),
         }
     }
 }

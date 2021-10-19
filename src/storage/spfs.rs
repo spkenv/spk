@@ -60,9 +60,9 @@ impl Repository for SPFSRepository {
         let path = relative_path::RelativePath::new("spk/spec");
         Ok(self
             .inner
-            .ls_tags(&path)?
+            .ls_tags(path)?
             .filter_map(|entry| {
-                if entry.ends_with("/") {
+                if entry.ends_with('/') {
                     Some(entry[0..entry.len() - 1].to_owned())
                 } else {
                     None
@@ -76,13 +76,13 @@ impl Repository for SPFSRepository {
         let mut versions = self
             .inner
             .ls_tags(&path)?
-            .filter_map(|entry| {
-                if entry.ends_with("/") {
+            .map(|entry| {
+                if entry.ends_with('/') {
                     let stripped = &entry[0..entry.len() - 1];
                     // undo our encoding of the invalid '+' character in spfs tags
-                    Some(stripped.replace("..", "+"))
+                    stripped.replace("..", "+")
                 } else {
-                    Some(entry.replace("..", "+"))
+                    entry.replace("..", "+")
                 }
             })
             .filter_map(|v| match api::parse_version(&v) {
@@ -106,7 +106,7 @@ impl Repository for SPFSRepository {
         Ok(self
             .inner
             .ls_tags(&base)?
-            .filter(|entry| !entry.ends_with("/"))
+            .filter(|entry| !entry.ends_with('/'))
             .filter_map(|b| match api::parse_build(&b) {
                 Ok(b) => Some(b),
                 Err(_) => {
@@ -119,7 +119,7 @@ impl Repository for SPFSRepository {
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
-        let tag_path = self.build_spec_tag(&pkg);
+        let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
             spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
@@ -131,7 +131,7 @@ impl Repository for SPFSRepository {
     }
 
     fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
-        let tag_path = self.build_package_tag(&pkg)?;
+        let tag_path = self.build_package_tag(pkg)?;
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
             spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
@@ -158,7 +158,7 @@ impl Repository for SPFSRepository {
     }
 
     fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
-        let tag_path = self.build_spec_tag(&pkg);
+        let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec) {
             Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),
@@ -179,8 +179,8 @@ impl Repository for SPFSRepository {
         let payload = serde_yaml::to_vec(&spec)?;
         let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
         let blob = spfs::graph::Blob {
-            payload: digest.clone(),
-            size: size,
+            payload: digest,
+            size,
         };
         self.inner.write_blob(blob)?;
         self.inner.push_tag(&tag_spec, &digest)?;
@@ -207,7 +207,7 @@ impl Repository for SPFSRepository {
     }
 
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
-        let tag_path = self.build_package_tag(&pkg)?;
+        let tag_path = self.build_package_tag(pkg)?;
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec) {
             Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),

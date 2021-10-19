@@ -50,9 +50,8 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
 
     tracing::info!(path=?filename, "building archive");
     use std::ops::DerefMut;
-    match target_repo.deref_mut() {
-        spfs::storage::RepositoryHandle::Tar(tar) => tar.flush()?,
-        _ => (),
+    if let spfs::storage::RepositoryHandle::Tar(tar) = target_repo.deref_mut() {
+        tar.flush()?;
     }
     Ok(())
 }
@@ -75,7 +74,7 @@ fn copy_package(
     src_repo: &SPFSRepository,
     dst_repo: &mut SPFSRepository,
 ) -> Result<()> {
-    let spec = src_repo.read_spec(&pkg)?;
+    let spec = src_repo.read_spec(pkg)?;
     if pkg.build.is_none() {
         tracing::info!(?pkg, "exporting");
         dst_repo.publish_spec(spec)?;
@@ -84,7 +83,7 @@ fn copy_package(
 
     let digest = src_repo.get_package(pkg)?;
     tracing::info!(?pkg, "exporting");
-    spfs::sync_ref(digest.to_string(), &src_repo, dst_repo)?;
+    spfs::sync_ref(digest.to_string(), src_repo, dst_repo)?;
     dst_repo.publish_package(spec, digest)?;
     Ok(())
 }

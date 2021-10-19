@@ -9,16 +9,16 @@ use crate::{api, storage::RepositoryHandle, Result};
 
 #[pyfunction]
 fn local_repository() -> Result<Repository> {
-    Ok(super::local_repository().map(|r| Repository {
+    super::local_repository().map(|r| Repository {
         handle: Arc::new(RepositoryHandle::SPFS(r).into()),
-    })?)
+    })
 }
 
 #[pyfunction(path = "\"origin\"")]
 fn remote_repository(path: &str) -> Result<Repository> {
-    Ok(super::remote_repository(path).map(|r| Repository {
+    super::remote_repository(path).map(|r| Repository {
         handle: Arc::new(RepositoryHandle::SPFS(r).into()),
-    })?)
+    })
 }
 
 #[pyfunction]
@@ -119,7 +119,7 @@ impl Repository {
     }
     pub fn has_digest(&self, digest: &crate::Digest) -> Result<bool> {
         if let RepositoryHandle::SPFS(repo) = &*self.handle.lock().unwrap() {
-            Ok(repo.has_digest(&digest))
+            Ok(repo.has_digest(digest))
         } else {
             Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
                 "Not an spfs repository",
@@ -132,7 +132,7 @@ impl Repository {
             &mut *dest.handle.lock().unwrap(),
         ) {
             (RepositoryHandle::SPFS(src), RepositoryHandle::SPFS(dest)) => {
-                src.push_digest(&digest, dest)
+                src.push_digest(digest, dest)
             }
             _ => Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
                 "Source and dest must both be spfs repositories",
@@ -141,7 +141,7 @@ impl Repository {
     }
     pub fn localize_digest(&self, digest: &crate::Digest) -> Result<()> {
         if let RepositoryHandle::SPFS(repo) = &*self.handle.lock().unwrap() {
-            repo.localize_digest(&digest)
+            repo.localize_digest(digest)
         } else {
             Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
                 "Not an spfs repository",

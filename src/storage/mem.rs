@@ -6,13 +6,12 @@ use std::collections::HashMap;
 use super::Repository;
 use crate::{api, Error, Result};
 
+type BuildMap = HashMap<api::Build, (api::Spec, spfs::encoding::Digest)>;
+
 #[derive(Default, Clone, Debug)]
 pub struct MemRepository {
     specs: HashMap<String, HashMap<api::Version, api::Spec>>,
-    packages: HashMap<
-        String,
-        HashMap<api::Version, HashMap<api::Build, (api::Spec, spfs::encoding::Digest)>>,
-    >,
+    packages: HashMap<String, HashMap<api::Version, BuildMap>>,
 }
 
 impl MemRepository {
@@ -31,7 +30,7 @@ impl std::hash::Hash for MemRepository {
 
 impl PartialEq for MemRepository {
     fn eq(&self, other: &Self) -> bool {
-        self as *const _ == other as *const _
+        std::ptr::eq(self, other)
     }
 }
 

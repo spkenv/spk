@@ -73,7 +73,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_submodule(build_mod)?;
 
     let storage_mod = PyModule::new(py, "storage")?;
-    storage::init_module(&py, &storage_mod)?;
+    storage::init_module(&py, storage_mod)?;
     m.add_submodule(storage_mod)?;
 
     let solve_mod = PyModule::new(py, "solve")?;

@@ -52,7 +52,7 @@ impl Repository for RuntimeRepository {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
-                if entry.ends_with("/") {
+                if entry.ends_with('/') {
                     Some(entry[0..entry.len() - 1].to_string())
                 } else {
                     None
@@ -65,7 +65,7 @@ impl Repository for RuntimeRepository {
         Ok(get_all_filenames(self.root.join(name))?
             .into_iter()
             .filter_map(|entry| {
-                if entry.ends_with("/") {
+                if entry.ends_with('/') {
                     Some(entry[0..entry.len() - 1].to_string())
                 } else {
                     None
@@ -91,7 +91,7 @@ impl Repository for RuntimeRepository {
         Ok(get_all_filenames(&base)?
             .into_iter()
             .filter_map(|entry| {
-                if entry.ends_with("/") {
+                if entry.ends_with('/') {
                     Some(entry[0..entry.len() - 1].to_string())
                 } else {
                     None
@@ -200,8 +200,8 @@ fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Dige
     let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
     for layer in layers.iter().rev() {
         let manifest = repo.read_manifest(&layer.manifest)?.unlock();
-        if let Some(_) = manifest.get_path(&path) {
-            return Ok(layer.digest()?.into());
+        if manifest.get_path(&path).is_some() {
+            return Ok(layer.digest()?);
         }
     }
     Err(spfs::graph::UnknownReferenceError::new(path).into())
