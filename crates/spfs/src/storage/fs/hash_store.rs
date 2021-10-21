@@ -79,6 +79,10 @@ impl FSHashStore {
         };
 
         let digest = hasher.digest();
+        if let Err(err) = writer.sync_all() {
+            return Err(Error::wrap_io(err, "Failed to finalize object write"));
+        }
+
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
         if let Err(err) = std::fs::rename(&working_file, &path) {

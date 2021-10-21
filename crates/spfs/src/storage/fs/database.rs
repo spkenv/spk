@@ -66,6 +66,10 @@ impl graph::Database for super::FSRepository {
             let _ = std::fs::remove_file(&working_file);
             return Err(err);
         }
+        if let Err(err) = writer.sync_all() {
+            let _ = std::fs::remove_file(&working_file);
+            return Err(Error::wrap_io(err, "Failed to finalize object write"));
+        }
         self.objects.ensure_base_dir(&filepath)?;
         match std::fs::rename(&working_file, &filepath) {
             Ok(_) => Ok(()),
