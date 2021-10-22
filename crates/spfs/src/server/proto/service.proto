@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package spfs;
+
+message PingRequest {}
+message PingResponse {}
+
+service SPFSService {
+    rpc Ping(PingRequest) returns (PingResponse);
+}
