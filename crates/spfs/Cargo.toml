@@ -37,6 +37,13 @@ path = "src/cli/cmd_init.rs"
 [[bin]]
 name = "spfs-render"
 path = "src/cli/cmd_render.rs"
+[[bin]]
+name = "spfs-server"
+path = "src/cli/cmd_server.rs"
+required-features = ["server"]
+
+[features]
+server = []
 
 [dependencies]
 async-trait = "0.1.52"

@@ -19,6 +19,8 @@ pub mod graph;
 pub mod io;
 pub mod prelude;
 pub mod runtime;
+#[cfg(feature = "server")]
+pub mod server;
 pub mod storage;
 pub mod tracking;
 
