@@ -30,8 +30,19 @@ impl CmdServer {
             None => config.get_repository().await?.into(),
         };
 
-        let runtime = tokio::runtime::Runtime::new()?;
-        runtime.block_on(async move { spfs::server::run(self.address, repo).await })?;
-        Ok(1)
+        let future = tonic::transport::Server::builder()
+            .add_service(spfs::server::Service::new_srv(repo))
+            .serve_with_shutdown(self.address, async {
+                if let Err(err) = tokio::signal::ctrl_c().await {
+                    tracing::error!(?err, "Failed to setup graceful shutdown handler");
+                };
+                tracing::info!("shutting down server...");
+            });
+        tracing::info!("listening on: {}", self.address);
+        future
+            .await
+            .map_err(|err| spfs::Error::String(format!("Server failed: {:?}", err)))?;
+
+        Ok(0)
     }
 }

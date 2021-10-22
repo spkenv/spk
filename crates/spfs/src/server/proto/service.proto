@@ -5,6 +5,6 @@ package spfs;
 message PingRequest {}
 message PingResponse {}
 
-service SPFSService {
+service Repository {
     rpc Ping(PingRequest) returns (PingResponse);
 }

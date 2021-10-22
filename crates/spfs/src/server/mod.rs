@@ -4,9 +4,9 @@
 //! Remote server implementations of the spfs repository
 use std::sync::Arc;
 
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{Request, Response, Status};
 
-use proto::spfs_service_server::{SpfsService, SpfsServiceServer};
+use proto::repository_server::{Repository, RepositoryServer};
 pub mod proto {
     tonic::include_proto!("spfs");
 }
@@ -19,7 +19,7 @@ pub struct Service {
 }
 
 #[tonic::async_trait]
-impl SpfsService for Service {
+impl Repository for Service {
     async fn ping(
         &self,
         _request: Request<proto::PingRequest>,
@@ -29,18 +29,10 @@ impl SpfsService for Service {
     }
 }
 
-pub async fn run(
-    address: std::net::SocketAddr,
-    repo: storage::RepositoryHandle,
-) -> crate::Result<()> {
-    let service = Service {
-        repo: Arc::new(repo),
-    };
-
-    let builder = Server::builder().add_service(SpfsServiceServer::new(service));
-    tracing::info!("server is listening on: {}", address);
-
-    let server = builder.serve(address);
-    server.await.unwrap();
-    Ok(())
+impl Service {
+    pub fn new_srv(repo: storage::RepositoryHandle) -> RepositoryServer<Self> {
+        RepositoryServer::new(Self {
+            repo: Arc::new(repo),
+        })
+    }
 }
