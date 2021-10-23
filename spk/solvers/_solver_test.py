@@ -12,9 +12,8 @@ import spk
 from .. import api, io
 from ..pysolve import legacy
 from ..pysolve.legacy import _errors as legacy_errors
-from spkrs import storage
-from spkrs.solve import _errors as rust_errors
-from spkrs.solve._solver import Solver
+from spkrs import storage, solve
+from spkrs.solve import Solver
 
 
 @pytest.fixture(params=["legacy", "graph"])
@@ -178,7 +177,7 @@ def test_solver_dependency_incompatible(solver: Union[Solver, legacy.Solver]) ->
     # this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request("maya/2019")
 
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
@@ -353,7 +352,7 @@ def test_solver_dependency_reopen_unsolvable(
     )
     solver.add_repository(repo)
     solver.add_request("pkg-top")
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         packages = solver.solve()
         print(packages)
 
@@ -573,7 +572,7 @@ def test_solver_build_from_source() -> None:
     solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
     solver.set_binary_only(True)
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         # Should fail when binary-only is specified
         io.run_and_print_resolve(solver, verbosity=100)
 
@@ -611,7 +610,7 @@ def test_solver_build_from_source_unsolvable(
     solver.add_request(api.VarRequest("gcc", "6.3"))
     solver.add_request("my-tool")
 
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
@@ -739,7 +738,7 @@ def test_solver_build_from_source_deprecated(
     solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
 
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
@@ -832,7 +831,7 @@ def test_solver_embedded_package_unsolvable(
     solver.add_repository(repo)
     solver.add_request("my-plugin")
 
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
@@ -902,7 +901,7 @@ def test_solver_embedded_request_invalidates(
     solver.add_request("python")
     solver.add_request("my-lib")
 
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
@@ -919,7 +918,7 @@ def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) ->
     solver.add_request(api.VarRequest("my-lib.something", "value"))
     solver.add_request("my-lib")
 
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         io.run_and_print_resolve(solver, verbosity=100)
 
     # this time we don't request that option, and it should be ok
@@ -1080,5 +1079,5 @@ def test_solver_build_options_dont_affect_compat(
     solver.add_request("pkgb")
     # this time the explicit request will cause a failure
     solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
-    with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
+    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
         solution = io.run_and_print_resolve(solver, verbosity=100)
