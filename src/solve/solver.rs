@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{create_exception, prelude::*, PyIterProtocol};
+use pyo3::{create_exception, exceptions, prelude::*, PyIterProtocol};
 use std::{
     borrow::Cow,
     mem::take,
@@ -30,6 +30,7 @@ use super::{
 create_exception!(errors, SolverFailedError, SolverError);
 
 #[pyclass]
+#[derive(Clone)]
 pub struct Solver {
     repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     initial_state_builders: Vec<Change>,
@@ -264,7 +265,8 @@ impl Solver {
     }
 
     pub fn get_last_solve_graph(&self) -> Graph {
-        self.last_graph.read().unwrap().clone()
+        //self.last_graph.read().unwrap().clone()
+        todo!()
     }
 
     pub fn reset(&mut self) {
@@ -273,8 +275,8 @@ impl Solver {
         self.validators = Cow::from(validation::default_validators());
     }
 
-    pub fn run(self) -> SolverRuntime {
-        SolverRuntime::new(self)
+    pub fn run(&self) -> SolverRuntime {
+        SolverRuntime::new(self.clone())
     }
 
     /// If true, only solve pre-built binary packages.
@@ -312,10 +314,10 @@ impl Solver {
 
     pub fn solve(&mut self) -> PyResult<Solution> {
         let mut runtime = self.run();
-        for step in runtime {
+        for step in runtime.iter() {
             step?;
         }
-        Ok(runtime.solution)
+        runtime.current_solution()
     }
 
     /// Adds requests for all build requirements and solves
@@ -354,11 +356,60 @@ impl Solver {
 pub struct SolverRuntime {
     solver: Solver,
     graph: Arc<RwLock<Graph>>,
+    history: Vec<Arc<RwLock<Node>>>,
+    current_node: Option<Arc<RwLock<Node>>>,
+    decision: Option<Decision>,
 }
 
 impl SolverRuntime {
     pub fn new(solver: Solver) -> Self {
-        todo!()
+        let initial_decision = Decision::new(solver.initial_state_builders.clone());
+        Self {
+            solver: solver,
+            graph: Arc::new(RwLock::new(Graph::new())),
+            history: Vec::new(),
+            current_node: None,
+            decision: Some(initial_decision),
+        }
+    }
+
+    pub fn graph(&self) -> Arc<RwLock<Graph>> {
+        self.graph.clone()
+    }
+
+    pub fn iter<'a>(&'a mut self) -> SolverRuntimeIter<'a> {
+        SolverRuntimeIter(self)
+    }
+}
+
+#[pymethods]
+impl SolverRuntime {
+    #[pyo3(name = "graph")]
+    pub fn pygraph(&self) -> Graph {
+        self.graph.read().unwrap().clone()
+    }
+
+    pub fn current_solution(&self) -> PyResult<Solution> {
+        let current_node = self.current_node.as_ref().ok_or_else(|| {
+            exceptions::PyRuntimeError::new_err("Solver runtime as not been consumed")
+        })?;
+        let current_node_lock = current_node.read().unwrap();
+
+        let is_dead = current_node_lock.state.id()
+            == self.graph.read().unwrap().root.read().unwrap().state.id()
+            || Arc::ptr_eq(&current_node_lock.state, &DEAD_STATE);
+        let is_empty = self
+            .solver
+            .get_initial_state()
+            .get_pkg_requests()
+            .is_empty();
+        if is_dead && !is_empty {
+            Err(SolverFailedError::new_err(
+                (*self.graph).read().unwrap().clone(),
+            ))
+        } else {
+            current_node_lock.state.as_solution()
+        }
     }
 }
 
@@ -366,46 +417,39 @@ impl Iterator for SolverRuntime {
     type Item = Result<(Node, Decision)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let solve_graph = Arc::new(RwLock::new(Graph::new()));
-        self.last_graph = solve_graph.clone();
-        self.steps = Vec::default();
-
-        let mut history = Vec::<Arc<RwLock<Node>>>::new();
-        let mut current_node: Option<Arc<RwLock<Node>>> = None;
-        let mut decision = Some(Decision::new(self.initial_state_builders.clone()));
-
-        while decision.is_some()
-            && (current_node.is_none()
-                || !current_node
+        if self.decision.is_some()
+            && (self.current_node.is_none()
+                || !self
+                    .current_node
                     .as_ref()
                     .map(|n| Arc::ptr_eq(&n.read().unwrap().state, &DEAD_STATE))
                     .unwrap_or_default())
         {
-            self.steps.push((
+            let to_yield = (
                 // A clone of Some(current_node) or the root node
-                current_node
+                self.current_node
                     .as_ref()
                     .map(|n| n.read().unwrap().clone())
-                    .unwrap_or_else(|| solve_graph.read().unwrap().root.read().unwrap().clone()),
-                decision.as_ref().expect("decision is some").clone(),
-            ));
+                    .unwrap_or_else(|| self.graph.read().unwrap().root.read().unwrap().clone()),
+                self.decision.as_ref().expect("decision is some").clone(),
+            );
 
-            current_node = Some({
-                let mut sg = solve_graph.write().unwrap();
+            self.current_node = Some({
+                let mut sg = self.graph.write().unwrap();
                 let root_id = sg.root.read().unwrap().id();
                 match sg.add_branch(
-                    current_node
+                    self.current_node
                         .as_ref()
                         .map(|n| n.read().unwrap().id())
                         .unwrap_or(root_id),
-                    decision.unwrap(),
+                    self.decision.take().unwrap(),
                 ) {
                     Ok(cn) => cn,
                     Err(GraphError::RecursionError(msg)) => {
-                        match history.pop() {
+                        match self.history.pop() {
                             Some(n) => {
                                 let n_lock = n.read().unwrap();
-                                decision = Some(
+                                self.decision = Some(
                                     Change::StepBack(StepBack::new(
                                         &msg.to_string(),
                                         &n_lock.state,
@@ -414,27 +458,28 @@ impl Iterator for SolverRuntime {
                                 )
                             }
                             None => {
-                                decision = Some(
+                                self.decision = Some(
                                     Change::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
                                         .as_decision(),
                                 )
                             }
                         }
-                        continue;
+                        return Some(Ok(to_yield));
                     }
                 }
             });
-            let current_node = current_node
+            let current_node = self
+                .current_node
                 .as_ref()
                 .expect("current_node always `is_some` here");
             let mut current_node_lock = current_node.write().unwrap();
-            decision = match self.step_state(&mut current_node_lock) {
+            self.decision = match self.solver.step_state(&mut current_node_lock) {
                 Ok(decision) => decision,
                 Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
-                    match history.pop() {
+                    match self.history.pop() {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
-                            decision = Some(
+                            self.decision = Some(
                                 Change::StepBack(StepBack::new(
                                     &format!("could not satisfy '{}'", err.request.pkg),
                                     &n_lock.state,
@@ -443,7 +488,7 @@ impl Iterator for SolverRuntime {
                             )
                         }
                         None => {
-                            decision = Some(
+                            self.decision = Some(
                                 Change::StepBack(StepBack::new(
                                     &format!("could not satisfy '{}'", err.request.pkg),
                                     &DEAD_STATE,
@@ -452,30 +497,16 @@ impl Iterator for SolverRuntime {
                             )
                         }
                     }
-                    if let Some(d) = decision.as_mut() {
+                    if let Some(d) = self.decision.as_mut() {
                         d.add_notes(err.notes.iter())
                     }
-                    continue;
+                    return Some(Ok(to_yield));
                 }
-                Err(err) => return Err(err.into()),
+                Err(err) => return Some(Err(err.into())),
             };
-            history.push(current_node.clone());
+            self.history.push(current_node.clone());
         }
-
-        let current_node = current_node.expect("current_node always `is_some` here");
-        let current_node_lock = current_node.read().unwrap();
-
-        let is_dead = current_node_lock.state.id()
-            == solve_graph.read().unwrap().root.read().unwrap().state.id()
-            || Arc::ptr_eq(&current_node_lock.state, &DEAD_STATE);
-        let is_empty = self.get_initial_state().get_pkg_requests().is_empty();
-        if is_dead && !is_empty {
-            Err(SolverFailedError::new_err(
-                (*solve_graph).read().unwrap().clone(),
-            ))
-        } else {
-            Ok(current_node_lock.state.as_solution()?)
-        }
+        None
     }
 }
 
@@ -491,5 +522,15 @@ impl PyIterProtocol for SolverRuntime {
             Some(Err(err)) => Err(err),
             None => Ok(None),
         }
+    }
+}
+
+pub struct SolverRuntimeIter<'a>(&'a mut SolverRuntime);
+
+impl<'a> Iterator for SolverRuntimeIter<'a> {
+    type Item = Result<(Node, Decision)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
     }
 }
