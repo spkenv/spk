@@ -250,7 +250,7 @@ def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
 def format_error(err: Exception, verbosity: int = 0) -> str:
 
     msg = str(err)
-    if isinstance(err, solve.SolverFailedError):
+    if isinstance(err, pysolve.SolverFailedError):
         errors = err.graph.find_deepest_errors()
         if errors:
             msg += ", likely suspects:\n - " + ("\n - ".join(errors))

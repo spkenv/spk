@@ -131,7 +131,9 @@ def _install(args: argparse.Namespace) -> None:
         if spec.pkg.name in requested:
             primary.append(spec)
             continue
-        if req not in env:
+        try:
+            env.get(req.pkg.name)
+        except KeyError:
             tertiary.append(spec)
 
     print("  Requested:")
