@@ -320,8 +320,8 @@ impl Solver {
         runtime.current_solution()
     }
 
-    /// Adds requests for all build requirements and solves
-    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
+    /// Adds requests for all build requirements
+    pub fn configure_for_build_environment(&mut self, spec: &api::Spec) -> Result<()> {
         let state = self.get_initial_state();
 
         let build_options = spec.resolve_all_options(&state.get_option_map());
@@ -333,6 +333,12 @@ impl Solver {
             }
         }
 
+        Ok(())
+    }
+
+    /// Adds requests for all build requirements and solves
+    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
+        self.configure_for_build_environment(spec)?;
         Ok(self.solve()?)
     }
 
@@ -389,6 +395,21 @@ impl SolverRuntime {
         self.graph.read().unwrap().clone()
     }
 
+    /// Returns the final solution for this runtime.
+    ///
+    /// If needed, this function will iterate any remaining
+    /// steps for the current state.
+    pub fn solution(&mut self) -> PyResult<Solution> {
+        for item in self.iter() {
+            item?;
+        }
+        self.current_solution()
+    }
+
+    /// Return the current solution for this runtime.
+    ///
+    /// If the runtime has not yet completed, this solution
+    /// may be incomplete or empty.
     pub fn current_solution(&self) -> PyResult<Solution> {
         let current_node = self.current_node.as_ref().ok_or_else(|| {
             exceptions::PyRuntimeError::new_err("Solver runtime as not been consumed")
@@ -417,96 +438,95 @@ impl Iterator for SolverRuntime {
     type Item = Result<(Node, Decision)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.decision.is_some()
-            && (self.current_node.is_none()
-                || !self
+        if self.decision.is_none()
+            || (self.current_node.is_some()
+                && self
                     .current_node
                     .as_ref()
                     .map(|n| Arc::ptr_eq(&n.read().unwrap().state, &DEAD_STATE))
                     .unwrap_or_default())
         {
-            let to_yield = (
-                // A clone of Some(current_node) or the root node
+            return None;
+        }
+
+        let to_yield = (
+            // A clone of Some(current_node) or the root node
+            self.current_node
+                .as_ref()
+                .map(|n| n.read().unwrap().clone())
+                .unwrap_or_else(|| self.graph.read().unwrap().root.read().unwrap().clone()),
+            self.decision.as_ref().expect("decision is some").clone(),
+        );
+
+        self.current_node = Some({
+            let mut sg = self.graph.write().unwrap();
+            let root_id = sg.root.read().unwrap().id();
+            match sg.add_branch(
                 self.current_node
                     .as_ref()
-                    .map(|n| n.read().unwrap().clone())
-                    .unwrap_or_else(|| self.graph.read().unwrap().root.read().unwrap().clone()),
-                self.decision.as_ref().expect("decision is some").clone(),
-            );
-
-            self.current_node = Some({
-                let mut sg = self.graph.write().unwrap();
-                let root_id = sg.root.read().unwrap().id();
-                match sg.add_branch(
-                    self.current_node
-                        .as_ref()
-                        .map(|n| n.read().unwrap().id())
-                        .unwrap_or(root_id),
-                    self.decision.take().unwrap(),
-                ) {
-                    Ok(cn) => cn,
-                    Err(GraphError::RecursionError(msg)) => {
-                        match self.history.pop() {
-                            Some(n) => {
-                                let n_lock = n.read().unwrap();
-                                self.decision = Some(
-                                    Change::StepBack(StepBack::new(
-                                        &msg.to_string(),
-                                        &n_lock.state,
-                                    ))
-                                    .as_decision(),
-                                )
-                            }
-                            None => {
-                                self.decision = Some(
-                                    Change::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
-                                        .as_decision(),
-                                )
-                            }
-                        }
-                        return Some(Ok(to_yield));
-                    }
-                }
-            });
-            let current_node = self
-                .current_node
-                .as_ref()
-                .expect("current_node always `is_some` here");
-            let mut current_node_lock = current_node.write().unwrap();
-            self.decision = match self.solver.step_state(&mut current_node_lock) {
-                Ok(decision) => decision,
-                Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
+                    .map(|n| n.read().unwrap().id())
+                    .unwrap_or(root_id),
+                self.decision.take().unwrap(),
+            ) {
+                Ok(cn) => cn,
+                Err(GraphError::RecursionError(msg)) => {
                     match self.history.pop() {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(
-                                    &format!("could not satisfy '{}'", err.request.pkg),
-                                    &n_lock.state,
-                                ))
-                                .as_decision(),
+                                Change::StepBack(StepBack::new(&msg.to_string(), &n_lock.state))
+                                    .as_decision(),
                             )
                         }
                         None => {
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(
-                                    &format!("could not satisfy '{}'", err.request.pkg),
-                                    &DEAD_STATE,
-                                ))
-                                .as_decision(),
+                                Change::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
+                                    .as_decision(),
                             )
                         }
                     }
-                    if let Some(d) = self.decision.as_mut() {
-                        d.add_notes(err.notes.iter())
-                    }
                     return Some(Ok(to_yield));
                 }
-                Err(err) => return Some(Err(err.into())),
-            };
-            self.history.push(current_node.clone());
-        }
-        None
+            }
+        });
+        let current_node = self
+            .current_node
+            .as_ref()
+            .expect("current_node always `is_some` here");
+        let mut current_node_lock = current_node.write().unwrap();
+        self.decision = match self.solver.step_state(&mut current_node_lock) {
+            Ok(decision) => decision,
+            Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
+                match self.history.pop() {
+                    Some(n) => {
+                        let n_lock = n.read().unwrap();
+                        self.decision = Some(
+                            Change::StepBack(StepBack::new(
+                                &format!("could not satisfy '{}'", err.request.pkg),
+                                &n_lock.state,
+                            ))
+                            .as_decision(),
+                        )
+                    }
+                    None => {
+                        self.decision = Some(
+                            Change::StepBack(StepBack::new(
+                                &format!("could not satisfy '{}'", err.request.pkg),
+                                &DEAD_STATE,
+                            ))
+                            .as_decision(),
+                        )
+                    }
+                }
+                if let Some(d) = self.decision.as_mut() {
+                    d.add_notes(err.notes.iter())
+                }
+                return Some(Ok(to_yield));
+            }
+            Err(err) => return Some(Err(err.into())),
+        };
+        self.history.push(current_node.clone());
+        Some(Ok(to_yield))
     }
 }
 
