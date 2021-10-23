@@ -38,10 +38,7 @@ def test_solver_build_from_source() -> None:
     solver.add_repository(repo)
     solver.add_request("my-tool")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert (
         solution.get("my-tool").spec.pkg.build is None
@@ -54,7 +51,4 @@ def test_solver_build_from_source() -> None:
     solver.set_binary_only(True)
     with pytest.raises(SolverError):
         # Should fail when binary-only is specified
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
