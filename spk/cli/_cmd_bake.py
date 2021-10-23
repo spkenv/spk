@@ -55,12 +55,13 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> List[spkrs.Digest]
     request = _flags.parse_requests_using_flags(args, args.package)[0]
     solver.add_request(request)
 
+    runtime = solver.run()
     try:
-        solution = solver.solve()
+        solution = runtime.solution()
     except spk.SolverError as e:
         print(f"{Fore.RED}{e}{Fore.RESET}")
         if args.verbose:
-            graph = solver.get_last_solve_graph()
+            graph = runtime.graph()
             print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
         if args.verbose == 0:
             print(
