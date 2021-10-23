@@ -22,7 +22,7 @@ class PackageInstallTester:
         self._options = api.OptionMap()
         self._additional_requirements: List[api.Request] = []
         self._source: Optional[str] = None
-        self._solver = solve.Solver()
+        self._last_solve_graph = solve.Graph()
 
     def get_solve_graph(self) -> solve.Graph:
         """Return the solver graph for the test environment.
@@ -33,7 +33,7 @@ class PackageInstallTester:
         If the tester has not run, return an incomplete graph.
         """
 
-        return self._solver.get_last_solve_graph()
+        return self._last_solve_graph
 
     def with_option(self, name: str, value: str) -> "PackageInstallTester":
 
@@ -73,14 +73,14 @@ class PackageInstallTester:
 
         spkrs.reconfigure_runtime(stack=[], editable=True, reset=["*"])
 
-        self._solver.reset()
+        solver = solve.Solver()
         for request in self._additional_requirements:
-            self._solver.add_request(request)
-        self._solver.update_options(self._options)
+            solver.add_request(request)
+        solver.update_options(self._options)
         for repo in self._repos:
-            self._solver.add_repository(repo)
-        self._solver.add_request(self._spec.pkg)
-        solution = self._solver.solve()
+            solver.add_repository(repo)
+        solver.add_request(self._spec.pkg)
+        solution = solver.solve()
 
         layers = exec.resolve_runtime_layers(solution)
         spkrs.reconfigure_runtime(stack=layers)
