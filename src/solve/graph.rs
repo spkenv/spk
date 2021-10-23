@@ -261,6 +261,11 @@ pub struct Graph {
 
 #[pymethods]
 impl Graph {
+    #[new]
+    pub fn pynew() -> Self {
+        Self::default()
+    }
+
     pub fn walk(&self) -> GraphIter {
         GraphIter::new(self.clone())
     }
@@ -701,7 +706,8 @@ impl SetPackageBuild {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct State {
-    pkg_requests: Vec<api::PkgRequest>,
+    #[pyo3(get)]
+    pub pkg_requests: Vec<api::PkgRequest>,
     var_requests: Vec<api::VarRequest>,
     packages: Vec<(Arc<api::Spec>, PackageSource)>,
     options: Vec<(String, String)>,
