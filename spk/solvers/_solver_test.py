@@ -81,11 +81,10 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
 
     with pytest.raises((FileNotFoundError, legacy_errors.SolverError)):
         try:
-            solver.solve()
+            io.run_and_print_resolve(solver, verbosity=100)
         except Exception as e:
             print(type(e), repr(e))
             raise
-        print(io.format_resolve(solver, 999))
 
 
 def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> None:
@@ -97,10 +96,7 @@ def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> 
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
     assert len(packages) == 1, "expected one resolved package"
     assert packages.get("my-pkg").spec.pkg.version == "1.0.0"
     assert packages.get("my-pkg").spec.pkg.build is not None
@@ -128,10 +124,7 @@ def test_solver_single_package_simple_deps(
     solver.add_repository(repo)
     solver.add_request("pkg-b/1.1")
 
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
     assert len(packages) == 2, "expected two resolved packages"
     assert packages.get("pkg-a").spec.pkg.version == "1.2.1"
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
@@ -159,10 +152,7 @@ def test_solver_dependency_abi_compat(solver: Union[Solver, legacy.Solver]) -> N
     solver.add_repository(repo)
     solver.add_request("pkg-b/1.1")
 
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
     assert len(packages) == 2, "expected two resolved packages"
     assert packages.get("pkg-a").spec.pkg.version == "1.1.1"
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
@@ -189,9 +179,7 @@ def test_solver_dependency_incompatible(solver: Union[Solver, legacy.Solver]) ->
     solver.add_request("maya/2019")
 
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        solver.solve()
-
-    print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_dependency_incompatible_stepback(
@@ -222,10 +210,7 @@ def test_solver_dependency_incompatible_stepback(
     # this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
     solver.add_request("maya/2019")
 
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
     assert packages.get("my-plugin").spec.pkg.version == "1.0.0"
     assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
@@ -255,10 +240,7 @@ def test_solver_dependency_already_satisfied(
     )
     solver.add_repository(repo)
     solver.add_request("pkg-top")
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
 
     assert list(s.spec.pkg.name for s in packages.items()) == [
         "pkg-top",
@@ -298,10 +280,7 @@ def test_solver_dependency_reopen_solvable(
     )
     solver.add_repository(repo)
     solver.add_request("my-plugin")
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
     assert set(s.spec.pkg.name for s in packages.items()) == {
         "my-plugin",
         "some-library",
@@ -337,10 +316,7 @@ def test_solver_dependency_reiterate(solver: Union[Solver, legacy.Solver]) -> No
     )
     solver.add_repository(repo)
     solver.add_request("my-plugin")
-    try:
-        packages = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    packages = io.run_and_print_resolve(solver, verbosity=100)
     assert set(s.spec.pkg.name for s in packages.items()) == {
         "my-plugin",
         "some-library",
@@ -432,10 +408,7 @@ def test_solver_constraint_only(solver: Union[Solver, legacy.Solver]) -> None:
     )
     solver.add_repository(repo)
     solver.add_request("vnp3")
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     with pytest.raises(KeyError):
         solution.get("python")
@@ -468,10 +441,7 @@ def test_solver_constraint_and_request(solver: Union[Solver, legacy.Solver]) -> 
     )
     solver.add_repository(repo)
     solver.add_request("my-tool")
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("python").spec.pkg.version == "3.7.3"
 
@@ -512,10 +482,7 @@ def test_solver_option_compatibility() -> None:
         solver.add_request(api.VarRequest("python", pyver))
         solver.add_repository(repo)
         solver.add_request("vnp3")
-        try:
-            solution = solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        solution = io.run_and_print_resolve(solver, verbosity=100)
 
         resolved = solution.get("vnp3")
         opt = resolved.spec.build.options[0]
@@ -554,10 +521,7 @@ def test_solver_option_injection() -> None:
     solver = Solver()
     solver.add_repository(repo)
     solver.add_request("vnp3")
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     opts = solution.options()
     assert opts["vnp3"] == "~2.0.0"
@@ -597,10 +561,7 @@ def test_solver_build_from_source() -> None:
     solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     resolved = solution.get("my-tool")
     assert (
@@ -614,10 +575,7 @@ def test_solver_build_from_source() -> None:
     solver.set_binary_only(True)
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
         # Should fail when binary-only is specified
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_build_from_source_unsolvable(
@@ -654,10 +612,7 @@ def test_solver_build_from_source_unsolvable(
     solver.add_request("my-tool")
 
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_build_from_source_dependency() -> None:
@@ -702,10 +657,7 @@ def test_solver_build_from_source_dependency() -> None:
     solver.add_repository(repo)
     solver.add_request("my-tool")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("my-tool").is_source_build(), "should want to build"
 
@@ -719,10 +671,7 @@ def test_solver_deprecated_build(solver: Union[Solver, legacy.Solver]) -> None:
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
     assert (
         solution.get("my-pkg").spec.pkg.version == "0.9.0"
     ), "should not resolve deprecated build by default"
@@ -731,10 +680,7 @@ def test_solver_deprecated_build(solver: Union[Solver, legacy.Solver]) -> None:
     solver.add_repository(repo)
     solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
     assert (
         solution.get("my-pkg").spec.pkg.version == "1.0.0"
     ), "should be able to resolve exact deprecated build"
@@ -750,10 +696,7 @@ def test_solver_deprecated_version(solver: Union[Solver, legacy.Solver]) -> None
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
     assert (
         solution.get("my-pkg").spec.pkg.version == "0.9.0"
     ), "should not resolve build when version is deprecated by default"
@@ -762,10 +705,7 @@ def test_solver_deprecated_version(solver: Union[Solver, legacy.Solver]) -> None
     solver.add_repository(repo)
     solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
     assert (
         solution.get("my-pkg").spec.pkg.version == "1.0.0"
     ), "should be able to resolve exact build when version is deprecated"
@@ -800,10 +740,7 @@ def test_solver_build_from_source_deprecated(
     solver.add_request("my-tool")
 
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_embedded_package_adds_request(
@@ -827,10 +764,7 @@ def test_solver_embedded_package_adds_request(
     solver.add_repository(repo)
     solver.add_request("maya")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("qt").request.pkg.build == api.EMBEDDED
     assert solution.get("qt").spec.pkg.version == "5.12.6"
@@ -862,10 +796,7 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
     solver.add_request("qt")
     solver.add_request("maya")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("qt").spec.pkg.version == "5.12.6"
     assert solution.get("qt").spec.pkg.build == api.EMBEDDED
@@ -902,10 +833,7 @@ def test_solver_embedded_package_unsolvable(
     solver.add_request("my-plugin")
 
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_some_versions_conflicting_requests(
@@ -941,10 +869,7 @@ def test_solver_some_versions_conflicting_requests(
     solver.add_repository(repo)
     solver.add_request("my-lib")
 
-    try:
-        solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_embedded_request_invalidates(
@@ -978,10 +903,7 @@ def test_solver_embedded_request_invalidates(
     solver.add_request("my-lib")
 
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) -> None:
@@ -998,19 +920,13 @@ def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) ->
     solver.add_request("my-lib")
 
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        try:
-            solver.solve()
-        finally:
-            print(io.format_resolve(solver, verbosity=100))
+        io.run_and_print_resolve(solver, verbosity=100)
 
     # this time we don't request that option, and it should be ok
     solver.reset()
     solver.add_repository(repo)
     solver.add_request("my-lib")
-    try:
-        solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    io.run_and_print_resolve(solver, verbosity=100)
 
 
 def test_solver_var_requirements(solver: Union[Solver, legacy.Solver]) -> None:
@@ -1045,10 +961,7 @@ def test_solver_var_requirements(solver: Union[Solver, legacy.Solver]) -> None:
     solver.add_repository(repo)
     solver.add_request("my-app/2")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("my-app").spec.pkg.version == "2.0.0"
     assert solution.get("python").spec.pkg.version == "3.7.3"
@@ -1058,10 +971,7 @@ def test_solver_var_requirements(solver: Union[Solver, legacy.Solver]) -> None:
     solver.add_repository(repo)
     solver.add_request("my-app/1")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("python").spec.pkg.version == "2.7.5"
 
@@ -1102,10 +1012,7 @@ def test_solver_var_requirements_unresolve(
     # the addition of this app constrains the python.abi to 2.7
     solver.add_request("my-app/1")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("my-app").spec.pkg.version == "1.0.0"
     assert (
@@ -1119,10 +1026,7 @@ def test_solver_var_requirements_unresolve(
     # the addition of this app constrains the global abi to 2.7
     solver.add_request("my-app/2")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     assert solution.get("my-app").spec.pkg.version == "2.0.0"
     assert (
@@ -1167,10 +1071,7 @@ def test_solver_build_options_dont_affect_compat(
     # b is not affected and can still be resolved
     solver.add_request("pkgb")
 
-    try:
-        solution = solver.solve()
-    finally:
-        print(io.format_resolve(solver, verbosity=100))
+    solution = io.run_and_print_resolve(solver, verbosity=100)
 
     solver.reset()
     solver.add_repository(repo)
@@ -1180,5 +1081,4 @@ def test_solver_build_options_dont_affect_compat(
     # this time the explicit request will cause a failure
     solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
     with pytest.raises((rust_errors.SolverError, legacy_errors.SolverError)):
-        solution = solver.solve()
-        print(io.format_resolve(solver, verbosity=100))
+        solution = io.run_and_print_resolve(solver, verbosity=100)
