@@ -47,7 +47,7 @@ def _explain(args: argparse.Namespace) -> None:
     try:
         generator = solver.run()
         spk.io.format_decisions(generator, sys.stdout, args.verbose + 1)
-        solution = generator.solution
+        solution = generator.solution()
     except spk.SolverError as e:
         err = e
 
