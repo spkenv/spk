@@ -5,6 +5,7 @@
 from typing import Iterable, Sequence, TextIO, Tuple, Union
 from colorama import Fore, Style
 import io
+import sys
 
 from . import api, pysolve, solve
 
@@ -19,14 +20,22 @@ def format_ident(pkg: api.Ident) -> str:
     return out
 
 
-def format_resolve(
-    solver: Union[solve.Solver, solve.legacy.Solver], verbosity: int = 1
-) -> str:
-    if isinstance(solver, solve.legacy.Solver):
-        return format_decision_tree(solver.decision_tree, verbosity)
+def run_and_print_resolve(
+    solver: Union[pysolve.legacy.Solver, pysolve.Solver, solve.Solver],
+    verbosity: int = 1,
+) -> solve.Solution:
+    if isinstance(solver, pysolve.legacy.Solver):
+        solution = solver.solve()
+        print(format_decision_tree(solver.decision_tree, verbosity))
+        return solution  # type: ignore
+    elif isinstance(solver, pysolve.Solver):
+        generator = solver.run()
+        format_decisions(generator, out=sys.stdout)
+        return generator.solution  # type: ignore
     else:
-        graph = solver.get_last_solve_graph()
-        return format_solve_graph(graph, verbosity)
+        runtime = solver.run()
+        format_decisions(runtime, out=sys.stdout)
+        return runtime.solution()
 
 
 def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
@@ -89,7 +98,7 @@ def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) 
     return bool(verbosity >= 2)
 
 
-def format_decision_tree(tree: solve.legacy.DecisionTree, verbosity: int = 1) -> str:
+def format_decision_tree(tree: pysolve.legacy.DecisionTree, verbosity: int = 1) -> str:
 
     out = ""
     for decision in tree.walk():
@@ -130,7 +139,7 @@ def format_note(note: solve.graph.Note) -> str:
         return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
 
 
-def format_decision(decision: solve.legacy.Decision, verbosity: int = 1) -> str:
+def format_decision(decision: pysolve.legacy.Decision, verbosity: int = 1) -> str:
 
     end = "\n" if verbosity > 1 else " "
     out = ""
@@ -174,7 +183,7 @@ def format_decision(decision: solve.legacy.Decision, verbosity: int = 1) -> str:
 
     if error is not None:
 
-        if not isinstance(error, solve.legacy.UnresolvedPackageError):
+        if not isinstance(error, pysolve.legacy.UnresolvedPackageError):
             out += f"{Fore.RED}BLOCKED{Fore.RESET} {error}"
         else:
             if verbosity > 1:
