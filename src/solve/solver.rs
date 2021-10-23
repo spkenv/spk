@@ -11,7 +11,7 @@ use std::{
 use crate::{
     api::{self, Build, CompatRule, OptionMap, Request},
     solve::graph::{GraphError, StepBack},
-    storage, Error,
+    storage, Error, Result,
 };
 
 use super::{
@@ -34,8 +34,6 @@ pub struct Solver {
     repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
-    last_graph: Arc<RwLock<Graph>>,
-    steps: Vec<(Node, Decision)>,
 }
 
 // Methods not exposed to Python
@@ -70,7 +68,7 @@ impl Solver {
         ))))
     }
 
-    fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> crate::Result<Solution> {
+    fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
         let mut opts = state.get_option_map();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name()) {
@@ -92,7 +90,7 @@ impl Solver {
         solver.solve_build_environment(spec)
     }
 
-    fn step_state(&self, node: &mut Node) -> crate::Result<Option<Decision>> {
+    fn step_state(&self, node: &mut Node) -> Result<Option<Decision>> {
         let mut notes = Vec::<NoteEnum>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -221,8 +219,6 @@ impl Solver {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
             validators: Cow::from(validation::default_validators()),
-            last_graph: Arc::new(RwLock::new(Graph::new())),
-            steps: Vec::default(),
         }
     }
 
@@ -277,12 +273,8 @@ impl Solver {
         self.validators = Cow::from(validation::default_validators());
     }
 
-    pub fn run(&mut self) -> PyResult<SolverRuntime> {
-        let solution = self.solve()?;
-        Ok(SolverRuntime {
-            solution,
-            steps: self.steps.clone(),
-        })
+    pub fn run(self) -> SolverRuntime {
+        SolverRuntime::new(self)
     }
 
     /// If true, only solve pre-built binary packages.
@@ -319,6 +311,61 @@ impl Solver {
     }
 
     pub fn solve(&mut self) -> PyResult<Solution> {
+        let mut runtime = self.run();
+        for step in runtime {
+            step?;
+        }
+        Ok(runtime.solution)
+    }
+
+    /// Adds requests for all build requirements and solves
+    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
+        let state = self.get_initial_state();
+
+        let build_options = spec.resolve_all_options(&state.get_option_map());
+        for option in &spec.build.options {
+            if let api::Opt::Pkg(option) = option {
+                let given = build_options.get(&option.pkg);
+                let request = option.to_request(given.cloned())?;
+                self.add_request(request)
+            }
+        }
+
+        Ok(self.solve()?)
+    }
+
+    pub fn update_options(&mut self, options: OptionMap) {
+        self.initial_state_builders
+            .push(Change::SetOptions(graph::SetOptions::new(options)))
+    }
+
+    fn validate(&self, node: &State, spec: &api::Spec) -> Result<api::Compatibility> {
+        for validator in self.validators.as_ref() {
+            let compat = validator.validate(node, spec)?;
+            if !&compat {
+                return Ok(compat);
+            }
+        }
+        Ok(api::Compatibility::Compatible)
+    }
+}
+
+#[pyclass]
+pub struct SolverRuntime {
+    solver: Solver,
+    graph: Arc<RwLock<Graph>>,
+}
+
+impl SolverRuntime {
+    pub fn new(solver: Solver) -> Self {
+        todo!()
+    }
+}
+
+impl Iterator for SolverRuntime {
+    type Item = Result<(Node, Decision)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let solve_graph = Arc::new(RwLock::new(Graph::new()));
         self.last_graph = solve_graph.clone();
         self.steps = Vec::default();
@@ -430,68 +477,19 @@ impl Solver {
             Ok(current_node_lock.state.as_solution()?)
         }
     }
-
-    /// Adds requests for all build requirements and solves
-    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> crate::Result<Solution> {
-        let state = self.get_initial_state();
-
-        let build_options = spec.resolve_all_options(&state.get_option_map());
-        for option in &spec.build.options {
-            if let api::Opt::Pkg(option) = option {
-                let given = build_options.get(&option.pkg);
-                let request = option.to_request(given.cloned())?;
-                self.add_request(request)
-            }
-        }
-
-        Ok(self.solve()?)
-    }
-
-    pub fn update_options(&mut self, options: OptionMap) {
-        self.initial_state_builders
-            .push(Change::SetOptions(graph::SetOptions::new(options)))
-    }
-
-    fn validate(&self, node: &State, spec: &api::Spec) -> crate::Result<api::Compatibility> {
-        for validator in self.validators.as_ref() {
-            let compat = validator.validate(node, spec)?;
-            if !&compat {
-                return Ok(compat);
-            }
-        }
-        Ok(api::Compatibility::Compatible)
-    }
-}
-
-#[pyclass]
-pub struct SolverRuntimeIter {
-    inner: std::vec::IntoIter<(Node, Decision)>,
-}
-
-#[pyproto]
-impl PyIterProtocol for SolverRuntimeIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<(Node, Decision)> {
-        slf.inner.next()
-    }
-}
-
-#[pyclass]
-pub struct SolverRuntime {
-    #[pyo3(get)]
-    pub solution: Solution,
-    pub steps: Vec<(Node, Decision)>,
 }
 
 #[pyproto]
 impl PyIterProtocol for SolverRuntime {
-    fn __iter__(slf: PyRef<Self>) -> PyResult<Py<SolverRuntimeIter>> {
-        let iter = SolverRuntimeIter {
-            inner: slf.steps.clone().into_iter(),
-        };
-        Py::new(slf.py(), iter)
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> Result<Option<(Node, Decision)>> {
+        match slf.next() {
+            Some(Ok(i)) => Ok(Some(i)),
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
+        }
     }
 }
