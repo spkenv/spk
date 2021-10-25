@@ -12,6 +12,7 @@ mod tag;
 
 pub mod fs;
 pub mod prelude;
+pub mod rpc;
 pub mod tar;
 
 pub use blob::BlobStorage;
@@ -26,6 +27,7 @@ pub use tag::TagStorage;
 pub enum RepositoryHandle {
     FS(fs::FSRepository),
     Tar(tar::TarRepository),
+    Rpc(rpc::RpcRepository),
 }
 
 impl RepositoryHandle {
@@ -33,6 +35,7 @@ impl RepositoryHandle {
         match self {
             Self::FS(repo) => Box::new(repo),
             Self::Tar(repo) => Box::new(repo),
+            Self::Rpc(repo) => Box::new(repo),
         }
     }
 }
@@ -44,6 +47,7 @@ impl std::ops::Deref for RepositoryHandle {
         match self {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
+            RepositoryHandle::Rpc(repo) => repo,
         }
     }
 }
@@ -53,6 +57,7 @@ impl std::ops::DerefMut for RepositoryHandle {
         match self {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
+            RepositoryHandle::Rpc(repo) => repo,
         }
     }
 }
@@ -65,6 +70,11 @@ impl From<fs::FSRepository> for RepositoryHandle {
 impl From<tar::TarRepository> for RepositoryHandle {
     fn from(repo: tar::TarRepository) -> Self {
         RepositoryHandle::Tar(repo)
+    }
+}
+impl From<rpc::RpcRepository> for RepositoryHandle {
+    fn from(repo: rpc::RpcRepository) -> Self {
+        RepositoryHandle::Rpc(repo)
     }
 }
 
@@ -85,6 +95,7 @@ pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<Reposit
                 Ok(fs::FSRepository::open(url.path()).await?.into())
             }
         }
+        "http2" => Ok(rpc::RpcRepository::connect(url).into()),
         scheme => Err(format!("Unsupported repository scheme: '{}'", scheme).into()),
     }
 }
