@@ -476,12 +476,13 @@ def test_solver_constraint_and_request(solver: Union[Solver, legacy.Solver]) -> 
     assert solution.get("python").spec.pkg.version == "3.7.3"
 
 
-def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_option_compatibility() -> None:
 
     # test what happens when an option is given in the solver
     # - the options for each build are checked
     # - the resolved build must have used the option
 
+    solver = Solver()
     spec = api.Spec.from_dict(
         {
             "pkg": "vnp3/2.0.0",
