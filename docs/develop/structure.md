@@ -25,7 +25,7 @@ At the top of this graph are the `spk`, `build` and `test` modules. `spk` define
 
 ### Environment Solver
 
-Underpinning all of the high level logic is the spk `solve` module, which contains the implmentation of the spk solver. The solver is responsible for all of the dependency and environment resolution in spk - the real meat and potatoes of what spk provides as a package manager. The solver architecture is covered in more detail [here](../solver).
+Underpinning all of the high level logic is the spk `solve` module, which contains the implmentation of the spk solver. The solver is responsible for all of the dependency and environment resolution in spk - the real meat and potatoes of what spk provides as a package manager. The solver architecture is covered in more detail [here](../solver.md).
 
 At the time of writing, you will also find a `legacy` solver implementation which represents the codebase before some refactoring was done to clean up the structure and maintainability of the solver code. This is kept around as a regression testing baseline, but could reasonably be removed in a future release.
 
