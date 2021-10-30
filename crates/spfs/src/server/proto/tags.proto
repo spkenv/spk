@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package spfs;
+
+message LsTagsRequest {
+    string path = 1;
+}
+message LsTagsResponse {
+    repeated string entries = 1;
+}
+

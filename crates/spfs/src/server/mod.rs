@@ -27,6 +27,21 @@ impl Repository for Service {
         let data = proto::PingResponse::default();
         Ok(Response::new(data))
     }
+
+    async fn ls_tags(
+        &self,
+        request: Request<proto::LsTagsRequest>,
+    ) -> std::result::Result<Response<proto::LsTagsResponse>, Status> {
+        let request = request.into_inner();
+        let path = relative_path::RelativePath::new(&request.path);
+        let entries: Vec<_> = {
+            let repo = self.repo.read().await;
+            repo.ls_tags(&path).unwrap().collect()
+        };
+
+        let data = proto::LsTagsResponse { entries };
+        Ok(Response::new(data))
+    }
 }
 
 impl Service {

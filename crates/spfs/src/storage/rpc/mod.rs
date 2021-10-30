@@ -5,4 +5,8 @@ mod payload;
 mod repository;
 mod tag;
 
+mod proto {
+    tonic::include_proto!("spfs");
+}
+
 pub use repository::RpcRepository;

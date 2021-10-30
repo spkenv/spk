@@ -2,9 +2,14 @@ syntax = "proto3";
 
 package spfs;
 
+import "tags.proto";
+
 message PingRequest {}
 message PingResponse {}
 
 service Repository {
     rpc Ping(PingRequest) returns (PingResponse);
+
+    // tags
+    rpc LsTags(LsTagsRequest) returns (LsTagsResponse);
 }

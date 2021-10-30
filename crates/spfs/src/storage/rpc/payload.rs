@@ -2,15 +2,13 @@ use std::pin::Pin;
 
 use futures::Stream;
 
-use crate::{storage, encoding, Result};
+use crate::{encoding, storage, Result};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
-
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         todo!()
     }
-
 
     async fn write_data(
         &self,

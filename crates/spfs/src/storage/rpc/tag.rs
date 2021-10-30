@@ -1,21 +1,29 @@
 use std::pin::Pin;
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
+use relative_path::RelativePath;
 
+use super::proto;
 use crate::{
     encoding,
     storage::{self, tag::TagSpecAndTagStream},
-    tracking,
-    Result
+    tracking, Result,
 };
 
 #[async_trait::async_trait]
 impl storage::TagStorage for super::RpcRepository {
-    fn ls_tags(
-        &self,
-        _path: &relative_path::RelativePath,
-    ) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
-        todo!()
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+        let request = proto::LsTagsRequest {
+            path: path.to_string(),
+        };
+        let mut client = self.client.clone();
+        let stream = futures::stream::once(async move { client.ls_tags(request).await })
+            .map(|resp| {
+                let resp = resp.unwrap().into_inner();
+                futures::stream::iter(resp.entries.into_iter().map(Ok))
+            })
+            .flatten();
+        Box::pin(stream)
     }
 
     fn find_tags(

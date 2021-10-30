@@ -95,7 +95,7 @@ pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<Reposit
                 Ok(fs::FSRepository::open(url.path()).await?.into())
             }
         }
-        "http2" => Ok(rpc::RpcRepository::connect(url).into()),
+        "http2" => Ok(rpc::RpcRepository::connect(url).await?.into()),
         scheme => Err(format!("Unsupported repository scheme: '{}'", scheme).into()),
     }
 }
