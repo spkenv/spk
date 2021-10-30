@@ -207,6 +207,7 @@ impl TagStorage for FSRepository {
         std::fs::rename(&filepath, &backup_path)?;
         let res: Result<Vec<_>> = tags
             .iter()
+            .rev()
             .map(|version| {
                 // we are already holding the lock for this operation
                 self.push_raw_tag_without_lock(version)

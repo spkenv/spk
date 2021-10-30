@@ -25,6 +25,7 @@ mod cmd_runtimes;
 mod cmd_search;
 mod cmd_tag;
 mod cmd_tags;
+mod cmd_untag;
 mod cmd_version;
 
 main!(Opt);
@@ -66,8 +67,10 @@ pub enum Command {
     Config(cmd_config::CmdConfig),
     #[structopt(about = "rebuild /spfs with the requested refs, removing any active changes")]
     Reset(cmd_reset::CmdReset),
-    #[structopt(about = "tag and object")]
+    #[structopt(about = "tag an object")]
     Tag(cmd_tag::CmdTag),
+    #[structopt(about = "remove tag versions or entire tag streams")]
+    Untag(cmd_untag::CmdUntag),
     #[structopt(about = "list the current set of spfs runtimes")]
     Runtimes(cmd_runtimes::CmdRuntimes),
     #[structopt(about = "list all layers in an spfs repository")]
@@ -110,6 +113,7 @@ impl Opt {
             Command::Config(cmd) => cmd.run(config),
             Command::Reset(cmd) => cmd.run(config),
             Command::Tag(cmd) => cmd.run(config),
+            Command::Untag(cmd) => cmd.run(config),
             Command::Runtimes(cmd) => cmd.run(config),
             Command::Layers(cmd) => cmd.run(config),
             Command::Platforms(cmd) => cmd.run(config),
