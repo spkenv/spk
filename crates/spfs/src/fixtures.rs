@@ -55,7 +55,7 @@ pub fn spfs_binary() -> std::path::PathBuf {
     static BUILD_BIN: std::sync::Once = std::sync::Once::new();
     BUILD_BIN.call_once(|| {
         let mut command = std::process::Command::new(std::env::var("CARGO").unwrap());
-        command.args(&["build", "--all"]);
+        command.args(&["build", "--all", "--features=all"]);
         if Some(0)
             != command
                 .status()
@@ -67,16 +67,16 @@ pub fn spfs_binary() -> std::path::PathBuf {
     });
     let mut path = std::env::current_exe().expect("test must have current binary path");
     loop {
-        {
-            let parent = path.parent();
-            if parent.is_none() {
-                panic!("cannot find spfs binary to test");
-            }
-            let parent = parent.unwrap();
-            if parent.is_dir() && parent.file_name() == Some(std::ffi::OsStr::new("target")) {
-                break;
-            }
+        let parent = path.parent();
+        if parent.is_none() {
+            panic!("cannot find spfs binary to test");
         }
+        let parent = parent.unwrap();
+        if parent.is_dir() && parent.file_name() == Some(std::ffi::OsStr::new("debug")) {
+            path.pop();
+            break;
+        }
+
         path.pop();
     }
     path.push(env!("CARGO_PKG_NAME").to_string());
