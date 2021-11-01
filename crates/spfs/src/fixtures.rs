@@ -50,7 +50,7 @@ impl Drop for TempRepo {
 
 pub fn init_logging() {
     let sub = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::TRACE)
+        .with_env_filter("spfs=trace")
         .without_time()
         .with_test_writer()
         .finish();
@@ -123,9 +123,6 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             let (shutdown_send, shutdown_recv) = std::sync::mpsc::channel::<()>();
             let (addr_send, addr_recv) = std::sync::mpsc::channel::<std::net::SocketAddr>();
             let server_join_handle = tokio::task::spawn(async move {
-                // this separate context needs it's own logger in order to
-                // output properly (since we are spawning before the test even starts)
-                let _guard = init_logging();
                 let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
                 let local_addr = listener.local_addr().unwrap();
                 let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
