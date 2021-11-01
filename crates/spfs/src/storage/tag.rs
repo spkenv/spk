@@ -14,6 +14,10 @@ pub(crate) type TagStream = Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + S
 pub(crate) type TagSpecAndTagStream = (tracking::TagSpec, TagStream);
 pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 
+#[cfg(test)]
+#[path = "./tag_test.rs"]
+mod tag_test;
+
 /// A location where tags are tracked and persisted.
 #[async_trait::async_trait]
 pub trait TagStorage: Send + Sync {
