@@ -7,7 +7,7 @@ use rstest::rstest;
 use super::{compute_diff, Diff, DiffMode};
 use crate::tracking::{compute_manifest, Manifest};
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 fn test_diff_str() {

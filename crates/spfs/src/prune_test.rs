@@ -10,7 +10,7 @@ use super::{get_prunable_tags, prune_tags, PruneParameters};
 use crate::{encoding, storage, tracking, Error};
 use std::collections::HashMap;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

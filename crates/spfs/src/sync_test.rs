@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use rstest::rstest;
+use rstest::{fixture, rstest};
 
 use super::{push_ref, sync_ref};
 use crate::config::Config;
@@ -10,7 +10,7 @@ use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error};
 use storage::RepositoryHandle;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

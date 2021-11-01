@@ -14,7 +14,7 @@ use crate::{graph, storage, tracking, Error};
 use std::collections::HashSet;
 use storage::prelude::*;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

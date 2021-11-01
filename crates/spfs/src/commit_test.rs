@@ -7,7 +7,7 @@ use rstest::rstest;
 use super::{commit_layer, commit_platform};
 use crate::{runtime, Error};
 
-fixtures!();
+use crate::fixtures::*;
 #[rstest]
 #[tokio::test]
 async fn test_commit_empty(tmpdir: tempdir::TempDir) {

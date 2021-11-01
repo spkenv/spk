@@ -8,7 +8,7 @@ use super::{Entry, Tree};
 use crate::encoding::{self, Encodable};
 use crate::tracking::EntryKind;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest(entries, digest,
     case(vec![

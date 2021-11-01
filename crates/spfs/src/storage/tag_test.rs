@@ -11,7 +11,7 @@ use crate::storage::{fs::FSRepository, TagStorage};
 use crate::{encoding, tracking, Result};
 use relative_path::RelativePathBuf;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest(tmprepo, case::fs(tmprepo("fs")), case::tar(tmprepo("tar")))]
 #[tokio::test]

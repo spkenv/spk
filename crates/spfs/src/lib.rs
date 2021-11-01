@@ -10,7 +10,6 @@ extern crate serde_derive;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
-#[macro_use]
 pub mod fixtures;
 
 pub mod encoding;

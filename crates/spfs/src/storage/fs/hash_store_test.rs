@@ -5,7 +5,7 @@
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

@@ -14,7 +14,7 @@ use crate::graph::Manifest;
 use crate::storage::{fs, prelude::*};
 use crate::{encoding::Encodable, tracking::TagSpec};
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
 #[tokio::test]

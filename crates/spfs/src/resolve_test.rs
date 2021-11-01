@@ -6,7 +6,7 @@ use rstest::rstest;
 use super::resolve_stack_to_layers;
 use crate::{encoding, graph, prelude::*};
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

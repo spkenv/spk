@@ -7,8 +7,6 @@ use rstest::rstest;
 use super::Entry;
 use crate::{encoding, tracking};
 
-fixtures!();
-
 #[rstest]
 fn test_entry_blobs_compare_name() {
     let a = Entry {

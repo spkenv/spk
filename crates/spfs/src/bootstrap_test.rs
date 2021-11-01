@@ -8,7 +8,7 @@ use super::{build_interactive_shell_cmd, build_shell_initialized_command};
 use crate::{resolve::which, runtime};
 use std::{ffi::OsString, process::Command};
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest(
     shell,

@@ -9,7 +9,7 @@ use crate::graph::{Database, DatabaseView, Manifest};
 use crate::storage::{fs::FSRepository, ManifestStorage};
 use crate::{encoding::Encodable, tracking};
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]
