@@ -132,6 +132,13 @@ where
 
     /// Write this object in binary format.
     fn encode(&self, writer: &mut impl Write) -> Result<()>;
+
+    /// Encode this object into it's binary form in memory.
+    fn encode_to_bytes(&self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        self.encode(&mut buf)?;
+        Ok(buf)
+    }
 }
 
 pub trait Decodable

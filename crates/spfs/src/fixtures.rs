@@ -55,14 +55,13 @@ pub fn spfs_binary() -> std::path::PathBuf {
     static BUILD_BIN: std::sync::Once = std::sync::Once::new();
     BUILD_BIN.call_once(|| {
         let mut command = std::process::Command::new(std::env::var("CARGO").unwrap());
-        command.args(&["build", "--all", "--features=all"]);
-        if Some(0)
-            != command
-                .status()
-                .expect("failed to build binary to test with")
-                .code()
-        {
-            panic!("failed to build binary to test with");
+        command.args(&["build", "--all"]);
+        let code = command
+            .status()
+            .expect("failed to build binary to test with")
+            .code();
+        if Some(0) != code {
+            panic!("failed to build binary to test with: {:?}", code);
         };
     });
     let mut path = std::env::current_exe().expect("test must have current binary path");
@@ -109,12 +108,13 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         "rpc" => {
             let server_binary = spfs_binary().with_file_name("spfs-server");
             let child = std::process::Command::new(server_binary)
-                .arg("http://localhost:7737")
+                .arg("127.0.0.1:7737")
                 .arg("-vvv")
                 .spawn()
                 .expect("failed to start server for test");
+            std::thread::sleep(std::time::Duration::from_millis(100));
             let repo = spfs::storage::rpc::RpcRepository::connect(
-                "http2://localhost:7737".parse().unwrap(),
+                "http2://127.0.0.1:7737".parse().unwrap(),
             )
             .await
             .unwrap()
