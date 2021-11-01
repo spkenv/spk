@@ -202,14 +202,10 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_manifest_renders(#[future] tmprepo: TempRepo) {
-    let (tmpdir, tmprepo) = match tmprepo.await {
-        TempRepo::FS(storage::RepositoryHandle::FS(repo), d) => (d, repo),
-        _ => {
-            println!("Unsupported repo for this test");
-            return;
-        }
-    };
+async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir) {
+    let tmprepo = storage::fs::FSRepository::create(tmpdir.path())
+        .await
+        .unwrap();
 
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
@@ -237,7 +233,7 @@ async fn test_clean_manifest_renders(#[future] tmprepo: TempRepo) {
         .await
         .expect("failed to clean repo");
 
-    let files = list_files(tmprepo.renders.unwrap().root());
+    let files = list_files(tmprepo.renders.as_ref().unwrap().root());
     assert!(files.is_empty(), "should remove all created data files");
 }
 

@@ -111,7 +111,12 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
     );
 }
 
-#[rstest(tmprepo, case::fs(tmprepo("fs")), case::tar(tmprepo("tar")))]
+#[rstest(
+    tmprepo,
+    case::fs(tmprepo("fs")),
+    case::tar(tmprepo("tar")),
+    case::rpc(tmprepo("rpc"))
+)]
 #[tokio::test]
 async fn test_ls_tags(#[future] tmprepo: TempRepo) {
     init_logging();

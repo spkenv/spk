@@ -11,14 +11,16 @@ macro_rules! fixtures {
         enum TempRepo {
             FS(spfs::storage::RepositoryHandle, TempDir),
             Tar(spfs::storage::RepositoryHandle, TempDir),
+            Rpc(spfs::storage::RepositoryHandle, std::process::Child),
         }
 
         impl std::ops::Deref for TempRepo {
             type Target = spfs::storage::RepositoryHandle;
             fn deref(&self) -> &Self::Target {
                 match self {
-                    Self::FS(r, _) => &r,
-                    Self::Tar(r, _) => &r,
+                    Self::FS(r, _) => r,
+                    Self::Tar(r, _) => r,
+                    Self::Rpc(r, _) => r,
                 }
             }
         }
@@ -28,6 +30,18 @@ macro_rules! fixtures {
                 match self {
                     Self::FS(r, _) => r,
                     Self::Tar(r, _) => r,
+                    Self::Rpc(r, _) => r,
+                }
+            }
+        }
+
+        impl Drop for TempRepo {
+            fn drop(&mut self) {
+                match self {
+                    Self::Rpc(_, child) => {
+                        let _ = child.kill();
+                    }
+                    _ => (),
                 }
             }
         }
@@ -100,6 +114,21 @@ macro_rules! fixtures {
                             .unwrap()
                             .into();
                     TempRepo::Tar(repo, tmpdir)
+                }
+                "rpc" => {
+                    let server_binary = spfs_binary().with_file_name("spfs-server");
+                    let child = std::process::Command::new(server_binary)
+                        .arg("http://localhost:7737")
+                        .arg("-vvv")
+                        .spawn()
+                        .expect("failed to start server for test");
+                    let repo = spfs::storage::rpc::RpcRepository::connect(
+                        "http2://localhost:7737".parse().unwrap(),
+                    )
+                    .await
+                    .unwrap()
+                    .into();
+                    TempRepo::Rpc(repo, child)
                 }
                 _ => panic!("unknown repo kind '{}'", kind),
             }
