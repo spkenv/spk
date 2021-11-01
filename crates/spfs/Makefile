@@ -6,10 +6,10 @@ default: debug
 
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build
+	cargo build --all
 
 test:
-	cargo test
+	cargo test --all
 
 rpm:
 	cd $(SOURCE_ROOT)
