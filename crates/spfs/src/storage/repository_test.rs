@@ -20,7 +20,7 @@ fixtures!();
 #[tokio::test]
 async fn test_find_aliases(#[future] tmprepo: TempRepo) {
     init_logging();
-    let (_td, tmprepo) = tmprepo.await;
+    let tmprepo = tmprepo.await;
     tmprepo
         .find_aliases("not-existant")
         .await
@@ -92,8 +92,8 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
 #[tokio::test]
-async fn test_commit_broken_link(#[future] tmprepo: TempRepo) {
-    let (tmpdir, tmprepo) = tmprepo.await;
+async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
+    let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
     std::fs::create_dir_all(&src_dir).unwrap();
     std::os::unix::fs::symlink(
@@ -108,8 +108,8 @@ async fn test_commit_broken_link(#[future] tmprepo: TempRepo) {
 
 #[rstest(tmprepo, case::fs(tmprepo("fs")), case::fs(tmprepo("tar")))]
 #[tokio::test]
-async fn test_commit_dir(#[future] tmprepo: TempRepo) {
-    let (tmpdir, tmprepo) = tmprepo.await;
+async fn test_commit_dir(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
+    let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");

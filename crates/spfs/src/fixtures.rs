@@ -8,7 +8,29 @@ macro_rules! fixtures {
         use tempdir::TempDir;
 
         #[allow(dead_code)]
-        type TempRepo = (TempDir, spfs::storage::RepositoryHandle);
+        enum TempRepo {
+            FS(spfs::storage::RepositoryHandle, TempDir),
+            Tar(spfs::storage::RepositoryHandle, TempDir),
+        }
+
+        impl std::ops::Deref for TempRepo {
+            type Target = spfs::storage::RepositoryHandle;
+            fn deref(&self) -> &Self::Target {
+                match self {
+                    Self::FS(r, _) => &r,
+                    Self::Tar(r, _) => &r,
+                }
+            }
+        }
+
+        impl std::ops::DerefMut for TempRepo {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                match self {
+                    Self::FS(r, _) => r,
+                    Self::Tar(r, _) => r,
+                }
+            }
+        }
 
         #[allow(dead_code)]
         fn init_logging() {
@@ -61,20 +83,26 @@ macro_rules! fixtures {
         }
 
         #[fixture(kind = "fs")]
-        async fn tmprepo(kind: &str) -> (tempdir::TempDir, spfs::storage::RepositoryHandle) {
+        async fn tmprepo(kind: &str) -> TempRepo {
             let tmpdir = tmpdir();
-            let repo = match kind {
-                "fs" => spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
-                    .await
-                    .unwrap()
-                    .into(),
-                "tar" => spfs::storage::tar::TarRepository::create(tmpdir.path().join("repo.tar"))
-                    .await
-                    .unwrap()
-                    .into(),
+            match kind {
+                "fs" => {
+                    let repo = spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
+                        .await
+                        .unwrap()
+                        .into();
+                    TempRepo::FS(repo, tmpdir)
+                }
+                "tar" => {
+                    let repo =
+                        spfs::storage::tar::TarRepository::create(tmpdir.path().join("repo.tar"))
+                            .await
+                            .unwrap()
+                            .into();
+                    TempRepo::Tar(repo, tmpdir)
+                }
                 _ => panic!("unknown repo kind '{}'", kind),
-            };
-            (tmpdir, repo)
+            }
         }
 
         #[allow(dead_code)]
