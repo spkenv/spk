@@ -4,6 +4,7 @@
 //! Remote server implementations of the spfs repository
 use std::sync::Arc;
 
+use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
 use proto::repository_server::{Repository, RepositoryServer};
@@ -33,13 +34,15 @@ impl Repository for Service {
         request: Request<proto::LsTagsRequest>,
     ) -> std::result::Result<Response<proto::LsTagsResponse>, Status> {
         let request = request.into_inner();
-        let path = relative_path::RelativePath::new(&request.path);
-        let entries: Vec<_> = {
+        let path = relative_path::RelativePathBuf::from(&request.path);
+        let entries: crate::Result<Vec<_>> = {
             let repo = self.repo.read().await;
-            repo.ls_tags(&path).unwrap().collect()
+            repo.ls_tags(&path).collect().await
         };
 
-        let data = proto::LsTagsResponse { entries };
+        let data = proto::LsTagsResponse {
+            entries: entries.unwrap(),
+        };
         Ok(Response::new(data))
     }
 }
