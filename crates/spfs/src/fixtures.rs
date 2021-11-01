@@ -9,7 +9,12 @@ use tempdir::TempDir;
 pub enum TempRepo {
     FS(spfs::storage::RepositoryHandle, TempDir),
     Tar(spfs::storage::RepositoryHandle, TempDir),
-    Rpc(spfs::storage::RepositoryHandle, std::process::Child),
+    Rpc(
+        spfs::storage::RepositoryHandle,
+        Option<std::thread::JoinHandle<()>>,
+        std::sync::mpsc::Sender<()>,
+        TempDir,
+    ),
 }
 
 impl std::ops::Deref for TempRepo {
@@ -18,7 +23,7 @@ impl std::ops::Deref for TempRepo {
         match self {
             Self::FS(r, _) => r,
             Self::Tar(r, _) => r,
-            Self::Rpc(r, _) => r,
+            Self::Rpc(r, ..) => r,
         }
     }
 }
@@ -28,15 +33,20 @@ impl std::ops::DerefMut for TempRepo {
         match self {
             Self::FS(r, _) => r,
             Self::Tar(r, _) => r,
-            Self::Rpc(r, _) => r,
+            Self::Rpc(r, ..) => r,
         }
     }
 }
 
 impl Drop for TempRepo {
     fn drop(&mut self) {
-        if let Self::Rpc(_, child) = self {
-            let _ = child.kill();
+        if let Self::Rpc(_, join_handle, shutdown, _) = self {
+            shutdown
+                .send(())
+                .expect("failed to send server shutdown signal");
+            join_handle
+                .take()
+                .map(|h| h.join().expect("failed to join server thread"));
         }
     }
 }
@@ -89,6 +99,7 @@ pub fn tmpdir() -> TempDir {
 
 #[fixture(kind = "fs")]
 pub async fn tmprepo(kind: &str) -> TempRepo {
+    init_logging();
     let tmpdir = tmpdir();
     match kind {
         "fs" => {
@@ -105,21 +116,48 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .into();
             TempRepo::Tar(repo, tmpdir)
         }
+        #[cfg(feature = "server")]
         "rpc" => {
-            let server_binary = spfs_binary().with_file_name("spfs-server");
-            let child = std::process::Command::new(server_binary)
-                .arg("127.0.0.1:7737")
-                .arg("-vvv")
-                .spawn()
-                .expect("failed to start server for test");
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            let repo = spfs::storage::rpc::RpcRepository::connect(
-                "http2://127.0.0.1:7737".parse().unwrap(),
-            )
-            .await
-            .unwrap()
-            .into();
-            TempRepo::Rpc(repo, child)
+            let repo = spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
+                .await
+                .unwrap()
+                .into();
+            let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+            let (shutdown_send, shutdown_recv) = std::sync::mpsc::channel::<()>();
+            let (addr_send, addr_recv) = std::sync::mpsc::channel::<std::net::SocketAddr>();
+            let server_join_handle = tokio::task::spawn(async move {
+                // this separate context needs it's own logger in order to
+                // output properly (since we are spawning before the test even starts)
+                let _guard = init_logging();
+                let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
+                let local_addr = listener.local_addr().unwrap();
+                let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
+                let future = tonic::transport::Server::builder()
+                    .add_service(spfs::server::Service::new_srv(repo))
+                    .serve_with_incoming_shutdown(incoming, async move {
+                        // use a blocking task to avoid locking up the whole server
+                        // with this very synchronus channel recv process
+                        tokio::task::spawn_blocking(move || {
+                            shutdown_recv
+                                .recv()
+                                .expect("failed to get server shutdown signal");
+                        })
+                        .await
+                        .unwrap()
+                    });
+                tracing::debug!("test server listening: {}", local_addr);
+                addr_send
+                    .send(local_addr)
+                    .expect("failed to report server address");
+                future.await.expect("test server failed");
+            });
+            let addr = addr_recv.recv().expect("failed to recieve server address");
+            let url = format!("http2://{}", addr).parse().unwrap();
+            tracing::debug!("Connected to rpc test repo: {}", url);
+            let repo = spfs::storage::rpc::RpcRepository::connect(url)
+                .unwrap()
+                .into();
+            TempRepo::Rpc(repo, Some(server_join_handle), shutdown_send, tmpdir)
         }
         _ => panic!("unknown repo kind '{}'", kind),
     }

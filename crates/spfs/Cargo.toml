@@ -43,7 +43,7 @@ path = "src/cli/cmd_server.rs"
 required-features = ["server"]
 
 [features]
-server = ["tokio/signal"]
+server = ["tokio/signal", "tokio-stream/net"]
 
 [dependencies]
 async-trait = "0.1.52"
