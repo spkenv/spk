@@ -43,6 +43,7 @@ path = "src/cli/cmd_server.rs"
 required-features = ["server"]
 
 [features]
+default = ["server"]
 server = ["tokio/signal", "tokio-stream/net"]
 
 [dependencies]

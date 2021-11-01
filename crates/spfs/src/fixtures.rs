@@ -11,7 +11,7 @@ pub enum TempRepo {
     Tar(spfs::storage::RepositoryHandle, TempDir),
     Rpc(
         spfs::storage::RepositoryHandle,
-        Option<std::thread::JoinHandle<()>>,
+        Option<tokio::task::JoinHandle<()>>,
         std::sync::mpsc::Sender<()>,
         TempDir,
     ),
@@ -44,9 +44,6 @@ impl Drop for TempRepo {
             shutdown
                 .send(())
                 .expect("failed to send server shutdown signal");
-            join_handle
-                .take()
-                .map(|h| h.join().expect("failed to join server thread"));
         }
     }
 }
@@ -155,6 +152,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             let url = format!("http2://{}", addr).parse().unwrap();
             tracing::debug!("Connected to rpc test repo: {}", url);
             let repo = spfs::storage::rpc::RpcRepository::connect(url)
+                .await
                 .unwrap()
                 .into();
             TempRepo::Rpc(repo, Some(server_join_handle), shutdown_send, tmpdir)

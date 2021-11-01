@@ -36,8 +36,7 @@ impl Repository for Service {
         let request = request.into_inner();
         let path = relative_path::RelativePathBuf::from(&request.path);
         let entries: crate::Result<Vec<_>> = {
-            let repo = self.repo.read().await;
-            repo.ls_tags(&path).collect().await
+            self.repo.ls_tags(&path).collect().await
         };
 
         let data = proto::LsTagsResponse {
