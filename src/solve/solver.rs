@@ -371,7 +371,7 @@ impl SolverRuntime {
     pub fn new(solver: Solver) -> Self {
         let initial_decision = Decision::new(solver.initial_state_builders.clone());
         Self {
-            solver: solver,
+            solver,
             graph: Arc::new(RwLock::new(Graph::new())),
             history: Vec::new(),
             current_node: None,
@@ -383,7 +383,7 @@ impl SolverRuntime {
         self.graph.clone()
     }
 
-    pub fn iter<'a>(&'a mut self) -> SolverRuntimeIter<'a> {
+    pub fn iter(&mut self) -> SolverRuntimeIter<'_> {
         SolverRuntimeIter(self)
     }
 }
@@ -523,7 +523,7 @@ impl Iterator for SolverRuntime {
                 }
                 return Some(Ok(to_yield));
             }
-            Err(err) => return Some(Err(err.into())),
+            Err(err) => return Some(Err(err)),
         };
         self.history.push(current_node.clone());
         Some(Ok(to_yield))
