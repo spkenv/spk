@@ -11,7 +11,7 @@ use std::{
 use crate::{
     api::{self, Build, CompatRule, OptionMap, Request},
     solve::graph::{GraphError, StepBack},
-    storage,
+    storage, Error,
 };
 
 use super::{
@@ -141,18 +141,18 @@ impl Solver {
                         continue;
                     }
 
-                    // FIXME: This should only match `PackageNotFoundError`
                     match repo.read_spec(&spec.pkg.with_build(None)) {
                         Ok(s) => spec = Arc::new(s),
-                        Err(_) => {
+                        Err(Error::PackageNotFoundError(pkg)) => {
                             notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
-                                    spec.pkg.clone(),
+                                    pkg,
                                     "cannot build from source, version spec not available",
                                 ),
                             ));
                             continue;
                         }
+                        Err(err) => return Err(err),
                     }
                 }
 

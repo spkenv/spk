@@ -79,7 +79,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    with pytest.raises((rust_errors.PackageNotFoundError, legacy_errors.SolverError)):  # type: ignore
+    with pytest.raises((FileNotFoundError, legacy_errors.SolverError)):
         try:
             solver.solve()
         except Exception as e:

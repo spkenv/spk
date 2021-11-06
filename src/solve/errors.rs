@@ -9,13 +9,11 @@ use crate::api;
 use super::graph::NoteEnum;
 
 create_exception!(errors, SolverError, PyException);
-create_exception!(errors, PackageNotFoundError, SolverError);
 
 #[derive(Debug)]
 pub enum Error {
     SolverError(SolverError),
     OutOfOptions(OutOfOptions),
-    PackageNotFoundError(PackageNotFoundError),
 }
 
 impl From<Error> for crate::Error {
@@ -29,7 +27,6 @@ impl From<Error> for PyErr {
         match err {
             Error::SolverError(ref err) => err.into(),
             Error::OutOfOptions(err) => SolverError::new_err(err.to_string()),
-            Error::PackageNotFoundError(ref err) => err.into(),
         }
     }
 }

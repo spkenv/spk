@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::api;
 
-use super::errors::{PackageNotFoundError, SolverError};
+use super::errors::SolverError;
 use super::graph::{
     Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
     SetPackageBuild, SkipPackageNote, State, StepBack,
@@ -18,10 +18,6 @@ use super::solver::{Solver, SolverFailedError};
 use super::validation::{self, Validators, VarRequirementsValidator};
 
 fn init_submodule_errors(py: &Python, module: &PyModule) -> PyResult<()> {
-    module.add(
-        "PackageNotFoundError",
-        py.get_type::<PackageNotFoundError>(),
-    )?;
     module.add("SolverError", py.get_type::<SolverError>())?;
     Ok(())
 }

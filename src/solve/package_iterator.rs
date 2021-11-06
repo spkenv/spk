@@ -8,7 +8,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::errors::PackageNotFoundError;
 use super::solution::PackageSource;
 use crate::{
     api::{self, Build},
@@ -73,12 +72,20 @@ impl Clone for RepositoryPackageIterator {
         let version_map = if self.versions.is_none() {
             match self.build_version_map() {
                 Ok(version_map) => version_map,
-                // XXX: This only caught PackageNotFoundError in the python impl
-                Err(_) => {
+                Err(Error::PackageNotFoundError(_)) => {
                     return RepositoryPackageIterator::new(
                         self.package_name.to_owned(),
                         self.repos.clone(),
                     )
+                }
+                Err(err) => {
+                    // we wanted to save the clone from causing this
+                    // work to be done twice, but it's not fatal
+                    tracing::trace!(
+                        "Encoutered error cloning RepositoryPackageIterator: {:?}",
+                        err
+                    );
+                    self.version_map.clone()
                 }
             }
         } else {
@@ -168,7 +175,9 @@ impl RepositoryPackageIterator {
         }
 
         if version_map.is_empty() {
-            return Err(PackageNotFoundError::new_err(self.package_name.to_owned()).into());
+            return Err(Error::PackageNotFoundError(api::Ident::new(
+                &self.package_name,
+            )?));
         }
 
         Ok(version_map)
@@ -246,7 +255,7 @@ impl RepositoryBuildIterator {
         let mut builds = repo.lock().unwrap().list_package_builds(&pkg)?;
         let spec = match repo.lock().unwrap().read_spec(&pkg) {
             Ok(spec) => Some(Arc::new(spec)),
-            Err(Error::Solve(super::Error::PackageNotFoundError(..))) => None,
+            Err(Error::PackageNotFoundError(..)) => None,
             Err(err) => return Err(err),
         };
 
