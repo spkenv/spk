@@ -1,13 +1,11 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
-
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{Build, BuildSpec, ComponentSpec, Ident, OptionMap, Request, Spec};
-use crate::{Error, Result};
+use super::{Build, BuildSpec, ComponentSpec, Ident, OptionMap, Request, RequirementsList, Spec};
+use crate::Result;
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
@@ -19,7 +17,7 @@ mod install_spec_test;
 pub struct InstallSpec {
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: Vec<Request>,
+    pub requirements: RequirementsList,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: Vec<Spec>,
@@ -35,14 +33,7 @@ impl InstallSpec {
     /// If a request exists for the same name, it is replaced with the given
     /// one. Otherwise the new request is appended to the list.
     pub fn upsert_requirement(&mut self, request: Request) {
-        let name = request.name();
-        for other in self.requirements.iter_mut() {
-            if other.name() == name {
-                let _ = std::mem::replace(other, request);
-                return;
-            }
-        }
-        self.requirements.push(request);
+        self.requirements.upsert(request);
     }
 }
 
@@ -57,52 +48,7 @@ impl InstallSpec {
         options: &OptionMap,
         resolved: impl Iterator<Item = &'a Ident>,
     ) -> Result<()> {
-        let mut by_name = std::collections::HashMap::new();
-        for pkg in resolved {
-            by_name.insert(pkg.name(), pkg);
-        }
-        for request in self.requirements.iter_mut() {
-            match request {
-                Request::Pkg(request) => {
-                    if request.pin.is_none() {
-                        continue;
-                    }
-                    match by_name.get(&request.pkg.name()) {
-                        None => {
-                            return Err(Error::String(
-                                format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name())
-                            ));
-                        }
-                        Some(resolved) => {
-                            let rendered = request.render_pin(resolved)?;
-                            let _ = std::mem::replace(request, rendered);
-                        }
-                    }
-                }
-                Request::Var(request) => {
-                    if !request.pin {
-                        continue;
-                    }
-                    let mut split = request.var.splitn(2, '.');
-                    let (var, opts) = match (split.next().unwrap(), split.next()) {
-                        (package, Some(var)) => (var, options.package_options(package)),
-                        (var, None) => (var, options.clone()),
-                    };
-                    match opts.get(var) {
-                        None => {
-                            return Err(Error::String(
-                                format!("Cannot resolve fromBuildEnv, variable not set: {}\nIs it missing from the package build options?", request.var)
-                            ));
-                        }
-                        Some(opt) => {
-                            let rendered = request.render_pin(opt)?;
-                            let _ = std::mem::replace(request, rendered);
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
+        self.requirements.render_all_pins(options, resolved)
     }
 }
 
@@ -114,7 +60,7 @@ impl<'de> Deserialize<'de> for InstallSpec {
         #[derive(Deserialize)]
         struct Unchecked {
             #[serde(default)]
-            requirements: Vec<Request>,
+            requirements: RequirementsList,
             #[serde(default)]
             embedded: Vec<Spec>,
             #[serde(default)]
@@ -127,17 +73,6 @@ impl<'de> Deserialize<'de> for InstallSpec {
             embedded: unchecked.embedded,
             components: unchecked.components,
         };
-
-        let mut requirement_names = HashSet::with_capacity(spec.requirements.len());
-        for name in spec.requirements.iter().map(Request::name) {
-            if requirement_names.contains(&name) {
-                return Err(serde::de::Error::custom(format!(
-                    "found multiple install requirements for '{}'",
-                    name
-                )));
-            }
-            requirement_names.insert(name);
-        }
 
         let mut default_build_spec = BuildSpec::default();
         for embedded in spec.embedded.iter_mut() {

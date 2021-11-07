@@ -280,7 +280,7 @@ impl ValidatorT for PkgRequirementsValidator {
             return Ok(api::Compatibility::Compatible);
         }
 
-        for request in &spec.install.requirements {
+        for request in spec.install.requirements.iter() {
             if let api::Request::Pkg(request) = request {
                 let mut existing = match state.get_merged_request(request.pkg.name()) {
                     Ok(request) => request,
@@ -355,7 +355,7 @@ impl ValidatorT for VarRequirementsValidator {
         }
 
         let options = state.get_option_map();
-        for request in &spec.install.requirements {
+        for request in spec.install.requirements.iter() {
             if let api::Request::Var(request) = request {
                 for (name, value) in options.iter() {
                     if *name != request.var

@@ -178,7 +178,7 @@ impl Decision {
                 spec.clone(),
                 self_spec.clone(),
             ))));
-            for req in &spec.install.requirements {
+            for req in spec.install.requirements.iter() {
                 match req {
                     api::Request::Pkg(req) => {
                         changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
@@ -227,7 +227,7 @@ impl Decision {
                 return changes;
             }
 
-            for req in &spec.install.requirements {
+            for req in spec.install.requirements.iter() {
                 match req {
                     api::Request::Pkg(req) => {
                         changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
