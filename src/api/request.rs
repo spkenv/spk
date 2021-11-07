@@ -116,6 +116,12 @@ impl RangeIdent {
             return Err(Error::wrap(format!("[{}]", self.name), err));
         }
 
+        for cmpt in other.components.iter() {
+            if !self.components.contains(cmpt) {
+                self.components.insert(cmpt.clone());
+            }
+        }
+
         if other.build.is_none() {
             Ok(())
         } else if self.build == other.build || self.build.is_none() {
@@ -682,7 +688,7 @@ impl From<&Ident> for PkgRequest {
     fn from(pkg: &Ident) -> PkgRequest {
         let ri = RangeIdent {
             name: pkg.name().to_owned(),
-            components: pkg.component().into_iter().map(str::to_string).collect(),
+            components: Default::default(),
             version: VersionFilter::single(ExactVersion::version_range(pkg.version.clone())),
             build: pkg.build.clone(),
         };
