@@ -3,10 +3,12 @@
 // https://github.com/imageworks/spk
 use std::{
     cmp::min,
+    collections::HashSet,
     fmt::{Display, Write},
     str::FromStr,
 };
 
+use itertools::Itertools;
 use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +16,7 @@ use crate::{Error, Result};
 
 use super::{
     compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
-    CompatRule, Compatibility, ExactVersion, Ident, Spec, Version, VersionFilter,
+    CompatRule, Compatibility, ExactVersion, Ident, InvalidNameError, Spec, Version, VersionFilter,
 };
 
 #[cfg(test)]
@@ -23,14 +25,26 @@ mod request_test;
 
 /// Identitfies a range of package versions and builds.
 #[pyclass]
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeIdent {
     #[pyo3(get)]
     name: String,
     #[pyo3(get, set)]
+    pub components: HashSet<String>,
+    #[pyo3(get, set)]
     pub version: VersionFilter,
     #[pyo3(get, set)]
     pub build: Option<Build>,
+}
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl std::hash::Hash for RangeIdent {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.components.iter().sorted().collect_vec().hash(state);
+        self.version.hash(state);
+        self.build.hash(state);
+    }
 }
 
 impl RangeIdent {
@@ -124,6 +138,10 @@ impl RangeIdent {
             return Compatibility::Incompatible("different package names".into());
         }
 
+        if !self.components.is_empty() {
+            todo!("Check that the spec has these components");
+        }
+
         let c = self.version.is_satisfied_by(spec, required);
         if !c.is_ok() {
             return c;
@@ -143,6 +161,19 @@ impl RangeIdent {
 impl Display for RangeIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.name.fmt(f)?;
+        match self.components.len() {
+            0 => (),
+            1 => {
+                f.write_char(':')?;
+                self.components.iter().sorted().join(",").fmt(f)?;
+            }
+            _ => {
+                f.write_char(':')?;
+                f.write_char('{')?;
+                self.components.iter().sorted().join(",").fmt(f)?;
+                f.write_char('}')?;
+            }
+        }
         if !self.version.is_empty() {
             f.write_char('/')?;
             self.version.fmt(f)?;
@@ -197,7 +228,8 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     let mut parts = source.as_ref().split('/');
-    let name = parts.next().unwrap_or("");
+    let name_and_components = parts.next().unwrap_or("");
+    let (name, components) = parse_name_and_components(name_and_components)?;
     let version = parts.next().unwrap_or("");
     let build = parts.next();
 
@@ -208,15 +240,44 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
         )));
     }
 
-    validate_name(name)?;
     Ok(RangeIdent {
-        name: name.to_string(),
+        name,
+        components,
         version: VersionFilter::from_str(version)?,
         build: match build {
             Some(b) => Some(parse_build(b)?),
             None => None,
         },
     })
+}
+
+fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(String, HashSet<String>)> {
+    let source = source.as_ref();
+    let mut components = HashSet::new();
+
+    if let Some(delim) = source.find(':') {
+        let name = &source[..delim];
+        validate_name(&name)?;
+        let remainder = &source[delim + 1..];
+        let cmpts = match remainder.starts_with('{') {
+            true if remainder.ends_with('}') => &remainder[1..remainder.len() - 1],
+            true => {
+                return Err(InvalidNameError::new_error(
+                    "missing or misplaced closing delimeter for component list: '}'".to_string(),
+                ))
+            }
+            false => remainder,
+        };
+
+        for cmpt in cmpts.split(',') {
+            validate_name(cmpt)?;
+            components.insert(cmpt.to_string());
+        }
+        return Ok((name.to_string(), components));
+    }
+
+    validate_name(source)?;
+    Ok((source.to_string(), components))
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -621,6 +682,7 @@ impl From<&Ident> for PkgRequest {
     fn from(pkg: &Ident) -> PkgRequest {
         let ri = RangeIdent {
             name: pkg.name().to_owned(),
+            components: pkg.component().into_iter().map(str::to_string).collect(),
             version: VersionFilter::single(ExactVersion::version_range(pkg.version.clone())),
             build: pkg.build.clone(),
         };

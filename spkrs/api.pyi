@@ -96,6 +96,7 @@ class InstallSpec:
 
 class RangeIdent:
     version: VersionRange
+    components: Set[str]
     build: Optional[str]
     @property
     def name(self) -> str: ...
