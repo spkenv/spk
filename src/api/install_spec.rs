@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{Build, BuildSpec, Ident, OptionMap, Request, Spec};
+use super::{Build, BuildSpec, ComponentSpec, Ident, OptionMap, Request, Spec};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -23,6 +23,9 @@ pub struct InstallSpec {
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: Vec<Spec>,
+    #[pyo3(get, set)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub components: Vec<ComponentSpec>,
 }
 
 #[pymethods]
@@ -114,12 +117,15 @@ impl<'de> Deserialize<'de> for InstallSpec {
             requirements: Vec<Request>,
             #[serde(default)]
             embedded: Vec<Spec>,
+            #[serde(default)]
+            components: Vec<ComponentSpec>,
         }
 
         let unchecked = Unchecked::deserialize(deserializer)?;
         let mut spec = InstallSpec {
             requirements: unchecked.requirements,
             embedded: unchecked.embedded,
+            components: unchecked.components,
         };
 
         let mut requirement_names = HashSet::with_capacity(spec.requirements.len());

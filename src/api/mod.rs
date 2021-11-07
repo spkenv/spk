@@ -5,6 +5,7 @@
 mod build;
 mod build_spec;
 mod compat;
+mod component_spec;
 mod ident;
 mod install_spec;
 mod meta;
@@ -24,6 +25,7 @@ mod version_range;
 pub use build::{parse_build, Build, InvalidBuildError};
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
+pub use component_spec::ComponentSpec;
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
