@@ -4,7 +4,7 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{Build, BuildSpec, ComponentSpec, Ident, OptionMap, Request, RequirementsList, Spec};
+use super::{ComponentSpec, EmbeddedPackagesList, Ident, OptionMap, Request, RequirementsList};
 use crate::Result;
 
 #[cfg(test)]
@@ -20,7 +20,7 @@ pub struct InstallSpec {
     pub requirements: RequirementsList,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub embedded: Vec<Spec>,
+    pub embedded: EmbeddedPackagesList,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<ComponentSpec>,
@@ -62,42 +62,17 @@ impl<'de> Deserialize<'de> for InstallSpec {
             #[serde(default)]
             requirements: RequirementsList,
             #[serde(default)]
-            embedded: Vec<Spec>,
+            embedded: EmbeddedPackagesList,
             #[serde(default)]
             components: Vec<ComponentSpec>,
         }
 
         let unchecked = Unchecked::deserialize(deserializer)?;
-        let mut spec = InstallSpec {
+        let spec = InstallSpec {
             requirements: unchecked.requirements,
             embedded: unchecked.embedded,
             components: unchecked.components,
         };
-
-        let mut default_build_spec = BuildSpec::default();
-        for embedded in spec.embedded.iter_mut() {
-            default_build_spec.options = embedded.build.options.clone();
-            if default_build_spec != embedded.build {
-                return Err(serde::de::Error::custom(
-                    "embedded packages can only specify build.options",
-                ));
-            }
-            if !embedded.install.is_empty() {
-                return Err(serde::de::Error::custom(
-                    "embedded packages cannot specify the install field",
-                ));
-            }
-            match &mut embedded.pkg.build {
-                Some(Build::Embedded) => continue,
-                None => embedded.pkg.set_build(Some(Build::Embedded)),
-                Some(_) => {
-                    return Err(serde::de::Error::custom(format!(
-                        "embedded package should not specify a build, got: {}",
-                        embedded.pkg
-                    )));
-                }
-            }
-        }
 
         Ok(spec)
     }

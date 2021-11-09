@@ -153,7 +153,7 @@ impl ValidatorT for EmbeddedPackageValidator {
             return Ok(api::Compatibility::Compatible);
         }
 
-        for embedded in &spec.install.embedded {
+        for embedded in spec.install.embedded.iter() {
             let existing = match state.get_merged_request(embedded.pkg.name()) {
                 Ok(request) => request,
                 Err(errors::GetMergedRequestError::NoRequestFor(_)) => continue,

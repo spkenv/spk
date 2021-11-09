@@ -238,7 +238,7 @@ impl Decision {
                 }
             }
 
-            for embedded in &spec.install.embedded {
+            for embedded in spec.install.embedded.iter() {
                 changes.push(Change::RequestPackage(RequestPackage::new(
                     api::PkgRequest::from_ident(&embedded.pkg),
                 )));
