@@ -255,6 +255,7 @@ def format_error(err: Exception, verbosity: int = 0) -> str:
         if errors:
             msg += ", likely suspects:\n - " + ("\n - ".join(errors))
     if isinstance(err, solve.SolverError):
+        msg = "Failed to resolve"
         if verbosity == 0:
             msg += f"{Fore.YELLOW}{Style.DIM}\n * try '--verbose/-v' for more info"
         elif verbosity < 2:
