@@ -74,6 +74,27 @@ impl<'de> Deserialize<'de> for InstallSpec {
             components: unchecked.components,
         };
 
+        let mut components = std::collections::HashSet::new();
+        for component in spec.components.iter() {
+            if !components.insert(component.name()) {
+                return Err(serde::de::Error::custom(format!(
+                    "found multiple compoenents with the name '{}'",
+                    component.name()
+                )));
+            }
+        }
+        for component in spec.components.iter() {
+            for name in component.uses.iter() {
+                if !components.contains(&name.as_str()) {
+                    return Err(serde::de::Error::custom(format!(
+                        "component '{}' uses '{}', but it does not exist",
+                        component.name(),
+                        name
+                    )));
+                }
+            }
+        }
+
         Ok(spec)
     }
 }

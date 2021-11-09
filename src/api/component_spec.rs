@@ -19,6 +19,9 @@ pub struct ComponentSpec {
     name: String,
     #[pyo3(get, set)]
     #[serde(default)]
+    pub uses: Vec<String>,
+    #[pyo3(get, set)]
+    #[serde(default)]
     pub requirements: super::RequirementsList,
     #[pyo3(get, set)]
     #[serde(default)]
@@ -31,6 +34,7 @@ impl ComponentSpec {
         super::validate_name(&name)?;
         Ok(Self {
             name,
+            uses: Default::default(),
             requirements: Default::default(),
             embedded: Default::default(),
         })
