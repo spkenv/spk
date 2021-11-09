@@ -45,7 +45,7 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
         if copy_package(&pkg, &remote_repo, &mut target_repo).is_ok() {
             continue;
         }
-        return Err(crate::Error::PackageNotFoundError(pkg.clone()));
+        return Err(crate::Error::PackageNotFoundError(pkg));
     }
 
     tracing::info!(path=?filename, "building archive");

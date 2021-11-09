@@ -214,23 +214,21 @@ impl BuildIterator for RepositoryBuildIterator {
             return Ok(None);
         };
 
-        let spec = match self.repo.lock().unwrap().read_spec(&build) {
-            Ok(spec) => Some(spec),
+        let guard = self.repo.lock().unwrap();
+        let mut spec = match guard.read_spec(&build) {
+            Ok(spec) => spec,
             Err(Error::PackageNotFoundError(..)) => {
+                drop(guard);
                 tracing::warn!(
                     "Repository listed build with no spec: {} from {:?}",
                     build,
                     self.repo
                 );
-                None
+                return self.next();
             }
             Err(err) => return Err(err),
         };
-        let mut spec = if let Some(spec) = spec {
-            spec
-        } else {
-            return self.next();
-        };
+
         if spec.pkg.build.is_none() {
             tracing::warn!(
                 "Published spec is corrupt (has no associated build), pkg={}",
