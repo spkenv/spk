@@ -15,4 +15,11 @@ service Repository {
 
     // tags
     rpc LsTags(LsTagsRequest) returns (LsTagsResponse);
+    rpc ResolveTag(ResolveTagRequest) returns (ResolveTagResponse);
+    rpc FindTags(FindTagsRequest) returns (FindTagsResponse);
+    rpc IterTagSpecs(IterTagSpecsRequest) returns (IterTagSpecsResponse);
+    rpc ReadTag(ReadTagRequest) returns (ReadTagResponse);
+    rpc PushRawTag(PushRawTagRequest) returns (PushRawTagResponse);
+    rpc RemoveTagStream(RemoveTagStreamRequest) returns (RemoveTagStreamResponse);
+    rpc RemoveTag(RemoveTagRequest) returns (RemoveTagResponse);
 }

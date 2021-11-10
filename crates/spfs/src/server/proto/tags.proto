@@ -5,6 +5,10 @@ syntax = "proto3";
 
 package spfs;
 
+message Tag {
+
+}
+
 message LsTagsRequest {
     string path = 1;
 }
@@ -12,3 +16,43 @@ message LsTagsResponse {
     repeated string entries = 1;
 }
 
+message ResolveTagRequest {
+    string tag = 1;
+}
+message ResolveTagResponse {
+    Tag tag = 1;
+}
+
+message FindTagsRequest {
+    bytes digest = 1;
+}
+message FindTagsResponse {
+    repeated Tag tags = 1;
+}
+
+message IterTagSpecsRequest {}
+message IterTagSpecsResponse {
+    repeated string tag_specs = 1;
+}
+
+message ReadTagRequest {
+    string tag_spec = 1;
+}
+message ReadTagResponse {
+    repeated Tag tags = 1;
+}
+
+message PushRawTagRequest {
+    Tag tag = 1;
+}
+message PushRawTagResponse {}
+
+message RemoveTagStreamRequest {
+    string tag_Spec = 1;
+}
+message RemoveTagStreamResponse {}
+
+message RemoveTagRequest {
+    Tag tag = 1;
+}
+message RemoveTagResponse {}

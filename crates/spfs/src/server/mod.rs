@@ -44,6 +44,62 @@ impl Repository for Service {
         };
         Ok(Response::new(data))
     }
+
+    async fn resolve_tag(
+        &self,
+        request: tonic::Request<proto::ResolveTagRequest>,
+    ) -> Result<tonic::Response<proto::ResolveTagResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
+
+    async fn find_tags(
+        &self,
+        request: tonic::Request<proto::FindTagsRequest>,
+    ) -> Result<tonic::Response<proto::FindTagsResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
+
+    async fn iter_tag_specs(
+        &self,
+        request: tonic::Request<proto::IterTagSpecsRequest>,
+    ) -> Result<tonic::Response<proto::IterTagSpecsResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
+
+    async fn read_tag(
+        &self,
+        request: tonic::Request<proto::ReadTagRequest>,
+    ) -> Result<tonic::Response<proto::ReadTagResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
+
+    async fn push_raw_tag(
+        &self,
+        request: tonic::Request<proto::PushRawTagRequest>,
+    ) -> Result<tonic::Response<proto::PushRawTagResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
+
+    async fn remove_tag_stream(
+        &self,
+        request: tonic::Request<proto::RemoveTagStreamRequest>,
+    ) -> Result<tonic::Response<proto::RemoveTagStreamResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
+
+    async fn remove_tag(
+        &self,
+        request: tonic::Request<proto::RemoveTagRequest>,
+    ) -> Result<tonic::Response<proto::RemoveTagResponse>, tonic::Status> {
+        let _request = request.into_inner();
+        todo!()
+    }
 }
 
 impl Service {
