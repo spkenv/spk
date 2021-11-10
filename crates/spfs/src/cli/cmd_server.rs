@@ -29,9 +29,11 @@ impl CmdServer {
             Some(remote) => config.get_remote(remote).await?,
             None => config.get_repository().await?.into(),
         };
+        let repo = std::sync::Arc::new(repo);
 
         let future = tonic::transport::Server::builder()
-            .add_service(spfs::server::Service::new_srv(repo))
+            .add_service(spfs::server::Repository::new_srv(repo.clone()))
+            .add_service(spfs::server::TagService::new_srv(repo.clone()))
             .serve_with_shutdown(self.address, async {
                 if let Err(err) = tokio::signal::ctrl_c().await {
                     tracing::error!(?err, "Failed to setup graceful shutdown handler");

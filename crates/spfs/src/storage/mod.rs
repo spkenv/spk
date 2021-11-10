@@ -24,6 +24,7 @@ pub use repository::Repository;
 pub use tag::TagStorage;
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     FS(fs::FSRepository),
     Tar(tar::TarRepository),

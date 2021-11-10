@@ -20,13 +20,17 @@ impl storage::TagStorage for super::RpcRepository {
         let request = proto::LsTagsRequest {
             path: path.to_string(),
         };
-        let mut client = self.client.clone();
-        let stream = futures::stream::once(async move { client.ls_tags(request).await })
-            .map(|resp| {
-                let resp = resp.unwrap().into_inner();
-                futures::stream::iter(resp.entries.into_iter().map(Ok))
-            })
-            .flatten();
+        let mut client = self.tag_client.clone();
+        let stream = futures::stream::once(async move {
+            tracing::trace!("sending request");
+            client.ls_tags(request).await
+        })
+        .map(|resp| {
+            tracing::trace!("recevied resp");
+            let resp = resp.unwrap().into_inner();
+            futures::stream::iter(resp.entries.into_iter().map(Ok))
+        })
+        .flatten();
         Box::pin(stream)
     }
 

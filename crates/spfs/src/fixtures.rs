@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 use crate as spfs;
 use rstest::fixture;
 use tempdir::TempDir;
@@ -115,38 +117,36 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         }
         #[cfg(feature = "server")]
         "rpc" => {
-            let repo = spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
-                .await
-                .unwrap()
-                .into();
+            let repo = Arc::new(spfs::storage::RepositoryHandle::FS(
+                spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
+                    .await
+                    .unwrap()
+            ));
             let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
             let (shutdown_send, shutdown_recv) = std::sync::mpsc::channel::<()>();
             let (addr_send, addr_recv) = std::sync::mpsc::channel::<std::net::SocketAddr>();
+            let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
+            let local_addr = listener.local_addr().unwrap();
+            let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
+            let future = tonic::transport::Server::builder()
+                .add_service(spfs::server::Repository::new_srv(repo.clone()))
+                .add_service(spfs::server::TagService::new_srv(repo))
+                .serve_with_incoming_shutdown(incoming, async move {
+                    // use a blocking task to avoid locking up the whole server
+                    // with this very synchronus channel recv process
+                    tokio::task::spawn_blocking(move || {
+                        shutdown_recv
+                            .recv()
+                            .expect("failed to get server shutdown signal");
+                    })
+                    .await
+                    .unwrap()
+                });
+            tracing::debug!("test server listening: {}", local_addr);
             let server_join_handle = tokio::task::spawn(async move {
-                let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
-                let local_addr = listener.local_addr().unwrap();
-                let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
-                let future = tonic::transport::Server::builder()
-                    .add_service(spfs::server::Service::new_srv(repo))
-                    .serve_with_incoming_shutdown(incoming, async move {
-                        // use a blocking task to avoid locking up the whole server
-                        // with this very synchronus channel recv process
-                        tokio::task::spawn_blocking(move || {
-                            shutdown_recv
-                                .recv()
-                                .expect("failed to get server shutdown signal");
-                        })
-                        .await
-                        .unwrap()
-                    });
-                tracing::debug!("test server listening: {}", local_addr);
-                addr_send
-                    .send(local_addr)
-                    .expect("failed to report server address");
                 future.await.expect("test server failed");
             });
-            let addr = addr_recv.recv().expect("failed to recieve server address");
-            let url = format!("http2://{}", addr).parse().unwrap();
+            let url = format!("http2://{}", local_addr).parse().unwrap();
             tracing::debug!("Connected to rpc test repo: {}", url);
             let repo = spfs::storage::rpc::RpcRepository::connect(url)
                 .await

@@ -5,9 +5,7 @@ syntax = "proto3";
 
 package spfs;
 
-message Tag {
-
-}
+message Tag {}
 
 message LsTagsRequest {
     string path = 1;
@@ -56,3 +54,14 @@ message RemoveTagRequest {
     Tag tag = 1;
 }
 message RemoveTagResponse {}
+
+service TagService {
+    rpc LsTags(LsTagsRequest) returns (LsTagsResponse);
+    rpc ResolveTag(ResolveTagRequest) returns (ResolveTagResponse);
+    rpc FindTags(FindTagsRequest) returns (FindTagsResponse);
+    rpc IterTagSpecs(IterTagSpecsRequest) returns (IterTagSpecsResponse);
+    rpc ReadTag(ReadTagRequest) returns (ReadTagResponse);
+    rpc PushRawTag(PushRawTagRequest) returns (PushRawTagResponse);
+    rpc RemoveTagStream(RemoveTagStreamRequest) returns (RemoveTagStreamResponse);
+    rpc RemoveTag(RemoveTagRequest) returns (RemoveTagResponse);
+}
