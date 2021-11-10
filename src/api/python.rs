@@ -137,6 +137,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::Spec>()?;
     m.add_class::<super::BuildSpec>()?;
     m.add_class::<super::InstallSpec>()?;
+    m.add_class::<super::ComponentSpec>()?;
     m.add_class::<super::PkgRequest>()?;
     m.add_class::<super::RangeIdent>()?;
     m.add_class::<super::VarRequest>()?;

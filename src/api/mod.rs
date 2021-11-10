@@ -27,7 +27,7 @@ mod version_range;
 pub use build::{parse_build, Build, InvalidBuildError};
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
-pub use component_spec::ComponentSpec;
+pub use component_spec::{ComponentSpec, FileMatcher};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
