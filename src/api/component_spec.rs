@@ -31,6 +31,7 @@ pub struct ComponentSpec {
 }
 
 impl ComponentSpec {
+    /// Create a new, empty component with the given name
     pub fn new<S: Into<String>>(name: S) -> Result<Self> {
         let name = name.into();
         super::validate_name(&name)?;
@@ -41,6 +42,47 @@ impl ComponentSpec {
             requirements: Default::default(),
             embedded: Default::default(),
         })
+    }
+
+    /// Generate the default build component
+    /// (used when non is provided by the package)
+    pub fn default_build() -> Self {
+        Self {
+            name: "build".to_string(),
+            uses: Default::default(),
+            files: FileMatcher::all(),
+            requirements: Default::default(),
+            embedded: Default::default(),
+        }
+    }
+
+    /// Generate the default run component
+    /// (used when non is provided by the package)
+    pub fn default_run() -> Self {
+        Self {
+            name: "run".to_string(),
+            uses: Default::default(),
+            files: FileMatcher::all(),
+            requirements: Default::default(),
+            embedded: Default::default(),
+        }
+    }
+
+    /// Generate the default run component.
+    /// All of the other component names must be provided.
+    /// (used when non is provided by the package)
+    pub fn default_all<U, I>(names: U) -> Self
+    where
+        U: IntoIterator<Item = I>,
+        I: Into<String>,
+    {
+        Self {
+            name: "all".to_string(),
+            uses: names.into_iter().map(Into::into).collect(),
+            files: Default::default(),
+            requirements: Default::default(),
+            embedded: Default::default(),
+        }
     }
 
     /// The name of this component.
@@ -89,10 +131,10 @@ impl FileMatcher {
     /// you would use the pattern /file.txt
     pub fn new<P, I>(rules: P) -> Result<Self>
     where
-        P: Iterator<Item = I>,
+        P: IntoIterator<Item = I>,
         I: Into<String>,
     {
-        let rules: Vec<_> = rules.map(Into::into).collect();
+        let rules: Vec<_> = rules.into_iter().map(Into::into).collect();
         let mut builder = ignore::gitignore::GitignoreBuilder::new("/");
         for rule in rules.iter() {
             builder.add_line(None, rule).map_err(|err| {
@@ -103,6 +145,12 @@ impl FileMatcher {
             .build()
             .map_err(|err| Error::String(format!("Failed to compile file patterns: {:?}", err)))?;
         Ok(Self { rules, gitignore })
+    }
+
+    /// Create a new matcher that matches all files
+    pub fn all() -> Self {
+        // we trust that the '*' rule will always be valid
+        Self::new(vec!["*".to_string()]).unwrap()
     }
 
     /// The list of file match patterns for this component

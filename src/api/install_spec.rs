@@ -68,7 +68,7 @@ impl<'de> Deserialize<'de> for InstallSpec {
         }
 
         let unchecked = Unchecked::deserialize(deserializer)?;
-        let spec = InstallSpec {
+        let mut spec = InstallSpec {
             requirements: unchecked.requirements,
             embedded: unchecked.embedded,
             components: unchecked.components,
@@ -83,6 +83,7 @@ impl<'de> Deserialize<'de> for InstallSpec {
                 )));
             }
         }
+
         for component in spec.components.iter() {
             for name in component.uses.iter() {
                 if !components.contains(&name.as_str()) {
@@ -94,6 +95,18 @@ impl<'de> Deserialize<'de> for InstallSpec {
                 }
             }
         }
+
+        let mut additional = Vec::new();
+        if !components.contains("build") {
+            additional.push(ComponentSpec::default_build());
+        }
+        if !components.contains("run") {
+            additional.push(ComponentSpec::default_run());
+        }
+        if !components.contains("all") {
+            additional.push(ComponentSpec::default_all(components));
+        }
+        spec.components.append(&mut additional);
 
         Ok(spec)
     }

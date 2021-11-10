@@ -14,6 +14,25 @@ fn test_components_no_duplicates() {
 }
 
 #[rstest]
+fn test_components_has_defaults() {
+    let spec = serde_yaml::from_str::<InstallSpec>("components: []").unwrap();
+    assert_eq!(
+        spec.components.len(),
+        3,
+        "Should receive default components"
+    );
+    let spec = serde_yaml::from_str::<InstallSpec>(
+        "components: [{name: all}, {name: run}, {name: build}]",
+    )
+    .unwrap();
+    assert_eq!(
+        spec.components.len(),
+        3,
+        "Should not receive default components"
+    );
+}
+
+#[rstest]
 fn test_components_uses_must_exist() {
     serde_yaml::from_str::<InstallSpec>(
         "components: [{name: python, uses: [other]}, {name: other}]",
