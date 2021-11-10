@@ -5,7 +5,16 @@ syntax = "proto3";
 
 package spfs;
 
-message Tag {}
+import "types.proto";
+
+message Tag {
+    optional string org = 1;
+    string name = 2;
+    Digest target = 3;
+    Digest parent = 4;
+    string user = 5;
+    DateTime time = 6;
+}
 
 message LsTagsRequest {
     string path = 1;
@@ -15,17 +24,17 @@ message LsTagsResponse {
 }
 
 message ResolveTagRequest {
-    string tag = 1;
+    string tag_spec = 1;
 }
 message ResolveTagResponse {
     Tag tag = 1;
 }
 
 message FindTagsRequest {
-    bytes digest = 1;
+    Digest digest = 1;
 }
 message FindTagsResponse {
-    repeated Tag tags = 1;
+    repeated string tags = 1;
 }
 
 message IterTagSpecsRequest {}

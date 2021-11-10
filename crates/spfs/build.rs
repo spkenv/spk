@@ -3,6 +3,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[
             "src/server/proto/repository.proto",
             "src/server/proto/tag.proto",
+            "src/server/proto/types.proto",
         ],
         &["src/server/proto"],
     )?;

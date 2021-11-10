@@ -1,0 +1,17 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+syntax = "proto3";
+
+package spfs;
+
+message Digest {
+    uint64 a = 1;
+    uint64 b = 2;
+    uint64 c = 3;
+    uint64 d = 4;
+}
+
+message DateTime {
+    string iso_timestamp = 1;
+}
