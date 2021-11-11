@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use tonic::{Request, Response, Status};
 
-use super::proto;
+use crate::proto;
 use crate::storage;
 use proto::repository_server::RepositoryServer;
 

@@ -1,11 +1,11 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure().compile(
         &[
-            "src/server/proto/repository.proto",
-            "src/server/proto/tag.proto",
-            "src/server/proto/types.proto",
+            "src/proto/defs/repository.proto",
+            "src/proto/defs/tag.proto",
+            "src/proto/defs/types.proto",
         ],
-        &["src/server/proto"],
+        &["src/proto/defs"],
     )?;
     Ok(())
 }

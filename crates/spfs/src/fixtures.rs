@@ -42,7 +42,7 @@ impl std::ops::DerefMut for TempRepo {
 
 impl Drop for TempRepo {
     fn drop(&mut self) {
-        if let Self::Rpc(_, join_handle, shutdown, _) = self {
+        if let Self::Rpc(_, _, shutdown, _) = self {
             shutdown
                 .send(())
                 .expect("failed to send server shutdown signal");
@@ -124,7 +124,6 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             ));
             let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
             let (shutdown_send, shutdown_recv) = std::sync::mpsc::channel::<()>();
-            let (addr_send, addr_recv) = std::sync::mpsc::channel::<std::net::SocketAddr>();
             let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
             let local_addr = listener.local_addr().unwrap();
             let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);

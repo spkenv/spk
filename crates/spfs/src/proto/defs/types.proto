@@ -6,10 +6,7 @@ syntax = "proto3";
 package spfs;
 
 message Digest {
-    uint64 a = 1;
-    uint64 b = 2;
-    uint64 c = 3;
-    uint64 d = 4;
+    bytes bytes = 1;
 }
 
 message DateTime {

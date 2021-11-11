@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
-use super::proto;
+use crate::proto;
 use crate::storage;
 use proto::tag_service_server::TagServiceServer;
 

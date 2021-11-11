@@ -17,6 +17,7 @@ pub mod env;
 pub mod graph;
 pub mod io;
 pub mod prelude;
+pub mod proto;
 pub mod runtime;
 #[cfg(feature = "server")]
 pub mod server;

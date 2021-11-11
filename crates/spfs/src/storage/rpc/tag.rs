@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::{Stream, StreamExt};
 use relative_path::RelativePath;
 
-use super::proto;
+use crate::proto;
 use crate::{
     encoding,
     storage::{self, tag::TagSpecAndTagStream},

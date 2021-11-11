@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::proto::{repository_client::RepositoryClient, tag_service_client::TagServiceClient};
+use crate::proto::{repository_client::RepositoryClient, tag_service_client::TagServiceClient};
 use crate::{storage, Error, Result};
 
 #[derive(Debug)]
