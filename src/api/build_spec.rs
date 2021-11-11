@@ -7,7 +7,7 @@ use itertools::Itertools;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{Compatibility, Opt, OptionMap};
+use super::{Compatibility, Opt, OptionMap, ValidationSpec};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -25,6 +25,8 @@ pub struct BuildSpec {
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
     #[pyo3(get, set)]
     pub variants: Vec<OptionMap>,
+    #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
+    pub validation: ValidationSpec,
 }
 
 impl Default for BuildSpec {
@@ -33,6 +35,7 @@ impl Default for BuildSpec {
             script: vec!["sh ./build.sh".into()],
             options: Vec::new(),
             variants: vec![OptionMap::default()],
+            validation: ValidationSpec::default(),
         }
     }
 }
@@ -173,10 +176,15 @@ impl<'de> BuildSpec {
             options: Option<Vec<Opt>>,
             #[serde(default)]
             variants: Vec<OptionMap>,
+            #[serde(default)]
+            validation: ValidationSpec,
         }
 
         let raw = Unchecked::deserialize(deserializer)?;
-        let mut bs = BuildSpec::default();
+        let mut bs = BuildSpec {
+            validation: raw.validation,
+            ..BuildSpec::default()
+        };
         if let Some(script) = raw.script {
             bs.script = deserialize_script(script).map_err(|err| {
                 serde::de::Error::custom(format!("build.script: {}", err.to_string()))

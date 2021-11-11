@@ -16,6 +16,8 @@ mod request;
 mod source_spec;
 mod spec;
 mod test_spec;
+mod validation;
+mod validators;
 mod version;
 mod version_range;
 
@@ -37,6 +39,7 @@ pub use spec::{read_spec_file, save_spec_file, Spec};
 
 pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};
+pub use validation::{default_validators, ValidationSpec, Validator};
 pub use version::{
     parse_version, InvalidVersionError, TagSet, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP,
 };

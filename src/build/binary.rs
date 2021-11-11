@@ -25,51 +25,39 @@ impl BuildError {
     }
 }
 
-pub fn validate_build_changeset<P: AsRef<relative_path::RelativePath>>(
-    mut diffs: Vec<spfs::tracking::Diff>,
+// Reset all file permissions in spfs if permissions is the
+// only change for the given file
+// NOTE(rbottriell): permission changes are not properly reset by spfs
+// so we must deal with them manually for now
+pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
+    diffs: &mut Vec<spfs::tracking::Diff>,
     prefix: P,
 ) -> Result<()> {
-    diffs = diffs
-        .into_iter()
-        .filter(|diff| diff.mode != spfs::tracking::DiffMode::Unchanged)
-        .collect();
-
-    if diffs.is_empty() {
-        return Err(BuildError::new_error(format_args!(
-            "Build process created no files under {}",
-            prefix.as_ref(),
-        )));
-    }
-
-    for diff in diffs.into_iter() {
-        tracing::debug!("{:?}", diff);
+    for diff in diffs.iter_mut() {
+        if diff.mode != spfs::tracking::DiffMode::Changed {
+            continue;
+        }
         if let Some((a, b)) = &diff.entries {
-            if a.is_dir() && b.is_dir() {
+            if a.size != b.size {
                 continue;
             }
-        }
-        if diff.mode != spfs::tracking::DiffMode::Added {
-            if diff.mode == spfs::tracking::DiffMode::Changed {
-                if let Some((a, b)) = &diff.entries {
-                    let mode_change = a.mode ^ b.mode;
-                    let nonperm_change = (mode_change | 0o777) ^ 0o77;
-                    if mode_change != 0 && nonperm_change == 0 {
-                        // NOTE(rbottriell): permission changes are not properly reset by spfs
-                        // so we must deal with them manually for now
-                        let perms = std::fs::Permissions::from_mode(a.mode);
-                        std::fs::set_permissions(
-                            diff.path
-                                .to_path(PathBuf::from(prefix.as_ref().to_string())),
-                            perms,
-                        )?;
-                        continue;
-                    }
-                }
+            if a.object != b.object {
+                continue;
             }
-            return Err(BuildError::new_error(format_args!(
-                "Existing file was {:?}: {:?}",
-                &diff.mode, &diff.path
-            )));
+            if a.kind != b.kind {
+                continue;
+            }
+            let mode_change = a.mode ^ b.mode;
+            let nonperm_change = (mode_change | 0o777) ^ 0o77;
+            if mode_change != 0 && nonperm_change == 0 {
+                let perms = std::fs::Permissions::from_mode(a.mode);
+                std::fs::set_permissions(
+                    diff.path
+                        .to_path(std::path::PathBuf::from(prefix.as_ref().to_string())),
+                    perms,
+                )?;
+                diff.mode = spfs::tracking::DiffMode::Unchanged;
+            }
         }
     }
     Ok(())
