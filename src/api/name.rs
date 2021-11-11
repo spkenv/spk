@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+#[cfg(test)]
+#[path = "./name_test.rs"]
+mod name_test;
+
 /// Denotes that an invalid package name was given.
 #[derive(Debug)]
 pub struct InvalidNameError {
@@ -16,7 +20,9 @@ impl InvalidNameError {
 
 /// Return 'name' if it's a valide package name
 pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
-    let index = validate_source_str(&name, |c: char| c.is_ascii_alphanumeric() || c == '-');
+    let index = validate_source_str(&name, |c: char| {
+        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'
+    });
     if index > -1 {
         let name = name.as_ref();
         let index = index as usize;
