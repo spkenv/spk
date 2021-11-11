@@ -37,7 +37,7 @@ impl From<super::Digest> for encoding::Digest {
 impl From<&encoding::Digest> for super::Digest {
     fn from(source: &encoding::Digest) -> Self {
         Self {
-            bytes: source.as_bytes().into_iter().cloned().collect(),
+            bytes: source.as_bytes().to_vec(),
         }
     }
 }

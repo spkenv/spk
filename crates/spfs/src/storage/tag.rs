@@ -59,7 +59,7 @@ pub trait TagStorage: Send + Sync {
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>>;
 
     /// Iterate through the available tags in this storage.
-    fn iter_tags(&self) -> Pin<Box<dyn Stream<Item = IterTagsItem>>> {
+    fn iter_tags(&self) -> Pin<Box<dyn Stream<Item = IterTagsItem> + Send>> {
         let stream = self.iter_tag_streams();
         let mapped = futures::StreamExt::filter_map(stream, |res| async {
             match res {
