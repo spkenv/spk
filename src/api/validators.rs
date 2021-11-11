@@ -9,9 +9,9 @@ use std::path::Path;
 mod validators_test;
 
 /// Validates that something was installed for the package
-pub fn must_install_something<P: AsRef<Path>>(diffs: &Vec<Diff>, prefix: P) -> Option<String> {
+pub fn must_install_something<P: AsRef<Path>>(diffs: &[Diff], prefix: P) -> Option<String> {
     let changes = diffs
-        .into_iter()
+        .iter()
         .filter(|diff| diff.mode != DiffMode::Unchanged)
         .count();
 
@@ -27,11 +27,8 @@ pub fn must_install_something<P: AsRef<Path>>(diffs: &Vec<Diff>, prefix: P) -> O
 
 /// Validates that the install process did not change
 /// a file that belonged to a build dependency
-pub fn must_not_alter_existing_files<P: AsRef<Path>>(
-    diffs: &Vec<Diff>,
-    _prefix: P,
-) -> Option<String> {
-    for diff in diffs.into_iter() {
+pub fn must_not_alter_existing_files<P: AsRef<Path>>(diffs: &[Diff], _prefix: P) -> Option<String> {
+    for diff in diffs.iter() {
         if let Some((a, b)) = &diff.entries {
             if a.is_dir() && b.is_dir() {
                 continue;

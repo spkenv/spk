@@ -6,13 +6,6 @@ use pyo3::{prelude::*, wrap_pyfunction};
 use crate::{api, Result};
 
 #[pyfunction]
-fn validate_build_changeset() -> Result<()> {
-    let diffs = spfs::diff(None, None)?;
-    super::validate_build_changeset(diffs, "/spfs")?;
-    Ok(())
-}
-
-#[pyfunction]
 fn validate_source_changeset() -> Result<()> {
     let diffs = spfs::diff(None, None)?;
     super::validate_source_changeset(diffs, "/spfs")?;
@@ -48,7 +41,6 @@ fn source_package_path(path: &api::Ident, prefix: Option<&str>) -> String {
 }
 
 pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(validate_build_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(build_options_path, m)?)?;

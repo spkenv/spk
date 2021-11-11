@@ -181,8 +181,10 @@ impl<'de> BuildSpec {
         }
 
         let raw = Unchecked::deserialize(deserializer)?;
-        let mut bs = BuildSpec::default();
-        bs.validation = raw.validation;
+        let mut bs = BuildSpec {
+            validation: raw.validation,
+            ..BuildSpec::default()
+        };
         if let Some(script) = raw.script {
             bs.script = deserialize_script(script).map_err(|err| {
                 serde::de::Error::custom(format!("build.script: {}", err.to_string()))

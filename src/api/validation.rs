@@ -23,7 +23,7 @@ impl Validator {
     /// Validate the set of changes to spfs according to this validator
     pub fn validate<P: AsRef<std::path::Path>>(
         &self,
-        diffs: &Vec<spfs::tracking::Diff>,
+        diffs: &[spfs::tracking::Diff],
         prefix: P,
     ) -> Option<String> {
         match self {
@@ -64,7 +64,7 @@ impl ValidationSpec {
         HashSet::from_iter(
             default_validators()
                 .into_iter()
-                .filter(|validator| !self.disabled.contains(&validator)),
+                .filter(|validator| !self.disabled.contains(validator)),
         )
     }
 
@@ -80,7 +80,7 @@ impl ValidationSpec {
 
         for validator in self.configured_validators().iter() {
             if let Some(err) = validator.validate(&diffs, SPFS) {
-                return Err(super::InvalidBuildError::new(format!(
+                return Err(super::InvalidBuildError::new_error(format!(
                     "{:?}: {}",
                     validator, err
                 )));

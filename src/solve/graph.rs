@@ -1,3 +1,4 @@
+use itertools::Itertools;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
@@ -145,13 +146,10 @@ impl Decision {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
-            let specs = build_env.items().map(|s| s.spec);
+            let specs = build_env.items().map(|s| s.spec).collect_vec();
             let options = build_env.options();
             let mut spec = (*self_spec).clone();
-            spec.update_spec_for_build(
-                &options,
-                specs.into_iter().map(|s| (*s).clone()).collect(),
-            )?;
+            spec.update_for_build(&options, specs.iter().map(Arc::as_ref))?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(

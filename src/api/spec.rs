@@ -172,11 +172,10 @@ impl Spec {
 
 impl Spec {
     /// Update this spec to represent a specific binary package build.
-    pub fn update_for_build<'a>(
-        &mut self,
-        options: &OptionMap,
-        resolved: impl Iterator<Item = &'a Spec>,
-    ) -> Result<()> {
+    pub fn update_for_build<'a, I>(&mut self, options: &OptionMap, resolved: I) -> Result<()>
+    where
+        I: Iterator<Item = &'a Spec>,
+    {
         let specs: HashMap<_, _> = resolved.map(|s| (s.pkg.name(), s)).collect();
         for (dep_name, dep_spec) in specs.iter() {
             for opt in dep_spec.build.options.iter() {
@@ -317,4 +316,10 @@ pub fn save_spec_file<P: AsRef<Path>>(filepath: P, spec: &Spec) -> crate::Result
         .open(filepath)?;
     serde_yaml::to_writer(file, spec)?;
     Ok(())
+}
+
+impl AsRef<Spec> for Spec {
+    fn as_ref(&self) -> &Spec {
+        self
+    }
 }

@@ -40,9 +40,11 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
         if let Some((a, b)) = &diff.entries {
             if a.size != b.size {
                 continue;
-            } else if a.object != b.object {
+            }
+            if a.object != b.object {
                 continue;
-            } else if a.kind != b.kind {
+            }
+            if a.kind != b.kind {
                 continue;
             }
             let mode_change = a.mode ^ b.mode;
