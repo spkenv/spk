@@ -24,6 +24,9 @@ pub struct ComponentSpec {
     pub uses: Vec<String>,
     #[pyo3(get, set)]
     #[serde(default)]
+    pub compat: Option<super::Compat>,
+    #[pyo3(get, set)]
+    #[serde(default)]
     pub requirements: super::RequirementsList,
     #[pyo3(get, set)]
     #[serde(default)]
@@ -37,6 +40,7 @@ impl ComponentSpec {
         super::validate_name(&name)?;
         Ok(Self {
             name,
+            compat: None,
             uses: Default::default(),
             files: Default::default(),
             requirements: Default::default(),
@@ -49,6 +53,7 @@ impl ComponentSpec {
     pub fn default_build() -> Self {
         Self {
             name: "build".to_string(),
+            compat: None,
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
@@ -61,6 +66,7 @@ impl ComponentSpec {
     pub fn default_run() -> Self {
         Self {
             name: "run".to_string(),
+            compat: None,
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
@@ -78,6 +84,7 @@ impl ComponentSpec {
     {
         Self {
             name: "all".to_string(),
+            compat: None,
             uses: names.into_iter().map(Into::into).collect(),
             files: Default::default(),
             requirements: Default::default(),
