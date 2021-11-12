@@ -281,6 +281,25 @@ impl<'source> FromPyObject<'source> for super::TestStage {
     }
 }
 
+impl IntoPy<Py<types::PyAny>> for super::Component {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::Component {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        let string = <&'source str>::extract(ob)?;
+        match std::convert::TryFrom::try_from(string) {
+            Ok(ts) => Ok(ts),
+            Err(err) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{:?}",
+                err
+            ))),
+        }
+    }
+}
+
 impl IntoPy<Py<PyAny>> for super::Request {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {

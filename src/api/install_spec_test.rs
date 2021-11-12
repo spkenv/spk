@@ -18,16 +18,14 @@ fn test_components_has_defaults() {
     let spec = serde_yaml::from_str::<InstallSpec>("components: []").unwrap();
     assert_eq!(
         spec.components.len(),
-        3,
+        2,
         "Should receive default components"
     );
-    let spec = serde_yaml::from_str::<InstallSpec>(
-        "components: [{name: all}, {name: run}, {name: build}]",
-    )
-    .unwrap();
+    let spec =
+        serde_yaml::from_str::<InstallSpec>("components: [{name: run}, {name: build}]").unwrap();
     assert_eq!(
         spec.components.len(),
-        3,
+        2,
         "Should not receive default components"
     );
 }

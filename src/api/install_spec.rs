@@ -4,7 +4,9 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{ComponentSpec, EmbeddedPackagesList, Ident, OptionMap, Request, RequirementsList};
+use super::{
+    Component, ComponentSpec, EmbeddedPackagesList, Ident, OptionMap, Request, RequirementsList,
+};
 use crate::Result;
 
 #[cfg(test)]
@@ -86,7 +88,7 @@ impl<'de> Deserialize<'de> for InstallSpec {
 
         for component in spec.components.iter() {
             for name in component.uses.iter() {
-                if !components.contains(&name.as_str()) {
+                if !components.contains(&name) {
                     return Err(serde::de::Error::custom(format!(
                         "component '{}' uses '{}', but it does not exist",
                         component.name(),
@@ -97,14 +99,16 @@ impl<'de> Deserialize<'de> for InstallSpec {
         }
 
         let mut additional = Vec::new();
-        if !components.contains("build") {
+        if !components.contains(&Component::Build) {
             additional.push(ComponentSpec::default_build());
         }
-        if !components.contains("run") {
+        if !components.contains(&Component::Run) {
             additional.push(ComponentSpec::default_run());
         }
-        if !components.contains("all") {
-            additional.push(ComponentSpec::default_all(components));
+        if components.contains(&Component::All) {
+            return Err(serde::de::Error::custom(
+                "The 'all' component is reserved, and cannot be defined in a spec".to_string(),
+            ));
         }
         spec.components.append(&mut additional);
 

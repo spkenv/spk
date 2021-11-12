@@ -1,6 +1,8 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::convert::{TryFrom, TryInto};
+
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -15,13 +17,12 @@ mod component_spec_test;
 #[derive(Debug, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ComponentSpec {
     #[pyo3(get)]
-    #[serde(deserialize_with = "deserialize_component_name")]
-    name: String,
+    name: Component,
     #[serde(default)]
     pub files: FileMatcher,
     #[pyo3(get, set)]
     #[serde(default)]
-    pub uses: Vec<String>,
+    pub uses: Vec<Component>,
     #[pyo3(get, set)]
     #[serde(default)]
     pub compat: Option<super::Compat>,
@@ -35,9 +36,8 @@ pub struct ComponentSpec {
 
 impl ComponentSpec {
     /// Create a new, empty component with the given name
-    pub fn new<S: Into<String>>(name: S) -> Result<Self> {
-        let name = name.into();
-        super::validate_name(&name)?;
+    pub fn new<S: TryInto<Component, Error = Error>>(name: S) -> Result<Self> {
+        let name = name.try_into()?;
         Ok(Self {
             name,
             compat: None,
@@ -52,7 +52,7 @@ impl ComponentSpec {
     /// (used when non is provided by the package)
     pub fn default_build() -> Self {
         Self {
-            name: "build".to_string(),
+            name: Component::Build,
             compat: None,
             uses: Default::default(),
             files: FileMatcher::all(),
@@ -65,7 +65,7 @@ impl ComponentSpec {
     /// (used when non is provided by the package)
     pub fn default_run() -> Self {
         Self {
-            name: "run".to_string(),
+            name: Component::Run,
             compat: None,
             uses: Default::default(),
             files: FileMatcher::all(),
@@ -74,27 +74,96 @@ impl ComponentSpec {
         }
     }
 
-    /// Generate the default run component.
-    /// All of the other component names must be provided.
-    /// (used when non is provided by the package)
-    pub fn default_all<U, I>(names: U) -> Self
-    where
-        U: IntoIterator<Item = I>,
-        I: Into<String>,
-    {
-        Self {
-            name: "all".to_string(),
-            compat: None,
-            uses: names.into_iter().map(Into::into).collect(),
-            files: Default::default(),
-            requirements: Default::default(),
-            embedded: Default::default(),
-        }
+    /// The name of this component.
+    pub fn name(&self) -> &Component {
+        &self.name
+    }
+}
+
+/// Identifies a component by name
+#[derive(Debug, Hash, Clone, Eq, PartialEq)]
+pub enum Component {
+    All,
+    Build,
+    Run,
+    Source,
+    Named(String),
+}
+
+impl Component {
+    /// Parse a component name from a string, ensuring that it's valid
+    pub fn parse<S: AsRef<str>>(source: S) -> Result<Self> {
+        let source = source.as_ref();
+        super::validate_name(source)?;
+        Ok(match source {
+            "all" => Self::All,
+            "run" => Self::Run,
+            "build" => Self::Build,
+            "src" => Self::Source,
+            _ => Self::Named(source.to_string()),
+        })
     }
 
-    /// The name of this component.
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::All => "all",
+            Self::Run => "run",
+            Self::Build => "build",
+            Self::Source => "src",
+            Self::Named(value) => &value,
+        }
+    }
+}
+
+impl std::str::FromStr for Component {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        Self::parse(s)
+    }
+}
+
+impl TryFrom<&str> for Component {
+    type Error = Error;
+    fn try_from(value: &str) -> Result<Self> {
+        Self::parse(value)
+    }
+}
+
+impl TryFrom<String> for Component {
+    type Error = Error;
+    fn try_from(value: String) -> Result<Self> {
+        Self::parse(value)
+    }
+}
+
+impl std::fmt::Display for Component {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
+
+impl AsRef<str> for Component {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl<'de> Deserialize<'de> for Component {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Component::try_from(value).map_err(|err| serde::de::Error::custom(err.to_string()))
+    }
+}
+
+impl Serialize for Component {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.as_str().serialize(serializer)
     }
 }
 
@@ -188,18 +257,4 @@ impl Serialize for FileMatcher {
     {
         self.rules.serialize(serializer)
     }
-}
-
-fn deserialize_component_name<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = String::deserialize(deserializer)?;
-    super::validate_name(&value).map_err(|err| {
-        serde::de::Error::invalid_value(
-            serde::de::Unexpected::Str(&value),
-            &err.to_string().as_str(),
-        )
-    })?;
-    Ok(value)
 }

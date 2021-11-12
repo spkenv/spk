@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::{ComponentSpec, FileMatcher};
+use super::{Component, ComponentSpec, FileMatcher};
 
 #[rstest]
 #[case("valid")]
@@ -48,4 +48,16 @@ fn test_file_matcher_matching(
     // semantics of our function works as expected
     let matcher = FileMatcher::new(patterns.iter().map(|s| s.to_string())).unwrap();
     assert_eq!(matcher.matches(path, path.ends_with("/")), should_match);
+}
+
+#[rstest]
+fn test_component_name_serialize() {
+    assert_eq!(Component::All, serde_yaml::from_str("all").unwrap());
+    assert_eq!(Component::Run, serde_yaml::from_str("run").unwrap());
+    assert_eq!(Component::Build, serde_yaml::from_str("build").unwrap());
+    assert_eq!(Component::Source, serde_yaml::from_str("src").unwrap());
+    assert_eq!(
+        Component::Named("other".into()),
+        serde_yaml::from_str("other").unwrap()
+    );
 }
