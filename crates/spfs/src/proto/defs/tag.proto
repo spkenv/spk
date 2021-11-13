@@ -6,6 +6,7 @@ syntax = "proto3";
 package spfs;
 
 import "types.proto";
+import "error.proto";
 
 message Tag {
     optional string org = 1;
@@ -20,49 +21,91 @@ message LsTagsRequest {
     string path = 1;
 }
 message LsTagsResponse {
-    repeated string entries = 1;
+    message EntryList {
+        repeated string entries = 1;
+    }
+    oneof result {
+        Error error = 1;
+        EntryList ok = 2;
+    }
 }
 
 message ResolveTagRequest {
-    string tag_spec = 1;
+    string tag_spec = 2;
 }
 message ResolveTagResponse {
-    Tag tag = 1;
+    oneof result {
+        Error error = 1;
+        Tag ok = 2;
+    }
 }
 
 message FindTagsRequest {
     Digest digest = 1;
 }
 message FindTagsResponse {
-    repeated string tags = 1;
+    message TagList {
+        repeated string tags = 1;
+    }
+    oneof result {
+        Error error = 1;
+        TagList ok = 2;
+    }
 }
 
 message IterTagSpecsRequest {}
 message IterTagSpecsResponse {
-    repeated string tag_specs = 1;
+    message TagSpecList {
+        repeated string tag_specs = 1;
+    }
+    oneof result {
+        Error error = 1;
+        TagSpecList ok = 2;
+    }
 }
 
 message ReadTagRequest {
     string tag_spec = 1;
 }
 message ReadTagResponse {
-    repeated Tag tags = 1;
+    message TagList {
+        repeated Tag tags = 1;
+    }
+    oneof result {
+        Error error = 1;
+        TagList ok = 2;
+    }
 }
 
 message PushRawTagRequest {
     Tag tag = 1;
 }
-message PushRawTagResponse {}
+message PushRawTagResponse {
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
 
 message RemoveTagStreamRequest {
     string tag_Spec = 1;
 }
-message RemoveTagStreamResponse {}
+message RemoveTagStreamResponse {
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
 
 message RemoveTagRequest {
     Tag tag = 1;
 }
-message RemoveTagResponse {}
+message RemoveTagResponse {
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
 
 service TagService {
     rpc LsTags(LsTagsRequest) returns (LsTagsResponse);
