@@ -74,3 +74,52 @@ impl From<&tracking::Tag> for super::Tag {
         }
     }
 }
+
+impl From<crate::Error> for super::Error {
+    fn from(err: crate::Error) -> Self {
+        let kind = Some(match err {
+            crate::Error::UnknownObject(digest) => {
+                super::error::Kind::UnknownObject(super::UnknownObjectError {
+                    message: digest.to_string(),
+                })
+            }
+            crate::Error::UnknownReference(message) => {
+                super::error::Kind::UnknownReference(super::UnknownReferenceError { message })
+            }
+            crate::Error::AmbiguousReference(message) => {
+                super::error::Kind::AmbiguousReference(super::AmbiguousReferenceError { message })
+            }
+            crate::Error::InvalidReference(message) => {
+                super::error::Kind::InvalidReference(super::InvalidReferenceError { message })
+            }
+            err => super::error::Kind::Other(format!("{:?}", err)),
+        });
+        Self { kind }
+    }
+}
+
+impl From<super::Error> for crate::Error {
+    fn from(rpc: super::Error) -> Self {
+        match rpc.kind {
+            Some(super::error::Kind::UnknownObject(rpc)) => {
+                match crate::encoding::Digest::parse(&rpc.message) {
+                    Ok(digest) => crate::Error::UnknownObject(digest),
+                    Err(_) => crate::Error::String(format!(
+                        "Server reported UnknownObject but did not provide a valid digest"
+                    )),
+                }
+            }
+            Some(super::error::Kind::UnknownReference(rpc)) => {
+                crate::Error::UnknownReference(rpc.message)
+            }
+            Some(super::error::Kind::AmbiguousReference(rpc)) => {
+                crate::Error::AmbiguousReference(rpc.message)
+            }
+            Some(super::error::Kind::InvalidReference(rpc)) => {
+                crate::Error::InvalidReference(rpc.message)
+            }
+            Some(super::error::Kind::Other(message)) => crate::Error::String(message),
+            None => crate::Error::String(format!("Server did not provide an error message")),
+        }
+    }
+}
