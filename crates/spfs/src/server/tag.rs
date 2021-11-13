@@ -4,6 +4,7 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use futures::TryStreamExt;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
@@ -25,9 +26,9 @@ impl proto::tag_service_server::TagService for TagService {
         let request = request.into_inner();
         let path = relative_path::RelativePath::new(&request.path);
         let entries: crate::Result<Vec<_>> = {
-            proto::handle_error!(self.repo.ls_tags(path)).collect()
+            self.repo.ls_tags(path).collect().await
         };
-        let entries = entries?;
+        let entries = proto::handle_error!(entries);
 
         let data = proto::LsTagsResponse::ok(proto::ls_tags_response::EntryList { entries });
         Ok(Response::new(data))
@@ -50,7 +51,7 @@ impl proto::tag_service_server::TagService for TagService {
     ) -> Result<tonic::Response<proto::FindTagsResponse>, tonic::Status> {
         let request = request.into_inner();
         let digest = proto::handle_error!(request.digest.try_into());
-        let results = self.repo.find_tags(&digest);
+        let mut results = self.repo.find_tags(&digest);
         let mut tags = Vec::new();
         while let Some(item) = results.next().await {
             let item = proto::handle_error!(item);
@@ -82,7 +83,7 @@ impl proto::tag_service_server::TagService for TagService {
     ) -> Result<tonic::Response<proto::ReadTagResponse>, tonic::Status> {
         let request = request.into_inner();
         let tag_spec = proto::handle_error!(request.tag_spec.parse());
-        let mut stream = proto::handle_error!(self.repo.read_tag(&tag_spec).await);
+        let stream = proto::handle_error!(self.repo.read_tag(&tag_spec).await);
         let tags: crate::Result<Vec<_>> = stream.map_ok(|t| (&t).into()).collect().await;
         let tags = proto::handle_error!(tags);
         let data = proto::ReadTagResponse::ok(proto::read_tag_response::TagList { tags });
