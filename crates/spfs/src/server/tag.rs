@@ -7,9 +7,8 @@ use std::sync::Arc;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
-use crate::proto;
+use crate::proto::{self, tag_service_server::TagServiceServer, RpcResult};
 use crate::storage;
-use proto::tag_service_server::TagServiceServer;
 
 #[derive(Debug, Clone)]
 pub struct TagService {
@@ -26,12 +25,11 @@ impl proto::tag_service_server::TagService for TagService {
         let request = request.into_inner();
         let path = relative_path::RelativePath::new(&request.path);
         let entries: crate::Result<Vec<_>> = {
-            self.repo.ls_tags(path).collect().await
+            proto::handle_error!(self.repo.ls_tags(path)).collect()
         };
+        let entries = entries?;
 
-        let data = proto::LsTagsResponse {
-            entries: entries.unwrap(),
-        };
+        let data = proto::LsTagsResponse::ok(proto::ls_tags_response::EntryList { entries });
         Ok(Response::new(data))
     }
 
@@ -40,11 +38,9 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::ResolveTagRequest>,
     ) -> Result<tonic::Response<proto::ResolveTagResponse>, tonic::Status> {
         let request = request.into_inner();
-        let tag_spec = request.tag_spec.parse().unwrap();
-        let tag = self.repo.resolve_tag(&tag_spec).await.unwrap();
-        let data = proto::ResolveTagResponse {
-            tag: Some((&tag).into()),
-        };
+        let tag_spec = proto::handle_error!(request.tag_spec.parse());
+        let tag = proto::handle_error!(self.repo.resolve_tag(&tag_spec).await);
+        let data = proto::ResolveTagResponse::ok((&tag).into());
         Ok(Response::new(data))
     }
 
@@ -53,15 +49,14 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::FindTagsRequest>,
     ) -> Result<tonic::Response<proto::FindTagsResponse>, tonic::Status> {
         let request = request.into_inner();
-        let digest = request.digest.try_into().unwrap();
-        let tags = self
-            .repo
-            .find_tags(&digest)
-            .map(Result::unwrap)
-            .map(|s| s.to_string())
-            .collect()
-            .await;
-        let data = proto::FindTagsResponse { tags };
+        let digest = proto::handle_error!(request.digest.try_into());
+        let results = self.repo.find_tags(&digest);
+        let mut tags = Vec::new();
+        while let Some(item) = results.next().await {
+            let item = proto::handle_error!(item);
+            tags.push(item.to_string());
+        }
+        let data = proto::FindTagsResponse::ok(proto::find_tags_response::TagList { tags });
         Ok(Response::new(data))
     }
 
@@ -69,14 +64,15 @@ impl proto::tag_service_server::TagService for TagService {
         &self,
         _request: tonic::Request<proto::IterTagSpecsRequest>,
     ) -> Result<tonic::Response<proto::IterTagSpecsResponse>, tonic::Status> {
-        let tag_specs = self
-            .repo
-            .iter_tags()
-            .map(Result::unwrap)
-            .map(|(s, _)| s.to_string())
-            .collect()
-            .await;
-        let data = proto::IterTagSpecsResponse { tag_specs };
+        let mut streams = self.repo.iter_tags();
+        let mut tag_specs = Vec::new();
+        while let Some(item) = streams.next().await {
+            let item = proto::handle_error!(item);
+            tag_specs.push(item.0.to_string());
+        }
+        let data = proto::IterTagSpecsResponse::ok(proto::iter_tag_specs_response::TagSpecList {
+            tag_specs,
+        });
         Ok(Response::new(data))
     }
 
@@ -85,17 +81,11 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::ReadTagRequest>,
     ) -> Result<tonic::Response<proto::ReadTagResponse>, tonic::Status> {
         let request = request.into_inner();
-        let tag_spec = request.tag_spec.parse().unwrap();
-        let tags = self
-            .repo
-            .read_tag(&tag_spec)
-            .await
-            .unwrap()
-            .map(Result::unwrap)
-            .map(|t| (&t).into())
-            .collect()
-            .await;
-        let data = proto::ReadTagResponse { tags };
+        let tag_spec = proto::handle_error!(request.tag_spec.parse());
+        let mut stream = proto::handle_error!(self.repo.read_tag(&tag_spec).await);
+        let tags: crate::Result<Vec<_>> = stream.map_ok(|t| (&t).into()).collect().await;
+        let tags = proto::handle_error!(tags);
+        let data = proto::ReadTagResponse::ok(proto::read_tag_response::TagList { tags });
         Ok(Response::new(data))
     }
 
@@ -104,9 +94,9 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::PushRawTagRequest>,
     ) -> Result<tonic::Response<proto::PushRawTagResponse>, tonic::Status> {
         let request = request.into_inner();
-        let tag = request.tag.try_into().unwrap();
-        self.repo.push_raw_tag(&tag).await.unwrap();
-        let data = proto::PushRawTagResponse {};
+        let tag = proto::handle_error!(request.tag.try_into());
+        proto::handle_error!(self.repo.push_raw_tag(&tag).await);
+        let data = proto::PushRawTagResponse::ok(proto::Ok {});
         Ok(Response::new(data))
     }
 
@@ -115,12 +105,9 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::RemoveTagStreamRequest>,
     ) -> Result<tonic::Response<proto::RemoveTagStreamResponse>, tonic::Status> {
         let request = request.into_inner();
-        let tag_spec = request.tag_spec.parse().unwrap();
-        self.repo
-            .remove_tag_stream(&tag_spec)
-            .await
-            .unwrap();
-        let data = proto::RemoveTagStreamResponse {};
+        let tag_spec = proto::handle_error!(request.tag_spec.parse());
+        proto::handle_error!(self.repo.remove_tag_stream(&tag_spec).await);
+        let data = proto::RemoveTagStreamResponse::ok(proto::Ok {});
         Ok(Response::new(data))
     }
 
@@ -129,9 +116,9 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::RemoveTagRequest>,
     ) -> Result<tonic::Response<proto::RemoveTagResponse>, tonic::Status> {
         let request = request.into_inner();
-        let tag = request.tag.try_into().unwrap();
-        self.repo.remove_tag(&tag).await.unwrap();
-        let data = proto::RemoveTagResponse {};
+        let tag = proto::handle_error!(request.tag.try_into());
+        proto::handle_error!(self.repo.remove_tag(&tag).await);
+        let data = proto::RemoveTagResponse::ok(proto::Ok {});
         Ok(Response::new(data))
     }
 }
