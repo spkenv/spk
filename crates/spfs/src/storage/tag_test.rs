@@ -12,7 +12,12 @@ use relative_path::RelativePathBuf;
 
 use crate::fixtures::*;
 
-#[rstest(tmprepo, case::fs(tmprepo("fs")), case::tar(tmprepo("tar")))]
+#[rstest(
+    tmprepo,
+    case::fs(tmprepo("fs")),
+    case::tar(tmprepo("tar")),
+    case::rpc(tmprepo("rpc"))
+)]
 #[tokio::test]
 async fn test_tag_stream(#[future] tmprepo: TempRepo) {
     init_logging();
@@ -57,7 +62,12 @@ async fn test_tag_stream(#[future] tmprepo: TempRepo) {
     assert_eq!(found.unwrap(), vec![base.with_version(1)]);
 }
 
-#[rstest(tmprepo, case::fs(tmprepo("fs")), case::tar(tmprepo("tar")))]
+#[rstest(
+    tmprepo,
+    case::fs(tmprepo("fs")),
+    case::tar(tmprepo("tar")),
+    case::rpc(tmprepo("rpc"))
+)]
 #[tokio::test]
 async fn test_tag_no_duplication(#[future] tmprepo: TempRepo) {
     init_logging();
@@ -163,7 +173,12 @@ async fn test_ls_tags(#[future] tmprepo: TempRepo) {
     assert_eq!(tags, vec!["my_tag".to_string(), "other_tag".to_string()]);
 }
 
-#[rstest(tmprepo, case::fs(tmprepo("fs")), case::tar(tmprepo("tar")))]
+#[rstest(
+    tmprepo,
+    case::fs(tmprepo("fs")),
+    case::tar(tmprepo("tar")),
+    case::rpc(tmprepo("rpc"))
+)]
 #[tokio::test]
 async fn test_rm_tags(#[future] tmprepo: TempRepo) {
     init_logging();
