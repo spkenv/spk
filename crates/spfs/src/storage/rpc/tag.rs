@@ -28,8 +28,7 @@ impl storage::TagStorage for super::RpcRepository {
             .tag_client
             .clone()
             .resolve_tag(request)
-            .await
-            .unwrap()
+            .await?
             .into_inner();
         response.to_result()?.try_into()
     }
@@ -40,7 +39,8 @@ impl storage::TagStorage for super::RpcRepository {
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.ls_tags(request).await })
-            .map(|r| r.unwrap().into_inner().to_result())
+            .map_err(|e| crate::Error::from(e))
+            .and_then(|r| async { r.into_inner().to_result() })
             .map_ok(|resp| futures::stream::iter(resp.entries.into_iter().map(Ok)))
             .try_flatten();
         Box::pin(stream)
@@ -55,7 +55,8 @@ impl storage::TagStorage for super::RpcRepository {
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.find_tags(request).await })
-            .map(|r| r.unwrap().into_inner().to_result())
+            .map_err(|e| crate::Error::from(e))
+            .and_then(|r| async { r.into_inner().to_result() })
             .map_ok(|tag_list| {
                 futures::stream::iter(tag_list.tags.into_iter().map(tracking::TagSpec::parse))
             })
@@ -67,7 +68,8 @@ impl storage::TagStorage for super::RpcRepository {
         let request = proto::IterTagSpecsRequest {};
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.iter_tag_specs(request).await })
-            .map(|r| r.unwrap().into_inner().to_result())
+            .map_err(|e| crate::Error::from(e))
+            .and_then(|r| async { r.into_inner().to_result() })
             .map_ok(|response| {
                 futures::stream::iter(response.tag_specs.into_iter().map(tracking::TagSpec::parse))
             })
@@ -101,8 +103,7 @@ impl storage::TagStorage for super::RpcRepository {
             .tag_client
             .clone()
             .push_raw_tag(request)
-            .await
-            .unwrap()
+            .await?
             .into_inner()
             .to_result()?;
         Ok(())
@@ -116,8 +117,7 @@ impl storage::TagStorage for super::RpcRepository {
             .tag_client
             .clone()
             .remove_tag_stream(request)
-            .await
-            .unwrap()
+            .await?
             .into_inner()
             .to_result()?;
         Ok(())
@@ -131,8 +131,7 @@ impl storage::TagStorage for super::RpcRepository {
             .tag_client
             .clone()
             .remove_tag(request)
-            .await
-            .unwrap()
+            .await?
             .into_inner()
             .to_result()?;
         Ok(())
@@ -146,12 +145,7 @@ async fn read_tag(
     let request = proto::ReadTagRequest {
         tag_spec: tag.to_string(),
     };
-    let response = client
-        .read_tag(request)
-        .await
-        .unwrap()
-        .into_inner()
-        .to_result()?;
+    let response = client.read_tag(request).await?.into_inner().to_result()?;
     let items: Result<Vec<_>> = response
         .tags
         .into_iter()
