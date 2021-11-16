@@ -89,13 +89,11 @@ class BuildSpec:
     def upsert_opt(self, opt: Option) -> None: ...
     def to_dict(self) -> Dict[str, Any]: ...
 
-
 class ComponentSpec:
     name: str
     requirements: List[Request]
     embedded: List[Spec]
     uses: List[str]
-
 
 class InstallSpec:
     requirements: List[Request]

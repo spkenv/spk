@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use pyo3::{exceptions, prelude::*, wrap_pyfunction};
@@ -89,15 +90,24 @@ impl Repository {
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         self.handle.lock().unwrap().list_package_builds(pkg)
     }
+    fn list_build_components(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Component>> {
+        self.handle.lock().unwrap().list_build_components(pkg)
+    }
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
         self.handle.lock().unwrap().read_spec(pkg)
     }
-    fn get_package(&self, pkg: &api::Ident) -> Result<crate::Digest> {
-        self.handle
+    fn get_package(&self, pkg: &api::Ident) -> Result<HashMap<api::Component, crate::Digest>> {
+        Ok(self
+            .handle
             .lock()
             .unwrap()
-            .get_package(pkg)
-            .map(|d| crate::Digest { inner: d })
+            .get_package(pkg)?
+            .into_iter()
+            .map(|(c, d)| (c, crate::Digest { inner: d }))
+            .collect())
     }
     fn publish_spec(&self, spec: api::Spec) -> Result<()> {
         self.handle.lock().unwrap().publish_spec(spec)
@@ -108,11 +118,13 @@ impl Repository {
     fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
         self.handle.lock().unwrap().force_publish_spec(spec)
     }
-    fn publish_package(&self, spec: api::Spec, digest: crate::Digest) -> Result<()> {
-        self.handle
-            .lock()
-            .unwrap()
-            .publish_package(spec, digest.inner)
+    fn publish_package(
+        &self,
+        spec: api::Spec,
+        components: HashMap<api::Component, crate::Digest>,
+    ) -> Result<()> {
+        let mapped = components.into_iter().map(|(c, d)| (c, d.inner)).collect();
+        self.handle.lock().unwrap().publish_package(spec, mapped)
     }
     fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
         self.handle.lock().unwrap().remove_package(pkg)
