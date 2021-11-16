@@ -54,6 +54,7 @@ impl RangeIdent {
             version: super::VersionFilter::single(
                 super::ExactVersion::from(ident.version.clone()).into(),
             ),
+            components: Default::default(),
             build: ident.build.clone(),
         }
     }

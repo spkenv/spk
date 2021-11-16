@@ -1,3 +1,8 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::collections::HashMap;
+
 use crate::{api, Result};
 
 pub trait Repository {
@@ -15,18 +20,20 @@ pub trait Repository {
     /// Return the set of builds for the given package name and version.
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
 
+    /// Returns the set of components published for a package build
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
+
     /// Read a package spec file for the given package, version and optional build.
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, version, or build does not exist
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec>;
 
-    /// Identify the payload for the identified binary package and build options.
-    ///
-    /// The given build options should be resolved using the package spec
-    /// before calling this function, unless the exact complete set of options
-    /// can be known deterministically.
-    fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest>;
+    /// Identify the payloads for the identified package's components.
+    fn get_package(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
 
     /// Publish a package spec to this repository.
     ///
@@ -51,11 +58,15 @@ pub trait Repository {
     /// spec at this version
     fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()>;
 
-    /// Publish a binary package to this repository.
+    /// Publish a package to this repository.
     ///
-    /// The published digest is expected to identify an spfs layer which contains
-    /// the properly constructed binary package files and metadata.
-    fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()>;
+    /// The provided component digests are expected to each identify an spfs
+    /// layer which contains propery constructed binary package files and metadata.
+    fn publish_package(
+        &mut self,
+        spec: api::Spec,
+        components: HashMap<api::Component, spfs::encoding::Digest>,
+    ) -> Result<()>;
 
     /// Remove a package from this repository.
     ///
