@@ -21,7 +21,11 @@ use crate::api;
 #[case("python.lib,bin/3.1.0", &[""])]
 fn test_parse_ident_range_components(#[case] source: &str, #[case] expected: &[&str]) {
     let actual = parse_ident_range(source).unwrap();
-    let expected: HashSet<_> = expected.into_iter().map(|s| s.to_string()).collect();
+    let expected: HashSet<_> = expected
+        .into_iter()
+        .map(api::Component::parse)
+        .map(Result::unwrap)
+        .collect();
     assert_eq!(actual.components, expected);
 }
 

@@ -12,12 +12,12 @@ use itertools::Itertools;
 use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Result};
-
 use super::{
     compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
-    CompatRule, Compatibility, ExactVersion, Ident, InvalidNameError, Spec, Version, VersionFilter,
+    CompatRule, Compatibility, Component, ExactVersion, Ident, InvalidNameError, Spec, Version,
+    VersionFilter,
 };
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -30,7 +30,7 @@ pub struct RangeIdent {
     #[pyo3(get)]
     name: String,
     #[pyo3(get, set)]
-    pub components: HashSet<String>,
+    pub components: HashSet<Component>,
     #[pyo3(get, set)]
     pub version: VersionFilter,
     #[pyo3(get, set)]
@@ -258,7 +258,7 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     })
 }
 
-fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(String, HashSet<String>)> {
+fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(String, HashSet<Component>)> {
     let source = source.as_ref();
     let mut components = HashSet::new();
 
@@ -277,8 +277,7 @@ fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(String, HashSe
         };
 
         for cmpt in cmpts.split(',') {
-            validate_name(cmpt)?;
-            components.insert(cmpt.to_string());
+            components.insert(Component::parse(cmpt)?);
         }
         return Ok((name.to_string(), components));
     }

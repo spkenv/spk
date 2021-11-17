@@ -16,8 +16,8 @@ mod component_spec_test;
 #[pyclass]
 #[derive(Debug, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ComponentSpec {
-    #[pyo3(get)]
-    name: Component,
+    #[pyo3(get, set)]
+    pub name: Component,
     #[serde(default)]
     pub files: FileMatcher,
     #[pyo3(get, set)]
@@ -73,15 +73,10 @@ impl ComponentSpec {
             embedded: Default::default(),
         }
     }
-
-    /// The name of this component.
-    pub fn name(&self) -> &Component {
-        &self.name
-    }
 }
 
 /// Identifies a component by name
-#[derive(Debug, Hash, Clone, Eq, PartialEq)]
+#[derive(Debug, Hash, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Component {
     All,
     Build,
