@@ -33,7 +33,8 @@ def make_repo(
             spec.pkg = spec.pkg.with_build(None)
             repo.force_publish_spec(spec)
             s = make_build(s.to_dict(), [], opts)
-        repo.publish_package(s, spkrs.EMPTY_DIGEST)
+        cmpts = dict((c.name, spkrs.EMPTY_DIGEST) for c in s.install.components)
+        repo.publish_package(s, cmpts)
 
     for s in specs:
         add_pkg(s)
@@ -1050,3 +1051,49 @@ def test_solver_build_options_dont_affect_compat(solver: Solver) -> None:
     solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
     with pytest.raises(solve.SolverError):
         solution = io.run_and_print_resolve(solver, verbosity=100)
+
+
+def test_solver_components() -> None:
+
+    # test when a package is requested with specific components
+    # - all the aggregated components are selected in the resolve
+    # - the final build has published layers for each component
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "interpreter"},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                    ]
+                },
+            },
+            {
+                "pkg": "pkga",
+                "install": {
+                    "requirements": [{"pkg": "python:lib/3.7.3"}, {"pkg": "pkgb"}]
+                },
+            },
+            {
+                "pkg": "pkgb",
+                "install": {"requirements": [{"pkg": "python:{doc,interpreter,run}"}]},
+            },
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("pkga")
+    solver.add_request("pkgb")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    assert solution.get("python").request.pkg.components == {
+        "interpreter",
+        "doc",
+        "lib",
+        "run",
+    }

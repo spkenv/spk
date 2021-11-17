@@ -145,8 +145,32 @@ impl RangeIdent {
             return Compatibility::Incompatible("different package names".into());
         }
 
-        if !self.components.is_empty() {
-            todo!("Check that the spec has these components");
+        if !self.components.is_empty() && self.build != Some(Build::Source) {
+            let available_components: HashSet<_> = spec
+                .install
+                .components
+                .iter()
+                .map(|c| c.name.clone())
+                .collect();
+            let missing_components = self
+                .components
+                .difference(&available_components)
+                .sorted()
+                .collect_vec();
+            if !missing_components.is_empty() {
+                return Compatibility::Incompatible(format!(
+                    "missing requested components: [{}], found [{}]",
+                    missing_components
+                        .into_iter()
+                        .map(Component::to_string)
+                        .join(", "),
+                    available_components
+                        .iter()
+                        .map(Component::to_string)
+                        .sorted()
+                        .join(", ")
+                ));
+            }
         }
 
         let c = self.version.is_satisfied_by(spec, required);

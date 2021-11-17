@@ -41,7 +41,7 @@ impl InstallSpec {
 
 impl InstallSpec {
     pub fn is_empty(&self) -> bool {
-        self.requirements.is_empty() && self.embedded.is_empty()
+        self.requirements.is_empty() && self.embedded.is_empty() && self.components.is_empty()
     }
 
     /// Render all requests with a package pin using the given resolved packages.
