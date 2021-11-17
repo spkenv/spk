@@ -918,7 +918,10 @@ impl VersionFilter {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.rules.len() == 0
+        !self.rules.iter().any(|r| match r {
+            VersionRange::Filter(f) => !f.is_empty(),
+            _ => true,
+        })
     }
 
     pub(crate) fn sorted_rules(&self) -> Vec<String> {
@@ -1033,6 +1036,10 @@ impl Display for VersionFilter {
         let mut rules = self
             .rules
             .iter()
+            .filter(|r| match r {
+                VersionRange::Filter(f) => !f.is_empty(),
+                _ => true,
+            })
             .map(|r| {
                 if f.alternate() {
                     format!("{:#}", r)
