@@ -68,7 +68,7 @@ def test_solver_package_with_no_spec(solver: Solver) -> None:
     spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
 
     # publish package without publishing spec
-    repo.publish_package(spec, spkrs.EMPTY_DIGEST)
+    repo.publish_package(spec, {"run": spkrs.EMPTY_DIGEST})
 
     solver.update_options(options)
     solver.add_repository(repo)
