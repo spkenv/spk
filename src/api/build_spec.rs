@@ -173,7 +173,7 @@ impl<'de> BuildSpec {
             #[serde(default)]
             script: Option<serde_yaml::Value>,
             #[serde(default)]
-            options: Option<Vec<Opt>>,
+            options: Vec<Opt>,
             #[serde(default)]
             variants: Vec<OptionMap>,
             #[serde(default)]
@@ -183,15 +183,13 @@ impl<'de> BuildSpec {
         let raw = Unchecked::deserialize(deserializer)?;
         let mut bs = BuildSpec {
             validation: raw.validation,
+            options: raw.options,
             ..BuildSpec::default()
         };
         if let Some(script) = raw.script {
             bs.script = deserialize_script(script).map_err(|err| {
                 serde::de::Error::custom(format!("build.script: {}", err.to_string()))
             })?;
-        }
-        if let Some(options) = raw.options {
-            bs.options = options
         }
         if !raw.variants.is_empty() {
             bs.variants = raw.variants
