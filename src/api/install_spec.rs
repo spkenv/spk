@@ -4,9 +4,7 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    Component, ComponentSpec, EmbeddedPackagesList, Ident, OptionMap, Request, RequirementsList,
-};
+use super::{ComponentSpecList, EmbeddedPackagesList, Ident, OptionMap, Request, RequirementsList};
 use crate::Result;
 
 #[cfg(test)]
@@ -15,7 +13,7 @@ mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
 #[pyclass]
-#[derive(Debug, Default, Hash, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Hash, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstallSpec {
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -24,8 +22,8 @@ pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: EmbeddedPackagesList,
     #[pyo3(get, set)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub components: Vec<ComponentSpec>,
+    #[serde(default)]
+    pub components: ComponentSpecList,
 }
 
 #[pymethods]
@@ -40,8 +38,8 @@ impl InstallSpec {
 }
 
 impl InstallSpec {
-    pub fn is_empty(&self) -> bool {
-        self.requirements.is_empty() && self.embedded.is_empty() && self.components.is_empty()
+    pub fn is_default(&self) -> bool {
+        self.requirements.is_empty() && self.embedded.is_empty() && self.components.is_default()
     }
 
     /// Render all requests with a package pin using the given resolved packages.
@@ -51,66 +49,5 @@ impl InstallSpec {
         resolved: impl Iterator<Item = &'a Ident>,
     ) -> Result<()> {
         self.requirements.render_all_pins(options, resolved)
-    }
-}
-
-impl<'de> Deserialize<'de> for InstallSpec {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Unchecked {
-            #[serde(default)]
-            requirements: RequirementsList,
-            #[serde(default)]
-            embedded: EmbeddedPackagesList,
-            #[serde(default)]
-            components: Vec<ComponentSpec>,
-        }
-
-        let unchecked = Unchecked::deserialize(deserializer)?;
-        let mut spec = InstallSpec {
-            requirements: unchecked.requirements,
-            embedded: unchecked.embedded,
-            components: unchecked.components,
-        };
-
-        let mut components = std::collections::HashSet::new();
-        for component in spec.components.iter() {
-            if !components.insert(&component.name) {
-                return Err(serde::de::Error::custom(format!(
-                    "found multiple components with the name '{}'",
-                    component.name
-                )));
-            }
-        }
-
-        for component in spec.components.iter() {
-            for name in component.uses.iter() {
-                if !components.contains(&name) {
-                    return Err(serde::de::Error::custom(format!(
-                        "component '{}' uses '{}', but it does not exist",
-                        component.name, name
-                    )));
-                }
-            }
-        }
-
-        let mut additional = Vec::new();
-        if !components.contains(&Component::Build) {
-            additional.push(ComponentSpec::default_build());
-        }
-        if !components.contains(&Component::Run) {
-            additional.push(ComponentSpec::default_run());
-        }
-        if components.contains(&Component::All) {
-            return Err(serde::de::Error::custom(
-                "The 'all' component is reserved, and cannot be defined in a spec".to_string(),
-            ));
-        }
-        spec.components.append(&mut additional);
-
-        Ok(spec)
     }
 }

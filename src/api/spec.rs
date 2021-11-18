@@ -53,7 +53,7 @@ pub struct Spec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[pyo3(get, set)]
-    #[serde(default, skip_serializing_if = "InstallSpec::is_empty")]
+    #[serde(default, skip_serializing_if = "InstallSpec::is_default")]
     pub install: InstallSpec,
 }
 

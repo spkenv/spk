@@ -4,7 +4,7 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{Build, BuildSpec, Spec};
+use super::{Build, BuildSpec, InstallSpec, Spec};
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]
@@ -36,6 +36,7 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
         let mut unchecked = Vec::<Spec>::deserialize(deserializer)?;
 
         let mut default_build_spec = BuildSpec::default();
+        let mut default_install_spec = InstallSpec::default();
         for embedded in unchecked.iter_mut() {
             default_build_spec.options = embedded.build.options.clone();
             if default_build_spec != embedded.build {
@@ -43,9 +44,10 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                     "embedded packages can only specify build.options",
                 ));
             }
-            if !embedded.install.is_empty() {
+            default_install_spec.components = embedded.install.components.clone();
+            if default_install_spec != embedded.install {
                 return Err(serde::de::Error::custom(
-                    "embedded packages cannot specify the install field",
+                    "embedded packages can only specify install.components",
                 ));
             }
             match &mut embedded.pkg.build {
