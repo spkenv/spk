@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Build, CompatRule, OptionMap, Request},
+    api::{self, Build, CompatRule, Component, OptionMap, Request},
     solve::graph::{GraphError, StepBack},
     storage, Error, Result,
 };
@@ -259,6 +259,9 @@ impl Solver {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
                     })?;
                     request.required_compat = Some(CompatRule::API);
+                    if request.pkg.components.is_empty() {
+                        request.pkg.components.insert(Component::Run);
+                    }
                     break api::Request::Pkg(request);
                 }
                 RequestEnum::Request(request) => break request,
