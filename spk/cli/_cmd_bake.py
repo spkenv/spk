@@ -76,11 +76,16 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> List[spkrs.Digest]
         sys.exit(1)
 
     stack = []
-    for _, spec, source in solution.items():
+    for request, spec, source in solution.items():
         if isinstance(source, spk.api.Spec):
             raise ValueError(
-                "Cannot bake, solution requires packages that need building"
+                "Cannot bake, solution requires packages that needs building"
             )
-        stack.append(source.get_package(spec.pkg))
+        components = source.get_package(spec.pkg)
+        for name in request.pkg.components:
+            try:
+                stack.append(components[name])
+            except KeyError:
+                raise RuntimeError("Resolved component went missing, please try again")
 
     return stack
