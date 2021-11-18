@@ -103,9 +103,11 @@ impl SourcePackageBuilder {
             }
         };
         let pkg = self.spec.pkg.clone();
+        let mut components = std::collections::HashMap::with_capacity(1);
+        components.insert(api::Component::Source, layer.digest()?);
         repo.lock()
             .unwrap()
-            .publish_package(self.spec, layer.digest()?)?;
+            .publish_package(self.spec, components)?;
         Ok(pkg)
     }
 
