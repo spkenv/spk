@@ -90,10 +90,7 @@ impl Repository {
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         self.handle.lock().unwrap().list_package_builds(pkg)
     }
-    fn list_build_components(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<Vec<api::Component>> {
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
         self.handle.lock().unwrap().list_build_components(pkg)
     }
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {

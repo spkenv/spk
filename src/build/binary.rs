@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex};
 
 use pyo3::prelude::*;
 use spfs::prelude::Encodable;
+
+use spfs::prelude::*;
 
 use super::env::data_path;
 use crate::{
@@ -244,8 +246,8 @@ impl BinaryPackageBuilder {
         let env = std::env::vars();
         let mut env = solution.to_environment(Some(env));
         env.extend(self.all_options.to_environment());
-        let layer = self.build_and_commit_artifacts(env)?;
-        storage::local_repository()?.publish_package(self.spec.clone(), layer.digest()?)?;
+        let components = self.build_and_commit_artifacts(env)?;
+        storage::local_repository()?.publish_package(self.spec.clone(), components)?;
         Ok(self.spec)
     }
 
@@ -320,7 +322,10 @@ impl BinaryPackageBuilder {
             .collect()
     }
 
-    fn build_and_commit_artifacts<I, K, V>(&mut self, env: I) -> Result<spfs::graph::Layer>
+    fn build_and_commit_artifacts<I, K, V>(
+        &mut self,
+        env: I,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<OsStr>,
@@ -350,7 +355,7 @@ impl BinaryPackageBuilder {
             .validate_build_changeset()
             .map_err(|err| BuildError::new_error(format_args!("{}", err.to_string())))?;
 
-        Ok(spfs::commit_layer(&mut runtime)?)
+        Ok(commit_component_layers(&self.spec, &mut runtime)?)
     }
 
     fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
@@ -476,6 +481,65 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
             .join(api::VERSION_SEP),
     );
     env
+}
+
+pub fn commit_component_layers(
+    spec: &api::Spec,
+    runtime: &mut spfs::runtime::Runtime,
+) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+    let layer = spfs::commit_layer(runtime)?;
+    let config = spfs::load_config()?;
+    let mut repo = config.get_repository()?;
+    let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+    let manifests = split_manifest_by_component(&manifest, &spec.install.components)?;
+    manifests
+        .into_iter()
+        .map(|(name, m)| {
+            repo.create_layer(&(&m).into())
+                .map(|l| (name, l.digest().unwrap()))
+                .map_err(crate::Error::from)
+        })
+        .collect()
+}
+
+fn split_manifest_by_component(
+    manifest: &spfs::tracking::Manifest,
+    components: &api::ComponentSpecList,
+) -> Result<HashMap<api::Component, spfs::tracking::Manifest>> {
+    let mut manifests = HashMap::with_capacity(components.len());
+    for component in components.iter() {
+        let mut component_manifest = spfs::tracking::Manifest::default();
+
+        // identify the paths that wee will replicate first
+        // so that we can create accurately identify necessary
+        // parent directories in a second iteration
+        let mut relevant_paths: HashSet<relative_path::RelativePathBuf> = Default::default();
+        for node in manifest.walk() {
+            if component
+                .files
+                .matches(&node.path.to_path("/"), node.entry.is_dir())
+            {
+                let mut path: &relative_path::RelativePath = &node.path;
+                loop {
+                    relevant_paths.insert(path.to_owned());
+                    match path.parent() {
+                        None => break,
+                        Some(parent) => {
+                            path = parent;
+                        }
+                    }
+                }
+            }
+        }
+        for node in manifest.walk() {
+            if relevant_paths.contains(&node.path) {
+                component_manifest.mknod(&node.path, node.entry.clone())?;
+            }
+        }
+
+        manifests.insert(component.name.clone(), component_manifest);
+    }
+    Ok(manifests)
 }
 
 // Reset all file permissions in spfs if permissions is the

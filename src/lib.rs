@@ -155,13 +155,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "validate_source_changeset")]
-    fn validate_source_changeset() -> Result<()> {
-        let diffs = spfs::diff(None, None)?;
-        build::validate_source_changeset(diffs, "/spfs")?;
-        Ok(())
-    }
-    #[pyfn(m)]
     #[pyo3(name = "reconfigure_runtime")]
     fn reconfigure_runtime(
         editable: Option<bool>,
