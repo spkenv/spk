@@ -40,21 +40,35 @@ pub fn format_request<'a, R>(name: &str, requests: R) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
-    let mut out = format!("{}/", name.bold());
-    let versions: Vec<String> = requests
-        .into_iter()
-        .map(|req| {
-            let mut version = req.pkg.version.to_string();
-            if version.is_empty() {
-                version.push('*')
+    let mut out = name.bold().to_string();
+    let mut versions = Vec::new();
+    let mut components = Vec::new();
+    for req in requests.into_iter() {
+        let mut version = req.pkg.version.to_string();
+        if version.is_empty() {
+            version.push('*')
+        }
+        let build = match req.pkg.build {
+            Some(ref b) => format!("/{}", format_build(b)),
+            None => "".to_string(),
+        };
+        versions.push(format!("{}{}", version.bright_blue(), build));
+        for name in req.pkg.components.iter().map(api::Component::to_string) {
+            if !components.contains(&name) {
+                components.push(name);
             }
-            let build = match req.pkg.build {
-                Some(ref b) => format!("/{}", format_build(b)),
-                None => "".to_string(),
-            };
-            format!("{}{}", version.bright_blue(), build)
-        })
-        .collect();
+        }
+    }
+    match components.len() {
+        0 => (),
+        1 => {
+            out.push_str(&format!(":{}", components.join(",").dimmed()));
+        }
+        2.. => {
+            out.push_str(&format!(":{{{}}}", components.join(",").dimmed()));
+        }
+    }
+    out.push('/');
     out.push_str(&versions.join(","));
     out
 }
