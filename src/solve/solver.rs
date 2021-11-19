@@ -343,8 +343,13 @@ impl Solver {
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(&option.pkg);
-                let request = option.to_request(given.cloned())?;
-                self.add_request(request)
+                let mut request = option.to_request(given.cloned())?;
+                // if no components were explicitly requested in a build option,
+                // then we inject the default for this context
+                if request.pkg.components.is_empty() {
+                    request.pkg.components.insert(Component::Build);
+                }
+                self.add_request(request.into())
             }
         }
 

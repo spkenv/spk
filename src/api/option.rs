@@ -495,15 +495,15 @@ impl PkgOpt {
         Ok(opt)
     }
 
-    pub fn to_request(&self, given_value: Option<String>) -> Result<Request> {
+    pub fn to_request(&self, given_value: Option<String>) -> Result<PkgRequest> {
         let value = self.get_value(given_value.as_deref()).unwrap_or_default();
-        Ok(Request::Pkg(PkgRequest {
+        Ok(PkgRequest {
             pkg: parse_ident_range(format!("{}/{}", self.pkg, value))?,
             pin: None,
             prerelease_policy: self.prerelease_policy,
             inclusion_policy: InclusionPolicy::default(),
             required_compat: self.required_compat,
-        }))
+        })
     }
 }
 

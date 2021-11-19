@@ -302,24 +302,29 @@ impl BinaryPackageBuilder {
     /// List the requirements for the build environment.
     pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
         let opts = self.spec.resolve_all_options(&self.all_options);
-        self.spec
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                api::Opt::Pkg(opt) => Some(
-                    opt.to_request(opts.get(&opt.pkg).map(String::to_owned))
-                        .map(Into::into),
-                ),
+        let mut requests = Vec::new();
+        for opt in self.spec.build.options.iter() {
+            match opt {
+                api::Opt::Pkg(opt) => {
+                    let given_value = opts.get(&opt.pkg).map(String::to_owned);
+                    let mut req = opt.to_request(given_value)?;
+                    if req.pkg.components.is_empty() {
+                        // inject the default component for this context if needed
+                        req.pkg.components.insert(api::Component::Build);
+                    }
+                    requests.push(req.into());
+                }
                 api::Opt::Var(opt) => {
                     // If no value was specified in the spec, there's
                     // no need to turn that into a requirement to
                     // find a var with an empty value.
-                    opts.get(&opt.var)
-                        .map(|opt_value| Ok(opt.to_request(Some(opt_value)).into()))
+                    if let Some(value) = opts.get(&opt.var) {
+                        requests.push(opt.to_request(Some(value)).into());
+                    }
                 }
-            })
-            .collect()
+            }
+        }
+        Ok(requests)
     }
 
     fn build_and_commit_artifacts<I, K, V>(

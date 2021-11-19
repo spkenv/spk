@@ -232,7 +232,7 @@ def test_build_package_source_cleanup(tmprepo: storage.Repository) -> None:
 
     pkg = BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
 
-    digest = storage.local_repository().get_package(pkg.pkg)
+    digest = storage.local_repository().get_package(pkg.pkg)["run"]
     out = subprocess.check_output(
         ["spfs", "ls", str(digest), data_path(src_pkg, prefix="")]
     )
