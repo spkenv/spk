@@ -283,3 +283,26 @@ def test_build_package_requirement_propagation(tmprepo: storage.Repository) -> N
     assert req.var == "base.inherited", "should be inherited with package namespace"
     assert not req.pin, "should not be pinned after build"
     assert req.value == "val", "should be rendered to build time var"
+
+
+def test_default_build_component() -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "mypkg/1.0.0",
+            "sources": [],
+            "build": {
+                "options": [{"pkg": "somepkg/1.0.0"}],
+                "script": "echo building...",
+            },
+        }
+    )
+    builder = BinaryPackageBuilder().from_spec(spec)
+    requirements = list(builder.get_build_requirements())
+    assert len(requirements) == 1, "should have one build requirement"
+    req = requirements[0]
+    assert isinstance(req, api.PkgRequest)
+    assert req.pkg.components == set(["build"]), (
+        "a build request with no components should have the default",
+        "build component injected automatically"
+    )
