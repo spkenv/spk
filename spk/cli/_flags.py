@@ -208,6 +208,10 @@ def parse_requests_using_flags(
                 request_data.setdefault("prereleasePolicy", "IncludeAll")
 
             req = spk.api.PkgRequest.from_dict(request_data)
+            if not req.pkg.components:
+                pkg = req.pkg
+                pkg.components = set(["run"])
+                req.pkg = pkg
             if req.required_compat is None:
                 req.required_compat = "API"
             out.append(req)
