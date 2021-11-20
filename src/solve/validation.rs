@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use itertools::Itertools;
 use pyo3::prelude::*;
 
 use crate::api::{self, Build};
@@ -12,6 +13,7 @@ pub enum Validators {
     Deprecation(DeprecationValidator),
     BinaryOnly(BinaryOnlyValidator),
     PackageRequest(PkgRequestValidator),
+    Components(ComponentsValidator),
     Options(OptionsValidator),
     VarRequirements(VarRequirementsValidator),
     PkgRequirements(PkgRequirementsValidator),
@@ -39,6 +41,7 @@ impl ValidatorT for Validators {
             Validators::Deprecation(v) => v.validate(state, spec, source),
             Validators::BinaryOnly(v) => v.validate(state, spec, source),
             Validators::PackageRequest(v) => v.validate(state, spec, source),
+            Validators::Components(v) => v.validate(state, spec, source),
             Validators::Options(v) => v.validate(state, spec, source),
             Validators::VarRequirements(v) => v.validate(state, spec, source),
             Validators::PkgRequirements(v) => v.validate(state, spec, source),
@@ -53,6 +56,7 @@ impl IntoPy<Py<PyAny>> for Validators {
             Validators::Deprecation(v) => v.into_py(py),
             Validators::BinaryOnly(v) => v.into_py(py),
             Validators::PackageRequest(v) => v.into_py(py),
+            Validators::Components(v) => v.into_py(py),
             Validators::Options(v) => v.into_py(py),
             Validators::VarRequirements(v) => v.into_py(py),
             Validators::PkgRequirements(v) => v.into_py(py),
@@ -265,6 +269,70 @@ impl ValidatorT for PkgRequestValidator {
     }
 }
 
+/// Ensures that a all of the requested components are available.
+#[pyclass]
+#[derive(Clone, Copy)]
+pub struct ComponentsValidator {}
+
+#[pymethods]
+impl ComponentsValidator {
+    #[pyo3(name = "validate")]
+    fn validatepy(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+        source: PackageSource,
+    ) -> crate::Result<api::Compatibility> {
+        self.validate(state, spec, &source)
+    }
+}
+
+impl ValidatorT for ComponentsValidator {
+    #[allow(clippy::nonminimal_bool)]
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+        source: &PackageSource,
+    ) -> crate::Result<api::Compatibility> {
+        if spec.pkg.build.is_none() {
+            // we are only concerned with published package components,
+            // source builds will validate against the spec separately
+            // (and provide a better error message)
+            return Ok(api::Compatibility::Compatible);
+        }
+        let available_components: std::collections::HashSet<_> = match source {
+            PackageSource::Repository { components, .. } => components.keys().collect(),
+            PackageSource::Spec(_) => spec.install.components.iter().map(|c| &c.name).collect(),
+        };
+        let request = state.get_merged_request(spec.pkg.name())?;
+        let mut required_components = spec
+            .install
+            .components
+            .resolve_uses(request.pkg.components.iter());
+        for key in available_components.iter() {
+            required_components.remove(key);
+        }
+        if required_components.is_empty() {
+            Ok(api::Compatibility::Compatible)
+        } else {
+            Ok(api::Compatibility::Incompatible(format!(
+                "missing requested components: [{}], found [{}]",
+                required_components
+                    .iter()
+                    .map(api::Component::to_string)
+                    .sorted()
+                    .join(", "),
+                available_components
+                    .into_iter()
+                    .map(api::Component::to_string)
+                    .sorted()
+                    .join(", ")
+            )))
+        }
+    }
+}
+
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
 #[pyclass]
 #[derive(Clone, Copy)]
@@ -401,6 +469,7 @@ pub const fn default_validators() -> &'static [Validators] {
     &[
         Validators::Deprecation(DeprecationValidator {}),
         Validators::PackageRequest(PkgRequestValidator {}),
+        Validators::Components(ComponentsValidator {}),
         Validators::Options(OptionsValidator {}),
         Validators::VarRequirements(VarRequirementsValidator {}),
         Validators::PkgRequirements(PkgRequirementsValidator {}),
