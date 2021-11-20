@@ -170,7 +170,7 @@ impl Solver {
                     }
                 }
 
-                compat = self.validate(&node.state, &spec)?;
+                compat = self.validate(&node.state, &spec, &repo)?;
                 if !&compat {
                     notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg.clone(),
@@ -217,6 +217,21 @@ impl Solver {
         }
 
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
+    }
+
+    fn validate(
+        &self,
+        node: &State,
+        spec: &api::Spec,
+        source: &PackageSource,
+    ) -> Result<api::Compatibility> {
+        for validator in self.validators.as_ref() {
+            let compat = validator.validate(node, spec, &source)?;
+            if !&compat {
+                return Ok(compat);
+            }
+        }
+        Ok(api::Compatibility::Compatible)
     }
 }
 
@@ -365,16 +380,6 @@ impl Solver {
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Change::SetOptions(graph::SetOptions::new(options)))
-    }
-
-    fn validate(&self, node: &State, spec: &api::Spec) -> Result<api::Compatibility> {
-        for validator in self.validators.as_ref() {
-            let compat = validator.validate(node, spec)?;
-            if !&compat {
-                return Ok(compat);
-            }
-        }
-        Ok(api::Compatibility::Compatible)
     }
 }
 

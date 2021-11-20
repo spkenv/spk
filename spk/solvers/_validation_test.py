@@ -38,7 +38,7 @@ def test_src_package_install_requests_are_not_considered() -> None:
     )
     for validator in validators:
         msg = "Source package should be valid regardless of requirements"
-        assert validator.validate(state, spec), msg
+        assert validator.validate(state, spec, spec), msg
 
 
 def test_empty_options_can_match_anything() -> None:
@@ -63,5 +63,5 @@ def test_empty_options_can_match_anything() -> None:
     )
 
     assert validator.validate(
-        state, spec
+        state, spec, spec
     ), "empty option should not invalidate requirement"

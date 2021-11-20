@@ -5,8 +5,7 @@ use pyo3::prelude::*;
 
 use crate::api::{self, Build};
 
-use super::errors;
-use super::graph;
+use super::{errors, graph, solution::PackageSource};
 
 #[derive(Clone, Copy)]
 pub enum Validators {
@@ -21,8 +20,12 @@ pub enum Validators {
 
 pub trait ValidatorT {
     /// Check if the given package is appropriate for the provided state.
-    fn validate(&self, state: &graph::State, spec: &api::Spec)
-        -> crate::Result<api::Compatibility>;
+    fn validate(
+        &self,
+        state: &graph::State,
+        spec: &api::Spec,
+        source: &PackageSource,
+    ) -> crate::Result<api::Compatibility>;
 }
 
 impl ValidatorT for Validators {
@@ -30,15 +33,16 @@ impl ValidatorT for Validators {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         match self {
-            Validators::Deprecation(v) => v.validate(state, spec),
-            Validators::BinaryOnly(v) => v.validate(state, spec),
-            Validators::PackageRequest(v) => v.validate(state, spec),
-            Validators::Options(v) => v.validate(state, spec),
-            Validators::VarRequirements(v) => v.validate(state, spec),
-            Validators::PkgRequirements(v) => v.validate(state, spec),
-            Validators::EmbeddedPackage(v) => v.validate(state, spec),
+            Validators::Deprecation(v) => v.validate(state, spec, source),
+            Validators::BinaryOnly(v) => v.validate(state, spec, source),
+            Validators::PackageRequest(v) => v.validate(state, spec, source),
+            Validators::Options(v) => v.validate(state, spec, source),
+            Validators::VarRequirements(v) => v.validate(state, spec, source),
+            Validators::PkgRequirements(v) => v.validate(state, spec, source),
+            Validators::EmbeddedPackage(v) => v.validate(state, spec, source),
         }
     }
 }
@@ -69,8 +73,9 @@ impl DeprecationValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec)
+        self.validate(state, spec, &source)
     }
 }
 
@@ -79,6 +84,7 @@ impl ValidatorT for DeprecationValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if !spec.deprecated {
             return Ok(api::Compatibility::Compatible);
@@ -110,6 +116,7 @@ impl ValidatorT for BinaryOnlyValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.pkg.build.is_none() {
             return Ok(api::Compatibility::Incompatible(
@@ -137,8 +144,9 @@ impl EmbeddedPackageValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec)
+        self.validate(state, spec, &source)
     }
 }
 
@@ -147,6 +155,7 @@ impl ValidatorT for EmbeddedPackageValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.pkg.is_source() {
             // source packages are not being "installed" so requests don't matter
@@ -185,8 +194,9 @@ impl OptionsValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec)
+        self.validate(state, spec, &source)
     }
 }
 
@@ -195,6 +205,7 @@ impl ValidatorT for OptionsValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         for request in state.get_var_requests() {
             let compat = spec.satisfies_var_request(request);
@@ -221,8 +232,9 @@ impl PkgRequestValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec)
+        self.validate(state, spec, &source)
     }
 }
 
@@ -232,6 +244,7 @@ impl ValidatorT for PkgRequestValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         let request = match state.get_merged_request(spec.pkg.name()) {
             Ok(request) => request,
@@ -264,8 +277,9 @@ impl PkgRequirementsValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec)
+        self.validate(state, spec, &source)
     }
 }
 
@@ -274,6 +288,7 @@ impl ValidatorT for PkgRequirementsValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.pkg.is_source() {
             // source packages are not being "installed" so requests don't matter
@@ -338,8 +353,9 @@ impl VarRequirementsValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec)
+        self.validate(state, spec, &source)
     }
 }
 
@@ -348,6 +364,7 @@ impl ValidatorT for VarRequirementsValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
+        _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.pkg.is_source() {
             // source packages are not being "installed" so requests don't matter
