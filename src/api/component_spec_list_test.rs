@@ -4,6 +4,7 @@
 use rstest::rstest;
 
 use super::ComponentSpecList;
+use crate::api::Component;
 
 #[rstest]
 fn test_components_no_duplicates() {
@@ -28,4 +29,48 @@ fn test_components_uses_must_exist() {
         .expect("should succeed in a simple case");
     serde_yaml::from_str::<ComponentSpecList>("[{name: python, uses: [other]}]")
         .expect_err("should fail when the used component does not exist");
+}
+
+#[rstest]
+fn test_resolve_uses() {
+    let components = serde_yaml::from_str::<ComponentSpecList>(
+        r#"[
+                {name: build, uses: [dev, libstatic]},
+                {name: run, uses: [bin, lib]},
+                {name: bin, uses: [lib]},
+                {name: dev, uses: [lib]},
+                {name: lib},
+                {name: libstatic},
+                ]"#,
+    )
+    .unwrap();
+    let actual = components.resolve_uses([Component::Build].iter());
+    let expected = vec!["build", "dev", "libstatic", "lib"]
+        .into_iter()
+        .map(Component::parse)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(actual, expected);
+}
+
+#[rstest]
+fn test_resolve_uses_all() {
+    let components = serde_yaml::from_str::<ComponentSpecList>(
+        r#"[
+                {name: build, uses: [dev, libstatic]},
+                {name: run, uses: [bin, lib]},
+                {name: bin, uses: [lib]},
+                {name: dev, uses: [lib]},
+                {name: lib},
+                {name: libstatic},
+                ]"#,
+    )
+    .unwrap();
+    let actual = components.resolve_uses([Component::All].iter());
+    let expected = vec!["build", "dev", "libstatic", "lib", "run", "bin"]
+        .into_iter()
+        .map(Component::parse)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(actual, expected);
 }

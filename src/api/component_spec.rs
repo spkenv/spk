@@ -108,6 +108,26 @@ impl Component {
             Self::Named(value) => &value,
         }
     }
+
+    pub fn is_all(&self) -> bool {
+        matches!(self, Self::All)
+    }
+
+    pub fn is_run(&self) -> bool {
+        matches!(self, Self::Run)
+    }
+
+    pub fn is_build(&self) -> bool {
+        matches!(self, Self::Build)
+    }
+
+    pub fn is_source(&self) -> bool {
+        matches!(self, Self::Source)
+    }
+
+    pub fn is_named(&self) -> bool {
+        matches!(self, Self::Named(_))
+    }
 }
 
 impl std::str::FromStr for Component {

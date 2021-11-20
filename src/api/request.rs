@@ -146,16 +146,14 @@ impl RangeIdent {
         }
 
         if !self.components.is_empty() && self.build != Some(Build::Source) {
-            let mut available_components: HashSet<_> = spec
+            let required_components = spec.install.components.resolve_uses(self.components.iter());
+            let available_components: HashSet<_> = spec
                 .install
                 .components
                 .iter()
                 .map(|c| c.name.clone())
                 .collect();
-            // the all component is always considered to be available
-            available_components.insert(Component::All);
-            let missing_components = self
-                .components
+            let missing_components = required_components
                 .difference(&available_components)
                 .sorted()
                 .collect_vec();

@@ -47,7 +47,7 @@ fn test_file_matcher_matching(
     // we're not really testing gitignore here, just that the
     // semantics of our function works as expected
     let matcher = FileMatcher::new(patterns.iter().map(|s| s.to_string())).unwrap();
-    assert_eq!(matcher.matches(path, path.ends_with("/")), should_match);
+    assert_eq!(matcher.matches(path, path.ends_with('/')), should_match);
 }
 
 #[rstest]

@@ -1,6 +1,8 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::{HashMap, HashSet};
+
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +20,38 @@ pub struct ComponentSpecList(Vec<ComponentSpec>);
 impl ComponentSpecList {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
+    }
+}
+
+impl ComponentSpecList {
+    /// Given a set of requested components, resolve the complete list of
+    /// components that are needed to satisfy any declared 'uses' dependencies.
+    pub fn resolve_uses<'a>(
+        &self,
+        requests: impl Iterator<Item = &'a Component>,
+    ) -> HashSet<Component> {
+        let by_name = self
+            .iter()
+            .map(|c| (c.name.clone(), c))
+            .collect::<HashMap<_, _>>();
+        let mut to_visit = requests.collect::<Vec<_>>();
+        let mut visited = HashSet::new();
+
+        while let Some(requested) = to_visit.pop() {
+            if visited.contains(requested) {
+                continue;
+            }
+            visited.insert(requested.clone());
+            if requested.is_all() {
+                to_visit.append(&mut by_name.keys().collect())
+            }
+            if let Some(cmpt) = by_name.get(requested) {
+                to_visit.append(&mut cmpt.uses.iter().collect())
+            }
+        }
+        // the all component is not a real component that can be used
+        visited.remove(&Component::All);
+        visited
     }
 }
 
