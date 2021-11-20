@@ -1,7 +1,7 @@
 # Copyright (c) 2021 Sony Pictures Imageworks, et al.
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 import sys
 
 import spkrs
@@ -21,19 +21,25 @@ def solver() -> Solver:
 
 
 def make_repo(
-    specs: List[Union[Dict, api.Spec]], opts: api.OptionMap = api.OptionMap()
+    specs: List[Union[Dict, api.Spec, Tuple[api.Spec, Dict[str, spkrs.Digest]]]],
+    opts: api.OptionMap = api.OptionMap(),
 ) -> storage.Repository:
 
     repo = storage.mem_repository()
 
-    def add_pkg(s: Union[Dict, api.Spec]) -> None:
+    def add_pkg(
+        s: Union[Dict, api.Spec, Tuple[api.Spec, Dict[str, spkrs.Digest]]]
+    ) -> None:
         if isinstance(s, dict):
             spec = api.Spec.from_dict(s)
             s = spec.copy()
             spec.pkg = spec.pkg.with_build(None)
             repo.force_publish_spec(spec)
-            s = make_build(s.to_dict(), [], opts)
-        cmpts = dict((c.name, spkrs.EMPTY_DIGEST) for c in s.install.components)
+            s, cmpts = make_build_and_components(s.to_dict(), [], opts)
+        elif isinstance(s, tuple):
+            s, cmpts = s
+        else:
+            cmpts = dict((c.name, spkrs.EMPTY_DIGEST) for c in s.install.components)
         repo.publish_package(s, cmpts)
 
     for s in specs:
@@ -43,16 +49,31 @@ def make_repo(
 
 
 def make_build(
-    spec_dict: Dict, deps: List[api.Spec] = [], opts: api.OptionMap = api.OptionMap()
+    spec_dict: Dict,
+    deps: List[api.Spec] = [],
+    opts: api.OptionMap = api.OptionMap(),
 ) -> api.Spec:
+
+    return make_build_and_components(spec_dict, deps, opts)[0]
+
+
+def make_build_and_components(
+    spec_dict: Dict,
+    deps: List[api.Spec] = [],
+    opts: api.OptionMap = api.OptionMap(),
+    components: List[str] = None,
+) -> Tuple[api.Spec, Dict[str, spkrs.Digest]]:
 
     spec = api.Spec.from_dict(spec_dict)
     if spec.pkg.build == api.SRC:
-        return spec
+        return spec, {"src": spkrs.EMPTY_DIGEST}
     build_opts = opts.copy()
     build_opts.update(spec.resolve_all_options(build_opts))
     spec.update_spec_for_build(build_opts, deps)
-    return spec
+    if components is None:
+        components = [c.name for c in spec.install.components]
+    cmpts = dict((c, spkrs.EMPTY_DIGEST) for c in components)
+    return spec, cmpts
 
 
 def test_solver_no_requests(solver: Solver) -> None:
@@ -1111,9 +1132,10 @@ def test_solver_all_component() -> None:
                 "pkg": "python/3.7.3",
                 "install": {
                     "components": [
-                        {"name": "interpreter"},
+                        {"name": "bin", "uses": ["lib"]},
                         {"name": "lib"},
                         {"name": "doc"},
+                        {"name": "dev", "uses": ["doc"]},
                     ]
                 },
             },
@@ -1127,6 +1149,60 @@ def test_solver_all_component() -> None:
     solution = io.run_and_print_resolve(solver, verbosity=100)
 
     resolved = solution.get("python")
-    assert resolved.request.pkg.components == {
-        "all",
+    assert resolved.request.pkg.components == set(["all"])
+    expected = ["bin", "build", "dev", "doc", "lib", "run"]
+    source = resolved.source
+    assert isinstance(source, tuple)
+    assert sorted(source[1].keys()) == expected
+
+
+def test_solver_component_availability() -> None:
+
+    # test when a package is requested with some component
+    # - all the specs components are selected in the resolve
+    # - the final build has published layers for each component
+
+    spec373 = {
+        "pkg": "python/3.7.3",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
     }
+    spec372 = spec373.copy()
+    spec372["pkg"] = "python/3.7.2"
+    spec371 = spec373.copy()
+    spec371["pkg"] = "python/3.7.1"
+
+    repo = make_repo(
+        [
+            # the first pkg has what we want on paper, but didn't actually publish
+            # the components that we need (missing bin)
+            make_build_and_components(spec373, components=["lib"]),
+            # the second pkg has what we request, but is missing a dependant component (lib)
+            make_build_and_components(spec372, components=["bin"]),
+            # but the last/lowest version number has a publish for all components
+            # and should be the one that is selected bacuase of this
+            make_build_and_components(spec371, components=["bin", "lib"]),
+        ]
+    )
+    repo.publish_spec(api.Spec.from_dict(spec373))
+    repo.publish_spec(api.Spec.from_dict(spec372))
+    repo.publish_spec(api.Spec.from_dict(spec371))
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("python:bin")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    resolved = solution.get("python")
+    assert resolved.spec.pkg.version == "3.7.1", (
+        "should resolve the only version with all "
+        "the components we need actually published"
+    )
+    source = resolved.source
+    assert isinstance(source, tuple)
+    assert sorted(source[1].keys()) == ["bin", "lib"]
