@@ -159,7 +159,7 @@ impl RangeIdent {
                 .collect_vec();
             if !missing_components.is_empty() {
                 return Compatibility::Incompatible(format!(
-                    "missing requested components: [{}], found [{}]",
+                    "does not define requested components: [{}], found [{}]",
                     missing_components
                         .into_iter()
                         .map(Component::to_string)

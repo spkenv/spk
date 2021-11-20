@@ -317,7 +317,7 @@ impl ValidatorT for ComponentsValidator {
             Ok(api::Compatibility::Compatible)
         } else {
             Ok(api::Compatibility::Incompatible(format!(
-                "missing requested components: [{}], found [{}]",
+                "no published files for some required components: [{}], found [{}]",
                 required_components
                     .iter()
                     .map(api::Component::to_string)
