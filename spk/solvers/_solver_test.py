@@ -1097,3 +1097,36 @@ def test_solver_components() -> None:
         "lib",
         "run",
     }
+
+
+def test_solver_all_component() -> None:
+
+    # test when a package is requested with the 'all' component
+    # - all the specs components are selected in the resolve
+    # - the final build has published layers for each component
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "interpreter"},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                    ]
+                },
+            },
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("python:all")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    resolved = solution.get("python")
+    assert resolved.request.pkg.components == {
+        "all",
+    }
