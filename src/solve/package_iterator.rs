@@ -229,6 +229,13 @@ impl BuildIterator for RepositoryBuildIterator {
             Err(err) => return Err(err),
         };
 
+        let components = match guard.get_package(&build) {
+            Ok(c) => c,
+            Err(Error::PackageNotFoundError(..)) => Default::default(),
+            Err(err) => return Err(err),
+        };
+        drop(guard);
+
         if spec.pkg.build.is_none() {
             tracing::warn!(
                 "Published spec is corrupt (has no associated build), pkg={}",
@@ -239,7 +246,10 @@ impl BuildIterator for RepositoryBuildIterator {
 
         Ok(Some((
             Arc::new(spec),
-            PackageSource::Repository(self.repo.clone()),
+            PackageSource::Repository {
+                repo: self.repo.clone(),
+                components,
+            },
         )))
     }
 

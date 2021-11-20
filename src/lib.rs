@@ -20,7 +20,7 @@ use pyo3::prelude::*;
 use spfs::{self, prelude::*};
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Digest {
     inner: spfs::encoding::Digest,
 }
@@ -38,6 +38,21 @@ impl pyo3::PyObjectProtocol for Digest {
     }
     fn __repr__(&self) -> Result<String> {
         Ok(self.inner.to_string())
+    }
+    fn __richcmp__(&self, other: Self, op: pyo3::class::basic::CompareOp) -> bool {
+        use pyo3::class::basic::CompareOp;
+        match op {
+            CompareOp::Eq => self == &other,
+            CompareOp::Ne => self != &other,
+            _ => false,
+        }
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.inner.hash(&mut hasher);
+        hasher.finish()
     }
 }
 

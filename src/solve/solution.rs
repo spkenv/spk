@@ -14,7 +14,12 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub enum PackageSource {
-    Repository(Arc<Mutex<storage::RepositoryHandle>>),
+    Repository {
+        /// the actual repository that this package was loaded from
+        repo: Arc<Mutex<storage::RepositoryHandle>>,
+        /// the components that can be used for this package from the repository
+        components: HashMap<api::Component, spfs::encoding::Digest>,
+    },
     Spec(Arc<api::Spec>),
 }
 
@@ -23,8 +28,13 @@ impl<'source> FromPyObject<'source> for PackageSource {
         if let Ok(s) = ob.extract::<api::Spec>() {
             Ok(PackageSource::Spec(Arc::new(s)))
         } else {
-            ob.extract::<storage::python::Repository>()
-                .map(|r| PackageSource::Repository(r.handle))
+            let (repo, components) = ob.extract::<(
+                storage::python::Repository,
+                HashMap<api::Component, crate::Digest>,
+            )>()?;
+            let repo = repo.handle;
+            let components = components.into_iter().map(|(c, d)| (c, d.inner)).collect();
+            Ok(PackageSource::Repository { repo, components })
         }
     }
 }
@@ -32,7 +42,13 @@ impl<'source> FromPyObject<'source> for PackageSource {
 impl IntoPy<Py<PyAny>> for PackageSource {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
-            PackageSource::Repository(s) => storage::python::Repository { handle: s }.into_py(py),
+            PackageSource::Repository { repo, components } => {
+                let components: HashMap<_, _> = components
+                    .into_iter()
+                    .map(|(c, d)| (c, crate::Digest::from(d)))
+                    .collect();
+                (storage::python::Repository { handle: repo }, components).into_py(py)
+            }
             PackageSource::Spec(s) => (*s).clone().into_py(py),
         }
     }
@@ -42,7 +58,7 @@ impl PackageSource {
     pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
         match self {
             PackageSource::Spec(s) => Ok((**s).clone()),
-            PackageSource::Repository(repo) => repo.lock().unwrap().read_spec(ident),
+            PackageSource::Repository { repo, .. } => repo.lock().unwrap().read_spec(ident),
         }
     }
 }
@@ -66,7 +82,7 @@ impl SolvedRequest {
 
     pub fn is_source_build(&self) -> bool {
         match &self.source {
-            PackageSource::Repository(_) => false,
+            PackageSource::Repository { .. } => false,
             PackageSource::Spec(spec) => spec.pkg == self.spec.pkg.with_build(None),
         }
     }
@@ -184,7 +200,7 @@ impl Solution {
         let mut seen = HashSet::new();
         let mut repos = Vec::new();
         for (_, source) in self.resolved.values() {
-            if let PackageSource::Repository(repo) = source {
+            if let PackageSource::Repository { repo, .. } = source {
                 let addr = repo.lock().unwrap().address();
                 if seen.contains(&addr) {
                     continue;
