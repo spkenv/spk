@@ -1,7 +1,7 @@
 from typing import Dict, Iterator, Mapping, NamedTuple, Tuple, Union, List
-from . import storage, api
+from . import storage, api, Digest
 
-PackageSource = Union[storage.Repository, api.Spec]
+PackageSource = Union[Tuple[storage.Repository, Dict[str, Digest]], api.Spec]
 
 class SolverError(Exception): ...
 class SolverFailedError(SolverError): ...

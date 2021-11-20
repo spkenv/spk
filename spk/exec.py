@@ -41,7 +41,8 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
             .with_options(options)
             .build()
         )
-        compiled_solution.add(req, spec, local_repo)
+        source = (local_repo, local_repo.get_package(spec.pkg))
+        compiled_solution.add(req, spec, source)
     return compiled_solution
 
 

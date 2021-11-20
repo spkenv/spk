@@ -20,22 +20,10 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
             }
         }
 
-        let repo = match resolved.source {
-            solve::PackageSource::Repository(repo) => repo,
+        let (repo, components) = match resolved.source {
+            solve::PackageSource::Repository { repo, components } => (repo, components),
             solve::PackageSource::Spec(_) => continue,
         };
-
-        let components = repo
-            .lock()
-            .unwrap()
-            .get_package(&resolved.spec.pkg)
-            .map_err(|err| match err {
-                Error::PackageNotFoundError(pkg) => Error::String(format!(
-                    "Resolved package disappeared, please try again ({})",
-                    pkg
-                )),
-                _ => err,
-            })?;
 
         let mut desired_components = resolved.request.pkg.components;
         if desired_components.remove(&api::Component::All) {
@@ -44,8 +32,16 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 
         for name in desired_components.into_iter() {
             let digest = components.get(&name).ok_or_else(|| {
-                Error::String("Resolved component disappeared, please try again".to_string())
+                Error::String(format!(
+                    "Resolved component '{}' went missing, please try again",
+                    name
+                ))
             })?;
+
+            if stack.contains(&digest) {
+                continue;
+            }
+
             if !local_repo.has_object(&digest) {
                 to_sync.push((resolved.spec, repo.clone(), digest))
             }
