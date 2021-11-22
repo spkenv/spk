@@ -14,7 +14,7 @@ use super::FSRepository;
 use crate::{
     encoding, graph,
     storage::{tag::TagSpecAndTagIter, TagStorage},
-    tracking, Result,
+    tracking, Error, Result,
 };
 use encoding::{Decodable, Encodable};
 
@@ -46,6 +46,9 @@ impl FSRepository {
             .open(&filepath)?;
         encoding::write_int(&mut file, size as i64)?;
         std::io::copy(&mut buf.as_slice(), &mut file)?;
+        if let Err(err) = file.sync_all() {
+            return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
+        }
 
         let perms = std::fs::Permissions::from_mode(0o777);
         if let Err(err) = std::fs::set_permissions(&filepath, perms) {

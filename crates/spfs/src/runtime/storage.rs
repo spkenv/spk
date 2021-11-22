@@ -271,12 +271,13 @@ impl Runtime {
     }
 
     fn write_config(&self) -> Result<()> {
-        let file = std::fs::OpenOptions::new()
+        let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(&self.config_file)?;
-        serde_json::to_writer(file, &self.config)?;
+        serde_json::to_writer(&mut file, &self.config)?;
+        file.sync_all()?;
         Ok(())
     }
 
