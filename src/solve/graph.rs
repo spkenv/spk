@@ -160,7 +160,7 @@ impl Decision {
 
     pub fn build_package(
         spec: Arc<api::Spec>,
-        _source: &PackageSource,
+        components: &HashSet<api::Component>,
         build_env: &Solution,
     ) -> crate::Result<Decision> {
         let self_spec = spec;
@@ -178,6 +178,7 @@ impl Decision {
                 spec.clone(),
                 self_spec.clone(),
             ))));
+
             for req in spec.install.requirements.iter() {
                 match req {
                     api::Request::Pkg(req) => {
@@ -185,6 +186,22 @@ impl Decision {
                     }
                     api::Request::Var(req) => {
                         changes.push(Change::RequestVar(RequestVar::new(req.clone())))
+                    }
+                }
+            }
+
+            for component in spec.install.components.iter() {
+                if !components.contains(&component.name) {
+                    continue;
+                }
+                for req in component.requirements.iter() {
+                    match req {
+                        api::Request::Pkg(req) => {
+                            changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
+                        }
+                        api::Request::Var(req) => {
+                            changes.push(Change::RequestVar(RequestVar::new(req.clone())))
+                        }
                     }
                 }
             }
@@ -214,7 +231,11 @@ impl Decision {
         })
     }
 
-    pub fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
+    pub fn resolve_package(
+        spec: &api::Spec,
+        components: &HashSet<api::Component>,
+        source: PackageSource,
+    ) -> Decision {
         let spec = Arc::new(spec.clone());
         let generate_changes = || {
             let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
@@ -234,6 +255,22 @@ impl Decision {
                     }
                     api::Request::Var(req) => {
                         changes.push(Change::RequestVar(RequestVar::new(req.clone())))
+                    }
+                }
+            }
+
+            for component in spec.install.components.iter() {
+                if !components.contains(&component.name) {
+                    continue;
+                }
+                for req in component.requirements.iter() {
+                    match req {
+                        api::Request::Pkg(req) => {
+                            changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
+                        }
+                        api::Request::Var(req) => {
+                            changes.push(Change::RequestVar(RequestVar::new(req.clone())))
+                        }
                     }
                 }
             }

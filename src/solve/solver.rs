@@ -186,7 +186,11 @@ impl Solver {
                 let mut decision = if build_from_source {
                     match self.resolve_new_build(&spec, &node.state) {
                         Ok(build_env) => {
-                            match Decision::build_package(spec.clone(), &repo, &build_env) {
+                            match Decision::build_package(
+                                spec.clone(),
+                                &request.pkg.components,
+                                &build_env,
+                            ) {
                                 Ok(decision) => decision,
 
                                 Err(err) => {
@@ -213,7 +217,7 @@ impl Solver {
                         }
                     }
                 } else {
-                    Decision::resolve_package(&spec, repo)
+                    Decision::resolve_package(&spec, &request.pkg.components, repo)
                 };
                 decision.add_notes(notes.iter());
                 return Ok(Some(decision));

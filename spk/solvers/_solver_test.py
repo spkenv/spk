@@ -1206,3 +1206,50 @@ def test_solver_component_availability() -> None:
     source = resolved.source
     assert isinstance(source, tuple)
     assert sorted(source[1].keys()) == ["bin", "lib"]
+
+
+def test_solver_component_requirements() -> None:
+
+    # test when a component has it's own list of requirements
+    # - the requirements are added to the existing set of requirements
+    # - the additional requirements are resolved
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "dep"}],
+                    "components": [
+                        {"name": "build", "requirements": [{"pkg": "depb"}]},
+                        {"name": "run", "requirements": [{"pkg": "depr"}]},
+                    ],
+                },
+            },
+            {"pkg": "dep"},
+            {"pkg": "depb"},
+            {"pkg": "depr"},
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("mypkg:build")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    solution.get("dep")  # should exist
+    solution.get("depb")  # should exist
+    with pytest.raises(KeyError):
+        solution.get("depr")
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("mypkg:run")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    solution.get("dep")  # should exist
+    solution.get("depr")  # should exist
+    with pytest.raises(KeyError):
+        solution.get("depb")
