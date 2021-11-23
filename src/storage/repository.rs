@@ -16,9 +16,9 @@ pub trait Repository {
     /// - PackageNotFoundError: If the package, version, or build does not exist
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec>;
 
-    ///Identify the payload for the identified binary package and build options.
+    /// Identify the payload for the identified binary package and build options.
     ///
-    /// he given build options should be resolved using the package spec
+    /// The given build options should be resolved using the package spec
     /// before calling this function, unless the exact complete set of options
     /// can be known deterministically.
     fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest>;

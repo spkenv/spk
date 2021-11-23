@@ -63,5 +63,5 @@ def test_archive_create_parents(tmpdir: py.path.local) -> None:
     repo.publish_spec(spec)
     builder = build.BinaryPackageBuilder.from_spec(spec).with_source(".")
     spec = builder.build()
-    filename = tmpdir.join("deep/nested/path/achive.spk").strpath
+    filename = tmpdir.join("deep/nested/path/archive.spk").strpath
     export_package(spec.pkg, filename)

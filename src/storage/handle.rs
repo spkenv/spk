@@ -25,7 +25,7 @@ impl PartialEq for RepositoryHandle {
 impl Eq for RepositoryHandle {}
 
 impl RepositoryHandle {
-    /// The address of a repository identifies it's location and how
+    /// The address of a repository identifies its location and how
     /// it is being accessed.
     pub fn address(&self) -> url::Url {
         match self {

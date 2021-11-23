@@ -82,7 +82,7 @@ impl Clone for RepositoryPackageIterator {
                     // we wanted to save the clone from causing this
                     // work to be done twice, but it's not fatal
                     tracing::trace!(
-                        "Encoutered error cloning RepositoryPackageIterator: {:?}",
+                        "Encountered error cloning RepositoryPackageIterator: {:?}",
                         err
                     );
                     self.version_map.clone()

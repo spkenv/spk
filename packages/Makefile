@@ -10,7 +10,7 @@ packages: \
 # boostrap just enough to get a real linker and compiler
 # under /spfs, then move on from there
 bootstrap: \
-stdfs/stdfs.spk \
+	stdfs/stdfs.spk \
 	bootstrap/automake.spk \
 	bootstrap/gcc.spk \
 	bootstrap/glibc.spk
