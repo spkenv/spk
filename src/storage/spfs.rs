@@ -68,7 +68,7 @@ impl Repository for SPFSRepository {
                     None
                 }
             })
-            .collect::<Vec<_>>())
+            .collect_vec())
     }
 
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
@@ -101,6 +101,9 @@ impl Repository for SPFSRepository {
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let pkg = pkg.with_build(Some(api::Build::Source));
         let mut base = self.build_package_tag(&pkg)?;
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
         base.pop();
 
         Ok(self
