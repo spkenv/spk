@@ -203,31 +203,15 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 self.spec.clone(),
             ))));
 
-            for req in spec.install.requirements.iter() {
-                match req {
-                    api::Request::Pkg(req) => {
-                        changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
-                    }
-                    api::Request::Var(req) => {
-                        changes.push(Change::RequestVar(RequestVar::new(req.clone())))
-                    }
-                }
-            }
+            changes.extend(Self::requirements_to_changes(
+                &self.spec.install.requirements,
+            ));
 
             for component in spec.install.components.iter() {
                 if !self.components.contains(&component.name) {
                     continue;
                 }
-                for req in component.requirements.iter() {
-                    match req {
-                        api::Request::Pkg(req) => {
-                            changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
-                        }
-                        api::Request::Var(req) => {
-                            changes.push(Change::RequestVar(RequestVar::new(req.clone())))
-                        }
-                    }
-                }
+                changes.extend(Self::requirements_to_changes(&component.requirements));
             }
 
             let mut opts = api::OptionMap::default();
@@ -267,31 +251,15 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 return changes;
             }
 
-            for req in self.spec.install.requirements.iter() {
-                match req {
-                    api::Request::Pkg(req) => {
-                        changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
-                    }
-                    api::Request::Var(req) => {
-                        changes.push(Change::RequestVar(RequestVar::new(req.clone())))
-                    }
-                }
-            }
+            changes.extend(Self::requirements_to_changes(
+                &self.spec.install.requirements,
+            ));
 
             for component in self.spec.install.components.iter() {
                 if !self.components.contains(&component.name) {
                     continue;
                 }
-                for req in component.requirements.iter() {
-                    match req {
-                        api::Request::Pkg(req) => {
-                            changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
-                        }
-                        api::Request::Var(req) => {
-                            changes.push(Change::RequestVar(RequestVar::new(req.clone())))
-                        }
-                    }
-                }
+                changes.extend(Self::requirements_to_changes(&component.requirements));
             }
 
             for embedded in self.spec.install.embedded.iter() {
@@ -327,6 +295,15 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
             changes: generate_changes(),
             notes: Vec::default(),
         }
+    }
+
+    fn requirements_to_changes(
+        requirements: &api::RequirementsList,
+    ) -> impl Iterator<Item = Change> + '_ {
+        requirements.iter().map(|req| match req {
+            api::Request::Pkg(req) => Change::RequestPackage(RequestPackage::new(req.clone())),
+            api::Request::Var(req) => Change::RequestVar(RequestVar::new(req.clone())),
+        })
     }
 }
 
