@@ -154,7 +154,7 @@ impl Decision {
         }
     }
 
-    pub fn builder(spec: Arc<api::Spec>) -> DecisionBuilder {
+    pub fn builder(spec: Arc<api::Spec>) -> DecisionBuilder<'static> {
         DecisionBuilder::new(spec)
     }
 
@@ -163,22 +163,29 @@ impl Decision {
     }
 }
 
-pub struct DecisionBuilder {
+pub struct DecisionBuilder<'cmpt> {
     spec: Arc<api::Spec>,
-    components: HashSet<api::Component>,
+    components: HashSet<&'cmpt api::Component>,
 }
 
-impl DecisionBuilder {
+impl DecisionBuilder<'static> {
     pub fn new(spec: Arc<api::Spec>) -> Self {
         Self {
             spec,
             components: HashSet::new(),
         }
     }
+}
 
-    pub fn with_components(mut self, components: impl IntoIterator<Item = api::Component>) -> Self {
-        self.components.extend(components);
-        self
+impl<'cmpt> DecisionBuilder<'cmpt> {
+    pub fn with_components<'a>(
+        self,
+        components: impl IntoIterator<Item = &'a api::Component>,
+    ) -> DecisionBuilder<'a> {
+        DecisionBuilder {
+            components: components.into_iter().collect(),
+            spec: self.spec,
+        }
     }
 
     pub fn build_package(self, build_env: &Solution) -> crate::Result<Decision> {

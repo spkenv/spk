@@ -25,7 +25,7 @@ fn build_package(
     build_env: &Solution,
 ) -> crate::Result<Decision> {
     super::graph::Decision::builder(spec.into())
-        .with_components(components)
+        .with_components(&components)
         .build_package(build_env)
 }
 
@@ -37,7 +37,7 @@ fn resolve_package(
     source: PackageSource,
 ) -> Decision {
     super::graph::Decision::builder(spec.into())
-        .with_components(components)
+        .with_components(&components)
         .resolve_package(source)
 }
 
