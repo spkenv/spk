@@ -5,7 +5,6 @@ use pyo3::prelude::*;
 use pyo3::py_run;
 use pyo3::wrap_pyfunction;
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use crate::api;
 
@@ -21,21 +20,25 @@ use super::validation::{self, Validators, VarRequirementsValidator};
 #[pyfunction]
 #[pyo3(name = "BuildPackage")]
 fn build_package(
-    spec: &api::Spec,
+    spec: api::Spec,
     components: HashSet<api::Component>,
     build_env: &Solution,
 ) -> crate::Result<Decision> {
-    super::graph::Decision::build_package(Arc::new(spec.clone()), &components, build_env)
+    super::graph::Decision::builder(spec.into())
+        .with_components(components)
+        .build_package(build_env)
 }
 
 #[pyfunction]
 #[pyo3(name = "ResolvePackage")]
 fn resolve_package(
-    spec: &api::Spec,
+    spec: api::Spec,
     components: HashSet<api::Component>,
     source: PackageSource,
 ) -> Decision {
-    super::graph::Decision::resolve_package(spec, &components, source)
+    super::graph::Decision::builder(spec.into())
+        .with_components(components)
+        .resolve_package(source)
 }
 
 /// A single change made to a state.

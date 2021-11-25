@@ -154,29 +154,46 @@ impl Decision {
         }
     }
 
+    pub fn builder(spec: Arc<api::Spec>) -> DecisionBuilder {
+        DecisionBuilder::new(spec)
+    }
+
     pub fn add_notes<'a>(&mut self, notes: impl Iterator<Item = &'a NoteEnum>) {
         self.notes.extend(notes.cloned())
     }
+}
 
-    pub fn build_package(
-        spec: Arc<api::Spec>,
-        components: &HashSet<api::Component>,
-        build_env: &Solution,
-    ) -> crate::Result<Decision> {
-        let self_spec = spec;
+pub struct DecisionBuilder {
+    spec: Arc<api::Spec>,
+    components: HashSet<api::Component>,
+}
 
+impl DecisionBuilder {
+    pub fn new(spec: Arc<api::Spec>) -> Self {
+        Self {
+            spec,
+            components: HashSet::new(),
+        }
+    }
+
+    pub fn with_components(mut self, components: impl IntoIterator<Item = api::Component>) -> Self {
+        self.components.extend(components);
+        self
+    }
+
+    pub fn build_package(self, build_env: &Solution) -> crate::Result<Decision> {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
             let specs = build_env.items().into_iter().map(|s| s.spec).collect_vec();
             let options = build_env.options();
-            let mut spec = (*self_spec).clone();
+            let mut spec = (*self.spec).clone();
             spec.update_for_build(&options, specs.iter().map(Arc::as_ref))?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
                 spec.clone(),
-                self_spec.clone(),
+                self.spec.clone(),
             ))));
 
             for req in spec.install.requirements.iter() {
@@ -191,7 +208,7 @@ impl Decision {
             }
 
             for component in spec.install.components.iter() {
-                if !components.contains(&component.name) {
+                if !self.components.contains(&component.name) {
                     continue;
                 }
                 for req in component.requirements.iter() {
@@ -208,8 +225,8 @@ impl Decision {
 
             let mut opts = api::OptionMap::default();
             opts.insert(
-                self_spec.pkg.name().to_owned(),
-                self_spec.compat.render(&self_spec.pkg.version),
+                self.spec.pkg.name().to_owned(),
+                self.spec.compat.render(&self.spec.pkg.version),
             );
             for opt in &spec.build.options {
                 let value = opt.get_value(None);
@@ -231,24 +248,19 @@ impl Decision {
         })
     }
 
-    pub fn resolve_package(
-        spec: &api::Spec,
-        components: &HashSet<api::Component>,
-        source: PackageSource,
-    ) -> Decision {
-        let spec = Arc::new(spec.clone());
+    pub fn resolve_package(self, source: PackageSource) -> Decision {
         let generate_changes = || {
             let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
-                spec.clone(),
+                self.spec.clone(),
                 source,
             )))];
 
             // installation options are not relevant for source packages
-            if spec.pkg.is_source() {
+            if self.spec.pkg.is_source() {
                 return changes;
             }
 
-            for req in spec.install.requirements.iter() {
+            for req in self.spec.install.requirements.iter() {
                 match req {
                     api::Request::Pkg(req) => {
                         changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
@@ -259,8 +271,8 @@ impl Decision {
                 }
             }
 
-            for component in spec.install.components.iter() {
-                if !components.contains(&component.name) {
+            for component in self.spec.install.components.iter() {
+                if !self.components.contains(&component.name) {
                     continue;
                 }
                 for req in component.requirements.iter() {
@@ -275,25 +287,25 @@ impl Decision {
                 }
             }
 
-            for embedded in spec.install.embedded.iter() {
+            for embedded in self.spec.install.embedded.iter() {
                 changes.push(Change::RequestPackage(RequestPackage::new(
                     api::PkgRequest::from_ident(&embedded.pkg),
                 )));
                 changes.push(Change::SetPackage(Box::new(SetPackage::new(
                     Arc::new(embedded.clone()),
-                    PackageSource::Spec(spec.clone()),
+                    PackageSource::Spec(self.spec.clone()),
                 ))));
             }
 
             let mut opts = api::OptionMap::default();
             opts.insert(
-                spec.pkg.name().to_owned(),
-                spec.compat.render(&spec.pkg.version),
+                self.spec.pkg.name().to_owned(),
+                self.spec.compat.render(&self.spec.pkg.version),
             );
-            for opt in &spec.build.options {
+            for opt in &self.spec.build.options {
                 let value = opt.get_value(None);
                 if !value.is_empty() {
-                    let name = opt.namespaced_name(spec.pkg.name());
+                    let name = opt.namespaced_name(self.spec.pkg.name());
                     opts.insert(name, value);
                 }
             }
@@ -877,11 +889,11 @@ impl State {
     pub fn get_current_resolve(
         &self,
         name: &str,
-    ) -> errors::GetCurrentResolveResult<Arc<api::Spec>> {
+    ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
         // TODO: cache this
-        for (spec, _) in &self.packages {
+        for (spec, source) in &self.packages {
             if spec.pkg.name() == name {
-                return Ok(spec.clone());
+                return Ok((spec, source));
             }
         }
         Err(errors::GetCurrentResolveError::PackageNotResolved(format!(
