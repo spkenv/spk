@@ -214,6 +214,8 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 changes.extend(Self::requirements_to_changes(&component.requirements));
             }
 
+            changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
+
             let mut opts = api::OptionMap::default();
             opts.insert(
                 self.spec.pkg.name().to_owned(),
@@ -262,15 +264,7 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 changes.extend(Self::requirements_to_changes(&component.requirements));
             }
 
-            for embedded in self.spec.install.embedded.iter() {
-                changes.push(Change::RequestPackage(RequestPackage::new(
-                    api::PkgRequest::from_ident(&embedded.pkg),
-                )));
-                changes.push(Change::SetPackage(Box::new(SetPackage::new(
-                    Arc::new(embedded.clone()),
-                    PackageSource::Spec(self.spec.clone()),
-                ))));
-            }
+            changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
 
             let mut opts = api::OptionMap::default();
             opts.insert(
@@ -304,6 +298,23 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
             api::Request::Pkg(req) => Change::RequestPackage(RequestPackage::new(req.clone())),
             api::Request::Var(req) => Change::RequestVar(RequestVar::new(req.clone())),
         })
+    }
+
+    fn embedded_to_changes(&self, embedded: &api::EmbeddedPackagesList) -> Vec<Change> {
+        embedded
+            .iter()
+            .flat_map(|embedded| {
+                [
+                    Change::RequestPackage(RequestPackage::new(api::PkgRequest::from_ident(
+                        &embedded.pkg,
+                    ))),
+                    Change::SetPackage(Box::new(SetPackage::new(
+                        Arc::new(embedded.clone()),
+                        PackageSource::Spec(self.spec.clone()),
+                    ))),
+                ]
+            })
+            .collect()
     }
 }
 
