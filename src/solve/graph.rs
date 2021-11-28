@@ -210,16 +210,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             ))));
 
             changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
-
-            for component in spec.install.components.iter() {
-                if !self.components.contains(&component.name) {
-                    continue;
-                }
-                changes.extend(self.requirements_to_changes(&component.requirements));
-            }
-
+            changes.extend(self.components_to_changes(&self.spec.install.components));
             changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
-
             changes.push(Self::options_to_change(&spec));
 
             Ok(changes)
@@ -244,16 +236,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             }
 
             changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
-
-            for component in self.spec.install.components.iter() {
-                if !self.components.contains(&component.name) {
-                    continue;
-                }
-                changes.extend(self.requirements_to_changes(&component.requirements));
-            }
-
+            changes.extend(self.components_to_changes(&self.spec.install.components));
             changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
-
             changes.push(Self::options_to_change(&self.spec));
 
             changes
@@ -265,14 +249,26 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         }
     }
 
-    fn requirements_to_changes<'a>(&self, requirements: &'a api::RequirementsList) -> Vec<Change> {
+    fn requirements_to_changes(&self, requirements: &api::RequirementsList) -> Vec<Change> {
         requirements
             .iter()
             .flat_map(|req| match req {
-                api::Request::Pkg(req) => self.pkg_request_to_changes(&req),
+                api::Request::Pkg(req) => self.pkg_request_to_changes(req),
                 api::Request::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
             })
             .collect()
+    }
+
+    fn components_to_changes(&self, components: &api::ComponentSpecList) -> Vec<Change> {
+        let mut changes = vec![];
+        for component in components.iter() {
+            if !self.components.contains(&component.name) {
+                continue;
+            }
+            changes.extend(self.requirements_to_changes(&component.requirements));
+            changes.extend(self.embedded_to_changes(&component.embedded));
+        }
+        changes
     }
 
     fn pkg_request_to_changes(&self, req: &api::PkgRequest) -> Vec<Change> {
