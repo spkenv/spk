@@ -9,7 +9,7 @@ import pytest
 
 import spk
 
-from .. import api, io
+from .. import SolverError, api, io
 from spkrs import storage, solve
 from spkrs.solve import Solver
 
@@ -1286,3 +1286,57 @@ def test_solver_component_requirements_extending() -> None:
     solution = io.run_and_print_resolve(solver, verbosity=100)
 
     solution.get("depc")  # should exist
+
+
+def test_solver_component_embedded() -> None:
+
+    # test when a component has it's own list of embedded packages
+    # - the embedded package is immediately selected
+    # - it must be compatible with any previous requirements
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "build", "embedded": [{"pkg": "dep-e1/1.0.0"}]},
+                        {"name": "run", "embedded": [{"pkg": "dep-e2/1.0.0"}]},
+                    ],
+                },
+            },
+            {"pkg": "dep-e1/1.0.0"},
+            {"pkg": "dep-e1/2.0.0"},
+            {"pkg": "dep-e2/1.0.0"},
+            {"pkg": "dep-e2/2.0.0"},
+            {
+                "pkg": "downstream1",
+                "install": {
+                    "requirements": [{"pkg": "dep-e1"}, {"pkg": "mypkg:build"}]
+                },
+            },
+            {
+                "pkg": "downstream2",
+                "install": {
+                    "requirements": [{"pkg": "dep-e2/2.0.0"}, {"pkg": "mypkg:run"}]
+                },
+            },
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("downstream1")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    assert solution.get("dep-e1").spec.pkg.build == "embedded"
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("downstream2")
+
+    with pytest.raises(SolverError):
+        # should fail because the one embedded package
+        # does not meet the requirements in downstream spec
+        solution = io.run_and_print_resolve(solver, verbosity=100)
