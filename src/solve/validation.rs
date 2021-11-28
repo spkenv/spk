@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use pyo3::prelude::*;
 
-use crate::api::{self, Build};
+use crate::api::{self, Build, Compatibility};
 
 use super::{errors, graph, solution::PackageSource};
 
@@ -303,7 +303,7 @@ impl ValidatorT for ComponentsValidator {
         }
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
-            PackageSource::Spec(_) => spec.install.components.iter().map(|c| &c.name).collect(),
+            PackageSource::Spec(_) => spec.install.components.names(),
         };
         let request = state.get_merged_request(spec.pkg.name())?;
         let mut required_components = spec
@@ -384,10 +384,16 @@ impl ValidatorT for PkgRequirementsValidator {
                     Err(err) => return Err(err),
                 };
 
-                let resolved = match state.get_current_resolve(request.pkg.name()) {
-                    Ok(resolved) => resolved,
-                    Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => continue,
-                };
+                let (resolved, provided_components) =
+                    match state.get_current_resolve(request.pkg.name()) {
+                        Ok((spec, source)) => match source {
+                            PackageSource::Repository { components, .. } => {
+                                (spec, components.keys().collect())
+                            }
+                            PackageSource::Spec(_) => (spec, spec.install.components.names()),
+                        },
+                        Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => continue,
+                    };
 
                 let compat = resolved.satisfies_pkg_request(&request);
                 if !&compat {
@@ -395,6 +401,23 @@ impl ValidatorT for PkgRequirementsValidator {
                         "conflicting requirement: '{}' {}",
                         request.pkg.name(),
                         compat
+                    )));
+                }
+
+                let missing: Vec<_> = request
+                    .pkg
+                    .components
+                    .iter()
+                    .filter(|c| !provided_components.contains(c))
+                    .collect();
+                if !missing.is_empty() {
+                    return Ok(Compatibility::Incompatible(format!(
+                        "resolved package does not provide all required components: needed {}, have {}",
+                        missing
+                            .into_iter()
+                            .map(api::Component::to_string)
+                            .join("\n")
+                        request.pkg.name(),
                     )));
                 }
             }

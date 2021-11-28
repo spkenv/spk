@@ -24,6 +24,11 @@ impl ComponentSpecList {
 }
 
 impl ComponentSpecList {
+    /// Collect the names of all components in this list
+    pub fn names(&self) -> HashSet<&Component> {
+        self.iter().map(|i| &i.name).collect()
+    }
+
     /// Given a set of requested components, resolve the complete list of
     /// components that are needed to satisfy any declared 'uses' dependencies.
     pub fn resolve_uses<'a>(
