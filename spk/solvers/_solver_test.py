@@ -1213,6 +1213,7 @@ def test_solver_component_requirements() -> None:
     # test when a component has it's own list of requirements
     # - the requirements are added to the existing set of requirements
     # - the additional requirements are resolved
+    # - even if it's a component that's only used by the one that was requested
 
     repo = make_repo(
         [
@@ -1221,7 +1222,8 @@ def test_solver_component_requirements() -> None:
                 "install": {
                     "requirements": [{"pkg": "dep"}],
                     "components": [
-                        {"name": "build", "requirements": [{"pkg": "depb"}]},
+                        {"name": "build", "uses": ["build2"]},
+                        {"name": "build2", "requirements": [{"pkg": "depb"}]},
                         {"name": "run", "requirements": [{"pkg": "depr"}]},
                     ],
                 },

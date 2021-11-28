@@ -261,8 +261,13 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
     fn components_to_changes(&self, components: &api::ComponentSpecList) -> Vec<Change> {
         let mut changes = vec![];
+        let required = self
+            .spec
+            .install
+            .components
+            .resolve_uses(self.components.iter().cloned());
         for component in components.iter() {
-            if !self.components.contains(&component.name) {
+            if !required.contains(&component.name) {
                 continue;
             }
             changes.extend(self.requirements_to_changes(&component.requirements));
