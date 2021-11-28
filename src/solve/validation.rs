@@ -364,66 +364,89 @@ impl ValidatorT for PkgRequirementsValidator {
         }
 
         for request in spec.install.requirements.iter() {
-            if let api::Request::Pkg(request) = request {
-                let mut existing = match state.get_merged_request(request.pkg.name()) {
-                    Ok(request) => request,
-                    Err(errors::GetMergedRequestError::NoRequestFor(_)) => continue,
-                    // XXX: KeyError or ValueError still possible here?
-                    Err(err) => return Err(err.into()),
-                };
-
-                let request = match existing.restrict(request) {
-                    Ok(_) => existing,
-                    // FIXME: only match ValueError
-                    Err(crate::Error::PyErr(err)) => {
-                        return Ok(api::Compatibility::Incompatible(format!(
-                            "conflicting requirement: {}",
-                            err
-                        )))
-                    }
-                    Err(err) => return Err(err),
-                };
-
-                let (resolved, provided_components) =
-                    match state.get_current_resolve(request.pkg.name()) {
-                        Ok((spec, source)) => match source {
-                            PackageSource::Repository { components, .. } => {
-                                (spec, components.keys().collect())
-                            }
-                            PackageSource::Spec(_) => (spec, spec.install.components.names()),
-                        },
-                        Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => continue,
-                    };
-
-                let compat = resolved.satisfies_pkg_request(&request);
-                if !&compat {
-                    return Ok(api::Compatibility::Incompatible(format!(
-                        "conflicting requirement: '{}' {}",
-                        request.pkg.name(),
-                        compat
-                    )));
-                }
-
-                let missing: Vec<_> = request
-                    .pkg
-                    .components
-                    .iter()
-                    .filter(|c| !provided_components.contains(c))
-                    .collect();
-                if !missing.is_empty() {
-                    return Ok(Compatibility::Incompatible(format!(
-                        "resolved package does not provide all required components: needed {}, have {}",
-                        missing
-                            .into_iter()
-                            .map(api::Component::to_string)
-                            .join("\n")
-                        request.pkg.name(),
-                    )));
-                }
+            let compat = Self::validate_request_against_existing_state(&state, request)?;
+            if !&compat {
+                return Ok(compat);
             }
         }
 
-        Ok(api::Compatibility::Compatible)
+        Ok(Compatibility::Compatible)
+    }
+}
+
+impl PkgRequirementsValidator {
+    fn validate_request_against_existing_state(
+        state: &graph::State,
+        request: &api::Request,
+    ) -> crate::Result<api::Compatibility> {
+        use Compatibility::{Compatible, Incompatible};
+        let request = match request {
+            api::Request::Pkg(request) => request,
+            _ => return Ok(Compatible),
+        };
+
+        let mut existing = match state.get_merged_request(request.pkg.name()) {
+            Ok(request) => request,
+            Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
+            // XXX: KeyError or ValueError still possible here?
+            Err(err) => return Err(err.into()),
+        };
+
+        let request = match existing.restrict(request) {
+            Ok(_) => existing,
+            // FIXME: only match ValueError
+            Err(crate::Error::PyErr(err)) => {
+                return Ok(Incompatible(format!("conflicting requirement: {}", err)))
+            }
+            Err(err) => return Err(err),
+        };
+
+        let (resolved, provided_components) = match state.get_current_resolve(request.pkg.name()) {
+            Ok((spec, source)) => match source {
+                PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
+                PackageSource::Spec(_) => (spec, spec.install.components.names()),
+            },
+            Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => return Ok(Compatible),
+        };
+
+        Self::validate_request_against_existing_resolve(&request, resolved, provided_components)
+    }
+
+    fn validate_request_against_existing_resolve(
+        request: &api::PkgRequest,
+        resolved: &std::sync::Arc<api::Spec>,
+        provided_components: std::collections::HashSet<&api::Component>,
+    ) -> crate::Result<Compatibility> {
+        use Compatibility::{Compatible, Incompatible};
+        let compat = resolved.satisfies_pkg_request(request);
+        if !&compat {
+            return Ok(Incompatible(format!(
+                "conflicting requirement: '{}' {}",
+                request.pkg.name(),
+                compat
+            )));
+        }
+
+        let required_components = resolved
+            .install
+            .components
+            .resolve_uses(request.pkg.components.iter());
+        let missing_components: Vec<_> = required_components
+            .iter()
+            .filter(|c| !provided_components.contains(c))
+            .collect();
+        if !missing_components.is_empty() {
+            return Ok(Incompatible(format!(
+                "resolved package does not provide all required components: needed {}, have {}",
+                missing_components
+                    .into_iter()
+                    .map(api::Component::to_string)
+                    .join("\n"),
+                request.pkg.name(),
+            )));
+        }
+
+        Ok(Compatible)
     }
 }
 
