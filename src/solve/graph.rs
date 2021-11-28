@@ -216,21 +216,7 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
 
             changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
 
-            let mut opts = api::OptionMap::default();
-            opts.insert(
-                self.spec.pkg.name().to_owned(),
-                self.spec.compat.render(&self.spec.pkg.version),
-            );
-            for opt in &spec.build.options {
-                let value = opt.get_value(None);
-                if !value.is_empty() {
-                    let name = opt.namespaced_name(spec.pkg.name());
-                    opts.insert(name, value);
-                }
-            }
-            if !opts.is_empty() {
-                changes.push(Change::SetOptions(SetOptions::new(opts)));
-            }
+            changes.push(Self::options_to_change(&spec));
 
             Ok(changes)
         };
@@ -266,21 +252,7 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
 
             changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
 
-            let mut opts = api::OptionMap::default();
-            opts.insert(
-                self.spec.pkg.name().to_owned(),
-                self.spec.compat.render(&self.spec.pkg.version),
-            );
-            for opt in &self.spec.build.options {
-                let value = opt.get_value(None);
-                if !value.is_empty() {
-                    let name = opt.namespaced_name(self.spec.pkg.name());
-                    opts.insert(name, value);
-                }
-            }
-            if !opts.is_empty() {
-                changes.push(Change::SetOptions(SetOptions::new(opts)));
-            }
+            changes.push(Self::options_to_change(&self.spec));
 
             changes
         };
@@ -315,6 +287,22 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 ]
             })
             .collect()
+    }
+
+    fn options_to_change(spec: &api::Spec) -> Change {
+        let mut opts = api::OptionMap::default();
+        opts.insert(
+            spec.pkg.name().to_owned(),
+            spec.compat.render(&spec.pkg.version),
+        );
+        for opt in &spec.build.options {
+            let value = opt.get_value(None);
+            if !value.is_empty() {
+                let name = opt.namespaced_name(spec.pkg.name());
+                opts.insert(name, value);
+            }
+        }
+        Change::SetOptions(SetOptions::new(opts))
     }
 }
 
