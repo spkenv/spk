@@ -154,8 +154,11 @@ impl Decision {
         }
     }
 
-    pub fn builder(spec: Arc<api::Spec>) -> DecisionBuilder<'static> {
-        DecisionBuilder::new(spec)
+    pub fn builder<'state>(
+        spec: Arc<api::Spec>,
+        base: &'state State,
+    ) -> DecisionBuilder<'state, 'static> {
+        DecisionBuilder::new(spec, base)
     }
 
     pub fn add_notes<'a>(&mut self, notes: impl Iterator<Item = &'a NoteEnum>) {
@@ -163,28 +166,31 @@ impl Decision {
     }
 }
 
-pub struct DecisionBuilder<'cmpt> {
+pub struct DecisionBuilder<'state, 'cmpt> {
+    base: &'state State,
     spec: Arc<api::Spec>,
     components: HashSet<&'cmpt api::Component>,
 }
 
-impl DecisionBuilder<'static> {
-    pub fn new(spec: Arc<api::Spec>) -> Self {
+impl<'state> DecisionBuilder<'state, 'static> {
+    pub fn new(spec: Arc<api::Spec>, base: &'state State) -> Self {
         Self {
+            base,
             spec,
             components: HashSet::new(),
         }
     }
 }
 
-impl<'cmpt> DecisionBuilder<'cmpt> {
+impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     pub fn with_components<'a>(
         self,
         components: impl IntoIterator<Item = &'a api::Component>,
-    ) -> DecisionBuilder<'a> {
+    ) -> DecisionBuilder<'state, 'a> {
         DecisionBuilder {
             components: components.into_iter().collect(),
             spec: self.spec,
+            base: self.base,
         }
     }
 
@@ -203,15 +209,13 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 self.spec.clone(),
             ))));
 
-            changes.extend(Self::requirements_to_changes(
-                &self.spec.install.requirements,
-            ));
+            changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
 
             for component in spec.install.components.iter() {
                 if !self.components.contains(&component.name) {
                     continue;
                 }
-                changes.extend(Self::requirements_to_changes(&component.requirements));
+                changes.extend(self.requirements_to_changes(&component.requirements));
             }
 
             changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
@@ -239,15 +243,13 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
                 return changes;
             }
 
-            changes.extend(Self::requirements_to_changes(
-                &self.spec.install.requirements,
-            ));
+            changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
 
             for component in self.spec.install.components.iter() {
                 if !self.components.contains(&component.name) {
                     continue;
                 }
-                changes.extend(Self::requirements_to_changes(&component.requirements));
+                changes.extend(self.requirements_to_changes(&component.requirements));
             }
 
             changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
@@ -263,13 +265,51 @@ impl<'cmpt> DecisionBuilder<'cmpt> {
         }
     }
 
-    fn requirements_to_changes(
-        requirements: &api::RequirementsList,
-    ) -> impl Iterator<Item = Change> + '_ {
-        requirements.iter().map(|req| match req {
-            api::Request::Pkg(req) => Change::RequestPackage(RequestPackage::new(req.clone())),
-            api::Request::Var(req) => Change::RequestVar(RequestVar::new(req.clone())),
-        })
+    fn requirements_to_changes<'a>(&self, requirements: &'a api::RequirementsList) -> Vec<Change> {
+        requirements
+            .iter()
+            .flat_map(|req| match req {
+                api::Request::Pkg(req) => self.pkg_request_to_changes(&req),
+                api::Request::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
+            })
+            .collect()
+    }
+
+    fn pkg_request_to_changes(&self, req: &api::PkgRequest) -> Vec<Change> {
+        let mut changes = vec![Change::RequestPackage(RequestPackage::new(req.clone()))];
+        // we need to check if this request will change a previously
+        // resolved package (eg: by adding a new component with new requirements)
+        let (spec, _source) = match self.base.get_current_resolve(req.pkg.name()) {
+            Ok(e) => e,
+            Err(_) => return changes,
+        };
+        let existing = match self.base.get_merged_request(req.pkg.name()) {
+            Ok(r) => r,
+            // the error case here should not be possible since we have
+            // already found a resolved package...
+            Err(_) => return changes,
+        };
+        let new_components = spec
+            .install
+            .components
+            .resolve_uses(req.pkg.components.iter());
+        let existing_components = spec
+            .install
+            .components
+            .resolve_uses(existing.pkg.components.iter());
+        let added_components = new_components
+            .difference(&existing_components)
+            .collect::<HashSet<_>>();
+        if added_components.is_empty() {
+            return changes;
+        }
+        for component in spec.install.components.iter() {
+            if !added_components.contains(&component.name) {
+                continue;
+            }
+            changes.extend(self.requirements_to_changes(&component.requirements));
+        }
+        changes
     }
 
     fn embedded_to_changes(&self, embedded: &api::EmbeddedPackagesList) -> Vec<Change> {

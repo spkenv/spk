@@ -1253,3 +1253,36 @@ def test_solver_component_requirements() -> None:
     solution.get("depr")  # should exist
     with pytest.raises(KeyError):
         solution.get("depb")
+
+
+def test_solver_component_requirements_extending() -> None:
+
+    # test when an additional component is requested after a package is resolved
+    # - the new components requirements are still added and resolved
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "depa",
+                "install": {
+                    "components": [
+                        {"name": "run", "requirements": [{"pkg": "depc"}]},
+                    ],
+                },
+            },
+            {"pkg": "depb", "install": {"requirements": [{"pkg": "depa:run"}]}},
+            {"pkg": "depc"},
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    # the initial resolve of this component will add no new requirements
+    solver.add_request("depa:build")
+    # depb has its own requirement on depa:run, which, also
+    # has a new requirement on depc
+    solver.add_request("depb")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    solution.get("depc")  # should exist

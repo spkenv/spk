@@ -21,10 +21,11 @@ use super::validation::{self, Validators, VarRequirementsValidator};
 #[pyo3(name = "BuildPackage")]
 fn build_package(
     spec: api::Spec,
+    base: State,
     components: HashSet<api::Component>,
     build_env: &Solution,
 ) -> crate::Result<Decision> {
-    super::graph::Decision::builder(spec.into())
+    super::graph::Decision::builder(spec.into(), &base)
         .with_components(&components)
         .build_package(build_env)
 }
@@ -33,10 +34,11 @@ fn build_package(
 #[pyo3(name = "ResolvePackage")]
 fn resolve_package(
     spec: api::Spec,
+    base: State,
     components: HashSet<api::Component>,
     source: PackageSource,
 ) -> Decision {
-    super::graph::Decision::builder(spec.into())
+    super::graph::Decision::builder(spec.into(), &base)
         .with_components(&components)
         .resolve_package(source)
 }
