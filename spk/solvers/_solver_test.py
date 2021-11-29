@@ -838,7 +838,7 @@ def test_solver_some_versions_conflicting_requests(solver: Solver) -> None:
 
     # test when there is a package with some version that have a conflicting dependency
     # - the solver passes over the one with conflicting
-    # - tthe solver logs compat info for versions with conflicts
+    # - the solver logs compat info for versions with conflicts
 
     repo = make_repo(
         [
@@ -865,7 +865,9 @@ def test_solver_some_versions_conflicting_requests(solver: Solver) -> None:
     solver.add_repository(repo)
     solver.add_request("my-lib")
 
-    io.run_and_print_resolve(solver, verbosity=100)
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    assert solution.get("dep").spec.pkg.version == "2.0.0"
 
 
 def test_solver_embedded_request_invalidates(solver: Solver) -> None:
