@@ -167,22 +167,36 @@ impl ValidatorT for EmbeddedPackageValidator {
         }
 
         for embedded in spec.install.embedded.iter() {
-            let existing = match state.get_merged_request(embedded.pkg.name()) {
-                Ok(request) => request,
-                Err(errors::GetMergedRequestError::NoRequestFor(_)) => continue,
-                Err(err) => return Err(err.into()),
-            };
-
-            let compat = existing.is_satisfied_by(embedded);
+            let compat = Self::validate_embedded_package_against_state(embedded, state)?;
             if !&compat {
-                return Ok(api::Compatibility::Incompatible(format!(
-                    "embedded package '{}' is incompatible: {}",
-                    embedded.pkg, compat
-                )));
+                return Ok(compat);
             }
         }
 
         Ok(api::Compatibility::Compatible)
+    }
+}
+
+impl EmbeddedPackageValidator {
+    fn validate_embedded_package_against_state(
+        embedded: &api::Spec,
+        state: &graph::State,
+    ) -> crate::Result<Compatibility> {
+        use Compatibility::{Compatible, Incompatible};
+        let existing = match state.get_merged_request(embedded.pkg.name()) {
+            Ok(request) => request,
+            Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
+            Err(err) => return Err(err.into()),
+        };
+
+        let compat = existing.is_satisfied_by(embedded);
+        if !&compat {
+            return Ok(Incompatible(format!(
+                "embedded package '{}' is incompatible: {}",
+                embedded.pkg, compat
+            )));
+        }
+        Ok(Compatible)
     }
 }
 
@@ -295,28 +309,28 @@ impl ValidatorT for ComponentsValidator {
         spec: &api::Spec,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        use Compatibility::Compatible;
         if spec.pkg.build.is_none() {
             // we are only concerned with published package components,
             // source builds will validate against the spec separately
             // (and provide a better error message)
-            return Ok(api::Compatibility::Compatible);
+            return Ok(Compatible);
         }
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::Spec(_) => spec.install.components.names(),
         };
         let request = state.get_merged_request(spec.pkg.name())?;
-        let mut required_components = spec
+        let required_components = spec
             .install
             .components
             .resolve_uses(request.pkg.components.iter());
-        for key in available_components.iter() {
-            required_components.remove(key);
-        }
-        if required_components.is_empty() {
-            Ok(api::Compatibility::Compatible)
-        } else {
-            Ok(api::Compatibility::Incompatible(format!(
+        let missing_components: std::collections::HashSet<_> = required_components
+            .iter()
+            .filter(|n| !available_components.contains(n))
+            .collect();
+        if !missing_components.is_empty() {
+            return Ok(api::Compatibility::Incompatible(format!(
                 "no published files for some required components: [{}], found [{}]",
                 required_components
                     .iter()
@@ -328,8 +342,24 @@ impl ValidatorT for ComponentsValidator {
                     .map(api::Component::to_string)
                     .sorted()
                     .join(", ")
-            )))
+            )));
         }
+
+        for component in spec.install.components.iter() {
+            if !required_components.contains(&component.name) {
+                continue;
+            }
+
+            for embedded in component.embedded.iter() {
+                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
+                    embedded, state,
+                )?;
+                if !&compat {
+                    return Ok(compat);
+                }
+            }
+        }
+        Ok(Compatible)
     }
 }
 
@@ -364,7 +394,7 @@ impl ValidatorT for PkgRequirementsValidator {
         }
 
         for request in spec.install.requirements.iter() {
-            let compat = Self::validate_request_against_existing_state(&state, request)?;
+            let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {
                 return Ok(compat);
             }
@@ -376,6 +406,7 @@ impl ValidatorT for PkgRequirementsValidator {
 
 impl PkgRequirementsValidator {
     fn validate_request_against_existing_state(
+        &self,
         state: &graph::State,
         request: &api::Request,
     ) -> crate::Result<api::Compatibility> {
@@ -385,15 +416,16 @@ impl PkgRequirementsValidator {
             _ => return Ok(Compatible),
         };
 
-        let mut existing = match state.get_merged_request(request.pkg.name()) {
+        let existing = match state.get_merged_request(request.pkg.name()) {
             Ok(request) => request,
             Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             // XXX: KeyError or ValueError still possible here?
             Err(err) => return Err(err.into()),
         };
 
-        let request = match existing.restrict(request) {
-            Ok(_) => existing,
+        let mut restricted = existing.clone();
+        let request = match restricted.restrict(request) {
+            Ok(_) => restricted,
             // FIXME: only match ValueError
             Err(crate::Error::PyErr(err)) => {
                 return Ok(Incompatible(format!("conflicting requirement: {}", err)))
@@ -409,7 +441,46 @@ impl PkgRequirementsValidator {
             Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => return Ok(Compatible),
         };
 
-        Self::validate_request_against_existing_resolve(&request, resolved, provided_components)
+        let compat = Self::validate_request_against_existing_resolve(
+            &request,
+            resolved,
+            provided_components,
+        )?;
+        if !&compat {
+            return Ok(compat);
+        }
+
+        let existing_components = resolved
+            .install
+            .components
+            .resolve_uses(existing.pkg.components.iter());
+        let required_components = resolved
+            .install
+            .components
+            .resolve_uses(request.pkg.components.iter());
+        for component in resolved.install.components.iter() {
+            if existing_components.contains(&component.name) {
+                continue;
+            }
+            if !required_components.contains(&component.name) {
+                continue;
+            }
+            for embedded in component.embedded.iter() {
+                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
+                    embedded, state,
+                )?;
+                if !&compat {
+                    return Ok(Compatibility::Incompatible(format!(
+                        "requires {}:{} which embeds {}, and {}",
+                        resolved.pkg.name(),
+                        component.name,
+                        embedded.pkg.name(),
+                        compat,
+                    )));
+                }
+            }
+        }
+        Ok(Compatible)
     }
 
     fn validate_request_against_existing_resolve(
