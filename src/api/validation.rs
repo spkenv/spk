@@ -6,6 +6,7 @@ use std::iter::FromIterator;
 
 use serde::{Deserialize, Serialize};
 
+use super::Spec;
 use crate::Result;
 
 #[cfg(test)]
@@ -17,21 +18,26 @@ mod validation_test;
 pub enum Validator {
     MustInstallSomething,
     MustNotAlterExistingFiles,
+    MustCollectAllFiles,
 }
 
 impl Validator {
     /// Validate the set of changes to spfs according to this validator
     pub fn validate<P: AsRef<std::path::Path>>(
         &self,
+        spec: &Spec,
         diffs: &[spfs::tracking::Diff],
         prefix: P,
     ) -> Option<String> {
         match self {
-            Validator::MustInstallSomething => {
-                super::validators::must_install_something(diffs, prefix)
+            Self::MustInstallSomething => {
+                super::validators::must_install_something(spec, diffs, prefix)
             }
-            Validator::MustNotAlterExistingFiles => {
-                super::validators::must_not_alter_existing_files(diffs, prefix)
+            Self::MustNotAlterExistingFiles => {
+                super::validators::must_not_alter_existing_files(spec, diffs, prefix)
+            }
+            Self::MustCollectAllFiles => {
+                super::validators::must_collect_all_files(spec, diffs, prefix)
             }
         }
     }
@@ -42,6 +48,7 @@ pub fn default_validators() -> Vec<Validator> {
     vec![
         Validator::MustInstallSomething,
         Validator::MustNotAlterExistingFiles,
+        Validator::MustCollectAllFiles,
     ]
 }
 
@@ -69,7 +76,7 @@ impl ValidationSpec {
     }
 
     /// Validate the current set of spfs changes as a build of this package
-    pub fn validate_build_changeset(&self) -> Result<()> {
+    pub fn validate_build_changeset(&self, spec: &Spec) -> Result<()> {
         static SPFS: &str = "/spfs";
 
         let mut diffs = spfs::diff(None, None)?;
@@ -79,7 +86,7 @@ impl ValidationSpec {
         crate::build::reset_permissions(&mut diffs, SPFS)?;
 
         for validator in self.configured_validators().iter() {
-            if let Some(err) = validator.validate(&diffs, SPFS) {
+            if let Some(err) = validator.validate(spec, &diffs, SPFS) {
                 return Err(super::InvalidBuildError::new_error(format!(
                     "{:?}: {}",
                     validator, err

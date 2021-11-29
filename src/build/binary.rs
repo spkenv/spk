@@ -355,8 +355,6 @@ impl BinaryPackageBuilder {
 
         tracing::info!("Validating package fileset...");
         self.spec
-            .build
-            .validation
             .validate_build_changeset()
             .map_err(|err| BuildError::new_error(format_args!("{}", err.to_string())))?;
 

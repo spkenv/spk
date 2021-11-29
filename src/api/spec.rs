@@ -22,7 +22,7 @@ mod spec_test;
 macro_rules! spec {
     ($($k:ident => $v:expr),* $(,)?) => {{
         use std::convert::TryInto;
-        let mut spec = Spec::default();
+        let mut spec = crate::api::Spec::default();
         $(spec.$k = $v.try_into().unwrap();)*
         spec
     }};
@@ -159,6 +159,10 @@ impl Spec {
 
     fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
         super::python::to_dict(self, py)
+    }
+
+    pub fn validate_build_changeset(&self) -> Result<()> {
+        self.build.validation.validate_build_changeset(self)
     }
 
     fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {
