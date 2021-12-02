@@ -58,7 +58,7 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
                     abouts.push(format!("mode {{{:06o}=>{:06o}}}", a.mode, b.mode));
                 }
                 if a.object != b.object {
-                    abouts.push("object".to_string());
+                    abouts.push("content".to_string());
                 }
                 if a.size != b.size {
                     abouts.push(format!("size {{{}=>{}}}", a.size, b.size));
