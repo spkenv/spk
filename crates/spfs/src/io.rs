@@ -16,7 +16,19 @@ pub fn format_digest<R: AsRef<str>>(
         Some(repo) => {
             let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()) {
                 Ok(aliases) => aliases.into_iter().map(|r| r.to_string()).collect(),
+                // Formatting an invalid reference is strange, but not a good enough
+                // reason to return an error at this point
                 Err(crate::Error::InvalidReference(_)) => Default::default(),
+                // this is unlikely to happen, if things are setup and called correctly
+                // but in cases where this error does come up it's not a good enough reason
+                // to fail this formatting process
+                Err(crate::Error::UnknownReference(_)) => Default::default(),
+                // we won't be able to find aliases, but can still continue
+                // with formatting what we do have
+                Err(crate::Error::AmbiguousReference(_)) => Default::default(),
+                // this hints at deeper data integrity issues in the repository,
+                // but that is not a good enought reason to bail out here
+                Err(crate::Error::UnknownObject(_)) => Default::default(),
                 Err(err) => return Err(err),
             };
 
