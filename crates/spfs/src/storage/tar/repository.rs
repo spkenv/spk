@@ -97,11 +97,11 @@ impl Drop for TarRepository {
 }
 
 impl graph::DatabaseView for TarRepository {
-    fn read_object(&self, digest: &encoding::Digest) -> graph::Result<graph::Object> {
+    fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
         self.repo.read_object(digest)
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = graph::Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
         self.repo.iter_digests()
     }
 
@@ -115,13 +115,13 @@ impl graph::DatabaseView for TarRepository {
 }
 
 impl graph::Database for TarRepository {
-    fn write_object(&mut self, obj: &graph::Object) -> graph::Result<()> {
+    fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
         self.repo.write_object(obj)?;
         self.up_to_date = false;
         Ok(())
     }
 
-    fn remove_object(&mut self, digest: &encoding::Digest) -> graph::Result<()> {
+    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
         self.repo.remove_object(digest)?;
         self.up_to_date = false;
         Ok(())

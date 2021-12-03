@@ -8,7 +8,7 @@ pub trait PlatformStorage: graph::Database {
     /// Iterate the objects in this storage which are platforms.
     fn iter_platforms<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Platform)>> + 'db> {
+    ) -> Box<dyn Iterator<Item = Result<(encoding::Digest, graph::Platform)>> + 'db> {
         use graph::Object;
         Box::new(self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {

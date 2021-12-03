@@ -4,8 +4,8 @@
 
 use std::collections::VecDeque;
 
-use super::{AmbiguousReferenceError, Object, Result, UnknownReferenceError};
-use crate::encoding;
+use super::Object;
+use crate::{encoding, Error, Result};
 
 /// Walks an object tree depth-first starting at some root digest
 pub struct DatabaseWalker<'db> {
@@ -95,7 +95,7 @@ pub trait DatabaseView {
     /// Read information about the given object from the database.
     ///
     /// # Errors:
-    /// - [`super::UnknownObjectError`]: if the object is not in this database
+    /// - [`spfs::Error::UnknownObject`]: if the object is not in this database
     fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
 
     /// Iterate all the object digests in this database.
@@ -161,9 +161,9 @@ pub trait DatabaseView {
         }
 
         match options.len() {
-            0 => Err(UnknownReferenceError::new_err(partial.to_string())),
+            0 => Err(Error::UnknownReference(partial.to_string())),
             1 => Ok(options.get(0).unwrap().to_owned()),
-            _ => Err(AmbiguousReferenceError::new_err(partial.to_string())),
+            _ => Err(Error::AmbiguousReference(partial.to_string())),
         }
     }
 }

@@ -5,9 +5,7 @@ use std::io;
 
 use thiserror::Error;
 
-use super::commit::NothingToCommitError;
-use super::status::NoRuntimeError;
-use crate::graph;
+use crate::encoding;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -24,18 +22,22 @@ pub enum Error {
     #[error(transparent)]
     Config(#[from] config::ConfigError),
 
-    #[error("{0}")]
-    UnknownObject(#[from] graph::UnknownObjectError),
-    #[error("{0}")]
-    UnknownReference(#[from] graph::UnknownReferenceError),
-    #[error("{0}")]
-    AmbiguousReference(#[from] graph::AmbiguousReferenceError),
-    #[error("{0}")]
-    InvalidReference(#[from] graph::InvalidReferenceError),
-    #[error("{0}")]
-    NothingToCommit(#[from] NothingToCommitError),
-    #[error("{0}")]
-    NoRuntime(#[from] NoRuntimeError),
+    /// Denotes a missing object or one that is not present in the database.
+    #[error("Unknown Object: {0}")]
+    UnknownObject(encoding::Digest),
+    /// Denotes a reference that is not present in the database
+    #[error("Unknown Reference: {0}")]
+    UnknownReference(String),
+    /// Denotes a reference that could refer to more than one object in the storage.
+    #[error("Ambiguous reference [too short]: {0}")]
+    AmbiguousReference(String),
+    /// Denotes a reference that does not meet the syntax requirements
+    #[error("Invalid Reference: {0}")]
+    InvalidReference(String),
+    #[error("Nothing to commit, resulting filesystem would be empty")]
+    NothingToCommit,
+    #[error("No active runtime")]
+    NoRuntime,
 }
 
 impl Error {
@@ -85,6 +87,32 @@ impl Error {
             }
             _ => None,
         }
+    }
+}
+
+impl From<nix::errno::Errno> for Error {
+    fn from(errno: nix::errno::Errno) -> Error {
+        Error::Nix(nix::Error::from_errno(errno))
+    }
+}
+impl From<i32> for Error {
+    fn from(errno: i32) -> Error {
+        Error::IO(std::io::Error::from_raw_os_error(errno))
+    }
+}
+impl From<String> for Error {
+    fn from(err: String) -> Self {
+        Self::String(err)
+    }
+}
+impl From<&str> for Error {
+    fn from(err: &str) -> Self {
+        Self::String(err.to_string())
+    }
+}
+impl From<std::path::StripPrefixError> for Error {
+    fn from(err: std::path::StripPrefixError) -> Self {
+        Error::String(err.to_string())
     }
 }
 

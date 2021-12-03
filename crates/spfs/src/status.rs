@@ -8,21 +8,6 @@ use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 
-#[derive(Debug)]
-pub struct NoRuntimeError {
-    pub message: String,
-}
-
-impl NoRuntimeError {
-    pub fn new_err<S: AsRef<str>>(details: Option<S>) -> Error {
-        let mut msg = "No active runtime".to_string();
-        if let Some(details) = details {
-            msg = format!("{}: {}", msg, details.as_ref());
-        }
-        Error::NoRuntime(Self { message: msg })
-    }
-}
-
 /// Unlock the current runtime file system so that it can be modified.
 ///
 /// Once modified, active changes can be committed
@@ -78,8 +63,7 @@ pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manif
 
 /// Return the active runtime, or raise a NoRuntimeError.
 pub fn active_runtime() -> Result<runtime::Runtime> {
-    let name =
-        std::env::var(SPFS_RUNTIME).map_err(|_| NoRuntimeError::new_err(Option::<&str>::None))?;
+    let name = std::env::var(SPFS_RUNTIME).map_err(|_| Error::NoRuntime)?;
     let config = load_config()?;
     let storage = config.get_runtime_storage()?;
     storage.read_runtime(name)

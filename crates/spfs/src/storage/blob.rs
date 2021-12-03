@@ -8,7 +8,7 @@ pub trait BlobStorage: graph::Database {
     /// Iterate the objects in this storage which are blobs."""
     fn iter_blobs<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = graph::Result<(encoding::Digest, graph::Blob)>> + 'db>
+    ) -> Box<dyn Iterator<Item = Result<(encoding::Digest, graph::Blob)>> + 'db>
     where
         Self: Sized,
     {

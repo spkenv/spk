@@ -35,7 +35,7 @@ pub use resolve::{
 mod status;
 pub use status::{
     active_runtime, compute_runtime_manifest, initialize_runtime, make_active_runtime_editable,
-    reinitialize_runtime, remount_runtime, NoRuntimeError,
+    reinitialize_runtime, remount_runtime,
 };
 mod bootstrap;
 pub use bootstrap::{
@@ -44,7 +44,7 @@ pub use bootstrap::{
 mod sync;
 pub use sync::{pull_ref, push_ref, sync_object, sync_ref};
 mod commit;
-pub use commit::{commit_layer, commit_platform, NothingToCommitError};
+pub use commit::{commit_layer, commit_platform};
 mod clean;
 pub use clean::{
     clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,

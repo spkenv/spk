@@ -5,21 +5,21 @@
 use std::os::unix::fs::PermissionsExt;
 
 use crate::graph::Object;
-use crate::{encoding, graph, Error};
+use crate::{encoding, graph, Error, Result};
 use encoding::{Decodable, Encodable};
 use graph::DatabaseView;
 
 impl DatabaseView for super::FSRepository {
-    fn read_object(&self, digest: &encoding::Digest) -> graph::Result<graph::Object> {
+    fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
         let filepath = self.objects.build_digest_path(digest);
         let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => graph::UnknownObjectError::new_err(digest),
+            std::io::ErrorKind::NotFound => Error::UnknownObject(*digest),
             _ => Error::from(err),
         })?;
         Object::decode(&mut reader)
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = graph::Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
         match self.objects.iter() {
             Ok(iter) => Box::new(iter),
             Err(err) => Box::new(vec![Err(err)].into_iter()),
@@ -34,16 +34,13 @@ impl DatabaseView for super::FSRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    fn resolve_full_digest(
-        &self,
-        partial: &encoding::PartialDigest,
-    ) -> graph::Result<encoding::Digest> {
+    fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<encoding::Digest> {
         self.objects.resolve_full_digest(partial)
     }
 }
 
 impl graph::Database for super::FSRepository {
-    fn write_object(&mut self, obj: &graph::Object) -> graph::Result<()> {
+    fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {

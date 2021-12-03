@@ -8,7 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use crate::runtime::makedirs_with_perms;
-use crate::{encoding, graph, Error, Result};
+use crate::{encoding, Error, Result};
 
 static WORK_DIRNAME: &str = "work";
 
@@ -141,8 +141,8 @@ impl FSHashStore {
     /// Given a shortened digest, resolve the full object path.
     ///
     /// # Errors:
-    /// - graph::UnknownObjectError: if the digest cannot be resolved
-    /// - graph::AmbiguousReferenceError: if the digest resolves to more than one path
+    /// - spfs::Error::UnknownObject: if the digest cannot be resolved
+    /// - spfs::Error::AmbiguousReference: if the digest resolves to more than one path
     pub fn resolve_full_digest_path(&self, partial: &encoding::PartialDigest) -> Result<PathBuf> {
         let short_digest = partial.to_string();
         let (dirname, file_prefix) = (&short_digest[..2], &short_digest[2..]);
@@ -154,7 +154,7 @@ impl FSHashStore {
         let entries: Vec<std::ffi::OsString> = match std::fs::read_dir(&dirpath) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => Err(graph::UnknownReferenceError::new_err(short_digest)),
+                    ErrorKind::NotFound => Err(Error::UnknownReference(short_digest)),
                     _ => Err(err.into()),
                 }
             }
@@ -174,9 +174,9 @@ impl FSHashStore {
             .filter(|x| x.to_string_lossy().starts_with(file_prefix))
             .collect();
         match options.len() {
-            0 => Err(graph::UnknownReferenceError::new_err(short_digest)),
+            0 => Err(Error::UnknownReference(short_digest)),
             1 => Ok(dirpath.join(options.get(0).unwrap())),
-            _ => Err(graph::AmbiguousReferenceError::new_err(short_digest)),
+            _ => Err(Error::AmbiguousReference(short_digest)),
         }
     }
 
@@ -189,7 +189,7 @@ impl FSHashStore {
         let entries: Vec<_> = match std::fs::read_dir(filepath.parent().unwrap()) {
             Err(err) => {
                 return match err.kind() {
-                    ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
+                    ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
                     _ => Err(err.into()),
                 };
             }
@@ -222,8 +222,8 @@ impl FSHashStore {
     /// Resolve the complete object digest from a shortened one.
     ///
     /// # Errors:
-    /// - graph::UnknownObjectError: if the digest cannot be resolved
-    /// - graph::AmbiguousReferenceError: if the digest resolves to more than one path
+    /// - spfs::Error::UnknownObject: if the digest cannot be resolved
+    /// - spfs::Error::AmbiguousReference: if the digest resolves to more than one path
     pub fn resolve_full_digest(
         &self,
         partial: &encoding::PartialDigest,

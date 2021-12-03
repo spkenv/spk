@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use super::ManifestViewer;
-use crate::{encoding, graph, tracking, Result};
+use crate::{encoding, graph, tracking, Error, Result};
 use encoding::Encodable;
 use graph::{Blob, Manifest};
 
@@ -69,7 +69,7 @@ pub trait Repository:
         }
 
         let partial = encoding::PartialDigest::parse(reference)
-            .map_err(|_| graph::UnknownReferenceError::new_err(reference))?;
+            .map_err(|_| Error::UnknownReference(reference.to_string()))?;
         self.resolve_full_digest(&partial)
     }
 

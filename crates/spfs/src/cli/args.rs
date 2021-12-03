@@ -135,7 +135,7 @@ macro_rules! main {
             match result {
                 Err(err) => {
                     args::capture_if_relevant(&err);
-                    tracing::error!("{}", spfs::io::format_error(&err));
+                    tracing::error!("{}", err);
                     1
                 }
                 Ok(code) => code,
@@ -146,11 +146,11 @@ macro_rules! main {
 
 pub fn capture_if_relevant(err: &spfs::Error) {
     match err {
-        spfs::Error::NoRuntime(_) => (),
+        spfs::Error::NoRuntime => (),
         spfs::Error::UnknownObject(_) => (),
         spfs::Error::UnknownReference(_) => (),
         spfs::Error::AmbiguousReference(_) => (),
-        spfs::Error::NothingToCommit(_) => (),
+        spfs::Error::NothingToCommit => (),
         _ => {
             sentry::capture_error(err);
         }

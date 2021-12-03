@@ -112,7 +112,7 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
         if let Some(item_manifest) = item_manifest {
             full_manifest.update(&item_manifest);
         } else {
-            return Err(graph::UnknownReferenceError::new_err(tag_spec.to_string()));
+            return Err(Error::UnknownReference(tag_spec.to_string()));
         }
     }
     Ok(full_manifest)
