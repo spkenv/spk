@@ -21,6 +21,8 @@ pub enum Error {
     JSON(#[from] serde_json::Error),
     #[error(transparent)]
     Config(#[from] config::ConfigError),
+    #[error(transparent)]
+    InvalidRemoteUrl(#[from] url::ParseError),
 
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]
@@ -44,6 +46,9 @@ pub enum Error {
     MissingBinary(&'static str),
     #[error("No supported shell found, or no support for current shell")]
     NoSupportedShell,
+
+    #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
+    IncompleteClean { errors: Vec<Self> },
 }
 
 impl Error {

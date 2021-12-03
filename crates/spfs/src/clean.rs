@@ -28,6 +28,9 @@ pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
 }
 
 /// Remove the identified objects from the given repository.
+///
+/// # Errors
+/// - [`spfs::Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
 pub fn purge_objects(
     objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
@@ -80,18 +83,10 @@ pub fn purge_objects(
             .collect(),
     );
 
-    let errors: Vec<_> = results
-        .iter()
-        .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
-        .collect();
+    let errors: Vec<_> = results.into_iter().filter_map(|res| res.err()).collect();
 
     if !errors.is_empty() {
-        let msg = format!(
-            "{:?}, and {} more errors during clean",
-            errors[0],
-            errors.len() - 1
-        );
-        Err(msg.into())
+        Err(Error::IncompleteClean { errors })
     } else {
         Ok(())
     }

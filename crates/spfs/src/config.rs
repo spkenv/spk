@@ -128,8 +128,7 @@ impl Config {
                 if let Ok(addr) = url::Url::parse(name_or_address.as_ref()) {
                     addr
                 } else {
-                    url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())
-                        .map_err(|err| crate::Error::from(format!("{:?}", err)))?
+                    url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())?
                 }
             }
         };
