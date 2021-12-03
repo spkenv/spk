@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use super::resolve::{which, which_spfs};
 use super::status::active_runtime;
-use crate::{runtime, Result};
+use crate::{runtime, Error, Result};
 
 #[cfg(test)]
 #[path = "./bootstrap_test.rs"]
@@ -22,7 +22,7 @@ pub fn build_command_for_runtime(
     args: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
     match which_spfs("init") {
-        None => Err("'spfs-init' not found in PATH".into()),
+        None => Err(Error::MissingBinary("spfs-init")),
         Some(spfs_init_exe) => {
             let mut spfs_args = vec![
                 spfs_init_exe.as_os_str().to_owned(),
@@ -115,7 +115,7 @@ pub fn build_shell_initialized_command(
     let startup_file = match shell_name.as_str() {
         "bash" | "sh" => runtime.sh_startup_file,
         "tcsh" | "csh" => runtime.csh_startup_file,
-        _ => return Err("No supported shell found, or no support for current shell".into()),
+        _ => return Err(Error::NoSupportedShell),
     };
 
     let mut cmd = vec![desired_shell, startup_file.into(), command];
@@ -127,7 +127,7 @@ pub(crate) fn build_spfs_remount_command(
     rt: &runtime::Runtime,
 ) -> Result<(OsString, Vec<OsString>)> {
     let exe = match which_spfs("enter") {
-        None => return Err("'spfs-enter' not found in PATH".into()),
+        None => return Err(Error::MissingBinary("spfs-enter")),
         Some(exe) => exe,
     };
 
@@ -142,7 +142,7 @@ fn build_spfs_enter_command(
     command: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
     let exe = match which_spfs("enter") {
-        None => return Err("'spfs-enter' not found in PATH".into()),
+        None => return Err(Error::MissingBinary("spfs-enter")),
         Some(exe) => exe,
     };
 

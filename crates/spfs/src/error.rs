@@ -34,10 +34,16 @@ pub enum Error {
     /// Denotes a reference that does not meet the syntax requirements
     #[error("Invalid Reference: {0}")]
     InvalidReference(String),
+
     #[error("Nothing to commit, resulting filesystem would be empty")]
     NothingToCommit,
     #[error("No active runtime")]
     NoRuntime,
+
+    #[error("'{0}' not found in PATH, was it installed properly?")]
+    MissingBinary(&'static str),
+    #[error("No supported shell found, or no support for current shell")]
+    NoSupportedShell,
 }
 
 impl Error {
