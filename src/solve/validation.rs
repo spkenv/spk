@@ -283,7 +283,7 @@ impl ValidatorT for PkgRequestValidator {
     }
 }
 
-/// Ensures that a all of the requested components are available.
+/// Ensures that all of the requested components are available.
 #[pyclass]
 #[derive(Clone, Copy)]
 pub struct ComponentsValidator {}
