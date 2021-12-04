@@ -79,7 +79,7 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> List[spkrs.Digest]
     for request, spec, source in solution.items():
         if isinstance(source, spk.api.Spec):
             raise ValueError(
-                "Cannot bake, solution requires packages that needs building"
+                "Cannot bake, solution requires packages that need building"
             )
 
         components = source[1]
