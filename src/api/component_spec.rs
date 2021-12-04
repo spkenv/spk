@@ -62,7 +62,7 @@ impl ComponentSpec {
     }
 
     /// Generate the default run component
-    /// (used when non is provided by the package)
+    /// (used when none is provided by the package)
     pub fn default_run() -> Self {
         Self {
             name: Component::Run,
