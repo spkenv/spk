@@ -1186,7 +1186,7 @@ def test_solver_component_availability() -> None:
             # the second pkg has what we request, but is missing a dependant component (lib)
             make_build_and_components(spec372, components=["bin"]),
             # but the last/lowest version number has a publish for all components
-            # and should be the one that is selected bacuase of this
+            # and should be the one that is selected because of this
             make_build_and_components(spec371, components=["bin", "lib"]),
         ]
     )
