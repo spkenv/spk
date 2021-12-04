@@ -29,7 +29,7 @@ fn test_validate_build_changeset_modified() {
 #[test]
 fn test_validate_build_changeset_collected() {
     let mut spec = crate::api::Spec::default();
-    // the default components are added and collect all file,
+    // the default components are added and collect all files,
     // so we remove them to ensure nothing is collected
     let _ = spec.install.components.drain(..);
     let res = must_collect_all_files(
