@@ -49,7 +49,7 @@ impl ComponentSpec {
     }
 
     /// Generate the default build component
-    /// (used when non is provided by the package)
+    /// (used when none is provided by the package)
     pub fn default_build() -> Self {
         Self {
             name: Component::Build,
