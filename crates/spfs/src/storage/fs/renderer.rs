@@ -9,7 +9,7 @@ use super::FSRepository;
 use crate::{
     encoding::{self, Encodable},
     runtime::makedirs_with_perms,
-    storage::{ManifestViewer, PayloadStorage},
+    storage::{ManifestViewer, PayloadStorage, Repository},
     tracking, Error, Result,
 };
 
@@ -39,7 +39,7 @@ impl ManifestViewer for FSRepository {
     fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
         let renders = match &self.renders {
             Some(renders) => renders,
-            None => return Err("repository has not been setup for rendering manifests".into()),
+            None => return Err(Error::NoRenderStorage(self.address())),
         };
         let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath) {

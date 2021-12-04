@@ -47,12 +47,11 @@ pub trait Repository:
     fn address(&self) -> url::Url;
 
     /// If supported, returns the type responsible for locally rendered manifests
+    ///
+    /// # Errors:
+    /// - [`NoRenderStorage`] - if this repository does not support manifest rendering
     fn renders(&self) -> Result<Box<dyn ManifestViewer>> {
-        Err(format!(
-            "Repository does not support local renders: {:?}",
-            self.address()
-        )
-        .into())
+        Err(Error::NoRenderStorage(self.address()))
     }
 
     /// Return true if this repository contains the given reference.

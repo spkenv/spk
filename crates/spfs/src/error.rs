@@ -38,6 +38,8 @@ pub enum Error {
     /// Denotes a reference that does not meet the syntax requirements
     #[error("Invalid Reference: {0}")]
     InvalidReference(String),
+    #[error("Repository does not support manifest rendering: {0:?}")]
+    NoRenderStorage(url::Url),
 
     #[error("Nothing to commit, resulting filesystem would be empty")]
     NothingToCommit,
