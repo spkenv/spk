@@ -146,7 +146,7 @@ macro_rules! main {
 
 pub fn capture_if_relevant(err: &spfs::Error) {
     match err {
-        spfs::Error::NoRuntime => (),
+        spfs::Error::NoActiveRuntime => (),
         spfs::Error::UnknownObject(_) => (),
         spfs::Error::UnknownReference(_) => (),
         spfs::Error::AmbiguousReference(_) => (),

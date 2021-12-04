@@ -40,7 +40,11 @@ pub enum Error {
     #[error("Nothing to commit, resulting filesystem would be empty")]
     NothingToCommit,
     #[error("No active runtime")]
-    NoRuntime,
+    NoActiveRuntime,
+    #[error("Runtime has not been initialized: {0}")]
+    RuntimeNotInitialized(String),
+    #[error("Runtime does not exist: {0}")]
+    UnknownRuntime(String),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),

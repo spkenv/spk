@@ -25,7 +25,7 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
     check_can_join()?;
 
     let pid = match rt.get_pid() {
-        None => return Err("Runtime has not been initialized".into()),
+        None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
         Some(pid) => pid,
     };
 
@@ -38,7 +38,7 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
         Ok(file) => file,
         Err(err) => {
             return match err.kind() {
-                std::io::ErrorKind::NotFound => Err("Runtime does not exist".into()),
+                std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime(rt.name().into())),
                 _ => Err(err.into()),
             }
         }

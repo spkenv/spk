@@ -13,7 +13,7 @@ static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 /// Once modified, active changes can be committed
 ///
 /// Errors:
-/// - [`NoRuntimeError`]: if there is no active runtime
+/// - [`spfs::Error::NoActiveRuntime`]: if there is no active runtime
 /// - if the active runtime is already editable
 pub fn make_active_runtime_editable() -> Result<()> {
     let mut rt = active_runtime()?;
@@ -61,9 +61,15 @@ pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manif
     Ok(manifest)
 }
 
-/// Return the active runtime, or raise a NoRuntimeError.
+/// Return the currently active runtime
+///
+/// # Errors:
+/// - [`spfs::Error::NoActiveRuntime`] if there is no runtime detected
+/// - [`spfs::Error::UnkownRuntime`] if the environment references a
+///   runtime that is not in the configured runtime storage
+/// - other issues loading the config or accessing the runtime data
 pub fn active_runtime() -> Result<runtime::Runtime> {
-    let name = std::env::var(SPFS_RUNTIME).map_err(|_| Error::NoRuntime)?;
+    let name = std::env::var(SPFS_RUNTIME).map_err(|_| Error::NoActiveRuntime)?;
     let config = load_config()?;
     let storage = config.get_runtime_storage()?;
     storage.read_runtime(name)
