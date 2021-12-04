@@ -23,6 +23,8 @@ pub enum Error {
     Config(#[from] config::ConfigError),
     #[error(transparent)]
     InvalidRemoteUrl(#[from] url::ParseError),
+    #[error("Invalid date time: {0:?}")]
+    InvalidDateTime(#[from] chrono::ParseError),
 
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]
