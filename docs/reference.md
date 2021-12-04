@@ -95,7 +95,7 @@ Package options define a package that is required at build time.
 
 | Field            | Type                                    | Description                                                                                                                                                                                    |
 | ---------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pkg              | _str_                                   | The name of the package that is required, with optional default value (eg just`package_name`, or `package_name/1.4`)                                                                           |
+| pkg              | _str_                                   | The name of the package that is required, with optional default value (eg just `package_name`, or `package_name/1.4`)                                                                          |
 | prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                 |
 | static           | _str_                                   | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the version of the package at build time |
 
