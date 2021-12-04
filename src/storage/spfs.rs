@@ -322,7 +322,7 @@ impl SPFSRepository {
     }
 }
 
-/// A simple enum that allows use to represent both the old and new form
+/// A simple enum that allows us to represent both the old and new form
 /// of package storage as spfs tags.
 enum StoredPackage {
     WithoutComponents(spfs::tracking::TagSpec),
