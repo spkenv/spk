@@ -16,7 +16,7 @@ fn test_request_default_component() {
     let request = state
         .pkg_requests
         .get(0)
-        .expect("solver should have a reqiest");
+        .expect("solver should have a request");
     assert_eq!(
         request.pkg.components,
         vec![api::Component::Run].into_iter().collect(),
