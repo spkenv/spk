@@ -395,7 +395,7 @@ impl SolverRuntime {
         self.graph.read().unwrap().clone()
     }
 
-    /// Returns the final solution for this runtime.
+    /// Returns the completed solution for this runtime.
     ///
     /// If needed, this function will iterate any remaining
     /// steps for the current state.
