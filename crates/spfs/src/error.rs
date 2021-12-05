@@ -49,6 +49,8 @@ pub enum Error {
     RuntimeNotInitialized(String),
     #[error("Runtime does not exist: {0}")]
     UnknownRuntime(String),
+    #[error("Runtime is already editable")]
+    RuntimeAlreadyEditable,
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),

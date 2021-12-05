@@ -14,11 +14,12 @@ static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 ///
 /// Errors:
 /// - [`spfs::Error::NoActiveRuntime`]: if there is no active runtime
-/// - if the active runtime is already editable
+/// - [`spfs::Error::RuntimeAlreadyEditable`]: if the active runtime is already editable
+/// - if there are issues remounting the filesystem
 pub fn make_active_runtime_editable() -> Result<()> {
     let mut rt = active_runtime()?;
     if rt.is_editable() {
-        return Err("Active runtime is already editable".into());
+        return Err(Error::RuntimeAlreadyEditable);
     }
 
     rt.set_editable(true)?;

@@ -36,7 +36,7 @@ pub fn push_ref<R: AsRef<str>>(
 pub fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
     let pull_cmd = match super::which_spfs("pull") {
         Some(cmd) => cmd,
-        None => return Err("'spfs-pull' command not found in environment".into()),
+        None => return Err(Error::MissingBinary("spfs-pull")),
     };
     let mut cmd = std::process::Command::new(pull_cmd);
     cmd.arg(reference.as_ref());

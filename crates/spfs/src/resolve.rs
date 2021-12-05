@@ -26,7 +26,7 @@ pub fn render(spec: &tracking::EnvSpec) -> Result<std::path::PathBuf> {
     use std::os::unix::ffi::OsStrExt;
     let render_cmd = match super::which_spfs("render") {
         Some(cmd) => cmd,
-        None => return Err("'spfs-render' command not found in environment".into()),
+        None => return Err(Error::MissingBinary("spfs-render")),
     };
     let mut cmd = std::process::Command::new(render_cmd);
     cmd.arg(spec.to_string());
