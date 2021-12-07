@@ -37,6 +37,16 @@ pub struct Solver {
     validators: Cow<'static, [Validators]>,
 }
 
+impl Default for Solver {
+    fn default() -> Self {
+        Self {
+            repos: Vec::default(),
+            initial_state_builders: Vec::default(),
+            validators: Cow::from(validation::default_validators()),
+        }
+    }
+}
+
 // Methods not exposed to Python
 impl Solver {
     /// Add a request to this solver.
@@ -216,11 +226,7 @@ pub enum RequestEnum {
 impl Solver {
     #[new]
     fn new() -> Self {
-        Solver {
-            repos: Vec::default(),
-            initial_state_builders: Vec::default(),
-            validators: Cow::from(validation::default_validators()),
-        }
+        Self::default()
     }
 
     /// Add a repository where the solver can get packages.
