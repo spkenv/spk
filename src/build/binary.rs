@@ -6,7 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use super::env::data_path;
-use crate::{api, Result};
+use crate::{api, solve, storage, Result};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -26,23 +26,39 @@ impl BuildError {
     }
 }
 
+/// Identifies the source files that should
+pub enum BuildSource {
+    SourcePackage(api::Ident),
+    LocalPath(std::path::PathBuf)
+}
 
-class BinaryPackageBuilder:
-    """Builds a binary package.
 
-    >>> (
-    ...     BinaryPackageBuilder
-    ...     .from_spec(api.Spec.from_dict({
-    ...         "pkg": "my-pkg",
-    ...         "build": {"script": "echo hello, world"},
-    ...      }))
-    ...     .with_option("debug", "true")
-    ...     .with_source(".")
-    ...     .build()
-    ... ).pkg
-    my-pkg/0.0.0/3I42H3S6
-    """
+/// Builds a binary package.
+///
+/// ```
+/// BinaryPackageBuilder
+///     .from_spec(api.Spec.from_dict({
+///         "pkg": "my-pkg",
+///         "build": {"script": "echo hello, world"},
+///      }))
+///     .with_option("debug", "true")
+///     .with_source(".")
+///     .build()
+/// ).unwrap()
+/// ```
+pub struct BinaryPackageBuilder<'spec> {
+    prefix: std::path::PathBuf,
+    spec: &'spec api::Spec,
+    all_options: api::OptionMap,
+    pkg_options: api::OptionMap,
+    source: BuildSource,
+    solver: solve::Solver,
+    repos: Vec<storage::RepositoryHandle>,
+    interactive: bool,
+}
 
+
+impl<'spec> BinaryPackageBuilder<'spec> {
     def __init__(self) -> None:
 
         self._prefix = "/spfs"
@@ -284,6 +300,7 @@ class BinaryPackageBuilder:
             raise BuildError(
                 f"Build script returned non-zero exit status: {proc.returncode}"
             )
+}
 
 
 /// Return the environment variables to be set for a build of the given package spec.
