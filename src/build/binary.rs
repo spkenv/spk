@@ -75,48 +75,52 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         }
     }
 
-    def get_solve_graph(self) -> solve.Graph:
-        """Return the resolve graph from the build environment.
+    /// Return the resolve graph from the build environment.
+    ///
+    /// This is most useful for debugging build environments that failed to resolve,
+    /// and builds that failed with a SolverError.
+    ///
+    /// If the builder has not run, return an incomplete graph.
+    pub fn get_solve_graph(&self) -> solve::Graph {
+        return self.solver.get_last_solve_graph()
+    }
 
-        This is most useful for debugging build environments that failed to resolve,
-        and builds that failed with a SolverError.
+    pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
+    where
+        N: Into<String>,
+        V: Into<String>,
+    {
+        self.all_options.insert(name.into(), value.into());
+        self
+    }
 
-        If the builder has not run, return an incomplete graph.
-        """
+    pub fn with_options(&mut self, options: api::OptionMap) -> &mut Self {
+        self.all_options.extend(options.into_iter());
+        self
+    }
 
-        return self._solver.get_last_solve_graph()
+    pub fn with_source(&mut self, source: BuildSource) -> &mut Self {
+        self.source = source;
+        self
+    }
 
-    def with_option(self, name: str, value: str) -> "BinaryPackageBuilder":
+    pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> Self {
+        self.repos.push(repo);
+        self
+    }
 
-        self._all_options[name] = value
-        return self
+    pub fn with_repositories(
+        self, repos: impl IntoIterator<Item = storage::RepositoryHandle>
+    ) -> Self {
+        self.repos.extend(repos);
+        self
+    }
 
-    def with_options(self, options: api.OptionMap) -> "BinaryPackageBuilder":
+    pub fn set_interactive(&mut self, interactive: bool) -> &mut Self {
+        self.interactive = interactive;
+        self
+    }
 
-        self._all_options.update(options)
-        return self
-
-    def with_source(self, source: Union[str, api.Ident]) -> "BinaryPackageBuilder":
-
-        self._source = source
-        return self
-
-    def with_repository(self, repo: storage.Repository) -> "BinaryPackageBuilder":
-
-        self._repos.append(repo)
-        return self
-
-    def with_repositories(
-        self, repos: Iterable[storage.Repository]
-    ) -> "BinaryPackageBuilder":
-
-        self._repos.extend(repos)
-        return self
-
-    def set_interactive(self, interactive: bool) -> "BinaryPackageBuilder":
-
-        self._interactive = interactive
-        return self
 
     def build(self) -> api.Spec:
         """Build the requested binary package."""
