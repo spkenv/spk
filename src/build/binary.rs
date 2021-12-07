@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -29,9 +30,8 @@ impl BuildError {
 /// Identifies the source files that should
 pub enum BuildSource {
     SourcePackage(api::Ident),
-    LocalPath(std::path::PathBuf)
+    LocalPath(PathBuf),
 }
-
 
 /// Builds a binary package.
 ///
@@ -47,7 +47,7 @@ pub enum BuildSource {
 /// ).unwrap()
 /// ```
 pub struct BinaryPackageBuilder<'spec> {
-    prefix: std::path::PathBuf,
+    prefix: PathBuf,
     spec: &'spec api::Spec,
     all_options: api::OptionMap,
     pkg_options: api::OptionMap,
@@ -57,20 +57,16 @@ pub struct BinaryPackageBuilder<'spec> {
     interactive: bool,
 }
 
-
 impl<'spec> BinaryPackageBuilder<'spec> {
-
     pub fn from_spec(spec: &'spec api::Spec) -> Self {
         Self {
             spec,
-            prefix: std::path::PathBuf::from("/spfs"),
+            prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
             pkg_options: api::OptionMap::default(),
-            source: BuildSource::SourcePackage(
-                spec.pkg.with_build(Some(api::Build::Source))
-            ),
+            source: BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source))),
             solver: solve::Solver::default(),
-            repos:  Default::default(),
+            repos: Default::default(),
             interactive: false,
         }
     }
@@ -82,7 +78,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     ///
     /// If the builder has not run, return an incomplete graph.
     pub fn get_solve_graph(&self) -> solve::Graph {
-        return self.solver.get_last_solve_graph()
+        return self.solver.get_last_solve_graph();
     }
 
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
@@ -104,14 +100,15 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         self
     }
 
-    pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> Self {
+    pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
         self.repos.push(repo);
         self
     }
 
     pub fn with_repositories(
-        self, repos: impl IntoIterator<Item = storage::RepositoryHandle>
-    ) -> Self {
+        &mut self,
+        repos: impl IntoIterator<Item = storage::RepositoryHandle>,
+    ) -> &mut Self {
         self.repos.extend(repos);
         self
     }
@@ -121,188 +118,198 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         self
     }
 
+    /// Build the requested binary package.
+    pub fn build(&mut self) -> api::Spec {
+        todo!()
+        // assert (
+        //     self._spec is not None
+        // ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
-    def build(self) -> api.Spec:
-        """Build the requested binary package."""
+        // spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
+        // _runtime = spkrs.active_runtime()
 
-        assert (
-            self._spec is not None
-        ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
+        // self._pkg_options = self._spec.resolve_all_options(self._all_options)
+        // _LOGGER.debug("package options", options=self._pkg_options)
+        // compat = self._spec.build.validate_options(
+        //     self._spec.pkg.name, self._all_options
+        // )
+        // if not compat:
+        //     raise ValueError(compat)
+        // self._all_options.update(self._pkg_options)
 
-        spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
-        _runtime = spkrs.active_runtime()
+        // stack = []
+        // if isinstance(self._source, api.Ident):
+        //     solution = self._resolve_source_package()
+        //     stack = exec.resolve_runtime_layers(solution)
+        // solution = self._resolve_build_environment()
+        // opts = solution.options()
+        // opts.update(self._all_options)
+        // self._all_options = opts
+        // stack.extend(exec.resolve_runtime_layers(solution))
+        // spkrs.reconfigure_runtime(editable=True, stack=stack)
 
-        self._pkg_options = self._spec.resolve_all_options(self._all_options)
-        _LOGGER.debug("package options", options=self._pkg_options)
-        compat = self._spec.build.validate_options(
-            self._spec.pkg.name, self._all_options
-        )
-        if not compat:
-            raise ValueError(compat)
-        self._all_options.update(self._pkg_options)
+        // specs = list(s for _, s, _ in solution.items())
+        // self._spec.update_spec_for_build(self._all_options, specs)
+        // env = os.environ.copy()
+        // env = solution.to_environment(env)
+        // env.update(self._all_options.to_environment())
+        // layer = self._build_and_commit_artifacts(env)
+        // storage.local_repository().publish_package(self._spec, layer)
+        // return self._spec
+    }
 
-        stack = []
-        if isinstance(self._source, api.Ident):
-            solution = self._resolve_source_package()
-            stack = exec.resolve_runtime_layers(solution)
-        solution = self._resolve_build_environment()
-        opts = solution.options()
-        opts.update(self._all_options)
-        self._all_options = opts
-        stack.extend(exec.resolve_runtime_layers(solution))
-        spkrs.reconfigure_runtime(editable=True, stack=stack)
+    fn resolve_source_package(&mut self) -> solve::Solution {
+        todo!()
+        // self._solver.reset()
+        // self._solver.update_options(self._all_options)
+        // self._solver.add_repository(storage.local_repository())
+        // for repo in self._repos:
+        //     if repo == storage.local_repository():
+        //         # local repo is always injected first, and duplicates are redundant
+        //         continue
+        //     self._solver.add_repository(repo)
 
-        specs = list(s for _, s, _ in solution.items())
-        self._spec.update_spec_for_build(self._all_options, specs)
-        env = os.environ.copy()
-        env = solution.to_environment(env)
-        env.update(self._all_options.to_environment())
-        layer = self._build_and_commit_artifacts(env)
-        storage.local_repository().publish_package(self._spec, layer)
-        return self._spec
+        // if isinstance(self._source, api.Ident):
+        //     ident_range = api.parse_ident_range(
+        //         f"{self._source.name}/={self._source.version}/{self._source.build}"
+        //     )
+        //     request = api.PkgRequest(ident_range, "IncludeAll")
+        //     self._solver.add_request(request)
 
-    def _resolve_source_package(self) -> solve.Solution:
+        // runtime = solver.run()
+        // try:
+        //     return runtime.solution()
+        // finally:
+        //     self._last_solve_graph = runtime.graph()
+    }
 
-        self._solver.reset()
-        self._solver.update_options(self._all_options)
-        self._solver.add_repository(storage.local_repository())
-        for repo in self._repos:
-            if repo == storage.local_repository():
-                # local repo is always injected first, and duplicates are redundant
-                continue
-            self._solver.add_repository(repo)
+    fn resolve_build_environment(&mut self) -> solve::Solution {
+        todo!()
+        // self._solver.reset()
+        // self._solver.update_options(self._all_options)
+        // self._solver.set_binary_only(True)
+        // for repo in self._repos:
+        //     self._solver.add_repository(repo)
 
-        if isinstance(self._source, api.Ident):
-            ident_range = api.parse_ident_range(
-                f"{self._source.name}/={self._source.version}/{self._source.build}"
-            )
-            request = api.PkgRequest(ident_range, "IncludeAll")
-            self._solver.add_request(request)
+        // for request in self.get_build_requirements():
+        //     self._solver.add_request(request)
 
-        runtime = solver.run()
-        try:
-            return runtime.solution()
-        finally:
-            self._last_solve_graph = runtime.graph()
+        // runtime = solver.run()
+        // try:
+        //     return runtime.solution()
+        // finally:
+        //     self._last_solve_graph = runtime.graph()
+    }
 
-    def _resolve_build_environment(self) -> solve.Solution:
+    /// List the requirements for the build environment.
+    pub fn get_build_requirements(&self) -> Vec<api::Request> {
+        todo!()
+        // assert (
+        //     self._spec is not None
+        // ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
 
-        self._solver.reset()
-        self._solver.update_options(self._all_options)
-        self._solver.set_binary_only(True)
-        for repo in self._repos:
-            self._solver.add_repository(repo)
+        // opts = self._spec.resolve_all_options(self._all_options)
+        // for opt in self._spec.build.options:
+        //     if isinstance(opt, api.PkgOpt):
+        //         yield opt.to_request(opts.get(opt.pkg))
+        //     elif isinstance(opt, api.VarOpt):
+        //         opt_value = opts.get(opt.var)
+        //         if not opt_value:
+        //             # If no value was specified in the spec, don't
+        //             # turn that into a requirement to find that
+        //             # var with an empty string value.
+        //             continue
+        //         yield opt.to_request(opt_value)
+        //     else:
+        //         raise RuntimeError(f"Unhandled opt type {type(opt)}")
+    }
 
-        for request in self.get_build_requirements():
-            self._solver.add_request(request)
+    fn build_and_commit_artifacts<I, K, V>(&mut self, env: I)
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        todo!()
 
-        runtime = solver.run()
-        try:
-            return runtime.solution()
-        finally:
-            self._last_solve_graph = runtime.graph()
+        // assert self._spec is not None, "Internal Error: spec is None"
 
-    def get_build_requirements(self) -> Iterable[api.Request]:
-        """List the requirements for the build environment."""
+        // self._build_artifacts(env)
 
-        assert (
-            self._spec is not None
-        ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
+        // sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
 
-        opts = self._spec.resolve_all_options(self._all_options)
-        for opt in self._spec.build.options:
-            if isinstance(opt, api.PkgOpt):
-                yield opt.to_request(opts.get(opt.pkg))
-            elif isinstance(opt, api.VarOpt):
-                opt_value = opts.get(opt.var)
-                if not opt_value:
-                    # If no value was specified in the spec, don't
-                    # turn that into a requirement to find that
-                    # var with an empty string value.
-                    continue
-                yield opt.to_request(opt_value)
-            else:
-                raise RuntimeError(f"Unhandled opt type {type(opt)}")
+        // runtime = spkrs.active_runtime()
+        // pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
+        // _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
+        // spkrs.reconfigure_runtime(reset=[pattern])
 
-    def _build_and_commit_artifacts(
-        self, env: MutableMapping[str, str]
-    ) -> spkrs.Digest:
+        // _LOGGER.info("Validating package fileset...")
+        // try:
+        //     self._spec.validate_build_changeset()
+        // except RuntimeError as e:
+        //     raise BuildError(str(e))
 
-        assert self._spec is not None, "Internal Error: spec is None"
+        // return spkrs.commit_layer(runtime)
+    }
 
-        self._build_artifacts(env)
+    fn build_artifacts<I, K, V>(&mut self, env: I)
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        todo!()
+        // assert self._spec is not None
 
-        sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
+        // pkg = self._spec.pkg
 
-        runtime = spkrs.active_runtime()
-        pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
-        _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
-        spkrs.reconfigure_runtime(reset=[pattern])
+        // os.makedirs(self._prefix, exist_ok=True)
 
-        _LOGGER.info("Validating package fileset...")
-        try:
-            self._spec.validate_build_changeset()
-        except RuntimeError as e:
-            raise BuildError(str(e))
+        // metadata_dir = data_path(pkg, prefix=self._prefix)
+        // build_spec = build_spec_path(pkg, prefix=self._prefix)
+        // build_options = build_options_path(pkg, prefix=self._prefix)
+        // build_script = build_script_path(pkg, prefix=self._prefix)
+        // os.makedirs(metadata_dir, exist_ok=True)
+        // api.save_spec_file(build_spec, self._spec)
+        // with open(build_script, "w+") as writer:
+        //     writer.write("\n".join(self._spec.build.script))
+        // with open(build_options, "w+") as writer:
+        //     json.dump(dict(self._all_options.items()), writer, indent="\t")
 
-        return spkrs.commit_layer(runtime)
+        // env.update(self._all_options.to_environment())
+        // env.update(get_package_build_env(self._spec))
+        // env["PREFIX"] = self._prefix
 
-    def _build_artifacts(
-        self,
-        env: MutableMapping[str, str],
-    ) -> None:
+        // if isinstance(self._source, api.Ident):
+        //     source_dir = source_package_path(self._source, self._prefix)
+        // else:
+        //     source_dir = os.path.abspath(self._source)
 
-        assert self._spec is not None
-
-        pkg = self._spec.pkg
-
-        os.makedirs(self._prefix, exist_ok=True)
-
-        metadata_dir = data_path(pkg, prefix=self._prefix)
-        build_spec = build_spec_path(pkg, prefix=self._prefix)
-        build_options = build_options_path(pkg, prefix=self._prefix)
-        build_script = build_script_path(pkg, prefix=self._prefix)
-        os.makedirs(metadata_dir, exist_ok=True)
-        api.save_spec_file(build_spec, self._spec)
-        with open(build_script, "w+") as writer:
-            writer.write("\n".join(self._spec.build.script))
-        with open(build_options, "w+") as writer:
-            json.dump(dict(self._all_options.items()), writer, indent="\t")
-
-        env.update(self._all_options.to_environment())
-        env.update(get_package_build_env(self._spec))
-        env["PREFIX"] = self._prefix
-
-        if isinstance(self._source, api.Ident):
-            source_dir = source_package_path(self._source, self._prefix)
-        else:
-            source_dir = os.path.abspath(self._source)
-
-        # force the base environment to be setup using bash, so that the
-        # spfs startup and build environment are predictable and consistent
-        # (eg in case the user's shell does not have startup scripts in
-        #  the dependencies, is not supported by spfs, etc)
-        if self._interactive:
-            os.environ["SHELL"] = "bash"
-            print("\nNow entering an interactive build shell")
-            print(" - your current directory will be set to the sources area")
-            print(" - build and install your artifacts into /spfs")
-            print(" - this package's build script can be run from: " + build_script)
-            print(" - to cancel and discard this build, run `exit 1`")
-            print(" - to finalize and save the package, run `exit 0`")
-            cmd = spkrs.build_interactive_shell_command()
-        else:
-            os.environ["SHELL"] = "bash"
-            cmd = spkrs.build_shell_initialized_command("bash", "-ex", build_script)
-        with deferred_signals():
-            proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
-            proc.wait()
-        if proc.returncode != 0:
-            raise BuildError(
-                f"Build script returned non-zero exit status: {proc.returncode}"
-            )
+        // # force the base environment to be setup using bash, so that the
+        // # spfs startup and build environment are predictable and consistent
+        // # (eg in case the user's shell does not have startup scripts in
+        // #  the dependencies, is not supported by spfs, etc)
+        // if self._interactive:
+        //     os.environ["SHELL"] = "bash"
+        //     print("\nNow entering an interactive build shell")
+        //     print(" - your current directory will be set to the sources area")
+        //     print(" - build and install your artifacts into /spfs")
+        //     print(" - this package's build script can be run from: " + build_script)
+        //     print(" - to cancel and discard this build, run `exit 1`")
+        //     print(" - to finalize and save the package, run `exit 0`")
+        //     cmd = spkrs.build_interactive_shell_command()
+        // else:
+        //     os.environ["SHELL"] = "bash"
+        //     cmd = spkrs.build_shell_initialized_command("bash", "-ex", build_script)
+        // with deferred_signals():
+        //     proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
+        //     proc.wait()
+        // if proc.returncode != 0:
+        //     raise BuildError(
+        //         f"Build script returned non-zero exit status: {proc.returncode}"
+        //     )
+    }
 }
-
 
 /// Return the environment variables to be set for a build of the given package spec.
 pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
@@ -371,7 +378,7 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
                 let perms = std::fs::Permissions::from_mode(a.mode);
                 std::fs::set_permissions(
                     diff.path
-                        .to_path(std::path::PathBuf::from(prefix.as_ref().to_string())),
+                        .to_path(PathBuf::from(prefix.as_ref().to_string())),
                     perms,
                 )?;
                 diff.mode = spfs::tracking::DiffMode::Unchanged;
