@@ -102,6 +102,15 @@ impl std::fmt::Display for OptionMap {
     }
 }
 
+impl IntoIterator for OptionMap {
+    type IntoIter = std::collections::btree_map::IntoIter<String, String>;
+    type Item = (String, String);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.options.into_iter()
+    }
+}
+
 #[pymethods]
 impl OptionMap {
     #[new]
