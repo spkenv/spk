@@ -59,24 +59,21 @@ pub struct BinaryPackageBuilder<'spec> {
 
 
 impl<'spec> BinaryPackageBuilder<'spec> {
-    def __init__(self) -> None:
 
-        self._prefix = "/spfs"
-        self._spec: Optional[api.Spec] = None
-        self._all_options = api.OptionMap()
-        self._pkg_options = api.OptionMap()
-        self._source: Union[str, api.Ident] = "."
-        self._solver = solve.Solver()
-        self._repos: List[storage.Repository] = []
-        self._interactive = False
-
-    @staticmethod
-    def from_spec(spec: api.Spec) -> "BinaryPackageBuilder":
-
-        builder = BinaryPackageBuilder()
-        builder._spec = spec.copy()
-        builder._source = spec.pkg.with_build(api.SRC)
-        return builder
+    pub fn from_spec(spec: &'spec api::Spec) -> Self {
+        Self {
+            spec,
+            prefix: std::path::PathBuf::from("/spfs"),
+            all_options: api::OptionMap::default(),
+            pkg_options: api::OptionMap::default(),
+            source: BuildSource::SourcePackage(
+                spec.pkg.with_build(Some(api::Build::Source))
+            ),
+            solver: solve::Solver::default(),
+            repos:  Default::default(),
+            interactive: false,
+        }
+    }
 
     def get_solve_graph(self) -> solve.Graph:
         """Return the resolve graph from the build environment.
