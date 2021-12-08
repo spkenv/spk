@@ -26,7 +26,7 @@ pub fn render(spec: &tracking::EnvSpec) -> Result<std::path::PathBuf> {
     use std::os::unix::ffi::OsStrExt;
     let render_cmd = match super::which_spfs("render") {
         Some(cmd) => cmd,
-        None => return Err("'spfs-render' command not found in environment".into()),
+        None => return Err(Error::MissingBinary("spfs-render")),
     };
     let mut cmd = std::process::Command::new(render_cmd);
     cmd.arg(spec.to_string());
@@ -112,7 +112,7 @@ pub fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifes
         if let Some(item_manifest) = item_manifest {
             full_manifest.update(&item_manifest);
         } else {
-            return Err(graph::UnknownReferenceError::new_err(tag_spec.to_string()));
+            return Err(Error::UnknownReference(tag_spec.to_string()));
         }
     }
     Ok(full_manifest)

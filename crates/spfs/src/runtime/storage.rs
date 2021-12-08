@@ -98,7 +98,7 @@ impl Runtime {
             None => return Err("Invalid runtime path, has no filename".into()),
             Some(name) => match name.to_str() {
                 None => {
-                    return Err("Invalid runtime path, basename is not a valid 8tf-8 string".into())
+                    return Err("Invalid runtime path, basename is not a valid utf-8 string".into())
                 }
                 Some(s) => s.to_string(),
             },
@@ -188,6 +188,7 @@ impl Runtime {
     pub fn reset_all(&self) -> Result<()> {
         self.reset(&["*"])
     }
+
     /// Remove working changes from this runtime's upper dir.
     ///
     /// If no paths are specified, reset all changes.
@@ -354,12 +355,18 @@ impl Storage {
     }
 
     /// Access a runtime in this storage.
-    pub fn read_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
+    ///
+    /// # Errors:
+    /// - [`spfs::Error::UnknownRuntime`] if the named runtime does not exist
+    /// - if there are filesystem errors while reading the runtime on disk
+    pub fn read_runtime<R: AsRef<Path>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
         if std::fs::symlink_metadata(&runtime_dir).is_ok() {
             Runtime::new(runtime_dir)
         } else {
-            Err(format!("runtime does not exist: {:?}", reference.as_ref()).into())
+            Err(Error::UnknownRuntime(
+                reference.as_ref().to_string_lossy().into(),
+            ))
         }
     }
 

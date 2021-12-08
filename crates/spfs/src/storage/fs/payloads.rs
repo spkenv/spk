@@ -5,7 +5,7 @@
 use std::io::ErrorKind;
 
 use super::FSRepository;
-use crate::{encoding, graph, Result};
+use crate::{encoding, Error, Result};
 
 impl crate::storage::PayloadStorage for FSRepository {
     fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
@@ -24,7 +24,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         match std::fs::File::open(&path) {
             Ok(file) => Ok(Box::new(file)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
+                ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
                 _ => Err(err.into()),
             },
         }
@@ -35,7 +35,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(graph::UnknownObjectError::new_err(digest)),
+                ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
                 _ => Err(err.into()),
             },
         }

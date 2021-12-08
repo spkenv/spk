@@ -116,9 +116,7 @@ impl encoding::Decodable for Tag {
             name: encoding::read_string(&mut reader)?,
             target: encoding::read_digest(&mut reader)?,
             user: encoding::read_string(&mut reader)?,
-            time: DateTime::parse_from_rfc3339(&encoding::read_string(&mut reader)?)
-                .map_err(|_| Error::from("invalid datetime format in stored tag"))?
-                .into(),
+            time: DateTime::parse_from_rfc3339(&encoding::read_string(&mut reader)?)?.into(),
             parent: encoding::read_digest(reader)?,
         })
     }

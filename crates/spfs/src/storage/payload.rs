@@ -21,13 +21,13 @@ pub trait PayloadStorage {
     /// Return a handle to the full content of a payload.
     ///
     /// # Errors:
-    /// - [`spfs::graph::UnknownObjectError`]: if the payload does not exist in this storage
+    /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
     fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>>;
 
     /// Remove the payload idetified by the given digest.
     ///
     /// Errors:
-    /// - [`spfs::graph::UnknownObjectError`]: if the payload does not exist in this storage
+    /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
     fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()>;
 }
 

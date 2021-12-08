@@ -6,7 +6,6 @@
 mod blob;
 mod database;
 mod entry;
-mod error;
 mod layer;
 mod manifest;
 mod object;
@@ -17,10 +16,6 @@ mod tree;
 pub use blob::Blob;
 pub use database::{Database, DatabaseIterator, DatabaseView, DatabaseWalker};
 pub use entry::Entry;
-pub use error::{
-    AmbiguousReferenceError, InvalidReferenceError, Result, UnknownObjectError,
-    UnknownReferenceError,
-};
 pub use layer::Layer;
 pub use manifest::Manifest;
 pub use object::{Object, ObjectKind};

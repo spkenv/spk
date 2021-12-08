@@ -1,28 +1,64 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
 use std::io;
 
-use super::commit::NothingToCommitError;
-use super::status::NoRuntimeError;
-use crate::graph;
+use thiserror::Error;
 
-#[derive(Debug)]
+use crate::encoding;
+
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("{0}")]
     String(String),
-    Nix(nix::Error),
-    IO(io::Error),
+    #[error(transparent)]
+    Nix(#[from] nix::Error),
+    #[error(transparent)]
+    IO(#[from] io::Error),
+    #[error("[ERRNO {1}] {0}")]
     Errno(String, i32),
-    JSON(serde_json::Error),
-    Config(config::ConfigError),
+    #[error(transparent)]
+    JSON(#[from] serde_json::Error),
+    #[error(transparent)]
+    Config(#[from] config::ConfigError),
+    #[error(transparent)]
+    InvalidRemoteUrl(#[from] url::ParseError),
+    #[error("Invalid date time: {0:?}")]
+    InvalidDateTime(#[from] chrono::ParseError),
 
-    UnknownObject(graph::UnknownObjectError),
-    UnknownReference(graph::UnknownReferenceError),
-    AmbiguousReference(graph::AmbiguousReferenceError),
-    InvalidReference(graph::InvalidReferenceError),
-    NothingToCommit(NothingToCommitError),
-    NoRuntime(NoRuntimeError),
+    /// Denotes a missing object or one that is not present in the database.
+    #[error("Unknown Object: {0}")]
+    UnknownObject(encoding::Digest),
+    /// Denotes a reference that is not present in the database
+    #[error("Unknown Reference: {0}")]
+    UnknownReference(String),
+    /// Denotes a reference that could refer to more than one object in the storage.
+    #[error("Ambiguous reference [too short]: {0}")]
+    AmbiguousReference(String),
+    /// Denotes a reference that does not meet the syntax requirements
+    #[error("Invalid Reference: {0}")]
+    InvalidReference(String),
+    #[error("Repository does not support manifest rendering: {0:?}")]
+    NoRenderStorage(url::Url),
+
+    #[error("Nothing to commit, resulting filesystem would be empty")]
+    NothingToCommit,
+    #[error("No active runtime")]
+    NoActiveRuntime,
+    #[error("Runtime has not been initialized: {0}")]
+    RuntimeNotInitialized(String),
+    #[error("Runtime does not exist: {0}")]
+    UnknownRuntime(String),
+    #[error("Runtime is already editable")]
+    RuntimeAlreadyEditable,
+
+    #[error("'{0}' not found in PATH, was it installed properly?")]
+    MissingBinary(&'static str),
+    #[error("No supported shell found, or no support for current shell")]
+    NoSupportedShell,
+
+    #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
+    IncompleteClean { errors: Vec<Self> },
 }
 
 impl Error {
@@ -75,19 +111,6 @@ impl Error {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<nix::Error> for Error {
-    fn from(err: nix::Error) -> Error {
-        Error::Nix(err)
-    }
-}
 impl From<nix::errno::Errno> for Error {
     fn from(errno: nix::errno::Errno) -> Error {
         Error::Nix(nix::Error::from_errno(errno))
@@ -98,19 +121,14 @@ impl From<i32> for Error {
         Error::IO(std::io::Error::from_raw_os_error(errno))
     }
 }
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::IO(err)
-    }
-}
 impl From<String> for Error {
-    fn from(err: String) -> Error {
-        Error::String(err)
+    fn from(err: String) -> Self {
+        Self::String(err)
     }
 }
 impl From<&str> for Error {
-    fn from(err: &str) -> Error {
-        Error::String(err.to_string())
+    fn from(err: &str) -> Self {
+        Self::String(err.to_string())
     }
 }
 impl From<std::path::StripPrefixError> for Error {
@@ -118,43 +136,13 @@ impl From<std::path::StripPrefixError> for Error {
         Error::String(err.to_string())
     }
 }
-impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Self {
-        Error::JSON(err)
-    }
-}
-impl From<config::ConfigError> for Error {
-    fn from(err: config::ConfigError) -> Self {
-        Error::Config(err)
-    }
-}
 
-impl From<graph::UnknownObjectError> for Error {
-    fn from(err: graph::UnknownObjectError) -> Self {
-        Error::UnknownObject(err)
-    }
-}
-impl From<graph::UnknownReferenceError> for Error {
-    fn from(err: graph::UnknownReferenceError) -> Self {
-        Error::UnknownReference(err)
-    }
-}
-impl From<graph::AmbiguousReferenceError> for Error {
-    fn from(err: graph::AmbiguousReferenceError) -> Self {
-        Error::AmbiguousReference(err)
-    }
-}
-impl From<graph::InvalidReferenceError> for Error {
-    fn from(err: graph::InvalidReferenceError) -> Self {
-        Error::InvalidReference(err)
-    }
-}
 impl From<walkdir::Error> for Error {
     fn from(err: walkdir::Error) -> Self {
         let msg = err.to_string();
         match err.into_io_error() {
             Some(err) => err.into(),
-            None => msg.into(),
+            None => Self::String(msg),
         }
     }
 }
