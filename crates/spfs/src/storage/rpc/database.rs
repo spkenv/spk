@@ -2,20 +2,40 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::convert::TryInto;
 use std::pin::Pin;
 
-use futures::Stream;
+use futures::{Stream, StreamExt, TryStreamExt};
 
-use crate::{encoding, graph, storage, Result};
+use crate::{encoding, graph, proto, storage, Result};
+use proto::RpcResult;
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {
-    async fn read_object(&self, _digest: encoding::Digest) -> Result<graph::Object> {
-        todo!()
+    async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
+        let request = proto::ReadObjectRequest {
+            digest: Some(digest.into()),
+        };
+        let obj = self
+            .db_client
+            .clone()
+            .read_object(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        obj.try_into()
     }
 
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        todo!()
+        let request = proto::IterDigestsRequest {};
+        let mut client = self.db_client.clone();
+        let stream = futures::stream::once(async move { client.iter_digests(request).await })
+            .map_err(crate::Error::from)
+            .map_ok(|r| r.into_inner().map_err(crate::Error::from))
+            .try_flatten()
+            .and_then(|d| async { d.to_result() })
+            .and_then(|d| async { d.try_into() });
+        Box::pin(stream)
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
@@ -29,12 +49,30 @@ impl graph::DatabaseView for super::RpcRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::RpcRepository {
-    async fn write_object(&self, _obj: &graph::Object) -> Result<()> {
-        todo!()
+    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+        let request = proto::WriteObjectRequest {
+            object: Some(obj.into()),
+        };
+        self.db_client
+            .clone()
+            .write_object(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(())
     }
 
-    async fn remove_object(&self, _digest: encoding::Digest) -> Result<()> {
-        todo!()
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
+        let request = proto::RemoveObjectRequest {
+            digest: Some(digest.into()),
+        };
+        self.db_client
+            .clone()
+            .remove_object(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(())
     }
 }
 
