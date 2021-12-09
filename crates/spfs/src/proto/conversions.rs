@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::convert::{TryFrom, TryInto};
 
-use crate::{encoding, tracking, Error, Result};
+use crate::{encoding, graph, tracking, Error, Result};
 
 fn convert_to_datetime(source: Option<super::DateTime>) -> Result<chrono::DateTime<chrono::Utc>> {
     use std::str::FromStr;
@@ -22,15 +22,24 @@ fn convert_from_datetime(source: &chrono::DateTime<chrono::Utc>) -> super::DateT
 impl TryFrom<Option<super::Digest>> for encoding::Digest {
     type Error = Error;
     fn try_from(source: Option<super::Digest>) -> Result<Self> {
-        Ok(source
+        source
             .ok_or_else(|| Error::String("Expected non-null digest in rpc message".into()))?
-            .into())
+            .try_into()
     }
 }
 
-impl From<super::Digest> for encoding::Digest {
-    fn from(source: super::Digest) -> Self {
-        Self::from_bytes(source.bytes.as_slice()).unwrap()
+impl TryFrom<super::Digest> for encoding::Digest {
+    type Error = Error;
+    fn try_from(source: super::Digest) -> Result<Self> {
+        Self::from_bytes(source.bytes.as_slice())
+    }
+}
+
+impl From<encoding::Digest> for super::Digest {
+    fn from(source: encoding::Digest) -> Self {
+        Self {
+            bytes: Vec::from(source.into_bytes()),
+        }
     }
 }
 
@@ -75,8 +84,8 @@ impl From<&tracking::Tag> for super::Tag {
     }
 }
 
-impl From<crate::Error> for super::Error {
-    fn from(err: crate::Error) -> Self {
+impl From<Error> for super::Error {
+    fn from(err: Error) -> Self {
         let kind = Some(match err {
             crate::Error::UnknownObject(digest) => {
                 super::error::Kind::UnknownObject(super::UnknownObjectError {
@@ -98,7 +107,7 @@ impl From<crate::Error> for super::Error {
     }
 }
 
-impl From<super::Error> for crate::Error {
+impl From<super::Error> for Error {
     fn from(rpc: super::Error) -> Self {
         match rpc.kind {
             Some(super::error::Kind::UnknownObject(rpc)) => {
@@ -118,8 +127,196 @@ impl From<super::Error> for crate::Error {
             Some(super::error::Kind::InvalidReference(rpc)) => {
                 crate::Error::InvalidReference(rpc.message)
             }
-            Some(super::error::Kind::Other(message)) => crate::Error::String(message),
-            None => crate::Error::String(format!("Server did not provide an error message")),
+            Some(super::error::Kind::Other(message)) => Error::String(message),
+            None => Error::String("Server did not provide an error message".to_string()),
         }
+    }
+}
+
+impl From<&graph::Object> for super::Object {
+    fn from(source: &graph::Object) -> Self {
+        use super::object::Kind;
+        let mut out = super::Object::default();
+        out.kind = Some(match source {
+            graph::Object::Platform(o) => Kind::Platform(o.into()),
+            graph::Object::Layer(o) => Kind::Layer(o.into()),
+            graph::Object::Manifest(o) => Kind::Manifest(o.into()),
+            graph::Object::Tree(o) => Kind::Tree(o.into()),
+            graph::Object::Blob(o) => Kind::Blob(o.into()),
+            graph::Object::Mask => Kind::Mask(true),
+        });
+        out
+    }
+}
+
+impl TryFrom<Option<super::Object>> for graph::Object {
+    type Error = Error;
+    fn try_from(source: Option<super::Object>) -> Result<Self> {
+        source
+            .ok_or_else(|| Error::String("Expected non-null object in rpc message".into()))?
+            .try_into()
+    }
+}
+
+impl TryFrom<super::Object> for graph::Object {
+    type Error = Error;
+    fn try_from(source: super::Object) -> Result<Self> {
+        use super::object::Kind;
+        match source.kind {
+            Some(Kind::Platform(o)) => Ok(graph::Object::Platform(o.try_into()?)),
+            Some(Kind::Layer(o)) => Ok(graph::Object::Layer(o.try_into()?)),
+            Some(Kind::Manifest(o)) => Ok(graph::Object::Manifest(o.try_into()?)),
+            Some(Kind::Tree(o)) => Ok(graph::Object::Tree(o.try_into()?)),
+            Some(Kind::Blob(o)) => Ok(graph::Object::Blob(o.try_into()?)),
+            Some(Kind::Mask(_)) => Ok(graph::Object::Mask),
+            None => Err(Error::String(
+                "Expected non-empty object kind in rpc message".to_string(),
+            )),
+        }
+    }
+}
+
+impl From<&graph::Platform> for super::Platform {
+    fn from(source: &graph::Platform) -> Self {
+        Self {
+            stack: source.stack.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl TryFrom<super::Platform> for graph::Platform {
+    type Error = Error;
+    fn try_from(source: super::Platform) -> Result<Self> {
+        Ok(Self {
+            stack: source
+                .stack
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+}
+
+impl From<&graph::Layer> for super::Layer {
+    fn from(source: &graph::Layer) -> Self {
+        Self {
+            manifest: Some((&source.manifest).into()),
+        }
+    }
+}
+
+impl TryFrom<super::Layer> for graph::Layer {
+    type Error = Error;
+    fn try_from(source: super::Layer) -> Result<Self> {
+        Ok(Self {
+            manifest: source.manifest.try_into()?,
+        })
+    }
+}
+
+impl From<&graph::Manifest> for super::Manifest {
+    fn from(source: &graph::Manifest) -> Self {
+        let mut trees = source.list_trees().into_iter();
+        let root = trees.next().map(Into::into);
+        Self {
+            root,
+            trees: trees.map(Into::into).collect(),
+        }
+    }
+}
+
+impl TryFrom<super::Manifest> for graph::Manifest {
+    type Error = Error;
+    fn try_from(source: super::Manifest) -> Result<Self> {
+        let mut out = Self::new(source.root.try_into()?);
+        for tree in source.trees.into_iter() {
+            out.insert_tree(tree.try_into()?);
+        }
+        Ok(out)
+    }
+}
+
+impl From<&graph::Tree> for super::Tree {
+    fn from(source: &graph::Tree) -> Self {
+        Self {
+            entries: source.entries.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl TryFrom<Option<super::Tree>> for graph::Tree {
+    type Error = Error;
+    fn try_from(source: Option<super::Tree>) -> Result<Self> {
+        source
+            .ok_or_else(|| Error::String("Expected non-null tree in rpc message".into()))?
+            .try_into()
+    }
+}
+
+impl TryFrom<super::Tree> for graph::Tree {
+    type Error = Error;
+    fn try_from(source: super::Tree) -> Result<Self> {
+        Ok(Self {
+            entries: source
+                .entries
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_>>()?,
+        })
+    }
+}
+
+impl From<&graph::Entry> for super::Entry {
+    fn from(source: &graph::Entry) -> Self {
+        let kind = match source.kind {
+            tracking::EntryKind::Tree => super::EntryKind::Tree as i32,
+            tracking::EntryKind::Blob => super::EntryKind::Blob as i32,
+            tracking::EntryKind::Mask => super::EntryKind::Mask as i32,
+        };
+        Self {
+            object: Some((&source.object).into()),
+            kind,
+            mode: source.mode,
+            size: source.size,
+            name: source.name.clone(),
+        }
+    }
+}
+
+impl TryFrom<super::Entry> for graph::Entry {
+    type Error = Error;
+    fn try_from(source: super::Entry) -> Result<Self> {
+        let kind = match super::EntryKind::from_i32(source.kind) {
+            Some(super::EntryKind::Tree) => tracking::EntryKind::Tree,
+            Some(super::EntryKind::Blob) => tracking::EntryKind::Blob,
+            Some(super::EntryKind::Mask) => tracking::EntryKind::Mask,
+            None => return Err("Received unknown entry kind in rpm data".into()),
+        };
+        Ok(Self {
+            object: source.object.try_into()?,
+            kind,
+            mode: source.mode,
+            size: source.size,
+            name: source.name,
+        })
+    }
+}
+
+impl From<&graph::Blob> for super::Blob {
+    fn from(source: &graph::Blob) -> Self {
+        Self {
+            payload: Some((&source.payload).into()),
+            size: source.size,
+        }
+    }
+}
+
+impl TryFrom<super::Blob> for graph::Blob {
+    type Error = Error;
+    fn try_from(source: super::Blob) -> Result<Self> {
+        Ok(Self {
+            payload: source.payload.try_into()?,
+            size: source.size,
+        })
     }
 }
