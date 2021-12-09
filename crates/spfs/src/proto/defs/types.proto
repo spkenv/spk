@@ -12,3 +12,50 @@ message Digest {
 message DateTime {
     string iso_timestamp = 1;
 }
+
+message Object {
+    oneof kind {
+        Platform platform = 1;
+        Layer layer = 2;
+        Manifest manifest = 3;
+        Tree tree = 4;
+        Blob blob = 5;
+        bool mask = 6;
+    }
+}
+
+message Platform {
+    repeated Digest stack = 1;
+}
+
+message Layer {
+    Digest manifest = 1;
+}
+
+message Manifest {
+    Tree root = 1;
+    repeated Tree trees = 2;
+}
+
+message Tree {
+    repeated Entry entries = 1;
+}
+
+message Entry {
+    Digest object = 1;
+    EntryKind kind = 2;
+    uint32 mode = 3;
+    uint64 size = 4;
+    string name = 5;
+}
+
+enum EntryKind {
+    TREE = 0;
+    BLOB = 1;
+    MASK = 2;
+}
+
+message Blob {
+    Digest payload = 1;
+    uint64 size = 2;
+}
