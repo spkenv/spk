@@ -8,7 +8,7 @@ mod sources;
 
 pub use binary::{
     build_options_path, build_script_path, build_spec_path, reset_permissions, source_package_path,
-    BuildError,
+    BinaryPackageBuilder, BuildError,
 };
 pub use python::init_module;
 pub use sources::{validate_source_changeset, CollectionError};

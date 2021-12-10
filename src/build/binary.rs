@@ -6,8 +6,14 @@ use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use spfs::prelude::Encodable;
+
 use super::env::data_path;
-use crate::{api, solve, storage, Result};
+use crate::{
+    api, exec, solve,
+    storage::{self, Repository},
+    Error, Result,
+};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -50,7 +56,6 @@ pub struct BinaryPackageBuilder<'spec> {
     prefix: PathBuf,
     spec: &'spec api::Spec,
     all_options: api::OptionMap,
-    pkg_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
     repos: Vec<storage::RepositoryHandle>,
@@ -63,7 +68,6 @@ impl<'spec> BinaryPackageBuilder<'spec> {
             spec,
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
-            pkg_options: api::OptionMap::default(),
             source: BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source))),
             solver: solve::Solver::default(),
             repos: Default::default(),
@@ -78,7 +82,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     ///
     /// If the builder has not run, return an incomplete graph.
     pub fn get_solve_graph(&self) -> solve::Graph {
-        return self.solver.get_last_solve_graph();
+        self.solver.get_last_solve_graph()
     }
 
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
@@ -119,46 +123,49 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     }
 
     /// Build the requested binary package.
-    pub fn build(&mut self) -> api::Spec {
-        todo!()
-        // assert (
-        //     self._spec is not None
-        // ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
+    pub fn build(&mut self) -> Result<api::Spec> {
+        let mut runtime = spfs::active_runtime()?;
+        runtime.set_editable(true)?;
+        runtime.reset_stack()?;
+        runtime.reset_all()?;
+        spfs::remount_runtime(&runtime)?;
 
-        // spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
-        // _runtime = spkrs.active_runtime()
+        let pkg_options = self.spec.resolve_all_options(&self.all_options);
+        tracing::debug!("package options: {}", pkg_options);
+        let compat = self
+            .spec
+            .build
+            .validate_options(self.spec.pkg.name(), &self.all_options);
+        if !&compat {
+            return Err(Error::String(compat.to_string()));
+        }
+        self.all_options.extend(pkg_options);
 
-        // self._pkg_options = self._spec.resolve_all_options(self._all_options)
-        // _LOGGER.debug("package options", options=self._pkg_options)
-        // compat = self._spec.build.validate_options(
-        //     self._spec.pkg.name, self._all_options
-        // )
-        // if not compat:
-        //     raise ValueError(compat)
-        // self._all_options.update(self._pkg_options)
-
-        // stack = []
-        // if isinstance(self._source, api.Ident):
-        //     solution = self._resolve_source_package()
-        //     stack = exec.resolve_runtime_layers(solution)
-        // solution = self._resolve_build_environment()
-        // opts = solution.options()
-        // opts.update(self._all_options)
-        // self._all_options = opts
-        // stack.extend(exec.resolve_runtime_layers(solution))
-        // spkrs.reconfigure_runtime(editable=True, stack=stack)
-
-        // specs = list(s for _, s, _ in solution.items())
-        // self._spec.update_spec_for_build(self._all_options, specs)
-        // env = os.environ.copy()
-        // env = solution.to_environment(env)
-        // env.update(self._all_options.to_environment())
-        // layer = self._build_and_commit_artifacts(env)
-        // storage.local_repository().publish_package(self._spec, layer)
-        // return self._spec
+        let stack = Vec::new();
+        if let BuildSource::SourcePackage(ref ident) = self.source {
+            let solution = self.resolve_source_package(ident)?;
+            stack.extend(exec::resolve_runtime_layers(&solution)?);
+        };
+        let solution = self.resolve_build_environment()?;
+        let mut opts = solution.options();
+        opts.extend(self.all_options);
+        self.all_options = opts;
+        stack.extend(exec::resolve_runtime_layers(&solution)?);
+        for digest in stack.into_iter() {
+            runtime.push_digest(&digest);
+        }
+        let specs = solution.items().map(|solved| &*solved.spec);
+        let mut spec = self.spec.clone();
+        spec.update_for_build(&self.all_options, specs);
+        let env = std::env::vars();
+        let env = solution.to_environment(Some(env));
+        env.extend(self.all_options.to_environment());
+        let layer = self.build_and_commit_artifacts(env)?;
+        storage::local_repository()?.publish_package(spec.clone(), layer.digest()?)?;
+        Ok(spec)
     }
 
-    fn resolve_source_package(&mut self) -> solve::Solution {
+    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
         todo!()
         // self._solver.reset()
         // self._solver.update_options(self._all_options)
@@ -183,7 +190,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         //     self._last_solve_graph = runtime.graph()
     }
 
-    fn resolve_build_environment(&mut self) -> solve::Solution {
+    fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
         todo!()
         // self._solver.reset()
         // self._solver.update_options(self._all_options)
@@ -224,7 +231,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         //         raise RuntimeError(f"Unhandled opt type {type(opt)}")
     }
 
-    fn build_and_commit_artifacts<I, K, V>(&mut self, env: I)
+    fn build_and_commit_artifacts<I, K, V>(&mut self, env: I) -> Result<spfs::graph::Layer>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<OsStr>,
@@ -252,7 +259,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         // return spkrs.commit_layer(runtime)
     }
 
-    fn build_artifacts<I, K, V>(&mut self, env: I)
+    fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<OsStr>,
