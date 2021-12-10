@@ -49,7 +49,7 @@ pub trait Repository {
     /// Publish a binary package to this repository.
     ///
     /// The published digest is expected to identify an spfs layer which contains
-    /// the propery constructed binary package files and metadata.
+    /// the properly constructed binary package files and metadata.
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()>;
 
     /// Remove a package from this repository.
