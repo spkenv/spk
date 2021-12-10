@@ -3,26 +3,12 @@
 // https://github.com/imageworks/spk
 use super::Repository;
 
-#[derive(Debug, Hash)]
-#[allow(clippy::derive_hash_xor_eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum RepositoryHandle {
     SPFS(super::SPFSRepository),
     Mem(super::MemRepository),
     Runtime(super::RuntimeRepository),
 }
-
-impl PartialEq for RepositoryHandle {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::SPFS(l0), Self::SPFS(r0)) => l0 == r0,
-            (Self::Mem(l0), Self::Mem(r0)) => l0 == r0,
-            (Self::Runtime(l0), Self::Runtime(r0)) => l0 == r0,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for RepositoryHandle {}
 
 impl RepositoryHandle {
     /// The address of a repository identifies its location and how
