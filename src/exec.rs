@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::{solve, storage, Error, Result};
+use crate::{io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
@@ -15,7 +15,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
             if source.pkg == resolved.spec.pkg.with_build(None) {
                 return Err(Error::String(format!(
                     "Solution includes package that needs building: {}",
-                    spec.pkg
+                    resolved.spec.pkg
                 )));
             }
         }

@@ -34,6 +34,7 @@ impl BuildError {
 }
 
 /// Identifies the source files that should
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSource {
     SourcePackage(api::Ident),
     LocalPath(PathBuf),
@@ -141,24 +142,28 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         }
         self.all_options.extend(pkg_options);
 
-        let stack = Vec::new();
-        if let BuildSource::SourcePackage(ref ident) = self.source {
-            let solution = self.resolve_source_package(ident)?;
+        let mut stack = Vec::new();
+        if let BuildSource::SourcePackage(ident) = self.source.clone() {
+            let solution = self.resolve_source_package(&ident)?;
             stack.extend(exec::resolve_runtime_layers(&solution)?);
         };
         let solution = self.resolve_build_environment()?;
         let mut opts = solution.options();
-        opts.extend(self.all_options);
-        self.all_options = opts;
+        std::mem::swap(&mut opts, &mut self.all_options);
+        self.all_options.extend(opts);
         stack.extend(exec::resolve_runtime_layers(&solution)?);
         for digest in stack.into_iter() {
             runtime.push_digest(&digest);
         }
-        let specs = solution.items().map(|solved| &*solved.spec);
+        let specs = solution.items();
+        let specs = specs
+            .iter()
+            .map(|solved| &solved.spec)
+            .map(std::sync::Arc::as_ref);
         let mut spec = self.spec.clone();
-        spec.update_for_build(&self.all_options, specs);
+        spec.update_for_build(&self.all_options, specs)?;
         let env = std::env::vars();
-        let env = solution.to_environment(Some(env));
+        let mut env = solution.to_environment(Some(env));
         env.extend(self.all_options.to_environment());
         let layer = self.build_and_commit_artifacts(env)?;
         storage::local_repository()?.publish_package(spec.clone(), layer.digest()?)?;
