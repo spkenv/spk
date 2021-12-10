@@ -7,17 +7,8 @@ from colorama import Fore, Style
 import io
 import sys
 
+from spkrs.io import format_ident, format_build
 from . import api, solve
-
-
-def format_ident(pkg: api.Ident) -> str:
-
-    out = f"{Style.BRIGHT}{pkg.name}{Style.RESET_ALL}"
-    if pkg.version.parts or pkg.build is not None:
-        out += f"/{Fore.LIGHTBLUE_EX}{pkg.version}{Fore.RESET}"
-    if pkg.build is not None:
-        out += f"/{format_build(pkg.build)}"
-    return out
 
 
 def run_and_print_resolve(
@@ -135,16 +126,6 @@ def format_options(options: api.OptionMap) -> str:
         )
 
     return f"{{{', '.join(formatted)}}}"
-
-
-def format_build(build: str) -> str:
-
-    if build == api.EMBEDDED:
-        return f"{Fore.LIGHTMAGENTA_EX}{build}{Style.RESET_ALL}"
-    elif build == api.SRC:
-        return f"{Fore.LIGHTYELLOW_EX}{build}{Style.RESET_ALL}"
-    else:
-        return f"{Style.DIM}{build}{Style.RESET_ALL}"
 
 
 def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
