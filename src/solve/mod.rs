@@ -12,5 +12,5 @@ mod validation;
 pub use errors::Error;
 pub use graph::Graph;
 pub use python::init_module;
-pub use solution::Solution;
+pub use solution::{Solution, PackageSource};
 pub use solver::Solver;

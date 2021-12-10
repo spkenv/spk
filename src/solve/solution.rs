@@ -228,11 +228,12 @@ impl Solution {
     /// Return the data of this solution as environment variables.
     ///
     /// If base is given, also clean any existing, conflicting values.
-    pub fn to_environment(
+    #[pyo3(name = "to_environment")]
+    pub fn to_environment_py(
         &self,
         base: Option<BaseEnvironment>,
     ) -> PyResult<HashMap<String, String>> {
-        let mut out = match base {
+        let base = match base {
             Some(BaseEnvironment::Dict(base)) => base,
             Some(BaseEnvironment::Other(base)) => {
                 Python::with_gil(|py| {
@@ -245,6 +246,23 @@ impl Solution {
             }
             None => HashMap::default(),
         };
+        Ok(self.to_environment(Some(base)))
+    }
+}
+
+impl Solution {
+    /// Return the data of this solution as environment variables.
+    ///
+    /// If base is given, also clean any existing, conflicting values.
+    pub fn to_environment<V>(&self, base: Option<V>) -> HashMap<String, String>
+    where
+        V: IntoIterator<Item = (String, String)>,
+    {
+        use std::iter::FromIterator;
+        let mut out = base
+            .map(IntoIterator::into_iter)
+            .map(HashMap::from_iter)
+            .unwrap_or_default();
 
         out.retain(|name, _| !name.starts_with("SPK_PKG_"));
 
@@ -288,6 +306,6 @@ impl Solution {
         }
 
         out.extend(self.options.to_environment().into_iter());
-        Ok(out)
+        out
     }
 }
