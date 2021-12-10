@@ -14,6 +14,7 @@ default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
+colored = "2.0.0"
 data-encoding = "2.3.0"
 dyn-clone = "1.0.4"
 indexmap = "1.7.0"

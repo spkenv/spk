@@ -5,6 +5,7 @@ pub mod api;
 pub mod build;
 mod error;
 pub mod exec;
+pub mod io;
 pub mod solve;
 pub mod storage;
 
