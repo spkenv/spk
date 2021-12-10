@@ -59,3 +59,21 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 
     Ok(stack)
 }
+
+pub mod python {
+    use crate::{solve, Digest, Result};
+    use pyo3::prelude::*;
+
+    #[pyfunction]
+    pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>> {
+        Ok(super::resolve_runtime_layers(solution)?
+            .into_iter()
+            .map(Digest::from)
+            .collect())
+    }
+
+    pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
+        m.add_function(wrap_pyfunction!(resolve_runtime_layers, m)?)?;
+        Ok(())
+    }
+}
