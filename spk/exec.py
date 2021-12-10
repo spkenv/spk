@@ -9,6 +9,7 @@ import structlog
 import colorama
 
 import spkrs
+from spkrs.exec import resolve_runtime_layers
 from . import solve, storage, io, build, api
 
 _LOGGER = structlog.get_logger("spk.exec")
@@ -50,44 +51,3 @@ def setup_current_runtime(solution: solve.Solution) -> None:
     _runtime = spkrs.active_runtime()
     stack = resolve_runtime_layers(solution)
     spkrs.reconfigure_runtime(stack=stack)
-
-
-def resolve_runtime_layers(solution: solve.Solution) -> List[spkrs.Digest]:
-    """Pull and list the necessary layers to have all solution packages."""
-
-    local_repo = storage.local_repository()
-    stack = []
-    to_sync = []
-    for _, spec, source in solution.items():
-
-        if isinstance(source, api.Spec):
-            if source.pkg == spec.pkg.with_build(None):
-                raise ValueError(
-                    f"Solution includes package that needs building: {spec.pkg}"
-                )
-
-        if not isinstance(source, storage.Repository):
-            continue
-        repo = source
-
-        try:
-            digest = repo.get_package(spec.pkg)
-        except FileNotFoundError:
-            raise RuntimeError("Resolved package disappeared, please try again")
-
-        stack.append(digest)
-
-        if repo.is_spfs():
-            if local_repo.has_digest(digest):
-                continue
-            to_sync.append((spec, repo, digest))
-
-    for i, (spec, repo, digest) in enumerate(to_sync):
-        if repo.is_spfs():
-            print(
-                f"  {colorama.Fore.BLUE}>>>>{colorama.Fore.RESET} collecting {i+1: 2d} of {len(to_sync)} {io.format_ident(spec.pkg)}",
-                file=sys.stderr,
-            )
-            repo.localize_digest(digest)
-
-    return stack
