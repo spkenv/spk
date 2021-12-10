@@ -11,24 +11,6 @@ pub struct RuntimeRepository {
     root: std::path::PathBuf,
 }
 
-impl RuntimeRepository {
-    pub fn address(&self) -> url::Url {
-        let address = format!("runtime://{}", self.root.display());
-        match url::Url::parse(&address) {
-            Ok(a) => a,
-            Err(err) => {
-                tracing::error!(
-                    "failed to create valid address for path {:?}: {:?}",
-                    self.root,
-                    err
-                );
-                url::Url::parse(&format!("runtime://{}", self.root.to_string_lossy()))
-                    .expect("Failed to create url from path (fallback)")
-            }
-        }
-    }
-}
-
 impl Default for RuntimeRepository {
     fn default() -> Self {
         Self {
@@ -43,11 +25,27 @@ impl RuntimeRepository {
         // this function is not allowed outside of testing because get_package
         // makes assumptions about the runtime directory which cannot be
         // reasonably altered
-        Self { root: root }
+        Self { root }
     }
 }
 
 impl Repository for RuntimeRepository {
+    fn address(&self) -> url::Url {
+        let address = format!("runtime://{}", self.root.display());
+        match url::Url::parse(&address) {
+            Ok(a) => a,
+            Err(err) => {
+                tracing::error!(
+                    "failed to create valid address for path {:?}: {:?}",
+                    self.root,
+                    err
+                );
+                url::Url::parse(&format!("runtime://{}", self.root.to_string_lossy()))
+                    .expect("Failed to create url from path (fallback)")
+            }
+        }
+    }
+
     fn list_packages(&self) -> Result<Vec<String>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()

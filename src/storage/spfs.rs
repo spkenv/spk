@@ -56,6 +56,10 @@ impl SPFSRepository {
 }
 
 impl Repository for SPFSRepository {
+    fn address(&self) -> url::Url {
+        self.inner.address()
+    }
+
     fn list_packages(&self) -> Result<Vec<String>> {
         let path = relative_path::RelativePath::new("spk/spec");
         Ok(self
@@ -192,14 +196,11 @@ impl Repository for SPFSRepository {
 
     fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
         #[cfg(test)]
-        match self.read_spec(&spec.pkg.with_build(None)) {
-            Err(Error::PackageNotFoundError(pkg)) => {
-                return Err(Error::String(format!(
-                    "[INTERNAL] version spec must be published before a specific build: {:?}",
-                    pkg
-                )))
-            }
-            _ => (),
+        if let Err(Error::PackageNotFoundError(pkg)) = self.read_spec(&spec.pkg.with_build(None)) {
+            return Err(Error::String(format!(
+                "[INTERNAL] version spec must be published before a specific build: {:?}",
+                pkg
+            )));
         }
 
         let tag_path = self.build_package_tag(&spec.pkg)?;

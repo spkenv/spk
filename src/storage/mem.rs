@@ -14,14 +14,6 @@ pub struct MemRepository {
     packages: HashMap<String, HashMap<api::Version, BuildMap>>,
 }
 
-impl MemRepository {
-    pub fn address(&self) -> url::Url {
-        let address = format!("mem://{:x}", self as *const _ as usize);
-        url::Url::parse(&address)
-            .expect("[INTERNAL ERROR] hex address should always create a valid url")
-    }
-}
-
 impl std::hash::Hash for MemRepository {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         (self as *const _ as usize).hash(state)
@@ -37,6 +29,12 @@ impl PartialEq for MemRepository {
 impl Eq for MemRepository {}
 
 impl Repository for MemRepository {
+    fn address(&self) -> url::Url {
+        let address = format!("mem://{:x}", self as *const _ as usize);
+        url::Url::parse(&address)
+            .expect("[INTERNAL ERROR] hex address should always create a valid url")
+    }
+
     fn list_packages(&self) -> Result<Vec<String>> {
         Ok(self.specs.keys().map(|s| s.to_owned()).collect())
     }

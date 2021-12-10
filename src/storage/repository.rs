@@ -1,6 +1,11 @@
 use crate::{api, Result};
 
 pub trait Repository {
+    /// A repositorie's address should identify it uniquely. It's
+    /// expected that two handles to the same logical repository
+    /// share an address
+    fn address(&self) -> url::Url;
+
     /// Return the set of known packages in this repo.
     fn list_packages(&self) -> Result<Vec<String>>;
 

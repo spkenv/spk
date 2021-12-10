@@ -11,16 +11,6 @@ pub enum RepositoryHandle {
 }
 
 impl RepositoryHandle {
-    /// The address of a repository identifies its location and how
-    /// it is being accessed.
-    pub fn address(&self) -> url::Url {
-        match self {
-            Self::SPFS(repo) => repo.address(),
-            Self::Mem(repo) => repo.address(),
-            Self::Runtime(repo) => repo.address(),
-        }
-    }
-
     pub fn is_spfs(&self) -> bool {
         matches!(self, Self::SPFS(_))
     }
