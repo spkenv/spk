@@ -54,6 +54,6 @@ pub trait Repository {
 
     /// Remove a package from this repository.
     ///
-    /// The given package identifier must identify a full package build
+    /// The given package identifier must identify a full package build.
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()>;
 }
