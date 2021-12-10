@@ -30,7 +30,7 @@ pub trait Repository {
     /// published as well in order to make the spec usable in environments.
     ///
     /// # Errors:
-    /// - VersionExistsError: if the spec a this version is already present
+    /// - VersionExistsError: if the spec version is already present
     fn publish_spec(&mut self, spec: api::Spec) -> Result<()>;
 
     /// Remove a package version from this repository.
