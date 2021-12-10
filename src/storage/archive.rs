@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use super::{Repository, SPFSRepository};
-use crate::{api, Result};
+use crate::{api, Error, Result};
 
 pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<()> {
     // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
@@ -39,13 +39,22 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
     }
 
     for pkg in to_transfer.into_iter() {
-        if copy_package(&pkg, &local_repo, &mut target_repo).is_ok() {
-            continue;
-        }
-        if copy_package(&pkg, &remote_repo, &mut target_repo).is_ok() {
-            continue;
-        }
-        return Err(crate::Error::PackageNotFoundError(pkg));
+        let local_err = match copy_package(&pkg, &local_repo, &mut target_repo) {
+            Ok(_) => continue,
+            Err(Error::PackageNotFoundError(_)) => None,
+            Err(err) => Some(err),
+        };
+        let remote_err = match copy_package(&pkg, &remote_repo, &mut target_repo) {
+            Ok(_) => continue,
+            Err(Error::PackageNotFoundError(_)) => None,
+            Err(err) => Some(err),
+        };
+        // we will hide the remote_err in cases when both failed,
+        // but the remote was always a fallback and fixing the
+        // local error is preferred
+        return Err(local_err
+            .or(remote_err)
+            .unwrap_or(Error::PackageNotFoundError(pkg)));
     }
 
     tracing::info!(path=?filename, "building archive");
