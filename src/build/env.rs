@@ -35,7 +35,7 @@ pub fn expand_defined_vars<V>(mut value: String, vars: V) -> String
 where
     V: Fn(&str) -> Option<String>,
 {
-    if !value.contains("$") {
+    if !value.contains('$') {
         return value;
     }
     let var_expansion_regex =
@@ -86,7 +86,7 @@ pub fn expand_vars<V>(mut value: String, vars: V) -> Result<String>
 where
     V: Fn(&str) -> Option<String>,
 {
-    if !value.contains("$") {
+    if !value.contains('$') {
         return Ok(value);
     }
     let var_expansion_regex =

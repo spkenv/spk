@@ -153,7 +153,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         self.all_options.extend(opts);
         stack.extend(exec::resolve_runtime_layers(&solution)?);
         for digest in stack.into_iter() {
-            runtime.push_digest(&digest);
+            runtime.push_digest(&digest)?;
         }
         let specs = solution.items();
         let specs = specs
