@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{prelude::*, types::PyDict, PyIterProtocol};
+use pyo3::{prelude::*, types::PyDict};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -113,30 +113,6 @@ impl pyo3::PyObjectProtocol for Solution {
     }
 }
 
-#[pyclass]
-pub struct SolvedRequestIter {
-    iter: std::vec::IntoIter<SolvedRequest>,
-}
-
-impl Iterator for SolvedRequestIter {
-    type Item = SolvedRequest;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
-
-#[pyproto]
-impl PyIterProtocol for SolvedRequestIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<SolvedRequest> {
-        slf.iter.next()
-    }
-}
-
 #[derive(Debug, FromPyObject)]
 pub enum BaseEnvironment<'a> {
     Dict(HashMap<String, String>),
@@ -170,7 +146,7 @@ impl Solution {
         self.by_name.insert(request.pkg.name().to_owned(), package);
     }
 
-    pub fn items(&self) -> SolvedRequestIter {
+    pub fn items(&self) -> Vec<SolvedRequest> {
         let mut items = self
             .resolved
             .clone()
@@ -183,10 +159,7 @@ impl Solution {
             .collect::<Vec<_>>();
         // Test suite expects these items to be returned in original insertion order.
         items.sort_by_key(|sr| self.insertion_order.get(&sr.request).unwrap());
-
-        SolvedRequestIter {
-            iter: items.into_iter(),
-        }
+        items
     }
 
     pub fn get(&self, name: &str) -> PyResult<SolvedRequest> {
