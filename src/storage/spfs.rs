@@ -4,9 +4,10 @@
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
+use spfs::encoding::Digest;
 
 use super::Repository;
-use crate::{api, Digest, Error, Result};
+use crate::{api, Error, Result};
 
 #[derive(Debug)]
 pub struct SPFSRepository {
@@ -137,7 +138,7 @@ impl Repository for SPFSRepository {
         Ok(serde_yaml::from_reader(reader)?)
     }
 
-    fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
+    fn get_package(&self, pkg: &api::Ident) -> Result<Digest> {
         let tag_path = self.build_package_tag(pkg)?;
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
@@ -194,7 +195,7 @@ impl Repository for SPFSRepository {
         Ok(())
     }
 
-    fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
+    fn publish_package(&mut self, spec: api::Spec, digest: Digest) -> Result<()> {
         #[cfg(test)]
         if let Err(Error::PackageNotFoundError(pkg)) = self.read_spec(&spec.pkg.with_build(None)) {
             return Err(Error::String(format!(
@@ -249,28 +250,6 @@ impl SPFSRepository {
         tag.push(pkg.to_string().replace("+", ".."));
 
         tag
-    }
-
-    pub fn has_tag(&self, tag: &str) -> bool {
-        match tag.parse() {
-            Ok(tag) => self.inner.has_tag(&tag),
-            Err(_) => false,
-        }
-    }
-
-    pub fn has_digest(&self, digest: &Digest) -> bool {
-        self.inner.has_object(&digest.inner)
-    }
-
-    pub fn push_digest(&self, digest: &Digest, dest: &mut Self) -> Result<()> {
-        spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut dest.inner)?;
-        Ok(())
-    }
-
-    pub fn localize_digest(&self, digest: &Digest) -> Result<()> {
-        let mut local_repo = spfs::load_config()?.get_repository()?.into();
-        spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut local_repo)?;
-        Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {

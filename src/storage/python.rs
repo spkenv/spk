@@ -117,35 +117,18 @@ impl Repository {
     fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
         self.handle.lock().unwrap().remove_package(pkg)
     }
-    pub fn has_digest(&self, digest: &crate::Digest) -> Result<bool> {
-        if let RepositoryHandle::SPFS(repo) = &*self.handle.lock().unwrap() {
-            Ok(repo.has_digest(digest))
-        } else {
-            Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
-                "Not an spfs repository",
-            )))
-        }
-    }
     pub fn push_digest(&self, digest: &crate::Digest, dest: &mut Self) -> Result<()> {
         match (
             &*self.handle.lock().unwrap(),
             &mut *dest.handle.lock().unwrap(),
         ) {
             (RepositoryHandle::SPFS(src), RepositoryHandle::SPFS(dest)) => {
-                src.push_digest(digest, dest)
+                spfs::sync_ref(digest.inner.to_string(), src, dest)?;
+                Ok(())
             }
             _ => Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
                 "Source and dest must both be spfs repositories",
             ))),
-        }
-    }
-    pub fn localize_digest(&self, digest: &crate::Digest) -> Result<()> {
-        if let RepositoryHandle::SPFS(repo) = &*self.handle.lock().unwrap() {
-            repo.localize_digest(digest)
-        } else {
-            Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
-                "Not an spfs repository",
-            )))
         }
     }
 }
