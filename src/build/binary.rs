@@ -180,7 +180,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
         self.solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
-            if &*repo.lock().unwrap() == &*local_repo.lock().unwrap() {
+            if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
                 // local repo is always injected first, and duplicates are redundant
                 continue;
             }
@@ -213,7 +213,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
             self.solver.add_repository(repo);
         }
 
-        for request in self.get_build_requirements() {
+        for request in self.get_build_requirements()? {
             self.solver.add_request(request);
         }
 
@@ -224,26 +224,26 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     }
 
     /// List the requirements for the build environment.
-    pub fn get_build_requirements(&self) -> Vec<api::Request> {
-        todo!()
-        // assert (
-        //     self._spec is not None
-        // ), "Target spec not given, did you use BinaryPackagebuilder.from_spec?"
-
-        // opts = self._spec.resolve_all_options(self._all_options)
-        // for opt in self._spec.build.options:
-        //     if isinstance(opt, api.PkgOpt):
-        //         yield opt.to_request(opts.get(opt.pkg))
-        //     elif isinstance(opt, api.VarOpt):
-        //         opt_value = opts.get(opt.var)
-        //         if not opt_value:
-        //             # If no value was specified in the spec, don't
-        //             # turn that into a requirement to find that
-        //             # var with an empty string value.
-        //             continue
-        //         yield opt.to_request(opt_value)
-        //     else:
-        //         raise RuntimeError(f"Unhandled opt type {type(opt)}")
+    pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
+        let opts = self.spec.resolve_all_options(&self.all_options);
+        self.spec
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                api::Opt::Pkg(opt) => Some(
+                    opt.to_request(opts.get(&opt.pkg).map(String::to_owned))
+                        .map(Into::into),
+                ),
+                api::Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    opts.get(&opt.var)
+                        .map(|opt_value| Ok(opt.to_request(Some(opt_value)).into()))
+                }
+            })
+            .collect()
     }
 
     fn build_and_commit_artifacts<I, K, V>(&mut self, env: I) -> Result<spfs::graph::Layer>
