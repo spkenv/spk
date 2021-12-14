@@ -252,26 +252,26 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        todo!()
+        self.build_artifacts(env)?;
 
-        // assert self._spec is not None, "Internal Error: spec is None"
+        let sources_dir = data_path(
+            &self.spec.pkg.with_build(Some(api::Build::Source)),
+            &self.prefix,
+        );
 
-        // self._build_artifacts(env)
+        let mut runtime = spfs::active_runtime()?;
+        let pattern = sources_dir.strip_prefix(&self.prefix).unwrap().join("**");
+        let pattern = pattern.to_string_lossy();
+        tracing::info!(
+            "Purging all changes made to source directory: {}",
+            sources_dir.display()
+        );
+        runtime.reset(&[pattern])?;
 
-        // sources_dir = data_path(self._spec.pkg.with_build(api.SRC), prefix=self._prefix)
+        tracing::info!("Validating package fileset...");
+        self.spec.build.validation.validate_build_changeset()?;
 
-        // runtime = spkrs.active_runtime()
-        // pattern = os.path.join(sources_dir[len(self._prefix) :], "**")
-        // _LOGGER.info("Purging all changes made to source directory", dir=sources_dir)
-        // spkrs.reconfigure_runtime(reset=[pattern])
-
-        // _LOGGER.info("Validating package fileset...")
-        // try:
-        //     self._spec.validate_build_changeset()
-        // except RuntimeError as e:
-        //     raise BuildError(str(e))
-
-        // return spkrs.commit_layer(runtime)
+        Ok(spfs::commit_layer(&mut runtime)?)
     }
 
     fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
