@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -269,7 +270,11 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         runtime.reset(&[pattern])?;
 
         tracing::info!("Validating package fileset...");
-        self.spec.build.validation.validate_build_changeset()?;
+        self.spec
+            .build
+            .validation
+            .validate_build_changeset()
+            .map_err(|err| BuildError::new_error(format_args!("{}", err.to_string())))?;
 
         Ok(spfs::commit_layer(&mut runtime)?)
     }
@@ -280,56 +285,83 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        todo!()
-        // assert self._spec is not None
+        let runtime = spfs::active_runtime()?;
+        let pkg = &self.spec.pkg;
+        let metadata_dir = data_path(pkg, &self.prefix);
+        let build_spec = build_spec_path(pkg, &self.prefix);
+        let build_options = build_options_path(pkg, &self.prefix);
+        let build_script = build_script_path(pkg, &self.prefix);
 
-        // pkg = self._spec.pkg
+        std::fs::create_dir_all(&metadata_dir)?;
+        api::save_spec_file(&build_spec, self.spec)?;
+        {
+            let mut writer = std::fs::File::create(&build_script)?;
+            writer
+                .write_all(self.spec.build.script.join("\n").as_bytes())
+                .map_err(|err| {
+                    Error::String(format!("Failed to save build script: {}", err.to_string()))
+                })?;
+            writer.sync_data()?;
+        }
+        {
+            let mut writer = std::fs::File::create(&build_options)?;
+            serde_json::to_writer_pretty(&mut writer, &self.all_options).map_err(|err| {
+                Error::String(format!("Failed to save build options: {}", err.to_string()))
+            })?;
+            writer.sync_data()?;
+        }
 
-        // os.makedirs(self._prefix, exist_ok=True)
+        let source_dir = match &self.source {
+            BuildSource::SourcePackage(source) => source_package_path(source, &self.prefix),
+            BuildSource::LocalPath(path) => path.clone(),
+        };
 
-        // metadata_dir = data_path(pkg, prefix=self._prefix)
-        // build_spec = build_spec_path(pkg, prefix=self._prefix)
-        // build_options = build_options_path(pkg, prefix=self._prefix)
-        // build_script = build_script_path(pkg, prefix=self._prefix)
-        // os.makedirs(metadata_dir, exist_ok=True)
-        // api.save_spec_file(build_spec, self._spec)
-        // with open(build_script, "w+") as writer:
-        //     writer.write("\n".join(self._spec.build.script))
-        // with open(build_options, "w+") as writer:
-        //     json.dump(dict(self._all_options.items()), writer, indent="\t")
+        // force the base environment to be setup using bash, so that the
+        // spfs startup and build environment are predictable and consistent
+        // (eg in case the user's shell does not have startup scripts in
+        //  the dependencies, is not supported by spfs, etc)
+        std::env::set_var("SHELL", "bash");
+        let cmd = if self.interactive {
+            println!("\nNow entering an interactive build shell");
+            println!(" - your current directory will be set to the sources area");
+            println!(" - build and install your artifacts into /spfs");
+            println!(
+                " - this package's build script can be run from: {}",
+                build_script.display()
+            );
+            println!(" - to cancel and discard this build, run `exit 1`");
+            println!(" - to finalize and save the package, run `exit 0`");
+            spfs::build_interactive_shell_cmd(&runtime)?
+        } else {
+            use std::ffi::OsString;
+            spfs::build_shell_initialized_command(
+                OsString::from("bash"),
+                &mut vec![OsString::from("-ex"), build_script.into_os_string()],
+            )?
+        };
 
-        // env.update(self._all_options.to_environment())
-        // env.update(get_package_build_env(self._spec))
-        // env["PREFIX"] = self._prefix
+        let mut args = cmd.into_iter();
+        let mut cmd = std::process::Command::new(args.next().unwrap());
+        cmd.args(args);
+        cmd.envs(env);
+        cmd.envs(self.all_options.to_environment());
+        cmd.envs(get_package_build_env(&self.spec));
+        cmd.env("PREFIX", &self.prefix);
+        cmd.current_dir(&source_dir);
 
-        // if isinstance(self._source, api.Ident):
-        //     source_dir = source_package_path(self._source, self._prefix)
-        // else:
-        //     source_dir = os.path.abspath(self._source)
-
-        // # force the base environment to be setup using bash, so that the
-        // # spfs startup and build environment are predictable and consistent
-        // # (eg in case the user's shell does not have startup scripts in
-        // #  the dependencies, is not supported by spfs, etc)
-        // if self._interactive:
-        //     os.environ["SHELL"] = "bash"
-        //     print("\nNow entering an interactive build shell")
-        //     print(" - your current directory will be set to the sources area")
-        //     print(" - build and install your artifacts into /spfs")
-        //     print(" - this package's build script can be run from: " + build_script)
-        //     print(" - to cancel and discard this build, run `exit 1`")
-        //     print(" - to finalize and save the package, run `exit 0`")
-        //     cmd = spkrs.build_interactive_shell_command()
-        // else:
-        //     os.environ["SHELL"] = "bash"
-        //     cmd = spkrs.build_shell_initialized_command("bash", "-ex", build_script)
-        // with deferred_signals():
-        //     proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
-        //     proc.wait()
-        // if proc.returncode != 0:
-        //     raise BuildError(
-        //         f"Build script returned non-zero exit status: {proc.returncode}"
-        //     )
+        match cmd.status() {
+            Err(err) => Err(err.into()),
+            Ok(status) => match status.code() {
+                Some(0) => Ok(()),
+                Some(code) => Err(BuildError::new_error(format_args!(
+                    "Build script returned non-zero exit status: {}",
+                    code
+                ))),
+                None => Err(BuildError::new_error(format_args!(
+                    "Build script failed unexpectedly"
+                ))),
+            },
+        }
     }
 }
 
