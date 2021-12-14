@@ -206,21 +206,21 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     }
 
     fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
-        todo!()
-        // self._solver.reset()
-        // self._solver.update_options(self._all_options)
-        // self._solver.set_binary_only(True)
-        // for repo in self._repos:
-        //     self._solver.add_repository(repo)
+        self.solver.reset();
+        self.solver.update_options(self.all_options.clone());
+        self.solver.set_binary_only(true);
+        for repo in self.repos.iter().cloned() {
+            self.solver.add_repository(repo);
+        }
 
-        // for request in self.get_build_requirements():
-        //     self._solver.add_request(request)
+        for request in self.get_build_requirements() {
+            self.solver.add_request(request);
+        }
 
-        // runtime = solver.run()
-        // try:
-        //     return runtime.solution()
-        // finally:
-        //     self._last_solve_graph = runtime.graph()
+        let mut runtime = self.solver.run();
+        let solution = runtime.solution();
+        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        Ok(solution?)
     }
 
     /// List the requirements for the build environment.
