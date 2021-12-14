@@ -188,17 +188,15 @@ impl<'spec> BinaryPackageBuilder<'spec> {
             self.solver.add_repository(repo.clone());
         }
 
-        if let BuildSource::SourcePackage(source) = &self.source {
-            let ident_range = api::RangeIdent::exact(source);
-            let request = api::PkgRequest {
-                pkg: ident_range,
-                prerelease_policy: api::PreReleasePolicy::IncludeAll,
-                inclusion_policy: api::InclusionPolicy::Always,
-                pin: None,
-                required_compat: None,
-            };
-            self.solver.add_request(request.into())
-        }
+        let ident_range = api::RangeIdent::exact(package);
+        let request = api::PkgRequest {
+            pkg: ident_range,
+            prerelease_policy: api::PreReleasePolicy::IncludeAll,
+            inclusion_policy: api::InclusionPolicy::Always,
+            pin: None,
+            required_compat: None,
+        };
+        self.solver.add_request(request.into());
 
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
@@ -345,7 +343,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         cmd.args(args);
         cmd.envs(env);
         cmd.envs(self.all_options.to_environment());
-        cmd.envs(get_package_build_env(&self.spec));
+        cmd.envs(get_package_build_env(self.spec));
         cmd.env("PREFIX", &self.prefix);
         cmd.current_dir(&source_dir);
 
