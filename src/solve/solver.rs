@@ -58,6 +58,11 @@ impl Solver {
         self.initial_state_builders.push(request);
     }
 
+    /// Add a repository where the solver can get packages.
+    pub fn add_repository(&mut self, repo: Arc<Mutex<storage::RepositoryHandle>>) {
+        self.repos.push(repo);
+    }
+
     fn get_iterator(
         &self,
         node: &mut Node,
@@ -230,7 +235,8 @@ impl Solver {
     }
 
     /// Add a repository where the solver can get packages.
-    pub fn add_repository(&mut self, repo: storage::python::Repository) {
+    #[pyo3(name = "add_repository")]
+    pub fn py_add_repository(&mut self, repo: storage::python::Repository) {
         self.repos.push(repo.handle);
     }
 
