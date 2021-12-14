@@ -34,6 +34,16 @@ pub struct RangeIdent {
 }
 
 impl RangeIdent {
+    pub fn exact(ident: &super::Ident) -> Self {
+        Self {
+            name: ident.name().to_string(),
+            version: super::VersionFilter::single(
+                super::ExactVersion::from(ident.version.clone()).into(),
+            ),
+            build: ident.build.clone(),
+        }
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -286,6 +296,18 @@ impl Request {
             Request::Var(r) => r.var.to_owned(),
             Request::Pkg(r) => r.pkg.to_string(),
         }
+    }
+}
+
+impl From<VarRequest> for Request {
+    fn from(req: VarRequest) -> Self {
+        Self::Var(req)
+    }
+}
+
+impl From<PkgRequest> for Request {
+    fn from(req: PkgRequest) -> Self {
+        Self::Pkg(req)
     }
 }
 
