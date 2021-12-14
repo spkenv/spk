@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use spfs::prelude::Encodable;
 
@@ -59,7 +60,8 @@ pub struct BinaryPackageBuilder<'spec> {
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
-    repos: Vec<storage::RepositoryHandle>,
+    last_solve_graph: solve::Graph,
+    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     interactive: bool,
 }
 
@@ -71,6 +73,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
             all_options: api::OptionMap::default(),
             source: BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source))),
             solver: solve::Solver::default(),
+            last_solve_graph: Default::default(),
             repos: Default::default(),
             interactive: false,
         }
@@ -106,7 +109,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     }
 
     pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repos.push(repo);
+        self.repos.push(Arc::new(Mutex::new(repo)));
         self
     }
 
@@ -114,7 +117,8 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         &mut self,
         repos: impl IntoIterator<Item = storage::RepositoryHandle>,
     ) -> &mut Self {
-        self.repos.extend(repos);
+        self.repos
+            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
         self
     }
 
@@ -171,28 +175,34 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     }
 
     fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
-        todo!()
-        // self._solver.reset()
-        // self._solver.update_options(self._all_options)
-        // self._solver.add_repository(storage.local_repository())
-        // for repo in self._repos:
-        //     if repo == storage.local_repository():
-        //         # local repo is always injected first, and duplicates are redundant
-        //         continue
-        //     self._solver.add_repository(repo)
+        self.solver.reset();
+        self.solver.update_options(self.all_options.clone());
+        let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
+        self.solver.add_repository(local_repo.clone());
+        for repo in self.repos.iter() {
+            if &*repo.lock().unwrap() == &*local_repo.lock().unwrap() {
+                // local repo is always injected first, and duplicates are redundant
+                continue;
+            }
+            self.solver.add_repository(repo.clone());
+        }
 
-        // if isinstance(self._source, api.Ident):
-        //     ident_range = api.parse_ident_range(
-        //         f"{self._source.name}/={self._source.version}/{self._source.build}"
-        //     )
-        //     request = api.PkgRequest(ident_range, "IncludeAll")
-        //     self._solver.add_request(request)
+        if let BuildSource::SourcePackage(source) = &self.source {
+            let ident_range = api::RangeIdent::exact(source);
+            let request = api::PkgRequest {
+                pkg: ident_range,
+                prerelease_policy: api::PreReleasePolicy::IncludeAll,
+                inclusion_policy: api::InclusionPolicy::Always,
+                pin: None,
+                required_compat: None,
+            };
+            self.solver.add_request(request.into())
+        }
 
-        // runtime = solver.run()
-        // try:
-        //     return runtime.solution()
-        // finally:
-        //     self._last_solve_graph = runtime.graph()
+        let mut runtime = self.solver.run();
+        let solution = runtime.solution();
+        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        Ok(solution?)
     }
 
     fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
