@@ -27,7 +27,7 @@ class PackageBuildTester:
         self._options = api.OptionMap()
         self._additional_requirements: List[api.Request] = []
         self._source: Union[str, api.Ident] = spec.pkg.with_build(api.SRC)
-        self._solver = solve.Solver()
+        self._last_solve_graph = solve.Graph()
 
     def get_solve_graph(self) -> solve.Graph:
         """Return the solver graph for the test environment.
@@ -38,7 +38,7 @@ class PackageBuildTester:
         If the tester has not run, returns an incomplete.
         """
 
-        return self._solver.get_last_solve_graph()
+        return self._last_solve_graph
 
     def with_option(self, name: str, value: str) -> "PackageBuildTester":
 
@@ -82,19 +82,24 @@ class PackageBuildTester:
         stack = exec.resolve_runtime_layers(solution)
         spkrs.reconfigure_runtime(stack=stack)
 
-        self._solver.reset()
+        solver = solve.Solver()
         for request in self._additional_requirements:
-            self._solver.add_request(request)
-        self._solver.update_options(self._options)
+            solver.add_request(request)
+        solver.update_options(self._options)
         for repo in self._repos:
-            self._solver.add_repository(repo)
+            solver.add_repository(repo)
         if isinstance(self._source, api.Ident):
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
             request = api.PkgRequest(ident_range, "IncludeAll")
-            self._solver.add_request(request)
-        solution = self._solver.solve_build_environment(self._spec)
+            solver.add_request(request)
+        solver.configure_for_build_environment(self._spec)
+        runtime = solver.run()
+        try:
+            solution = runtime.solution()
+        finally:
+            self._last_solve_graph = runtime.graph()
 
         stack = exec.resolve_runtime_layers(solution)
         spkrs.reconfigure_runtime(stack=stack)
@@ -127,20 +132,24 @@ class PackageBuildTester:
 
     def _resolve_source_package(self) -> solve.Solution:
 
-        self._solver.reset()
-        self._solver.update_options(self._options)
-        self._solver.add_repository(storage.local_repository())
+        solver = solve.Solver()
+        solver.update_options(self._options)
+        solver.add_repository(storage.local_repository())
         for repo in self._repos:
             if repo == storage.local_repository():
                 # local repo is always injected first, and duplicates are redundant
                 continue
-            self._solver.add_repository(repo)
+            solver.add_repository(repo)
 
         if isinstance(self._source, api.Ident):
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
             request = api.PkgRequest(ident_range, "IncludeAll")
-            self._solver.add_request(request)
+            solver.add_request(request)
 
-        return self._solver.solve()
+        runtime = solver.run()
+        try:
+            return runtime.solution()
+        finally:
+            self._last_solve_graph = runtime.graph()

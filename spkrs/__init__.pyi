@@ -1,6 +1,6 @@
 from typing import List
 
-from . import api, build, storage
+from . import api, build, storage, solve
 
 EMPTY_DIGEST: Digest
 

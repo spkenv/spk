@@ -50,7 +50,7 @@ def _render(args: argparse.Namespace) -> None:
     try:
         generator = solver.run()
         spk.io.format_decisions(generator, sys.stdout, args.verbose)
-        solution = generator.solution
+        solution = generator.solution()
     except spk.SolverError as e:
         print(spk.io.format_error(e, args.verbose), file=sys.stderr)
         sys.exit(1)

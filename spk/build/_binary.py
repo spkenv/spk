@@ -48,7 +48,7 @@ class BinaryPackageBuilder:
         self._all_options = api.OptionMap()
         self._pkg_options = api.OptionMap()
         self._source: Union[str, api.Ident] = "."
-        self._solver = solve.Solver()
+        self._last_solve_graph = solve.Graph()
         self._repos: List[storage.Repository] = []
         self._interactive = False
 
@@ -69,7 +69,7 @@ class BinaryPackageBuilder:
         If the builder has not run, return an incomplete graph.
         """
 
-        return self._solver.get_last_solve_graph()
+        return self._last_solve_graph
 
     def with_option(self, name: str, value: str) -> "BinaryPackageBuilder":
 
@@ -144,36 +144,44 @@ class BinaryPackageBuilder:
 
     def _resolve_source_package(self) -> solve.Solution:
 
-        self._solver.reset()
-        self._solver.update_options(self._all_options)
-        self._solver.add_repository(storage.local_repository())
+        solver = solve.Solver()
+        solver.update_options(self._all_options)
+        solver.add_repository(storage.local_repository())
         for repo in self._repos:
             if repo == storage.local_repository():
                 # local repo is always injected first, and duplicates are redundant
                 continue
-            self._solver.add_repository(repo)
+            solver.add_repository(repo)
 
         if isinstance(self._source, api.Ident):
             ident_range = api.parse_ident_range(
                 f"{self._source.name}/={self._source.version}/{self._source.build}"
             )
             request = api.PkgRequest(ident_range, "IncludeAll")
-            self._solver.add_request(request)
+            solver.add_request(request)
 
-        return self._solver.solve()
+        runtime = solver.run()
+        try:
+            return runtime.solution()
+        finally:
+            self._last_solve_graph = runtime.graph()
 
     def _resolve_build_environment(self) -> solve.Solution:
 
-        self._solver.reset()
-        self._solver.update_options(self._all_options)
-        self._solver.set_binary_only(True)
+        solver = solve.Solver()
+        solver.update_options(self._all_options)
+        solver.set_binary_only(True)
         for repo in self._repos:
-            self._solver.add_repository(repo)
+            solver.add_repository(repo)
 
         for request in self.get_build_requirements():
-            self._solver.add_request(request)
+            solver.add_request(request)
 
-        return self._solver.solve()
+        runtime = solver.run()
+        try:
+            return runtime.solution()
+        finally:
+            self._last_solve_graph = runtime.graph()
 
     def get_build_requirements(self) -> Iterable[api.Request]:
         """List the requirements for the build environment."""
