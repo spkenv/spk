@@ -10,7 +10,7 @@ from ._package_iterator import RepositoryPackageIterator, FilteredPackageIterato
 
 def test_only_latest_release_is_given() -> None:
 
-    repo = storage.MemRepository()
+    repo = spkrs.storage.mem_repository()
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.1"})
     repo.publish_spec(spec)
     spec.pkg = spec.pkg.with_build("BGSHW3CN")
@@ -46,7 +46,7 @@ def test_only_latest_release_is_given() -> None:
 
 def test_old_release_allowed_if_requested() -> None:
 
-    repo = storage.MemRepository()
+    repo = spkrs.storage.mem_repository()
     spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0+r.1"})
     repo.publish_spec(spec)
     spec.pkg = spec.pkg.with_build("BGSHW3CN")

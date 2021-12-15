@@ -69,8 +69,7 @@ class RepositoryPackageIterator(PackageIterator):
         self._version_map = {}
         for repo in reversed(self._repos):
             repo_versions = repo.list_package_versions(self._package_name)
-            for version_str in repo_versions:
-                version = api.parse_version(version_str)
+            for version in repo_versions:
                 self._version_map[version] = repo
 
         if len(self._version_map) == 0:

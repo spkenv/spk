@@ -1,16 +1,18 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use crate::api::{self, Build};
 use dyn_clone::DynClone;
-use pyo3::{prelude::*, types::PyTuple};
+use pyo3::prelude::*;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
 };
 
-use super::errors::PackageNotFoundError;
 use super::solution::PackageSource;
+use crate::{
+    api::{self, Build},
+    storage, Error, Result,
+};
 
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_empty(&self) -> bool;
@@ -57,9 +59,9 @@ impl VersionIterator {
 #[derive(Debug)]
 pub struct RepositoryPackageIterator {
     pub package_name: String,
-    pub repos: Vec<PyObject>,
+    pub repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     versions: Option<VersionIterator>,
-    version_map: HashMap<api::Version, PyObject>,
+    version_map: HashMap<api::Version, Arc<Mutex<storage::RepositoryHandle>>>,
     builds_map: HashMap<api::Version, Arc<Mutex<dyn BuildIterator>>>,
     active_version: Option<api::Version>,
 }
@@ -70,12 +72,20 @@ impl Clone for RepositoryPackageIterator {
         let version_map = if self.versions.is_none() {
             match self.build_version_map() {
                 Ok(version_map) => version_map,
-                // XXX: This only caught PackageNotFoundError in the python impl
-                Err(_) => {
+                Err(Error::PackageNotFoundError(_)) => {
                     return RepositoryPackageIterator::new(
                         self.package_name.to_owned(),
                         self.repos.clone(),
                     )
+                }
+                Err(err) => {
+                    // we wanted to save the clone from causing this
+                    // work to be done twice, but it's not fatal
+                    tracing::trace!(
+                        "Encountered error cloning RepositoryPackageIterator: {:?}",
+                        err
+                    );
+                    self.version_map.clone()
                 }
             }
         } else {
@@ -139,7 +149,7 @@ impl PackageIterator for RepositoryPackageIterator {
 }
 
 impl RepositoryPackageIterator {
-    pub fn new(package_name: String, repos: Vec<PyObject>) -> Self {
+    pub fn new(package_name: String, repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>) -> Self {
         RepositoryPackageIterator {
             package_name,
             repos,
@@ -150,31 +160,30 @@ impl RepositoryPackageIterator {
         }
     }
 
-    fn build_version_map(&self) -> PyResult<HashMap<api::Version, PyObject>> {
+    fn build_version_map(
+        &self,
+    ) -> Result<HashMap<api::Version, Arc<Mutex<storage::RepositoryHandle>>>> {
         let mut version_map = HashMap::default();
         for repo in self.repos.iter().rev() {
-            let repo_versions: PyResult<Vec<String>> = Python::with_gil(|py| {
-                let args = PyTuple::new(py, &[self.package_name.as_str()]);
-                let iter = repo.call_method1(py, "list_package_versions", args)?;
-                iter.as_ref(py)
-                    .iter()?
-                    .map(|o| o.and_then(PyAny::extract::<String>))
-                    .collect()
-            });
-            for version_str in repo_versions? {
-                let version = api::parse_version(version_str)?;
+            for version in repo
+                .lock()
+                .unwrap()
+                .list_package_versions(&self.package_name)?
+            {
                 version_map.insert(version, repo.clone());
             }
         }
 
         if version_map.is_empty() {
-            return Err(PackageNotFoundError::new_err(self.package_name.to_owned()));
+            return Err(Error::PackageNotFoundError(api::Ident::new(
+                &self.package_name,
+            )?));
         }
 
         Ok(version_map)
     }
 
-    fn start(&mut self) -> crate::Result<()> {
+    fn start(&mut self) -> Result<()> {
         self.version_map = self.build_version_map()?;
         let mut versions: Vec<api::Version> =
             self.version_map.keys().into_iter().cloned().collect();
@@ -188,7 +197,7 @@ impl RepositoryPackageIterator {
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
     pkg: api::Ident,
-    repo: PyObject,
+    repo: Arc<Mutex<storage::RepositoryHandle>>,
     builds: VecDeque<api::Ident>,
     spec: Option<Arc<api::Spec>>,
 }
@@ -205,26 +214,21 @@ impl BuildIterator for RepositoryBuildIterator {
             return Ok(None);
         };
 
-        let spec: PyResult<Option<api::Spec>> = Python::with_gil(|py| {
-            let args = PyTuple::new(py, &[build.clone().into_py(py)]);
-            match self.repo.call_method1(py, "read_spec", args) {
-                Ok(spec) => Ok(Some(spec.as_ref(py).extract::<api::Spec>()?)),
-                // FIXME: This should only catch PackageNotFoundError
-                Err(_) => {
-                    tracing::warn!(
-                        "Repository listed build with no spec: {} from {}",
-                        build,
-                        self.repo
-                    );
-                    Ok(None)
-                }
+        let guard = self.repo.lock().unwrap();
+        let mut spec = match guard.read_spec(&build) {
+            Ok(spec) => spec,
+            Err(Error::PackageNotFoundError(..)) => {
+                drop(guard);
+                tracing::warn!(
+                    "Repository listed build with no spec: {} from {:?}",
+                    build,
+                    self.repo
+                );
+                return self.next();
             }
-        });
-        let mut spec = if let Some(spec) = spec? {
-            spec
-        } else {
-            return self.next();
+            Err(err) => return Err(err),
         };
+
         if spec.pkg.build.is_none() {
             tracing::warn!(
                 "Published spec is corrupt (has no associated build), pkg={}",
@@ -245,29 +249,18 @@ impl BuildIterator for RepositoryBuildIterator {
 }
 
 impl RepositoryBuildIterator {
-    fn new(pkg: api::Ident, repo: PyObject) -> PyResult<Self> {
-        let (builds, spec) = Python::with_gil(|py| {
-            let args = PyTuple::new(py, &[pkg.clone().into_py(py)]);
-            let iter = repo.call_method1(py, "list_package_builds", args)?;
-            let builds: PyResult<Vec<api::Ident>> = iter
-                .as_ref(py)
-                .iter()?
-                .map(|o| o.and_then(PyAny::extract::<api::Ident>))
-                .collect();
-            let mut builds = builds?;
+    fn new(pkg: api::Ident, repo: Arc<Mutex<storage::RepositoryHandle>>) -> Result<Self> {
+        let mut builds = repo.lock().unwrap().list_package_builds(&pkg)?;
+        let spec = match repo.lock().unwrap().read_spec(&pkg) {
+            Ok(spec) => Some(Arc::new(spec)),
+            Err(Error::PackageNotFoundError(..)) => None,
+            Err(err) => return Err(err),
+        };
 
-            let spec = match repo.call_method1(py, "read_spec", args) {
-                Ok(spec) => Some(Arc::new(spec.as_ref(py).extract::<api::Spec>()?)),
-                // FIXME: This should only catch PackageNotFoundError
-                Err(_) => None,
-            };
+        // source packages must come last to ensure that building
+        // from source is the last option under normal circumstances
+        builds.sort_by_key(|pkg| !pkg.is_source());
 
-            // source packages must come last to ensure that building
-            // from source is the last option under normal circumstances
-            builds.sort_by_key(|pkg| !pkg.is_source());
-
-            PyResult::Ok((builds, spec))
-        })?;
         Ok(RepositoryBuildIterator {
             pkg,
             repo,

@@ -1,21 +1,18 @@
 # Copyright (c) 2021 Sony Pictures Imageworks, et al.
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
-
 from typing import Any, Dict, List, Union
+import sys
 
 import spkrs
 import pytest
 
 import spk
 
-print(spk.solve, spk.cli, spk.api)
-from pprint import pprint
-import sys
-
-from .. import api, storage, io
+from .. import api, io
 from ..pysolve import legacy
 from ..pysolve.legacy import _errors as legacy_errors
+from spkrs import storage
 from spkrs.solve import _errors as rust_errors
 from spkrs.solve._solver import Solver
 
@@ -31,9 +28,9 @@ def solver(request: Any) -> Union[legacy.Solver, Solver]:
 
 def make_repo(
     specs: List[Union[Dict, api.Spec]], opts: api.OptionMap = api.OptionMap()
-) -> storage.MemRepository:
+) -> storage.Repository:
 
-    repo = storage.MemRepository()
+    repo = storage.mem_repository()
 
     def add_pkg(s: Union[Dict, api.Spec]) -> None:
         if isinstance(s, dict):
@@ -70,7 +67,7 @@ def test_solver_no_requests(solver: Union[Solver, legacy.Solver]) -> None:
 
 def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> None:
 
-    repo = storage.MemRepository()
+    repo = storage.mem_repository()
 
     options = api.OptionMap()
     spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
@@ -82,7 +79,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    with pytest.raises((rust_errors.PackageNotFoundError, legacy_errors.SolverError)):  # type: ignore
+    with pytest.raises((FileNotFoundError, legacy_errors.SolverError)):
         try:
             solver.solve()
         except Exception as e:
@@ -479,12 +476,13 @@ def test_solver_constraint_and_request(solver: Union[Solver, legacy.Solver]) -> 
     assert solution.get("python").spec.pkg.version == "3.7.3"
 
 
-def test_solver_option_compatibility(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_option_compatibility() -> None:
 
     # test what happens when an option is given in the solver
     # - the options for each build are checked
     # - the resolved build must have used the option
 
+    solver = Solver()
     spec = api.Spec.from_dict(
         {
             "pkg": "vnp3/2.0.0",
@@ -793,7 +791,9 @@ def test_solver_build_from_source_deprecated(
         ],
         api.OptionMap(debug="off"),
     )
-    repo._specs["my-tool"]["1.2.0"].deprecated = True
+    spec = repo.read_spec(api.parse_ident("my-tool/1.2.0"))
+    spec.deprecated = True
+    repo.force_publish_spec(spec)
 
     solver.add_repository(repo)
     solver.add_request(api.VarRequest("debug", "on"))

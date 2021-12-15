@@ -9,5 +9,5 @@ class SolverError(Exception):
     pass
 
 
-class PackageNotFoundError(SolverError, storage.PackageNotFoundError):
+class PackageNotFoundError(SolverError, FileNotFoundError):
     pass

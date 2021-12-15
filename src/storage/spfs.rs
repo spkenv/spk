@@ -2,29 +2,253 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use pyo3::prelude::*;
-use spfs;
+use itertools::Itertools;
+use relative_path::RelativePathBuf;
 
-use crate::{Digest, Result};
+use super::Repository;
+use crate::{api, Digest, Error, Result};
 
-#[pyclass(subclass)]
-pub struct SpFSRepository {
+#[derive(Debug)]
+pub struct SPFSRepository {
     inner: spfs::storage::RepositoryHandle,
 }
 
-impl From<spfs::storage::RepositoryHandle> for SpFSRepository {
+impl std::hash::Hash for SPFSRepository {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.address().hash(state);
+    }
+}
+
+impl PartialEq for SPFSRepository {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.address() == other.inner.address()
+    }
+}
+
+impl Eq for SPFSRepository {}
+
+impl std::ops::Deref for SPFSRepository {
+    type Target = spfs::storage::RepositoryHandle;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl std::ops::DerefMut for SPFSRepository {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl From<spfs::storage::RepositoryHandle> for SPFSRepository {
     fn from(repo: spfs::storage::RepositoryHandle) -> Self {
         Self { inner: repo }
     }
 }
 
-#[pymethods]
-impl SpFSRepository {
-    #[new]
+impl SPFSRepository {
     pub fn new(address: &str) -> Result<Self> {
         Ok(Self {
             inner: spfs::storage::open_repository(address)?,
         })
+    }
+}
+
+impl Repository for SPFSRepository {
+    fn address(&self) -> url::Url {
+        self.inner.address()
+    }
+
+    fn list_packages(&self) -> Result<Vec<String>> {
+        let path = relative_path::RelativePath::new("spk/spec");
+        Ok(self
+            .inner
+            .ls_tags(path)?
+            .filter_map(|entry| {
+                if entry.ends_with('/') {
+                    Some(entry[0..entry.len() - 1].to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect_vec())
+    }
+
+    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
+        let path = self.build_spec_tag(&api::parse_ident(name)?);
+        let mut versions = self
+            .inner
+            .ls_tags(&path)?
+            .map(|entry| {
+                if entry.ends_with('/') {
+                    let stripped = &entry[0..entry.len() - 1];
+                    // undo our encoding of the invalid '+' character in spfs tags
+                    stripped.replace("..", "+")
+                } else {
+                    entry.replace("..", "+")
+                }
+            })
+            .filter_map(|v| match api::parse_version(&v) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    tracing::warn!("Invalid version found in spfs tags: {}", v);
+                    None
+                }
+            })
+            .unique()
+            .collect_vec();
+        versions.sort();
+        Ok(versions)
+    }
+
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+        let pkg = pkg.with_build(Some(api::Build::Source));
+        let mut base = self.build_package_tag(&pkg)?;
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
+
+        Ok(self
+            .inner
+            .ls_tags(&base)?
+            .filter(|entry| !entry.ends_with('/'))
+            .filter_map(|b| match api::parse_build(&b) {
+                Ok(b) => Some(b),
+                Err(_) => {
+                    tracing::warn!("Invalid build found in spfs tags: {}", b);
+                    None
+                }
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect())
+    }
+
+    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+        let tag_path = self.build_spec_tag(pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
+            spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+            err => err.into(),
+        })?;
+
+        let reader = self.inner.open_payload(&tag.target)?;
+        Ok(serde_yaml::from_reader(reader)?)
+    }
+
+    fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
+        let tag_path = self.build_package_tag(pkg)?;
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        let tag = self.inner.resolve_tag(&tag_spec).map_err(|err| match err {
+            spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+            err => err.into(),
+        })?;
+        Ok(tag.target)
+    }
+
+    fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
+        if spec.pkg.build.is_some() {
+            return Err(api::InvalidBuildError::new_error(
+                "Spec must be published with no build".to_string(),
+            ));
+        }
+        let tag_path = self.build_spec_tag(&spec.pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        if self.inner.has_tag(&tag_spec) {
+            // BUG(rbottriell): this creates a race condition but is not super dangerous
+            // because of the non-destructive tag history
+            Err(Error::VersionExistsError(spec.pkg))
+        } else {
+            self.force_publish_spec(spec)
+        }
+    }
+
+    fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
+        let tag_path = self.build_spec_tag(pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        match self.inner.remove_tag_stream(&tag_spec) {
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),
+            Err(err) => Err(err.into()),
+            Ok(_) => Ok(()),
+        }
+    }
+
+    fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
+        if let Some(api::Build::Embedded) = spec.pkg.build {
+            return Err(api::InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            ));
+        }
+        let tag_path = self.build_spec_tag(&spec.pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+
+        let payload = serde_yaml::to_vec(&spec)?;
+        let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
+        let blob = spfs::graph::Blob {
+            payload: digest,
+            size,
+        };
+        self.inner.write_blob(blob)?;
+        self.inner.push_tag(&tag_spec, &digest)?;
+        Ok(())
+    }
+
+    fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
+        #[cfg(test)]
+        if let Err(Error::PackageNotFoundError(pkg)) = self.read_spec(&spec.pkg.with_build(None)) {
+            return Err(Error::String(format!(
+                "[INTERNAL] version spec must be published before a specific build: {:?}",
+                pkg
+            )));
+        }
+
+        let tag_path = self.build_package_tag(&spec.pkg)?;
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        self.force_publish_spec(spec)?;
+        self.inner.push_tag(&tag_spec, &digest)?;
+        Ok(())
+    }
+
+    fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
+        let tag_path = self.build_package_tag(pkg)?;
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        match self.inner.remove_tag_stream(&tag_spec) {
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),
+            Err(err) => Err(err.into()),
+            Ok(_) => Ok(()),
+        }
+    }
+}
+
+impl SPFSRepository {
+    /// Construct an spfs tag string to represent a binary package layer.
+    fn build_package_tag(&self, pkg: &api::Ident) -> Result<RelativePathBuf> {
+        if pkg.build.is_none() {
+            return Err(api::InvalidBuildError::new_error(
+                "Package must have associated build digest".to_string(),
+            ));
+        }
+
+        let mut tag = RelativePathBuf::from("spk");
+        tag.push("pkg");
+        // the "+" character is not a valid spfs tag character,
+        // so we 'encode' it with two dots, which is not a valid sequence
+        // for spk package names
+        tag.push(pkg.to_string().replace("+", ".."));
+
+        Ok(tag)
+    }
+
+    /// Construct an spfs tag string to represent a spec file blob.
+    fn build_spec_tag(&self, pkg: &api::Ident) -> RelativePathBuf {
+        let mut tag = RelativePathBuf::from("spk");
+        tag.push("spec");
+        // the "+" character is not a valid spfs tag character,
+        // see above ^
+        tag.push(pkg.to_string().replace("+", ".."));
+
+        tag
     }
 
     pub fn has_tag(&self, tag: &str) -> bool {
@@ -38,11 +262,6 @@ impl SpFSRepository {
         self.inner.has_object(&digest.inner)
     }
 
-    pub fn push_ref(&self, reference: &str, dest: &mut Self) -> Result<()> {
-        spfs::sync_ref(reference, &self.inner, &mut dest.inner)?;
-        Ok(())
-    }
-
     pub fn push_digest(&self, digest: &Digest, dest: &mut Self) -> Result<()> {
         spfs::sync_ref(digest.inner.to_string(), &self.inner, &mut dest.inner)?;
         Ok(())
@@ -54,61 +273,6 @@ impl SpFSRepository {
         Ok(())
     }
 
-    pub fn resolve_tag_to_digest(&self, tag: &str) -> Result<Option<Digest>> {
-        let tag = tag.parse()?;
-        match self.inner.resolve_tag(&tag) {
-            Ok(tag) => Ok(Some(tag.target.into())),
-            Err(spfs::Error::UnknownReference(_)) => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub fn push_tag(&mut self, tag: &str, target: &Digest) -> Result<()> {
-        let tag = tag.parse()?;
-        self.inner.push_tag(&tag, &target.inner)?;
-        Ok(())
-    }
-
-    pub fn ls_all_tags(&self) -> Result<Vec<String>> {
-        let tags: spfs::Result<Vec<_>> = self.inner.iter_tags().collect();
-        let tags = tags?
-            .into_iter()
-            .map(|(spec, _)| spec.to_string())
-            .collect();
-        Ok(tags)
-    }
-
-    pub fn ls_tags(&self, base: &str) -> Result<Vec<String>> {
-        let path = relative_path::RelativePath::new(base);
-        let tags: Vec<_> = self.inner.ls_tags(path)?.collect();
-        Ok(tags)
-    }
-
-    pub fn remove_tag_stream(&mut self, tag: &str) -> Result<()> {
-        let tag = tag.parse()?;
-        self.inner.remove_tag_stream(&tag)?;
-        Ok(())
-    }
-
-    pub fn write_spec(&mut self, tag: &str, payload: Vec<u8>) -> Result<()> {
-        let tag = tag.parse()?;
-        let (digest, size) = self.inner.write_data(Box::new(&mut payload.as_slice()))?;
-        let blob = spfs::graph::Blob {
-            payload: digest,
-            size,
-        };
-        self.inner.write_blob(blob)?;
-        self.inner.push_tag(&tag, &digest)?;
-        Ok(())
-    }
-
-    pub fn read_spec(&self, digest: &Digest) -> Result<String> {
-        let mut buf = Vec::new();
-        let mut payload = self.inner.open_payload(&digest.inner)?;
-        std::io::copy(&mut payload, &mut buf)?;
-        Ok(unsafe { String::from_utf8_unchecked(buf) })
-    }
-
     pub fn flush(&mut self) -> Result<()> {
         match &mut self.inner {
             spfs::storage::RepositoryHandle::Tar(tar) => Ok(tar.flush()?),
@@ -118,17 +282,17 @@ impl SpFSRepository {
 }
 
 /// Return the local packages repository used for development.
-pub fn local_repository() -> Result<SpFSRepository> {
+pub fn local_repository() -> Result<SPFSRepository> {
     let config = spfs::load_config()?;
     let repo = config.get_repository()?;
-    Ok(SpFSRepository { inner: repo.into() })
+    Ok(SPFSRepository { inner: repo.into() })
 }
 
 /// Return the remote repository of the given name.
 ///
 /// If not name is specified, return the default spfs repository.
-pub fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpFSRepository> {
+pub fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository> {
     let config = spfs::load_config()?;
     let repo = config.get_remote(name)?;
-    Ok(SpFSRepository { inner: repo })
+    Ok(SPFSRepository { inner: repo })
 }

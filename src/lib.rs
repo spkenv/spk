@@ -72,6 +72,10 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     build::init_module(&py, build_mod)?;
     m.add_submodule(build_mod)?;
 
+    let storage_mod = PyModule::new(py, "storage")?;
+    storage::init_module(&py, storage_mod)?;
+    m.add_submodule(storage_mod)?;
+
     let solve_mod = PyModule::new(py, "solve")?;
     solve::init_module(&py, solve_mod)?;
     m.add_submodule(solve_mod)?;
@@ -83,6 +87,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     import sys;\
     sys.modules['spkrs.api'] = api;\
     sys.modules['spkrs.build'] = build;\
+    sys.modules['spkrs.storage'] = storage;\
     sys.modules['spkrs.solve'] = solve;\
     ",
         None,
@@ -136,30 +141,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let rt = spfs::active_runtime()?;
         Ok(Runtime { inner: rt })
     }
-    #[pyfn(m)]
-    #[pyo3(name = "local_repository")]
-    fn local_repository(_py: Python) -> Result<storage::SpFSRepository> {
-        storage::local_repository()
-    }
-    #[pyfn(m)]
-    #[pyo3(name = "remote_repository")]
-    fn remote_repository(_py: Python, path: &str) -> Result<storage::SpFSRepository> {
-        storage::remote_repository(path)
-    }
-    #[pyfn(m)]
-    #[pyo3(name = "open_tar_repository")]
-    fn open_tar_repository(
-        _py: Python,
-        path: &str,
-        create: Option<bool>,
-    ) -> Result<storage::SpFSRepository> {
-        let repo = match create {
-            Some(true) => spfs::storage::tar::TarRepository::create(path)?,
-            _ => spfs::storage::tar::TarRepository::open(path)?,
-        };
-        let handle: spfs::storage::RepositoryHandle = repo.into();
-        Ok(storage::SpFSRepository::from(handle))
-    }
+
     #[pyfn(m)]
     #[pyo3(name = "validate_source_changeset")]
     fn validate_source_changeset() -> Result<()> {
@@ -254,7 +236,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
-    m.add_class::<self::storage::SpFSRepository>()?;
 
     let empty_spfs: spfs::encoding::Digest = spfs::encoding::EMPTY_DIGEST.into();
     let empty_spk = Digest::from(empty_spfs);

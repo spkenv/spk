@@ -23,6 +23,10 @@ pub enum Error {
     InvalidVersionError(api::InvalidVersionError),
     InvalidNameError(api::InvalidNameError),
     InvalidBuildError(api::InvalidBuildError),
+
+    // Storage Errors
+    PackageNotFoundError(api::Ident),
+    VersionExistsError(api::Ident),
 }
 
 impl Error {
@@ -87,11 +91,17 @@ impl From<Error> for PyErr {
             Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
             Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message),
             Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message),
-            Error::Solve(err) => err.into(),
             Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
+            Error::Solve(err) => err.into(),
             Error::InvalidBuildError(err) => exceptions::PyValueError::new_err(err.message),
             Error::InvalidVersionError(err) => exceptions::PyValueError::new_err(err.message),
             Error::InvalidNameError(err) => exceptions::PyValueError::new_err(err.message),
+            Error::PackageNotFoundError(pkg) => {
+                exceptions::PyFileNotFoundError::new_err(format!("Package not found: {}", pkg))
+            }
+            Error::VersionExistsError(pkg) => {
+                exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
+            }
             Error::PyErr(err) => err,
         }
     }

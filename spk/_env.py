@@ -29,11 +29,12 @@ def current_env() -> solve.Solution:
     except RuntimeError:
         raise NoEnvironmentError()
 
-    runtime = storage.RuntimeRepository()
+    runtime = spkrs.storage.runtime_repository()
     solution = solve.Solution()
     for name in runtime.list_packages():
         for version in runtime.list_package_versions(name):
-            for pkg in runtime.list_package_builds(name + "/" + version):
+            pkg = api.Ident(name, version)
+            for pkg in runtime.list_package_builds(pkg):
 
                 spec = runtime.read_spec(pkg)
                 request = api.PkgRequest(

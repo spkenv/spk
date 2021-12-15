@@ -28,15 +28,13 @@ spkrs.configure_logging(0)
 
 
 @pytest.fixture
-def tmprepo(tmpspfs: spkrs.SpFSRepository) -> spk.storage.SpFSRepository:
+def tmprepo(tmpspfs: spkrs.storage.Repository) -> spkrs.storage.Repository:
 
-    from spk import storage
-
-    return storage.SpFSRepository(tmpspfs)
+    return tmpspfs
 
 
 @pytest.fixture(autouse=True)
-def spfs_editable(tmpspfs: spkrs.SpFSRepository) -> None:
+def spfs_editable(tmpspfs: spkrs.storage.Repository) -> None:
 
     try:
         spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
@@ -48,19 +46,13 @@ def spfs_editable(tmpspfs: spkrs.SpFSRepository) -> None:
 
 
 @pytest.fixture(autouse=True)
-def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.SpFSRepository:
+def tmpspfs(tmpdir: py.path.local, monkeypatch: Any) -> spkrs.storage.Repository:
 
-    root = tmpdir.join("spfs_repo").strpath
-    origin_root = tmpdir.join("spfs_origin").strpath
+    root = tmpdir.join("spfs_repo").ensure(dir=1).strpath
+    origin_root = tmpdir.join("spfs_origin").ensure(dir=1).strpath
     monkeypatch.setenv("SPFS_STORAGE_ROOT", root)
     # we rely on an outer runtime being created and it needs to still be found
     monkeypatch.setenv("SPFS_STORAGE_RUNTIMES", "/tmp/spfs-runtimes")
     monkeypatch.setenv("SPFS_REMOTE_ORIGIN_ADDRESS", "file:" + origin_root)
-    for path in [root, origin_root]:
-        r = py.path.local(path)
-        r.join("renders").ensure(dir=True)
-        r.join("objects").ensure(dir=True)
-        r.join("payloads").ensure(dir=True)
-        r.join("tags").ensure(dir=True)
-    spkrs.SpFSRepository("file:" + origin_root)
-    return spkrs.SpFSRepository("file:" + root)
+    spkrs.storage.open_spfs_repository(origin_root, create=True)
+    return spkrs.storage.open_spfs_repository(root, create=True)

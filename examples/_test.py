@@ -21,7 +21,7 @@ testable_examples = glob.glob(f"{here}/**/*.spk.yaml", recursive=True)
 
 
 @pytest.fixture(autouse=True, scope="session")
-def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
+def tmpspfs() -> Iterable[spkrs.storage.Repository]:
 
     tmpdir = py.path.local(tempfile.mkdtemp())
     root = tmpdir.join("spfs_repo").strpath
@@ -30,13 +30,7 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
     os.environ["SPFS_STORAGE_RUNTIMES"] = "/tmp/spfs-runtimes"
     if "SPFS_REMOTE_ORIGIN_ADDRESS" in os.environ:
         del os.environ["SPFS_REMOTE_ORIGIN_ADDRESS"]
-    r = py.path.local(root)
-    r.join("runtimes").ensure(dir=True)
-    r.join("renders").ensure(dir=True)
-    r.join("objects").ensure(dir=True)
-    r.join("payloads").ensure(dir=True)
-    r.join("tags").ensure(dir=True)
-    yield spk.storage.SpFSRepository(spkrs.SpFSRepository("file:" + root))
+    yield spkrs.storage.open_spfs_repository(root, create=True)
     tmpdir.remove(rec=1)
 
 
@@ -46,7 +40,7 @@ def tmpspfs() -> Iterable[spk.storage.SpFSRepository]:
 def test_example(stage: str, spec_file: str) -> None:
 
     try:
-        spkrs.remote_repository("origin")
+        spkrs.storage.remote_repository("origin")
     except FileNotFoundError:
         pytest.skip("examples depend on external packages")
 

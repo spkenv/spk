@@ -5,7 +5,7 @@ use super::{must_install_something, must_not_alter_existing_files};
 
 #[test]
 fn test_validate_build_changeset_nothing() {
-    let res = must_install_something(&vec![], "/spfs");
+    let res = must_install_something(&[], "/spfs");
     assert!(res.is_some())
 }
 

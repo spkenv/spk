@@ -11,6 +11,7 @@ use std::{
 use crate::{
     api::{self, Build, CompatRule, OptionMap, Request},
     solve::graph::{GraphError, StepBack},
+    storage, Error,
 };
 
 use super::{
@@ -30,7 +31,7 @@ create_exception!(errors, SolverFailedError, SolverError);
 
 #[pyclass]
 pub struct Solver {
-    repos: Vec<PyObject>,
+    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
     last_graph: Arc<RwLock<Graph>>,
@@ -140,18 +141,18 @@ impl Solver {
                         continue;
                     }
 
-                    // FIXME: This should only match `PackageNotFoundError`
                     match repo.read_spec(&spec.pkg.with_build(None)) {
                         Ok(s) => spec = Arc::new(s),
-                        Err(_) => {
+                        Err(Error::PackageNotFoundError(pkg)) => {
                             notes.push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
-                                    spec.pkg.clone(),
+                                    pkg,
                                     "cannot build from source, version spec not available",
                                 ),
                             ));
                             continue;
                         }
+                        Err(err) => return Err(err),
                     }
                 }
 
@@ -226,8 +227,8 @@ impl Solver {
     }
 
     /// Add a repository where the solver can get packages.
-    pub fn add_repository(&mut self, repo: PyObject) {
-        self.repos.push(repo);
+    pub fn add_repository(&mut self, repo: storage::python::Repository) {
+        self.repos.push(repo.handle);
     }
 
     /// Add a request to this solver.

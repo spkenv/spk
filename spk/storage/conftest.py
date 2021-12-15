@@ -9,27 +9,25 @@ import pytest
 import spkrs
 
 from ._repository import Repository
-from ._spfs import SpFSRepository
-from ._mem import MemRepository
 
 
 def pytest_generate_tests(metafunc: Any) -> None:
     if "repo" in metafunc.fixturenames:
-        metafunc.parametrize("repo", [SpFSRepository, MemRepository], indirect=True)
+        metafunc.parametrize(
+            "repo",
+            [spkrs.storage.open_spfs_repository, spkrs.storage.mem_repository],
+            indirect=True,
+        )
 
 
 @pytest.fixture
 def repo(tmpspfs: None, request: Any, tmpdir: py.path.local) -> Repository:
 
-    if request.param is MemRepository:
-        return MemRepository()
-    if request.param is SpFSRepository:
-        repo = tmpdir.join("repo")
-        repo.join("renders").ensure_dir()
-        repo.join("objects").ensure_dir()
-        repo.join("payloads").ensure_dir()
-        repo.join("tags").ensure_dir()
-        return SpFSRepository(spkrs.SpFSRepository("file:" + repo.strpath))
+    if request.param is spkrs.storage.mem_repository:
+        return request.param()  # type: ignore
+    if request.param is spkrs.storage.open_spfs_repository:
+        repo = tmpdir.join("repo").ensure_dir()
+        return request.param(repo.strpath, create=True)  # type: ignore
 
     raise NotImplementedError(
         "Unknown repository type to be tested: " + str(request.param)
