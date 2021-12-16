@@ -50,22 +50,21 @@ impl<'spec> SourcePackageBuilder<'spec> {
     }
 
     /// Build the requested source package.
-    pub fn build(&mut self) -> api::Ident {
-        todo!()
-        // assert (
-        //     self._spec is not None
-        // ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
+    pub fn build(&mut self) -> Result<api::Ident> {
+        let repo = match &mut self.repo {
+            Some(r) => r,
+            None => {
+                let repo = storage::local_repository()?;
+                self.repo.insert(repo.into())
+            }
+        };
 
-        // if self._repo is not None:
-        //     repo = self._repo
-        // else:
-        //     repo = storage.local_repository()
-
-        // layer = collect_and_commit_sources(self._spec)
-        // spec = self._spec.copy()
-        // spec.pkg = spec.pkg.with_build(api.SRC)
-        // repo.publish_package(spec, layer)
-        // return spec.pkg
+        let layer = collect_and_commit_sources(self.spec)?;
+        let mut spec = self.spec.clone();
+        spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
+        let res = spec.pkg.clone();
+        repo.publish_package(spec, layer)?;
+        Ok(res)
     }
 }
 
