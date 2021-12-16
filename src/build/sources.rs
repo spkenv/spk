@@ -1,8 +1,12 @@
-use std::path::Path;
-
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::path::{Path, PathBuf};
+
+use relative_path::{RelativePath, RelativePathBuf};
+use spfs::prelude::Encodable;
+
+use super::env::data_path;
 use crate::{api, storage, Result};
 
 #[cfg(test)]
@@ -36,11 +40,16 @@ impl CollectionError {
 pub struct SourcePackageBuilder<'spec> {
     spec: &'spec api::Spec,
     repo: Option<storage::RepositoryHandle>,
+    prefix: PathBuf,
 }
 
 impl<'spec> SourcePackageBuilder<'spec> {
     pub fn from_spec(spec: &'spec api::Spec) -> Self {
-        Self { spec, repo: None }
+        Self {
+            spec,
+            repo: None,
+            prefix: PathBuf::from("/spfs"),
+        }
     }
 
     /// Set the repository that the created package should be published to.
@@ -51,6 +60,7 @@ impl<'spec> SourcePackageBuilder<'spec> {
 
     /// Build the requested source package.
     pub fn build(&mut self) -> Result<api::Ident> {
+        let layer = self.collect_and_commit_sources()?;
         let repo = match &mut self.repo {
             Some(r) => r,
             None => {
@@ -58,36 +68,39 @@ impl<'spec> SourcePackageBuilder<'spec> {
                 self.repo.insert(repo.into())
             }
         };
-
-        let layer = collect_and_commit_sources(self.spec)?;
         let mut spec = self.spec.clone();
         spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
         let res = spec.pkg.clone();
-        repo.publish_package(spec, layer)?;
+        repo.publish_package(spec, layer.digest()?)?;
         Ok(res)
+    }
+
+    /// Collect sources for the given spec and commit them into an spfs layer.
+    fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
+        let pkg = self.spec.pkg.with_build(Some(api::Build::Source));
+
+        let mut runtime = spfs::active_runtime()?;
+        runtime.reset_stack()?;
+        runtime.reset_all()?;
+        runtime.set_editable(true)?;
+        spfs::remount_runtime(&runtime)?;
+
+        let source_dir = data_path(&pkg, &self.prefix);
+        collect_sources(self.spec, &source_dir)?;
+
+        tracing::info!("Validating package source files...");
+        let diffs = spfs::diff(None, None)?;
+        validate_source_changeset(
+            diffs,
+            RelativePathBuf::from(source_dir.to_string_lossy().to_string()),
+        )?;
+
+        Ok(spfs::commit_layer(&mut runtime)?)
     }
 }
 
-/// Collect sources for the given spec and commit them into an spfs layer.
-fn collect_and_commit_sources(spec: &api::Spec) -> Result<spfs::encoding::Digest> {
-    todo!()
-    // pkg = spec.pkg.with_build(api.SRC)
-    // spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
-
-    // source_dir = data_path(pkg)
-    // collect_sources(spec, source_dir)
-
-    // _LOGGER.info("Validating package source files...")
-    // try:
-    //     spkrs.build.validate_source_changeset()
-    // except RuntimeError as e:
-    //     raise CollectionError(str(e))
-
-    // return spkrs.commit_layer(spkrs.active_runtime())
-}
-
 /// Collect the sources for a spec in the given directory.
-fn collect_sources<P: AsRef<Path>>(spec: api::Spec, source_dir: P) -> Result<()> {
+fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -> Result<()> {
     todo!()
     // os.makedirs(source_dir)
 
@@ -110,7 +123,7 @@ fn collect_sources<P: AsRef<Path>>(spec: api::Spec, source_dir: P) -> Result<()>
 ///
 /// # Errors:
 ///   - CollectionError: if any issues are identified in the changeset
-pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
+pub fn validate_source_changeset<P: AsRef<RelativePath>>(
     diffs: Vec<spfs::tracking::Diff>,
     source_dir: P,
 ) -> Result<()> {
