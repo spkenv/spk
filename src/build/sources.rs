@@ -7,7 +7,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{api, storage, Result};
+use crate::{api, storage, Error, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -101,22 +101,33 @@ impl<'spec> SourcePackageBuilder<'spec> {
 
 /// Collect the sources for a spec in the given directory.
 fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -> Result<()> {
-    todo!()
-    // os.makedirs(source_dir)
+    let source_dir = source_dir.as_ref();
+    std::fs::create_dir_all(&source_dir)?;
 
-    // original_env = os.environ.copy()
-    // os.environ.update(get_package_build_env(spec))
-    // try:
-    //     for source in spec.sources:
-    //         target_dir = source_dir
-    //         subdir = source.subdir
-    //         if subdir:
-    //             target_dir = os.path.join(source_dir, subdir.lstrip("/"))
-    //         os.makedirs(target_dir, exist_ok=True)
-    //         api.collect_source(source, target_dir)
-    // finally:
-    //     os.environ.clear()
-    //     os.environ.update(original_env)
+    let original_env = std::env::vars();
+    super::binary::get_package_build_env(spec)
+        .into_iter()
+        .map(|(n, v)| std::env::set_var(n, v))
+        .count();
+    let mut res = Ok(());
+    for source in spec.sources.iter() {
+        let target_dir = match source.subdir() {
+            Some(subdir) => subdir.to_path(source_dir),
+            None => source_dir.into(),
+        };
+        res = std::fs::create_dir_all(&target_dir)
+            .map_err(Error::from)
+            .and_then(|_| source.collect(&target_dir));
+        if res.is_err() {
+            break;
+        }
+    }
+    std::env::vars()
+        .map(|(n, _)| n)
+        .map(std::env::remove_var)
+        .count();
+    original_env.map(|(n, v)| std::env::set_var(n, v)).count();
+    res
 }
 
 /// Validate the set of diffs for a source package build.
