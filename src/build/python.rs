@@ -5,6 +5,8 @@ use pyo3::{prelude::*, wrap_pyfunction};
 
 use crate::{api, Result};
 
+use super::BinaryPackageBuilder;
+
 #[pyfunction]
 fn validate_source_changeset() -> Result<()> {
     let diffs = spfs::diff(None, None)?;
@@ -47,5 +49,8 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_script_path, m)?)?;
     m.add_function(wrap_pyfunction!(build_spec_path, m)?)?;
     m.add_function(wrap_pyfunction!(source_package_path, m)?)?;
+
+    m.add_class::<super::BinaryPackageBuilder>()?;
+    m.add_class::<super::SourcePackageBuilder>()?;
     Ok(())
 }

@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::path::{Path, PathBuf};
 
+use pyo3::prelude::*;
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
@@ -36,7 +37,8 @@ impl CollectionError {
 ///     }))
 ///    .build()
 ///    .unwrap()
-/// ``
+/// ```
+#[pyclass]
 pub struct SourcePackageBuilder {
     spec: api::Spec,
     repo: Option<storage::RepositoryHandle>,

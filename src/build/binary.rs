@@ -8,6 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use pyo3::prelude::*;
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
@@ -55,6 +56,7 @@ pub enum BuildSource {
 ///     .build()
 ///     .unwrap()
 /// ```
+#[pyclass]
 pub struct BinaryPackageBuilder {
     prefix: PathBuf,
     spec: api::Spec,
