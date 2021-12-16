@@ -11,4 +11,4 @@ pub use binary::{
     BinaryPackageBuilder, BuildError,
 };
 pub use python::init_module;
-pub use sources::{validate_source_changeset, CollectionError};
+pub use sources::{validate_source_changeset, CollectionError, SourcePackageBuilder};

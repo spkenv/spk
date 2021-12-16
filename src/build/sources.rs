@@ -1,7 +1,9 @@
+use std::path::Path;
+
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use crate::Result;
+use crate::{api, storage, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -21,95 +23,89 @@ impl CollectionError {
     }
 }
 
+/// Builds a source package.
+///
+/// ```
+/// SourcePackageBuilder
+///    .from_spec(api.Spec.from_dict({
+///        "pkg": "my-pkg",
+///     }))
+///    .build()
+///    .unwrap()
+/// ``
+pub struct SourcePackageBuilder<'spec> {
+    spec: &'spec api::Spec,
+    repo: Option<storage::RepositoryHandle>,
+}
 
-class SourcePackageBuilder:
-    """Builds a source package.
+impl<'spec> SourcePackageBuilder<'spec> {
+    pub fn from_spec(spec: &'spec api::Spec) -> Self {
+        Self { spec, repo: None }
+    }
 
-    >>> (
-    ...     SourcePackageBuilder
-    ...     .from_spec(api.Spec.from_dict({
-    ...         "pkg": "my-pkg",
-    ...      }))
-    ...     .build()
-    ... )
-    my-pkg/0.0.0/src
-    """
+    /// Set the repository that the created package should be published to.
+    pub fn with_target_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
+        self.repo = Some(repo);
+        self
+    }
 
-    def __init__(self) -> None:
+    /// Build the requested source package.
+    pub fn build(&mut self) -> api::Ident {
+        todo!()
+        // assert (
+        //     self._spec is not None
+        // ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
 
-        self._spec: Optional[api.Spec] = None
-        self._repo: Optional[storage.Repository] = None
+        // if self._repo is not None:
+        //     repo = self._repo
+        // else:
+        //     repo = storage.local_repository()
 
-    @staticmethod
-    def from_spec(spec: api.Spec) -> "SourcePackageBuilder":
+        // layer = collect_and_commit_sources(self._spec)
+        // spec = self._spec.copy()
+        // spec.pkg = spec.pkg.with_build(api.SRC)
+        // repo.publish_package(spec, layer)
+        // return spec.pkg
+    }
+}
 
-        builder = SourcePackageBuilder()
-        builder._spec = spec
-        return builder
+/// Collect sources for the given spec and commit them into an spfs layer.
+fn collect_and_commit_sources(spec: &api::Spec) -> Result<spfs::encoding::Digest> {
+    todo!()
+    // pkg = spec.pkg.with_build(api.SRC)
+    // spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
 
-    def with_target_repository(
-        self, repo: storage.Repository
-    ) -> "SourcePackageBuilder":
-        """Set the repository that the created package should be published to."""
+    // source_dir = data_path(pkg)
+    // collect_sources(spec, source_dir)
 
-        self._repo = repo
-        return self
+    // _LOGGER.info("Validating package source files...")
+    // try:
+    //     spkrs.build.validate_source_changeset()
+    // except RuntimeError as e:
+    //     raise CollectionError(str(e))
 
-    def build(self) -> api.Ident:
-        """Build the requested source package."""
+    // return spkrs.commit_layer(spkrs.active_runtime())
+}
 
-        assert (
-            self._spec is not None
-        ), "Target spec not given, did you use SourcePackagebuilder.from_spec?"
+/// Collect the sources for a spec in the given directory.
+fn collect_sources<P: AsRef<Path>>(spec: api::Spec, source_dir: P) -> Result<()> {
+    todo!()
+    // os.makedirs(source_dir)
 
-        if self._repo is not None:
-            repo = self._repo
-        else:
-            repo = storage.local_repository()
-
-        layer = collect_and_commit_sources(self._spec)
-        spec = self._spec.copy()
-        spec.pkg = spec.pkg.with_build(api.SRC)
-        repo.publish_package(spec, layer)
-        return spec.pkg
-
-
-def collect_and_commit_sources(spec: api.Spec) -> spkrs.Digest:
-    """Collect sources for the given spec and commit them into an spfs layer."""
-
-    pkg = spec.pkg.with_build(api.SRC)
-    spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
-
-    source_dir = data_path(pkg)
-    collect_sources(spec, source_dir)
-
-    _LOGGER.info("Validating package source files...")
-    try:
-        spkrs.build.validate_source_changeset()
-    except RuntimeError as e:
-        raise CollectionError(str(e))
-
-    return spkrs.commit_layer(spkrs.active_runtime())
-
-
-def collect_sources(spec: api.Spec, source_dir: str) -> None:
-    """Collect the sources for a spec in the given directory."""
-    os.makedirs(source_dir)
-
-    original_env = os.environ.copy()
-    os.environ.update(get_package_build_env(spec))
-    try:
-        for source in spec.sources:
-            target_dir = source_dir
-            subdir = source.subdir
-            if subdir:
-                target_dir = os.path.join(source_dir, subdir.lstrip("/"))
-            os.makedirs(target_dir, exist_ok=True)
-            api.collect_source(source, target_dir)
-    finally:
-        os.environ.clear()
-        os.environ.update(original_env)
-
+    // original_env = os.environ.copy()
+    // os.environ.update(get_package_build_env(spec))
+    // try:
+    //     for source in spec.sources:
+    //         target_dir = source_dir
+    //         subdir = source.subdir
+    //         if subdir:
+    //             target_dir = os.path.join(source_dir, subdir.lstrip("/"))
+    //         os.makedirs(target_dir, exist_ok=True)
+    //         api.collect_source(source, target_dir)
+    // finally:
+    //     os.environ.clear()
+    //     os.environ.update(original_env)
+}
 
 /// Validate the set of diffs for a source package build.
 ///

@@ -53,7 +53,7 @@ pub enum BuildSource {
 ///     .with_option("debug", "true")
 ///     .with_source(".")
 ///     .build()
-/// ).unwrap()
+///     .unwrap()
 /// ```
 pub struct BinaryPackageBuilder<'spec> {
     prefix: PathBuf,
