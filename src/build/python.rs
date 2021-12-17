@@ -5,6 +5,9 @@ use pyo3::{prelude::*, wrap_pyfunction};
 
 use crate::{api, Result};
 
+pyo3::create_exception!(build, BuildError, pyo3::exceptions::PyRuntimeError);
+pyo3::create_exception!(build, CollectionError, BuildError);
+
 #[pyfunction]
 fn validate_source_changeset() -> Result<()> {
     let diffs = spfs::diff(None, None)?;
@@ -40,7 +43,7 @@ fn source_package_path(path: &api::Ident, prefix: Option<&str>) -> String {
         .to_string()
 }
 
-pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
+pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(build_options_path, m)?)?;
@@ -50,5 +53,7 @@ pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<super::BinaryPackageBuilder>()?;
     m.add_class::<super::SourcePackageBuilder>()?;
+    m.add("BuildError", py.get_type::<BuildError>())?;
+    m.add("CollectionError", py.get_type::<CollectionError>())?;
     Ok(())
 }

@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 mod binary;
 mod env;
-mod python;
+pub(crate) mod python;
 mod sources;
 
 pub use binary::{

@@ -13,8 +13,6 @@ pub enum Error {
     IO(std::io::Error),
     SPFS(spfs::Error),
     Serde(serde_yaml::Error),
-    Collection(crate::build::CollectionError),
-    Build(crate::build::BuildError),
     Solve(crate::solve::Error),
     String(String),
     PyErr(PyErr),
@@ -29,7 +27,8 @@ pub enum Error {
     VersionExistsError(api::Ident),
 
     // Build Errors
-    BuildError(build::BuildError),
+    Collection(crate::build::CollectionError),
+    Build(crate::build::BuildError),
 }
 
 impl Error {
@@ -92,8 +91,6 @@ impl From<Error> for PyErr {
             Error::SPFS(spfs::Error::IO(err)) => err.into(),
             Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
             Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::Build(err) => exceptions::PyRuntimeError::new_err(err.message),
-            Error::Collection(err) => exceptions::PyRuntimeError::new_err(err.message),
             Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
             Error::Solve(err) => err.into(),
             Error::InvalidBuildError(err) => exceptions::PyValueError::new_err(err.message),
@@ -105,7 +102,8 @@ impl From<Error> for PyErr {
             Error::VersionExistsError(pkg) => {
                 exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
             }
-            Error::BuildError(err) => exceptions::PyRuntimeError::new_err(err.message.clone()),
+            Error::Build(err) => build::python::BuildError::new_err(err.message),
+            Error::Collection(err) => build::python::CollectionError::new_err(err.message),
             Error::PyErr(err) => err,
         }
     }

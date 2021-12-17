@@ -2,6 +2,9 @@ from typing import Union, List
 
 from . import api, solve, storage
 
+class BuildError(RuntimeError): ...
+class CollectionError(BuildError): ...
+
 class BinaryPackageBuilder:
     @staticmethod
     def from_spec(spec: api.Spec) -> BinaryPackageBuilder: ...
