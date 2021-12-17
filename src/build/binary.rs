@@ -113,6 +113,41 @@ impl BinaryPackageBuilder {
         }
         Ok(slf)
     }
+
+    #[pyo3(name = "with_options")]
+    pub fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
+        slf.all_options.extend(options.into_iter());
+        slf
+    }
+
+    #[pyo3(name = "with_repository")]
+    pub fn with_repository_py(
+        mut slf: PyRefMut<Self>,
+        repo: storage::python::Repository,
+    ) -> PyRefMut<Self> {
+        slf.repos.push(repo.handle);
+        slf
+    }
+
+    #[pyo3(name = "with_repositories")]
+    pub fn with_repositories_py(
+        mut slf: PyRefMut<Self>,
+        repos: Vec<storage::python::Repository>,
+    ) -> PyRefMut<Self> {
+        slf.repos.extend(repos.into_iter().map(|r| r.handle));
+        slf
+    }
+
+    #[pyo3(name = "set_interactive")]
+    pub fn set_interactive_py(mut slf: PyRefMut<Self>, interactive: bool) -> PyRefMut<Self> {
+        slf.interactive = interactive;
+        slf
+    }
+
+    #[pyo3(name = "get_build_requirements")]
+    pub fn get_build_requirements_py(&self) -> Result<Vec<api::Request>> {
+        self.get_build_requirements()
+    }
 }
 
 impl BinaryPackageBuilder {

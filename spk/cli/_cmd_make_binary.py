@@ -62,7 +62,7 @@ def _make_binary(args: argparse.Namespace) -> None:
     runtime = _flags.ensure_active_runtime(args)
 
     options = _flags.get_options_from_flags(args)
-    repos = _flags.get_repos_from_repo_flags(args).values()
+    repos = list(_flags.get_repos_from_repo_flags(args).values())
     for package in args.packages:
         if os.path.isfile(package):
             spec = spk.api.read_spec_file(package)
