@@ -101,6 +101,18 @@ impl BinaryPackageBuilder {
         // but we cannot represent that in python
         self.clone().build()
     }
+
+    #[pyo3(name = "with_source")]
+    fn with_source_py(mut slf: PyRefMut<Self>, source: Py<PyAny>) -> Result<PyRefMut<Self>> {
+        if let Ok(ident) = source.extract::<api::Ident>(slf.py()) {
+            slf.with_source(BuildSource::SourcePackage(ident));
+        } else if let Ok(path) = source.extract::<String>(slf.py()) {
+            slf.with_source(BuildSource::LocalPath(path.into()));
+        } else {
+            return Err(Error::String("Expected api.Ident or str".to_string()));
+        }
+        Ok(slf)
+    }
 }
 
 impl BinaryPackageBuilder {
