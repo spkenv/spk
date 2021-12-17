@@ -37,14 +37,15 @@ impl CollectionError {
 ///    .build()
 ///    .unwrap()
 /// ``
-pub struct SourcePackageBuilder<'spec> {
-    spec: &'spec api::Spec,
+pub struct SourcePackageBuilder {
+    spec: api::Spec,
     repo: Option<storage::RepositoryHandle>,
     prefix: PathBuf,
 }
 
-impl<'spec> SourcePackageBuilder<'spec> {
-    pub fn from_spec(spec: &'spec api::Spec) -> Self {
+impl SourcePackageBuilder {
+    pub fn from_spec(mut spec: api::Spec) -> Self {
+        spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
         Self {
             spec,
             repo: None,
@@ -59,7 +60,7 @@ impl<'spec> SourcePackageBuilder<'spec> {
     }
 
     /// Build the requested source package.
-    pub fn build(&mut self) -> Result<api::Ident> {
+    pub fn build(mut self) -> Result<api::Ident> {
         let layer = self.collect_and_commit_sources()?;
         let repo = match &mut self.repo {
             Some(r) => r,
@@ -68,25 +69,21 @@ impl<'spec> SourcePackageBuilder<'spec> {
                 self.repo.insert(repo.into())
             }
         };
-        let mut spec = self.spec.clone();
-        spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
-        let res = spec.pkg.clone();
-        repo.publish_package(spec, layer.digest()?)?;
-        Ok(res)
+        let pkg = self.spec.pkg.clone();
+        repo.publish_package(self.spec, layer.digest()?)?;
+        Ok(pkg)
     }
 
     /// Collect sources for the given spec and commit them into an spfs layer.
     fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
-        let pkg = self.spec.pkg.with_build(Some(api::Build::Source));
-
         let mut runtime = spfs::active_runtime()?;
         runtime.reset_stack()?;
         runtime.reset_all()?;
         runtime.set_editable(true)?;
         spfs::remount_runtime(&runtime)?;
 
-        let source_dir = data_path(&pkg, &self.prefix);
-        collect_sources(self.spec, &source_dir)?;
+        let source_dir = data_path(&self.spec.pkg, &self.prefix);
+        collect_sources(&self.spec, &source_dir)?;
 
         tracing::info!("Validating package source files...");
         let diffs = spfs::diff(None, None)?;

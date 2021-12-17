@@ -55,9 +55,9 @@ pub enum BuildSource {
 ///     .build()
 ///     .unwrap()
 /// ```
-pub struct BinaryPackageBuilder<'spec> {
+pub struct BinaryPackageBuilder {
     prefix: PathBuf,
-    spec: &'spec api::Spec,
+    spec: api::Spec,
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
@@ -66,13 +66,14 @@ pub struct BinaryPackageBuilder<'spec> {
     interactive: bool,
 }
 
-impl<'spec> BinaryPackageBuilder<'spec> {
-    pub fn from_spec(spec: &'spec api::Spec) -> Self {
+impl BinaryPackageBuilder {
+    pub fn from_spec(spec: api::Spec) -> Self {
+        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
             spec,
+            source,
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
-            source: BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source))),
             solver: solve::Solver::default(),
             last_solve_graph: Default::default(),
             repos: Default::default(),
@@ -129,7 +130,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
     }
 
     /// Build the requested binary package.
-    pub fn build(&mut self) -> Result<api::Spec> {
+    pub fn build(mut self) -> Result<api::Spec> {
         let mut runtime = spfs::active_runtime()?;
         runtime.set_editable(true)?;
         runtime.reset_stack()?;
@@ -165,14 +166,13 @@ impl<'spec> BinaryPackageBuilder<'spec> {
             .iter()
             .map(|solved| &solved.spec)
             .map(std::sync::Arc::as_ref);
-        let mut spec = self.spec.clone();
-        spec.update_for_build(&self.all_options, specs)?;
+        self.spec.update_for_build(&self.all_options, specs)?;
         let env = std::env::vars();
         let mut env = solution.to_environment(Some(env));
         env.extend(self.all_options.to_environment());
         let layer = self.build_and_commit_artifacts(env)?;
-        storage::local_repository()?.publish_package(spec.clone(), layer.digest()?)?;
-        Ok(spec)
+        storage::local_repository()?.publish_package(self.spec.clone(), layer.digest()?)?;
+        Ok(self.spec)
     }
 
     fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
@@ -291,7 +291,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         let build_script = build_script_path(pkg, &self.prefix);
 
         std::fs::create_dir_all(&metadata_dir)?;
-        api::save_spec_file(&build_spec, self.spec)?;
+        api::save_spec_file(&build_spec, &self.spec)?;
         {
             let mut writer = std::fs::File::create(&build_script)?;
             writer
@@ -343,7 +343,7 @@ impl<'spec> BinaryPackageBuilder<'spec> {
         cmd.args(args);
         cmd.envs(env);
         cmd.envs(self.all_options.to_environment());
-        cmd.envs(get_package_build_env(self.spec));
+        cmd.envs(get_package_build_env(&self.spec));
         cmd.env("PREFIX", &self.prefix);
         cmd.current_dir(&source_dir);
 
