@@ -57,6 +57,7 @@ pub enum BuildSource {
 ///     .unwrap()
 /// ```
 #[pyclass]
+#[derive(Clone)]
 pub struct BinaryPackageBuilder {
     prefix: PathBuf,
     spec: api::Spec,
@@ -68,7 +69,9 @@ pub struct BinaryPackageBuilder {
     interactive: bool,
 }
 
+#[pymethods]
 impl BinaryPackageBuilder {
+    #[staticmethod]
     pub fn from_spec(spec: api::Spec) -> Self {
         let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
@@ -82,7 +85,6 @@ impl BinaryPackageBuilder {
             interactive: false,
         }
     }
-
     /// Return the resolve graph from the build environment.
     ///
     /// This is most useful for debugging build environments that failed to resolve,
@@ -93,6 +95,15 @@ impl BinaryPackageBuilder {
         self.solver.get_last_solve_graph()
     }
 
+    #[pyo3(name = "build")]
+    fn build_py(&self) -> Result<api::Spec> {
+        // the build function consumes the builder
+        // but we cannot represent that in python
+        self.clone().build()
+    }
+}
+
+impl BinaryPackageBuilder {
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
     where
         N: Into<String>,

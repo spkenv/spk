@@ -5,8 +5,6 @@ use pyo3::{prelude::*, wrap_pyfunction};
 
 use crate::{api, Result};
 
-use super::BinaryPackageBuilder;
-
 #[pyfunction]
 fn validate_source_changeset() -> Result<()> {
     let diffs = spfs::diff(None, None)?;

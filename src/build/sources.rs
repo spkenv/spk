@@ -45,7 +45,9 @@ pub struct SourcePackageBuilder {
     prefix: PathBuf,
 }
 
+#[pymethods]
 impl SourcePackageBuilder {
+    #[staticmethod]
     pub fn from_spec(mut spec: api::Spec) -> Self {
         spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
         Self {
@@ -55,6 +57,23 @@ impl SourcePackageBuilder {
         }
     }
 
+    #[pyo3(name = "build")]
+    fn build_py(&mut self) -> Result<api::Ident> {
+        // build is intended to consume the builder,
+        // but we cannot effectively do this from
+        // a python reference. So we make a partial
+        // clone/copy with the assumption that python
+        // won't reuse this builder
+        Self {
+            spec: self.spec.clone(),
+            prefix: self.prefix.clone(),
+            repo: self.repo.take(),
+        }
+        .build()
+    }
+}
+
+impl SourcePackageBuilder {
     /// Set the repository that the created package should be published to.
     pub fn with_target_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
         self.repo = Some(repo);
