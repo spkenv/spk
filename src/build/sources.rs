@@ -1,7 +1,10 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use pyo3::prelude::*;
 use relative_path::{RelativePath, RelativePathBuf};
@@ -41,7 +44,7 @@ impl CollectionError {
 #[pyclass]
 pub struct SourcePackageBuilder {
     spec: api::Spec,
-    repo: Option<storage::RepositoryHandle>,
+    repo: Option<Arc<Mutex<storage::RepositoryHandle>>>,
     prefix: PathBuf,
 }
 
@@ -55,6 +58,15 @@ impl SourcePackageBuilder {
             repo: None,
             prefix: PathBuf::from("/spfs"),
         }
+    }
+
+    #[pyo3(name = "with_target_repository")]
+    pub fn with_target_repository_py(
+        mut slf: PyRefMut<Self>,
+        repo: storage::python::Repository,
+    ) -> PyRefMut<Self> {
+        slf.repo = Some(repo.handle);
+        slf
     }
 
     #[pyo3(name = "build")]
@@ -76,7 +88,7 @@ impl SourcePackageBuilder {
 impl SourcePackageBuilder {
     /// Set the repository that the created package should be published to.
     pub fn with_target_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repo = Some(repo);
+        self.repo = Some(Arc::new(repo.into()));
         self
     }
 
@@ -87,20 +99,22 @@ impl SourcePackageBuilder {
             Some(r) => r,
             None => {
                 let repo = storage::local_repository()?;
-                self.repo.insert(repo.into())
+                self.repo.insert(Arc::new(Mutex::new(repo.into())))
             }
         };
         let pkg = self.spec.pkg.clone();
-        repo.publish_package(self.spec, layer.digest()?)?;
+        repo.lock()
+            .unwrap()
+            .publish_package(self.spec, layer.digest()?)?;
         Ok(pkg)
     }
 
     /// Collect sources for the given spec and commit them into an spfs layer.
     fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
         let mut runtime = spfs::active_runtime()?;
-        runtime.reset_stack()?;
-        runtime.reset_all()?;
         runtime.set_editable(true)?;
+        runtime.reset_all()?;
+        runtime.reset_stack()?;
         spfs::remount_runtime(&runtime)?;
 
         let source_dir = data_path(&self.spec.pkg, &self.prefix);
@@ -118,7 +132,7 @@ impl SourcePackageBuilder {
 }
 
 /// Collect the sources for a spec in the given directory.
-fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -> Result<()> {
+pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -> Result<()> {
     let source_dir = source_dir.as_ref();
     std::fs::create_dir_all(&source_dir)?;
 

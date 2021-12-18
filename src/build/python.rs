@@ -55,6 +55,11 @@ pub fn data_path(pkg: &api::Ident, prefix: PathBuf) -> PathBuf {
     super::env::data_path(pkg, prefix)
 }
 
+#[pyfunction]
+pub fn collect_sources(apec: &api::Spec, source_dir: PathBuf) -> Result<()> {
+    super::sources::collect_sources(apec, source_dir)
+}
+
 pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
     m.add_function(wrap_pyfunction!(validate_source_changeset, m)?)?;
@@ -64,6 +69,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(source_package_path, m)?)?;
     m.add_function(wrap_pyfunction!(get_package_build_env, m)?)?;
     m.add_function(wrap_pyfunction!(data_path, m)?)?;
+    m.add_function(wrap_pyfunction!(collect_sources, m)?)?;
 
     m.add_class::<super::BinaryPackageBuilder>()?;
     m.add_class::<super::SourcePackageBuilder>()?;

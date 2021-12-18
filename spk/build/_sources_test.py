@@ -5,7 +5,7 @@ from typing import Any
 import py.path
 
 from .. import api
-from ._sources import collect_sources
+from . import collect_sources
 
 
 def test_sources_subdir(tmpdir: py.path.local) -> None:

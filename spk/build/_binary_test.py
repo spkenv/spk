@@ -6,25 +6,25 @@ import pytest
 import py.path
 
 from .. import api, storage
-from ._sources import SourcePackageBuilder, data_path
-from ._binary import BinaryPackageBuilder
+from . import SourcePackageBuilder, data_path
+from . import BinaryPackageBuilder
 
 
-def test_build_artifacts(tmpdir: py.path.local, capfd: Any, monkeypatch: Any) -> None:
+def test_build_workdir(tmpdir: py.path.local, capfd: Any) -> None:
 
     spec = api.Spec.from_dict(
-        {"pkg": "test/1.0.0", "build": {"script": "echo $PWD > /dev/stderr"}}
+        {"pkg": "test/1.0.0", "build": {"script": "echo $PWD > /dev/stdout"}}
     )
 
     (
-        BinaryPackageBuilder()
+        BinaryPackageBuilder
         .from_spec(spec)
         .with_source(tmpdir.strpath)
-        ._build_artifacts(env=os.environ.copy())
+        .build()
     )
 
-    _, err = capfd.readouterr()
-    assert err.strip() == tmpdir.strpath
+    out, _err = capfd.readouterr()
+    assert out.strip() == tmpdir.strpath
 
 
 def test_build_package_options(tmprepo: storage.Repository) -> None:
@@ -195,7 +195,7 @@ def test_build_bad_options() -> None:
         }
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(RuntimeError):
         spec = (
             BinaryPackageBuilder.from_spec(spec)
             .with_source(os.getcwd())

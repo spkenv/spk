@@ -114,6 +114,12 @@ impl BinaryPackageBuilder {
         Ok(slf)
     }
 
+    #[pyo3(name = "with_option")]
+    pub fn with_option_py(mut slf: PyRefMut<Self>, name: String, value: String) -> PyRefMut<Self> {
+        slf.with_option(name, value);
+        slf
+    }
+
     #[pyo3(name = "with_options")]
     pub fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
         slf.all_options.extend(options.into_iter());
@@ -193,9 +199,8 @@ impl BinaryPackageBuilder {
     pub fn build(mut self) -> Result<api::Spec> {
         let mut runtime = spfs::active_runtime()?;
         runtime.set_editable(true)?;
-        runtime.reset_stack()?;
         runtime.reset_all()?;
-        spfs::remount_runtime(&runtime)?;
+        runtime.reset_stack()?;
 
         let pkg_options = self.spec.resolve_all_options(&self.all_options);
         tracing::debug!("package options: {}", pkg_options);
@@ -221,6 +226,7 @@ impl BinaryPackageBuilder {
         for digest in stack.into_iter() {
             runtime.push_digest(&digest)?;
         }
+        spfs::remount_runtime(&runtime)?;
         let specs = solution.items();
         let specs = specs
             .iter()
@@ -320,12 +326,13 @@ impl BinaryPackageBuilder {
 
         let mut runtime = spfs::active_runtime()?;
         let pattern = sources_dir.strip_prefix(&self.prefix).unwrap().join("**");
-        let pattern = pattern.to_string_lossy();
+        let pattern = format!("/{}", pattern.to_string_lossy());
         tracing::info!(
             "Purging all changes made to source directory: {}",
             sources_dir.display()
         );
         runtime.reset(&[pattern])?;
+        spfs::remount_runtime(&runtime)?;
 
         tracing::info!("Validating package fileset...");
         self.spec
@@ -343,7 +350,6 @@ impl BinaryPackageBuilder {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        let runtime = spfs::active_runtime()?;
         let pkg = &self.spec.pkg;
         let metadata_dir = data_path(pkg, &self.prefix);
         let build_spec = build_spec_path(pkg, &self.prefix);
@@ -380,6 +386,7 @@ impl BinaryPackageBuilder {
         //  the dependencies, is not supported by spfs, etc)
         std::env::set_var("SHELL", "bash");
         let cmd = if self.interactive {
+            let runtime = spfs::active_runtime()?;
             println!("\nNow entering an interactive build shell");
             println!(" - your current directory will be set to the sources area");
             println!(" - build and install your artifacts into /spfs");
@@ -425,7 +432,7 @@ impl BinaryPackageBuilder {
 
 /// Return the environment variables to be set for a build of the given package spec.
 pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
-    let mut env = HashMap::with_capacity(7);
+    let mut env = HashMap::with_capacity(8);
     env.insert("SPK_PKG".to_string(), spec.pkg.to_string());
     env.insert("SPK_PKG_NAME".to_string(), spec.pkg.name().to_string());
     env.insert("SPK_PKG_VERSION".to_string(), spec.pkg.version.to_string());
