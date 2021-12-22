@@ -100,7 +100,8 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     case(tmprepo("fs")),
     case(tmprepo("tar")),
     case(tmprepo("rpc"))
-)]#[tokio::test]
+)]
+#[tokio::test]
 async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
@@ -120,7 +121,8 @@ async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::T
     case(tmprepo("fs")),
     case(tmprepo("tar")),
     case(tmprepo("rpc"))
-)]#[tokio::test]
+)]
+#[tokio::test]
 async fn test_commit_dir(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");

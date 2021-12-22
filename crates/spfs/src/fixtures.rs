@@ -11,12 +11,14 @@ use tempdir::TempDir;
 pub enum TempRepo {
     FS(spfs::storage::RepositoryHandle, TempDir),
     Tar(spfs::storage::RepositoryHandle, TempDir),
-    Rpc(
-        spfs::storage::RepositoryHandle,
-        Option<tokio::task::JoinHandle<()>>,
-        std::sync::mpsc::Sender<()>,
-        TempDir,
-    ),
+    Rpc {
+        repo: spfs::storage::RepositoryHandle,
+        grpc_join_handle: Option<tokio::task::JoinHandle<()>>,
+        http_join_handle: Option<tokio::task::JoinHandle<()>>,
+        grpc_shutdown: std::sync::mpsc::Sender<()>,
+        http_shutdown: std::sync::mpsc::Sender<()>,
+        tmpdir: TempDir,
+    },
 }
 
 impl std::ops::Deref for TempRepo {
@@ -25,7 +27,7 @@ impl std::ops::Deref for TempRepo {
         match self {
             Self::FS(r, _) => r,
             Self::Tar(r, _) => r,
-            Self::Rpc(r, ..) => r,
+            Self::Rpc { repo, .. } => repo,
         }
     }
 }
@@ -35,17 +37,25 @@ impl std::ops::DerefMut for TempRepo {
         match self {
             Self::FS(r, _) => r,
             Self::Tar(r, _) => r,
-            Self::Rpc(r, ..) => r,
+            Self::Rpc { repo, .. } => repo,
         }
     }
 }
 
 impl Drop for TempRepo {
     fn drop(&mut self) {
-        if let Self::Rpc(_, _, shutdown, _) = self {
-            shutdown
+        if let Self::Rpc {
+            grpc_shutdown,
+            http_shutdown,
+            ..
+        } = self
+        {
+            grpc_shutdown
                 .send(())
-                .expect("failed to send server shutdown signal");
+                .expect("failed to send grpc server shutdown signal");
+            http_shutdown
+                .send(())
+                .expect("failed to send http server shutdown signal");
         }
     }
 }
@@ -123,37 +133,71 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                     .unwrap()
             ));
             let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-            let (shutdown_send, shutdown_recv) = std::sync::mpsc::channel::<()>();
-            let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
-            let local_addr = listener.local_addr().unwrap();
-            let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
-            let future = tonic::transport::Server::builder()
+            let http_listener = std::net::TcpListener::bind(listen).unwrap();
+            let local_http_addr = http_listener.local_addr().unwrap();
+            let payload_service = spfs::server::PayloadService::new(
+                repo.clone(),
+                format!("http://{}", local_http_addr).parse().unwrap(),
+            );
+            let (grpc_shutdown, grpc_shutdown_recv) = std::sync::mpsc::channel::<()>();
+            let (http_shutdown, http_shutdown_recv) = std::sync::mpsc::channel::<()>();
+            let grpc_listener = tokio::net::TcpListener::bind(listen).await.unwrap();
+            let local_grpc_addr = grpc_listener.local_addr().unwrap();
+            let incoming = tokio_stream::wrappers::TcpListenerStream::new(grpc_listener);
+            let grpc_future = tonic::transport::Server::builder()
                 .add_service(spfs::server::Repository::new_srv(repo.clone()))
                 .add_service(spfs::server::TagService::new_srv(repo.clone()))
-                .add_service(spfs::server::DatabaseService::new_srv(repo.clone()))
-                .add_service(spfs::server::PayloadService::new_srv(repo))
+                .add_service(spfs::server::DatabaseService::new_srv(repo))
+                .add_service(payload_service.clone().into_srv())
                 .serve_with_incoming_shutdown(incoming, async move {
                     // use a blocking task to avoid locking up the whole server
                     // with this very synchronus channel recv process
                     tokio::task::spawn_blocking(move || {
-                        shutdown_recv
+                        grpc_shutdown_recv
                             .recv()
                             .expect("failed to get server shutdown signal");
                     })
                     .await
                     .unwrap()
                 });
-            tracing::debug!("test server listening: {}", local_addr);
-            let server_join_handle = tokio::task::spawn(async move {
-                future.await.expect("test server failed");
+            tracing::debug!("test rpc server listening: {}", local_grpc_addr);
+            let grpc_join_handle =
+                tokio::task::spawn(async move { grpc_future.await.expect("test server failed") });
+            let http_server = {
+                hyper::Server::from_tcp(http_listener).unwrap().serve(
+                    hyper::service::make_service_fn(move |_| {
+                        let s = payload_service.clone();
+                        async move { Ok::<_, std::convert::Infallible>(s) }
+                    }),
+                )
+            };
+            let http_future = http_server.with_graceful_shutdown(async {
+                // use a blocking task to avoid locking up the whole server
+                // with this very synchronus channel recv process
+                tokio::task::spawn_blocking(move || {
+                    http_shutdown_recv
+                        .recv()
+                        .expect("failed to get http server shutdown signal");
+                })
+                .await
+                .unwrap()
             });
-            let url = format!("http2://{}", local_addr).parse().unwrap();
+            let http_join_handle =
+                tokio::task::spawn(async move { http_future.await.expect("http server failed") });
+            let url = format!("http2://{}", local_grpc_addr).parse().unwrap();
             tracing::debug!("Connected to rpc test repo: {}", url);
             let repo = spfs::storage::rpc::RpcRepository::connect(url)
                 .await
                 .unwrap()
                 .into();
-            TempRepo::Rpc(repo, Some(server_join_handle), shutdown_send, tmpdir)
+            TempRepo::Rpc {
+                repo,
+                grpc_join_handle: Some(grpc_join_handle),
+                http_join_handle: Some(http_join_handle),
+                grpc_shutdown,
+                http_shutdown,
+                tmpdir,
+            }
         }
         _ => panic!("unknown repo kind '{}'", kind),
     }
