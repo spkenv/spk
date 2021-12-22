@@ -136,16 +136,16 @@ impl From<super::Error> for Error {
 impl From<&graph::Object> for super::Object {
     fn from(source: &graph::Object) -> Self {
         use super::object::Kind;
-        let mut out = super::Object::default();
-        out.kind = Some(match source {
-            graph::Object::Platform(o) => Kind::Platform(o.into()),
-            graph::Object::Layer(o) => Kind::Layer(o.into()),
-            graph::Object::Manifest(o) => Kind::Manifest(o.into()),
-            graph::Object::Tree(o) => Kind::Tree(o.into()),
-            graph::Object::Blob(o) => Kind::Blob(o.into()),
-            graph::Object::Mask => Kind::Mask(true),
-        });
-        out
+        super::Object {
+            kind: Some(match source {
+                graph::Object::Platform(o) => Kind::Platform(o.into()),
+                graph::Object::Layer(o) => Kind::Layer(o.into()),
+                graph::Object::Manifest(o) => Kind::Manifest(o.into()),
+                graph::Object::Tree(o) => Kind::Tree(o.into()),
+                graph::Object::Blob(o) => Kind::Blob(o.into()),
+                graph::Object::Mask => Kind::Mask(true),
+            }),
+        }
     }
 }
 
@@ -230,7 +230,7 @@ impl TryFrom<super::Manifest> for graph::Manifest {
     fn try_from(source: super::Manifest) -> Result<Self> {
         let mut out = Self::new(source.root.try_into()?);
         for tree in source.trees.into_iter() {
-            out.insert_tree(tree.try_into()?);
+            out.insert_tree(tree.try_into()?)?;
         }
         Ok(out)
     }
