@@ -130,7 +130,8 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             let future = tonic::transport::Server::builder()
                 .add_service(spfs::server::Repository::new_srv(repo.clone()))
                 .add_service(spfs::server::TagService::new_srv(repo.clone()))
-                .add_service(spfs::server::DatabaseService::new_srv(repo))
+                .add_service(spfs::server::DatabaseService::new_srv(repo.clone()))
+                .add_service(spfs::server::PayloadService::new_srv(repo))
                 .serve_with_incoming_shutdown(incoming, async move {
                     // use a blocking task to avoid locking up the whole server
                     // with this very synchronus channel recv process

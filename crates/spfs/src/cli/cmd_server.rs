@@ -34,7 +34,8 @@ impl CmdServer {
         let future = tonic::transport::Server::builder()
             .add_service(spfs::server::Repository::new_srv(repo.clone()))
             .add_service(spfs::server::TagService::new_srv(repo.clone()))
-            .add_service(spfs::server::DatabaseService::new_srv(repo))
+            .add_service(spfs::server::DatabaseService::new_srv(repo.clone()))
+            .add_service(spfs::server::PayloadService::new_srv(repo))
             .serve_with_shutdown(self.address, async {
                 if let Err(err) = tokio::signal::ctrl_c().await {
                     tracing::error!(?err, "Failed to setup graceful shutdown handler");

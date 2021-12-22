@@ -13,7 +13,7 @@ use crate::Result;
 #[async_trait::async_trait]
 pub trait PayloadStorage: Sync + Send {
     /// Iterate all the payloads in this storage.
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>>;
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if the identified payload exists.
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
@@ -44,7 +44,7 @@ pub trait PayloadStorage: Sync + Send {
 
 #[async_trait::async_trait]
 impl<T: PayloadStorage> PayloadStorage for &T {
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 

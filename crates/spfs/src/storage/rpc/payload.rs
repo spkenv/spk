@@ -10,7 +10,7 @@ use crate::{encoding, storage, Result};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         todo!()
     }
 
