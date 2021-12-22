@@ -1,0 +1,62 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+syntax = "proto3";
+
+package spfs;
+
+import "error.proto";
+import "types.proto";
+import "database.proto";
+
+message HasPayloadRequest{
+    Digest digest = 1;
+}
+message HasPayloadResponse{
+    oneof result {
+        Error error = 1;
+        bool ok = 2;
+    }
+}
+
+message WritePayloadRequest{}
+message WritePayloadResponse{
+    message UploadOption {
+        string url = 1;
+    }
+    oneof result {
+        Error error = 1;
+        UploadOption ok = 2;
+    }
+}
+
+message OpenPayloadRequest{
+    Digest digest = 1;
+}
+message OpenPayloadResponse{
+    message DownloadOption {
+        repeated string locations = 1;
+    }
+    oneof result {
+        Error error = 1;
+        DownloadOption ok = 2;
+    }
+}
+
+message RemovePayloadRequest{
+    Digest digest = 1;
+}
+message RemovePayloadResponse{
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
+
+service PayloadService {
+    rpc IterDigests(IterDigestsRequest) returns (stream IterDigestsResponse);
+    rpc HasPayload(HasPayloadRequest) returns (HasPayloadResponse);
+    rpc WritePayload(WritePayloadRequest) returns (WritePayloadResponse);
+    rpc OpenPayload(OpenPayloadRequest) returns (OpenPayloadResponse);
+    rpc RemovePayload(RemovePayloadRequest) returns (RemovePayloadResponse);
+}

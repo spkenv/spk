@@ -115,3 +115,23 @@ rpc_result!(
     gen::RemoveObjectResponse,
     gen::remove_object_response::Result
 );
+
+rpc_result!(
+    gen::HasPayloadResponse,
+    gen::has_payload_response::Result,
+    bool
+);
+rpc_result!(
+    gen::WritePayloadResponse,
+    gen::write_payload_response::Result,
+    gen::write_payload_response::UploadOption
+);
+rpc_result!(
+    gen::OpenPayloadResponse,
+    gen::open_payload_response::Result,
+    gen::open_payload_response::DownloadOption
+);
+rpc_result!(
+    gen::RemovePayloadResponse,
+    gen::remove_payload_response::Result
+);
