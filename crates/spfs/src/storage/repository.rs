@@ -106,7 +106,10 @@ pub trait Repository:
     }
 
     /// Commit the data from 'reader' as a blob in this repository
-    fn commit_blob(&mut self, reader: &mut dyn std::io::Read) -> Result<encoding::Digest> {
+    fn commit_blob(
+        &mut self,
+        reader: Box<dyn std::io::Read + Send + 'static>,
+    ) -> Result<encoding::Digest> {
         let (digest, size) = self.write_data(reader)?;
         let blob = Blob::new(digest, size);
         self.write_object(&graph::Object::Blob(blob))?;
@@ -119,7 +122,7 @@ pub trait Repository:
     /// render of the manifest for use immediately.
     fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
         let path = std::fs::canonicalize(path)?;
-        let mut builder = tracking::ManifestBuilder::new(|reader| self.commit_blob(*reader));
+        let mut builder = tracking::ManifestBuilder::new(|reader| self.commit_blob(reader));
 
         tracing::info!("committing files");
         let manifest = builder.compute_manifest(path)?;

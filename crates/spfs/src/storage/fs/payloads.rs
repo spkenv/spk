@@ -15,11 +15,17 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
+    fn write_data(
+        &mut self,
+        reader: Box<dyn std::io::Read + Send + 'static>,
+    ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader)
     }
 
-    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
+    fn open_payload(
+        &self,
+        digest: &encoding::Digest,
+    ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
         let path = self.payloads.build_digest_path(digest);
         match std::fs::File::open(&path) {
             Ok(file) => Ok(Box::new(file)),

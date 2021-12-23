@@ -58,7 +58,7 @@ impl FSHashStore {
     /// Write all data in the given reader to a file in this storage
     pub fn write_data(
         &mut self,
-        mut reader: &mut dyn std::io::Read,
+        mut reader: Box<dyn std::io::Read + Send + 'static>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.workdir().join(uuid);

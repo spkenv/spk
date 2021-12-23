@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::fs::DirEntry;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
 
@@ -243,7 +242,8 @@ pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> 
 }
 
 pub struct ManifestBuilder<'h> {
-    hasher: Box<dyn FnMut(Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> + 'h>,
+    hasher:
+        Box<dyn FnMut(Box<dyn std::io::Read + Send + 'static>) -> Result<encoding::Digest> + 'h>,
 }
 
 impl<'h> Default for ManifestBuilder<'h> {
@@ -254,7 +254,7 @@ impl<'h> Default for ManifestBuilder<'h> {
 
 impl<'h> ManifestBuilder<'h> {
     pub fn new(
-        hasher: impl FnMut(Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> + 'h,
+        hasher: impl FnMut(Box<dyn std::io::Read + Send + 'static>) -> Result<encoding::Digest> + 'h,
     ) -> Self {
         Self {
             hasher: Box::new(hasher),
@@ -318,9 +318,15 @@ impl<'h> ManifestBuilder<'h> {
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
-            let link_target = std::fs::read_link(&path)?;
+            let link_target = std::fs::read_link(&path)?
+                .into_os_string()
+                .into_string()
+                .map_err(|_| {
+                    crate::Error::String("Symlinks must point to a valid utf-8 path".to_string())
+                })?
+                .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = (self.hasher)(Box::new(&mut link_target.as_os_str().as_bytes()))?;
+            entry.object = (self.hasher)(Box::new(std::io::Cursor::new(link_target)))?;
         } else if file_type.is_dir() {
             self.compute_tree_node(path, entry)?;
         } else if runtime::is_removed_entry(&stat_result) {
@@ -330,8 +336,8 @@ impl<'h> ManifestBuilder<'h> {
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
             entry.kind = EntryKind::Blob;
-            let mut reader = std::fs::File::open(path)?;
-            entry.object = (self.hasher)(Box::new(&mut reader))?;
+            let reader = std::fs::File::open(path)?;
+            entry.object = (self.hasher)(Box::new(reader))?;
         }
         Ok(())
     }

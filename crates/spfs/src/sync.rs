@@ -201,9 +201,9 @@ fn sync_blob(
     if dest.has_payload(&blob.payload) {
         tracing::trace!(digest = ?blob.payload, "blob payload already synced");
     } else {
-        let mut payload = src.open_payload(&blob.payload)?;
+        let payload = src.open_payload(&blob.payload)?;
         tracing::debug!(digest = ?blob.payload, "syncing payload");
-        dest.write_data(&mut *payload)?;
+        dest.write_data(payload)?;
     }
     dest.write_blob(blob.clone())?;
     Ok(())

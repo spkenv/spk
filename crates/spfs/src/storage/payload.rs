@@ -16,13 +16,19 @@ pub trait PayloadStorage {
     }
 
     /// Store the contents of the given stream, returning its digest and size
-    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)>;
+    fn write_data(
+        &mut self,
+        reader: Box<dyn std::io::Read + Send + 'static>,
+    ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle to the full content of a payload.
     ///
     /// # Errors:
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
-    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>>;
+    fn open_payload(
+        &self,
+        digest: &encoding::Digest,
+    ) -> Result<Box<dyn std::io::Read + Send + 'static>>;
 
     /// Remove the payload idetified by the given digest.
     ///
@@ -36,11 +42,17 @@ impl<T: PayloadStorage> PayloadStorage for &mut T {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
-    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
+    fn write_data(
+        &mut self,
+        reader: Box<dyn std::io::Read + Send + 'static>,
+    ) -> Result<(encoding::Digest, u64)> {
         PayloadStorage::write_data(&mut **self, reader)
     }
 
-    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
+    fn open_payload(
+        &self,
+        digest: &encoding::Digest,
+    ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
         PayloadStorage::open_payload(&**self, digest)
     }
 
