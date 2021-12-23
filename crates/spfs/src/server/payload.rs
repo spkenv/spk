@@ -1,16 +1,15 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryInto;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
 use crate::proto::{self, payload_service_server::PayloadServiceServer, RpcResult};
-use crate::storage::{self};
+use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server
 ///
@@ -149,7 +148,6 @@ async fn handle_upload(
 }
 
 fn body_to_reader(body: hyper::Body) -> Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>> {
-    use futures::StreamExt;
     Box::pin(tokio_util::io::StreamReader::new(body.map(|chunk| {
         chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     })))

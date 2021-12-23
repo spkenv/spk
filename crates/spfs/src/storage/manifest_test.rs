@@ -5,8 +5,7 @@
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::graph::{Database, DatabaseView, Manifest};
-use crate::storage::{fs::FSRepository, ManifestStorage};
+use crate::graph::Manifest;
 use crate::{encoding::Encodable, tracking};
 
 use crate::fixtures::*;

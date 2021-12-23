@@ -5,7 +5,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::pin::Pin;
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 use relative_path::RelativePath;
 
 use crate::proto::{self, tag_service_client::TagServiceClient, RpcResult};
@@ -39,7 +39,7 @@ impl storage::TagStorage for super::RpcRepository {
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.ls_tags(request).await })
-            .map_err(|e| crate::Error::from(e))
+            .map_err(crate::Error::from)
             .and_then(|r| async { r.into_inner().to_result() })
             .map_ok(|resp| futures::stream::iter(resp.entries.into_iter().map(Ok)))
             .try_flatten();
@@ -55,7 +55,7 @@ impl storage::TagStorage for super::RpcRepository {
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.find_tags(request).await })
-            .map_err(|e| crate::Error::from(e))
+            .map_err(crate::Error::from)
             .and_then(|r| async { r.into_inner().to_result() })
             .map_ok(|tag_list| {
                 futures::stream::iter(tag_list.tags.into_iter().map(tracking::TagSpec::parse))
@@ -68,7 +68,7 @@ impl storage::TagStorage for super::RpcRepository {
         let request = proto::IterTagSpecsRequest {};
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.iter_tag_specs(request).await })
-            .map_err(|e| crate::Error::from(e))
+            .map_err(crate::Error::from)
             .and_then(|r| async { r.into_inner().to_result() })
             .map_ok(|response| {
                 futures::stream::iter(response.tag_specs.into_iter().map(tracking::TagSpec::parse))

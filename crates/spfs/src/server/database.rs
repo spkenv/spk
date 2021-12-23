@@ -5,15 +5,11 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
 use crate::proto::{self, database_service_server::DatabaseServiceServer, RpcResult};
-use crate::{
-    encoding,
-    graph::{Database, DatabaseView},
-    storage,
-};
+use crate::storage;
 
 #[derive(Debug, Clone)]
 pub struct DatabaseService {
@@ -58,14 +54,14 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
 
     async fn iter_objects(
         &self,
-        request: Request<proto::IterObjectsRequest>,
+        _request: Request<proto::IterObjectsRequest>,
     ) -> Result<Response<Self::IterObjectsStream>, Status> {
         todo!()
     }
 
     async fn walk_objects(
         &self,
-        request: Request<proto::WalkObjectsRequest>,
+        _request: Request<proto::WalkObjectsRequest>,
     ) -> Result<Response<Self::WalkObjectsStream>, Status> {
         todo!()
     }
@@ -85,7 +81,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
 
     async fn remove_object(
         &self,
-        request: Request<proto::RemoveObjectRequest>,
+        _request: Request<proto::RemoveObjectRequest>,
     ) -> Result<Response<proto::RemoveObjectResponse>, Status> {
         todo!()
     }

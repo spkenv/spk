@@ -6,7 +6,7 @@ use crate::proto::{
     database_service_client::DatabaseServiceClient, payload_service_client::PayloadServiceClient,
     repository_client::RepositoryClient, tag_service_client::TagServiceClient,
 };
-use crate::{storage, Error, Result};
+use crate::{proto, storage, Error, Result};
 
 #[derive(Debug)]
 pub struct RpcRepository {
@@ -50,6 +50,13 @@ impl RpcRepository {
             db_client,
             payload_client,
         })
+    }
+
+    /// The round-trip time taken to ping this repository over grpc, if successful
+    pub async fn ping(&self) -> Result<std::time::Duration> {
+        let start = std::time::Instant::now();
+        self.repo_client.clone().ping(proto::PingRequest {}).await?;
+        Ok(start.elapsed())
     }
 }
 

@@ -113,9 +113,10 @@ impl From<super::Error> for Error {
             Some(super::error::Kind::UnknownObject(rpc)) => {
                 match crate::encoding::Digest::parse(&rpc.message) {
                     Ok(digest) => crate::Error::UnknownObject(digest),
-                    Err(_) => crate::Error::String(format!(
+                    Err(_) => crate::Error::String(
                         "Server reported UnknownObject but did not provide a valid digest"
-                    )),
+                            .to_string(),
+                    ),
                 }
             }
             Some(super::error::Kind::UnknownReference(rpc)) => {

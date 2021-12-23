@@ -145,7 +145,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             let local_grpc_addr = grpc_listener.local_addr().unwrap();
             let incoming = tokio_stream::wrappers::TcpListenerStream::new(grpc_listener);
             let grpc_future = tonic::transport::Server::builder()
-                .add_service(spfs::server::Repository::new_srv(repo.clone()))
+                .add_service(spfs::server::Repository::new_srv())
                 .add_service(spfs::server::TagService::new_srv(repo.clone()))
                 .add_service(spfs::server::DatabaseService::new_srv(repo))
                 .add_service(payload_service.clone().into_srv())

@@ -5,7 +5,7 @@
 use std::convert::TryInto;
 use std::pin::Pin;
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 
 use crate::{encoding, graph, proto, storage, Result};
 use proto::RpcResult;
