@@ -32,7 +32,6 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         let client = reqwest::Client::new();
-        tracing::warn!("{}", option.url);
         let stream =
             tokio_util::codec::FramedRead::new(reader, tokio_util::codec::BytesCodec::new());
         let resp = client
@@ -40,16 +39,23 @@ impl storage::PayloadStorage for super::RpcRepository {
             .body(reqwest::Body::wrap_stream(stream))
             .send()
             .await
-            .expect("failed to send request")
+            .map_err(|err| crate::Error::String(format!("Failed to upload request: {:?}", err)))?
             .error_for_status()
-            .expect("Failed request");
+            .map_err(|err| crate::Error::String(format!("Upload failed: {:?}", err)))?;
         if !resp.status().is_success() {
-            panic!("{:?}", resp.status());
+            // the server is expected to return all errors via the gRPC message
+            // payload in the body. Any other status code is unexpected
+            return Err(crate::Error::String(format!(
+                "Unexpected status code from payload server: {}",
+                resp.status()
+            )));
         }
-        let bytes = resp.bytes().await.expect("could not read body bytes");
-        tracing::warn!("{:?}", bytes);
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|err| format!("Failed to read response from payload server: {:?}", err))?;
         let result = crate::proto::write_payload_response::UploadResponse::decode(bytes)
-            .expect("Invalid response data")
+            .map_err(|err| format!("Payload server returned invalid response data: {:?}", err))?
             .to_result()?;
         Ok((result.digest.try_into()?, result.size))
     }
