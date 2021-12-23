@@ -71,25 +71,22 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     assert!(sync_ref(tag.to_string(), &local, &remote).await.is_ok());
 }
 
-#[rstest]
+#[rstest(
+    repo_a,
+    repo_b,
+    case::fs(tmprepo("fs"), tmprepo("fs")),
+    case::tar(tmprepo("tar"), tmprepo("tar"))
+)]
 #[tokio::test]
-async fn test_sync_ref(tmpdir: tempdir::TempDir) {
+async fn test_sync_ref(#[future] repo_a: TempRepo, #[future] repo_b: TempRepo, tmpdir: tempdir::TempDir) {
     init_logging();
+    let repo_a = repo_a.await;
+    let repo_b = repo_b.await;
+
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
-
-    let repo_a: RepositoryHandle =
-        storage::fs::FSRepository::create(tmpdir.path().join("repo_a").as_path())
-            .await
-            .unwrap()
-            .into();
-    let repo_b: RepositoryHandle =
-        storage::fs::FSRepository::create(tmpdir.path().join("repo_b").as_path())
-            .await
-            .unwrap()
-            .into();
 
     let manifest = repo_a.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = repo_a
@@ -114,12 +111,6 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
     assert!(repo_b.has_platform(platform.digest().unwrap()).await);
     assert!(repo_b.has_layer(layer.digest().unwrap()).await);
 
-    std::fs::remove_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
-    std::fs::remove_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
-    std::fs::remove_dir_all(tmpdir.path().join("repo_a/tags")).unwrap();
-    std::fs::create_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
-    std::fs::create_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
-    std::fs::create_dir_all(tmpdir.path().join("repo_a/tags")).unwrap();
     sync_ref("testing", &repo_b, &repo_a)
         .await
         .expect("failed to sync back");
@@ -128,25 +119,25 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
     assert!(repo_a.has_layer(layer.digest().unwrap()).await);
 }
 
-#[rstest]
+#[rstest(
+    repo_a,
+    repo_b,
+    case::fs(tmprepo("fs"), tmprepo("fs")),
+    case::tar(tmprepo("tar"), tmprepo("tar"))
+)]
 #[tokio::test]
-async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
+async fn test_sync_through_tar(#[future] repo_a: TempRepo, #[future] repo_b: TempRepo, tmpdir: tempdir::TempDir) {
     init_logging();
+    let repo_a = repo_a.await;
+    let repo_b = repo_b.await;
+
     let dir = tmpdir.path();
     let src_dir = dir.join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let repo_a: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_a"))
-        .await
-        .unwrap()
-        .into();
     let repo_tar: RepositoryHandle = storage::tar::TarRepository::create(dir.join("repo.tar"))
-        .await
-        .unwrap()
-        .into();
-    let repo_b: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_b"))
         .await
         .unwrap()
         .into();
