@@ -107,7 +107,7 @@ pub trait Repository:
     /// Commit the data from 'reader' as a blob in this repository
     async fn commit_blob(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<encoding::Digest> {
         let (digest, size) = self.write_data(reader).await?;
         let blob = Blob::new(digest, size);

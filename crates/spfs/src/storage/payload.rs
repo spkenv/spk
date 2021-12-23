@@ -23,7 +23,7 @@ pub trait PayloadStorage: Sync + Send {
     /// Store the contents of the given stream, returning its digest and size
     async fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle to the full content of a payload.
@@ -33,7 +33,7 @@ pub trait PayloadStorage: Sync + Send {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>>;
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>>;
 
     /// Remove the payload idetified by the given digest.
     ///
@@ -50,7 +50,7 @@ impl<T: PayloadStorage> PayloadStorage for &T {
 
     async fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         PayloadStorage::write_data(&**self, reader).await
     }
@@ -58,7 +58,7 @@ impl<T: PayloadStorage> PayloadStorage for &T {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
         PayloadStorage::open_payload(&**self, digest).await
     }
 

@@ -6,10 +6,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt, TryStreamExt};
+use prost::Message;
 use tonic::{Request, Response, Status};
 
 use crate::proto::{self, payload_service_server::PayloadServiceServer, RpcResult};
-use crate::storage::{self, PayloadStorage};
+use crate::storage::{self};
 
 /// The payload service is both a gRPC service AND an http server
 ///
@@ -48,7 +49,11 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         &self,
         _request: Request<proto::WritePayloadRequest>,
     ) -> Result<Response<proto::WritePayloadResponse>, Status> {
-        todo!()
+        let data = proto::write_payload_response::UploadOption {
+            url: self.external_root.to_string(),
+        };
+        let result = proto::WritePayloadResponse::ok(data);
+        Ok(Response::new(result))
     }
 
     async fn has_payload(
@@ -87,12 +92,15 @@ impl hyper::service::Service<hyper::http::Request<hyper::Body>> for PayloadServi
     }
 
     fn call(&mut self, req: hyper::http::Request<hyper::Body>) -> Self::Future {
-        Box::pin(futures::future::ready(
-            hyper::Response::builder()
-                .status(hyper::http::StatusCode::METHOD_NOT_ALLOWED)
-                .body(hyper::Body::empty())
-                .map_err(|e| crate::Error::String(e.to_string())),
-        ))
+        match *req.method() {
+            hyper::Method::POST => Box::pin(handle_upload(self.repo.clone(), req.into_body())),
+            _ => Box::pin(futures::future::ready(
+                hyper::Response::builder()
+                    .status(hyper::http::StatusCode::METHOD_NOT_ALLOWED)
+                    .body(hyper::Body::empty())
+                    .map_err(|e| crate::Error::String(e.to_string())),
+            )),
+        }
     }
 }
 
@@ -114,4 +122,35 @@ impl PayloadService {
     pub fn into_srv(self) -> PayloadServiceServer<Self> {
         PayloadServiceServer::new(self)
     }
+}
+
+async fn handle_upload(
+    repo: Arc<storage::RepositoryHandle>,
+    body: hyper::Body,
+) -> crate::Result<hyper::http::Response<hyper::Body>> {
+    let reader = body_to_reader(body);
+    let (digest, size) = repo.write_data(reader).await.map_err(|err| {
+        crate::Error::String(format!(
+            "An error occurred while spwaning a thread for this operation: {:?}",
+            err
+        ))
+    })?;
+    let result = crate::proto::write_payload_response::UploadResponse::ok(
+        crate::proto::write_payload_response::upload_response::UploadResult {
+            digest: Some(digest.into()),
+            size,
+        },
+    );
+    let bytes = result.encode_to_vec();
+    hyper::Response::builder()
+        .status(hyper::http::StatusCode::OK)
+        .body(bytes.into())
+        .map_err(|e| crate::Error::String(e.to_string()))
+}
+
+fn body_to_reader(body: hyper::Body) -> Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>> {
+    use futures::StreamExt;
+    Box::pin(tokio_util::io::StreamReader::new(body.map(|chunk| {
+        chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    })))
 }

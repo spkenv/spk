@@ -135,3 +135,8 @@ rpc_result!(
     gen::RemovePayloadResponse,
     gen::remove_payload_response::Result
 );
+rpc_result!(
+    gen::write_payload_response::UploadResponse,
+    gen::write_payload_response::upload_response::Result,
+    gen::write_payload_response::upload_response::UploadResult
+);

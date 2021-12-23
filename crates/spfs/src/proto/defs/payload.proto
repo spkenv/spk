@@ -24,6 +24,18 @@ message WritePayloadResponse{
     message UploadOption {
         string url = 1;
     }
+    // This message is not part of the grpc interface,
+    // but is the expected response data for http uploads
+    message UploadResponse {
+        message UploadResult {
+            Digest digest = 1;
+            uint64 size = 2;
+        }
+        oneof result {
+            Error error = 1;
+            UploadResult ok = 2;
+        }
+    }
     oneof result {
         Error error = 1;
         UploadOption ok = 2;
