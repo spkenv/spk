@@ -224,7 +224,14 @@ async fn sync_blob(
     } else {
         let payload = src.open_payload(blob.payload).await?;
         tracing::debug!(digest = ?blob.payload, "syncing payload");
-        dest.write_data(payload).await?;
+        let (digest, _) = dest.write_data(payload).await?;
+        if digest != blob.payload {
+            return Err(Error::String(format!(
+                "Source repository provided blob that did not match the requested digest: wanted {}, got {}",
+                blob.payload,
+                digest
+            )));
+        }
     }
     dest.write_blob(blob.clone()).await?;
     Ok(())
