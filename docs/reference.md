@@ -5,7 +5,6 @@ weight: 110
 ---
 ## Package Spec
 
-
 | Field      | Type                              | Description                                                                                                                                           |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pkg        | _[Identifier](#identifier)_       | The name and version number of this package                                                                                                           |
@@ -34,7 +33,6 @@ A source spec can be one of [LocalSource](#localsource), [GitSource](#gitsource)
 
 Defines a local directory to collect sources from. This process will also automatically detect a git repository and not transfer ignored files.
 
-
 | Field   | Type        | Description                                                                                      |
 | ------- | ----------- | ------------------------------------------------------------------------------------------------ |
 | path    | _str_       | The relative or absolute path to a local directory                                               |
@@ -45,7 +43,6 @@ Defines a local directory to collect sources from. This process will also automa
 ### GitSource
 
 Clones a git repository as package source files.
-
 
 | Field  | Type  | Description                                                    |
 | ------ | ----- | -------------------------------------------------------------- |
@@ -80,7 +77,6 @@ A build option can be one of [VariableOption](#variableoption), or [PackageOptio
 
 Variable options represents some arbitrary configuration parameter to the build. When the value of this string changes, a new build of the package is required. Some common examples of these options are: `arch`, `os`, `debug`.
 
-
 | Field       | Type        | Description                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | var         | _str_       | The name of the option, with optional default value (eg`my_option` or `my_option/default_value`)                                                                                                                                                                                                                                                                                                                                 |
@@ -91,7 +87,6 @@ Variable options represents some arbitrary configuration parameter to the build.
 #### PackageOption
 
 Package options define a package that is required at build time.
-
 
 | Field            | Type                                    | Description                                                                                                                                                                                    |
 | ---------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -122,7 +117,6 @@ The ValidationSpec modifies the default validation process for packages, primari
 
 A test spec defines one test script that should be run against the package to validate it. Each test script can run against one stage of the package, meaning that you can define test processes for the source package, build environment (unit tests), or install environment (integration tests).
 
-
 | Field        | Type                            | Description                                                                                                                        |
 | ------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | stage        | _str_                           | The stage that this test validates, one of:**sources**, **build**, **install**                                                     |
@@ -131,7 +125,6 @@ A test spec defines one test script that should be run against the package to va
 | script       | _str_ or _List[str]_            | The sh script which tests the package                                                                                              |
 
 ## InstallSpec
-
 
 | Field        | Type                        | Description                                      |
 | ------------ | --------------------------- | ------------------------------------------------ |
@@ -144,14 +137,12 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 #### VariableRequest
 
-
 | Field        | Type   | Description                                                                                                                                                                 |
 | ------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | var          | _str_  | The requested value of a package build variable in the form`name=value`, this can reference a specific package or the global variable (eg `debug=on`, or `python.abi=cp37`) |
 | fromBuildEnv | _bool_ | If true, replace the requested value of this variable with the value used in the build environment                                                                          |
 
 #### PackageRequest
-
 
 | Field            | Type                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -162,18 +153,17 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 #### RangeIdentifier
 
-Like an[Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning). Additionally, range identifiers can be used to identify one or more package components. The `name.component` syntax can be used when only one component is desired, and the `[component,component]` syntax for when multiple are desired:
+Like an [Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning). Additionally, range identifiers can be used to identify one or more package components. The `name:component` syntax can be used when only one component is desired, and the `:{component,component}` syntax for when multiple are desired:
 
 ```txt
-mypkg.lib/1.0.0
-mypkg.dev/1.0.0
-mypkg.debug/1.0.0
-mypkg[lib,dev]/1.0.0
-mypkg[lib,dev,debug]/1.0.0
+mypkg:lib/1.0.0
+mypkg:dev/1.0.0
+mypkg:debug/1.0.0
+mypkg:{lib,dev}/1.0.0
+mypkg:{lib,dev,debug}/1.0.0
 ```
 
 #### PreReleasePolicy
-
 
 | Value                | Description                                 |
 | -------------------- | ------------------------------------------- |
@@ -181,7 +171,6 @@ mypkg[lib,dev,debug]/1.0.0
 | IncludeAll           | Include all pre-release package versions    |
 
 #### InclusionPolicy
-
 
 | Value            | Description                                                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -191,7 +180,6 @@ mypkg[lib,dev,debug]/1.0.0
 ## Identifier
 
 The package identifier takes the form `<name>[/<version>[/<build>]]`, where:
-
 
 | Component | Description                                                                                                                                                                                                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
