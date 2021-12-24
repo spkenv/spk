@@ -235,6 +235,22 @@ impl Repository for SPFSRepository {
         }
 
         let tag_path = self.build_package_tag(&spec.pkg)?;
+
+        // We will also publish the 'run' component in the old style
+        // for compatibility with older versions of the spk command.
+        // It's not perfect but at least the package will be visible
+        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
+        let legacy_component = if let Some(api::Build::Source) = spec.pkg.build {
+            components.get(&api::Component::Source).ok_or_else(|| {
+                Error::String("Package must have a source component to be published".to_string())
+            })?
+        } else {
+            components.get(&api::Component::Run).ok_or_else(|| {
+                Error::String("Package must have a run component to be published".to_string())
+            })?
+        };
+        self.inner.push_tag(&legacy_tag, legacy_component)?;
+
         let components: std::result::Result<Vec<_>, _> = components
             .into_iter()
             .map(|(name, digest)| {
@@ -245,6 +261,7 @@ impl Repository for SPFSRepository {
         for (tag_spec, digest) in components?.into_iter() {
             self.inner.push_tag(&tag_spec, &digest)?;
         }
+
         self.force_publish_spec(spec)?;
         Ok(())
     }
@@ -252,6 +269,16 @@ impl Repository for SPFSRepository {
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
         for tag_spec in self.lookup_package(pkg)?.tags() {
             match self.inner.remove_tag_stream(tag_spec) {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
+            }
+        }
+        // because we double-publish packages to be visible/compatible
+        // with the old repo tag structure, we must also try to remove
+        // the legacy version of the tag after removing the discovered
+        // as it may still be there and cause the removal to be ineffective
+        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
+            match self.inner.remove_tag_stream(&legacy_tag) {
                 Err(spfs::Error::UnknownReference(_)) => (),
                 res => res?,
             }

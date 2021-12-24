@@ -42,6 +42,7 @@ def test_archive_io(tmpdir: py.path.local) -> None:
         "tags/spk/pkg/spk-archive-test",
         "tags/spk/pkg/spk-archive-test/0.0.1",
         "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6",
+        "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6.tag",
         "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/build.tag",
         "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/run.tag",
         "tags/spk/spec",
