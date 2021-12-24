@@ -251,7 +251,7 @@ impl Repository for SPFSRepository {
 
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
         for tag_spec in self.lookup_package(pkg)?.tags() {
-            match self.inner.remove_tag_stream(&tag_spec) {
+            match self.inner.remove_tag_stream(tag_spec) {
                 Err(spfs::Error::UnknownReference(_)) => (),
                 res => res?,
             }
@@ -282,7 +282,7 @@ impl SPFSRepository {
         if self.inner.has_tag(&tag_spec) {
             return Ok(StoredPackage::WithoutComponents(tag_spec));
         }
-        return Err(Error::PackageNotFoundError(pkg.clone()));
+        Err(Error::PackageNotFoundError(pkg.clone()))
     }
 
     /// Construct an spfs tag string to represent a binary package layer.
@@ -331,7 +331,7 @@ enum StoredPackage {
 
 impl StoredPackage {
     /// Identify all of the tags associated with this package
-    fn tags<'a>(&'a self) -> Vec<&'a spfs::tracking::TagSpec> {
+    fn tags(&self) -> Vec<&spfs::tracking::TagSpec> {
         match &self {
             Self::WithoutComponents(tag) => vec![tag],
             Self::WithComponents(cmpts) => cmpts.values().collect(),
