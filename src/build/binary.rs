@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 use spfs::prelude::Encodable;
 
+use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
 
 use super::env::data_path;
@@ -584,30 +585,30 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
 }
 
 /// Return the file path for the given source package's files.
-pub fn source_package_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
-    data_path(pkg, prefix)
+pub fn source_package_path(pkg: &api::Ident) -> RelativePathBuf {
+    data_path(pkg)
 }
 
 /// Return the file path for the given build's spec.yaml file.
 ///
 /// This file is created during a build and stores the full
 /// package spec of what was built.
-pub fn build_spec_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
-    data_path(pkg, prefix).join("spec.yaml")
+pub fn build_spec_path(pkg: &api::Ident) -> RelativePathBuf {
+    data_path(pkg).join("spec.yaml")
 }
 
 /// Return the file path for the given build's options.json file.
 ///
 /// This file is created during a build and stores the set
 /// of build options used when creating the package
-pub fn build_options_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
-    data_path(pkg, prefix).join("options.json")
+pub fn build_options_path(pkg: &api::Ident) -> RelativePathBuf {
+    data_path(pkg).join("options.json")
 }
 
 /// Return the file path for the given build's build.sh file.
 ///
 /// This file is created during a build and stores the bash
 /// script used to build the package contents
-pub fn build_script_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
-    data_path(pkg, prefix).join("build.sh")
+pub fn build_script_path(pkg: &api::Ident) -> RelativePathBuf {
+    data_path(pkg).join("build.sh")
 }

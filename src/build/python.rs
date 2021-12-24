@@ -19,28 +19,32 @@ fn validate_source_changeset() -> Result<()> {
 
 #[pyfunction]
 fn build_options_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::build_options_path(path, prefix.unwrap_or("/spfs"))
+    super::build_options_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
 
 #[pyfunction]
 fn build_script_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::build_script_path(path, prefix.unwrap_or("/spfs"))
+    super::build_script_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
 
 #[pyfunction]
 fn build_spec_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::build_spec_path(path, prefix.unwrap_or("/spfs"))
+    super::build_spec_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
 
 #[pyfunction]
 fn source_package_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::source_package_path(path, prefix.unwrap_or("/spfs"))
+    super::source_package_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
