@@ -5,13 +5,11 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use pyo3::prelude::*;
-use spfs::prelude::Encodable;
-
-use relative_path::{RelativePath, RelativePathBuf};
+use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 
 use super::env::data_path;
@@ -339,17 +337,13 @@ impl BinaryPackageBuilder {
     {
         self.build_artifacts(env)?;
 
-        let sources_dir = data_path(
-            &self.spec.pkg.with_build(Some(api::Build::Source)),
-            &self.prefix,
-        );
+        let sources_dir = data_path(&self.spec.pkg.with_build(Some(api::Build::Source)));
 
         let mut runtime = spfs::active_runtime()?;
-        let pattern = sources_dir.strip_prefix(&self.prefix).unwrap().join("**");
-        let pattern = format!("/{}", pattern.to_string_lossy());
+        let pattern = sources_dir.join("**").to_string();
         tracing::info!(
             "Purging all changes made to source directory: {}",
-            sources_dir.display()
+            sources_dir.to_path(&self.prefix).display()
         );
         runtime.reset(&[pattern])?;
         spfs::remount_runtime(&runtime)?;
@@ -369,10 +363,10 @@ impl BinaryPackageBuilder {
         V: AsRef<OsStr>,
     {
         let pkg = &self.spec.pkg;
-        let metadata_dir = data_path(pkg, &self.prefix);
-        let build_spec = build_spec_path(pkg, &self.prefix);
-        let build_options = build_options_path(pkg, &self.prefix);
-        let build_script = build_script_path(pkg, &self.prefix);
+        let metadata_dir = data_path(pkg).to_path(&self.prefix);
+        let build_spec = build_spec_path(pkg).to_path(&self.prefix);
+        let build_options = build_options_path(pkg).to_path(&self.prefix);
+        let build_script = build_script_path(pkg).to_path(&self.prefix);
 
         std::fs::create_dir_all(&metadata_dir)?;
         api::save_spec_file(&build_spec, &self.spec)?;
@@ -392,9 +386,13 @@ impl BinaryPackageBuilder {
             })?;
             writer.sync_data()?;
         }
+        for cmpt in self.spec.install.components.iter() {
+            let marker_path = component_marker_path(pkg, &cmpt.name).to_path(&self.prefix);
+            std::fs::File::create(marker_path)?;
+        }
 
         let source_dir = match &self.source {
-            BuildSource::SourcePackage(source) => source_package_path(source, &self.prefix),
+            BuildSource::SourcePackage(source) => source_package_path(source).to_path(&self.prefix),
             BuildSource::LocalPath(path) => path.clone(),
         };
 
@@ -495,18 +493,25 @@ pub fn commit_component_layers(
     let config = spfs::load_config()?;
     let mut repo = config.get_repository()?;
     let manifest = repo.read_manifest(&layer.manifest)?.unlock();
-    let manifests = split_manifest_by_component(&manifest, &spec.install.components)?;
+    let manifests = split_manifest_by_component(&spec.pkg, &manifest, &spec.install.components)?;
     manifests
         .into_iter()
+        .map(|(name, m)| (name, spfs::graph::Manifest::from(&m)))
         .map(|(name, m)| {
-            repo.create_layer(&(&m).into())
-                .map(|l| (name, l.digest().unwrap()))
+            let layer = spfs::graph::Layer {
+                manifest: m.digest().unwrap(),
+            };
+            let layer_digest = layer.digest().unwrap();
+            repo.write_object(&m.into())
+                .and_then(|_| repo.write_object(&layer.into()))
                 .map_err(crate::Error::from)
+                .map(|_| (name, layer_digest))
         })
         .collect()
 }
 
 fn split_manifest_by_component(
+    pkg: &api::Ident,
     manifest: &spfs::tracking::Manifest,
     components: &api::ComponentSpecList,
 ) -> Result<HashMap<api::Component, spfs::tracking::Manifest>> {
@@ -518,26 +523,42 @@ fn split_manifest_by_component(
         // first so that we can also identify necessary
         // parent directories in a second iteration
         let mut relevant_paths: HashSet<relative_path::RelativePathBuf> = Default::default();
+        // all components must include the package metadata
+        // as well as the marker file for itself
+        relevant_paths.insert(build_spec_path(pkg));
+        relevant_paths.insert(build_options_path(pkg));
+        relevant_paths.insert(build_script_path(pkg));
+        relevant_paths.insert(component_marker_path(pkg, &component.name));
+        relevant_paths.extend(path_and_parents(data_path(pkg)));
         for node in manifest.walk() {
+            if node.path.strip_prefix(data_path(pkg)).is_ok() {
+                // paths within the metadata directory are controlled
+                // separately and cannot be included by the component spec
+                continue;
+            }
             if component
                 .files
                 .matches(&node.path.to_path("/"), node.entry.is_dir())
             {
-                let mut path: &relative_path::RelativePath = &node.path;
-                loop {
-                    relevant_paths.insert(path.to_owned());
-                    match path.parent() {
-                        None => break,
-                        Some(parent) => {
-                            path = parent;
-                        }
-                    }
-                }
+                relevant_paths.extend(path_and_parents(node.path.to_owned()));
             }
         }
         for node in manifest.walk() {
             if relevant_paths.contains(&node.path) {
-                component_manifest.mknod(&node.path, node.entry.clone())?;
+                tracing::debug!(
+                    "{}:{} collecting {:?}",
+                    pkg.name(),
+                    component.name,
+                    node.path
+                );
+                let mut entry = node.entry.clone();
+                if entry.is_dir() {
+                    // we will be building back up any directory with
+                    // only the children that is should have, so start
+                    // with an empty one
+                    entry.entries.clear();
+                }
+                component_manifest.mknod(&node.path, entry)?;
             }
         }
 
@@ -611,4 +632,39 @@ pub fn build_options_path(pkg: &api::Ident) -> RelativePathBuf {
 /// script used to build the package contents
 pub fn build_script_path(pkg: &api::Ident) -> RelativePathBuf {
     data_path(pkg).join("build.sh")
+}
+
+/// Return the file path for the given build's build.sh file.
+///
+/// This file is created during a build and stores the bash
+/// script used to build the package contents
+pub fn component_marker_path(pkg: &api::Ident, name: &api::Component) -> RelativePathBuf {
+    data_path(pkg).join(format!("{}.cmpt", name))
+}
+
+/// Expand a path to a list of itself and all of it's parents
+///
+/// ```
+/// use relative_path::RelativePathBuf;
+/// let path = RelativePathBuf::from("some/deep/path")
+/// let hierarchy = path_and_parents(path);
+/// assert_eq!(hierarchy, vec![
+///     RelativePathBuf::from("some/deep/path"),
+///     RelativePathBuf::from("some/deep"),
+///     RelativePathBuf::from("some"),
+/// ]);
+/// ```
+fn path_and_parents(mut path: RelativePathBuf) -> Vec<RelativePathBuf> {
+    let mut hierarchy = Vec::new();
+    loop {
+        let parent = path.parent().map(ToOwned::to_owned);
+        hierarchy.push(path);
+        match parent {
+            None => break,
+            Some(parent) => {
+                path = parent;
+            }
+        }
+    }
+    hierarchy
 }

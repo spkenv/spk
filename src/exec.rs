@@ -31,19 +31,22 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
         }
 
         for name in desired_components.into_iter() {
-            let digest = components.get(&name).ok_or_else(|| {
-                Error::String(format!(
-                    "Resolved component '{}' went missing, please try again",
-                    name
-                ))
-            })?;
+            let digest = components
+                .get(&name)
+                .ok_or_else(|| {
+                    Error::String(format!(
+                        "Resolved component '{}' went missing, please try again",
+                        name
+                    ))
+                })?
+                .clone();
 
             if stack.contains(&digest) {
                 continue;
             }
 
             if !local_repo.has_object(&digest) {
-                to_sync.push((resolved.spec, repo.clone(), digest))
+                to_sync.push((resolved.spec.clone(), repo.clone(), digest))
             }
 
             stack.push(digest);

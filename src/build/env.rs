@@ -13,7 +13,7 @@ mod env_test;
 /// Returns the directory that contains package metadata
 ///
 /// This directory is included as part of the package itself, and
-/// should nearly always be expected to be relative to /spfs
+/// should nearly always be assumed as relative to /spfs
 pub fn data_path(pkg: &api::Ident) -> RelativePathBuf {
-    RelativePathBuf::from("spk/pkg").join(pkg.to_string())
+    RelativePathBuf::from("/spk/pkg").join(pkg.to_string())
 }

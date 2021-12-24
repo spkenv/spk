@@ -157,7 +157,7 @@ impl Repository for RuntimeRepository {
         let mapped: Result<_> = components?
             .into_iter()
             .map(|name| {
-                find_layer_by_filename(path.join(name.as_str()))
+                find_layer_by_filename(path.join(format!("{}.cmpt", name)))
                     .map(|digest| (name, digest))
                     .map_err(|err| {
                         if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
@@ -168,7 +168,7 @@ impl Repository for RuntimeRepository {
                     })
             })
             .collect();
-        Ok(mapped?)
+        mapped
     }
 
     fn force_publish_spec(&mut self, _spec: api::Spec) -> Result<()> {

@@ -64,7 +64,7 @@ where
         1 => {
             out.push_str(&format!(":{}", components.join(",").dimmed()));
         }
-        2.. => {
+        _ => {
             out.push_str(&format!(":{{{}}}", components.join(",").dimmed()));
         }
     }

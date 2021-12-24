@@ -56,12 +56,12 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
 
 #[pyfunction]
 pub fn data_path(pkg: &api::Ident, prefix: PathBuf) -> PathBuf {
-    super::env::data_path(pkg, prefix)
+    super::env::data_path(pkg).to_path(prefix)
 }
 
 #[pyfunction]
-pub fn collect_sources(apec: &api::Spec, source_dir: PathBuf) -> Result<()> {
-    super::sources::collect_sources(apec, source_dir)
+pub fn collect_sources(spec: &api::Spec, source_dir: PathBuf) -> Result<()> {
+    super::sources::collect_sources(spec, source_dir)
 }
 
 pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {

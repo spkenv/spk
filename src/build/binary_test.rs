@@ -22,8 +22,9 @@ fn test_split_manifest_permissions() {
             },
         )
         .unwrap();
+    let pkg = "mypkg".parse().unwrap();
     let spec = crate::api::ComponentSpecList::default();
-    let components = super::split_manifest_by_component(&manifest, &spec).unwrap();
+    let components = super::split_manifest_by_component(&pkg, &manifest, &spec).unwrap();
     let run = components.get(&crate::api::Component::Run).unwrap();
     assert_eq!(run.get_path("bin").unwrap().mode, 0o754);
     assert_eq!(run.get_path("bin/runme").unwrap().mode, 0o555);

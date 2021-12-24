@@ -119,7 +119,7 @@ impl SourcePackageBuilder {
         runtime.reset_stack()?;
         spfs::remount_runtime(&runtime)?;
 
-        let source_dir = data_path(&self.spec.pkg, &self.prefix);
+        let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
         collect_sources(&self.spec, &source_dir)?;
 
         tracing::info!("Validating package source files...");

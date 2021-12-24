@@ -5,6 +5,9 @@ import os
 import pytest
 import py.path
 
+import spkrs
+
+from spkrs.storage import runtime_repository
 from .. import api, storage
 from . import SourcePackageBuilder, data_path
 from . import BinaryPackageBuilder
@@ -297,7 +300,7 @@ def test_default_build_component() -> None:
             },
         }
     )
-    builder = BinaryPackageBuilder().from_spec(spec)
+    builder = BinaryPackageBuilder.from_spec(spec)
     requirements = list(builder.get_build_requirements())
     assert len(requirements) == 1, "should have one build requirement"
     req = requirements[0]
@@ -306,3 +309,29 @@ def test_default_build_component() -> None:
         "a build request with no components should have the default",
         "build component injected automatically"
     )
+
+
+def test_build_components_metadata(tmpspfs: spkrs.storage.Repository) -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "mypkg/1.0.0",
+            "sources": [],
+            "build": {
+                "script": "echo building...",
+            },
+            "components": [{
+                "name": "custom",
+            }]
+        }
+    )
+    spec = BinaryPackageBuilder.from_spec(spec).with_source(".").build()
+    runtime_repo = spkrs.storage.runtime_repository()
+    published = tmpspfs.get_package(spec.pkg)
+    for component in spec.install.components:
+        digest = published[component.name]
+        spkrs.reconfigure_runtime(stack=[digest], reset=['*'])
+        # the package should be "available" no matter what
+        # component is installed
+        installed = runtime_repo.get_package(spec.pkg)
+        assert installed == {component.name: digest}, "runtime repo should only show installed components"
