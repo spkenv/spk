@@ -34,6 +34,12 @@ def register(
         action="store_true",
         help="Recursively list all package versions and builds (recursive results are not sorted)",
     )
+    ls_cmd.add_argument(
+        "--components",
+        "-c",
+        action="store_true",
+        help="Show available package components in the output",
+    )
     # no defaults since we want --local to be mutually exclusive
     _flags.add_repo_flags(ls_cmd, defaults=[])
     ls_cmd.set_defaults(func=_ls)
@@ -77,16 +83,15 @@ def _ls(args: argparse.Namespace) -> None:
                     results.add(spk.io.format_ident(build))
                     continue
 
+                item = spk.io.format_ident(build)
                 if args.verbose:
                     spec = repo.read_spec(build)
                     options = spec.resolve_all_options(spk.api.OptionMap({}))
-                    results.add(
-                        " ".join(
-                            (spk.io.format_ident(build), spk.io.format_options(options))
-                        )
-                    )
-                else:
-                    results.add(spk.io.format_ident(build))
+                    item += " " + spk.io.format_options(options)
+                if args.verbose > 1:
+                    cmpts = repo.get_package(build).keys()
+                    item += " " + spk.io.format_components(list(cmpts))
+                results.add(item)
 
     print("\n".join(sorted(results)))
 
@@ -115,12 +120,12 @@ def _list_recursively(
                         print(spk.io.format_ident(build))
                         continue
 
+                    print(spk.io.format_ident(build), end="")
                     if args.verbose:
                         spec = repo.read_spec(build)
                         options = spec.resolve_all_options(spk.api.OptionMap({}))
-                        print(
-                            spk.io.format_ident(build),
-                            spk.io.format_options(options),
-                        )
-                    else:
-                        print(spk.io.format_ident(build))
+                        print("", spk.io.format_options(options), end="")
+                    if args.verbose > 1:
+                        cmpts = repo.get_package(build).keys()
+                        print("", spk.io.format_components(list(cmpts)), end="")
+                    print()
