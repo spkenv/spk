@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::convert::TryInto;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -64,9 +65,18 @@ impl proto::payload_service_server::PayloadService for PayloadService {
 
     async fn open_payload(
         &self,
-        _request: Request<proto::OpenPayloadRequest>,
+        request: Request<proto::OpenPayloadRequest>,
     ) -> Result<Response<proto::OpenPayloadResponse>, Status> {
-        todo!()
+        let request = request.into_inner();
+        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        let mut option = proto::open_payload_response::DownloadOption::default();
+        let mut self_download = self.external_root.clone();
+        if let Ok(mut p) = self_download.path_segments_mut() {
+            p.push(&digest.to_string());
+        }
+        option.locations.push(self_download.into());
+        let result = proto::OpenPayloadResponse::ok(option);
+        Ok(Response::new(result))
     }
 
     async fn remove_payload(
@@ -93,6 +103,10 @@ impl hyper::service::Service<hyper::http::Request<hyper::Body>> for PayloadServi
     fn call(&mut self, req: hyper::http::Request<hyper::Body>) -> Self::Future {
         match *req.method() {
             hyper::Method::POST => Box::pin(handle_upload(self.repo.clone(), req.into_body())),
+            hyper::Method::GET => Box::pin(handle_download(
+                self.repo.clone(),
+                req.uri().path().trim_start_matches('/').to_string(),
+            )),
             _ => Box::pin(futures::future::ready(
                 hyper::Response::builder()
                     .status(hyper::http::StatusCode::METHOD_NOT_ALLOWED)
@@ -151,4 +165,18 @@ fn body_to_reader(body: hyper::Body) -> Pin<Box<dyn tokio::io::AsyncRead + Send 
     Box::pin(tokio_util::io::StreamReader::new(body.map(|chunk| {
         chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     })))
+}
+
+async fn handle_download(
+    repo: Arc<storage::RepositoryHandle>,
+    relative_path: String,
+) -> crate::Result<hyper::http::Response<hyper::Body>> {
+    let digest = crate::encoding::Digest::parse(&relative_path)?;
+    let reader = repo.open_payload(digest).await?;
+    hyper::Response::builder()
+        .status(hyper::http::StatusCode::OK)
+        .body(hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(
+            reader,
+        )))
+        .map_err(|e| crate::Error::String(e.to_string()))
 }

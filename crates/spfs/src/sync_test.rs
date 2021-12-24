@@ -79,7 +79,11 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     case::rpc(tmprepo("rpc"), tmprepo("rpc"))
 )]
 #[tokio::test]
-async fn test_sync_ref(#[future] repo_a: TempRepo, #[future] repo_b: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_sync_ref(
+    #[future] repo_a: TempRepo,
+    #[future] repo_b: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
     init_logging();
     let repo_a = repo_a.await;
     let repo_b = repo_b.await;
@@ -125,10 +129,14 @@ async fn test_sync_ref(#[future] repo_a: TempRepo, #[future] repo_b: TempRepo, t
     repo_b,
     case::fs(tmprepo("fs"), tmprepo("fs")),
     case::tar(tmprepo("tar"), tmprepo("tar")),
-    case::rpc(tmprepo("tar"), tmprepo("tar"))
+    case::rpc(tmprepo("rpc"), tmprepo("rpc"))
 )]
 #[tokio::test]
-async fn test_sync_through_tar(#[future] repo_a: TempRepo, #[future] repo_b: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_sync_through_tar(
+    #[future] repo_a: TempRepo,
+    #[future] repo_b: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
     init_logging();
     let repo_a = repo_a.await;
     let repo_b = repo_b.await;

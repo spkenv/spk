@@ -4,7 +4,7 @@
 use std::convert::TryInto;
 use std::pin::Pin;
 
-use futures::Stream;
+use futures::{Stream, TryStreamExt};
 use prost::Message;
 
 use crate::{
@@ -39,7 +39,9 @@ impl storage::PayloadStorage for super::RpcRepository {
             .body(reqwest::Body::wrap_stream(stream))
             .send()
             .await
-            .map_err(|err| crate::Error::String(format!("Failed to upload request: {:?}", err)))?
+            .map_err(|err| {
+                crate::Error::String(format!("Failed to send upload request: {:?}", err))
+            })?
             .error_for_status()
             .map_err(|err| crate::Error::String(format!("Upload failed: {:?}", err)))?;
         if !resp.status().is_success() {
@@ -62,9 +64,42 @@ impl storage::PayloadStorage for super::RpcRepository {
 
     async fn open_payload(
         &self,
-        _digest: encoding::Digest,
+        digest: encoding::Digest,
     ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
-        todo!()
+        let request = proto::OpenPayloadRequest {
+            digest: Some(digest.into()),
+        };
+        let option = self
+            .payload_client
+            .clone()
+            .open_payload(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        let client = reqwest::Client::new();
+        let url = option.locations.get(0).map(String::as_str).unwrap_or("");
+        let resp = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|err| {
+                crate::Error::String(format!("Failed to send download request: {:?}", err))
+            })?
+            .error_for_status()
+            .map_err(|err| crate::Error::String(format!("Download failed: {:?}", err)))?;
+        if !resp.status().is_success() {
+            // the server is expected to return all errors via the gRPC message
+            // payload in the body. Any other status code is unexpected
+            return Err(crate::Error::String(format!(
+                "Unexpected status code from payload server: {}",
+                resp.status()
+            )));
+        }
+        let stream = resp
+            .bytes_stream()
+            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e));
+        use tokio_util::compat::FuturesAsyncReadCompatExt;
+        Ok(Box::pin(stream.into_async_read().compat()))
     }
 
     async fn remove_payload(&self, _digest: encoding::Digest) -> Result<()> {
