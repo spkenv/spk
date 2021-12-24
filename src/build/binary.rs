@@ -513,8 +513,8 @@ fn split_manifest_by_component(
     for component in components.iter() {
         let mut component_manifest = spfs::tracking::Manifest::default();
 
-        // identify the paths that we will replicate first
-        // so that we can create accurately identify necessary
+        // identify all the file paths that we will replicate
+        // first so that we can also identify necessary
         // parent directories in a second iteration
         let mut relevant_paths: HashSet<relative_path::RelativePathBuf> = Default::default();
         for node in manifest.walk() {
