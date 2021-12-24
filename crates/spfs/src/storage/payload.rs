@@ -9,6 +9,10 @@ use futures::Stream;
 use crate::encoding;
 use crate::Result;
 
+#[cfg(test)]
+#[path = "payload_test.rs"]
+mod payload_test;
+
 /// Stores arbitrary binary data payloads using their content digest.
 #[async_trait::async_trait]
 pub trait PayloadStorage: Sync + Send {
