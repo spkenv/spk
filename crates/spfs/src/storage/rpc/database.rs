@@ -39,11 +39,11 @@ impl graph::DatabaseView for super::RpcRepository {
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        todo!()
+        graph::DatabaseIterator::new(self)
     }
 
-    fn walk_objects<'db>(&'db self, _root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        todo!()
+    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(self, *root)
     }
 }
 

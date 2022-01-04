@@ -56,14 +56,14 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         &self,
         _request: Request<proto::IterObjectsRequest>,
     ) -> Result<Response<Self::IterObjectsStream>, Status> {
-        todo!()
+        Err(Status::unimplemented("object iteration is no yet supported directly over gRPC"))
     }
 
     async fn walk_objects(
         &self,
         _request: Request<proto::WalkObjectsRequest>,
     ) -> Result<Response<Self::WalkObjectsStream>, Status> {
-        todo!()
+        Err(Status::unimplemented("object walking is no yet supported directly over gRPC"))
     }
 
     async fn write_object(
