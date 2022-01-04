@@ -16,7 +16,15 @@ use crate::{
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        todo!()
+        let request = proto::IterDigestsRequest {};
+        let mut client = self.payload_client.clone();
+        let stream = futures::stream::once(async move { client.iter_digests(request).await })
+            .map_err(crate::Error::from)
+            .map_ok(|r| r.into_inner().map_err(crate::Error::from))
+            .try_flatten()
+            .and_then(|d| async { d.to_result() })
+            .and_then(|d| async { d.try_into() });
+        Box::pin(stream)
     }
 
     async fn write_data(
@@ -102,7 +110,16 @@ impl storage::PayloadStorage for super::RpcRepository {
         Ok(Box::pin(stream.into_async_read().compat()))
     }
 
-    async fn remove_payload(&self, _digest: encoding::Digest) -> Result<()> {
-        todo!()
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+        let request = proto::RemovePayloadRequest {
+            digest: Some(digest.into()),
+        };
+        self.payload_client
+            .clone()
+            .remove_payload(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(())
     }
 }

@@ -58,9 +58,13 @@ impl proto::payload_service_server::PayloadService for PayloadService {
 
     async fn has_payload(
         &self,
-        _request: Request<proto::HasPayloadRequest>,
+        request: Request<proto::HasPayloadRequest>,
     ) -> Result<Response<proto::HasPayloadResponse>, Status> {
-        todo!()
+        let request = request.into_inner();
+        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        let exists = self.repo.has_payload(digest).await;
+        let result = proto::HasPayloadResponse::ok(exists);
+        Ok(Response::new(result))
     }
 
     async fn open_payload(
@@ -81,9 +85,13 @@ impl proto::payload_service_server::PayloadService for PayloadService {
 
     async fn remove_payload(
         &self,
-        _request: Request<proto::RemovePayloadRequest>,
+        request: Request<proto::RemovePayloadRequest>,
     ) -> Result<Response<proto::RemovePayloadResponse>, Status> {
-        todo!()
+        let request = request.into_inner();
+        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        proto::handle_error!(self.repo.remove_payload(digest).await);
+        let result = proto::RemovePayloadResponse::ok(proto::Ok {});
+        Ok(Response::new(result))
     }
 }
 
