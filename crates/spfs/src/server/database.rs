@@ -81,9 +81,13 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
 
     async fn remove_object(
         &self,
-        _request: Request<proto::RemoveObjectRequest>,
+        request: Request<proto::RemoveObjectRequest>,
     ) -> Result<Response<proto::RemoveObjectResponse>, Status> {
-        todo!()
+        let request = request.into_inner();
+        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        proto::handle_error!(self.repo.remove_object(digest).await);
+        let result = proto::RemoveObjectResponse::ok(proto::Ok {});
+        Ok(Response::new(result))
     }
 }
 

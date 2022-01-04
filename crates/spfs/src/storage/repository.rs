@@ -15,6 +15,10 @@ use graph::{Blob, Manifest};
 #[path = "./repository_test.rs"]
 mod repository_test;
 
+#[cfg(test)]
+#[path = "./database_test.rs"]
+mod database_test;
+
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub enum Ref {
     Digest(encoding::Digest),
