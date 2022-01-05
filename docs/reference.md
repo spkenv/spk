@@ -126,10 +126,23 @@ A test spec defines one test script that should be run against the package to va
 
 ## InstallSpec
 
-| Field        | Type                        | Description                                      |
-| ------------ | --------------------------- | ------------------------------------------------ |
-| requirements | _List[[Request](#request)]_ | The set of packages required at runtime          |
-| embedded     | _List[[Spec](#spec)]_       | A list of packages that come bundled in this one |
+| Field        | Type                                    | Description                                                                                                                                                          |
+| ------------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| requirements | _List[[Request](#request)]_             | The set of packages required at runtime, this list applies universally to all components.                                                                            |
+| embedded     | _List[[Spec](#spec)]_                   | A list of packages that come bundled in this one                                                                                                                     |
+| components   | _List[[ComponentSpec](#componentspec)]_ | The set of components that this package provides. If not otherwise specified, a `build` and `run` component are automatically generated and inserted into this list. |
+
+#### ComponentSpec
+
+The component spec defines a single component of a package. Components can be individually requested for a package. The `build` and `run` components are generated automatically unless they are defined explicitly for a package.
+
+| Field        | Type                        | Description                                                                                                                                             |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name         | _string_                    | The name of this component                                                                                                                              |
+| files        | _List[string]_              | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
+| uses         | _List[string]_              | A list of other components from this package that this one uses, and are therefore included whenever this one is included.                              |
+| requirements | _List[[Request](#request)]_ | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
+| embedded     | _List[[Spec](#spec)]_       | A list of packages that are embedded into this component with this component                                                                            |
 
 ### Request
 
