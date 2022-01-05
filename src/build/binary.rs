@@ -642,7 +642,7 @@ pub fn component_marker_path(pkg: &api::Ident, name: &api::Component) -> Relativ
     data_path(pkg).join(format!("{}.cmpt", name))
 }
 
-/// Expand a path to a list of itself and all of it's parents
+/// Expand a path to a list of itself and all of its parents
 ///
 /// ```
 /// use relative_path::RelativePathBuf;
