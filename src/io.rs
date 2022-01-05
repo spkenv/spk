@@ -93,7 +93,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
 
         out.push_str(&format!(
             "  {}",
-            format_request(&req.spec.pkg.name(), &[installed])
+            format_request(req.spec.pkg.name(), &[installed])
         ));
         if verbosity > 0 {
             let options = req.spec.resolve_all_options(&api::OptionMap::default());

@@ -72,7 +72,7 @@ impl Repository for MemRepository {
             .packages
             .get(pkg.name())
             .and_then(|versions| versions.get(&pkg.version))
-            .and_then(|builds| builds.get(&build))
+            .and_then(|builds| builds.get(build))
             .map(|(_, build_map)| build_map)
             .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default())

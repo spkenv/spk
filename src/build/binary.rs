@@ -353,7 +353,7 @@ impl BinaryPackageBuilder {
             .validate_build_changeset()
             .map_err(|err| BuildError::new_error(format_args!("{}", err.to_string())))?;
 
-        Ok(commit_component_layers(&self.spec, &mut runtime)?)
+        commit_component_layers(&self.spec, &mut runtime)
     }
 
     fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>

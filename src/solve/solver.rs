@@ -234,7 +234,7 @@ impl Solver {
         source: &PackageSource,
     ) -> Result<api::Compatibility> {
         for validator in self.validators.as_ref() {
-            let compat = validator.validate(node, spec, &source)?;
+            let compat = validator.validate(node, spec, source)?;
             if !&compat {
                 return Ok(compat);
             }

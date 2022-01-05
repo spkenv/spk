@@ -99,7 +99,7 @@ impl Component {
             Self::Run => "run",
             Self::Build => "build",
             Self::Source => "src",
-            Self::Named(value) => &value,
+            Self::Named(value) => value,
         }
     }
 

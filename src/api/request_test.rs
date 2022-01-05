@@ -22,7 +22,7 @@ use crate::api;
 fn test_parse_ident_range_components(#[case] source: &str, #[case] expected: &[&str]) {
     let actual = parse_ident_range(source).unwrap();
     let expected: HashSet<_> = expected
-        .into_iter()
+        .iter()
         .map(api::Component::parse)
         .map(Result::unwrap)
         .collect();

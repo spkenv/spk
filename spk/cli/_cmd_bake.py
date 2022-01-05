@@ -93,7 +93,7 @@ def _solve_and_build_new_runtime(args: argparse.Namespace) -> List[spkrs.Digest]
                 digest = components[name]
             except KeyError:
                 raise RuntimeError(
-                    f"Resolved component '{name}' went missing, please try again"
+                    f"Resolved component '{name}' went missing, this is likely a bug in the solver"
                 )
             if digest not in stack:
                 stack.append(digest)
