@@ -25,9 +25,6 @@ pub struct ComponentSpec {
     pub uses: Vec<Component>,
     #[pyo3(get, set)]
     #[serde(default)]
-    pub compat: Option<super::Compat>,
-    #[pyo3(get, set)]
-    #[serde(default)]
     pub requirements: super::RequirementsList,
     #[pyo3(get, set)]
     #[serde(default)]
@@ -40,7 +37,6 @@ impl ComponentSpec {
         let name = name.try_into()?;
         Ok(Self {
             name,
-            compat: None,
             uses: Default::default(),
             files: Default::default(),
             requirements: Default::default(),
@@ -53,7 +49,6 @@ impl ComponentSpec {
     pub fn default_build() -> Self {
         Self {
             name: Component::Build,
-            compat: None,
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
@@ -66,7 +61,6 @@ impl ComponentSpec {
     pub fn default_run() -> Self {
         Self {
             name: Component::Run,
-            compat: None,
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
