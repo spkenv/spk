@@ -15,7 +15,7 @@ pub struct CmdRuntimes {
 }
 
 impl CmdRuntimes {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let runtime_storage = config.get_runtime_storage()?;
         for runtime in runtime_storage.iter_runtimes() {
             let runtime = runtime?;

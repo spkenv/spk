@@ -45,7 +45,7 @@ pub struct CmdRun {
 }
 
 impl CmdRun {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository()?;
         let runtimes = config.get_runtime_storage()?;
         let mut runtime = match &self.name {

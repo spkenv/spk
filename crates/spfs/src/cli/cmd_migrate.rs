@@ -16,7 +16,7 @@ pub struct CmdMigrate {
 }
 
 impl CmdMigrate {
-    pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         let repo_root = std::path::PathBuf::from(&self.path).canonicalize()?;
         let result = if self.upgrade {
             spfs::storage::fs::migrations::upgrade_repo(repo_root)?

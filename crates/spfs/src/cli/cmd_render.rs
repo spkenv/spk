@@ -29,7 +29,7 @@ pub struct CmdRender {
 }
 
 impl CmdRender {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::new(&self.reference)?;
         let repo = config.get_repository()?;
 

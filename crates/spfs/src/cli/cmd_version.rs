@@ -8,7 +8,7 @@ use structopt::StructOpt;
 pub struct CmdVersion {}
 
 impl CmdVersion {
-    pub fn run(&self) -> spfs::Result<i32> {
+    pub async fn run(&self) -> spfs::Result<i32> {
         println!("{}", spfs::VERSION);
         Ok(0)
     }

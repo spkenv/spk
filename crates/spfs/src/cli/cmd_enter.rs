@@ -9,7 +9,10 @@ use structopt::StructOpt;
 #[macro_use]
 mod args;
 
-main!(CmdEnter, sentry = false);
+// The runtime setup process manages the current namespace
+// which operates only on the current thread. For this reason
+// we must use a single threaded async runtime, if any.
+main!(CmdEnter, sentry = false, sync = true);
 
 #[derive(Debug, StructOpt)]
 #[structopt(

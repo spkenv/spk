@@ -105,35 +105,35 @@ pub enum Command {
 }
 
 impl Opt {
-    fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         match &mut self.cmd {
-            Command::Version(cmd) => cmd.run(),
-            Command::Edit(cmd) => cmd.run(config),
-            Command::Commit(cmd) => cmd.run(config),
-            Command::Config(cmd) => cmd.run(config),
-            Command::Reset(cmd) => cmd.run(config),
-            Command::Tag(cmd) => cmd.run(config),
-            Command::Untag(cmd) => cmd.run(config),
-            Command::Runtimes(cmd) => cmd.run(config),
-            Command::Layers(cmd) => cmd.run(config),
-            Command::Platforms(cmd) => cmd.run(config),
-            Command::Tags(cmd) => cmd.run(config),
-            Command::Info(cmd) => cmd.run(self.verbose, config),
-            Command::Log(cmd) => cmd.run(config),
-            Command::Search(cmd) => cmd.run(config),
-            Command::Diff(cmd) => cmd.run(config),
-            Command::LsTags(cmd) => cmd.run(config),
-            Command::Ls(cmd) => cmd.run(config),
-            Command::Migrate(cmd) => cmd.run(config),
-            Command::Check(cmd) => cmd.run(config),
-            Command::Clean(cmd) => cmd.run(config),
-            Command::Read(cmd) => cmd.run(config),
-            Command::External(args) => run_external_subcommand(args.clone()),
+            Command::Version(cmd) => cmd.run().await,
+            Command::Edit(cmd) => cmd.run(config).await,
+            Command::Commit(cmd) => cmd.run(config).await,
+            Command::Config(cmd) => cmd.run(config).await,
+            Command::Reset(cmd) => cmd.run(config).await,
+            Command::Tag(cmd) => cmd.run(config).await,
+            Command::Untag(cmd) => cmd.run(config).await,
+            Command::Runtimes(cmd) => cmd.run(config).await,
+            Command::Layers(cmd) => cmd.run(config).await,
+            Command::Platforms(cmd) => cmd.run(config).await,
+            Command::Tags(cmd) => cmd.run(config).await,
+            Command::Info(cmd) => cmd.run(self.verbose, config).await,
+            Command::Log(cmd) => cmd.run(config).await,
+            Command::Search(cmd) => cmd.run(config).await,
+            Command::Diff(cmd) => cmd.run(config).await,
+            Command::LsTags(cmd) => cmd.run(config).await,
+            Command::Ls(cmd) => cmd.run(config).await,
+            Command::Migrate(cmd) => cmd.run(config).await,
+            Command::Check(cmd) => cmd.run(config).await,
+            Command::Clean(cmd) => cmd.run(config).await,
+            Command::Read(cmd) => cmd.run(config).await,
+            Command::External(args) => run_external_subcommand(args.clone()).await,
         }
     }
 }
 
-fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
+async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
     {
         let command = match args.get(0) {
             None => {

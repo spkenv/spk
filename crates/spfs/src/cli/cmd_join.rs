@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[macro_use]
 mod args;
 
-main!(CmdJoin, sentry = false);
+main!(CmdJoin, sentry = false, sync = true);
 
 #[derive(StructOpt, Debug)]
 #[structopt(about = "enter an existing runtime that is still active")]
