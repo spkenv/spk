@@ -35,15 +35,15 @@ impl CmdRender {
 
         for target in &env_spec.items {
             let target = target.to_string();
-            if !repo.has_ref(target.as_str()) {
+            if !repo.has_ref(target.as_str()).await {
                 tracing::info!(reference = ?target, "pulling target ref");
                 spfs::pull_ref(target.as_str())?;
             }
         }
 
         let path = match &self.target {
-            Some(target) => self.render_to_dir(env_spec, target)?,
-            None => self.render_to_repo(env_spec, config)?,
+            Some(target) => self.render_to_dir(env_spec, target).await?,
+            None => self.render_to_repo(env_spec, config).await?,
         };
 
         tracing::info!("render completed successfully");
@@ -51,7 +51,7 @@ impl CmdRender {
         Ok(0)
     }
 
-    fn render_to_dir(
+    async fn render_to_dir(
         &self,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
@@ -62,11 +62,11 @@ impl CmdRender {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
-        spfs::render_into_directory(&env_spec, &target_dir)?;
+        spfs::render_into_directory(&env_spec, &target_dir).await?;
         Ok(target_dir)
     }
 
-    fn render_to_repo(
+    async fn render_to_repo(
         &self,
         env_spec: spfs::tracking::EnvSpec,
         config: &spfs::Config,
@@ -76,12 +76,12 @@ impl CmdRender {
         let mut digests = Vec::with_capacity(env_spec.items.len());
         for env_item in env_spec.items {
             let env_item = env_item.to_string();
-            let digest = repo.resolve_ref(env_item.as_ref())?;
+            let digest = repo.resolve_ref(env_item.as_ref()).await?;
             digests.push(digest);
         }
 
         let handle = repo.into();
-        let layers = spfs::resolve_stack_to_layers(digests.iter(), Some(&handle))?;
+        let layers = spfs::resolve_stack_to_layers(digests.iter(), Some(&handle)).await?;
         let manifests: spfs::Result<Vec<_>> = layers
             .into_iter()
             .map(|layer| handle.read_manifest(&layer.manifest))

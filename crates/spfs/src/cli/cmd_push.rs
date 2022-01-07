@@ -34,7 +34,7 @@ impl CmdPush {
         let repo = config.get_repository()?.into();
         let mut remote = config.get_remote(&self.remote)?;
         for reference in self.refs.iter() {
-            spfs::sync_ref(reference, &repo, &mut remote)?;
+            spfs::sync_ref(reference, &repo, &mut remote).await?;
         }
 
         Ok(0)

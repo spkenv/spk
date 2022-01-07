@@ -41,6 +41,16 @@ pub struct CmdEnter {
 
 impl CmdEnter {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|err| {
+                spfs::Error::String(format!("Failed to establish async runtime: {:?}", err))
+            })?;
+        rt.block_on(self.run_async(config))
+    }
+
+    pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         // Acquire expected effective caps.
 
         use caps::{CapSet, Capability};
@@ -63,14 +73,14 @@ impl CmdEnter {
 
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
         if self.remount {
-            spfs::reinitialize_runtime(&runtime)?;
+            spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
             let cmd = match self.cmd.take() {
                 Some(cmd) => cmd,
                 None => return Err("command is required and was not given".into()),
             };
-            spfs::initialize_runtime(&runtime, config)?;
+            spfs::initialize_runtime(&runtime, config).await?;
 
             tracing::trace!("{:?} {:?}", cmd, self.args);
             use std::os::unix::ffi::OsStrExt;

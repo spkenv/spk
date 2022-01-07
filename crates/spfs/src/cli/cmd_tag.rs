@@ -27,7 +27,7 @@ impl CmdTag {
             None => config.get_repository()?.into(),
         };
 
-        let target = repo.read_ref(self.reference.as_str())?.digest()?;
+        let target = repo.read_ref(self.reference.as_str()).await?.digest()?;
         for tag in self.tags.iter() {
             let tag = tag.parse()?;
             repo.push_tag(&tag, &target)?;

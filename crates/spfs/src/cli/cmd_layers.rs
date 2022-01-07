@@ -24,7 +24,7 @@ impl CmdLayers {
             let (digest, _) = layer?;
             println!(
                 "{}",
-                spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+                spfs::io::format_digest(&digest.to_string(), Some(&repo)).await?
             );
         }
         Ok(0)

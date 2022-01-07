@@ -37,7 +37,7 @@ impl CmdReset {
                 _ => {
                     let env_spec = spfs::tracking::parse_env_spec(reference)?;
                     for target in env_spec.iter() {
-                        let obj = repo.read_ref(target.to_string().as_ref())?;
+                        let obj = repo.read_ref(target.to_string().as_ref()).await?;
                         runtime.push_digest(&obj.digest()?)?;
                     }
                 }

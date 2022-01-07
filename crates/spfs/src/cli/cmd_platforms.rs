@@ -24,7 +24,7 @@ impl CmdPlatforms {
             let (digest, _) = platform?;
             println!(
                 "{}",
-                spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+                spfs::io::format_digest(&digest.to_string(), Some(&repo)).await?
             );
         }
         Ok(0)

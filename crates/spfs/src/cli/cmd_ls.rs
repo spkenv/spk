@@ -30,14 +30,14 @@ impl CmdLs {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
         };
-        let item = repo.read_ref(self.reference.as_str())?;
+        let item = repo.read_ref(self.reference.as_str()).await?;
 
         let path = self
             .path
             .strip_prefix("/spfs")
             .unwrap_or(&self.path)
             .to_string();
-        let manifest = spfs::compute_object_manifest(item, &repo)?;
+        let manifest = spfs::compute_object_manifest(item, &repo).await?;
         if let Some(entries) = manifest.list_dir(path.as_str()) {
             for name in entries {
                 println!("{}", name);

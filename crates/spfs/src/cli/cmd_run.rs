@@ -58,12 +58,12 @@ impl CmdRun {
                 let env_spec = spfs::tracking::parse_env_spec(reference)?;
                 for target in env_spec {
                     let target = target.to_string();
-                    if self.pull || !repo.has_ref(target.as_str()) {
+                    if self.pull || !repo.has_ref(target.as_str()).await {
                         tracing::info!(reference = ?target, "pulling target ref");
                         spfs::pull_ref(target.as_str())?
                     }
 
-                    let obj = repo.read_ref(target.as_str())?;
+                    let obj = repo.read_ref(target.as_str()).await?;
                     runtime.push_digest(&obj.digest()?)?;
                 }
             }

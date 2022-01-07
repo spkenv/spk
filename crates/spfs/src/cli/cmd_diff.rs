@@ -20,7 +20,7 @@ pub struct CmdDiff {
 
 impl CmdDiff {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
-        let diffs = spfs::diff(self.base.as_ref(), self.top.as_ref())?;
+        let diffs = spfs::diff(self.base.as_ref(), self.top.as_ref()).await?;
         let out = spfs::io::format_changes(diffs.iter());
         if out.trim().is_empty() {
             tracing::info!("no changes");

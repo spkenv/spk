@@ -30,7 +30,7 @@ impl CmdRead {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
         };
-        let item = repo.read_ref(self.reference.as_str())?;
+        let item = repo.read_ref(self.reference.as_str()).await?;
         use spfs::graph::Object;
         let blob = match item {
             Object::Blob(blob) => blob,
@@ -43,7 +43,7 @@ impl CmdRead {
                     }
                     Some(p) => p.strip_prefix("/spfs").unwrap_or(p).to_string(),
                 };
-                let manifest = spfs::compute_object_manifest(item, &repo)?;
+                let manifest = spfs::compute_object_manifest(item, &repo).await?;
                 let entry = match manifest.get_path(&path) {
                     Some(e) => e,
                     None => {

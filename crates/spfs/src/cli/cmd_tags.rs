@@ -24,7 +24,7 @@ impl CmdTags {
             let (_, tag) = tag?;
             println!(
                 "{}",
-                spfs::io::format_digest(&tag.target.to_string(), Some(&repo))?
+                spfs::io::format_digest(&tag.target.to_string(), Some(&repo)).await?
             );
         }
         Ok(0)
