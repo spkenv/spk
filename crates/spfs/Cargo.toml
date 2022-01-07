@@ -49,7 +49,7 @@ faccess = "0.2.3"
 futures = "0.3.9"
 gitignore = "1.0.7"
 glob = "0.3.0"
-indicatif = {version = "0.15.0", features = ["rayon"]}
+indicatif = { version = "0.15.0", features = ["rayon"] }
 itertools = "0.9.0"
 libc = "0.2.80"
 nix = "0.19.0"
@@ -61,7 +61,7 @@ ring = "0.16.15"
 rstest = "0.6.4"
 semver = "0.11.0"
 sentry = "0.21.0"
-serde = {version = "1.0.117", features = ["derive"]}
+serde = { version = "1.0.117", features = ["derive"] }
 serde_derive = "1.0.118"
 serde_json = "1.0.57"
 structopt = "0.3.21"
@@ -69,11 +69,12 @@ strum = "0.21"
 strum_macros = "0.21"
 tar = "0.4.30"
 tempdir = "0.3.7"
+tokio = { version = "1.15", features = ["rt", "rt-multi-thread"] }
 tracing = "0.1.22"
 tracing-subscriber = "0.2.15"
 unicode_reader = "1.0.1"
 url = "2.2.0"
-uuid = {version = "0.8.1", features = ["v4"]}
+uuid = { version = "0.8.1", features = ["v4"] }
 walkdir = "2.3.1"
 whoami = "0.9.0"
 thiserror = "1.0"
