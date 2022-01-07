@@ -13,7 +13,7 @@ use crate::{graph, storage, tracking, Error, Result};
 #[path = "./sync_test.rs"]
 mod sync_test;
 
-pub fn push_ref<R: AsRef<str>>(
+pub async fn push_ref<R: AsRef<str>>(
     reference: R,
     mut remote: Option<storage::RepositoryHandle>,
 ) -> Result<graph::Object> {
@@ -23,7 +23,7 @@ pub fn push_ref<R: AsRef<str>>(
         Some(remote) => remote,
         None => config.get_remote("origin")?,
     };
-    sync_ref(reference, &local, &mut remote)
+    sync_ref(reference, &local, &mut remote).await
 }
 
 /// Pull a reference to the local repository, searching all configured remotes.
@@ -49,7 +49,7 @@ pub fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
     }
 }
 
-pub fn sync_ref<R: AsRef<str>>(
+pub async fn sync_ref<R: AsRef<str>>(
     reference: R,
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
@@ -64,7 +64,7 @@ pub fn sync_ref<R: AsRef<str>>(
         None
     };
 
-    let obj = src.read_ref(reference.as_ref())?;
+    let obj = src.read_ref(reference.as_ref()).await?;
     sync_object(&obj, src, dest)?;
     if let Some(tag) = tag {
         tracing::debug!(tag = ?tag.path(), "syncing tag");

@@ -49,12 +49,12 @@ pub fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
 /// Calculate the file manifest for the layers in the given runtime.
 ///
 /// The returned manifest DOES NOT include any active changes to the runtime.
-pub fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
+pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
     let config = load_config()?;
     let repo = config.get_repository()?;
 
     let stack = rt.get_stack();
-    let layers = resolve_stack_to_layers(stack.iter(), None)?;
+    let layers = resolve_stack_to_layers(stack.iter(), None).await?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers.iter().rev() {
         manifest.update(&repo.read_manifest(&layer.manifest)?.unlock())
@@ -77,10 +77,10 @@ pub fn active_runtime() -> Result<runtime::Runtime> {
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
-pub fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
-    let dirs = resolve_overlay_dirs(rt)?;
+pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
+    let dirs = resolve_overlay_dirs(rt).await?;
     tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(rt)?;
+    let manifest = compute_runtime_manifest(rt).await?;
 
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
@@ -93,10 +93,10 @@ pub fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
 }
 
 /// Initialize the current runtime as rt.
-pub fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
-    let dirs = resolve_overlay_dirs(rt)?;
+pub async fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
+    let dirs = resolve_overlay_dirs(rt).await?;
     tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(rt)?;
+    let manifest = compute_runtime_manifest(rt).await?;
 
     let tmpfs_opts = config
         .filesystem

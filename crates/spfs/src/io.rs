@@ -7,14 +7,14 @@ use colored::*;
 use crate::{encoding, storage, tracking, Result};
 
 /// Return a nicely formatted string representation of the given reference.
-pub fn format_digest<R: AsRef<str>>(
+pub async fn format_digest<R: AsRef<str>>(
     reference: R,
     repo: Option<&storage::RepositoryHandle>,
 ) -> Result<String> {
     let reference = reference.as_ref().to_string();
     let all = match repo {
         Some(repo) => {
-            let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()) {
+            let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()).await {
                 Ok(aliases) => aliases.into_iter().map(|r| r.to_string()).collect(),
                 // Formatting an invalid reference is strange, but not a good enough
                 // reason to return an error at this point
