@@ -1,8 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
 use std::collections::HashSet;
+
+use async_trait::async_trait;
 
 use super::ManifestViewer;
 use crate::{encoding, graph, tracking, Error, Result};
@@ -29,6 +30,7 @@ impl std::string::ToString for Ref {
 }
 
 /// Represents a storage location for spfs data.
+#[async_trait]
 pub trait Repository:
     super::TagStorage
     + super::PayloadStorage
@@ -39,6 +41,8 @@ pub trait Repository:
     + graph::Database
     + graph::DatabaseView
     + std::fmt::Debug
+    + Send
+    + Sync
 {
     /// Attempt to open this repository at the given url
     //fn open(address: url::Url) -> Result<Self>;
@@ -55,12 +59,12 @@ pub trait Repository:
     }
 
     /// Return true if this repository contains the given reference.
-    fn has_ref(&self, reference: &str) -> bool {
-        self.read_ref(reference).is_ok()
+    async fn has_ref(&self, reference: &str) -> bool {
+        self.read_ref(reference).await.is_ok()
     }
 
     /// Resolve a tag or digest string into it's absolute digest.
-    fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
+    async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
         if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
             if let Ok(tag) = self.resolve_tag(&tag_spec) {
                 return Ok(tag.target);
@@ -73,15 +77,15 @@ pub trait Repository:
     }
 
     /// Read an object of unknown type by tag or digest.
-    fn read_ref(&self, reference: &str) -> Result<graph::Object> {
-        let digest = self.resolve_ref(reference)?;
+    async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
+        let digest = self.resolve_ref(reference).await?;
         self.read_object(&digest)
     }
 
     /// Return the other identifiers that can be used for 'reference'.
-    fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
+    async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
         let mut aliases = HashSet::new();
-        let digest = self.read_ref(reference)?.digest()?;
+        let digest = self.read_ref(reference).await?.digest()?;
         for spec in self.find_tags(&digest) {
             aliases.insert(Ref::TagSpec(spec?));
         }

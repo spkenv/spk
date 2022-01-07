@@ -17,10 +17,12 @@ use crate::{encoding::Encodable, tracking::TagSpec};
 fixtures!();
 
 #[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
-fn test_find_aliases(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_find_aliases(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     tmprepo
         .find_aliases("not-existant")
+        .await
         .expect_err("should error when ref is not found");
 
     let manifest = tmprepo.commit_dir("src/storage".as_ref()).unwrap();
@@ -32,10 +34,11 @@ fn test_find_aliases(tmprepo: TempRepo) {
 
     let actual = tmprepo
         .find_aliases(layer.digest().unwrap().to_string().as_ref())
+        .await
         .unwrap();
     let expected = HashSet::from_iter(vec![Ref::TagSpec(test_tag)]);
     assert_eq!(actual, expected);
-    let actual = tmprepo.find_aliases("test-tag").unwrap();
+    let actual = tmprepo.find_aliases("test-tag").await.unwrap();
     let expected = HashSet::from_iter(vec![Ref::Digest(layer.digest().unwrap())]);
     assert_eq!(actual, expected);
 }
