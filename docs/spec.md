@@ -272,7 +272,7 @@ install:
     files: ['*']
 ```
 
-Packages can also define any number of suplementary components which contain some subset of the files created by the build process. These might be used to separate a software library from executables, or static from dynamic libraries. Ultimately, the goal is to define useful sets of files so that downstream consumers only need to pull in what they actually need from your package.
+Packages can also define any number of supplementary components which contain some subset of the files created by the build process. These might be used to separate a software library from executables, or static from dynamic libraries. Ultimately, the goal is to define useful sets of files so that downstream consumers only need to pull in what they actually need from your package.
 
 Additionally, components can also declare simple dependencies on one another, which is refered to as one component _using_ another.
 
