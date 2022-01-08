@@ -140,7 +140,7 @@ The component spec defines a single component of a package. Components can be in
 | ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | name         | _string_                    | The name of this component                                                                                                                              |
 | files        | _List[string]_              | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
-| uses         | _List[string]_              | A list of other components from this package that this one uses, and are therefore included whenever this one is included.                              |
+| uses         | _List[string]_              | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.                              |
 | requirements | _List[[Request](#request)]_ | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
 | embedded     | _List[[Spec](#spec)]_       | A list of packages that are embedded into this component with this component                                                                            |
 
