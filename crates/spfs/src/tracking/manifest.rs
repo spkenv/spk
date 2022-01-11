@@ -6,6 +6,7 @@ use std::fs::DirEntry;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
 
+use futures::Future;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
 
@@ -236,50 +237,53 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
-pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> {
-    let mut builder = ManifestBuilder::default();
-    builder.compute_manifest(path)
+pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
+    let mut builder =
+        ManifestBuilder::new(|reader| async { encoding::Digest::from_reader(reader) });
+    builder.compute_manifest(path).await
 }
 
-pub struct ManifestBuilder<'h> {
-    hasher:
-        Box<dyn FnMut(Box<dyn std::io::Read + Send + 'static>) -> Result<encoding::Digest> + 'h>,
+pub struct ManifestBuilder<H, F>
+where
+    H: FnMut(Box<dyn std::io::Read + Send + 'static>) -> F + Send,
+    F: Future<Output = Result<encoding::Digest>> + Send,
+{
+    hasher: H,
 }
 
-impl<'h> Default for ManifestBuilder<'h> {
-    fn default() -> Self {
-        Self::new(|mut reader| encoding::Digest::from_reader(&mut reader))
-    }
-}
-
-impl<'h> ManifestBuilder<'h> {
-    pub fn new(
-        hasher: impl FnMut(Box<dyn std::io::Read + Send + 'static>) -> Result<encoding::Digest> + 'h,
-    ) -> Self {
-        Self {
-            hasher: Box::new(hasher),
-        }
+impl<H, F> ManifestBuilder<H, F>
+where
+    H: FnMut(Box<dyn std::io::Read + Send + 'static>) -> F + Send,
+    F: Future<Output = Result<encoding::Digest>> + Send,
+{
+    pub fn new(hasher: H) -> Self {
+        Self { hasher }
     }
 
     /// Build a manifest that describes a directorie's contents.
-    pub fn compute_manifest<P: AsRef<std::path::Path>>(&mut self, path: P) -> Result<Manifest> {
+    pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(
+        &mut self,
+        path: P,
+    ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        self.compute_tree_node(path, &mut manifest.root)?;
+        self.compute_tree_node(path, &mut manifest.root).await?;
         Ok(manifest)
     }
 
-    fn compute_tree_node<P: AsRef<std::path::Path>>(
+    #[async_recursion::async_recursion]
+    async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
         &mut self,
         dirname: P,
         tree_node: &mut Entry,
     ) -> Result<()> {
         tree_node.kind = EntryKind::Tree;
-        for dir_entry in std::fs::read_dir(&dirname)? {
+        let base = dirname.as_ref();
+        for dir_entry in std::fs::read_dir(base)? {
             let dir_entry = dir_entry?;
-            let path = dirname.as_ref().join(dir_entry.file_name());
+            let path = base.join(dir_entry.file_name());
             let mut entry = Entry::default();
-            self.compute_node(path, &dir_entry, &mut entry)?;
+            self.compute_node(path, &dir_entry, &mut entry).await?;
             tree_node
                 .entries
                 .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
@@ -288,7 +292,7 @@ impl<'h> ManifestBuilder<'h> {
         Ok(())
     }
 
-    fn compute_node<P: AsRef<std::path::Path>>(
+    async fn compute_node<P: AsRef<std::path::Path> + Send>(
         &mut self,
         path: P,
         dir_entry: &DirEntry,
@@ -326,9 +330,9 @@ impl<'h> ManifestBuilder<'h> {
                 })?
                 .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = (self.hasher)(Box::new(std::io::Cursor::new(link_target)))?;
+            entry.object = (self.hasher)(Box::new(std::io::Cursor::new(link_target))).await?;
         } else if file_type.is_dir() {
-            self.compute_tree_node(path, entry)?;
+            self.compute_tree_node(path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
@@ -337,7 +341,7 @@ impl<'h> ManifestBuilder<'h> {
         } else {
             entry.kind = EntryKind::Blob;
             let reader = std::fs::File::open(path)?;
-            entry.object = (self.hasher)(Box::new(reader))?;
+            entry.object = (self.hasher)(Box::new(reader)).await?;
         }
         Ok(())
     }
