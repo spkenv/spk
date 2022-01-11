@@ -12,10 +12,10 @@ use crate::{graph, runtime, Error, Result};
 mod commit_test;
 
 /// Commit the working file changes of a runtime to a new layer.
-pub fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
+pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
     let config = load_config()?;
     let mut repo = config.get_repository()?;
-    let manifest = repo.commit_dir(runtime.upper_dir.as_path())?;
+    let manifest = repo.commit_dir(runtime.upper_dir.as_path()).await?;
     if manifest.is_empty() {
         return Err(Error::NothingToCommit);
     }
@@ -27,11 +27,11 @@ pub fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
 }
 
 /// Commit the full layer stack and working files to a new platform.
-pub fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
+pub async fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
     let config = load_config()?;
     let mut repo = config.get_repository()?;
 
-    match commit_layer(runtime) {
+    match commit_layer(runtime).await {
         Ok(_) | Err(Error::NothingToCommit) => (),
         Err(err) => return Err(err),
     }

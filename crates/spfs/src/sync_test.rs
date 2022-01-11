@@ -48,7 +48,7 @@ async fn test_push_ref(config: (tempdir::TempDir, Config)) {
 
     let mut local: RepositoryHandle = config.get_repository().unwrap().into();
     let mut remote = config.get_remote("origin").unwrap();
-    let manifest = local.commit_dir(src_dir.as_path()).unwrap();
+    let manifest = local.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = local
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();
@@ -83,7 +83,7 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
             .unwrap()
             .into();
 
-    let manifest = repo_a.commit_dir(src_dir.as_path()).unwrap();
+    let manifest = repo_a.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = repo_a
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();
@@ -131,7 +131,7 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
         .unwrap()
         .into();
 
-    let manifest = repo_a.commit_dir(src_dir.as_path()).unwrap();
+    let manifest = repo_a.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = repo_a
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();

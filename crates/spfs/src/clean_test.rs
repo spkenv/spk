@@ -62,13 +62,14 @@ fn test_get_attached_payloads(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
     let _guard = init_logging();
     let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
 
-    let manifest = tmprepo.commit_dir(data_dir.as_path()).unwrap();
+    let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();
@@ -96,7 +97,8 @@ fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_clean_untagged_objects(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_clean_untagged_objects(tmprepo: TempRepo) {
     let _guard = init_logging();
 
     let (tmpdir, mut tmprepo) = tmprepo;
@@ -110,9 +112,9 @@ fn test_clean_untagged_objects(tmprepo: TempRepo) {
     ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
     ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
-    let manifest1 = tmprepo.commit_dir(data_dir_1.as_path()).unwrap();
+    let manifest1 = tmprepo.commit_dir(data_dir_1.as_path()).await.unwrap();
 
-    let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).unwrap();
+    let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest2))
         .unwrap();
@@ -175,7 +177,8 @@ fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_clean_manifest_renders(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_clean_manifest_renders(tmprepo: TempRepo) {
     let (tmpdir, tmprepo) = tmprepo;
     let mut tmprepo = match tmprepo {
         storage::RepositoryHandle::FS(repo) => repo,
@@ -189,7 +192,7 @@ fn test_clean_manifest_renders(tmprepo: TempRepo) {
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
     ensure(data_dir.join("dir/name.txt"), "john doe");
 
-    let manifest = tmprepo.commit_dir(data_dir.as_path()).unwrap();
+    let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();

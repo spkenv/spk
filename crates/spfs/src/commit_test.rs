@@ -9,15 +9,16 @@ use crate::{runtime, Error};
 
 fixtures!();
 #[rstest]
-fn test_commit_empty(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_commit_empty(tmpdir: tempdir::TempDir) {
     let mut rt = runtime::Runtime::new(tmpdir.path()).unwrap();
-    if let Err(Error::NothingToCommit) = commit_layer(&mut rt) {
+    if let Err(Error::NothingToCommit) = commit_layer(&mut rt).await {
         // ok
     } else {
         panic!("expected nothing to commit")
     }
 
-    if let Err(Error::NothingToCommit) = commit_platform(&mut rt) {
+    if let Err(Error::NothingToCommit) = commit_platform(&mut rt).await {
         // ok
     } else {
         panic!("expected nothing to commit")

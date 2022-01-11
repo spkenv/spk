@@ -33,8 +33,8 @@ impl CmdCommit {
         let mut repo = config.get_repository()?;
 
         let result: spfs::graph::Object = match self.kind.as_str() {
-            "layer" => spfs::commit_layer(&mut runtime)?.into(),
-            "platform" => spfs::commit_platform(&mut runtime)?.into(),
+            "layer" => spfs::commit_layer(&mut runtime).await?.into(),
+            "platform" => spfs::commit_platform(&mut runtime).await?.into(),
             _ => {
                 tracing::error!("cannot commit {}", self.kind);
                 return Ok(1);

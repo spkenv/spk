@@ -29,7 +29,7 @@ pub async fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tra
     let top_manifest = match top {
         None => {
             tracing::debug!("computing manifest for /spfs");
-            tracking::compute_manifest("/spfs")?
+            tracking::compute_manifest("/spfs").await?
         }
         Some(top) => {
             tracing::debug!(reference = ?top, "computing top manifest");
