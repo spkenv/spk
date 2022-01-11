@@ -9,19 +9,21 @@ use crate::storage::{fs::FSRepository, ManifestStorage};
 use crate::{encoding::Encodable, tracking};
 
 fixtures!();
+
 #[rstest]
-fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
     let mut repo = FSRepository::create(dir.join("repo")).unwrap();
 
     std::fs::File::create(dir.join("file.txt")).unwrap();
-    let manifest = Manifest::from(&tracking::compute_manifest(&dir).unwrap());
+    let manifest = Manifest::from(&tracking::compute_manifest(&dir).await.unwrap());
     let expected = manifest.digest().unwrap();
     repo.write_object(&manifest.into())
         .expect("failed to write manifest");
 
     std::fs::write(dir.join("file.txt"), "newrootdata").unwrap();
-    let manifest2 = Manifest::from(&tracking::compute_manifest(dir).unwrap());
+    let manifest2 = Manifest::from(&tracking::compute_manifest(dir).await.unwrap());
     repo.write_object(&manifest2.into()).unwrap();
 
     let digests: crate::Result<Vec<_>> = repo.iter_digests().collect();
@@ -30,7 +32,8 @@ fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_manifest_parity(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let dir = tmpdir.path();
@@ -38,7 +41,7 @@ fn test_manifest_parity(tmpdir: tempdir::TempDir) {
 
     std::fs::create_dir(dir.join("dir")).unwrap();
     std::fs::write(dir.join("dir/file.txt"), "").unwrap();
-    let expected = tracking::compute_manifest(&dir).unwrap();
+    let expected = tracking::compute_manifest(&dir).await.unwrap();
     let storable = Manifest::from(&expected);
     let digest = storable.digest().unwrap();
     storage
