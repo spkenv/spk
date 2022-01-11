@@ -229,7 +229,7 @@ impl<'a> Digest {
         digest_str.try_into()
     }
 
-    pub fn from_reader(reader: &mut impl Read) -> Result<Self> {
+    pub fn from_reader(mut reader: impl Read) -> Result<Self> {
         let mut ctx = Context::new(&SHA256);
         let mut buf = Vec::with_capacity(4096);
         let mut count;
