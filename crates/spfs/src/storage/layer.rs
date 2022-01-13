@@ -2,22 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
+use futures::Stream;
+
 use crate::{encoding, graph, Result};
 use encoding::Encodable;
 
+#[async_trait::async_trait]
 pub trait LayerStorage: graph::Database {
     /// Iterate the objects in this storage which are layers.
     fn iter_layers<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = Result<(encoding::Digest, graph::Layer)>> + 'db> {
+    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Layer)>> + 'db>> {
         use graph::Object;
-        Box::new(self.iter_objects().filter_map(|res| match res {
+        let iter = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
                 Object::Layer(layer) => Some(Ok((digest, layer))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
-        }))
+        });
+        Box::pin(futures::stream::iter(iter))
     }
 
     /// Return true if the identified layer exists in this storage.

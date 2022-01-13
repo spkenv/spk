@@ -2,24 +2,30 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
+use futures::Stream;
+
 use crate::{encoding, graph, Result};
 
+#[async_trait::async_trait]
 pub trait BlobStorage: graph::Database {
-    /// Iterate the objects in this storage which are blobs."""
+    /// Iterate the objects in this storage which are blobs.
     fn iter_blobs<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = Result<(encoding::Digest, graph::Blob)>> + 'db>
+    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Blob)>> + 'db>>
     where
         Self: Sized,
     {
         use graph::Object;
-        Box::new(self.iter_objects().filter_map(|res| match res {
+        let iter = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
                 Object::Blob(manifest) => Some(Ok((digest, manifest))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
-        }))
+        });
+        Box::pin(futures::stream::iter(iter))
     }
 
     /// Return true if the identified blob exists in this storage.

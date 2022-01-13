@@ -2,25 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
+use futures::stream::Stream;
+
 use crate::{encoding, graph, Result};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
 mod manifest_test;
 
+#[async_trait::async_trait]
 pub trait ManifestStorage: graph::Database {
     /// Iterate the objects in this storage which are manifests.
     fn iter_manifests<'db>(
         &'db self,
-    ) -> Box<dyn Iterator<Item = Result<(encoding::Digest, graph::Manifest)>> + 'db> {
+    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Manifest)>> + 'db>> {
         use graph::Object;
-        Box::new(self.iter_objects().filter_map(|res| match res {
+        let iter = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
                 Object::Manifest(manifest) => Some(Ok((digest, manifest))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
-        }))
+        });
+        Box::pin(futures::stream::iter(iter))
     }
 
     /// Return true if the identified manifest exists in this storage.

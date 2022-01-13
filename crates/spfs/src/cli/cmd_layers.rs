@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use futures::stream::StreamExt;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -20,7 +21,8 @@ impl CmdLayers {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
         };
-        for layer in repo.iter_layers() {
+        let mut layers = repo.iter_layers();
+        while let Some(layer) = layers.next().await {
             let (digest, _) = layer?;
             println!(
                 "{}",

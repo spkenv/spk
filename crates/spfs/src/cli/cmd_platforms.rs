@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use futures::stream::StreamExt;
+
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -20,7 +22,8 @@ impl CmdPlatforms {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
         };
-        for platform in repo.iter_platforms() {
+        let mut platforms = repo.iter_platforms();
+        while let Some(platform) = platforms.next().await {
             let (digest, _) = platform?;
             println!(
                 "{}",
