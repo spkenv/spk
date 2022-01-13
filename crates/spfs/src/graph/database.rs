@@ -28,26 +28,29 @@ impl<'db> DatabaseWalker<'db> {
     }
 }
 
-impl<'db> Iterator for DatabaseWalker<'db> {
+impl<'db> Stream for DatabaseWalker<'db> {
     type Item = Result<(encoding::Digest, Object)>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         let next = self.queue.pop_front();
-        match &next {
-            None => None,
-            Some(next) => {
-                let obj = self.db.read_object(next);
-                match obj {
-                    Ok(obj) => {
-                        for digest in obj.child_objects() {
-                            self.queue.push_back(digest);
-                        }
-                        Some(Ok((*next, obj)))
-                    }
-                    Err(err) => Some(Err(err)),
+        let digest = match next {
+            None => return Poll::Ready(None),
+            Some(digest) => digest,
+        };
+
+        let obj = self.db.read_object(&digest);
+        Poll::Ready(match obj {
+            Ok(obj) => {
+                for digest in obj.child_objects() {
+                    self.queue.push_back(digest);
                 }
+                Some(Ok((digest, obj)))
             }
-        }
+            Err(err) => Some(Err(err)),
+        })
     }
 }
 
