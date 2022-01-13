@@ -164,7 +164,7 @@ impl TagStorage for TarRepository {
         self.repo.resolve_tag(tag_spec)
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
         self.repo.ls_tags(path)
     }
 

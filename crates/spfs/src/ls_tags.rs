@@ -21,11 +21,13 @@ use crate::Result;
 ///     latest
 pub fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
-) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
-    let config = load_config()?;
-    let repo = config.get_repository()?;
+) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
+    let repo = match load_config().and_then(|c| c.get_repository()) {
+        Ok(repo) => repo,
+        Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
+    };
     match path {
-        Some(path) => Ok(repo.ls_tags(path.as_ref())?),
-        None => Ok(repo.ls_tags(relative_path::RelativePath::new("/"))?),
+        Some(path) => repo.ls_tags(path.as_ref()),
+        None => repo.ls_tags(relative_path::RelativePath::new("/")),
     }
 }

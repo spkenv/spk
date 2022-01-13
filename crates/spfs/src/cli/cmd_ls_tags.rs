@@ -28,9 +28,12 @@ impl CmdLsTags {
         };
 
         let path = relative_path::RelativePathBuf::from(&self.path);
-        let mut names = repo.ls_tags(&path)?;
-        while let Some(name) = names.next().await {
-            println!("{}", name);
+        let mut names = repo.ls_tags(&path);
+        while let Some(item) = names.next().await {
+            match item {
+                Ok(name) => println!("{}", name),
+                Err(err) => tracing::error!("{}", err),
+            }
         }
         Ok(0)
     }

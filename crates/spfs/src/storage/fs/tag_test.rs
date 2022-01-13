@@ -8,7 +8,7 @@ use rstest::rstest;
 use tokio_stream::StreamExt;
 
 use crate::storage::{fs::FSRepository, TagStorage};
-use crate::{encoding, tracking};
+use crate::{encoding, tracking, Result};
 use relative_path::RelativePathBuf;
 
 fixtures!();
@@ -103,15 +103,15 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
 
     let mut tags: Vec<_> = storage
         .ls_tags(&RelativePathBuf::from("/"))
-        .unwrap()
-        .collect()
-        .await;
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
     assert_eq!(tags, vec!["spi/".to_string()]);
     tags = storage
         .ls_tags(&RelativePathBuf::from("/spi"))
-        .unwrap()
-        .collect()
-        .await;
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
     tags.sort();
     assert_eq!(
         tags,
@@ -123,9 +123,9 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
     );
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi/stable"))
-        .unwrap()
-        .collect()
-        .await;
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
     tags.sort();
     assert_eq!(tags, vec!["my_tag".to_string(), "other_tag".to_string()]);
 }
@@ -149,9 +149,9 @@ async fn test_rm_tags(tmpdir: tempdir::TempDir) {
 
     let mut tags: Vec<_> = storage
         .ls_tags(&RelativePathBuf::from("/spi"))
-        .unwrap()
-        .collect()
-        .await;
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
     tags.sort();
     assert_eq!(tags, vec!["latest/", "stable/"]);
     storage
@@ -159,18 +159,18 @@ async fn test_rm_tags(tmpdir: tempdir::TempDir) {
         .unwrap();
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi/stable"))
-        .unwrap()
-        .collect()
-        .await;
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
     assert_eq!(tags, vec!["other_tag"]);
     storage
         .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/other_tag").unwrap())
         .unwrap();
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi"))
-        .unwrap()
-        .collect()
-        .await;
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
     assert_eq!(
         tags,
         vec!["latest/"],

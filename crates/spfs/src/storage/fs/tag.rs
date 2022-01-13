@@ -69,38 +69,52 @@ impl TagStorage for FSRepository {
         }
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
         let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
             Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => return Ok(Box::pin(futures::stream::empty())),
-                _ => return Err(err.into()),
+                std::io::ErrorKind::NotFound => return Box::pin(futures::stream::empty()),
+                _ => return Box::pin(futures::stream::once(async { Err(err.into()) })),
             },
         };
 
         let mut entries = std::collections::HashSet::new();
-        for entry in read_dir {
-            let entry = entry?;
+        let iter = read_dir.filter_map(move |entry| {
+            let entry = match entry {
+                Err(err) => return Some(Err(err.into())),
+                Ok(entry) => entry,
+            };
             let path = entry.path();
             if path.extension() == Some(std::ffi::OsStr::new(TAG_EXT)) {
-                match path.file_stem() {
-                    None => continue,
+                match path.file_stem().map(|s| s.to_string_lossy().to_string()) {
+                    None => None,
                     Some(tag_name) => {
-                        entries.insert(tag_name.to_string_lossy().to_string());
+                        if entries.insert(tag_name.clone()) {
+                            Some(Ok(tag_name))
+                        } else {
+                            None
+                        }
                     }
                 }
             } else {
-                match path.file_name() {
-                    None => continue,
+                match path
+                    .file_name()
+                    .map(|s| s.to_string_lossy() + "/")
+                    .map(|s| s.to_string())
+                {
+                    None => None,
                     Some(tag_dir) => {
-                        let dir = tag_dir.to_string_lossy() + "/";
-                        entries.insert(dir.to_string());
+                        if entries.insert(tag_dir.clone()) {
+                            Some(Ok(tag_dir))
+                        } else {
+                            None
+                        }
                     }
                 }
             }
-        }
-        Ok(Box::pin(futures::stream::iter(entries)))
+        });
+        Box::pin(futures::stream::iter(iter))
     }
 
     /// Find tags that point to the given digest.

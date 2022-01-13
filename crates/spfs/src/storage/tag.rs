@@ -33,7 +33,7 @@ pub trait TagStorage {
     /// Then ls_tags("spi") would return
     ///   stable
     ///   latest
-    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>>;
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>>;
 
     /// Find tags that point to the given digest.
     fn find_tags(
@@ -101,7 +101,7 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::resolve_tag(&**self, tag_spec)
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
         TagStorage::ls_tags(&**self, path)
     }
 
