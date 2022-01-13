@@ -10,12 +10,12 @@ use tokio_stream::StreamExt;
 use crate::{encoding, graph, Result};
 use encoding::Encodable;
 
+pub type LayerStreamItem = Result<(encoding::Digest, graph::Layer)>;
+
 #[async_trait::async_trait]
 pub trait LayerStorage: graph::Database {
     /// Iterate the objects in this storage which are layers.
-    fn iter_layers<'db>(
-        &'db self,
-    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Layer)>> + 'db>> {
+    fn iter_layers<'db>(&'db self) -> Pin<Box<dyn Stream<Item = LayerStreamItem> + 'db>> {
         use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {

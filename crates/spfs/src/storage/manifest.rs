@@ -13,12 +13,12 @@ use crate::{encoding, graph, Result};
 #[path = "./manifest_test.rs"]
 mod manifest_test;
 
+pub type ManifestStreamItem = Result<(encoding::Digest, graph::Manifest)>;
+
 #[async_trait::async_trait]
 pub trait ManifestStorage: graph::Database {
     /// Iterate the objects in this storage which are manifests.
-    fn iter_manifests<'db>(
-        &'db self,
-    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Manifest)>> + 'db>> {
+    fn iter_manifests<'db>(&'db self) -> Pin<Box<dyn Stream<Item = ManifestStreamItem> + 'db>> {
         use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {

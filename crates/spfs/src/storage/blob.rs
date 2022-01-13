@@ -9,12 +9,12 @@ use tokio_stream::StreamExt;
 
 use crate::{encoding, graph, Result};
 
+pub type BlobStreamItem = Result<(encoding::Digest, graph::Blob)>;
+
 #[async_trait::async_trait]
 pub trait BlobStorage: graph::Database {
     /// Iterate the objects in this storage which are blobs.
-    fn iter_blobs<'db>(
-        &'db self,
-    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Blob)>> + 'db>>
+    fn iter_blobs<'db>(&'db self) -> Pin<Box<dyn Stream<Item = BlobStreamItem> + 'db>>
     where
         Self: Sized,
     {

@@ -9,12 +9,12 @@ use tokio_stream::StreamExt;
 
 use crate::{encoding, graph, Result};
 
+pub type PlatformStreamItem = Result<(encoding::Digest, graph::Platform)>;
+
 #[async_trait::async_trait]
 pub trait PlatformStorage: graph::Database {
     /// Iterate the objects in this storage which are platforms.
-    fn iter_platforms<'db>(
-        &'db self,
-    ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Platform)>> + 'db>> {
+    fn iter_platforms<'db>(&'db self) -> Pin<Box<dyn Stream<Item = PlatformStreamItem> + 'db>> {
         use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
