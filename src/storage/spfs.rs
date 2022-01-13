@@ -285,6 +285,43 @@ impl Repository for SPFSRepository {
         }
         Ok(())
     }
+
+    fn upgrade(&mut self) -> Result<String> {
+        for name in self.list_packages()? {
+            tracing::info!("replicating old tags for {}...", name);
+            let mut pkg = api::Ident::new(&name)?;
+            for version in self.list_package_versions(&name)? {
+                pkg.version = version;
+                for build in self.list_package_builds(&pkg)? {
+                    let stored = self.lookup_package(&build)?;
+                    if stored.has_components() {
+                        continue;
+                    }
+                    let components = stored.into_components();
+                    for (name, tag_spec) in components.into_iter() {
+                        let tag = self.resolve_tag(&tag_spec)?;
+                        let new_tag_path = self.build_package_tag(&build)?.join(name.to_string());
+                        let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
+
+                        // NOTE(rbottriell): this copying process feels annoying
+                        // and error prone. Ideally, there would be some set methods
+                        // on the tag for changing the org/name on an existing one
+                        let mut new_tag = spfs::tracking::Tag::new(
+                            new_tag_spec.org(),
+                            new_tag_spec.name(),
+                            tag.target,
+                        )?;
+                        new_tag.parent = tag.parent;
+                        new_tag.time = tag.time;
+                        new_tag.user = tag.user;
+
+                        self.push_raw_tag(&new_tag)?;
+                    }
+                }
+            }
+        }
+        Ok("All packages were retagged for components".to_string())
+    }
 }
 
 impl SPFSRepository {
@@ -357,6 +394,12 @@ enum StoredPackage {
 }
 
 impl StoredPackage {
+    /// true if this stored package uses the new format with
+    /// tags for each package component
+    fn has_components(&self) -> bool {
+        matches!(self, Self::WithComponents(_))
+    }
+
     /// Identify all of the tags associated with this package
     fn tags(&self) -> Vec<&spfs::tracking::TagSpec> {
         match &self {
