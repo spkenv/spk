@@ -71,7 +71,7 @@ pub trait Repository:
 
         let partial = encoding::PartialDigest::parse(reference)
             .map_err(|_| Error::UnknownReference(reference.to_string()))?;
-        self.resolve_full_digest(&partial)
+        self.resolve_full_digest(&partial).await
     }
 
     /// Read an object of unknown type by tag or digest.

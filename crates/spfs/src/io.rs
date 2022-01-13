@@ -33,7 +33,7 @@ pub async fn format_digest<R: AsRef<str>>(
             };
 
             let reference = if let Ok(digest) = encoding::parse_digest(&reference) {
-                repo.get_shortened_digest(&digest)
+                repo.get_shortened_digest(&digest).await
             } else {
                 reference
             };

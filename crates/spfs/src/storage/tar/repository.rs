@@ -3,7 +3,9 @@
 // https://github.com/imageworks/spk
 
 use std::path::Path;
+use std::pin::Pin;
 
+use futures::Stream;
 use tar::{Archive, Builder};
 
 use crate::graph;
@@ -101,7 +103,7 @@ impl graph::DatabaseView for TarRepository {
         self.repo.read_object(digest)
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.repo.iter_digests()
     }
 

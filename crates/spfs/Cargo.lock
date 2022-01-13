@@ -2103,6 +2103,7 @@ dependencies = [
  "tempdir",
  "thiserror",
  "tokio 1.15.0",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber",
  "unicode_reader",
@@ -2348,6 +2349,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tokio-stream"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50145484efff8818b5ccd256697f36863f587da82cf8b409c53adf1e840798e3"
+dependencies = [
+ "futures-core",
+ "pin-project-lite 0.2.6",
+ "tokio 1.15.0",
 ]
 
 [[package]]

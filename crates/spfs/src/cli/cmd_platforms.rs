@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use futures::stream::StreamExt;
+use tokio_stream::StreamExt;
 
 use structopt::StructOpt;
 

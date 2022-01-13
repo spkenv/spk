@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use tokio_stream::StreamExt;
 
 use crate::graph::{Database, DatabaseView, Manifest};
 use crate::storage::{fs::FSRepository, ManifestStorage};
@@ -26,7 +27,7 @@ async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let manifest2 = Manifest::from(&tracking::compute_manifest(dir).await.unwrap());
     repo.write_object(&manifest2.into()).unwrap();
 
-    let digests: crate::Result<Vec<_>> = repo.iter_digests().collect();
+    let digests: crate::Result<Vec<_>> = repo.iter_digests().collect().await;
     let digests = digests.unwrap();
     assert!(digests.contains(&expected));
 }

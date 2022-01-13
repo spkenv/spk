@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 
+use tokio_stream::StreamExt;
 use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
 
@@ -14,8 +15,8 @@ use crate::{encoding, storage, Error, Result};
 mod clean_test;
 
 /// Clean all untagged objects from the given repo.
-pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
-    let unattached = get_all_unattached_objects(repo)?;
+pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
+    let unattached = get_all_unattached_objects(repo).await?;
     if unattached.is_empty() {
         tracing::info!("nothing to clean!");
     } else {
@@ -123,12 +124,13 @@ fn clean_render(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     }
 }
 
-pub fn get_all_unattached_objects(
+pub async fn get_all_unattached_objects(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     tracing::info!("evaluating repository digraph");
     let mut digests = HashSet::new();
-    for digest in repo.iter_digests() {
+    let mut digest_stream = repo.iter_digests();
+    while let Some(digest) = digest_stream.next().await {
         digests.insert(digest?);
     }
     let attached = &get_all_attached_objects(repo)?;

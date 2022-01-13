@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, pin::Pin};
+
+use futures::{Stream, StreamExt};
 
 use super::Object;
 use crate::{encoding, Error, Result};
@@ -91,7 +93,8 @@ impl<'db> Iterator for DatabaseIterator<'db> {
 }
 
 /// A read-only object database.
-pub trait DatabaseView {
+#[async_trait::async_trait]
+pub trait DatabaseView: Sync + Send {
     /// Read information about the given object from the database.
     ///
     /// # Errors:
@@ -99,7 +102,7 @@ pub trait DatabaseView {
     fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
 
     /// Iterate all the object digests in this database.
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>>;
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if this database contains the identified object
     fn has_object(&self, digest: &encoding::Digest) -> bool {
@@ -116,11 +119,12 @@ pub trait DatabaseView {
     ///
     /// By default this is an O(n) operation defined by the number of objects.
     /// Other implemntations may provide better results.
-    fn get_shortened_digest(&self, digest: &encoding::Digest) -> String {
+    async fn get_shortened_digest(&self, digest: &encoding::Digest) -> String {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
-        for other in self.iter_digests() {
+        let mut digests = self.iter_digests();
+        while let Some(other) = digests.next().await {
             match other {
                 Err(_) => continue,
                 Ok(other) => {
@@ -148,12 +152,16 @@ pub trait DatabaseView {
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple objects
-    fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<encoding::Digest> {
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<encoding::Digest> {
         if let Some(digest) = partial.to_digest() {
             return Ok(digest);
         }
         let mut options = Vec::new();
-        for digest in self.iter_digests() {
+        let mut digests = self.iter_digests();
+        while let Some(digest) = digests.next().await {
             let digest = digest?;
             if &digest.as_bytes()[..partial.len()] == partial.as_slice() {
                 options.push(digest)
@@ -173,7 +181,7 @@ impl<T: DatabaseView> DatabaseView for &T {
         DatabaseView::read_object(&**self, digest)
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         DatabaseView::iter_digests(&**self)
     }
 
@@ -191,7 +199,7 @@ impl<T: DatabaseView> DatabaseView for &mut T {
         DatabaseView::read_object(&**self, digest)
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         DatabaseView::iter_digests(&**self)
     }
 

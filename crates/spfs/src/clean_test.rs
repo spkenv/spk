@@ -17,7 +17,8 @@ use storage::prelude::*;
 fixtures!();
 
 #[rstest]
-fn test_get_attached_objects(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_get_attached_objects(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let reader = Box::new("hello, world".as_bytes());
     let (payload_digest, _) = tmprepo.write_data(reader).unwrap();
@@ -32,7 +33,7 @@ fn test_get_attached_objects(tmprepo: TempRepo) {
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
-        get_all_unattached_objects(&tmprepo).unwrap(),
+        get_all_unattached_objects(&tmprepo).await.unwrap(),
         expected,
         "single blob should be unattached"
     );
@@ -90,6 +91,7 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
     );
     assert!(
         !get_all_unattached_objects(&tmprepo)
+            .await
             .unwrap()
             .contains(&blob_digest),
         "blob in manifest in tag should not be unattached"
@@ -121,7 +123,9 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
     let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
     tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
 
-    clean_untagged_objects(&tmprepo).expect("failed to clean objects");
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean objects");
 
     for node in manifest1.walk() {
         if !node.entry.kind.is_blob() {
@@ -151,7 +155,8 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
@@ -161,7 +166,9 @@ fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
         .create_platform(vec![layer.digest().unwrap()])
         .unwrap();
 
-    clean_untagged_objects(&tmprepo).expect("failed to clean objects");
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean objects");
 
     if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(&layer.digest().unwrap()) {
         // ok
@@ -207,7 +214,9 @@ async fn test_clean_manifest_renders(tmprepo: TempRepo) {
     let files = list_files(tmprepo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
-    clean_untagged_objects(&tmprepo.clone().into()).expect("failed to clean repo");
+    clean_untagged_objects(&tmprepo.clone().into())
+        .await
+        .expect("failed to clean repo");
 
     let files = list_files(tmprepo.renders.unwrap().root());
     assert!(files.is_empty(), "should remove all created data files");

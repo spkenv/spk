@@ -3,12 +3,15 @@
 // https://github.com/imageworks/spk
 
 use std::os::unix::fs::PermissionsExt;
+use std::pin::Pin;
 
 use crate::graph::Object;
 use crate::{encoding, graph, Error, Result};
 use encoding::{Decodable, Encodable};
+use futures::Stream;
 use graph::DatabaseView;
 
+#[async_trait::async_trait]
 impl DatabaseView for super::FSRepository {
     fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
         let filepath = self.objects.build_digest_path(digest);
@@ -19,10 +22,10 @@ impl DatabaseView for super::FSRepository {
         Object::decode(&mut reader)
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         match self.objects.iter() {
-            Ok(iter) => Box::new(iter),
-            Err(err) => Box::new(vec![Err(err)].into_iter()),
+            Ok(iter) => Box::pin(futures::stream::iter(iter)),
+            Err(err) => Box::pin(futures::stream::iter(vec![Err(err)])),
         }
     }
 
@@ -34,7 +37,11 @@ impl DatabaseView for super::FSRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<encoding::Digest> {
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<encoding::Digest> {
+        // TODO: this function should also be async
         self.objects.resolve_full_digest(partial)
     }
 }
