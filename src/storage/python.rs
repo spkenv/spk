@@ -140,6 +140,9 @@ impl Repository {
             ))),
         }
     }
+    pub fn upgrade(&mut self) -> Result<String> {
+        self.handle.lock().unwrap().upgrade()
+    }
 }
 
 impl IntoPy<Repository> for RepositoryHandle {

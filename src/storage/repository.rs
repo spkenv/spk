@@ -72,4 +72,15 @@ pub trait Repository {
     ///
     /// The given package identifier must identify a full package build.
     fn remove_package(&mut self, pkg: &api::Ident) -> Result<()>;
+
+    /// Perform any upgrades that are pending on this repository.
+    ///
+    /// This will bring the repository up-to-date for the current
+    /// spk library version, but may also make it incompatible with
+    /// older ones. Upgrades can also take time depending on their
+    /// nature and the size of the repostory so. Please, take time to
+    /// read any release and upgrade notes before invoking this.
+    fn upgrade(&mut self) -> Result<String> {
+        Ok("Nothing to do.".to_string())
+    }
 }
