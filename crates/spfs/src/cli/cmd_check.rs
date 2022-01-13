@@ -25,8 +25,8 @@ impl CmdCheck {
 
         tracing::info!("walking repository...");
         let errors = match repo {
-            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo),
-            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo),
+            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo).await,
+            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo).await,
         };
         for error in errors.iter() {
             tracing::error!("{:?}", error);

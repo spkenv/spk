@@ -5,6 +5,7 @@
 use std::pin::Pin;
 
 use futures::Stream;
+use tokio_stream::StreamExt;
 
 use crate::{encoding, graph, Result};
 
@@ -18,14 +19,14 @@ pub trait BlobStorage: graph::Database {
         Self: Sized,
     {
         use graph::Object;
-        let iter = self.iter_objects().filter_map(|res| match res {
+        let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
                 Object::Blob(manifest) => Some(Ok((digest, manifest))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
         });
-        Box::pin(futures::stream::iter(iter))
+        Box::pin(stream)
     }
 
     /// Return true if the identified blob exists in this storage.

@@ -5,6 +5,7 @@
 use std::pin::Pin;
 
 use futures::Stream;
+use tokio_stream::StreamExt;
 
 use crate::{encoding, graph, Result};
 use encoding::Encodable;
@@ -16,14 +17,14 @@ pub trait LayerStorage: graph::Database {
         &'db self,
     ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Layer)>> + 'db>> {
         use graph::Object;
-        let iter = self.iter_objects().filter_map(|res| match res {
+        let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
                 Object::Layer(layer) => Some(Ok((digest, layer))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
         });
-        Box::pin(futures::stream::iter(iter))
+        Box::pin(stream)
     }
 
     /// Return true if the identified layer exists in this storage.

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::VecDeque, pin::Pin};
+use std::{collections::VecDeque, pin::Pin, task::Poll};
 
 use futures::{Stream, StreamExt};
 
@@ -54,7 +54,7 @@ impl<'db> Iterator for DatabaseWalker<'db> {
 /// Iterates all objects in a database, in no particular order
 pub struct DatabaseIterator<'db> {
     db: &'db dyn DatabaseView,
-    inner: Box<dyn Iterator<Item = Result<encoding::Digest>>>,
+    inner: Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>,
 }
 
 impl<'db> DatabaseIterator<'db> {
@@ -69,26 +69,29 @@ impl<'db> DatabaseIterator<'db> {
     }
 }
 
-impl<'db> Iterator for DatabaseIterator<'db> {
+impl<'db> Stream for DatabaseIterator<'db> {
     type Item = Result<(encoding::Digest, Object)>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.inner.next();
-        match next {
-            None => None,
-            Some(next) => match next {
-                Err(err) => Some(Err(err)),
-                Ok(next) => {
-                    let obj = self.db.read_object(&next);
-                    match obj {
-                        Ok(obj) => Some(Ok((next, obj))),
-                        Err(err) => Some(Err(
-                            format!("Error reading object {}: {}", &next, err).into()
-                        )),
-                    }
-                }
-            },
-        }
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let inner_next = match Pin::new(&mut self.inner).poll_next(cx) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(next) => next,
+        };
+        let digest = match inner_next {
+            None => return Poll::Ready(None),
+            Some(Err(err)) => return Poll::Ready(Some(Err(err))),
+            Some(Ok(digest)) => digest,
+        };
+        let obj = self.db.read_object(&digest);
+        Poll::Ready(match obj {
+            Ok(obj) => Some(Ok((digest, obj))),
+            Err(err) => Some(Err(
+                format!("Error reading object {}: {}", &digest, err).into()
+            )),
+        })
     }
 }
 

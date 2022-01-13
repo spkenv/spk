@@ -5,6 +5,7 @@
 use std::pin::Pin;
 
 use futures::stream::Stream;
+use tokio_stream::StreamExt;
 
 use crate::{encoding, graph, Result};
 
@@ -19,14 +20,14 @@ pub trait ManifestStorage: graph::Database {
         &'db self,
     ) -> Pin<Box<dyn Stream<Item = Result<(encoding::Digest, graph::Manifest)>> + 'db>> {
         use graph::Object;
-        let iter = self.iter_objects().filter_map(|res| match res {
+        let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
                 Object::Manifest(manifest) => Some(Ok((digest, manifest))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
         });
-        Box::pin(futures::stream::iter(iter))
+        Box::pin(stream)
     }
 
     /// Return true if the identified manifest exists in this storage.
