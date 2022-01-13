@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use structopt::StructOpt;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdLsTags {
@@ -27,8 +28,8 @@ impl CmdLsTags {
         };
 
         let path = relative_path::RelativePathBuf::from(&self.path);
-        let names = repo.ls_tags(&path)?;
-        for name in names {
+        let mut names = repo.ls_tags(&path)?;
+        while let Some(name) = names.next().await {
             println!("{}", name);
         }
         Ok(0)

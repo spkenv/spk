@@ -6,8 +6,10 @@ use std::{
     ffi::OsStr,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    pin::Pin,
 };
 
+use futures::Stream;
 use relative_path::RelativePath;
 
 use super::FSRepository;
@@ -67,12 +69,12 @@ impl TagStorage for FSRepository {
         }
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
         let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
             Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => return Ok(Box::new(Vec::new().into_iter())),
+                std::io::ErrorKind::NotFound => return Ok(Box::pin(futures::stream::empty())),
                 _ => return Err(err.into()),
             },
         };
@@ -98,7 +100,7 @@ impl TagStorage for FSRepository {
                 }
             }
         }
-        Ok(Box::new(entries.into_iter()))
+        Ok(Box::pin(futures::stream::iter(entries)))
     }
 
     /// Find tags that point to the given digest.

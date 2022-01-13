@@ -6,6 +6,7 @@ use std::path::Path;
 use std::pin::Pin;
 
 use futures::Stream;
+use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::graph;
@@ -163,10 +164,7 @@ impl TagStorage for TarRepository {
         self.repo.resolve_tag(tag_spec)
     }
 
-    fn ls_tags(
-        &self,
-        path: &relative_path::RelativePath,
-    ) -> Result<Box<dyn Iterator<Item = String>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
         self.repo.ls_tags(path)
     }
 

@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
 use crate::{encoding, tracking, Result};
 use encoding::Encodable;
+use futures::Stream;
 use relative_path::RelativePath;
 
 pub(crate) type TagSpecAndTagIter = (tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>);
@@ -30,7 +33,7 @@ pub trait TagStorage {
     /// Then ls_tags("spi") would return
     ///   stable
     ///   latest
-    fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>>;
+    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>>;
 
     /// Find tags that point to the given digest.
     fn find_tags(
@@ -98,7 +101,7 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::resolve_tag(&**self, tag_spec)
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Result<Box<dyn Iterator<Item = String>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
         TagStorage::ls_tags(&**self, path)
     }
 

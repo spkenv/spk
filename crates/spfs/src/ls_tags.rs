@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
+use futures::Stream;
+
 use super::config::load_config;
 use super::storage::prelude::*;
 use crate::Result;
@@ -17,7 +21,7 @@ use crate::Result;
 ///     latest
 pub fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
-) -> Result<Box<dyn Iterator<Item = String>>> {
+) -> Result<Pin<Box<dyn Stream<Item = String>>>> {
     let config = load_config()?;
     let repo = config.get_repository()?;
     match path {

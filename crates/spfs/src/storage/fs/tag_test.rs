@@ -5,6 +5,7 @@
 use std::os::unix::fs::MetadataExt;
 
 use rstest::rstest;
+use tokio_stream::StreamExt;
 
 use crate::storage::{fs::FSRepository, TagStorage};
 use crate::{encoding, tracking};
@@ -83,7 +84,8 @@ fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_ls_tags(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_ls_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
@@ -102,12 +104,14 @@ fn test_ls_tags(tmpdir: tempdir::TempDir) {
     let mut tags: Vec<_> = storage
         .ls_tags(&RelativePathBuf::from("/"))
         .unwrap()
-        .collect();
+        .collect()
+        .await;
     assert_eq!(tags, vec!["spi/".to_string()]);
     tags = storage
         .ls_tags(&RelativePathBuf::from("/spi"))
         .unwrap()
-        .collect();
+        .collect()
+        .await;
     tags.sort();
     assert_eq!(
         tags,
@@ -120,13 +124,15 @@ fn test_ls_tags(tmpdir: tempdir::TempDir) {
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi/stable"))
         .unwrap()
-        .collect();
+        .collect()
+        .await;
     tags.sort();
     assert_eq!(tags, vec!["my_tag".to_string(), "other_tag".to_string()]);
 }
 
 #[rstest]
-fn test_rm_tags(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_rm_tags(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
@@ -144,7 +150,8 @@ fn test_rm_tags(tmpdir: tempdir::TempDir) {
     let mut tags: Vec<_> = storage
         .ls_tags(&RelativePathBuf::from("/spi"))
         .unwrap()
-        .collect();
+        .collect()
+        .await;
     tags.sort();
     assert_eq!(tags, vec!["latest/", "stable/"]);
     storage
@@ -153,7 +160,8 @@ fn test_rm_tags(tmpdir: tempdir::TempDir) {
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi/stable"))
         .unwrap()
-        .collect();
+        .collect()
+        .await;
     assert_eq!(tags, vec!["other_tag"]);
     storage
         .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/other_tag").unwrap())
@@ -161,7 +169,8 @@ fn test_rm_tags(tmpdir: tempdir::TempDir) {
     tags = storage
         .ls_tags(&RelativePathBuf::from("spi"))
         .unwrap()
-        .collect();
+        .collect()
+        .await;
     assert_eq!(
         tags,
         vec!["latest/"],
