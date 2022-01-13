@@ -69,7 +69,7 @@ impl TagStorage for FSRepository {
         }
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
         let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
@@ -124,7 +124,7 @@ impl TagStorage for FSRepository {
     fn find_tags(
         &self,
         digest: &encoding::Digest,
-    ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         let mut found = Vec::new();
         for res in self.iter_tag_streams() {
             let (spec, stream) = match res {
@@ -140,7 +140,7 @@ impl TagStorage for FSRepository {
                 }
             }
         }
-        Box::new(found.into_iter())
+        Box::pin(futures::stream::iter(found))
     }
 
     /// Iterate through the available tags in this storage.

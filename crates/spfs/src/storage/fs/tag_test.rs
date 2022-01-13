@@ -14,7 +14,8 @@ use relative_path::RelativePathBuf;
 fixtures!();
 
 #[rstest]
-fn test_tag_stream(tmpdir: tempdir::TempDir) {
+#[tokio::test]
+async fn test_tag_stream(tmpdir: tempdir::TempDir) {
     let _guard = init_logging();
 
     let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
@@ -40,9 +41,9 @@ fn test_tag_stream(tmpdir: tempdir::TempDir) {
     assert_eq!(storage.resolve_tag(&base).unwrap(), tag2);
     assert_eq!(storage.resolve_tag(&base.with_version(0)).unwrap(), tag2);
     assert_eq!(storage.resolve_tag(&base.with_version(1)).unwrap(), tag1);
-    let found: crate::Result<Vec<_>> = storage.find_tags(&digest2).collect();
+    let found: crate::Result<Vec<_>> = storage.find_tags(&digest2).collect().await;
     assert_eq!(found.unwrap(), vec![base.clone()]);
-    let found: crate::Result<Vec<_>> = storage.find_tags(&digest1).collect();
+    let found: crate::Result<Vec<_>> = storage.find_tags(&digest1).collect().await;
     assert_eq!(found.unwrap(), vec![base.with_version(1)]);
 }
 

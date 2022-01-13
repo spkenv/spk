@@ -4,6 +4,7 @@
 use std::collections::HashSet;
 
 use async_trait::async_trait;
+use tokio_stream::StreamExt;
 
 use super::ManifestViewer;
 use crate::{encoding, graph, tracking, Error, Result};
@@ -44,7 +45,6 @@ pub trait Repository:
     + Send
     + Sync
 {
-
     /// Return the address of this repository.
     fn address(&self) -> url::Url;
 
@@ -84,7 +84,8 @@ pub trait Repository:
     async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
         let mut aliases = HashSet::new();
         let digest = self.read_ref(reference).await?.digest()?;
-        for spec in self.find_tags(&digest) {
+        let mut tags = self.find_tags(&digest);
+        while let Some(spec) = tags.next().await {
             aliases.insert(Ref::TagSpec(spec?));
         }
         if reference != digest.to_string().as_str() {

@@ -12,7 +12,7 @@ use relative_path::RelativePath;
 pub(crate) type TagSpecAndTagIter = (tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>);
 
 /// A location where tags are tracked and persisted.
-pub trait TagStorage {
+pub trait TagStorage: Send + Sync {
     /// Return true if the given tag exists in this storage.
     fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
         self.resolve_tag(tag).is_ok()
@@ -33,13 +33,13 @@ pub trait TagStorage {
     /// Then ls_tags("spi") would return
     ///   stable
     ///   latest
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>>;
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>>;
 
     /// Find tags that point to the given digest.
     fn find_tags(
         &self,
         digest: &encoding::Digest,
-    ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>>;
+    ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>>;
 
     /// Iterate through the available tags in this storage.
     fn iter_tags(&self) -> Box<dyn Iterator<Item = Result<(tracking::TagSpec, tracking::Tag)>>> {
@@ -101,14 +101,14 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::resolve_tag(&**self, tag_spec)
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
         TagStorage::ls_tags(&**self, path)
     }
 
     fn find_tags(
         &self,
         digest: &encoding::Digest,
-    ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         TagStorage::find_tags(&**self, digest)
     }
 
