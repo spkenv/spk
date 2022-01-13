@@ -2,16 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::io::ErrorKind;
+use std::{io::ErrorKind, pin::Pin};
+
+use futures::Stream;
 
 use super::FSRepository;
 use crate::{encoding, Error, Result};
 
 impl crate::storage::PayloadStorage for FSRepository {
-    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         match self.payloads.iter() {
-            Ok(iter) => Box::new(iter),
-            Err(err) => Box::new(vec![Err(err)].into_iter()),
+            Ok(iter) => Box::pin(futures::stream::iter(iter)),
+            Err(err) => Box::pin(futures::stream::once(async { Err(err) })),
         }
     }
 

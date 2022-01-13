@@ -61,7 +61,7 @@ impl CmdClean {
         }
 
         let mut unattached = spfs::get_all_unattached_objects(&repo).await?;
-        unattached.extend(spfs::get_all_unattached_payloads(&repo)?);
+        unattached.extend(spfs::get_all_unattached_payloads(&repo).await?);
         if unattached.is_empty() {
             tracing::info!("no objects to remove");
             return Ok(0);

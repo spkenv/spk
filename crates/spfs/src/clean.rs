@@ -4,9 +4,9 @@
 
 use std::collections::HashSet;
 
-use tokio_stream::StreamExt;
 use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
+use tokio_stream::StreamExt;
 
 use crate::{encoding, storage, Error, Result};
 
@@ -137,12 +137,13 @@ pub async fn get_all_unattached_objects(
     Ok(digests.difference(attached).copied().collect())
 }
 
-pub fn get_all_unattached_payloads(
+pub async fn get_all_unattached_payloads(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     tracing::info!("searching for orphaned payloads");
     let mut orphaned_payloads = HashSet::new();
-    for digest in repo.iter_payload_digests() {
+    let mut payloads = repo.iter_payload_digests();
+    while let Some(digest) = payloads.next().await {
         let digest = digest?;
         match repo.read_blob(&digest) {
             Err(Error::UnknownObject(_)) => {

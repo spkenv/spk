@@ -40,14 +40,15 @@ async fn test_get_attached_objects(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_get_attached_payloads(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_get_attached_payloads(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let reader = Box::new("hello, world".as_bytes());
     let (payload_digest, _) = tmprepo.write_data(reader).unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
-        get_all_unattached_payloads(&tmprepo).unwrap(),
+        get_all_unattached_payloads(&tmprepo).await.unwrap(),
         expected,
         "single payload should be attached when no blob"
     );
@@ -56,7 +57,7 @@ fn test_get_attached_payloads(tmprepo: TempRepo) {
     tmprepo.write_blob(blob).unwrap();
 
     assert_eq!(
-        get_all_unattached_payloads(&tmprepo).unwrap(),
+        get_all_unattached_payloads(&tmprepo).await.unwrap(),
         Default::default(),
         "single payload should be attached to blob"
     );

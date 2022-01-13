@@ -2,13 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
+use futures::Stream;
+
 use crate::encoding;
 use crate::Result;
 
 /// Stores arbitrary binary data payloads using their content digest.
+#[async_trait::async_trait]
 pub trait PayloadStorage {
     /// Iterate all the payloads in this storage.
-    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>>;
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>>;
 
     /// Return true if the identified payload exists.
     fn has_payload(&self, digest: &encoding::Digest) -> bool {
@@ -38,7 +43,7 @@ pub trait PayloadStorage {
 }
 
 impl<T: PayloadStorage> PayloadStorage for &mut T {
-    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 

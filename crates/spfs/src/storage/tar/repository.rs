@@ -131,7 +131,7 @@ impl graph::Database for TarRepository {
 }
 
 impl PayloadStorage for TarRepository {
-    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         self.repo.iter_payload_digests()
     }
 
