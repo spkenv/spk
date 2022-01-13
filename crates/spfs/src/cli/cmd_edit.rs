@@ -13,7 +13,7 @@ pub struct CmdEdit {
 impl CmdEdit {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         if !self.off {
-            spfs::make_active_runtime_editable()?;
+            spfs::make_active_runtime_editable().await?;
             tracing::info!("edit mode enabled");
         } else {
             let mut rt = spfs::active_runtime()?;
