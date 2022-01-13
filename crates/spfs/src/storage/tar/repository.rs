@@ -175,7 +175,7 @@ impl TagStorage for TarRepository {
         self.repo.find_tags(digest)
     }
 
-    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>> {
         self.repo.iter_tag_streams()
     }
 

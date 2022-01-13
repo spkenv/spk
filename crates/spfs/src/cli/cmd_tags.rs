@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use structopt::StructOpt;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdTags {
@@ -20,7 +21,8 @@ impl CmdTags {
             Some(remote) => config.get_remote(remote)?,
             None => config.get_repository()?.into(),
         };
-        for tag in repo.iter_tags() {
+        let mut tag_streams = repo.iter_tags();
+        while let Some(tag) = tag_streams.next().await {
             let (_, tag) = tag?;
             println!(
                 "{}",

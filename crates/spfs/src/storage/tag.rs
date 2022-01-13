@@ -8,8 +8,10 @@ use crate::{encoding, tracking, Result};
 use encoding::Encodable;
 use futures::Stream;
 use relative_path::RelativePath;
+use tokio_stream::StreamExt;
 
 pub(crate) type TagSpecAndTagIter = (tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>);
+pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 
 /// A location where tags are tracked and persisted.
 pub trait TagStorage: Send + Sync {
@@ -42,15 +44,15 @@ pub trait TagStorage: Send + Sync {
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>>;
 
     /// Iterate through the available tags in this storage.
-    fn iter_tags(&self) -> Box<dyn Iterator<Item = Result<(tracking::TagSpec, tracking::Tag)>>> {
-        Box::new(self.iter_tag_streams().filter_map(|res| match res {
+    fn iter_tags(&self) -> Pin<Box<dyn Stream<Item = IterTagsItem>>> {
+        Box::pin(self.iter_tag_streams().filter_map(|res| match res {
             Ok((spec, mut stream)) => stream.next().map(|next| Ok((spec, next))),
             Err(err) => Some(Err(err)),
         }))
     }
 
     /// Iterate through the available tags in this storage by stream.
-    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>>;
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>>;
 
     /// Read the entire tag stream for the given tag.
     ///
@@ -112,7 +114,7 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::find_tags(&**self, digest)
     }
 
-    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>> {
         TagStorage::iter_tag_streams(&**self)
     }
 

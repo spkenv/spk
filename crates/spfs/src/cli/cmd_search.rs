@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use structopt::StructOpt;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdSearch {
@@ -26,7 +27,8 @@ impl CmdSearch {
         }
         repos.insert(0, config.get_repository()?.into());
         for repo in repos.into_iter() {
-            for tag in repo.iter_tags() {
+            let mut tag_streams = repo.iter_tags();
+            while let Some(tag) = tag_streams.next().await {
                 let (tag, _) = tag?;
                 if tag.to_string().contains(&self.term) {
                     println!("{:?}", tag);

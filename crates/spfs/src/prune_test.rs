@@ -12,7 +12,8 @@ use std::collections::HashMap;
 fixtures!();
 
 #[rstest]
-fn test_prunable_tags_age(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_prunable_tags_age(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let mut old = tracking::Tag::new(
         Some("testing".to_string()),
@@ -41,6 +42,7 @@ fn test_prunable_tags_age(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     assert!(tags.contains(&old));
     assert!(!tags.contains(&new));
@@ -53,13 +55,15 @@ fn test_prunable_tags_age(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     assert!(!tags.contains(&old), "should prefer to keep when ambiguous");
     assert!(!tags.contains(&new));
 }
 
 #[rstest]
-fn test_prunable_tags_version(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_prunable_tags_version(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("testing/versioned").unwrap();
     let tag5 = tmprepo
@@ -88,6 +92,7 @@ fn test_prunable_tags_version(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     assert!(!tags.contains(&tag0));
     assert!(!tags.contains(&tag1));
@@ -104,6 +109,7 @@ fn test_prunable_tags_version(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     assert!(!tags.contains(&tag0));
     assert!(!tags.contains(&tag1));
@@ -117,7 +123,8 @@ fn test_prunable_tags_version(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_prune_tags(tmprepo: TempRepo) {
+#[tokio::test]
+async fn test_prune_tags(tmprepo: TempRepo) {
     let _guard = init_logging();
     let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();
@@ -149,6 +156,7 @@ fn test_prune_tags(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     for tag in tmprepo.read_tag(&tag).unwrap() {
         assert_eq!(&tag, tags.get(&2025).unwrap(), "should remove all but 2025");
@@ -162,6 +170,7 @@ fn test_prune_tags(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     for tag in tmprepo.read_tag(&tag).unwrap() {
         assert_ne!(
@@ -189,6 +198,7 @@ fn test_prune_tags(tmprepo: TempRepo) {
             ..Default::default()
         },
     )
+    .await
     .unwrap();
     if tmprepo.read_tag(&tag).is_ok() {
         panic!("should not have any pruned tag left")

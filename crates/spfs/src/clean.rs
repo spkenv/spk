@@ -133,7 +133,7 @@ pub async fn get_all_unattached_objects(
     while let Some(digest) = digest_stream.next().await {
         digests.insert(digest?);
     }
-    let attached = &get_all_attached_objects(repo)?;
+    let attached = &get_all_attached_objects(repo).await?;
     Ok(digests.difference(attached).copied().collect())
 }
 
@@ -156,11 +156,12 @@ pub async fn get_all_unattached_payloads(
     Ok(orphaned_payloads)
 }
 
-pub fn get_all_attached_objects(
+pub async fn get_all_attached_objects(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     let mut to_process = Vec::new();
-    for item in repo.iter_tag_streams() {
+    let mut tag_streams = repo.iter_tag_streams();
+    while let Some(item) = tag_streams.next().await {
         let (_, stream) = item?;
         for tag in stream {
             to_process.push(tag.target);

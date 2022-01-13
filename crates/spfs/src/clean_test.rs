@@ -26,7 +26,7 @@ async fn test_get_attached_objects(tmprepo: TempRepo) {
     tmprepo.write_blob(blob).unwrap();
 
     assert_eq!(
-        get_all_attached_objects(&tmprepo).unwrap(),
+        get_all_attached_objects(&tmprepo).await.unwrap(),
         Default::default(),
         "single blob should not be attached"
     );
@@ -86,6 +86,7 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
 
     assert!(
         get_all_attached_objects(&tmprepo)
+            .await
             .unwrap()
             .contains(&blob_digest),
         "blob in manifest in tag should be attached"

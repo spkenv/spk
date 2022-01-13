@@ -57,7 +57,7 @@ impl CmdClean {
             || self.prune_if_more_than.is_some()
             || self.keep_if_less_than.is_some()
         {
-            self.prune(&mut repo)?;
+            self.prune(&mut repo).await?;
         }
 
         let mut unattached = spfs::get_all_unattached_objects(&repo).await?;
@@ -88,7 +88,7 @@ impl CmdClean {
         }
     }
 
-    fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
+    async fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
         let prune_if_older_than = age_to_date(
             self.prune_if_older_than
                 .clone()
@@ -118,7 +118,7 @@ impl CmdClean {
         tracing::info!("and leaving tags with version <= {:?}", keep_if_less_than);
 
         tracing::info!("searching for tags to prune...");
-        let to_prune = spfs::get_prunable_tags(repo, &params)?;
+        let to_prune = spfs::get_prunable_tags(repo, &params).await?;
         if to_prune.is_empty() {
             tracing::info!("no tags to prune");
             return Ok(());

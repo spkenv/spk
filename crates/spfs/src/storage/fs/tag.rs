@@ -7,10 +7,12 @@ use std::{
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     pin::Pin,
+    task::Poll,
 };
 
 use futures::Stream;
 use relative_path::RelativePath;
+use tokio_stream::StreamExt;
 
 use super::FSRepository;
 use crate::{
@@ -125,27 +127,24 @@ impl TagStorage for FSRepository {
         &self,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        let mut found = Vec::new();
-        for res in self.iter_tag_streams() {
+        let digest = *digest;
+        Box::pin(self.iter_tag_streams().filter_map(move |res| {
             let (spec, stream) = match res {
                 Ok(res) => res,
-                Err(err) => {
-                    found.push(Err(err));
-                    continue;
-                }
+                Err(err) => return Some(Err(err)),
             };
             for (i, tag) in stream.into_iter().enumerate() {
-                if &tag.target == digest {
-                    found.push(Ok(spec.with_version(i as u64)));
+                if tag.target == digest {
+                    return Some(Ok(spec.with_version(i as u64)));
                 }
             }
-        }
-        Box::pin(futures::stream::iter(found))
+            None
+        }))
     }
 
     /// Iterate through the available tags in this storage.
-    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
-        Box::new(TagStreamIter::new(&self.tags_root()))
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>> {
+        Box::pin(TagStreamIter::new(&self.tags_root()))
     }
 
     fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
@@ -256,11 +255,15 @@ impl TagStreamIter {
     }
 }
 
-impl Iterator for TagStreamIter {
+impl Stream for TagStreamIter {
     type Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        // TODO: this is not actually async and should be fixed
+        Poll::Ready(loop {
             let entry = self.inner.next();
             match entry {
                 None => break None,
@@ -274,11 +277,11 @@ impl Iterator for TagStreamIter {
                         continue;
                     }
                     let spec = match tag_from_path(&path, &self.root) {
-                        Err(err) => return Some(Err(err)),
+                        Err(err) => break Some(Err(err)),
                         Ok(spec) => spec,
                     };
                     let tags: Result<Vec<_>> = match read_tag_file(&path) {
-                        Err(err) => return Some(Err(err)),
+                        Err(err) => break Some(Err(err)),
                         Ok(stream) => stream.into_iter().collect(),
                     };
                     break match tags {
@@ -287,7 +290,7 @@ impl Iterator for TagStreamIter {
                     };
                 }
             }
-        }
+        })
     }
 }
 
