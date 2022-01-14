@@ -9,6 +9,10 @@ use relative_path::RelativePathBuf;
 use super::Repository;
 use crate::{api, Error, Result};
 
+#[cfg(test)]
+#[path = "./spfs_test.rs"]
+mod spfs_test;
+
 #[derive(Debug)]
 pub struct SPFSRepository {
     inner: spfs::storage::RepositoryHandle,
@@ -42,9 +46,9 @@ impl std::ops::DerefMut for SPFSRepository {
     }
 }
 
-impl From<spfs::storage::RepositoryHandle> for SPFSRepository {
-    fn from(repo: spfs::storage::RepositoryHandle) -> Self {
-        Self { inner: repo }
+impl<T: Into<spfs::storage::RepositoryHandle>> From<T> for SPFSRepository {
+    fn from(repo: T) -> Self {
+        Self { inner: repo.into() }
     }
 }
 
