@@ -55,7 +55,7 @@ pub async fn sync_ref<R: AsRef<str>>(
     dest: &mut storage::RepositoryHandle,
 ) -> Result<graph::Object> {
     let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
-        match src.resolve_tag(&tag) {
+        match src.resolve_tag(&tag).await {
             Ok(tag) => Some(tag),
             Err(Error::UnknownReference(_)) => None,
             Err(err) => return Err(err),
@@ -68,7 +68,7 @@ pub async fn sync_ref<R: AsRef<str>>(
     sync_object(&obj, src, dest)?;
     if let Some(tag) = tag {
         tracing::debug!(tag = ?tag.path(), "syncing tag");
-        dest.push_raw_tag(&tag)?;
+        dest.push_raw_tag(&tag).await?;
     }
     tracing::debug!(target = ?reference.as_ref(), "sync complete");
     Ok(obj)

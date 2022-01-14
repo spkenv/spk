@@ -20,7 +20,9 @@ async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
     match push_ref(
         "--test-unknown--",
         Some(config.get_remote("origin").unwrap()),
-    ).await {
+    )
+    .await
+    {
         Err(Error::UnknownReference(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
         Ok(_) => panic!("expected unknown reference error, got success"),
@@ -29,7 +31,9 @@ async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
     match push_ref(
         encoding::Digest::default().to_string(),
         Some(config.get_remote("origin").unwrap()),
-    ).await {
+    )
+    .await
+    {
         Err(Error::UnknownObject(_)) => (),
         Err(err) => panic!("expected unknown object error, got {:?}", err),
         Ok(_) => panic!("expected unknown object error, got success"),
@@ -53,7 +57,10 @@ async fn test_push_ref(config: (tempdir::TempDir, Config)) {
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();
-    local.push_tag(&tag, &layer.digest().unwrap()).unwrap();
+    local
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
 
     sync_ref(tag.to_string(), &local, &mut remote)
         .await
@@ -91,9 +98,14 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
         .create_platform(vec![layer.digest().unwrap()])
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();
-    repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
+    repo_a
+        .push_tag(&tag, &platform.digest().unwrap())
+        .await
+        .unwrap();
 
-    sync_ref("testing", &repo_a, &mut repo_b).await.expect("failed to sync ref");
+    sync_ref("testing", &repo_a, &mut repo_b)
+        .await
+        .expect("failed to sync ref");
 
     assert!(repo_b.read_ref("testing").await.is_ok());
     assert!(repo_b.has_platform(&platform.digest().unwrap()));
@@ -105,7 +117,9 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
     std::fs::create_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
     std::fs::create_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
     std::fs::create_dir_all(tmpdir.path().join("repo_a/tags")).unwrap();
-    sync_ref("testing", &repo_b, &mut repo_a).await.expect("failed to sync back");
+    sync_ref("testing", &repo_b, &mut repo_a)
+        .await
+        .expect("failed to sync back");
 
     assert!(repo_a.read_ref("testing").await.is_ok());
     assert!(repo_a.has_layer(&layer.digest().unwrap()));
@@ -139,7 +153,10 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
         .create_platform(vec![layer.digest().unwrap()])
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();
-    repo_a.push_tag(&tag, &platform.digest().unwrap()).unwrap();
+    repo_a
+        .push_tag(&tag, &platform.digest().unwrap())
+        .await
+        .unwrap();
 
     sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
     drop(repo_tar);

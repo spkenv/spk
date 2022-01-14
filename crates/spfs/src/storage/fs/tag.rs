@@ -62,15 +62,8 @@ impl FSRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl TagStorage for FSRepository {
-    fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        let version = self.read_tag(tag_spec)?.nth(tag_spec.version() as usize);
-        match version {
-            Some(version) => Ok(version),
-            None => Err(Error::UnknownReference(tag_spec.to_string())),
-        }
-    }
-
     fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
         let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
@@ -147,7 +140,10 @@ impl TagStorage for FSRepository {
         Box::pin(TagStreamIter::new(&self.tags_root()))
     }
 
-    fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
+    async fn read_tag(
+        &self,
+        tag: &tracking::TagSpec,
+    ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>> {
         let path = tag.to_path(self.tags_root());
         match read_tag_file(path) {
             Err(err) => match err.raw_os_error() {
@@ -156,12 +152,12 @@ impl TagStorage for FSRepository {
             },
             Ok(iter) => {
                 let tags: Result<Vec<_>> = iter.into_iter().collect();
-                Ok(Box::new(tags?.into_iter().rev()))
+                Ok(Box::pin(futures::stream::iter(tags?.into_iter().rev())))
             }
         }
     }
 
-    fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    async fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
@@ -169,7 +165,7 @@ impl TagStorage for FSRepository {
         self.push_raw_tag_without_lock(tag)
     }
 
-    fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
+    async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         let lock = match TagLock::new(&filepath) {
@@ -211,14 +207,16 @@ impl TagStorage for FSRepository {
         Ok(())
     }
 
-    fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         let _lock = TagLock::new(&filepath)?;
         let tags: Vec<_> = self
-            .read_tag(&tag_spec)?
+            .read_tag(&tag_spec)
+            .await?
             .filter(|version| version != tag)
-            .collect();
+            .collect()
+            .await;
         let backup_path = &filepath.with_extension("tag.backup");
         std::fs::rename(&filepath, &backup_path)?;
         let res: Result<Vec<_>> = tags

@@ -79,8 +79,8 @@ pub async fn prune_tags(
 ) -> Result<HashSet<tracking::Tag>> {
     let to_prune = get_prunable_tags(repo, params).await?;
     for tag in to_prune.iter() {
-        tracing::trace!(tag = ?tag, "removing tag");
-        repo.remove_tag(tag)?;
+        tracing::trace!(?tag, "removing tag");
+        repo.remove_tag(tag).await?;
     }
     Ok(to_prune)
 }

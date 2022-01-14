@@ -50,7 +50,7 @@ impl CmdCommit {
                     continue;
                 }
             };
-            repo.push_tag(&tag_spec, &result.digest()?)?;
+            repo.push_tag(&tag_spec, &result.digest()?).await?;
             tracing::info!(?tag, "created");
         }
 

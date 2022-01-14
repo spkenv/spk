@@ -76,7 +76,10 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
         .create_layer(&graph::Manifest::from(&manifest))
         .unwrap();
     let tag = tracking::TagSpec::parse("my_tag").unwrap();
-    tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
+    tmprepo
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
     let blob_digest = manifest
         .root()
         .entries
@@ -123,7 +126,10 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
         .create_layer(&graph::Manifest::from(&manifest2))
         .unwrap();
     let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
-    tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
+    tmprepo
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
 
     clean_untagged_objects(&tmprepo)
         .await

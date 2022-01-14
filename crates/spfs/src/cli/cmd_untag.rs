@@ -45,10 +45,10 @@ impl CmdUntag {
         }
 
         if self.all {
-            repo.remove_tag_stream(&tag)?;
+            repo.remove_tag_stream(&tag).await?;
         } else {
-            let resolved = repo.resolve_tag(&tag)?;
-            repo.remove_tag(&resolved)?;
+            let resolved = repo.resolve_tag(&tag).await?;
+            repo.remove_tag(&resolved).await?;
         }
         tracing::info!(?tag, "removed");
         Ok(0)

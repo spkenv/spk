@@ -64,7 +64,7 @@ pub trait Repository:
     /// Resolve a tag or digest string into it's absolute digest.
     async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
         if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
-            if let Ok(tag) = self.resolve_tag(&tag_spec) {
+            if let Ok(tag) = self.resolve_tag(&tag_spec).await {
                 return Ok(tag.target);
             }
         }

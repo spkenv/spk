@@ -149,7 +149,7 @@ impl CmdClean {
         }
 
         for tag in to_prune.iter() {
-            repo.remove_tag(tag)?;
+            repo.remove_tag(tag).await?;
         }
         Ok(())
     }

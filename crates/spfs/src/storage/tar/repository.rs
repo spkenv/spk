@@ -159,9 +159,10 @@ impl PayloadStorage for TarRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl TagStorage for TarRepository {
-    fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        self.repo.resolve_tag(tag_spec)
+    async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
+        self.repo.resolve_tag(tag_spec).await
     }
 
     fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
@@ -179,24 +180,27 @@ impl TagStorage for TarRepository {
         self.repo.iter_tag_streams()
     }
 
-    fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
-        self.repo.read_tag(tag)
+    async fn read_tag(
+        &self,
+        tag: &tracking::TagSpec,
+    ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>> {
+        self.repo.read_tag(tag).await
     }
 
-    fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.push_raw_tag(tag)?;
+    async fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+        self.repo.push_raw_tag(tag).await?;
         self.up_to_date = false;
         Ok(())
     }
 
-    fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
-        self.repo.remove_tag_stream(tag)?;
+    async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
+        self.repo.remove_tag_stream(tag).await?;
         self.up_to_date = false;
         Ok(())
     }
 
-    fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.remove_tag(tag)?;
+    async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+        self.repo.remove_tag(tag).await?;
         self.up_to_date = false;
         Ok(())
     }

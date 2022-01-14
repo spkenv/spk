@@ -30,6 +30,7 @@ async fn test_find_aliases(tmprepo: TempRepo) {
     let test_tag = TagSpec::parse("test-tag").unwrap();
     tmprepo
         .push_tag(&test_tag, &layer.digest().unwrap())
+        .await
         .unwrap();
 
     let actual = tmprepo
@@ -59,7 +60,10 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     std::os::unix::fs::symlink(&link_dest, &src_dir.join(symlink_path)).unwrap();
     std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444)).unwrap();
 
-    let manifest = tmprepo.commit_dir(&src_dir).await.expect("failed to commit dir");
+    let manifest = tmprepo
+        .commit_dir(&src_dir)
+        .await
+        .expect("failed to commit dir");
     let rendered_dir = tmprepo
         .render_manifest(&Manifest::from(&manifest))
         .expect("failed to render manifest");

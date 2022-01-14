@@ -30,7 +30,7 @@ impl CmdTag {
         let target = repo.read_ref(self.reference.as_str()).await?.digest()?;
         for tag in self.tags.iter() {
             let tag = tag.parse()?;
-            repo.push_tag(&tag, &target)?;
+            repo.push_tag(&tag, &target).await?;
             tracing::info!(?tag, "created");
         }
         Ok(0)

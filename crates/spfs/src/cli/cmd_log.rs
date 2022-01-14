@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use colored::*;
+use futures::StreamExt;
 use structopt::StructOpt;
 
 use spfs::{self};
@@ -27,8 +28,8 @@ impl CmdLog {
         };
 
         let tag = spfs::tracking::TagSpec::parse(&self.tag)?;
-        let tag_stream = repo.read_tag(&tag)?;
-        for (i, tag) in tag_stream.into_iter().enumerate() {
+        let mut tag_stream = repo.read_tag(&tag).await?.enumerate();
+        while let Some((i, tag)) = tag_stream.next().await {
             let spec = spfs::tracking::build_tag_spec(tag.org(), tag.name(), i as u64)?;
             let spec_str = spec.to_string();
             println!(
