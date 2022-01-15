@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use rstest::rstest;
-
-use crate::storage::Repository;
+use spfs::prelude::*;
 
 use super::SPFSRepository;
+use crate::storage::Repository;
 
 crate::fixtures!();
 
@@ -47,4 +47,36 @@ fn test_upgrade_sets_version() {
     repo.upgrade()
         .expect("upgrading an empty repo should succeed");
     assert_eq!(repo.read_metadata().unwrap().version, current_version);
+}
+
+#[rstest]
+fn test_upgrade_changes_tags() {
+    init_logging();
+    let dir = tempdir::TempDir::new("spk_test").unwrap();
+    let repo_root = dir.path();
+    let mut spfs_repo = spfs::storage::fs::FSRepository::create(repo_root).unwrap();
+    let mut repo = SPFSRepository::new(&format!("file://{}", repo_root.display())).unwrap();
+
+    let ident = crate::api::Ident::from_str("mypkg/1.0.0/src").unwrap();
+
+    // publish an "old style" package spec and build
+    let mut old_path =
+        spfs::tracking::TagSpec::from_str(repo.build_package_tag(&ident).unwrap().as_str())
+            .unwrap();
+    spfs_repo
+        .push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into())
+        .unwrap();
+    old_path = spfs::tracking::TagSpec::from_str(repo.build_spec_tag(&ident).as_str()).unwrap();
+    spfs_repo
+        .push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into())
+        .unwrap();
+
+    let pkg = repo.lookup_package(&ident).unwrap();
+    assert!(matches!(pkg, super::StoredPackage::WithoutComponents(_)));
+
+    repo.upgrade()
+        .expect("upgrading a simple repo should succeed");
+
+    let pkg = repo.lookup_package(&ident).unwrap();
+    assert!(matches!(pkg, super::StoredPackage::WithComponents(_)));
 }
