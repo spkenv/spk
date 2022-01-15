@@ -11,17 +11,17 @@ use crate::Result;
 
 /// Stores arbitrary binary data payloads using their content digest.
 #[async_trait::async_trait]
-pub trait PayloadStorage {
+pub trait PayloadStorage: Sync + Send {
     /// Iterate all the payloads in this storage.
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>>;
 
     /// Return true if the identified payload exists.
-    fn has_payload(&self, digest: &encoding::Digest) -> bool {
-        self.open_payload(digest).is_ok()
+    async fn has_payload(&self, digest: &encoding::Digest) -> bool {
+        self.open_payload(digest).await.is_ok()
     }
 
     /// Store the contents of the given stream, returning its digest and size
-    fn write_data(
+    async fn write_data(
         &mut self,
         reader: Box<dyn std::io::Read + Send + 'static>,
     ) -> Result<(encoding::Digest, u64)>;
@@ -30,7 +30,7 @@ pub trait PayloadStorage {
     ///
     /// # Errors:
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
-    fn open_payload(
+    async fn open_payload(
         &self,
         digest: &encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>>;
@@ -39,29 +39,30 @@ pub trait PayloadStorage {
     ///
     /// Errors:
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
-    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()>;
+    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()>;
 }
 
+#[async_trait::async_trait]
 impl<T: PayloadStorage> PayloadStorage for &mut T {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
-    fn write_data(
+    async fn write_data(
         &mut self,
         reader: Box<dyn std::io::Read + Send + 'static>,
     ) -> Result<(encoding::Digest, u64)> {
-        PayloadStorage::write_data(&mut **self, reader)
+        PayloadStorage::write_data(&mut **self, reader).await
     }
 
-    fn open_payload(
+    async fn open_payload(
         &self,
         digest: &encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
-        PayloadStorage::open_payload(&**self, digest)
+        PayloadStorage::open_payload(&**self, digest).await
     }
 
-    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        PayloadStorage::remove_payload(&mut **self, digest)
+    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
+        PayloadStorage::remove_payload(&mut **self, digest).await
     }
 }
