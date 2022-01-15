@@ -16,7 +16,7 @@ pub trait PayloadStorage: Sync + Send {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>>;
 
     /// Return true if the identified payload exists.
-    async fn has_payload(&self, digest: &encoding::Digest) -> bool {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
         self.open_payload(digest).await.is_ok()
     }
 
@@ -32,14 +32,14 @@ pub trait PayloadStorage: Sync + Send {
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
     async fn open_payload(
         &self,
-        digest: &encoding::Digest,
+        digest: encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>>;
 
     /// Remove the payload idetified by the given digest.
     ///
     /// Errors:
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
-    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()>;
+    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -57,12 +57,12 @@ impl<T: PayloadStorage> PayloadStorage for &mut T {
 
     async fn open_payload(
         &self,
-        digest: &encoding::Digest,
+        digest: encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
         PayloadStorage::open_payload(&**self, digest).await
     }
 
-    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
+    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
         PayloadStorage::remove_payload(&mut **self, digest).await
     }
 }

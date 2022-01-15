@@ -27,12 +27,12 @@ pub trait BlobStorage: graph::Database + Sync + Send {
     }
 
     /// Return true if the identified blob exists in this storage.
-    async fn has_blob(&self, digest: &encoding::Digest) -> bool {
+    async fn has_blob(&self, digest: encoding::Digest) -> bool {
         self.read_blob(digest).await.is_ok()
     }
 
     /// Return the blob identified by the given digest.
-    async fn read_blob(&self, digest: &encoding::Digest) -> Result<graph::Blob> {
+    async fn read_blob(&self, digest: encoding::Digest) -> Result<graph::Blob> {
         use graph::Object;
         match self.read_object(digest).await {
             Err(err) => Err(err),

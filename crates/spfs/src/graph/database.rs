@@ -10,6 +10,7 @@ use super::Object;
 use crate::{encoding, Error, Result};
 
 /// Walks an object tree depth-first starting at some root digest
+#[allow(clippy::type_complexity)]
 pub struct DatabaseWalker<'db> {
     db: &'db dyn DatabaseView,
     next: Option<(
@@ -47,13 +48,13 @@ impl<'db> Stream for DatabaseWalker<'db> {
             Some(f) => f,
             None => match self.queue.pop_front() {
                 None => return Poll::Ready(None),
-                Some(digest) => (digest, self.db.read_object(&digest)),
+                Some(digest) => (digest, self.db.read_object(digest)),
             },
         };
 
         match Pin::new(&mut current_future).poll(cx) {
             Poll::Pending => {
-                self.next.insert((digest, current_future));
+                self.next = Some((digest, current_future));
                 Poll::Pending
             }
             Poll::Ready(obj) => Poll::Ready(match obj {
@@ -70,6 +71,7 @@ impl<'db> Stream for DatabaseWalker<'db> {
 }
 
 /// Iterates all objects in a database, in no particular order
+#[allow(clippy::type_complexity)]
 pub struct DatabaseIterator<'db> {
     db: &'db dyn DatabaseView,
     next: Option<(
@@ -109,13 +111,13 @@ impl<'db> Stream for DatabaseIterator<'db> {
                 Poll::Ready(inner_next) => match inner_next {
                     None => return Poll::Ready(None),
                     Some(Err(err)) => return Poll::Ready(Some(Err(err))),
-                    Some(Ok(digest)) => (digest, self.db.read_object(&digest)),
+                    Some(Ok(digest)) => (digest, self.db.read_object(digest)),
                 },
             },
         };
         match Pin::new(&mut current_future).poll(cx) {
             Poll::Pending => {
-                self.next.insert((digest, current_future));
+                self.next = Some((digest, current_future));
                 Poll::Pending
             }
             Poll::Ready(res) => Poll::Ready(match res {
@@ -135,13 +137,13 @@ pub trait DatabaseView: Sync + Send {
     ///
     /// # Errors:
     /// - [`spfs::Error::UnknownObject`]: if the object is not in this database
-    async fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
+    async fn read_object(&self, digest: encoding::Digest) -> Result<Object>;
 
     /// Iterate all the object digests in this database.
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if this database contains the identified object
-    async fn has_object(&self, digest: &encoding::Digest) -> bool {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
         self.read_object(digest).await.is_ok()
     }
 
@@ -155,7 +157,7 @@ pub trait DatabaseView: Sync + Send {
     ///
     /// By default this is an O(n) operation defined by the number of objects.
     /// Other implemntations may provide better results.
-    async fn get_shortened_digest(&self, digest: &encoding::Digest) -> String {
+    async fn get_shortened_digest(&self, digest: encoding::Digest) -> String {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
@@ -167,7 +169,7 @@ pub trait DatabaseView: Sync + Send {
                     if &other.as_bytes()[0..shortest_size] != shortest {
                         continue;
                     }
-                    if &other == digest {
+                    if other == digest {
                         continue;
                     }
                     while &other.as_bytes()[..shortest_size] == shortest {
@@ -214,7 +216,7 @@ pub trait DatabaseView: Sync + Send {
 
 #[async_trait::async_trait]
 impl<T: DatabaseView> DatabaseView for &T {
-    async fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
+    async fn read_object(&self, digest: encoding::Digest) -> Result<Object> {
         DatabaseView::read_object(&**self, digest).await
     }
 
@@ -233,7 +235,7 @@ impl<T: DatabaseView> DatabaseView for &T {
 
 #[async_trait::async_trait]
 impl<T: DatabaseView> DatabaseView for &mut T {
-    async fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
+    async fn read_object(&self, digest: encoding::Digest) -> Result<Object> {
         DatabaseView::read_object(&**self, digest).await
     }
 
@@ -256,7 +258,7 @@ pub trait Database: DatabaseView {
     async fn write_object(&mut self, obj: &Object) -> Result<()>;
 
     /// Remove an object from the database.
-    async fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()>;
+    async fn remove_object(&mut self, digest: encoding::Digest) -> Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -265,7 +267,7 @@ impl<T: Database> Database for &mut T {
         Database::write_object(&mut **self, obj).await
     }
 
-    async fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
+    async fn remove_object(&mut self, digest: encoding::Digest) -> Result<()> {
         Database::remove_object(&mut **self, digest).await
     }
 }

@@ -55,11 +55,11 @@ impl CmdRead {
                     tracing::error!("path is a directory or masked file: {}", path);
                     return Ok(1);
                 }
-                repo.read_blob(&entry.object).await?
+                repo.read_blob(entry.object).await?
             }
         };
 
-        let mut payload = repo.open_payload(&blob.digest())?;
+        let mut payload = repo.open_payload(blob.digest()).await?;
         std::io::copy(&mut payload, &mut std::io::stdout())?;
         Ok(0)
     }

@@ -141,7 +141,7 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
         if !node.entry.kind.is_blob() {
             continue;
         }
-        let res = tmprepo.open_payload(&node.entry.object).await;
+        let res = tmprepo.open_payload(node.entry.object).await;
         if let Err(Error::UnknownObject(_)) = res {
             continue;
         }
@@ -159,7 +159,7 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
             continue;
         }
         tmprepo
-            .open_payload(&node.entry.object)
+            .open_payload(node.entry.object)
             .await
             .expect("expected payload not to be cleaned");
     }
@@ -183,13 +183,13 @@ async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
         .await
         .expect("failed to clean objects");
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(&layer.digest().unwrap()).await {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(layer.digest().unwrap()).await {
         // ok
     } else {
         panic!("expected layer to be cleaned")
     }
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(&platform.digest().unwrap()).await {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(platform.digest().unwrap()).await {
         // ok
     } else {
         panic!("expected platform to be cleaned")

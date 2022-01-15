@@ -13,10 +13,10 @@ use graph::DatabaseView;
 
 #[async_trait::async_trait]
 impl DatabaseView for super::FSRepository {
-    async fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
-        let filepath = self.objects.build_digest_path(digest);
+    async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
+        let filepath = self.objects.build_digest_path(&digest);
         let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => Error::UnknownObject(*digest),
+            std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
             _ => Error::from(err),
         })?;
         Object::decode(&mut reader)
@@ -88,8 +88,8 @@ impl graph::Database for super::FSRepository {
         }
     }
 
-    async fn remove_object(&mut self, digest: &encoding::Digest) -> crate::Result<()> {
-        let filepath = self.objects.build_digest_path(digest);
+    async fn remove_object(&mut self, digest: encoding::Digest) -> crate::Result<()> {
+        let filepath = self.objects.build_digest_path(&digest);
 
         // this might fail but we don't consider that fatal just yet
         let _ = std::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777));

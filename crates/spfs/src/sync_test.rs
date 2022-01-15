@@ -68,7 +68,7 @@ async fn test_push_ref(config: (tempdir::TempDir, Config)) {
         .unwrap();
 
     assert!(remote.read_ref("testing").await.is_ok());
-    assert!(remote.has_layer(&layer.digest().unwrap()).await);
+    assert!(remote.has_layer(layer.digest().unwrap()).await);
 
     assert!(sync_ref(tag.to_string(), &local, &mut remote).await.is_ok());
 }
@@ -111,8 +111,8 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
         .expect("failed to sync ref");
 
     assert!(repo_b.read_ref("testing").await.is_ok());
-    assert!(repo_b.has_platform(&platform.digest().unwrap()).await);
-    assert!(repo_b.has_layer(&layer.digest().unwrap()).await);
+    assert!(repo_b.has_platform(platform.digest().unwrap()).await);
+    assert!(repo_b.has_layer(layer.digest().unwrap()).await);
 
     std::fs::remove_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
     std::fs::remove_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
@@ -125,7 +125,7 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
         .expect("failed to sync back");
 
     assert!(repo_a.read_ref("testing").await.is_ok());
-    assert!(repo_a.has_layer(&layer.digest().unwrap()).await);
+    assert!(repo_a.has_layer(layer.digest().unwrap()).await);
 }
 
 #[rstest]
@@ -171,7 +171,7 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     sync_ref("testing", &repo_tar, &mut repo_b).await.unwrap();
 
     assert!(repo_b.read_ref("testing").await.is_ok());
-    assert!(repo_b.has_layer(&layer.digest().unwrap()).await);
+    assert!(repo_b.has_layer(layer.digest().unwrap()).await);
 }
 
 #[fixture]

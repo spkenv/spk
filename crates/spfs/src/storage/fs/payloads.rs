@@ -27,24 +27,24 @@ impl crate::storage::PayloadStorage for FSRepository {
 
     async fn open_payload(
         &self,
-        digest: &encoding::Digest,
+        digest: encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
-        let path = self.payloads.build_digest_path(digest);
+        let path = self.payloads.build_digest_path(&digest);
         match std::fs::File::open(&path) {
             Ok(file) => Ok(Box::new(file)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
+                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(err.into()),
             },
         }
     }
 
-    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        let path = self.payloads.build_digest_path(digest);
+    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
+        let path = self.payloads.build_digest_path(&digest);
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
+                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(err.into()),
             },
         }

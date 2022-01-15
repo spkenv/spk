@@ -26,11 +26,11 @@ pub async fn check_database_integrity<'db>(
                         continue;
                     }
                     visited.insert(digest);
-                    match db.read_object(&digest).await {
+                    match db.read_object(digest).await {
                         Err(err) => {
                             errors.push(format!("Error reading object {}: {}", &digest, err).into())
                         }
-                        Ok(obj) if obj.has_payload() => match db.open_payload(&digest).await {
+                        Ok(obj) if obj.has_payload() => match db.open_payload(digest).await {
                             Err(Error::UnknownObject(_)) => errors.push(
                                 format!("{} object missing payload: {}", obj.to_string(), digest)
                                     .into(),

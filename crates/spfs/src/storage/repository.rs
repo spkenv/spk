@@ -77,7 +77,7 @@ pub trait Repository:
     /// Read an object of unknown type by tag or digest.
     async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
         let digest = self.resolve_ref(reference).await?;
-        self.read_object(&digest).await
+        self.read_object(digest).await
     }
 
     /// Return the other identifiers that can be used for 'reference'.

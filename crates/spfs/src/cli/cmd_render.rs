@@ -84,7 +84,7 @@ impl CmdRender {
         let layers = spfs::resolve_stack_to_layers(digests.iter(), Some(&handle)).await?;
         let mut manifests = Vec::with_capacity(layers.len());
         for layer in layers {
-            manifests.push(handle.read_manifest(&layer.manifest).await?);
+            manifests.push(handle.read_manifest(layer.manifest).await?);
         }
         if manifests.len() > 1 {
             tracing::info!("merging {} layers into one", manifests.len())
@@ -96,6 +96,8 @@ impl CmdRender {
                 acc
             },
         );
-        renders.render_manifest(&spfs::graph::Manifest::from(&merged))
+        renders
+            .render_manifest(&spfs::graph::Manifest::from(&merged))
+            .await
     }
 }

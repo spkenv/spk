@@ -28,12 +28,12 @@ pub trait LayerStorage: graph::Database + Sync + Send {
     }
 
     /// Return true if the identified layer exists in this storage.
-    async fn has_layer(&self, digest: &encoding::Digest) -> bool {
+    async fn has_layer(&self, digest: encoding::Digest) -> bool {
         self.read_layer(digest).await.is_ok()
     }
 
     /// Return the layer identified by the given digest.
-    async fn read_layer(&self, digest: &encoding::Digest) -> Result<graph::Layer> {
+    async fn read_layer(&self, digest: encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
         match self.read_object(digest).await {
             Err(err) => Err(err),

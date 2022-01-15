@@ -31,12 +31,12 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
     }
 
     /// Return true if the identified manifest exists in this storage.
-    async fn has_manifest(&self, digest: &encoding::Digest) -> bool {
+    async fn has_manifest(&self, digest: encoding::Digest) -> bool {
         self.read_manifest(digest).await.is_ok()
     }
 
     /// Return the manifest identified by the given digest.
-    async fn read_manifest(&self, digest: &encoding::Digest) -> Result<graph::Manifest> {
+    async fn read_manifest(&self, digest: encoding::Digest) -> Result<graph::Manifest> {
         use graph::Object;
         match self.read_object(digest).await {
             Err(err) => Err(err),
@@ -51,7 +51,7 @@ impl<T: ManifestStorage> ManifestStorage for &mut T {}
 #[async_trait::async_trait]
 pub trait ManifestViewer: Send + Sync {
     /// Returns true if the identified manifest has been rendered already
-    async fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool;
+    async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool;
 
     /// Create a rendered view of the given manifest on the local disk.
     ///
@@ -59,5 +59,5 @@ pub trait ManifestViewer: Send + Sync {
     async fn render_manifest(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf>;
 
     /// Cleanup a previously rendered manifest from the local disk.
-    async fn remove_rendered_manifest(&self, digest: &encoding::Digest) -> Result<()>;
+    async fn remove_rendered_manifest(&self, digest: encoding::Digest) -> Result<()>;
 }

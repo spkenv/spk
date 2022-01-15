@@ -95,13 +95,13 @@ pub async fn sync_platform(
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
     let digest = platform.digest()?;
-    if dest.has_platform(&digest).await {
+    if dest.has_platform(digest).await {
         tracing::debug!(?digest, "platform already synced");
         return Ok(());
     }
     tracing::info!(?digest, "syncing platform");
     for digest in &platform.stack {
-        let obj = src.read_object(digest).await?;
+        let obj = src.read_object(*digest).await?;
         sync_object(&obj, src, dest).await?;
     }
 
@@ -115,13 +115,13 @@ pub async fn sync_layer(
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
     let layer_digest = layer.digest()?;
-    if dest.has_layer(&layer_digest).await {
+    if dest.has_layer(layer_digest).await {
         tracing::debug!(digest = ?layer_digest, "layer already synced");
         return Ok(());
     }
 
     tracing::info!(digest = ?layer_digest, "syncing layer");
-    let manifest = src.read_manifest(&layer.manifest).await?;
+    let manifest = src.read_manifest(layer.manifest).await?;
     sync_manifest(&manifest, src, dest).await?;
     dest.write_object(&graph::Object::Layer(layer.clone()))
         .await?;
@@ -134,7 +134,7 @@ pub async fn sync_manifest(
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
     let manifest_digest = manifest.digest()?;
-    if dest.has_manifest(&manifest_digest).await {
+    if dest.has_manifest(manifest_digest).await {
         tracing::info!(digest = ?manifest_digest, "manifest already synced");
         return Ok(());
     }
@@ -215,10 +215,10 @@ async fn sync_blob(
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
-    if dest.has_payload(&blob.payload).await {
+    if dest.has_payload(blob.payload).await {
         tracing::trace!(digest = ?blob.payload, "blob payload already synced");
     } else {
-        let payload = src.open_payload(&blob.payload).await?;
+        let payload = src.open_payload(blob.payload).await?;
         tracing::debug!(digest = ?blob.payload, "syncing payload");
         dest.write_data(payload).await?;
     }

@@ -5,8 +5,6 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use futures::Future;
-
 use super::FSRepository;
 use crate::{
     encoding::{self, Encodable},
@@ -26,12 +24,12 @@ pub enum RenderType {
 
 #[async_trait::async_trait]
 impl ManifestViewer for FSRepository {
-    async fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool {
+    async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return false,
         };
-        let rendered_dir = renders.build_digest_path(digest);
+        let rendered_dir = renders.build_digest_path(&digest);
         was_render_completed(&rendered_dir)
     }
 
@@ -76,12 +74,12 @@ impl ManifestViewer for FSRepository {
     }
 
     /// Remove the identified render from this storage.
-    async fn remove_rendered_manifest(&self, digest: &crate::encoding::Digest) -> Result<()> {
+    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return Ok(()),
         };
-        let rendered_dirpath = renders.build_digest_path(digest);
+        let rendered_dirpath = renders.build_digest_path(&digest);
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_dirpath = renders.workdir().join(uuid);
         renders.ensure_base_dir(&working_dirpath)?;
@@ -159,7 +157,7 @@ impl FSRepository {
         render_type: &RenderType,
     ) -> Result<()> {
         if entry.is_symlink() {
-            let mut reader = self.open_payload(&entry.object).await?;
+            let mut reader = self.open_payload(entry.object).await?;
             let mut target = String::new();
             reader.read_to_string(&mut target)?;
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {

@@ -108,7 +108,7 @@ pub async fn purge_objects(
 
 async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_object(&digest).await;
+    let res = repo.remove_object(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -118,7 +118,7 @@ async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<(
 
 async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
     let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_payload(&digest).await;
+    let res = repo.remove_payload(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -129,7 +129,7 @@ async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<
 async fn clean_render(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
     let repo = storage::open_repository(repo_addr)?;
     let viewer = repo.renders()?;
-    let res = viewer.remove_rendered_manifest(&digest).await;
+    let res = viewer.remove_rendered_manifest(digest).await;
     if let Err(crate::Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -158,7 +158,7 @@ pub async fn get_all_unattached_payloads(
     let mut payloads = repo.iter_payload_digests();
     while let Some(digest) = payloads.next().await {
         let digest = digest?;
-        match repo.read_blob(&digest).await {
+        match repo.read_blob(digest).await {
             Err(Error::UnknownObject(_)) => {
                 orphaned_payloads.insert(digest);
             }
@@ -190,7 +190,7 @@ pub async fn get_all_attached_objects(
                     continue;
                 }
                 tracing::debug!(?digest, "walking");
-                let obj = match repo.read_object(&digest).await {
+                let obj = match repo.read_object(digest).await {
                     Ok(obj) => obj,
                     Err(err) => match err {
                         crate::Error::UnknownObject(err) => {

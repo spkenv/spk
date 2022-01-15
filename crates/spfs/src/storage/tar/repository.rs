@@ -101,7 +101,7 @@ impl Drop for TarRepository {
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for TarRepository {
-    async fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
+    async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         self.repo.read_object(digest).await
     }
 
@@ -126,7 +126,7 @@ impl graph::Database for TarRepository {
         Ok(())
     }
 
-    async fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
+    async fn remove_object(&mut self, digest: encoding::Digest) -> Result<()> {
         self.repo.remove_object(digest).await?;
         self.up_to_date = false;
         Ok(())
@@ -150,12 +150,12 @@ impl PayloadStorage for TarRepository {
 
     async fn open_payload(
         &self,
-        digest: &encoding::Digest,
+        digest: encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
         self.repo.open_payload(digest).await
     }
 
-    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
+    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
         self.repo.remove_payload(digest).await?;
         self.up_to_date = false;
         Ok(())
