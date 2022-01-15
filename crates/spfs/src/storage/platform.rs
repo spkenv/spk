@@ -12,7 +12,7 @@ use crate::{encoding, graph, Result};
 pub type PlatformStreamItem = Result<(encoding::Digest, graph::Platform)>;
 
 #[async_trait::async_trait]
-pub trait PlatformStorage: graph::Database {
+pub trait PlatformStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are platforms.
     fn iter_platforms<'db>(&'db self) -> Pin<Box<dyn Stream<Item = PlatformStreamItem> + 'db>> {
         use graph::Object;
@@ -27,12 +27,12 @@ pub trait PlatformStorage: graph::Database {
     }
 
     /// Return true if the identified platform exists in this storage.
-    fn has_platform(&self, digest: &encoding::Digest) -> bool {
-        self.read_platform(digest).is_ok()
+    async fn has_platform(&self, digest: &encoding::Digest) -> bool {
+        self.read_platform(digest).await.is_ok()
     }
 
     /// Return the platform identified by the given digest.
-    fn read_platform(&self, digest: &encoding::Digest) -> Result<graph::Platform> {
+    async fn read_platform(&self, digest: &encoding::Digest) -> Result<graph::Platform> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err),
@@ -43,7 +43,7 @@ pub trait PlatformStorage: graph::Database {
 
     /// Create and storage a new platform for the given platform.
     /// Layers are ordered bottom to top.
-    fn create_platform(&mut self, layers: Vec<encoding::Digest>) -> Result<graph::Platform> {
+    async fn create_platform(&mut self, layers: Vec<encoding::Digest>) -> Result<graph::Platform> {
         let platform = graph::Platform::new(layers.into_iter())?;
         let storable = graph::Object::Platform(platform);
         self.write_object(&storable)?;

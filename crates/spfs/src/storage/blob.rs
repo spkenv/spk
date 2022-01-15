@@ -12,12 +12,9 @@ use crate::{encoding, graph, Result};
 pub type BlobStreamItem = Result<(encoding::Digest, graph::Blob)>;
 
 #[async_trait::async_trait]
-pub trait BlobStorage: graph::Database {
+pub trait BlobStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are blobs.
-    fn iter_blobs<'db>(&'db self) -> Pin<Box<dyn Stream<Item = BlobStreamItem> + 'db>>
-    where
-        Self: Sized,
-    {
+    fn iter_blobs<'db>(&'db self) -> Pin<Box<dyn Stream<Item = BlobStreamItem> + 'db>> {
         use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
@@ -30,12 +27,12 @@ pub trait BlobStorage: graph::Database {
     }
 
     /// Return true if the identified blob exists in this storage.
-    fn has_blob(&self, digest: &encoding::Digest) -> bool {
-        self.read_blob(digest).is_ok()
+    async fn has_blob(&self, digest: &encoding::Digest) -> bool {
+        self.read_blob(digest).await.is_ok()
     }
 
     /// Return the blob identified by the given digest.
-    fn read_blob(&self, digest: &encoding::Digest) -> Result<graph::Blob> {
+    async fn read_blob(&self, digest: &encoding::Digest) -> Result<graph::Blob> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err),
@@ -45,7 +42,7 @@ pub trait BlobStorage: graph::Database {
     }
 
     /// Store the given blob
-    fn write_blob(&mut self, blob: graph::Blob) -> Result<()> {
+    async fn write_blob(&mut self, blob: graph::Blob) -> Result<()> {
         self.write_object(&graph::Object::Blob(blob))
     }
 }

@@ -16,7 +16,7 @@ mod manifest_test;
 pub type ManifestStreamItem = Result<(encoding::Digest, graph::Manifest)>;
 
 #[async_trait::async_trait]
-pub trait ManifestStorage: graph::Database {
+pub trait ManifestStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are manifests.
     fn iter_manifests<'db>(&'db self) -> Pin<Box<dyn Stream<Item = ManifestStreamItem> + 'db>> {
         use graph::Object;
@@ -31,12 +31,12 @@ pub trait ManifestStorage: graph::Database {
     }
 
     /// Return true if the identified manifest exists in this storage.
-    fn has_manifest(&self, digest: &encoding::Digest) -> bool {
-        self.read_manifest(digest).is_ok()
+    async fn has_manifest(&self, digest: &encoding::Digest) -> bool {
+        self.read_manifest(digest).await.is_ok()
     }
 
     /// Return the manifest identified by the given digest.
-    fn read_manifest(&self, digest: &encoding::Digest) -> Result<graph::Manifest> {
+    async fn read_manifest(&self, digest: &encoding::Digest) -> Result<graph::Manifest> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err),

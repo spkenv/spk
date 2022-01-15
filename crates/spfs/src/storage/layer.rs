@@ -13,7 +13,7 @@ use encoding::Encodable;
 pub type LayerStreamItem = Result<(encoding::Digest, graph::Layer)>;
 
 #[async_trait::async_trait]
-pub trait LayerStorage: graph::Database {
+pub trait LayerStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are layers.
     fn iter_layers<'db>(&'db self) -> Pin<Box<dyn Stream<Item = LayerStreamItem> + 'db>> {
         use graph::Object;
@@ -28,12 +28,12 @@ pub trait LayerStorage: graph::Database {
     }
 
     /// Return true if the identified layer exists in this storage.
-    fn has_layer(&self, digest: &encoding::Digest) -> bool {
-        self.read_layer(digest).is_ok()
+    async fn has_layer(&self, digest: &encoding::Digest) -> bool {
+        self.read_layer(digest).await.is_ok()
     }
 
     /// Return the layer identified by the given digest.
-    fn read_layer(&self, digest: &encoding::Digest) -> Result<graph::Layer> {
+    async fn read_layer(&self, digest: &encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
         match self.read_object(digest) {
             Err(err) => Err(err),
@@ -43,7 +43,7 @@ pub trait LayerStorage: graph::Database {
     }
 
     /// Create and storage a new layer for the given layer.
-    fn create_layer(&mut self, manifest: &graph::Manifest) -> Result<graph::Layer> {
+    async fn create_layer(&mut self, manifest: &graph::Manifest) -> Result<graph::Layer> {
         let layer = graph::Layer::new(manifest.digest()?);
         let storable = graph::Object::Layer(layer);
         self.write_object(&storable)?;
