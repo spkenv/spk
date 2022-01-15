@@ -72,6 +72,10 @@ impl<'db> Stream for DatabaseWalker<'db> {
 /// Iterates all objects in a database, in no particular order
 pub struct DatabaseIterator<'db> {
     db: &'db dyn DatabaseView,
+    next: Option<(
+        encoding::Digest,
+        Pin<Box<dyn Future<Output = Result<Object>> + Send + 'db>>,
+    )>,
     inner: Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>,
 }
 
@@ -83,7 +87,11 @@ impl<'db> DatabaseIterator<'db> {
     /// The same as [`DatabaseView::read_object`]
     pub fn new(db: &'db dyn DatabaseView) -> Self {
         let iter = db.iter_digests();
-        DatabaseIterator { db, inner: iter }
+        DatabaseIterator {
+            db,
+            inner: iter,
+            next: None,
+        }
     }
 }
 
@@ -94,22 +102,29 @@ impl<'db> Stream for DatabaseIterator<'db> {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let inner_next = match Pin::new(&mut self.inner).poll_next(cx) {
-            Poll::Pending => return Poll::Pending,
-            Poll::Ready(next) => next,
+        let (digest, mut current_future) = match self.next.take() {
+            Some(f) => f,
+            None => match Pin::new(&mut self.inner).poll_next(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(inner_next) => match inner_next {
+                    None => return Poll::Ready(None),
+                    Some(Err(err)) => return Poll::Ready(Some(Err(err))),
+                    Some(Ok(digest)) => (digest, self.db.read_object(&digest)),
+                },
+            },
         };
-        let digest = match inner_next {
-            None => return Poll::Ready(None),
-            Some(Err(err)) => return Poll::Ready(Some(Err(err))),
-            Some(Ok(digest)) => digest,
-        };
-        let obj = self.db.read_object(&digest);
-        Poll::Ready(match obj {
-            Ok(obj) => Some(Ok((digest, obj))),
-            Err(err) => Some(Err(
-                format!("Error reading object {}: {}", &digest, err).into()
-            )),
-        })
+        match Pin::new(&mut current_future).poll(cx) {
+            Poll::Pending => {
+                self.next.insert((digest, current_future));
+                Poll::Pending
+            }
+            Poll::Ready(res) => Poll::Ready(match res {
+                Ok(obj) => Some(Ok((digest, obj))),
+                Err(err) => Some(Err(
+                    format!("Error reading object {}: {}", &digest, err).into()
+                )),
+            }),
+        }
     }
 }
 
