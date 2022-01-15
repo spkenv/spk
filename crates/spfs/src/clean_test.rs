@@ -21,7 +21,7 @@ fixtures!();
 async fn test_get_attached_objects(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let reader = Box::new("hello, world".as_bytes());
-    let (payload_digest, _) = tmprepo.write_data(reader).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(reader).await.unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
     tmprepo.write_blob(blob).await.unwrap();
 
@@ -44,7 +44,7 @@ async fn test_get_attached_objects(tmprepo: TempRepo) {
 async fn test_get_attached_payloads(tmprepo: TempRepo) {
     let (_td, mut tmprepo) = tmprepo;
     let reader = Box::new("hello, world".as_bytes());
-    let (payload_digest, _) = tmprepo.write_data(reader).unwrap();
+    let (payload_digest, _) = tmprepo.write_data(reader).await.unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
@@ -141,7 +141,7 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
         if !node.entry.kind.is_blob() {
             continue;
         }
-        let res = tmprepo.open_payload(&node.entry.object);
+        let res = tmprepo.open_payload(&node.entry.object).await;
         if let Err(Error::UnknownObject(_)) = res {
             continue;
         }
@@ -160,6 +160,7 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
         }
         tmprepo
             .open_payload(&node.entry.object)
+            .await
             .expect("expected payload not to be cleaned");
     }
 }
@@ -223,6 +224,7 @@ async fn test_clean_manifest_renders(tmprepo: TempRepo) {
 
     tmprepo
         .render_manifest(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
 
     let files = list_files(tmprepo.objects.root());
