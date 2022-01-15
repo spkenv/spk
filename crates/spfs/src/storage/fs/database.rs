@@ -13,7 +13,7 @@ use graph::DatabaseView;
 
 #[async_trait::async_trait]
 impl DatabaseView for super::FSRepository {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
+    async fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
         let filepath = self.objects.build_digest_path(digest);
         let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
             std::io::ErrorKind::NotFound => Error::UnknownObject(*digest),
@@ -46,8 +46,9 @@ impl DatabaseView for super::FSRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl graph::Database for super::FSRepository {
-    fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
+    async fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {
@@ -87,7 +88,7 @@ impl graph::Database for super::FSRepository {
         }
     }
 
-    fn remove_object(&mut self, digest: &encoding::Digest) -> crate::Result<()> {
+    async fn remove_object(&mut self, digest: &encoding::Digest) -> crate::Result<()> {
         let filepath = self.objects.build_digest_path(digest);
 
         // this might fail but we don't consider that fatal just yet

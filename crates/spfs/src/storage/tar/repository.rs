@@ -99,9 +99,10 @@ impl Drop for TarRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl graph::DatabaseView for TarRepository {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
-        self.repo.read_object(digest)
+    async fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
+        self.repo.read_object(digest).await
     }
 
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
@@ -117,15 +118,16 @@ impl graph::DatabaseView for TarRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl graph::Database for TarRepository {
-    fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
-        self.repo.write_object(obj)?;
+    async fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
+        self.repo.write_object(obj).await?;
         self.up_to_date = false;
         Ok(())
     }
 
-    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
-        self.repo.remove_object(digest)?;
+    async fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
+        self.repo.remove_object(digest).await?;
         self.up_to_date = false;
         Ok(())
     }

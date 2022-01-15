@@ -22,8 +22,9 @@ pub enum RenderType {
     Copy,
 }
 
+#[async_trait::async_trait]
 impl ManifestViewer for FSRepository {
-    fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool {
+    async fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return false,
@@ -36,7 +37,7 @@ impl ManifestViewer for FSRepository {
     ///
     /// # Errors:
     /// - if any of the blobs in the manifest are not available in this repo.
-    fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
+    async fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return Err(Error::NoRenderStorage(self.address())),
@@ -72,7 +73,7 @@ impl ManifestViewer for FSRepository {
     }
 
     /// Remove the identified render from this storage.
-    fn remove_rendered_manifest(&self, digest: &crate::encoding::Digest) -> Result<()> {
+    async fn remove_rendered_manifest(&self, digest: &crate::encoding::Digest) -> Result<()> {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return Ok(()),
