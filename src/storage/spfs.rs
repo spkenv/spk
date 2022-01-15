@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
+use serde_derive::{Deserialize, Serialize};
 
 use super::Repository;
 use crate::{api, Error, Result};
@@ -12,6 +13,8 @@ use crate::{api, Error, Result};
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
 mod spfs_test;
+
+const REPO_METADATA_TAG: &str = "spk/repo";
 
 #[derive(Debug)]
 pub struct SPFSRepository {
@@ -329,6 +332,32 @@ impl Repository for SPFSRepository {
 }
 
 impl SPFSRepository {
+    /// Read the metadata for this spk repository.
+    ///
+    /// The repo metadata contains information about
+    /// how this particular spfs reposiory has been setup
+    /// with spk. Namely, version and compatibility information.
+    pub fn read_metadata(&self) -> Result<RepositoryMetadata> {
+        let tag_spec = spfs::tracking::TagSpec::parse(REPO_METADATA_TAG).unwrap();
+        let digest = match self.inner.resolve_tag(&tag_spec) {
+            Ok(tag) => tag.target,
+            Err(spfs::Error::UnknownReference(_)) => return Ok(Default::default()),
+            Err(err) => return Err(err.into()),
+        };
+        let reader = self.inner.open_payload(&digest)?;
+        let meta: RepositoryMetadata = serde_yaml::from_reader(reader)?;
+        Ok(meta)
+    }
+
+    /// Update the metadata for this spk repository.
+    fn write_metadata(&mut self, meta: &RepositoryMetadata) -> Result<()> {
+        let tag_spec = spfs::tracking::TagSpec::parse(REPO_METADATA_TAG).unwrap();
+        let yaml = serde_yaml::to_string(meta)?;
+        let (digest, _size) = self.inner.write_data(Box::new(&mut yaml.as_bytes()))?;
+        self.inner.push_tag(&tag_spec, &digest)?;
+        Ok(())
+    }
+
     /// Find a package stored in this repo in either the new or old way of tagging
     ///
     /// (with or without package components)
@@ -389,6 +418,9 @@ impl SPFSRepository {
         }
     }
 }
+
+#[derive(Deserialize, Serialize, Default, Debug, PartialEq, Eq)]
+pub struct RepositoryMetadata {}
 
 /// A simple enum that allows us to represent both the old and new form
 /// of package storage as spfs tags.
