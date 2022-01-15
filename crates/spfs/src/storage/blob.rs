@@ -34,7 +34,7 @@ pub trait BlobStorage: graph::Database + Sync + Send {
     /// Return the blob identified by the given digest.
     async fn read_blob(&self, digest: &encoding::Digest) -> Result<graph::Blob> {
         use graph::Object;
-        match self.read_object(digest) {
+        match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Blob(blob)) => Ok(blob),
             Ok(_) => Err(format!("Object is not a blob: {:?}", digest).into()),
@@ -43,7 +43,7 @@ pub trait BlobStorage: graph::Database + Sync + Send {
 
     /// Store the given blob
     async fn write_blob(&mut self, blob: graph::Blob) -> Result<()> {
-        self.write_object(&graph::Object::Blob(blob))
+        self.write_object(&graph::Object::Blob(blob)).await
     }
 }
 

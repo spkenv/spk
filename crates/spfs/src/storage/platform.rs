@@ -34,7 +34,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     /// Return the platform identified by the given digest.
     async fn read_platform(&self, digest: &encoding::Digest) -> Result<graph::Platform> {
         use graph::Object;
-        match self.read_object(digest) {
+        match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Platform(platform)) => Ok(platform),
             Ok(_) => Err(format!("Object is not a platform: {:?}", digest).into()),
@@ -46,7 +46,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     async fn create_platform(&mut self, layers: Vec<encoding::Digest>) -> Result<graph::Platform> {
         let platform = graph::Platform::new(layers.into_iter())?;
         let storable = graph::Object::Platform(platform);
-        self.write_object(&storable)?;
+        self.write_object(&storable).await?;
         if let graph::Object::Platform(platform) = storable {
             Ok(platform)
         } else {

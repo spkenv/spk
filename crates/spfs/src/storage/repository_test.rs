@@ -69,6 +69,7 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
         .expect("failed to commit dir");
     let rendered_dir = tmprepo
         .render_manifest(&Manifest::from(&manifest))
+        .await
         .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);
     let rendered_mode = rendered_symlink.symlink_metadata().unwrap().mode();

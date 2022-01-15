@@ -77,7 +77,7 @@ pub trait Repository:
     /// Read an object of unknown type by tag or digest.
     async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
         let digest = self.resolve_ref(reference).await?;
-        self.read_object(&digest)
+        self.read_object(&digest).await
     }
 
     /// Return the other identifiers that can be used for 'reference'.
@@ -111,7 +111,7 @@ pub trait Repository:
     ) -> Result<encoding::Digest> {
         let (digest, size) = self.write_data(reader)?;
         let blob = Blob::new(digest, size);
-        self.write_object(&graph::Object::Blob(blob))?;
+        self.write_object(&graph::Object::Blob(blob)).await?;
         Ok(digest)
     }
 
@@ -140,13 +140,13 @@ pub trait Repository:
         let mut slf = repo.lock().await;
         tracing::info!("writing manifest");
         let storable = Manifest::from(&manifest);
-        slf.write_object(&graph::Object::Manifest(storable))?;
+        slf.write_object(&graph::Object::Manifest(storable)).await?;
         for node in manifest.walk() {
             if !node.entry.kind.is_blob() {
                 continue;
             }
             let blob = Blob::new(node.entry.object, node.entry.size);
-            slf.write_object(&graph::Object::Blob(blob))?;
+            slf.write_object(&graph::Object::Blob(blob)).await?;
         }
 
         Ok(manifest)

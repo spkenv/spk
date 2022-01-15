@@ -21,11 +21,12 @@ async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let manifest = Manifest::from(&tracking::compute_manifest(&dir).await.unwrap());
     let expected = manifest.digest().unwrap();
     repo.write_object(&manifest.into())
+        .await
         .expect("failed to write manifest");
 
     std::fs::write(dir.join("file.txt"), "newrootdata").unwrap();
     let manifest2 = Manifest::from(&tracking::compute_manifest(dir).await.unwrap());
-    repo.write_object(&manifest2.into()).unwrap();
+    repo.write_object(&manifest2.into()).await.unwrap();
 
     let digests: crate::Result<Vec<_>> = repo.iter_digests().collect().await;
     let digests = digests.unwrap();
@@ -47,6 +48,7 @@ async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     let digest = storable.digest().unwrap();
     storage
         .write_object(&storable.into())
+        .await
         .expect("failed to store manifest object");
     let out = storage
         .read_manifest(&digest)

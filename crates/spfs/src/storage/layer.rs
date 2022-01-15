@@ -35,7 +35,7 @@ pub trait LayerStorage: graph::Database + Sync + Send {
     /// Return the layer identified by the given digest.
     async fn read_layer(&self, digest: &encoding::Digest) -> Result<graph::Layer> {
         use graph::Object;
-        match self.read_object(digest) {
+        match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Layer(layer)) => Ok(layer),
             Ok(_) => Err(format!("Object is not a layer: {:?}", digest).into()),
@@ -46,7 +46,7 @@ pub trait LayerStorage: graph::Database + Sync + Send {
     async fn create_layer(&mut self, manifest: &graph::Manifest) -> Result<graph::Layer> {
         let layer = graph::Layer::new(manifest.digest()?);
         let storable = graph::Object::Layer(layer);
-        self.write_object(&storable)?;
+        self.write_object(&storable).await?;
         if let graph::Object::Layer(layer) = storable {
             Ok(layer)
         } else {

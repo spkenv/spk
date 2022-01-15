@@ -26,7 +26,7 @@ pub async fn check_database_integrity<'db>(
                         continue;
                     }
                     visited.insert(digest);
-                    match db.read_object(&digest) {
+                    match db.read_object(&digest).await {
                         Err(err) => {
                             errors.push(format!("Error reading object {}: {}", &digest, err).into())
                         }
