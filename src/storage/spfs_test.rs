@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use rstest::rstest;
 
 use crate::storage::Repository;
@@ -13,6 +15,12 @@ fn test_repo_meta_tag_is_valid() {
 }
 
 #[rstest]
+fn test_repo_version_is_valid() {
+    crate::api::Version::from_str(super::REPO_VERSION)
+        .expect("repo current version must be a valid spk version string");
+}
+
+#[rstest]
 fn test_metadata_io() {
     init_logging();
     let dir = tempdir::TempDir::new("spk_test").unwrap();
@@ -24,4 +32,19 @@ fn test_metadata_io() {
     repo.write_metadata(&meta).unwrap();
     let actual = repo.read_metadata().unwrap();
     assert_eq!(actual, meta, "should return metadata as it was stored");
+}
+
+#[rstest]
+fn test_upgrade_sets_version() {
+    init_logging();
+    let current_version = crate::api::Version::from_str(super::REPO_VERSION).unwrap();
+    let dir = tempdir::TempDir::new("spk_test").unwrap();
+    let repo_root = dir.path();
+    let mut repo =
+        SPFSRepository::from(spfs::storage::fs::FSRepository::create(repo_root).unwrap());
+
+    assert_eq!(repo.read_metadata().unwrap().version, Default::default());
+    repo.upgrade()
+        .expect("upgrading an empty repo should succeed");
+    assert_eq!(repo.read_metadata().unwrap().version, current_version);
 }

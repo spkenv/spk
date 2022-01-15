@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
@@ -15,6 +15,7 @@ use crate::{api, Error, Result};
 mod spfs_test;
 
 const REPO_METADATA_TAG: &str = "spk/repo";
+const REPO_VERSION: &str = "1.0.0";
 
 #[derive(Debug)]
 pub struct SPFSRepository {
@@ -294,6 +295,15 @@ impl Repository for SPFSRepository {
     }
 
     fn upgrade(&mut self) -> Result<String> {
+        let target_version = crate::api::Version::from_str(REPO_VERSION).unwrap();
+        let mut meta = self.read_metadata()?;
+        if meta.version > target_version {
+            // for this particular upgrade (moving old-style tags to new)
+            // we allow it to be run again over the same repo since it's
+            // possible that some clients are still publishing the old way
+            // during the transition period
+            return Ok("Nothing to do.".to_string());
+        }
         for name in self.list_packages()? {
             tracing::info!("replicating old tags for {}...", name);
             let mut pkg = api::Ident::new(&name)?;
@@ -327,6 +337,8 @@ impl Repository for SPFSRepository {
                 }
             }
         }
+        meta.version = target_version;
+        self.write_metadata(&meta)?;
         Ok("All packages were retagged for components".to_string())
     }
 }
@@ -420,7 +432,9 @@ impl SPFSRepository {
 }
 
 #[derive(Deserialize, Serialize, Default, Debug, PartialEq, Eq)]
-pub struct RepositoryMetadata {}
+pub struct RepositoryMetadata {
+    version: api::Version,
+}
 
 /// A simple enum that allows us to represent both the old and new form
 /// of package storage as spfs tags.
