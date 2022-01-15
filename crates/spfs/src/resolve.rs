@@ -61,11 +61,10 @@ pub async fn render_into_directory(
         stack.push(obj.digest()?);
     }
     let layers = resolve_stack_to_layers(stack.iter(), None).await?;
-    let manifests: Result<Vec<_>> = layers
-        .into_iter()
-        .map(|layer| repo.read_manifest(&layer.manifest))
-        .collect();
-    let manifests = manifests?;
+    let mut manifests = Vec::with_capacity(layers.len());
+    for layer in layers {
+        manifests.push(repo.read_manifest(&layer.manifest).await?);
+    }
     let mut manifest = tracking::Manifest::default();
     for next in manifests.into_iter() {
         manifest.update(&next.unlock());
@@ -123,12 +122,12 @@ pub async fn compute_object_manifest(
     repo: &storage::RepositoryHandle,
 ) -> Result<tracking::Manifest> {
     match obj {
-        graph::Object::Layer(obj) => Ok(repo.read_manifest(&obj.manifest)?.unlock()),
+        graph::Object::Layer(obj) => Ok(repo.read_manifest(&obj.manifest).await?.unlock()),
         graph::Object::Platform(obj) => {
             let layers = resolve_stack_to_layers(obj.stack.iter(), Some(repo)).await?;
             let mut manifest = tracking::Manifest::default();
             for layer in layers.iter().rev() {
-                let layer_manifest = repo.read_manifest(&layer.manifest)?;
+                let layer_manifest = repo.read_manifest(&layer.manifest).await?;
                 manifest.update(&layer_manifest.unlock());
             }
             Ok(manifest)
@@ -146,11 +145,10 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
     let mut repo = config.get_repository()?.into();
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().iter(), Some(&repo)).await?;
-    let manifests: Result<Vec<_>> = layers
-        .into_par_iter()
-        .map(|layer| repo.read_manifest(&layer.manifest))
-        .collect();
-    let mut manifests = manifests?;
+    let mut manifests = Vec::with_capacity(layers.len());
+    for layer in layers {
+        manifests.push(repo.read_manifest(&layer.manifest).await?);
+    }
     if manifests.len() > config.filesystem.max_layers {
         let to_flatten = manifests.len() - config.filesystem.max_layers as usize;
         tracing::debug!("flattening {} layers into one...", to_flatten);

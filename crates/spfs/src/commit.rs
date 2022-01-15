@@ -19,7 +19,7 @@ pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer
     if manifest.is_empty() {
         return Err(Error::NothingToCommit);
     }
-    let layer = repo.create_layer(&graph::Manifest::from(&manifest))?;
+    let layer = repo.create_layer(&graph::Manifest::from(&manifest)).await?;
     runtime.push_digest(&layer.digest()?)?;
     runtime.set_editable(false)?;
     remount_runtime(runtime)?;
@@ -40,6 +40,6 @@ pub async fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Pl
     if stack.is_empty() {
         Err(Error::NothingToCommit)
     } else {
-        repo.create_platform(stack.clone())
+        repo.create_platform(stack.clone()).await
     }
 }

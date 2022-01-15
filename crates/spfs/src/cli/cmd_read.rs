@@ -55,7 +55,7 @@ impl CmdRead {
                     tracing::error!("path is a directory or masked file: {}", path);
                     return Ok(1);
                 }
-                repo.read_blob(&entry.object)?
+                repo.read_blob(&entry.object).await?
             }
         };
 

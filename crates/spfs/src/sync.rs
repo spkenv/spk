@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use indicatif::ParallelProgressIterator;
-use rayon::prelude::*;
+use tokio_stream::StreamExt;
 
 use super::config::load_config;
 use crate::prelude::*;
@@ -65,7 +64,7 @@ pub async fn sync_ref<R: AsRef<str>>(
     };
 
     let obj = src.read_ref(reference.as_ref()).await?;
-    sync_object(&obj, src, dest)?;
+    sync_object(&obj, src, dest).await?;
     if let Some(tag) = tag {
         tracing::debug!(tag = ?tag.path(), "syncing tag");
         dest.push_raw_tag(&tag).await?;
@@ -74,65 +73,66 @@ pub async fn sync_ref<R: AsRef<str>>(
     Ok(obj)
 }
 
-pub fn sync_object<'a>(
+#[async_recursion::async_recursion]
+pub async fn sync_object<'a>(
     obj: &'a graph::Object,
     src: &'a storage::RepositoryHandle,
     dest: &'a mut storage::RepositoryHandle,
 ) -> Result<()> {
     use graph::Object;
     match obj {
-        Object::Layer(obj) => sync_layer(obj, src, dest),
-        Object::Platform(obj) => sync_platform(obj, src, dest),
-        Object::Blob(obj) => sync_blob(obj, src, dest),
-        Object::Manifest(obj) => sync_manifest(obj, src, dest),
+        Object::Layer(obj) => sync_layer(obj, src, dest).await,
+        Object::Platform(obj) => sync_platform(obj, src, dest).await,
+        Object::Blob(obj) => sync_blob(obj, src, dest).await,
+        Object::Manifest(obj) => sync_manifest(obj, src, dest).await,
         Object::Mask | Object::Tree(_) => Ok(()),
     }
 }
 
-pub fn sync_platform(
+pub async fn sync_platform(
     platform: &graph::Platform,
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
     let digest = platform.digest()?;
-    if dest.has_platform(&digest) {
+    if dest.has_platform(&digest).await {
         tracing::debug!(?digest, "platform already synced");
         return Ok(());
     }
     tracing::info!(?digest, "syncing platform");
     for digest in &platform.stack {
         let obj = src.read_object(digest)?;
-        sync_object(&obj, src, dest)?;
+        sync_object(&obj, src, dest).await?;
     }
 
     dest.write_object(&graph::Object::Platform(platform.clone()))
 }
 
-pub fn sync_layer(
+pub async fn sync_layer(
     layer: &graph::Layer,
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
     let layer_digest = layer.digest()?;
-    if dest.has_layer(&layer_digest) {
+    if dest.has_layer(&layer_digest).await {
         tracing::debug!(digest = ?layer_digest, "layer already synced");
         return Ok(());
     }
 
     tracing::info!(digest = ?layer_digest, "syncing layer");
-    let manifest = src.read_manifest(&layer.manifest)?;
-    sync_manifest(&manifest, src, dest)?;
+    let manifest = src.read_manifest(&layer.manifest).await?;
+    sync_manifest(&manifest, src, dest).await?;
     dest.write_object(&graph::Object::Layer(layer.clone()))?;
     Ok(())
 }
 
-pub fn sync_manifest(
+pub async fn sync_manifest(
     manifest: &graph::Manifest,
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
     let manifest_digest = manifest.digest()?;
-    if dest.has_manifest(&manifest_digest) {
+    if dest.has_manifest(&manifest_digest).await {
         tracing::info!(digest = ?manifest_digest, "manifest already synced");
         return Ok(());
     }
@@ -141,24 +141,38 @@ pub fn sync_manifest(
     let entries: Vec<_> = manifest
         .list_entries()
         .into_iter()
+        .cloned()
         .filter(|e| e.kind.is_blob())
         .collect();
     let style = indicatif::ProgressStyle::default_bar()
-        .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
+        .template("      {msg} [{bar:40}] {bytes:>7}/{total_bytes:7}")
         .progress_chars("=>-");
-    let bar = indicatif::ProgressBar::new(entries.len() as u64).with_style(style);
+    let total_bytes = entries.iter().fold(0, |c, e| c + e.size);
+    let bar = indicatif::ProgressBar::new(total_bytes).with_style(style);
     bar.set_message("syncing manifest");
-    let src_address = &src.address();
-    let dest_address = &dest.address();
-    let results: Vec<_> = entries
-        .par_iter()
-        .progress_with(bar)
-        .map(move |entry| {
+    let mut futures = futures::stream::FuturesUnordered::new();
+    for entry in entries {
+        let dest_address = dest.address();
+        let src_address = src.address();
+        let future = tokio::spawn(async move {
             let src = storage::open_repository(src_address)?;
             let mut dest = storage::open_repository(dest_address)?;
-            sync_entry(entry, &src, &mut dest)
-        })
-        .collect();
+            sync_entry(&entry, &src, &mut dest).await?;
+            Ok(entry.size)
+        });
+        futures.push(future);
+    }
+    let mut results = Vec::with_capacity(futures.len());
+    while let Some(res) = futures.next().await {
+        let res = res
+            .map_err(|err| Error::String(format!("Sync task failed unexpectedly: {}", err)))
+            .and_then(|e| e);
+        if let Ok(size) = res {
+            bar.inc(size);
+        }
+        results.push(res);
+    }
+    bar.finish();
 
     let errors: Vec<_> = results
         .into_iter()
@@ -178,7 +192,7 @@ pub fn sync_manifest(
     Ok(())
 }
 
-fn sync_entry(
+async fn sync_entry(
     entry: &graph::Entry,
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
@@ -190,10 +204,10 @@ fn sync_entry(
         payload: entry.object,
         size: entry.size,
     };
-    sync_blob(&blob, src, dest)
+    sync_blob(&blob, src, dest).await
 }
 
-fn sync_blob(
+async fn sync_blob(
     blob: &graph::Blob,
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
@@ -205,6 +219,6 @@ fn sync_blob(
         tracing::debug!(digest = ?blob.payload, "syncing payload");
         dest.write_data(payload)?;
     }
-    dest.write_blob(blob.clone())?;
+    dest.write_blob(blob.clone()).await?;
     Ok(())
 }

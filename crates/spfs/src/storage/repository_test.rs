@@ -26,7 +26,10 @@ async fn test_find_aliases(tmprepo: TempRepo) {
         .expect_err("should error when ref is not found");
 
     let manifest = tmprepo.commit_dir("src/storage".as_ref()).await.unwrap();
-    let layer = tmprepo.create_layer(&Manifest::from(&manifest)).unwrap();
+    let layer = tmprepo
+        .create_layer(&Manifest::from(&manifest))
+        .await
+        .unwrap();
     let test_tag = TagSpec::parse("test-tag").unwrap();
     tmprepo
         .push_tag(&test_tag, &layer.digest().unwrap())

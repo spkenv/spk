@@ -50,6 +50,7 @@ async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
         .expect("failed to store manifest object");
     let out = storage
         .read_manifest(&digest)
+        .await
         .expect("stored manifest was not written");
     let actual = out.unlock();
     let mut diffs = tracking::compute_diff(&expected, &actual);

@@ -82,11 +82,10 @@ impl CmdRender {
 
         let handle = repo.into();
         let layers = spfs::resolve_stack_to_layers(digests.iter(), Some(&handle)).await?;
-        let manifests: spfs::Result<Vec<_>> = layers
-            .into_iter()
-            .map(|layer| handle.read_manifest(&layer.manifest))
-            .collect();
-        let manifests = manifests?;
+        let mut manifests = Vec::with_capacity(layers.len());
+        for layer in layers {
+            manifests.push(handle.read_manifest(&layer.manifest).await?);
+        }
         if manifests.len() > 1 {
             tracing::info!("merging {} layers into one", manifests.len())
         }

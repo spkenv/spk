@@ -57,7 +57,7 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
     let layers = resolve_stack_to_layers(stack.iter(), None).await?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers.iter().rev() {
-        manifest.update(&repo.read_manifest(&layer.manifest)?.unlock())
+        manifest.update(&repo.read_manifest(&layer.manifest).await?.unlock())
     }
     Ok(manifest)
 }

@@ -145,7 +145,7 @@ pub async fn get_all_unattached_payloads(
     let mut payloads = repo.iter_payload_digests();
     while let Some(digest) = payloads.next().await {
         let digest = digest?;
-        match repo.read_blob(&digest) {
+        match repo.read_blob(&digest).await {
             Err(Error::UnknownObject(_)) => {
                 orphaned_payloads.insert(digest);
             }

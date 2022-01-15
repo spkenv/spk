@@ -23,7 +23,7 @@ async fn test_get_attached_objects(tmprepo: TempRepo) {
     let reader = Box::new("hello, world".as_bytes());
     let (payload_digest, _) = tmprepo.write_data(reader).unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
-    tmprepo.write_blob(blob).unwrap();
+    tmprepo.write_blob(blob).await.unwrap();
 
     assert_eq!(
         get_all_attached_objects(&tmprepo).await.unwrap(),
@@ -54,7 +54,7 @@ async fn test_get_attached_payloads(tmprepo: TempRepo) {
     );
 
     let blob = graph::Blob::new(payload_digest, 0);
-    tmprepo.write_blob(blob).unwrap();
+    tmprepo.write_blob(blob).await.unwrap();
 
     assert_eq!(
         get_all_unattached_payloads(&tmprepo).await.unwrap(),
@@ -74,6 +74,7 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
     let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
     let tag = tracking::TagSpec::parse("my_tag").unwrap();
     tmprepo
@@ -124,6 +125,7 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
     let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest2))
+        .await
         .unwrap();
     let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
     tmprepo
@@ -169,22 +171,24 @@ async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
     let platform = tmprepo
         .create_platform(vec![layer.digest().unwrap()])
+        .await
         .unwrap();
 
     clean_untagged_objects(&tmprepo)
         .await
         .expect("failed to clean objects");
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(&layer.digest().unwrap()) {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(&layer.digest().unwrap()).await {
         // ok
     } else {
         panic!("expected layer to be cleaned")
     }
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(&platform.digest().unwrap()) {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(&platform.digest().unwrap()).await {
         // ok
     } else {
         panic!("expected platform to be cleaned")
@@ -210,9 +214,11 @@ async fn test_clean_manifest_renders(tmprepo: TempRepo) {
     let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
     let _platform = tmprepo
         .create_platform(vec![layer.digest().unwrap()])
+        .await
         .unwrap();
 
     tmprepo
