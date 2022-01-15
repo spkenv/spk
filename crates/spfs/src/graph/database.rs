@@ -4,7 +4,7 @@
 
 use std::{collections::VecDeque, pin::Pin, task::Poll};
 
-use futures::{Stream, StreamExt};
+use futures::{Future, Stream, StreamExt};
 
 use super::Object;
 use crate::{encoding, Error, Result};
@@ -12,6 +12,10 @@ use crate::{encoding, Error, Result};
 /// Walks an object tree depth-first starting at some root digest
 pub struct DatabaseWalker<'db> {
     db: &'db dyn DatabaseView,
+    next: Option<(
+        encoding::Digest,
+        Pin<Box<dyn Future<Output = Result<Object>> + Send + 'db>>,
+    )>,
     queue: VecDeque<encoding::Digest>,
 }
 
@@ -24,7 +28,11 @@ impl<'db> DatabaseWalker<'db> {
     pub fn new(db: &'db dyn DatabaseView, root: encoding::Digest) -> Self {
         let mut queue = VecDeque::new();
         queue.push_back(root);
-        DatabaseWalker { db, queue }
+        DatabaseWalker {
+            db,
+            queue,
+            next: None,
+        }
     }
 }
 
@@ -33,24 +41,31 @@ impl<'db> Stream for DatabaseWalker<'db> {
 
     fn poll_next(
         mut self: Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let next = self.queue.pop_front();
-        let digest = match next {
-            None => return Poll::Ready(None),
-            Some(digest) => digest,
+        let (digest, mut current_future) = match self.next.take() {
+            Some(f) => f,
+            None => match self.queue.pop_front() {
+                None => return Poll::Ready(None),
+                Some(digest) => (digest, self.db.read_object(&digest)),
+            },
         };
 
-        let obj = self.db.read_object(&digest);
-        Poll::Ready(match obj {
-            Ok(obj) => {
-                for digest in obj.child_objects() {
-                    self.queue.push_back(digest);
-                }
-                Some(Ok((digest, obj)))
+        match Pin::new(&mut current_future).poll(cx) {
+            Poll::Pending => {
+                self.next.insert((digest, current_future));
+                Poll::Pending
             }
-            Err(err) => Some(Err(err)),
-        })
+            Poll::Ready(obj) => Poll::Ready(match obj {
+                Ok(obj) => {
+                    for digest in obj.child_objects() {
+                        self.queue.push_back(digest);
+                    }
+                    Some(Ok((digest, obj)))
+                }
+                Err(err) => Some(Err(err)),
+            }),
+        }
     }
 }
 
