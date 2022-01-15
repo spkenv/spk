@@ -101,11 +101,12 @@ pub async fn sync_platform(
     }
     tracing::info!(?digest, "syncing platform");
     for digest in &platform.stack {
-        let obj = src.read_object(digest)?;
+        let obj = src.read_object(digest).await?;
         sync_object(&obj, src, dest).await?;
     }
 
     dest.write_object(&graph::Object::Platform(platform.clone()))
+        .await
 }
 
 pub async fn sync_layer(
@@ -122,7 +123,8 @@ pub async fn sync_layer(
     tracing::info!(digest = ?layer_digest, "syncing layer");
     let manifest = src.read_manifest(&layer.manifest).await?;
     sync_manifest(&manifest, src, dest).await?;
-    dest.write_object(&graph::Object::Layer(layer.clone()))?;
+    dest.write_object(&graph::Object::Layer(layer.clone()))
+        .await?;
     Ok(())
 }
 
@@ -188,7 +190,8 @@ pub async fn sync_manifest(
         .into());
     }
 
-    dest.write_object(&graph::Object::Manifest(manifest.clone()))?;
+    dest.write_object(&graph::Object::Manifest(manifest.clone()))
+        .await?;
     Ok(())
 }
 
@@ -212,12 +215,12 @@ async fn sync_blob(
     src: &storage::RepositoryHandle,
     dest: &mut storage::RepositoryHandle,
 ) -> Result<()> {
-    if dest.has_payload(&blob.payload) {
+    if dest.has_payload(&blob.payload).await {
         tracing::trace!(digest = ?blob.payload, "blob payload already synced");
     } else {
-        let payload = src.open_payload(&blob.payload)?;
+        let payload = src.open_payload(&blob.payload).await?;
         tracing::debug!(digest = ?blob.payload, "syncing payload");
-        dest.write_data(payload)?;
+        dest.write_data(payload).await?;
     }
     dest.write_blob(blob.clone()).await?;
     Ok(())

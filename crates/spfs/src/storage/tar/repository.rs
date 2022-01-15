@@ -133,29 +133,30 @@ impl graph::Database for TarRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl PayloadStorage for TarRepository {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         self.repo.iter_payload_digests()
     }
 
-    fn write_data(
+    async fn write_data(
         &mut self,
         reader: Box<dyn std::io::Read + Send + 'static>,
     ) -> Result<(encoding::Digest, u64)> {
-        let res = self.repo.write_data(reader)?;
+        let res = self.repo.write_data(reader).await?;
         self.up_to_date = false;
         Ok(res)
     }
 
-    fn open_payload(
+    async fn open_payload(
         &self,
         digest: &encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
-        self.repo.open_payload(digest)
+        self.repo.open_payload(digest).await
     }
 
-    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        self.repo.remove_payload(digest)?;
+    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
+        self.repo.remove_payload(digest).await?;
         self.up_to_date = false;
         Ok(())
     }

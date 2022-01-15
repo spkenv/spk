@@ -109,7 +109,7 @@ pub trait Repository:
         &mut self,
         reader: Box<dyn std::io::Read + Send + 'static>,
     ) -> Result<encoding::Digest> {
-        let (digest, size) = self.write_data(reader)?;
+        let (digest, size) = self.write_data(reader).await?;
         let blob = Blob::new(digest, size);
         self.write_object(&graph::Object::Blob(blob)).await?;
         Ok(digest)

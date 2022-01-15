@@ -53,7 +53,8 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)?;
+        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
+            .await?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
         match std::fs::rename(&working_dir, &rendered_dirpath) {
@@ -98,7 +99,7 @@ impl ManifestViewer for FSRepository {
 }
 
 impl FSRepository {
-    pub fn render_manifest_into_dir(
+    pub async fn render_manifest_into_dir(
         &self,
         manifest: &crate::graph::Manifest,
         target_dir: impl AsRef<Path>,
@@ -151,14 +152,14 @@ impl FSRepository {
         })
     }
 
-    fn render_blob<P: AsRef<Path>>(
+    async fn render_blob<P: AsRef<Path>>(
         &self,
         rendered_path: P,
         entry: &tracking::Entry,
         render_type: &RenderType,
     ) -> Result<()> {
         if entry.is_symlink() {
-            let mut reader = self.open_payload(&entry.object)?;
+            let mut reader = self.open_payload(&entry.object).await?;
             let mut target = String::new();
             reader.read_to_string(&mut target)?;
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {

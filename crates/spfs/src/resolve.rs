@@ -71,6 +71,7 @@ pub async fn render_into_directory(
     }
     let manifest = graph::Manifest::from(&manifest);
     repo.render_manifest_into_dir(&manifest, &target, storage::fs::RenderType::Copy)
+        .await
 }
 
 /// Compute or load the spfs manifest representation for a saved reference.
@@ -158,16 +159,17 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
         }
         let manifest = graph::Manifest::from(&manifest);
         // store the newly created manifest so that the render process can read it back
-        repo.write_object(&manifest.clone().into())?;
+        repo.write_object(&manifest.clone().into()).await?;
         manifests.insert(0, manifest);
     }
 
     let renders = repo.renders()?;
-    let to_render: HashSet<encoding::Digest> = manifests
-        .iter()
-        .map(|m| m.digest().unwrap())
-        .filter(|digest| !renders.has_rendered_manifest(digest))
-        .collect::<HashSet<_>>();
+    let mut to_render = HashSet::new();
+    for digest in manifests.iter().map(|m| m.digest().unwrap()) {
+        if !renders.has_rendered_manifest(&digest).await {
+            to_render.insert(digest);
+        }
+    }
     if !to_render.is_empty() {
         tracing::info!("{} layers require rendering", to_render.len());
 
@@ -184,7 +186,7 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
         results?;
     }
     for manifest in manifests {
-        let rendered_dir = renders.render_manifest(&manifest)?;
+        let rendered_dir = renders.render_manifest(&manifest).await?;
         overlay_dirs.push(rendered_dir);
     }
 

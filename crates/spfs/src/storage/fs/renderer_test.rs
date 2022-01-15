@@ -28,7 +28,7 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
     for node in manifest.walk_abs(&src_dir.to_str().unwrap()) {
         if node.entry.kind.is_blob() {
             let data = std::fs::File::open(&node.path.to_path("/")).unwrap();
-            storage.write_data(Box::new(data)).unwrap();
+            storage.write_data(Box::new(data)).await.unwrap();
         }
     }
 

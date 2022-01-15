@@ -9,6 +9,7 @@ use futures::Stream;
 use super::FSRepository;
 use crate::{encoding, Error, Result};
 
+#[async_trait::async_trait]
 impl crate::storage::PayloadStorage for FSRepository {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         match self.payloads.iter() {
@@ -17,14 +18,14 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    fn write_data(
+    async fn write_data(
         &mut self,
         reader: Box<dyn std::io::Read + Send + 'static>,
     ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader)
     }
 
-    fn open_payload(
+    async fn open_payload(
         &self,
         digest: &encoding::Digest,
     ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
@@ -38,7 +39,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
+    async fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
         let path = self.payloads.build_digest_path(digest);
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
