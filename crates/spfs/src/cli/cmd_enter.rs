@@ -51,26 +51,6 @@ impl CmdEnter {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        // Acquire expected effective caps.
-
-        use caps::{CapSet, Capability};
-
-        let mut current_caps = caps::read(None, CapSet::Effective)?;
-        for needed_cap in &[
-            // These were formerly already effective by default
-            // via `setcap`, before the addition of CAP_FOWNER,
-            // which we do not want to be effective by default.
-            // It is not legal to set some caps with `+ep` and
-            // others with just `+p`.
-            Capability::CAP_SETUID,
-            Capability::CAP_CHOWN,
-            Capability::CAP_MKNOD,
-            Capability::CAP_SYS_ADMIN,
-        ] {
-            current_caps.insert(*needed_cap);
-        }
-        caps::set(None, CapSet::Effective, &current_caps)?;
-
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime).await?;

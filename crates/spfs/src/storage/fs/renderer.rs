@@ -5,6 +5,8 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use futures::Future;
+
 use super::FSRepository;
 use crate::{
     encoding::{self, Encodable},
@@ -109,47 +111,45 @@ impl FSRepository {
         let entries: Vec<_> = walkable
             .walk_abs(&target_dir.as_ref().to_string_lossy())
             .collect();
-        // Acquire FOWNER here to allow us to:
-        // 1. create hard links to files that are not owned by us
-        //    (see: /proc/sys/fs/protected_hardlinks);
-        // 2. chmod these newly created hard links that are not
-        //    owned by us.
-        with_cap_fowner(|| {
-            for node in entries.iter() {
-                let res = match node.entry.kind {
-                    tracking::EntryKind::Tree => {
-                        std::fs::create_dir_all(&node.path.to_path("/")).map_err(|e| e.into())
-                    }
-                    tracking::EntryKind::Mask => continue,
-                    tracking::EntryKind::Blob => {
-                        self.render_blob(node.path.to_path("/"), node.entry, &render_type)
-                    }
-                };
-                if let Err(err) = res {
-                    return Err(err.wrap(format!("Failed to render [{}]", node.path)));
+        // we used to get CAP_FOWNER here, but with async
+        // it can no longer garentee anything useful
+        // (the process can happen in other threads, and
+        // other code can run in the current thread)
+        for node in entries.iter() {
+            let res = match node.entry.kind {
+                tracking::EntryKind::Tree => {
+                    std::fs::create_dir_all(&node.path.to_path("/")).map_err(|e| e.into())
                 }
+                tracking::EntryKind::Mask => continue,
+                tracking::EntryKind::Blob => {
+                    self.render_blob(node.path.to_path("/"), node.entry, &render_type)
+                        .await
+                }
+            };
+            if let Err(err) = res {
+                return Err(err.wrap(format!("Failed to render [{}]", node.path)));
             }
+        }
 
-            for node in entries.iter().rev() {
-                if node.entry.kind.is_mask() {
-                    continue;
-                }
-                if node.entry.is_symlink() {
-                    continue;
-                }
-                if let Err(err) = std::fs::set_permissions(
-                    &node.path.to_path("/"),
-                    std::fs::Permissions::from_mode(node.entry.mode),
-                ) {
-                    return Err(Error::wrap_io(
-                        err,
-                        format!("Failed to set permissions [{}]", node.path),
-                    ));
-                }
+        for node in entries.iter().rev() {
+            if node.entry.kind.is_mask() {
+                continue;
             }
+            if node.entry.is_symlink() {
+                continue;
+            }
+            if let Err(err) = std::fs::set_permissions(
+                &node.path.to_path("/"),
+                std::fs::Permissions::from_mode(node.entry.mode),
+            ) {
+                return Err(Error::wrap_io(
+                    err,
+                    format!("Failed to set permissions [{}]", node.path),
+                ));
+            }
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 
     async fn render_blob<P: AsRef<Path>>(
@@ -271,39 +271,4 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     } else {
         Ok(())
     }
-}
-
-#[cfg(target_os = "linux")]
-fn with_cap_fowner<F, R>(f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    use caps::{CapSet, Capability};
-
-    let desired_cap: Capability = Capability::CAP_FOWNER;
-    let raised_cap = match caps::has_cap(None, CapSet::Effective, desired_cap) {
-        Ok(true) => false,
-        Ok(false) => {
-            if let Err(err) = caps::raise(None, CapSet::Effective, desired_cap) {
-                tracing::warn!(?err, "Failed to get necessary capabilities");
-                false
-            } else {
-                true
-            }
-        }
-        Err(err) => {
-            tracing::warn!(?err, "Failed to read current capabilities");
-            false
-        }
-    };
-
-    let res = f();
-
-    if raised_cap {
-        if let Err(err) = caps::drop(None, CapSet::Effective, desired_cap) {
-            panic!("Failed to release capabilities, this is unsafe: {:?}", err);
-        }
-    }
-
-    res
 }
