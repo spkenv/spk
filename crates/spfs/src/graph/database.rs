@@ -105,14 +105,14 @@ pub trait DatabaseView: Sync + Send {
     ///
     /// # Errors:
     /// - [`spfs::Error::UnknownObject`]: if the object is not in this database
-    fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
+    async fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
 
     /// Iterate all the object digests in this database.
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if this database contains the identified object
-    fn has_object(&self, digest: &encoding::Digest) -> bool {
-        self.read_object(digest).is_ok()
+    async fn has_object(&self, digest: &encoding::Digest) -> bool {
+        self.read_object(digest).await.is_ok()
     }
 
     /// Iterate all the object in this database.
@@ -182,9 +182,10 @@ pub trait DatabaseView: Sync + Send {
     }
 }
 
+#[async_trait::async_trait]
 impl<T: DatabaseView> DatabaseView for &T {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
-        DatabaseView::read_object(&**self, digest)
+    async fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
+        DatabaseView::read_object(&**self, digest).await
     }
 
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
@@ -200,9 +201,10 @@ impl<T: DatabaseView> DatabaseView for &T {
     }
 }
 
+#[async_trait::async_trait]
 impl<T: DatabaseView> DatabaseView for &mut T {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
-        DatabaseView::read_object(&**self, digest)
+    async fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
+        DatabaseView::read_object(&**self, digest).await
     }
 
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
@@ -218,20 +220,22 @@ impl<T: DatabaseView> DatabaseView for &mut T {
     }
 }
 
+#[async_trait::async_trait]
 pub trait Database: DatabaseView {
     /// Write an object to the database, for later retrieval.
-    fn write_object(&mut self, obj: &Object) -> Result<()>;
+    async fn write_object(&mut self, obj: &Object) -> Result<()>;
 
     /// Remove an object from the database.
-    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()>;
+    async fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()>;
 }
 
+#[async_trait::async_trait]
 impl<T: Database> Database for &mut T {
-    fn write_object(&mut self, obj: &Object) -> Result<()> {
-        Database::write_object(&mut **self, obj)
+    async fn write_object(&mut self, obj: &Object) -> Result<()> {
+        Database::write_object(&mut **self, obj).await
     }
 
-    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
-        Database::remove_object(&mut **self, digest)
+    async fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
+        Database::remove_object(&mut **self, digest).await
     }
 }
