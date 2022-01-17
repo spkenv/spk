@@ -1,6 +1,7 @@
 name: RPM Build
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
   push:
