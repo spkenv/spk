@@ -20,18 +20,18 @@ impl crate::storage::PayloadStorage for FSRepository {
 
     async fn write_data(
         &mut self,
-        reader: Box<dyn std::io::Read + Send + 'static>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
-        self.payloads.write_data(reader)
+        self.payloads.write_data(reader).await
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
         let path = self.payloads.build_digest_path(&digest);
-        match std::fs::File::open(&path) {
-            Ok(file) => Ok(Box::new(file)),
+        match tokio::fs::File::open(&path).await {
+            Ok(file) => Ok(Box::pin(file)),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(err.into()),

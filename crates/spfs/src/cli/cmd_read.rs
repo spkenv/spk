@@ -60,7 +60,7 @@ impl CmdRead {
         };
 
         let mut payload = repo.open_payload(blob.digest()).await?;
-        std::io::copy(&mut payload, &mut std::io::stdout())?;
+        tokio::io::copy(&mut payload, &mut tokio::io::stdout()).await?;
         Ok(0)
     }
 }

@@ -5,6 +5,8 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use tokio::io::AsyncReadExt;
+
 use super::FSRepository;
 use crate::{
     encoding::{self, Encodable},
@@ -159,7 +161,7 @@ impl FSRepository {
         if entry.is_symlink() {
             let mut reader = self.open_payload(entry.object).await?;
             let mut target = String::new();
-            reader.read_to_string(&mut target)?;
+            reader.read_to_string(&mut target).await?;
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),

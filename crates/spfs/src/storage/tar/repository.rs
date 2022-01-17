@@ -141,7 +141,7 @@ impl PayloadStorage for TarRepository {
 
     async fn write_data(
         &mut self,
-        reader: Box<dyn std::io::Read + Send + 'static>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let res = self.repo.write_data(reader).await?;
         self.up_to_date = false;
@@ -151,7 +151,7 @@ impl PayloadStorage for TarRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Box<dyn std::io::Read + Send + 'static>> {
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
         self.repo.open_payload(digest).await
     }
 

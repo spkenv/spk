@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
+use std::{collections::HashSet, pin::Pin};
 
 use async_trait::async_trait;
 use tokio_stream::StreamExt;
@@ -107,7 +107,7 @@ pub trait Repository:
     /// Commit the data from 'reader' as a blob in this repository
     async fn commit_blob(
         &mut self,
-        reader: Box<dyn std::io::Read + Send + 'static>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<encoding::Digest> {
         let (digest, size) = self.write_data(reader).await?;
         let blob = Blob::new(digest, size);

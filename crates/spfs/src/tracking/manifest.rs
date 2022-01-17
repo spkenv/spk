@@ -5,6 +5,7 @@
 use std::fs::DirEntry;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
+use std::pin::Pin;
 
 use futures::Future;
 use itertools::Itertools;
@@ -238,14 +239,13 @@ impl<'m> Iterator for ManifestWalker<'m> {
 }
 
 pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
-    let mut builder =
-        ManifestBuilder::new(|reader| async { encoding::Digest::from_reader(reader) });
+    let mut builder = ManifestBuilder::new(encoding::Digest::from_async_reader);
     builder.compute_manifest(path).await
 }
 
 pub struct ManifestBuilder<H, F>
 where
-    H: FnMut(Box<dyn std::io::Read + Send + 'static>) -> F + Send,
+    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>) -> F + Send,
     F: Future<Output = Result<encoding::Digest>> + Send,
 {
     hasher: H,
@@ -253,7 +253,7 @@ where
 
 impl<H, F> ManifestBuilder<H, F>
 where
-    H: FnMut(Box<dyn std::io::Read + Send + 'static>) -> F + Send,
+    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>) -> F + Send,
     F: Future<Output = Result<encoding::Digest>> + Send,
 {
     pub fn new(hasher: H) -> Self {
@@ -330,7 +330,7 @@ where
                 })?
                 .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = (self.hasher)(Box::new(std::io::Cursor::new(link_target))).await?;
+            entry.object = (self.hasher)(Box::pin(std::io::Cursor::new(link_target))).await?;
         } else if file_type.is_dir() {
             self.compute_tree_node(path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
@@ -340,8 +340,8 @@ where
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
             entry.kind = EntryKind::Blob;
-            let reader = std::fs::File::open(path)?;
-            entry.object = (self.hasher)(Box::new(reader)).await?;
+            let reader = tokio::fs::File::open(path).await?;
+            entry.object = (self.hasher)(Box::pin(reader)).await?;
         }
         Ok(())
     }

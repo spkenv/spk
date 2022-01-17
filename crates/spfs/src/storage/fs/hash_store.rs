@@ -6,6 +6,7 @@ use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
 use crate::runtime::makedirs_with_perms;
 use crate::{encoding, Error, Result};
@@ -56,21 +57,22 @@ impl FSHashStore {
     }
 
     /// Write all data in the given reader to a file in this storage
-    pub fn write_data(
+    pub async fn write_data(
         &mut self,
-        mut reader: Box<dyn std::io::Read + Send + 'static>,
+        mut reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.workdir().join(uuid);
 
         self.ensure_base_dir(&working_file)?;
-        let mut writer = std::fs::OpenOptions::new()
+        let mut writer = tokio::fs::OpenOptions::new()
             .create_new(true)
             .read(true)
             .write(true)
-            .open(&working_file)?;
-        let mut hasher = encoding::Hasher::default().with_target(&mut writer);
-        let copied = match std::io::copy(&mut reader, &mut hasher) {
+            .open(&working_file)
+            .await?;
+        let mut hasher = encoding::Hasher::with_target(&mut writer);
+        let copied = match tokio::io::copy(&mut reader, &mut hasher).await {
             Err(err) => {
                 let _ = std::fs::remove_file(working_file);
                 return Err(Error::wrap_io(err, "Failed to write object data"));
@@ -79,7 +81,7 @@ impl FSHashStore {
         };
 
         let digest = hasher.digest();
-        if let Err(err) = writer.sync_all() {
+        if let Err(err) = writer.sync_all().await {
             return Err(Error::wrap_io(err, "Failed to finalize object write"));
         }
 
