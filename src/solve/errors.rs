@@ -39,6 +39,7 @@ pub enum GetCurrentResolveError {
 
 pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestError>;
 
+#[derive(Debug)]
 pub enum GetMergedRequestError {
     NoRequestFor(String),
     Other(crate::Error),
