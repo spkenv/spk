@@ -27,20 +27,24 @@ pub async fn push_ref<R: AsRef<str>>(
 
 /// Pull a reference to the local repository, searching all configured remotes.
 ///
+/// On linux the pull process can require special process privilleges, this function
+/// spawns a new process with those privilleges and should be used instead of the
+/// sync_reference under most circumstances.
+///
 /// Args:
 /// - reference: The reference to localize
 ///
 /// Errors:
 /// - If the remote reference could not be found
-pub fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
+pub async fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
     let pull_cmd = match super::which_spfs("pull") {
         Some(cmd) => cmd,
         None => return Err(Error::MissingBinary("spfs-pull")),
     };
-    let mut cmd = std::process::Command::new(pull_cmd);
+    let mut cmd = tokio::process::Command::new(pull_cmd);
     cmd.arg(reference.as_ref());
     tracing::debug!("{:?}", cmd);
-    let status = cmd.status()?;
+    let status = cmd.status().await?;
     if let Some(0) = status.code() {
         Ok(())
     } else {

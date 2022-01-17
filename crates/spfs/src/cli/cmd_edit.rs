@@ -18,7 +18,7 @@ impl CmdEdit {
         } else {
             let mut rt = spfs::active_runtime()?;
             rt.set_editable(false)?;
-            if let Err(err) = spfs::remount_runtime(&rt) {
+            if let Err(err) = spfs::remount_runtime(&rt).await {
                 rt.set_editable(true)?;
                 return Err(err);
             }

@@ -60,7 +60,7 @@ impl CmdRun {
                     let target = target.to_string();
                     if self.pull || !repo.has_ref(target.as_str()).await {
                         tracing::info!(reference = ?target, "pulling target ref");
-                        spfs::pull_ref(target.as_str())?
+                        spfs::pull_ref(target.as_str()).await?
                     }
 
                     let obj = repo.read_ref(target.as_str()).await?;

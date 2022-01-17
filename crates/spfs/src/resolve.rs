@@ -27,10 +27,10 @@ pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
         Some(cmd) => cmd,
         None => return Err(Error::MissingBinary("spfs-render")),
     };
-    let mut cmd = std::process::Command::new(render_cmd);
+    let mut cmd = tokio::process::Command::new(render_cmd);
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
-    let output = cmd.output()?;
+    let output = cmd.output().await?;
     let mut bytes = output.stdout.as_slice();
     while let Some(b) = bytes.strip_suffix(&[b'\n']) {
         bytes = b

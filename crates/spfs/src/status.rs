@@ -23,7 +23,7 @@ pub async fn make_active_runtime_editable() -> Result<()> {
     }
 
     rt.set_editable(true)?;
-    match remount_runtime(&rt) {
+    match remount_runtime(&rt).await {
         Err(err) => {
             rt.set_editable(false)?;
             Err(err)
@@ -33,12 +33,12 @@ pub async fn make_active_runtime_editable() -> Result<()> {
 }
 
 /// Remount the given runtime as configured.
-pub fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
+pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
     let (cmd, args) = bootstrap::build_spfs_remount_command(rt)?;
-    let mut cmd = std::process::Command::new(cmd);
+    let mut cmd = tokio::process::Command::new(cmd);
     cmd.args(&args);
     tracing::debug!("{:?}", cmd);
-    let res = cmd.status()?;
+    let res = cmd.status().await?;
     if res.code() != Some(0) {
         Err("Failed to re-mount runtime filesystem".into())
     } else {

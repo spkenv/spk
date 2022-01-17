@@ -37,7 +37,7 @@ impl CmdRender {
             let target = target.to_string();
             if !repo.has_ref(target.as_str()).await {
                 tracing::info!(reference = ?target, "pulling target ref");
-                spfs::pull_ref(target.as_str())?;
+                spfs::pull_ref(target.as_str()).await?;
             }
         }
 

@@ -51,7 +51,7 @@ impl CmdReset {
             runtime.set_editable(true)?;
         }
 
-        spfs::remount_runtime(&runtime)?;
+        spfs::remount_runtime(&runtime).await?;
         Ok(0)
     }
 }
