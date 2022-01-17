@@ -10,16 +10,21 @@ use crate::{encoding, graph, Error, Result};
 use encoding::{Decodable, Encodable};
 use futures::Stream;
 use graph::DatabaseView;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[async_trait::async_trait]
 impl DatabaseView for super::FSRepository {
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         let filepath = self.objects.build_digest_path(&digest);
-        let mut reader = std::fs::File::open(&filepath).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-            _ => Error::from(err),
-        })?;
-        Object::decode(&mut reader)
+        let mut file = tokio::fs::File::open(&filepath)
+            .await
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
+                _ => Error::from(err),
+            })?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf).await?;
+        Object::decode(&mut buf.as_slice())
     }
 
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
@@ -41,8 +46,7 @@ impl DatabaseView for super::FSRepository {
         &self,
         partial: &encoding::PartialDigest,
     ) -> Result<encoding::Digest> {
-        // TODO: this function should also be async
-        self.objects.resolve_full_digest(partial)
+        self.objects.resolve_full_digest(partial).await
     }
 }
 
@@ -63,23 +67,26 @@ impl graph::Database for super::FSRepository {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.objects.workdir().join(uuid);
         self.objects.ensure_base_dir(&working_file)?;
-        let mut writer = std::fs::OpenOptions::new()
+        let mut encoded = Vec::new();
+        obj.encode(&mut encoded)?;
+        let mut writer = tokio::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(&working_file)?;
-        if let Err(err) = obj.encode(&mut writer) {
-            let _ = std::fs::remove_file(&working_file);
-            return Err(err);
+            .open(&working_file)
+            .await?;
+        if let Err(err) = writer.write_all(encoded.as_slice()).await {
+            let _ = tokio::fs::remove_file(&working_file).await;
+            return Err(err.into());
         }
-        if let Err(err) = writer.sync_all() {
-            let _ = std::fs::remove_file(&working_file);
+        if let Err(err) = writer.sync_all().await {
+            let _ = tokio::fs::remove_file(&working_file).await;
             return Err(Error::wrap_io(err, "Failed to finalize object write"));
         }
         self.objects.ensure_base_dir(&filepath)?;
-        match std::fs::rename(&working_file, &filepath) {
+        match tokio::fs::rename(&working_file, &filepath).await {
             Ok(_) => Ok(()),
             Err(err) => {
-                let _ = std::fs::remove_file(&working_file);
+                let _ = tokio::fs::remove_file(&working_file).await;
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
                     _ => Err(err.into()),
@@ -92,9 +99,9 @@ impl graph::Database for super::FSRepository {
         let filepath = self.objects.build_digest_path(&digest);
 
         // this might fail but we don't consider that fatal just yet
-        let _ = std::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777));
+        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
 
-        if let Err(err) = std::fs::remove_file(&filepath) {
+        if let Err(err) = tokio::fs::remove_file(&filepath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
                 _ => Err(err.into()),

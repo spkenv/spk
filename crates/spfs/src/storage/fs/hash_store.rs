@@ -74,7 +74,7 @@ impl FSHashStore {
         let mut hasher = encoding::Hasher::with_target(&mut writer);
         let copied = match tokio::io::copy(&mut reader, &mut hasher).await {
             Err(err) => {
-                let _ = std::fs::remove_file(working_file);
+                let _ = tokio::fs::remove_file(working_file).await;
                 return Err(Error::wrap_io(err, "Failed to write object data"));
             }
             Ok(s) => s,
@@ -87,17 +87,19 @@ impl FSHashStore {
 
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
-        if let Err(err) = std::fs::rename(&working_file, &path) {
-            let _ = std::fs::remove_file(working_file);
+        if let Err(err) = tokio::fs::rename(&working_file, &path).await {
+            let _ = tokio::fs::remove_file(working_file).await;
             match err.kind() {
                 ErrorKind::AlreadyExists => (),
                 _ => return Err(Error::wrap_io(err, "Failed to store object")),
             }
         }
-        if let Err(err) = std::fs::set_permissions(
+        if let Err(err) = tokio::fs::set_permissions(
             &path,
             std::fs::Permissions::from_mode(self.file_permissions),
-        ) {
+        )
+        .await
+        {
             // not a good enough reason to fail entirely
             sentry::capture_event(sentry::protocol::Event {
                 message: Some(format!("{:?}", err)),
@@ -126,9 +128,9 @@ impl FSHashStore {
     ///
     /// This method does not validate the path and will provide
     /// invalid references if given an invalid path.
-    pub fn get_digest_from_path<P: AsRef<Path>>(&self, path: P) -> Result<encoding::Digest> {
+    pub async fn get_digest_from_path<P: AsRef<Path>>(&self, path: P) -> Result<encoding::Digest> {
         use std::path::Component::Normal;
-        let path = std::fs::canonicalize(path)?;
+        let path = tokio::fs::canonicalize(path).await?;
         let mut parts: Vec<_> = path.components().collect();
         let last = parts.pop();
         let second_last = parts.pop();
@@ -145,7 +147,10 @@ impl FSHashStore {
     /// # Errors:
     /// - spfs::Error::UnknownObject: if the digest cannot be resolved
     /// - spfs::Error::AmbiguousReference: if the digest resolves to more than one path
-    pub fn resolve_full_digest_path(&self, partial: &encoding::PartialDigest) -> Result<PathBuf> {
+    pub async fn resolve_full_digest_path(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<PathBuf> {
         let short_digest = partial.to_string();
         let (dirname, file_prefix) = (&short_digest[..2], &short_digest[2..]);
         let dirpath = self.root.join(dirname);
@@ -153,21 +158,19 @@ impl FSHashStore {
             return Ok(dirpath.join(file_prefix));
         }
 
-        let entries: Vec<std::ffi::OsString> = match std::fs::read_dir(&dirpath) {
+        let entries: Vec<std::ffi::OsString> = match tokio::fs::read_dir(&dirpath).await {
             Err(err) => {
                 return match err.kind() {
                     ErrorKind::NotFound => Err(Error::UnknownReference(short_digest)),
                     _ => Err(err.into()),
                 }
             }
-            Ok(read_dir) => {
-                let mapped: Result<Vec<_>> = read_dir
-                    .map(|d| match d {
-                        Ok(e) => Ok(e.file_name()),
-                        Err(e) => Err(Error::from(e)),
-                    })
-                    .collect();
-                mapped?
+            Ok(mut read_dir) => {
+                let mut mapped = Vec::new();
+                while let Some(next) = read_dir.next_entry().await? {
+                    mapped.push(next.file_name());
+                }
+                mapped
             }
         };
 
@@ -186,23 +189,21 @@ impl FSHashStore {
     ///
     /// This implementation improves greatly on the base one by limiting
     /// the possible conflicts to a subdirectory (and subset of all digests)
-    pub fn get_shortened_digest(&self, digest: &encoding::Digest) -> Result<String> {
+    pub async fn get_shortened_digest(&self, digest: &encoding::Digest) -> Result<String> {
         let filepath = self.build_digest_path(digest);
-        let entries: Vec<_> = match std::fs::read_dir(filepath.parent().unwrap()) {
+        let entries: Vec<_> = match tokio::fs::read_dir(filepath.parent().unwrap()).await {
             Err(err) => {
                 return match err.kind() {
                     ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
                     _ => Err(err.into()),
                 };
             }
-            Ok(read_dir) => {
-                let mapped: Result<Vec<_>> = read_dir
-                    .map(|d| match d {
-                        Ok(e) => Ok(e.file_name().to_string_lossy().to_string()),
-                        Err(e) => Err(Error::from(e)),
-                    })
-                    .collect();
-                mapped?
+            Ok(mut read_dir) => {
+                let mut mapped = Vec::new();
+                while let Some(next) = read_dir.next_entry().await? {
+                    mapped.push(next.file_name().to_string_lossy().to_string());
+                }
+                mapped
             }
         };
 
@@ -226,15 +227,15 @@ impl FSHashStore {
     /// # Errors:
     /// - spfs::Error::UnknownObject: if the digest cannot be resolved
     /// - spfs::Error::AmbiguousReference: if the digest resolves to more than one path
-    pub fn resolve_full_digest(
+    pub async fn resolve_full_digest(
         &self,
         partial: &encoding::PartialDigest,
     ) -> Result<encoding::Digest> {
         if let Some(complete) = partial.to_digest() {
             return Ok(complete);
         }
-        let path = self.resolve_full_digest_path(partial)?;
-        self.get_digest_from_path(path)
+        let path = self.resolve_full_digest_path(partial).await?;
+        self.get_digest_from_path(path).await
     }
 }
 
