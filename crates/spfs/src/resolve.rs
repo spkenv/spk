@@ -4,9 +4,8 @@
 
 use std::{collections::HashSet, path::Path};
 
-use indicatif::ParallelProgressIterator;
 use itertools::Itertools;
-use rayon::prelude::*;
+use tokio_stream::StreamExt;
 
 use super::config::load_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
@@ -22,7 +21,7 @@ mod resolve_test;
 /// All items in the spec will be merged and rendered, so
 /// it's usually best to only include one thing in the spec if
 /// building up layers for use in an spfs runtime
-pub fn render(spec: &tracking::EnvSpec) -> Result<std::path::PathBuf> {
+pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
     use std::os::unix::ffi::OsStrExt;
     let render_cmd = match super::which_spfs("render") {
         Some(cmd) => cmd,
@@ -178,12 +177,16 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
             .progress_chars("=>-");
         let bar = indicatif::ProgressBar::new(to_render.len() as u64).with_style(style);
         bar.set_message("rendering layers");
-        let results: Result<Vec<_>> = to_render
-            .into_par_iter()
-            .progress_with(bar)
-            .map(|manifest| render(&manifest.into()))
+        let mut futures: futures::stream::FuturesUnordered<_> = to_render
+            .into_iter()
+            .map(move |digest| tokio::spawn(render(digest.into())))
             .collect();
-        results?;
+        while let Some(result) = futures.next().await {
+            bar.inc(1);
+            result
+                .map_err(|e| Error::String(format!("Unexpected error in render process: {}", e)))
+                .and_then(|r| r)?;
+        }
     }
     for manifest in manifests {
         let rendered_dir = renders.render_manifest(&manifest).await?;
