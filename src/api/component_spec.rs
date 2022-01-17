@@ -245,7 +245,9 @@ impl FileMatcher {
 
     /// Reports true if the given path matches a rule in this set
     pub fn matches<P: AsRef<std::path::Path>>(&self, path: P, is_dir: bool) -> bool {
-        self.gitignore.matched(path, is_dir).is_ignore()
+        self.gitignore
+            .matched_path_or_any_parents(path, is_dir)
+            .is_ignore()
     }
 }
 
