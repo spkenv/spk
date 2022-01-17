@@ -55,6 +55,11 @@ build:
           echo "Unsupported abi: $SPK_OPT_abi"
           ;;
       esac
+    # on systems where python3 is the default, we can
+    # see syntax errors unless we ensure that 'python' runs python2
+    - echo "#!/bin/bash" > /spfs/bin/python
+    - echo 'exec python2 "$@"' >> /spfs/bin/python
+    - chmod +x /spfs/bin/python
     - ./configure -prefix=${PREFIX} CC=$CC CXX=$CXX LDFLAGS='-Wl,--rpath=/spfs/lib'
       --enable-shared "$UNICODE" $DEBUG
     - make -j$(nproc)
@@ -91,3 +96,18 @@ install:
       fromBuildEnv: x.x
       include: IfAlreadyPresent
     - pkg: stdfs
+  components:
+    - name: run
+      files:
+        - /etc/
+        - /bin/
+        - /lib/
+        - !/lib/pkgconfig
+    - name: build
+      uses: [run]
+      files:
+        - /include/
+        - /lib/pkgconfig
+    - name: man
+      files:
+        - /share/man
