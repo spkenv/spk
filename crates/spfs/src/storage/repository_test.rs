@@ -50,7 +50,7 @@ async fn test_find_aliases(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
-    let _guard = init_logging();
+    init_logging();
     let dir = tmpdir.path();
     let mut tmprepo = fs::FSRepository::create(dir.join("repo")).unwrap();
     let datafile_path = "dir1.0/dir2.0/file.txt";

@@ -15,7 +15,7 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
-    let _guard = init_logging();
+    init_logging();
     let (_handle, config) = config;
     match push_ref(
         "--test-unknown--",
@@ -43,7 +43,7 @@ async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
 #[rstest]
 #[tokio::test]
 async fn test_push_ref(config: (tempdir::TempDir, Config)) {
-    let _guard = init_logging();
+    init_logging();
     let (tmpdir, config) = config;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
@@ -76,7 +76,7 @@ async fn test_push_ref(config: (tempdir::TempDir, Config)) {
 #[rstest]
 #[tokio::test]
 async fn test_sync_ref(tmpdir: tempdir::TempDir) {
-    let _guard = init_logging();
+    init_logging();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
@@ -131,7 +131,7 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
-    let _guard = init_logging();
+    init_logging();
     let dir = tmpdir.path();
     let src_dir = dir.join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");

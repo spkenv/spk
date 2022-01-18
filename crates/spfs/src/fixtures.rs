@@ -11,13 +11,13 @@ macro_rules! fixtures {
         type TempRepo = (TempDir, spfs::storage::RepositoryHandle);
 
         #[allow(dead_code)]
-        fn init_logging() -> tracing::dispatcher::DefaultGuard {
+        fn init_logging() {
             let sub = tracing_subscriber::FmtSubscriber::builder()
                 .with_max_level(tracing::Level::TRACE)
                 .without_time()
                 .with_test_writer()
                 .finish();
-            tracing::subscriber::set_default(sub)
+            let _ = tracing::subscriber::set_global_default(sub);
         }
 
         #[fixture]

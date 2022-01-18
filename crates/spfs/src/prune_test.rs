@@ -132,7 +132,7 @@ async fn test_prunable_tags_version(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_prune_tags(tmprepo: TempRepo) {
-    let _guard = init_logging();
+    init_logging();
     let (_td, mut tmprepo) = tmprepo;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();
 

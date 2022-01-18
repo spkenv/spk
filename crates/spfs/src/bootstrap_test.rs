@@ -24,7 +24,7 @@ fn test_shell_initialization_startup_scripts(
     startup_cmd: &str,
     tmpdir: tempdir::TempDir,
 ) {
-    let _guard = init_logging();
+    init_logging();
     let shell_path = match which(shell) {
         Some(path) => path,
         None => {
@@ -124,7 +124,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
 #[rstest(shell, case("bash"), case("tcsh"))]
 #[serial_test::serial] // env manipulation must be reliable
 fn test_find_alternate_bash(shell: &str, tmpdir: tempdir::TempDir) {
-    let _guard = init_logging();
+    init_logging();
     let original_path = std::env::var("PATH").unwrap_or_default();
     let original_shell = std::env::var("SHELL").unwrap_or_default();
     std::env::set_var("PATH", tmpdir.path());

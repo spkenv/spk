@@ -66,7 +66,7 @@ async fn test_get_attached_payloads(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
-    let _guard = init_logging();
+    init_logging();
     let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
@@ -107,7 +107,7 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_clean_untagged_objects(tmprepo: TempRepo) {
-    let _guard = init_logging();
+    init_logging();
 
     let (tmpdir, mut tmprepo) = tmprepo;
     let data_dir_1 = tmpdir.path().join("data");

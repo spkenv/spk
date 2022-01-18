@@ -36,7 +36,7 @@ async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
-    let _guard = init_logging();
+    init_logging();
 
     let dir = tmpdir.path();
     let mut storage = FSRepository::create(dir.join("storage")).expect("failed to make repo");
