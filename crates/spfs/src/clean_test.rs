@@ -18,8 +18,8 @@ fixtures!();
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_objects(tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo;
+async fn test_get_attached_objects(#[future] tmprepo: TempRepo) {
+    let (_td, mut tmprepo) = tmprepo.await;
     let reader = Box::pin("hello, world".as_bytes());
     let (payload_digest, _) = tmprepo.write_data(reader).await.unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
@@ -41,8 +41,8 @@ async fn test_get_attached_objects(tmprepo: TempRepo) {
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_payloads(tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo;
+async fn test_get_attached_payloads(#[future] tmprepo: TempRepo) {
+    let (_td, mut tmprepo) = tmprepo.await;
     let reader = Box::pin("hello, world".as_bytes());
     let (payload_digest, _) = tmprepo.write_data(reader).await.unwrap();
     let mut expected = HashSet::new();
@@ -65,9 +65,9 @@ async fn test_get_attached_payloads(tmprepo: TempRepo) {
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
+async fn test_get_attached_unattached_objects_blob(#[future] tmprepo: TempRepo) {
     init_logging();
-    let (tmpdir, mut tmprepo) = tmprepo;
+    let (tmpdir, mut tmprepo) = tmprepo.await;
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
 
@@ -106,10 +106,10 @@ async fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects(tmprepo: TempRepo) {
+async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo) {
     init_logging();
 
-    let (tmpdir, mut tmprepo) = tmprepo;
+    let (tmpdir, mut tmprepo) = tmprepo.await;
     let data_dir_1 = tmpdir.path().join("data");
     ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
     ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
@@ -167,8 +167,8 @@ async fn test_clean_untagged_objects(tmprepo: TempRepo) {
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo;
+async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
+    let (_td, mut tmprepo) = tmprepo.await;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
@@ -198,8 +198,8 @@ async fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_manifest_renders(tmprepo: TempRepo) {
-    let (tmpdir, tmprepo) = tmprepo;
+async fn test_clean_manifest_renders(#[future] tmprepo: TempRepo) {
+    let (tmpdir, tmprepo) = tmprepo.await;
     let mut tmprepo = match tmprepo {
         storage::RepositoryHandle::FS(repo) => repo,
         _ => {

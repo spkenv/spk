@@ -61,7 +61,7 @@ macro_rules! fixtures {
         }
 
         #[fixture(kind = "fs")]
-        fn tmprepo(kind: &str) -> (tempdir::TempDir, spfs::storage::RepositoryHandle) {
+        async fn tmprepo(kind: &str) -> (tempdir::TempDir, spfs::storage::RepositoryHandle) {
             let tmpdir = tmpdir();
             let repo = match kind {
                 "fs" => spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
