@@ -15,7 +15,7 @@ fixtures!();
 #[tokio::test]
 async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
-    let mut repo = FSRepository::create(dir.join("repo")).unwrap();
+    let mut repo = FSRepository::create(dir.join("repo")).await.unwrap();
 
     std::fs::File::create(dir.join("file.txt")).unwrap();
     let manifest = Manifest::from(&tracking::compute_manifest(&dir).await.unwrap());
@@ -39,7 +39,9 @@ async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
     init_logging();
 
     let dir = tmpdir.path();
-    let mut storage = FSRepository::create(dir.join("storage")).expect("failed to make repo");
+    let mut storage = FSRepository::create(dir.join("storage"))
+        .await
+        .expect("failed to make repo");
 
     std::fs::create_dir(dir.join("dir")).unwrap();
     std::fs::write(dir.join("dir/file.txt"), "").unwrap();

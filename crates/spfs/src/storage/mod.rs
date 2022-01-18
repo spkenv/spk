@@ -80,9 +80,9 @@ pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<Reposit
     match url.scheme() {
         "file" | "" => {
             if url.path().ends_with(".tar") {
-                Ok(tar::TarRepository::open(url.path())?.into())
+                Ok(tar::TarRepository::open(url.path()).await?.into())
             } else {
-                Ok(fs::FSRepository::open(url.path())?.into())
+                Ok(fs::FSRepository::open(url.path()).await?.into())
             }
         }
         scheme => Err(format!("Unsupported repository scheme: '{}'", scheme).into()),

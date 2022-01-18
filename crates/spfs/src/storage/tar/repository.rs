@@ -33,7 +33,7 @@ impl std::fmt::Debug for TarRepository {
 }
 
 impl TarRepository {
-    pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub async fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
             if let Some(parent) = path.parent() {
@@ -45,12 +45,12 @@ impl TarRepository {
                 .open(&path)?;
             Builder::new(&mut file).finish()?;
         }
-        Self::open(path)
+        Self::open(path).await
     }
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().canonicalize()?;
         let mut file = std::fs::File::open(&path)?;
         let mut archive = Archive::new(&mut file);
@@ -61,7 +61,7 @@ impl TarRepository {
             up_to_date: false,
             archive: path,
             repo_dir: tmpdir,
-            repo: crate::storage::fs::FSRepository::create(&repo_path)?,
+            repo: crate::storage::fs::FSRepository::create(&repo_path).await?,
         })
     }
 

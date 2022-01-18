@@ -22,22 +22,22 @@ pub struct FSRepository {
 
 impl FSRepository {
     /// Establish a new filesystem repository
-    pub fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
         makedirs_with_perms(&root, 0o777)?;
-        let root = root.as_ref().canonicalize()?;
+        let root = tokio::fs::canonicalize(root.as_ref()).await?;
         makedirs_with_perms(root.join("tags"), 0o777)?;
         makedirs_with_perms(root.join("objects"), 0o777)?;
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         let username = whoami::username();
         makedirs_with_perms(root.join("renders").join(username), 0o777)?;
         set_last_migration(&root, None)?;
-        Self::open(root)
+        Self::open(root).await
     }
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let root = std::fs::canonicalize(root)?;
+    pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let root = tokio::fs::canonicalize(root).await?;
         let username = whoami::username();
         let repo = Self {
             objects: FSHashStore::open(root.join("objects"))?,

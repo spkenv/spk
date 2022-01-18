@@ -18,7 +18,9 @@ fixtures!();
 async fn test_tag_stream(tmpdir: tempdir::TempDir) {
     init_logging();
 
-    let mut storage = FSRepository::create(tmpdir.path()).expect("failed to create repo");
+    let mut storage = FSRepository::create(tmpdir.path())
+        .await
+        .expect("failed to create repo");
 
     let digest1 = encoding::Hasher::default().digest();
     let mut h = encoding::Hasher::default();
@@ -64,7 +66,9 @@ async fn test_tag_stream(tmpdir: tempdir::TempDir) {
 async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
     init_logging();
 
-    let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+    let mut storage = FSRepository::create(tmpdir.path().join("tags"))
+        .await
+        .unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     let tag1 = storage
         .push_tag(&spec, &encoding::EMPTY_DIGEST.into())
@@ -92,7 +96,9 @@ async fn test_tag_no_duplication(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
-    let mut storage = FSRepository::create(tmpdir.path().join("repo")).unwrap();
+    let mut storage = FSRepository::create(tmpdir.path().join("repo"))
+        .await
+        .unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     storage
         .push_tag(&spec, &encoding::EMPTY_DIGEST.into())
@@ -115,7 +121,9 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 async fn test_ls_tags(tmpdir: tempdir::TempDir) {
     init_logging();
 
-    let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+    let mut storage = FSRepository::create(tmpdir.path().join("tags"))
+        .await
+        .unwrap();
     for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",
@@ -163,7 +171,7 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
 async fn test_rm_tags(tmpdir: tempdir::TempDir) {
     init_logging();
 
-    let mut storage = FSRepository::create(tmpdir.path().join("tags")).unwrap();
+    let mut storage = FSRepository::create(tmpdir.path().join("tags")).await.unwrap();
     for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",

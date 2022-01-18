@@ -49,7 +49,7 @@ impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut repo = match &self.remote {
             Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository()?.into(),
+            None => config.get_repository().await?.into(),
         };
 
         if self.prune_if_older_than.is_some()

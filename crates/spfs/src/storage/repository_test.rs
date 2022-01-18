@@ -52,7 +52,7 @@ async fn test_find_aliases(#[future] tmprepo: TempRepo) {
 async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     init_logging();
     let dir = tmpdir.path();
-    let mut tmprepo = fs::FSRepository::create(dir.join("repo")).unwrap();
+    let mut tmprepo = fs::FSRepository::create(dir.join("repo")).await.unwrap();
     let datafile_path = "dir1.0/dir2.0/file.txt";
     let symlink_path = "dir1.0/dir2.0/file2.txt";
 

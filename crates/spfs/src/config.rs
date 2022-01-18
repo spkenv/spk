@@ -111,8 +111,8 @@ impl Config {
     }
 
     /// Get the local repository instance as configured.
-    pub fn get_repository(&self) -> Result<storage::fs::FSRepository> {
-        storage::fs::FSRepository::create(&self.storage.root)
+    pub async fn get_repository(&self) -> Result<storage::fs::FSRepository> {
+        storage::fs::FSRepository::create(&self.storage.root).await
     }
 
     /// Get the local runtime storage, as configured.

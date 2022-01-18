@@ -19,11 +19,14 @@ use crate::Result;
 /// Then ls_tags("spi") would return:
 ///     stable
 ///     latest
-pub fn ls_tags<P: AsRef<relative_path::RelativePath>>(
+pub async fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
 ) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
-    let repo = match load_config().and_then(|c| c.get_repository()) {
-        Ok(repo) => repo,
+    let repo = match load_config() {
+        Ok(c) => match c.get_repository().await {
+            Ok(repo) => repo,
+            Err(err) => return Box::pin(futures::stream::once(async { Err(err) }))
+        }
         Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
     };
     match path {

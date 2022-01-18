@@ -14,9 +14,9 @@ fixtures!();
 
 #[rstest]
 #[tokio::test]
-async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
+async fn test_push_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
     init_logging();
-    let (_handle, config) = config;
+    let (_handle, config) = config.await;
     match push_ref(
         "--test-unknown--",
         Some(config.get_remote("origin").await.unwrap()),
@@ -42,15 +42,15 @@ async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
 
 #[rstest]
 #[tokio::test]
-async fn test_push_ref(config: (tempdir::TempDir, Config)) {
+async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     init_logging();
-    let (tmpdir, config) = config;
+    let (tmpdir, config) = config.await;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir/file.txt"), "hello");
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let mut local: RepositoryHandle = config.get_repository().unwrap().into();
+    let mut local: RepositoryHandle = config.get_repository().await.unwrap().into();
     let mut remote = config.get_remote("origin").await.unwrap();
     let manifest = local.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = local
@@ -84,10 +84,12 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
 
     let mut repo_a: RepositoryHandle =
         storage::fs::FSRepository::create(tmpdir.path().join("repo_a").as_path())
+            .await
             .unwrap()
             .into();
     let mut repo_b: RepositoryHandle =
         storage::fs::FSRepository::create(tmpdir.path().join("repo_b").as_path())
+            .await
             .unwrap()
             .into();
 
@@ -139,12 +141,15 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
     let mut repo_a: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_a"))
+        .await
         .unwrap()
         .into();
     let mut repo_tar: RepositoryHandle = storage::tar::TarRepository::create(dir.join("repo.tar"))
+        .await
         .unwrap()
         .into();
     let mut repo_b: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_b"))
+        .await
         .unwrap()
         .into();
 
@@ -166,6 +171,7 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
     drop(repo_tar);
     let repo_tar = storage::tar::TarRepository::open(dir.join("repo.tar"))
+        .await
         .unwrap()
         .into();
     sync_ref("testing", &repo_tar, &mut repo_b).await.unwrap();
@@ -175,11 +181,15 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
 }
 
 #[fixture]
-fn config(tmpdir: tempdir::TempDir) -> (tempdir::TempDir, Config) {
+async fn config(tmpdir: tempdir::TempDir) -> (tempdir::TempDir, Config) {
     let repo_path = tmpdir.path().join("repo");
-    crate::storage::fs::FSRepository::create(&repo_path).expect("failed to make repo for test");
+    crate::storage::fs::FSRepository::create(&repo_path)
+        .await
+        .expect("failed to make repo for test");
     let origin_path = tmpdir.path().join("origin");
-    crate::storage::fs::FSRepository::create(&origin_path).expect("failed to make repo for test");
+    crate::storage::fs::FSRepository::create(&origin_path)
+        .await
+        .expect("failed to make repo for test");
     let mut conf = Config::default();
     conf.remote.insert(
         "origin".to_string(),

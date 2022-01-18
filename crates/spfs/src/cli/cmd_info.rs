@@ -26,7 +26,7 @@ impl CmdInfo {
     pub async fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
             Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository()?.into(),
+            None => config.get_repository().await?.into(),
         };
 
         if self.refs.is_empty() {
