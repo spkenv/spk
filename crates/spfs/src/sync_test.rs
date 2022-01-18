@@ -19,7 +19,7 @@ async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
     let (_handle, config) = config;
     match push_ref(
         "--test-unknown--",
-        Some(config.get_remote("origin").unwrap()),
+        Some(config.get_remote("origin").await.unwrap()),
     )
     .await
     {
@@ -30,7 +30,7 @@ async fn test_push_ref_unknown(config: (tempdir::TempDir, Config)) {
 
     match push_ref(
         encoding::Digest::default().to_string(),
-        Some(config.get_remote("origin").unwrap()),
+        Some(config.get_remote("origin").await.unwrap()),
     )
     .await
     {
@@ -51,7 +51,7 @@ async fn test_push_ref(config: (tempdir::TempDir, Config)) {
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
     let mut local: RepositoryHandle = config.get_repository().unwrap().into();
-    let mut remote = config.get_remote("origin").unwrap();
+    let mut remote = config.get_remote("origin").await.unwrap();
     let manifest = local.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = local
         .create_layer(&graph::Manifest::from(&manifest))

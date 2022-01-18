@@ -20,7 +20,7 @@ pub async fn push_ref<R: AsRef<str>>(
     let local = config.get_repository()?.into();
     let mut remote = match remote.take() {
         Some(remote) => remote,
-        None => config.get_remote("origin")?,
+        None => config.get_remote("origin").await?,
     };
     sync_ref(reference, &local, &mut remote).await
 }
@@ -161,8 +161,8 @@ pub async fn sync_manifest(
         let dest_address = dest.address();
         let src_address = src.address();
         let future = tokio::spawn(async move {
-            let src = storage::open_repository(src_address)?;
-            let mut dest = storage::open_repository(dest_address)?;
+            let src = storage::open_repository(src_address).await?;
+            let mut dest = storage::open_repository(dest_address).await?;
             sync_entry(&entry, &src, &mut dest).await?;
             Ok(entry.size)
         });

@@ -19,15 +19,18 @@ fn test_config_list_remote_names() {
 }
 
 #[rstest]
-fn test_config_get_remote_unknown() {
+#[tokio::test]
+async fn test_config_get_remote_unknown() {
     let config = Config::default();
     config
         .get_remote("unknown")
+        .await
         .expect_err("should fail to load unknown config");
 }
 
 #[rstest]
-fn test_config_get_remote() {
+#[tokio::test]
+async fn test_config_get_remote() {
     let tmpdir = tempdir::TempDir::new("spfs-test").unwrap();
     let remote = tmpdir.path().join("remote");
     let _ = crate::storage::fs::FSRepository::create(&remote).unwrap();
@@ -37,6 +40,6 @@ fn test_config_get_remote() {
         &remote.to_string_lossy()
     ))
     .unwrap();
-    let repo = config.get_remote("origin");
+    let repo = config.get_remote("origin").await;
     assert!(repo.is_ok());
 }

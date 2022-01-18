@@ -78,7 +78,7 @@ pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::M
     let config = load_config()?;
     let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository()?.into()];
     for name in config.list_remote_names() {
-        match config.get_remote(&name) {
+        match config.get_remote(&name).await {
             Ok(repo) => repos.push(repo),
             Err(err) => {
                 tracing::warn!(remote = ?name, "failed to load remote repository");

@@ -27,7 +27,7 @@ pub struct CmdLs {
 impl CmdLs {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
+            Some(remote) => config.get_remote(remote).await?,
             None => config.get_repository()?.into(),
         };
         let item = repo.read_ref(self.reference.as_str()).await?;

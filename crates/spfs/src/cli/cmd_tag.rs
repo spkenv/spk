@@ -23,7 +23,7 @@ pub struct CmdTag {
 impl CmdTag {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
+            Some(remote) => config.get_remote(remote).await?,
             None => config.get_repository()?.into(),
         };
 

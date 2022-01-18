@@ -107,7 +107,7 @@ pub async fn purge_objects(
 }
 
 async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    let mut repo = storage::open_repository(repo_addr)?;
+    let mut repo = storage::open_repository(repo_addr).await?;
     let res = repo.remove_object(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
@@ -117,7 +117,7 @@ async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<(
 }
 
 async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    let mut repo = storage::open_repository(repo_addr)?;
+    let mut repo = storage::open_repository(repo_addr).await?;
     let res = repo.remove_payload(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
@@ -127,7 +127,7 @@ async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<
 }
 
 async fn clean_render(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    let repo = storage::open_repository(repo_addr)?;
+    let repo = storage::open_repository(repo_addr).await?;
     let viewer = repo.renders()?;
     let res = viewer.remove_rendered_manifest(digest).await;
     if let Err(crate::Error::UnknownObject(_)) = res {

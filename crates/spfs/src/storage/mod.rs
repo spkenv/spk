@@ -68,7 +68,8 @@ impl From<tar::TarRepository> for RepositoryHandle {
     }
 }
 
-pub fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
+/// Open the repository at the given url address
+pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
     use url::Url;
 
     let url = match Url::parse(address.as_ref()) {
