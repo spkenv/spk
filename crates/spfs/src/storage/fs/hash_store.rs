@@ -7,9 +7,16 @@ use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::task::Poll;
+
+use futures::{Future, Stream};
 
 use crate::runtime::makedirs_with_perms;
 use crate::{encoding, Error, Result};
+
+#[cfg(test)]
+#[path = "./hash_store_test.rs"]
+mod hash_store_test;
 
 static WORK_DIRNAME: &str = "work";
 
@@ -44,7 +51,7 @@ impl FSHashStore {
         self.root.join(&WORK_DIRNAME)
     }
 
-    pub fn iter(&self) -> Result<FSHashStoreIter> {
+    pub fn iter(&self) -> FSHashStoreIter {
         FSHashStoreIter::new(&self.root())
     }
 
@@ -106,7 +113,6 @@ impl FSHashStore {
                 level: sentry::protocol::Level::Warning,
                 ..Default::default()
             });
-            tracing::warn!("Failed to set object permissions: {:?}", err);
         }
 
         Ok((digest, copied))
@@ -239,74 +245,155 @@ impl FSHashStore {
     }
 }
 
-pub struct FSHashStoreIter {
-    root: PathBuf,
-    root_readdir: std::fs::ReadDir,
-    active_readdir: Option<(std::ffi::OsString, std::fs::ReadDir)>,
+enum FSHashStoreIterState {
+    OpeningRoot {
+        future: Pin<Box<dyn Future<Output = std::io::Result<tokio::fs::ReadDir>> + Send>>,
+    },
+    AwaitingSubdir {
+        root: tokio::fs::ReadDir,
+    },
+    OpeningSubdir {
+        name: std::ffi::OsString,
+        root: tokio::fs::ReadDir,
+        future: Pin<Box<dyn Future<Output = std::io::Result<tokio::fs::ReadDir>> + Send>>,
+    },
+    IteratingSubdir {
+        name: std::ffi::OsString,
+        root: tokio::fs::ReadDir,
+        read_dir: tokio::fs::ReadDir,
+    },
 }
 
-impl FSHashStoreIter {
-    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let path = std::fs::canonicalize(root)?;
-        Ok(Self {
-            root: path.clone(),
-            root_readdir: std::fs::read_dir(&path)?,
-            active_readdir: None,
-        })
+impl std::fmt::Debug for FSHashStoreIterState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OpeningRoot { .. } => f.debug_struct("OpeningRoot").finish(),
+            Self::AwaitingSubdir { .. } => f.debug_struct("AwaitingSubdir").finish(),
+            Self::OpeningSubdir { .. } => f.debug_struct("OpeningSubdir").finish(),
+            Self::IteratingSubdir { .. } => f.debug_struct("IteratingSubdir").finish(),
+        }
     }
 }
 
-impl Iterator for FSHashStoreIter {
+pub struct FSHashStoreIter {
+    root: PathBuf,
+    state: Option<FSHashStoreIterState>,
+}
+
+impl FSHashStoreIter {
+    pub fn new<P: Into<PathBuf>>(root: P) -> Self {
+        let root = root.into();
+        let state = Some(FSHashStoreIterState::OpeningRoot {
+            future: Box::pin(tokio::fs::read_dir(root.clone())),
+        });
+        Self { root, state }
+    }
+}
+
+impl Stream for FSHashStoreIter {
     type Item = Result<encoding::Digest>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.active_readdir.as_mut() {
-                None => {
-                    let next_dir = match self.root_readdir.next() {
-                        Some(Ok(res)) => res,
-                        Some(Err(err)) => return Some(Err(err.into())),
-                        None => return None,
-                    };
-                    let prefix = next_dir.file_name();
-                    if prefix.as_os_str() == OsStr::new(WORK_DIRNAME) {
-                        continue;
-                    }
-                    let path = self.root.join(&prefix);
-                    match std::fs::read_dir(&path) {
-                        Ok(read_dir) => {
-                            self.active_readdir.replace((prefix, read_dir));
-                        }
-                        Err(err) => match err.raw_os_error() {
-                            Some(libc::ENOTDIR) => {
-                                tracing::debug!(?path, "found non-directory in hash storage");
-                                continue;
-                            }
-                            _ => break Some(Err(err.into())),
-                        },
-                    }
-                    continue;
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        use FSHashStoreIterState::*;
+        match self.state.take() {
+            Some(OpeningRoot { mut future }) => match Pin::new(&mut future).poll(cx) {
+                Poll::Pending => {
+                    self.state = Some(OpeningRoot { future });
+                    Poll::Pending
                 }
-                Some((prefix, read_dir)) => match read_dir.next() {
-                    None => {
-                        self.active_readdir.take();
-                        continue;
+                Poll::Ready(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Poll::Ready(Ok(root)) => {
+                    self.state = Some(AwaitingSubdir { root });
+                    self.poll_next(cx)
+                }
+            },
+            Some(AwaitingSubdir { mut root }) => match root.poll_next_entry(cx) {
+                Poll::Pending => {
+                    self.state = Some(AwaitingSubdir { root });
+                    Poll::Pending
+                }
+                Poll::Ready(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Poll::Ready(Ok(Some(next_dir))) => {
+                    let name = next_dir.file_name();
+                    if name.as_os_str() == OsStr::new(WORK_DIRNAME) {
+                        self.state = Some(AwaitingSubdir { root });
+                        return self.poll_next(cx);
                     }
-                    Some(Err(err)) => break Some(Err(err.into())),
-                    Some(Ok(entry)) => {
-                        let mut digest_str = prefix.to_string_lossy().to_string();
-                        digest_str.push_str(entry.file_name().to_string_lossy().as_ref());
-                        break match encoding::parse_digest(&digest_str) {
-                            Ok(digest) => Some(Ok(digest)),
-                            Err(err) => Some(Err(format!(
-                                "invalid digest in file storage: {:?} [{:?}]",
-                                err, digest_str
-                            )
-                            .into())),
-                        };
+                    let path = self.root.join(&name);
+                    let future = Box::pin(tokio::fs::read_dir(path));
+                    self.state = Some(OpeningSubdir { root, name, future });
+                    self.poll_next(cx)
+                }
+                Poll::Ready(Ok(None)) => Poll::Ready(None),
+            },
+            Some(OpeningSubdir {
+                root,
+                name,
+                mut future,
+            }) => match Pin::new(&mut future).poll(cx) {
+                Poll::Pending => {
+                    self.state = Some(OpeningSubdir { root, name, future });
+                    Poll::Pending
+                }
+                Poll::Ready(Err(err)) => match err.raw_os_error() {
+                    Some(libc::ENOTDIR) => {
+                        tracing::debug!(?name, "found non-directory in hash storage");
+                        self.state = Some(AwaitingSubdir { root });
+                        self.poll_next(cx)
                     }
+                    _ => Poll::Ready(Some(Err(err.into()))),
                 },
-            }
+                Poll::Ready(Ok(read_dir)) => {
+                    self.state = Some(IteratingSubdir {
+                        root,
+                        name,
+                        read_dir,
+                    });
+                    self.poll_next(cx)
+                }
+            },
+            Some(IteratingSubdir {
+                root,
+                name,
+                mut read_dir,
+            }) => match read_dir.poll_next_entry(cx) {
+                Poll::Pending => {
+                    self.state = Some(IteratingSubdir {
+                        root,
+                        name,
+                        read_dir,
+                    });
+                    Poll::Pending
+                }
+                Poll::Ready(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Poll::Ready(Ok(None)) => {
+                    self.state = Some(AwaitingSubdir { root });
+                    self.poll_next(cx)
+                }
+                Poll::Ready(Ok(Some(entry))) => {
+                    let mut digest_str = name.to_string_lossy().to_string();
+                    digest_str.push_str(entry.file_name().to_string_lossy().as_ref());
+                    self.state = Some(IteratingSubdir {
+                        root,
+                        name,
+                        read_dir,
+                    });
+                    match encoding::parse_digest(&digest_str) {
+                        Ok(digest) => Poll::Ready(Some(Ok(digest))),
+                        Err(err) => {
+                            tracing::debug!(
+                                ?err, name = ?digest_str,
+                                "invalid digest in file storage",
+                            );
+                            self.poll_next(cx)
+                        }
+                    }
+                }
+            },
+            None => Poll::Ready(None),
         }
     }
 }

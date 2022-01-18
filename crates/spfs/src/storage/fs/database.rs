@@ -28,10 +28,7 @@ impl DatabaseView for super::FSRepository {
     }
 
     fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        match self.objects.iter() {
-            Ok(iter) => Box::pin(futures::stream::iter(iter)),
-            Err(err) => Box::pin(futures::stream::iter(vec![Err(err)])),
-        }
+        Box::pin(self.objects.iter())
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
