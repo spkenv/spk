@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::fs::DirEntry;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
@@ -10,6 +9,7 @@ use std::pin::Pin;
 use futures::Future;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
+use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
 use crate::encoding;
@@ -279,8 +279,9 @@ where
     ) -> Result<()> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
-        for dir_entry in std::fs::read_dir(base)? {
-            let dir_entry = dir_entry?;
+        let mut read_dir = tokio::fs::read_dir(base).await?;
+        // TODO: make this more parallel, if possible
+        while let Some(dir_entry) = read_dir.next_entry().await? {
             let path = base.join(dir_entry.file_name());
             let mut entry = Entry::default();
             self.compute_node(path, &dir_entry, &mut entry).await?;
@@ -298,13 +299,13 @@ where
         dir_entry: &DirEntry,
         entry: &mut Entry,
     ) -> Result<()> {
-        let stat_result = match std::fs::symlink_metadata(&path) {
+        let stat_result = match tokio::fs::symlink_metadata(&path).await {
             Ok(r) => r,
             Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
                 // Heuristic: if lstat fails with ENOENT, but `dir_entry` exists,
                 // then the directory entry exists but it might be a whiteout file.
                 // Assume so if `dir_entry` says it is a character device.
-                match dir_entry.file_type() {
+                match dir_entry.file_type().await {
                     Ok(ft) if ft.is_char_device() => {
                         // XXX: mode and size?
                         entry.kind = EntryKind::Mask;
@@ -322,7 +323,8 @@ where
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
-            let link_target = std::fs::read_link(&path)?
+            let link_target = tokio::fs::read_link(&path)
+                .await?
                 .into_os_string()
                 .into_string()
                 .map_err(|_| {

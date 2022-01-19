@@ -12,20 +12,20 @@ type MigrationFn = dyn (Fn(&PathBuf, &PathBuf) -> Result<()>) + Sync;
 static MIGRATIONS: Vec<(&str, &MigrationFn)> = vec![];
 
 /// Migrate a repository to the latest version and replace the existing data.
-pub fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
+pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
     let root = root.as_ref().canonicalize()?;
     let repo_name = match &root.file_name() {
         None => return Err("Repository path must have a file name".into()),
         Some(name) => name.to_string_lossy(),
     };
     tracing::info!("migrating data...");
-    let migrated_path = migrate_repo(&root)?;
+    let migrated_path = migrate_repo(&root).await?;
     tracing::info!("swapping out migrated data...");
     let backup_path = root.with_file_name(format!("{}-backup", repo_name));
-    std::fs::rename(&root, &backup_path)?;
-    std::fs::rename(&migrated_path, &root)?;
+    tokio::fs::rename(&root, &backup_path).await?;
+    tokio::fs::rename(&migrated_path, &root).await?;
     tracing::info!("purging old data...");
-    std::fs::remove_dir_all(backup_path)?;
+    tokio::fs::remove_dir_all(backup_path).await?;
     Ok(root)
 }
 
@@ -33,9 +33,9 @@ pub fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
 ///
 /// # Returns:
 ///    - the path to the migrated repo data
-pub fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
+pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
     let mut root = root.as_ref().canonicalize()?;
-    let last_migration = read_last_migration_version(&root)?;
+    let last_migration = read_last_migration_version(&root).await?;
     let repo_name = match &root.file_name() {
         None => return Err("Repository path must have a file name".into()),
         Some(name) => name.to_string_lossy().to_string(),
@@ -59,7 +59,7 @@ pub fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
         tracing::info!("migrating data from {} to {}...", last_migration, version);
         migration_func(&root, &migrated_path)?;
         root = root.with_file_name(format!("{}-migrated", repo_name));
-        std::fs::rename(&migrated_path, &root)?;
+        tokio::fs::rename(&migrated_path, &root).await?;
     }
 
     Ok(root)

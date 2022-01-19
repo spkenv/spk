@@ -171,7 +171,9 @@ async fn test_ls_tags(tmpdir: tempdir::TempDir) {
 async fn test_rm_tags(tmpdir: tempdir::TempDir) {
     init_logging();
 
-    let mut storage = FSRepository::create(tmpdir.path().join("tags")).await.unwrap();
+    let mut storage = FSRepository::create(tmpdir.path().join("tags"))
+        .await
+        .unwrap();
     for tag in &[
         "spi/stable/my_tag",
         "spi/stable/other_tag",

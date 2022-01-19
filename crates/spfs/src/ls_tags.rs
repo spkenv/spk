@@ -25,8 +25,8 @@ pub async fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     let repo = match load_config() {
         Ok(c) => match c.get_repository().await {
             Ok(repo) => repo,
-            Err(err) => return Box::pin(futures::stream::once(async { Err(err) }))
-        }
+            Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
+        },
         Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
     };
     match path {

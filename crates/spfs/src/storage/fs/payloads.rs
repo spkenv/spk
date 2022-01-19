@@ -38,7 +38,7 @@ impl crate::storage::PayloadStorage for FSRepository {
 
     async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
         let path = self.payloads.build_digest_path(&digest);
-        match std::fs::remove_file(&path) {
+        match tokio::fs::remove_file(&path).await {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Err(Error::UnknownObject(digest)),

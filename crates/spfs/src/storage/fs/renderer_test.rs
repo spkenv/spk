@@ -15,7 +15,9 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_render_manifest(tmpdir: tempdir::TempDir) {
-    let mut storage = FSRepository::create(tmpdir.path().join("storage")).await.unwrap();
+    let mut storage = FSRepository::create(tmpdir.path().join("storage"))
+        .await
+        .unwrap();
 
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
@@ -47,7 +49,9 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
-    let mut tmprepo = FSRepository::create(tmpdir.path().join("repo")).await.unwrap();
+    let mut tmprepo = FSRepository::create(tmpdir.path().join("repo"))
+        .await
+        .unwrap();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");

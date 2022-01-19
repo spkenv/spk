@@ -12,6 +12,7 @@ use std::{
 
 use futures::Stream;
 use relative_path::RelativePath;
+use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 
 use super::FSRepository;
@@ -33,7 +34,7 @@ impl FSRepository {
         self.root().join("tags")
     }
 
-    fn push_raw_tag_without_lock(&self, tag: &tracking::Tag) -> Result<()> {
+    async fn push_raw_tag_without_lock(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
 
@@ -43,19 +44,20 @@ impl FSRepository {
 
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
 
-        let mut file = std::fs::OpenOptions::new()
+        let mut file = tokio::fs::OpenOptions::new()
             .write(true)
             .append(true)
             .create(true)
-            .open(&filepath)?;
-        encoding::write_int(&mut file, size as i64)?;
-        std::io::copy(&mut buf.as_slice(), &mut file)?;
-        if let Err(err) = file.sync_all() {
+            .open(&filepath)
+            .await?;
+        file.write_i64(size as i64).await?;
+        tokio::io::copy(&mut buf.as_slice(), &mut file).await?;
+        if let Err(err) = file.sync_all().await {
             return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
         }
 
         let perms = std::fs::Permissions::from_mode(0o777);
-        if let Err(err) = std::fs::set_permissions(&filepath, perms) {
+        if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
             tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
         }
         Ok(())
@@ -161,21 +163,21 @@ impl TagStorage for FSRepository {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
-        let _lock = TagLock::new(&filepath)?;
-        self.push_raw_tag_without_lock(tag)
+        let _lock = TagLock::new(&filepath).await?;
+        self.push_raw_tag_without_lock(tag).await
     }
 
     async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
-        let lock = match TagLock::new(&filepath) {
+        let lock = match TagLock::new(&filepath).await {
             Ok(lock) => lock,
             Err(err) => match err.raw_os_error() {
                 Some(libc::ENOENT) | Some(libc::ENOTDIR) => return Ok(()),
                 _ => return Err(err),
             },
         };
-        match std::fs::remove_file(&filepath) {
+        match tokio::fs::remove_file(&filepath).await {
             Ok(_) => (),
             Err(err) => {
                 return match err.raw_os_error() {
@@ -191,7 +193,7 @@ impl TagStorage for FSRepository {
         while filepath.starts_with(self.tags_root()) {
             if let Some(parent) = filepath.parent() {
                 tracing::trace!(?parent, "seeing if parent needs removing");
-                match std::fs::remove_dir(self.tags_root().join(parent)) {
+                match tokio::fs::remove_dir(self.tags_root().join(parent)).await {
                     Ok(_) => {
                         tracing::debug!(path = ?parent, "removed tag parent dir");
                         filepath = parent;
@@ -210,7 +212,7 @@ impl TagStorage for FSRepository {
     async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
-        let _lock = TagLock::new(&filepath)?;
+        let _lock = TagLock::new(&filepath).await?;
         let tags: Vec<_> = self
             .read_tag(&tag_spec)
             .await?
@@ -218,19 +220,19 @@ impl TagStorage for FSRepository {
             .collect()
             .await;
         let backup_path = &filepath.with_extension("tag.backup");
-        std::fs::rename(&filepath, &backup_path)?;
-        let res: Result<Vec<_>> = tags
-            .iter()
-            .rev()
-            .map(|version| {
-                // we are already holding the lock for this operation
-                self.push_raw_tag_without_lock(version)
-            })
-            .collect();
+        tokio::fs::rename(&filepath, &backup_path).await?;
+        let mut res = Ok(());
+        for version in tags.iter().rev() {
+            // we are already holding the lock for this operation
+            if let Err(err) = self.push_raw_tag_without_lock(version).await {
+                res = Err(err);
+                break;
+            }
+        }
         if let Err(err) = res {
-            std::fs::rename(&backup_path, &filepath)?;
+            tokio::fs::rename(&backup_path, &filepath).await?;
             Err(err)
-        } else if let Err(err) = std::fs::remove_file(&backup_path) {
+        } else if let Err(err) = tokio::fs::remove_file(&backup_path).await {
             tracing::warn!(?err, "failed to cleanup tag backup file");
             Ok(())
         } else {
@@ -355,16 +357,17 @@ impl TagExt for tracking::TagSpec {
 struct TagLock(PathBuf);
 
 impl TagLock {
-    pub fn new<P: AsRef<Path>>(tag_file: P) -> Result<TagLock> {
+    pub async fn new<P: AsRef<Path>>(tag_file: P) -> Result<TagLock> {
         let mut lock_file = tag_file.as_ref().to_path_buf();
         lock_file.set_extension("tag.lock");
 
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
-            match std::fs::OpenOptions::new()
+            match tokio::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&lock_file)
+                .await
             {
                 Ok(_file) => {
                     break Ok(TagLock(lock_file));
@@ -386,7 +389,9 @@ impl TagLock {
 impl Drop for TagLock {
     fn drop(&mut self) {
         if let Err(err) = std::fs::remove_file(&self.0) {
-            tracing::warn!(?err, "Failed to remove tag lock file");
+            if err.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!(?err, path = ?self.0, "Failed to remove tag lock file");
+            }
         }
     }
 }

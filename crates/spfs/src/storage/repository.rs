@@ -120,7 +120,7 @@ pub trait Repository:
     /// This collects all files to store as blobs and maintains a
     /// render of the manifest for use immediately.
     async fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
-        let path = std::fs::canonicalize(path)?;
+        let path = tokio::fs::canonicalize(path).await?;
         // NOTE(rbottriell): I tried many different ways to define and structure
         // the manifest builder in order to avoid these additional sync primitives
         // but this is the best that I could come up with after all... basically

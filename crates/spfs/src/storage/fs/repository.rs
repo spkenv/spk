@@ -30,7 +30,7 @@ impl FSRepository {
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         let username = whoami::username();
         makedirs_with_perms(root.join("renders").join(username), 0o777)?;
-        set_last_migration(&root, None)?;
+        set_last_migration(&root, None).await?;
         Self::open(root).await
     }
 
@@ -47,7 +47,7 @@ impl FSRepository {
         };
 
         let current_version = semver::Version::parse(crate::VERSION).unwrap();
-        let repo_version = repo.last_migration()?;
+        let repo_version = repo.last_migration().await?;
         if repo_version.major > current_version.major {
             return Err(format!(
                 "Repository requires a newer version of spfs [{:?}]: {:?}",
@@ -70,12 +70,12 @@ impl FSRepository {
         self.root.clone()
     }
 
-    pub fn last_migration(&self) -> Result<semver::Version> {
-        read_last_migration_version(self.root())
+    pub async fn last_migration(&self) -> Result<semver::Version> {
+        read_last_migration_version(self.root()).await
     }
 
-    pub fn set_last_migration(&self, version: semver::Version) -> Result<()> {
-        set_last_migration(self.root(), Some(version))
+    pub async fn set_last_migration(&self, version: semver::Version) -> Result<()> {
+        set_last_migration(self.root(), Some(version)).await
     }
 }
 
@@ -117,9 +117,9 @@ impl std::fmt::Debug for FSRepository {
 }
 
 // Read the last marked migration version for a repository root path.
-pub fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Version> {
+pub async fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Version> {
     let version_file = root.as_ref().join("VERSION");
-    let version = match std::fs::read_to_string(version_file) {
+    let version = match tokio::fs::read_to_string(version_file).await {
         Ok(version) => version,
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => crate::VERSION.to_string(),
@@ -143,12 +143,15 @@ pub fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Ve
 }
 
 /// Set the last migration version of the repo with the given root directory.
-pub fn set_last_migration<P: AsRef<Path>>(root: P, version: Option<semver::Version>) -> Result<()> {
+pub async fn set_last_migration<P: AsRef<Path>>(
+    root: P,
+    version: Option<semver::Version>,
+) -> Result<()> {
     let version = match version {
         Some(v) => v,
         None => semver::Version::parse(crate::VERSION).unwrap(),
     };
     let version_file = root.as_ref().join("VERSION");
-    std::fs::write(version_file, version.to_string())?;
+    tokio::fs::write(version_file, version.to_string()).await?;
     Ok(())
 }

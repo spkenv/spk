@@ -56,9 +56,15 @@ impl CmdRender {
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
     ) -> spfs::Result<std::path::PathBuf> {
-        std::fs::create_dir_all(&target)?;
-        let target_dir = target.canonicalize()?;
-        if std::fs::read_dir(&target_dir)?.next().is_some() && !self.allow_existing {
+        tokio::fs::create_dir_all(&target).await?;
+        let target_dir = tokio::fs::canonicalize(target).await?;
+        if tokio::fs::read_dir(&target_dir)
+            .await?
+            .next_entry()
+            .await?
+            .is_some()
+            && !self.allow_existing
+        {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
