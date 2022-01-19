@@ -10,7 +10,7 @@ use std::{
     task::Poll,
 };
 
-use futures::Stream;
+use futures::{Future, Stream};
 use relative_path::RelativePath;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
@@ -147,7 +147,7 @@ impl TagStorage for FSRepository {
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>> {
         let path = tag.to_path(self.tags_root());
-        match read_tag_file(path) {
+        match read_tag_file(path).await {
             Err(err) => match err.raw_os_error() {
                 Some(libc::ENOENT) => Err(Error::UnknownReference(tag.to_string())),
                 _ => Err(err),
@@ -241,9 +241,18 @@ impl TagStorage for FSRepository {
     }
 }
 
+enum TagStreamIterState {
+    WalkingTree,
+    LoadingTag {
+        spec: tracking::TagSpec,
+        future: Pin<Box<dyn Future<Output = Result<TagIter<std::fs::File>>> + Send>>,
+    },
+}
+
 struct TagStreamIter {
     root: PathBuf,
     inner: walkdir::IntoIter,
+    state: Option<TagStreamIterState>,
 }
 
 impl TagStreamIter {
@@ -251,6 +260,7 @@ impl TagStreamIter {
         Self {
             root: root.as_ref().to_path_buf(),
             inner: walkdir::WalkDir::new(root).into_iter(),
+            state: Some(TagStreamIterState::WalkingTree),
         }
     }
 }
@@ -260,37 +270,54 @@ impl Stream for TagStreamIter {
 
     fn poll_next(
         mut self: Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        // TODO: this is not actually async and should be fixed
-        Poll::Ready(loop {
-            let entry = self.inner.next();
-            match entry {
-                None => break None,
-                Some(Err(err)) => break Some(Err(err.into())),
-                Some(Ok(entry)) => {
-                    if !entry.file_type().is_file() {
-                        continue;
+        use Poll::*;
+        use TagStreamIterState::*;
+        match self.state.take() {
+            // TODO: this walkdir loop is not actually async and should be fixed
+            Some(WalkingTree) => loop {
+                let entry = self.inner.next();
+                match entry {
+                    None => break Ready(None),
+                    Some(Err(err)) => break Ready(Some(Err(err.into()))),
+                    Some(Ok(entry)) => {
+                        if !entry.file_type().is_file() {
+                            continue;
+                        }
+                        let path = entry.path().to_owned();
+                        if path.extension() != Some(OsStr::new(TAG_EXT)) {
+                            continue;
+                        }
+                        let spec = match tag_from_path(&path, &self.root) {
+                            Err(err) => break Ready(Some(Err(err))),
+                            Ok(spec) => spec,
+                        };
+                        self.state = Some(LoadingTag {
+                            spec,
+                            future: Box::pin(read_tag_file(path)),
+                        });
+                        break self.poll_next(cx);
                     }
-                    let path = entry.path();
-                    if path.extension() != Some(OsStr::new(TAG_EXT)) {
-                        continue;
-                    }
-                    let spec = match tag_from_path(&path, &self.root) {
-                        Err(err) => break Some(Err(err)),
-                        Ok(spec) => spec,
-                    };
-                    let tags: Result<Vec<_>> = match read_tag_file(&path) {
-                        Err(err) => break Some(Err(err)),
-                        Ok(stream) => stream.into_iter().collect(),
-                    };
-                    break match tags {
+                }
+            },
+            Some(LoadingTag { spec, mut future }) => match Pin::new(&mut future).poll(cx) {
+                Pending => {
+                    self.state = Some(LoadingTag { spec, future });
+                    Pending
+                }
+                Ready(Err(err)) => Ready(Some(Err(err))),
+                Ready(Ok(stream)) => {
+                    self.state = Some(WalkingTree);
+                    let tags: Result<Vec<_>> = stream.into_iter().collect();
+                    Ready(match tags {
                         Err(err) => Some(Err(err)),
                         Ok(tags) => Some(Ok((spec, Box::new(tags.into_iter().rev())))),
-                    };
+                    })
                 }
-            }
-        })
+            },
+            None => Ready(None),
+        }
     }
 }
 
@@ -298,7 +325,7 @@ impl Stream for TagStreamIter {
 ///
 /// This iterator outputs tags from earliest to latest, as stored
 /// in the file starting at the beginning
-fn read_tag_file<P: AsRef<Path>>(path: P) -> Result<TagIter<std::fs::File>> {
+async fn read_tag_file<P: AsRef<Path>>(path: P) -> Result<TagIter<std::fs::File>> {
     let reader = std::fs::File::open(path.as_ref())?;
     Ok(TagIter::new(reader))
 }
