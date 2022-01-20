@@ -175,9 +175,9 @@ pub async fn get_all_attached_objects(
     let mut to_process = Vec::new();
     let mut tag_streams = repo.iter_tag_streams();
     while let Some(item) = tag_streams.next().await {
-        let (_, stream) = item?;
-        for tag in stream {
-            to_process.push(tag.target);
+        let (_, mut stream) = item?;
+        while let Some(tag) = stream.next().await {
+            to_process.push(tag?.target);
         }
     }
 

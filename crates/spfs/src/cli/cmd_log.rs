@@ -30,6 +30,7 @@ impl CmdLog {
         let tag = spfs::tracking::TagSpec::parse(&self.tag)?;
         let mut tag_stream = repo.read_tag(&tag).await?.enumerate();
         while let Some((i, tag)) = tag_stream.next().await {
+            let tag = tag?;
             let spec = spfs::tracking::build_tag_spec(tag.org(), tag.name(), i as u64)?;
             let spec_str = spec.to_string();
             println!(

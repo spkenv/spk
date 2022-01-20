@@ -10,7 +10,7 @@ use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::graph;
-use crate::storage::tag::TagSpecAndTagIter;
+use crate::storage::tag::TagSpecAndTagStream;
 use crate::Result;
 use crate::{encoding, prelude::*, tracking};
 
@@ -179,14 +179,14 @@ impl TagStorage for TarRepository {
         self.repo.find_tags(digest)
     }
 
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>> {
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         self.repo.iter_tag_streams()
     }
 
     async fn read_tag(
         &self,
         tag: &tracking::TagSpec,
-    ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         self.repo.read_tag(tag).await
     }
 

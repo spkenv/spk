@@ -57,8 +57,10 @@ pub async fn get_prunable_tags(
     let mut tag_streams = tags.iter_tag_streams();
     while let Some(res) = tag_streams.next().await {
         let (spec, stream) = res?;
+        let mut stream = futures::StreamExt::enumerate(stream);
         tracing::debug!("searching for history to prune in {}", spec.to_string());
-        for (version, tag) in stream.enumerate() {
+        while let Some((version, tag)) = stream.next().await {
+            let tag = tag?;
             let versioned_spec = tracking::build_tag_spec(
                 spec.org(),
                 spec.name(),

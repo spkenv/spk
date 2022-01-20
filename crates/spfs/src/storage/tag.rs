@@ -27,16 +27,14 @@ pub trait TagStorage: Send + Sync {
     /// # Errors:
     /// - if the tag does not exist in this storage
     async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        let version = self
-            .read_tag(tag_spec)
-            .await?
-            .skip(tag_spec.version() as usize)
-            .next()
-            .await;
-        match version {
-            Some(version) => Ok(version),
-            None => Err(Error::UnknownReference(tag_spec.to_string())),
+        let mut stream = futures::StreamExt::enumerate(self.read_tag(tag_spec).await?);
+        while let Some((version, tag)) = stream.next().await {
+            let tag = tag?;
+            if tag_spec.version() == version as u64 {
+                return Ok(tag);
+            }
         }
+        Err(Error::UnknownReference(tag_spec.to_string()))
     }
 
     /// List tags and tag directories based on a tag path.
@@ -58,14 +56,22 @@ pub trait TagStorage: Send + Sync {
 
     /// Iterate through the available tags in this storage.
     fn iter_tags(&self) -> Pin<Box<dyn Stream<Item = IterTagsItem>>> {
-        Box::pin(self.iter_tag_streams().filter_map(|res| match res {
-            Ok((spec, mut stream)) => stream.next().map(|next| Ok((spec, next))),
-            Err(err) => Some(Err(err)),
-        }))
+        let stream = self.iter_tag_streams();
+        let mapped = futures::StreamExt::filter_map(stream, |res| async {
+            match res {
+                Ok((spec, mut stream)) => match stream.next().await {
+                    Some(Ok(first)) => Some(Ok((spec, first))),
+                    Some(Err(err)) => Some(Err(err)),
+                    None => None,
+                },
+                Err(err) => Some(Err(err)),
+            }
+        });
+        Box::pin(mapped)
     }
 
     /// Iterate through the available tags in this storage by stream.
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>>;
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>>;
 
     /// Read the entire tag stream for the given tag.
     ///
@@ -73,7 +79,7 @@ pub trait TagStorage: Send + Sync {
     async fn read_tag(
         &self,
         tag: &tracking::TagSpec,
-    ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>>;
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>>;
 
     /// Push the given tag onto the tag stream.
     async fn push_tag(
@@ -130,14 +136,14 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::find_tags(&**self, digest)
     }
 
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>> {
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         TagStorage::iter_tag_streams(&**self)
     }
 
     async fn read_tag(
         &self,
         tag: &tracking::TagSpec,
-    ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         TagStorage::read_tag(&**self, tag).await
     }
 

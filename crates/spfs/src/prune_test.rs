@@ -167,7 +167,11 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
     .unwrap();
     let mut tag_stream = tmprepo.read_tag(&tag).await.unwrap();
     while let Some(tag) = tag_stream.next().await {
-        assert_eq!(&tag, tags.get(&2025).unwrap(), "should remove all but 2025");
+        assert_eq!(
+            &tag.unwrap(),
+            tags.get(&2025).unwrap(),
+            "should remove all but 2025"
+        );
     }
 
     let tags = reset(&mut tmprepo).await;
@@ -182,6 +186,7 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
     .unwrap();
     let mut tag_stream = tmprepo.read_tag(&tag).await.unwrap();
     while let Some(tag) = tag_stream.next().await {
+        let tag = tag.unwrap();
         assert_ne!(
             &tag,
             tags.get(&2020).unwrap(),

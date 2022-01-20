@@ -128,39 +128,43 @@ impl TagStorage for FSRepository {
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         let digest = *digest;
-        Box::pin(self.iter_tag_streams().filter_map(move |res| {
+        let stream = self.iter_tag_streams();
+        let mapped = futures::StreamExt::filter_map(stream, move |res| async move {
             let (spec, stream) = match res {
                 Ok(res) => res,
                 Err(err) => return Some(Err(err)),
             };
-            for (i, tag) in stream.into_iter().enumerate() {
-                if tag.target == digest {
-                    return Some(Ok(spec.with_version(i as u64)));
+            let mut stream = futures::StreamExt::enumerate(stream);
+            while let Some((i, tag)) = stream.next().await {
+                match tag {
+                    Ok(tag) if tag.target == digest => {
+                        return Some(Ok(spec.with_version(i as u64)));
+                    }
+                    Ok(_) => continue,
+                    Err(err) => return Some(Err(err)),
                 }
             }
             None
-        }))
+        });
+        Box::pin(mapped)
     }
 
     /// Iterate through the available tags in this storage.
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagIter>> + Send>> {
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         Box::pin(TagStreamIter::new(&self.tags_root()))
     }
 
     async fn read_tag(
         &self,
         tag: &tracking::TagSpec,
-    ) -> Result<Pin<Box<dyn Stream<Item = tracking::Tag> + Send>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         let path = tag.to_path(self.tags_root());
         match read_tag_file(path).await {
             Err(err) => match err.raw_os_error() {
                 Some(libc::ENOENT) => Err(Error::UnknownReference(tag.to_string())),
                 _ => Err(err),
             },
-            Ok(iter) => {
-                let tags: Result<Vec<_>> = iter.into_iter().collect();
-                Ok(Box::pin(futures::stream::iter(tags?.into_iter().rev())))
-            }
+            Ok(stream) => Ok(Box::pin(stream)),
         }
     }
 
@@ -218,16 +222,18 @@ impl TagStorage for FSRepository {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         let _lock = TagLock::new(&filepath).await?;
-        let tags: Vec<_> = self
-            .read_tag(&tag_spec)
-            .await?
-            .filter(|version| version != tag)
-            .collect()
-            .await;
+        let mut filtered = Vec::new();
+        let mut stream = self.read_tag(&tag_spec).await?;
+        while let Some(version) = stream.next().await {
+            let version = version?;
+            if &version != tag {
+                filtered.push(version);
+            }
+        }
         let backup_path = &filepath.with_extension("tag.backup");
         tokio::fs::rename(&filepath, &backup_path).await?;
         let mut res = Ok(());
-        for version in tags.iter().rev() {
+        for version in filtered.iter().rev() {
             // we are already holding the lock for this operation
             if let Err(err) = self.push_raw_tag_without_lock(version).await {
                 res = Err(err);
@@ -314,11 +320,7 @@ impl Stream for TagStreamIter {
                 Ready(Err(err)) => Ready(Some(Err(err))),
                 Ready(Ok(stream)) => {
                     self.state = Some(WalkingTree);
-                    let tags: Result<Vec<_>> = stream.into_iter().collect();
-                    Ready(match tags {
-                        Err(err) => Some(Err(err)),
-                        Ok(tags) => Some(Ok((spec, Box::new(tags.into_iter().rev())))),
-                    })
+                    Ready(Some(Ok((spec, Box::pin(stream)))))
                 }
             },
             None => Ready(None),
