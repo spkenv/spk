@@ -3,7 +3,9 @@
 // https://github.com/imageworks/spk
 
 use std::{
+    convert::TryInto,
     ffi::OsStr,
+    mem::size_of,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     pin::Pin,
@@ -12,13 +14,16 @@ use std::{
 
 use futures::{Future, Stream};
 use relative_path::RelativePath;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 use tokio_stream::StreamExt;
 
 use super::FSRepository;
 use crate::{
     encoding,
-    storage::{tag::TagSpecAndTagIter, TagStorage},
+    storage::{
+        tag::{TagSpecAndTagStream, TagStream},
+        TagStorage,
+    },
     tracking, Error, Result,
 };
 use encoding::{Decodable, Encodable};
@@ -245,7 +250,7 @@ enum TagStreamIterState {
     WalkingTree,
     LoadingTag {
         spec: tracking::TagSpec,
-        future: Pin<Box<dyn Future<Output = Result<TagIter<std::fs::File>>> + Send>>,
+        future: Pin<Box<dyn Future<Output = Result<TagIter<tokio::fs::File>>> + Send>>,
     },
 }
 
@@ -266,7 +271,7 @@ impl TagStreamIter {
 }
 
 impl Stream for TagStreamIter {
-    type Item = Result<(tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>)>;
+    type Item = Result<(tracking::TagSpec, TagStream)>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -323,35 +328,234 @@ impl Stream for TagStreamIter {
 
 /// Return an iterator over all tags in the identified tag file
 ///
-/// This iterator outputs tags from earliest to latest, as stored
-/// in the file starting at the beginning
-async fn read_tag_file<P: AsRef<Path>>(path: P) -> Result<TagIter<std::fs::File>> {
-    let reader = std::fs::File::open(path.as_ref())?;
+/// This iterator outputs tags from latest to earliest, ie backwards
+/// stating at the latest version of the tag.
+async fn read_tag_file<P: AsRef<Path>>(path: P) -> Result<TagIter<tokio::fs::File>> {
+    let reader = tokio::fs::File::open(path.as_ref()).await?;
     Ok(TagIter::new(reader))
 }
 
-struct TagIter<R: std::io::Read + std::io::Seek>(R);
+enum TagIterState<R>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+{
+    /// Currently reading the size of a tag in bytes for the index
+    ReadingIndex { reader: R, bytes_read: usize },
+    /// Currently seeking to the end of a tag to read the next tag's size
+    SeekingIndex { reader: R },
+    /// Currently seeking backwards to the next tag to be yielded
+    SeekingTag { reader: R, size: u64 },
+    /// Currently reading the tag bytes so that they can be decoded
+    ReadingTag { reader: R, bytes_read: usize },
+}
 
-impl<R: std::io::Read + std::io::Seek> TagIter<R> {
-    fn new(reader: R) -> Self {
-        Self(reader)
+impl<R> std::fmt::Debug for TagIterState<R>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ReadingIndex { bytes_read, .. } => f
+                .debug_struct("ReadingIndex")
+                .field("bytes_read", bytes_read)
+                .finish(),
+            Self::SeekingIndex { .. } => f.debug_struct("SeekingIndex").finish(),
+            Self::SeekingTag { .. } => f.debug_struct("SeekingTag").finish(),
+            Self::ReadingTag { bytes_read, .. } => f
+                .debug_struct("ReadingTag")
+                .field("bytes_read", bytes_read)
+                .finish(),
+        }
     }
 }
 
-impl<R: std::io::Read + std::io::Seek> Iterator for TagIter<R> {
+/// Using a series of states, the TagIter indexes
+/// a tag file asynchronusly, and then iterates backwards
+/// through each entry. This yields tags in a newest-first order
+/// starting with the latest version of tag
+///
+/// Tag files are written
+struct TagIter<R>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+{
+    buf: Vec<u8>,
+    sizes: Vec<u64>,
+    state: Option<TagIterState<R>>,
+}
+
+impl<R> TagIter<R>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+{
+    fn new(reader: R) -> Self {
+        Self {
+            sizes: Vec::new(),
+            buf: vec![0; size_of::<i64>()],
+            state: Some(TagIterState::ReadingIndex {
+                reader,
+                bytes_read: 0,
+            }),
+        }
+    }
+}
+
+impl<R> Stream for TagIter<R>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+{
     type Item = Result<tracking::Tag>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let _size = match encoding::read_uint(&mut self.0) {
-            Ok(size) => size,
-            Err(err) => match err.raw_os_error() {
-                Some(libc::EOF) => return None,
-                _ => return Some(Err(err)),
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        use std::io::SeekFrom;
+        use Poll::*;
+        use TagIterState::*;
+
+        match self.state.take() {
+            Some(ReadingIndex {
+                mut reader,
+                mut bytes_read,
+            }) => {
+                let mut buf = ReadBuf::new(&mut self.buf[bytes_read..]);
+                match Pin::new(&mut reader).poll_read(cx, &mut buf) {
+                    Pending => {
+                        self.state = Some(ReadingIndex { reader, bytes_read });
+                        Pending
+                    }
+                    Ready(Err(err)) => Ready(Some(Err(err.into()))),
+                    Ready(Ok(())) => {
+                        let count = buf.filled().len();
+                        if count == 0 {
+                            // if the read completed but did not return anything,
+                            // we are to interpret it as an EOF and so will move on to
+                            // reading back any tags that were indexed
+                            return match self.sizes.pop() {
+                                Some(size) => {
+                                    let last_tag_start =
+                                        self.sizes.iter().fold(size_of::<i64>() as u64, |c, s| {
+                                            // account for the leading size indicator of each tag
+                                            c + *s + size_of::<i64>() as u64
+                                        });
+                                    match Pin::new(&mut reader)
+                                        .start_seek(SeekFrom::Start(last_tag_start))
+                                    {
+                                        Err(err) => Ready(Some(Err(err.into()))),
+                                        Ok(_) => {
+                                            self.state = Some(SeekingTag { reader, size });
+                                            self.poll_next(cx)
+                                        }
+                                    }
+                                }
+                                None => Ready(None),
+                            };
+                        }
+                        bytes_read += count;
+                        if bytes_read < self.buf.len() {
+                            self.state = Some(ReadingIndex { reader, bytes_read });
+                            return self.poll_next(cx);
+                        }
+                        // we trust that the buffer was resized for this purpose above
+                        let size = i64::from_be_bytes(self.buf[..bytes_read].try_into().unwrap());
+                        match size.try_into() {
+                            Ok(size) => self.sizes.push(size),
+                            Err(err) => {
+                                return Ready(Some(Err(Error::String(format!(
+                                    "tag file contains invalid size index: {}",
+                                    err
+                                )))))
+                            }
+                        }
+                        match Pin::new(&mut reader).start_seek(SeekFrom::Current(size)) {
+                            Err(err) => Ready(Some(Err(err.into()))),
+                            Ok(_) => {
+                                self.state = Some(SeekingIndex { reader });
+                                self.poll_next(cx)
+                            }
+                        }
+                    }
+                }
+            }
+            Some(SeekingIndex { mut reader }) => match Pin::new(&mut reader).poll_complete(cx) {
+                Pending => {
+                    self.state = Some(SeekingIndex { reader });
+                    Pending
+                }
+                Ready(Err(err)) => Ready(Some(Err(err.into()))),
+                Ready(Ok(_)) => {
+                    self.buf.resize(size_of::<i64>(), 0);
+                    self.state = Some(ReadingIndex {
+                        reader,
+                        bytes_read: 0,
+                    });
+                    self.poll_next(cx)
+                }
             },
-        };
-        match tracking::Tag::decode(&mut self.0) {
-            Err(err) => Some(Err(err)),
-            Ok(tag) => Some(Ok(tag)),
+            Some(SeekingTag { mut reader, size }) => {
+                match Pin::new(&mut reader).poll_complete(cx) {
+                    Pending => {
+                        self.state = Some(SeekingTag { reader, size });
+                        Pending
+                    }
+                    Ready(Err(err)) => Ready(Some(Err(err.into()))),
+                    Ready(Ok(_)) => {
+                        match size.try_into() {
+                            Ok(size) => self.buf.resize(size, 0),
+                            Err(err) => {
+                                return Ready(Some(Err(Error::String(format!(
+                                    "tag is too large to be loaded: {}",
+                                    err
+                                )))))
+                            }
+                        }
+                        self.state = Some(ReadingTag {
+                            reader,
+                            bytes_read: 0,
+                        });
+                        self.poll_next(cx)
+                    }
+                }
+            }
+            Some(ReadingTag {
+                mut reader,
+                mut bytes_read,
+            }) => {
+                let mut buf = ReadBuf::new(&mut self.buf[bytes_read..]);
+                match Pin::new(&mut reader).poll_read(cx, &mut buf) {
+                    Pending => {
+                        self.state = Some(ReadingTag { reader, bytes_read });
+                        Pending
+                    }
+                    Ready(Err(err)) => Ready(Some(Err(err.into()))),
+                    Ready(Ok(_)) => {
+                        let count = buf.filled().len();
+                        bytes_read += count;
+                        if bytes_read < self.buf.len() {
+                            self.state = Some(ReadingTag { reader, bytes_read });
+                            return self.poll_next(cx);
+                        }
+                        match tracking::Tag::decode(&mut self.buf.as_slice()) {
+                            Err(err) => Ready(Some(Err(err))),
+                            Ok(tag) => {
+                                if let Some(size) = self.sizes.pop() {
+                                    let next_tag_offset =
+                                        bytes_read as u64 + size_of::<i64>() as u64 + size;
+                                    match Pin::new(&mut reader)
+                                        .start_seek(SeekFrom::Current(-(next_tag_offset as i64)))
+                                    {
+                                        Err(err) => return Ready(Some(Err(err.into()))),
+                                        Ok(_) => self.state = Some(SeekingTag { reader, size }),
+                                    }
+                                }
+                                Ready(Some(Ok(tag)))
+                            }
+                        }
+                    }
+                }
+            }
+            None => Ready(None),
         }
     }
 }

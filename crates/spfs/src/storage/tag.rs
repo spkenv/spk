@@ -10,7 +10,8 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tokio_stream::StreamExt;
 
-pub(crate) type TagSpecAndTagIter = (tracking::TagSpec, Box<dyn Iterator<Item = tracking::Tag>>);
+pub(crate) type TagStream = Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>;
+pub(crate) type TagSpecAndTagStream = (tracking::TagSpec, TagStream);
 pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 
 /// A location where tags are tracked and persisted.
