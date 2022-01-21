@@ -28,7 +28,6 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
     let manifest = tracking::compute_manifest(&src_dir).await.unwrap();
 
     for node in manifest.walk_abs(&src_dir.to_str().unwrap()) {
-        // TODO: parallelize this process across many files at once
         if node.entry.kind.is_blob() {
             let data = tokio::fs::File::open(&node.path.to_path("/"))
                 .await
