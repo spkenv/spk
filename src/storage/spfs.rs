@@ -347,7 +347,7 @@ impl SPFSRepository {
     /// Read the metadata for this spk repository.
     ///
     /// The repo metadata contains information about
-    /// how this particular spfs reposiory has been setup
+    /// how this particular spfs repository has been setup
     /// with spk. Namely, version and compatibility information.
     pub fn read_metadata(&self) -> Result<RepositoryMetadata> {
         let tag_spec = spfs::tracking::TagSpec::parse(REPO_METADATA_TAG).unwrap();
