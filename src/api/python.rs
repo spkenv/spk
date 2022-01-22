@@ -54,12 +54,6 @@ fn save_spec_file(filepath: &str, spec: &super::Spec) -> crate::Result<()> {
 }
 
 #[pyfunction]
-fn collect_source(source: super::SourceSpec, path: &str) -> crate::Result<()> {
-    let path = std::path::Path::new(path);
-    source.collect(path)
-}
-
-#[pyfunction]
 fn version_range_is_satisfied_by(
     range: super::VersionRange,
     spec: &super::Spec,
@@ -137,7 +131,6 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render_compat, m)?)?;
     m.add_function(wrap_pyfunction!(read_spec_file, m)?)?;
     m.add_function(wrap_pyfunction!(save_spec_file, m)?)?;
-    m.add_function(wrap_pyfunction!(collect_source, m)?)?;
     m.add_function(wrap_pyfunction!(version_range_is_satisfied_by, m)?)?;
 
     m.add_class::<super::Ident>()?;
