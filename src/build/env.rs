@@ -78,7 +78,7 @@ where
     value
 }
 
-/// Expand variables in 'value' with 'vars'.1
+/// Expand variables in 'value' with 'vars'.
 ///
 /// Expansions should be in the form of $var and ${var}.
 /// Unknown variables raise a KeyError.
