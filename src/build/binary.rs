@@ -36,10 +36,18 @@ impl BuildError {
     }
 }
 
-/// Identifies the source files that should
+/// Identifies the source files that should be used
+/// in a binary package build
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSource {
+    /// Identifies an existing source package to be resolved
     SourcePackage(api::Ident),
+    /// Specifies that the binary package should be built
+    /// against a set of local files.
+    ///
+    /// Source packages are preferred, but this is option
+    /// is useful when rapidly modifying and testing against
+    /// a local codebase
     LocalPath(PathBuf),
 }
 
