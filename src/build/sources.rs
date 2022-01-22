@@ -136,30 +136,17 @@ pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -
     let source_dir = source_dir.as_ref();
     std::fs::create_dir_all(&source_dir)?;
 
-    let original_env = std::env::vars();
-    super::binary::get_package_build_env(spec)
-        .into_iter()
-        .map(|(n, v)| std::env::set_var(n, v))
-        .count();
-    let mut res = Ok(());
+    let env = super::binary::get_package_build_env(spec);
     for source in spec.sources.iter() {
         let target_dir = match source.subdir() {
             Some(subdir) => subdir.to_path(source_dir),
             None => source_dir.into(),
         };
-        res = std::fs::create_dir_all(&target_dir)
+        std::fs::create_dir_all(&target_dir)
             .map_err(Error::from)
-            .and_then(|_| source.collect(&target_dir));
-        if res.is_err() {
-            break;
-        }
+            .and_then(|_| source.collect(&target_dir, &env))?;
     }
-    std::env::vars()
-        .map(|(n, _)| n)
-        .map(std::env::remove_var)
-        .count();
-    original_env.map(|(n, v)| std::env::set_var(n, v)).count();
-    res
+    Ok(())
 }
 
 /// Validate the set of diffs for a source package build.

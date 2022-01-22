@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -35,12 +36,15 @@ impl SourceSpec {
     }
 
     /// Collect the represented sources files into the given directory.
-    pub fn collect(&self, dirname: &Path) -> Result<()> {
+    ///
+    /// The base build environment should also be provided, in order to
+    /// have validables like SPK_PACKAGE_VERSION available to collection scripts.
+    pub fn collect(&self, dirname: &Path, env: &HashMap<String, String>) -> Result<()> {
         match self {
             SourceSpec::Local(source) => source.collect(dirname),
             SourceSpec::Git(source) => source.collect(dirname),
             SourceSpec::Tar(source) => source.collect(dirname),
-            SourceSpec::Script(source) => source.collect(dirname),
+            SourceSpec::Script(source) => source.collect(dirname, env),
         }
     }
 }
@@ -265,11 +269,12 @@ pub struct ScriptSource {
 
 impl ScriptSource {
     /// Collect the represented sources files into the given directory.
-    pub fn collect(&self, dirname: &Path) -> Result<()> {
+    pub fn collect(&self, dirname: &Path, env: &HashMap<String, String>) -> Result<()> {
         let mut bash = std::process::Command::new("bash");
         bash.arg("-ex"); // print each command, exit on failure
         bash.arg("-"); // read from stdin
         bash.stdin(std::process::Stdio::piped());
+        bash.envs(env);
         bash.current_dir(dirname);
 
         tracing::debug!("running sources script");
