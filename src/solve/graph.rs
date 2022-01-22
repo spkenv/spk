@@ -281,13 +281,15 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     }
 
     fn pkg_request_to_changes(&self, req: &api::PkgRequest) -> Vec<Change> {
-        let mut req = req.clone();
+        let mut req = std::borrow::Cow::Borrowed(req);
         if req.pkg.components.is_empty() {
             // if no component was requested specifically,
             // then we must assume the default run component
-            req.pkg.components.insert(api::Component::Run);
+            req.to_mut().pkg.components.insert(api::Component::Run);
         }
-        let mut changes = vec![Change::RequestPackage(RequestPackage::new(req.clone()))];
+        let mut changes = vec![Change::RequestPackage(RequestPackage::new(
+            req.clone().into_owned(),
+        ))];
         // we need to check if this request will change a previously
         // resolved package (eg: by adding a new component with new requirements)
         let (spec, _source) = match self.base.get_current_resolve(req.pkg.name()) {
