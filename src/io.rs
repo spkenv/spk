@@ -4,7 +4,7 @@
 
 use colored::Colorize;
 
-use crate::api;
+use crate::{api, solve};
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name().bold().to_string();
@@ -25,22 +25,90 @@ pub fn format_build(build: &api::Build) -> String {
     }
 }
 
+pub fn format_options(options: &api::OptionMap) -> String {
+    let formatted: Vec<String> = options
+        .iter()
+        .map(|(name, value)| format!("{}{}{}", name, "=".dimmed(), value.cyan()))
+        .collect();
+    format!("{{{}}}", formatted.join(", "))
+}
+
+/// Create a canonical string to describe the combined request for a package.
+pub fn format_request<'a, R>(name: &str, requests: R) -> String
+where
+    R: IntoIterator<Item = &'a api::PkgRequest>,
+{
+    let mut out = format!("{}/", name.bold());
+    let versions: Vec<String> = requests
+        .into_iter()
+        .map(|req| {
+            let mut version = req.pkg.version.to_string();
+            if version.is_empty() {
+                version.push('*')
+            }
+            let build = match req.pkg.build {
+                Some(ref b) => format!("/{}", format_build(b)),
+                None => "".to_string(),
+            };
+            format!("{}{}", version.bright_blue(), build)
+        })
+        .collect();
+    out.push_str(&versions.join(","));
+    out
+}
+
+pub fn format_solution(solution: &solve::Solution, verbosity: i32) -> String {
+    let mut out = "Installed Packages:\n".to_string();
+    for req in solution.items() {
+        if verbosity > 0 {
+            let options = req.spec.resolve_all_options(&api::OptionMap::default());
+            out.push_str(&format!(
+                "  {} {}\n",
+                format_ident(&req.spec.pkg),
+                format_options(&options)
+            ));
+        } else {
+            out.push_str(&format!("  {}\n", format_ident(&req.spec.pkg)));
+        }
+    }
+    out
+}
+
 pub mod python {
-    use crate::api;
+    use crate::{api, solve};
     use pyo3::prelude::*;
 
     #[pyfunction]
     pub fn format_ident(pkg: &api::Ident) -> String {
         super::format_ident(pkg)
     }
+
     #[pyfunction]
     pub fn format_build(build: api::Build) -> String {
         super::format_build(&build)
     }
 
+    #[pyfunction]
+    pub fn format_options(options: api::OptionMap) -> String {
+        super::format_options(&options)
+    }
+
+    #[pyfunction]
+    pub fn format_request(name: &str, requests: Vec<api::PkgRequest>) -> String {
+        super::format_request(name, requests.iter())
+    }
+
+    #[pyfunction]
+    pub fn format_solution(solution: &solve::Solution, verbosity: Option<i32>) -> String {
+        super::format_solution(solution, verbosity.unwrap_or_default())
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(format_ident, m)?)?;
         m.add_function(wrap_pyfunction!(format_build, m)?)?;
+        m.add_function(wrap_pyfunction!(format_options, m)?)?;
+        m.add_function(wrap_pyfunction!(format_request, m)?)?;
+        m.add_function(wrap_pyfunction!(format_solution, m)?)?;
         Ok(())
     }
 }

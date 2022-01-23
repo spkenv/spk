@@ -7,7 +7,13 @@ from colorama import Fore, Style
 import io
 import sys
 
-from spkrs.io import format_ident, format_build
+from spkrs.io import (
+    format_ident,
+    format_build,
+    format_options,
+    format_request,
+    format_solution,
+)
 from . import api, solve
 
 
@@ -99,45 +105,6 @@ def format_note(note: solve.graph.Note) -> str:
         return f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(note.pkg)} - {note.reason}"
     else:
         return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
-
-
-def format_request(name: str, requests: Sequence[api.Request]) -> str:
-
-    out = f"{Style.BRIGHT}{name}{Style.RESET_ALL}/"
-    versions = []
-    for req in requests:
-        assert isinstance(
-            req, api.PkgRequest
-        ), f"TODO: Unhandled request in formatter {type(req)}"
-        ver = f"{Fore.LIGHTBLUE_EX}{str(req.pkg.version) or '*'}{Fore.RESET}"
-        if req.pkg.build is not None:
-            ver += f"/{format_build(req.pkg.build)}"
-        versions.append(ver)
-    out += ",".join(versions)
-    return out
-
-
-def format_options(options: api.OptionMap) -> str:
-
-    formatted = []
-    for name, value in options.items():
-        formatted.append(
-            f"{name}{Style.DIM}={Style.NORMAL}{Fore.CYAN}{value}{Fore.RESET}"
-        )
-
-    return f"{{{', '.join(formatted)}}}"
-
-
-def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
-
-    out = "Installed Packages:\n"
-    for _, spec, _ in solution.items():
-        if verbosity:
-            options = spec.resolve_all_options(api.OptionMap({}))
-            out += f"  {format_ident(spec.pkg)} {format_options(options)}\n"
-        else:
-            out += f"  {format_ident(spec.pkg)}\n"
-    return out
 
 
 def format_error(err: Exception, verbosity: int = 0) -> str:
