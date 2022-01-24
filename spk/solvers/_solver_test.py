@@ -10,19 +10,14 @@ import pytest
 import spk
 
 from .. import api, io
-from ..pysolve import legacy
-from ..pysolve.legacy import _errors as legacy_errors
 from spkrs import storage, solve
 from spkrs.solve import Solver
 
 
-@pytest.fixture(params=["legacy", "graph"])
-def solver(request: Any) -> Union[legacy.Solver, Solver]:
+@pytest.fixture
+def solver() -> Solver:
 
-    if request.param == "legacy":
-        return legacy.Solver({})
-    else:
-        return Solver()
+    return Solver()
 
 
 def make_repo(
@@ -59,12 +54,12 @@ def make_build(
     return spec
 
 
-def test_solver_no_requests(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_no_requests(solver: Solver) -> None:
 
     solver.solve()
 
 
-def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_package_with_no_spec(solver: Solver) -> None:
 
     repo = storage.mem_repository()
 
@@ -78,7 +73,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
     solver.add_repository(repo)
     solver.add_request("my-pkg")
 
-    with pytest.raises((FileNotFoundError, legacy_errors.SolverError)):
+    with pytest.raises(FileNotFoundError):
         try:
             io.run_and_print_resolve(solver, verbosity=100)
         except Exception as e:
@@ -86,7 +81,7 @@ def test_solver_package_with_no_spec(solver: Union[Solver, legacy.Solver]) -> No
             raise
 
 
-def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_single_package_no_deps(solver: Solver) -> None:
 
     options = api.OptionMap()
     repo = make_repo([{"pkg": "my-pkg/1.0.0"}], options)
@@ -102,9 +97,7 @@ def test_solver_single_package_no_deps(solver: Union[Solver, legacy.Solver]) -> 
     assert packages.get("my-pkg").spec.pkg.build != api.SRC  # type: ignore
 
 
-def test_solver_single_package_simple_deps(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_single_package_simple_deps(solver: Solver) -> None:
 
     options = api.OptionMap()
     repo = make_repo(
@@ -129,7 +122,7 @@ def test_solver_single_package_simple_deps(
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
 
 
-def test_solver_dependency_abi_compat(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_dependency_abi_compat(solver: Solver) -> None:
 
     options = api.OptionMap()
     repo = make_repo(
@@ -157,7 +150,7 @@ def test_solver_dependency_abi_compat(solver: Union[Solver, legacy.Solver]) -> N
     assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
 
 
-def test_solver_dependency_incompatible(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_dependency_incompatible(solver: Solver) -> None:
 
     # test what happens when a dependency is added which is incompatible
     # with an existing request in the stack
@@ -177,13 +170,11 @@ def test_solver_dependency_incompatible(solver: Union[Solver, legacy.Solver]) ->
     # this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request("maya/2019")
 
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_dependency_incompatible_stepback(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_dependency_incompatible_stepback(solver: Solver) -> None:
 
     # test what happens when a dependency is added which is incompatible
     # with an existing request in the stack - in this case we want the solver
@@ -214,9 +205,7 @@ def test_solver_dependency_incompatible_stepback(
     assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
-def test_solver_dependency_already_satisfied(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_dependency_already_satisfied(solver: Solver) -> None:
 
     # test what happens when a dependency is added which represents
     # a package which has already been resolved
@@ -249,9 +238,7 @@ def test_solver_dependency_already_satisfied(
     assert packages.get("dep-1").spec.pkg.version == "1.0.0"
 
 
-def test_solver_dependency_reopen_solvable(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_dependency_reopen_solvable(solver: Solver) -> None:
 
     # test what happens when a dependency is added which represents
     # a package which has already been resolved
@@ -288,7 +275,7 @@ def test_solver_dependency_reopen_solvable(
     assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
-def test_solver_dependency_reiterate(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_dependency_reiterate(solver: Solver) -> None:
 
     # test what happens when a package iterator must be run through twice
     # - walking back up the solve graph should reset the iterator to where it was
@@ -324,9 +311,7 @@ def test_solver_dependency_reiterate(solver: Union[Solver, legacy.Solver]) -> No
     assert packages.get("maya").spec.pkg.version == "2019.0.0"
 
 
-def test_solver_dependency_reopen_unsolvable(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_dependency_reopen_unsolvable(solver: Solver) -> None:
 
     # test what happens when a dependency is added which represents
     # a package which has already been resolved
@@ -352,12 +337,12 @@ def test_solver_dependency_reopen_unsolvable(
     )
     solver.add_repository(repo)
     solver.add_request("pkg-top")
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         packages = solver.solve()
         print(packages)
 
 
-def test_solver_pre_release_config(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_pre_release_config(solver: Solver) -> None:
 
     repo = make_repo(
         [
@@ -386,7 +371,7 @@ def test_solver_pre_release_config(solver: Union[Solver, legacy.Solver]) -> None
     assert solution.get("my-pkg").spec.pkg.version == "1.0.0-pre.2"
 
 
-def test_solver_constraint_only(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_constraint_only(solver: Solver) -> None:
 
     # test what happens when a dependency is marked as a constraint/optional
     # and no other request is added
@@ -413,7 +398,7 @@ def test_solver_constraint_only(solver: Union[Solver, legacy.Solver]) -> None:
         solution.get("python")
 
 
-def test_solver_constraint_and_request(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_constraint_and_request(solver: Solver) -> None:
 
     # test what happens when a dependency is marked as a constraint/optional
     # and also requested by another package
@@ -572,14 +557,12 @@ def test_solver_build_from_source() -> None:
     solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
     solver.set_binary_only(True)
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         # Should fail when binary-only is specified
         io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_build_from_source_unsolvable(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_build_from_source_unsolvable(solver: Solver) -> None:
 
     # test when no appropriate build exists but the source is available
     # - if the requested pkg cannot resolve a build environment
@@ -610,7 +593,7 @@ def test_solver_build_from_source_unsolvable(
     solver.add_request(api.VarRequest("gcc", "6.3"))
     solver.add_request("my-tool")
 
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
@@ -661,7 +644,7 @@ def test_solver_build_from_source_dependency() -> None:
     assert solution.get("my-tool").is_source_build(), "should want to build"
 
 
-def test_solver_deprecated_build(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_deprecated_build(solver: Solver) -> None:
 
     specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0"}]
     deprecated = make_build({"pkg": "my-pkg/1.0.0", "deprecated": True})
@@ -685,7 +668,7 @@ def test_solver_deprecated_build(solver: Union[Solver, legacy.Solver]) -> None:
     ), "should be able to resolve exact deprecated build"
 
 
-def test_solver_deprecated_version(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_deprecated_version(solver: Solver) -> None:
 
     specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
     deprecated = make_build({"pkg": "my-pkg/1.0.0"})
@@ -710,9 +693,7 @@ def test_solver_deprecated_version(solver: Union[Solver, legacy.Solver]) -> None
     ), "should be able to resolve exact build when version is deprecated"
 
 
-def test_solver_build_from_source_deprecated(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_build_from_source_deprecated(solver: Solver) -> None:
 
     # test when no appropriate build exists and the main package
     # has been deprecated, no source build should be allowed
@@ -738,13 +719,11 @@ def test_solver_build_from_source_deprecated(
     solver.add_request(api.VarRequest("debug", "on"))
     solver.add_request("my-tool")
 
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_embedded_package_adds_request(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_embedded_package_adds_request(solver: Solver) -> None:
 
     # test when there is an embedded package
     # - the embedded package is added to the solution
@@ -770,7 +749,7 @@ def test_solver_embedded_package_adds_request(
     assert solution.get("qt").spec.pkg.build == api.EMBEDDED
 
 
-def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_embedded_package_solvable(solver: Solver) -> None:
 
     # test when there is an embedded package
     # - the embedded package is added to the solution
@@ -801,9 +780,7 @@ def test_solver_embedded_package_solvable(solver: Union[Solver, legacy.Solver]) 
     assert solution.get("qt").spec.pkg.build == api.EMBEDDED
 
 
-def test_solver_embedded_package_unsolvable(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_embedded_package_unsolvable(solver: Solver) -> None:
 
     # test when there is an embedded package
     # - the embedded package is added to the solution
@@ -831,13 +808,11 @@ def test_solver_embedded_package_unsolvable(
     solver.add_repository(repo)
     solver.add_request("my-plugin")
 
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_some_versions_conflicting_requests(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_some_versions_conflicting_requests(solver: Solver) -> None:
 
     # test when there is a package with some version that have a conflicting dependency
     # - the solver passes over the one with conflicting
@@ -871,9 +846,7 @@ def test_solver_some_versions_conflicting_requests(
     io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_embedded_request_invalidates(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_embedded_request_invalidates(solver: Solver) -> None:
 
     # test when a package is resolved with an incompatible embedded pkg
     # - the solver tries to resolve the package
@@ -901,11 +874,11 @@ def test_solver_embedded_request_invalidates(
     solver.add_request("python")
     solver.add_request("my-lib")
 
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_unknown_package_options(solver: Solver) -> None:
 
     # test when a package is requested with specific options (eg: pkg.opt)
     # - the solver ignores versions that don't define the option
@@ -918,7 +891,7 @@ def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) ->
     solver.add_request(api.VarRequest("my-lib.something", "value"))
     solver.add_request("my-lib")
 
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         io.run_and_print_resolve(solver, verbosity=100)
 
     # this time we don't request that option, and it should be ok
@@ -928,7 +901,7 @@ def test_solver_unknown_package_options(solver: Union[Solver, legacy.Solver]) ->
     io.run_and_print_resolve(solver, verbosity=100)
 
 
-def test_solver_var_requirements(solver: Union[Solver, legacy.Solver]) -> None:
+def test_solver_var_requirements(solver: Solver) -> None:
 
     # test what happens when a dependency is added which is incompatible
     # with an existing request in the stack
@@ -975,9 +948,7 @@ def test_solver_var_requirements(solver: Union[Solver, legacy.Solver]) -> None:
     assert solution.get("python").spec.pkg.version == "2.7.5"
 
 
-def test_solver_var_requirements_unresolve(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_var_requirements_unresolve(solver: Solver) -> None:
 
     # test when a package is resolved that conflicts in var requirements
     #  - the solver should unresolve the solved package
@@ -1033,9 +1004,7 @@ def test_solver_var_requirements_unresolve(
     ), "should re-resolve python"
 
 
-def test_solver_build_options_dont_affect_compat(
-    solver: Union[Solver, legacy.Solver]
-) -> None:
+def test_solver_build_options_dont_affect_compat(solver: Solver) -> None:
 
     # test when a package is resolved with some build option
     #  - that option can conflict with another packages build options
@@ -1079,5 +1048,5 @@ def test_solver_build_options_dont_affect_compat(
     solver.add_request("pkgb")
     # this time the explicit request will cause a failure
     solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
-    with pytest.raises((solve.SolverError, legacy_errors.SolverError)):
+    with pytest.raises(solve.SolverError):
         solution = io.run_and_print_resolve(solver, verbosity=100)

@@ -7,7 +7,7 @@ from colorama import Fore, Style
 import io
 import sys
 
-from . import api, pysolve, solve
+from . import api, solve
 
 
 def format_ident(pkg: api.Ident) -> str:
@@ -21,21 +21,12 @@ def format_ident(pkg: api.Ident) -> str:
 
 
 def run_and_print_resolve(
-    solver: Union[pysolve.legacy.Solver, pysolve.Solver, solve.Solver],
+    solver: solve.Solver,
     verbosity: int = 1,
 ) -> solve.Solution:
-    if isinstance(solver, pysolve.legacy.Solver):
-        solution = solver.solve()
-        print(format_decision_tree(solver.decision_tree, verbosity))
-        return solution  # type: ignore
-    elif isinstance(solver, pysolve.Solver):
-        generator = solver.run()
-        format_decisions(generator, out=sys.stdout)
-        return generator.solution  # type: ignore
-    else:
-        runtime = solver.run()
-        format_decisions(runtime, out=sys.stdout)
-        return runtime.solution()
+    runtime = solver.run()
+    format_decisions(runtime, out=sys.stdout)
+    return runtime.solution()
 
 
 def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
@@ -59,12 +50,12 @@ def format_decisions(
         level_change = 1
         for change in decision.iter_changes():
 
-            if isinstance(change, (pysolve.graph.SetPackage, solve.graph.SetPackage)):
+            if isinstance(change, solve.graph.SetPackage):
                 if change.spec.pkg.build == api.EMBEDDED:
                     fill = "."
                 else:
                     fill = ">"
-            elif isinstance(change, (pysolve.graph.StepBack, solve.graph.StepBack)):
+            elif isinstance(change, solve.graph.StepBack):
                 fill = "!"
                 level_change = -1
             else:
@@ -80,11 +71,6 @@ def format_decisions(
 def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) -> bool:
 
     levels = {
-        pysolve.graph.SetPackage: 1,
-        pysolve.graph.StepBack: 1,
-        pysolve.graph.RequestPackage: 2,
-        pysolve.graph.RequestVar: 2,
-        pysolve.graph.SetOptions: 3,
         solve.graph.SetPackage: 1,
         solve.graph.StepBack: 1,
         solve.graph.RequestPackage: 2,
@@ -98,34 +84,19 @@ def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) 
     return bool(verbosity >= 2)
 
 
-def format_decision_tree(tree: pysolve.legacy.DecisionTree, verbosity: int = 1) -> str:
-
-    out = ""
-    for decision in tree.walk():
-        out += ">" * decision.level()
-        lines = format_decision(decision, verbosity).split("\n")
-        out += " " + lines[0] + "\n"
-        for line in lines[1:]:
-            out += "." * decision.level()
-            out += " " + line + "\n"
-    return out[:-1]
-
-
 def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
 
-    if isinstance(change, (pysolve.graph.RequestPackage, solve.graph.RequestPackage)):
+    if isinstance(change, solve.graph.RequestPackage):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
-    elif isinstance(change, (pysolve.graph.RequestVar, solve.graph.RequestVar)):
+    elif isinstance(change, solve.graph.RequestVar):
         return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.var: change.request.value}))}"
-    elif isinstance(
-        change, (pysolve.graph.SetPackageBuild, solve.graph.SetPackageBuild)
-    ):
+    elif isinstance(change, solve.graph.SetPackageBuild):
         return f"{Fore.YELLOW}BUILD{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, (pysolve.graph.SetPackage, solve.graph.SetPackage)):
+    elif isinstance(change, solve.graph.SetPackage):
         return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, (pysolve.graph.SetOptions, solve.graph.SetOptions)):
+    elif isinstance(change, solve.graph.SetOptions):
         return f"{Fore.CYAN}ASSIGN{Fore.RESET} {format_options(change.options)}"
-    elif isinstance(change, (pysolve.graph.StepBack, solve.graph.StepBack)):
+    elif isinstance(change, solve.graph.StepBack):
         return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
     else:
         return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
@@ -133,69 +104,10 @@ def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
 
 def format_note(note: solve.graph.Note) -> str:
 
-    if isinstance(note, (pysolve.graph.SkipPackageNote, solve.graph.SkipPackageNote)):
+    if isinstance(note, solve.graph.SkipPackageNote):
         return f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(note.pkg)} - {note.reason}"
     else:
         return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
-
-
-def format_decision(decision: pysolve.legacy.Decision, verbosity: int = 1) -> str:
-
-    end = "\n" if verbosity > 1 else " "
-    out = ""
-
-    error = decision.get_error()
-    resolved = decision.get_resolved()
-    requests = decision.get_requests()
-    unresolved = decision.get_unresolved()
-    if resolved:
-        if verbosity > 1:
-            for _, spec, _ in resolved.items():
-                iterator = decision.get_iterator(spec.pkg.name)
-                if iterator is not None:
-                    versions = list(
-                        f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(v)} - {c}"
-                        for v, c in iterator.get_history().items()
-                    )
-                    if versions:
-                        out += end.join(reversed(versions)) + end
-                out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(spec.pkg)}" + end
-                if verbosity > 2:
-                    opt = spec.resolve_all_options(decision.get_options())
-                    if opt:
-                        out += format_options(opt) + end
-        else:
-            values = list(format_ident(spec.pkg) for _, spec, _ in resolved.items())
-            out += f"{Fore.GREEN}RESOLVE{Fore.RESET} {', '.join(values)}" + end
-    if requests:
-        values = list(format_request(n, pkgs) for n, pkgs in requests.items())
-        out += f"{Fore.BLUE}REQUEST{Fore.RESET} {', '.join(values)}" + end
-    if error is None and unresolved:
-        if verbosity > 1:
-            reasons = list(
-                f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {v} - {c}"
-                for v, c in unresolved.items()
-            )
-            if reasons:
-                out += end.join(reversed(reasons)) + end
-        else:
-            out += f"{Fore.YELLOW}UNRESOLVE{Fore.RESET} {', '.join(unresolved)}" + end
-
-    if error is not None:
-
-        if not isinstance(error, pysolve.legacy.UnresolvedPackageError):
-            out += f"{Fore.RED}BLOCKED{Fore.RESET} {error}"
-        else:
-            if verbosity > 1:
-                versions = list(
-                    f"{Fore.MAGENTA}TRY{Fore.RESET} {v} - {c}"
-                    for v, c in (error.history or {}).items()
-                )
-                out += end.join(versions) + (end if versions else "")
-
-            out += f"{Fore.RED}BLOCKED{Fore.RESET} {error.message}"
-
-    return out.strip()
 
 
 def format_request(name: str, requests: Sequence[api.Request]) -> str:
@@ -250,10 +162,6 @@ def format_solution(solution: solve.Solution, verbosity: int = 0) -> str:
 def format_error(err: Exception, verbosity: int = 0) -> str:
 
     msg = str(err)
-    if isinstance(err, pysolve.SolverFailedError):
-        errors = err.graph.find_deepest_errors()
-        if errors:
-            msg += ", likely suspects:\n - " + ("\n - ".join(errors))
     if isinstance(err, solve.SolverError):
         msg = "Failed to resolve"
         if verbosity == 0:
