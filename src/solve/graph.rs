@@ -511,12 +511,26 @@ pub struct Note {}
 #[derive(Clone, Debug)]
 pub enum NoteEnum {
     SkipPackageNote(SkipPackageNote),
+    Other(String),
+}
+
+impl<'source> FromPyObject<'source> for NoteEnum {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        match SkipPackageNote::extract(ob) {
+            Ok(n) => Ok(Self::SkipPackageNote(n)),
+            Err(_) => {
+                let string = String::extract(ob)?;
+                Ok(Self::Other(string))
+            }
+        }
+    }
 }
 
 impl IntoPy<Py<PyAny>> for NoteEnum {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
-            NoteEnum::SkipPackageNote(n) => n.into_py(py),
+            Self::SkipPackageNote(n) => n.into_py(py),
+            Self::Other(s) => s.into_py(py),
         }
     }
 }
@@ -921,9 +935,18 @@ impl State {
 }
 
 #[derive(Clone, Debug)]
-enum SkipPackageNoteReason {
+pub enum SkipPackageNoteReason {
     String(String),
     Compatibility(api::Compatibility),
+}
+
+impl std::fmt::Display for SkipPackageNoteReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(s) => s.fmt(f),
+            Self::Compatibility(c) => c.fmt(f),
+        }
+    }
 }
 
 impl IntoPy<Py<PyAny>> for SkipPackageNoteReason {
@@ -939,9 +962,9 @@ impl IntoPy<Py<PyAny>> for SkipPackageNoteReason {
 #[derive(Clone, Debug)]
 pub struct SkipPackageNote {
     #[pyo3(get)]
-    pkg: Ident,
+    pub pkg: Ident,
     #[pyo3(get)]
-    reason: SkipPackageNoteReason,
+    pub reason: SkipPackageNoteReason,
 }
 
 impl SkipPackageNote {

@@ -74,6 +74,21 @@ pub fn format_solution(solution: &solve::Solution, verbosity: i32) -> String {
     out
 }
 
+pub fn format_note(note: &solve::graph::NoteEnum) -> String {
+    use solve::graph::NoteEnum;
+    match note {
+        NoteEnum::SkipPackageNote(n) => {
+            format!(
+                "{} {} - {}",
+                "TRY".magenta(),
+                format_ident(&n.pkg),
+                n.reason
+            )
+        }
+        NoteEnum::Other(s) => format!("{} {}", "NOTE".magenta(), s),
+    }
+}
+
 pub mod python {
     use crate::{api, solve};
     use pyo3::prelude::*;
@@ -103,12 +118,18 @@ pub mod python {
         super::format_solution(solution, verbosity.unwrap_or_default())
     }
 
+    #[pyfunction]
+    pub fn format_note(note: solve::graph::NoteEnum) -> String {
+        super::format_note(&note)
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(format_ident, m)?)?;
         m.add_function(wrap_pyfunction!(format_build, m)?)?;
         m.add_function(wrap_pyfunction!(format_options, m)?)?;
         m.add_function(wrap_pyfunction!(format_request, m)?)?;
         m.add_function(wrap_pyfunction!(format_solution, m)?)?;
+        m.add_function(wrap_pyfunction!(format_note, m)?)?;
         Ok(())
     }
 }

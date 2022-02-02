@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 mod errors;
-mod graph;
+pub mod graph;
 mod package_iterator;
 mod python;
 mod solution;

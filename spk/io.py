@@ -13,6 +13,7 @@ from spkrs.io import (
     format_options,
     format_request,
     format_solution,
+    format_note,
 )
 from . import api, solve
 
@@ -97,14 +98,6 @@ def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
         return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
     else:
         return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
-
-
-def format_note(note: solve.graph.Note) -> str:
-
-    if isinstance(note, solve.graph.SkipPackageNote):
-        return f"{Fore.MAGENTA}TRY{Fore.RESET} {format_ident(note.pkg)} - {note.reason}"
-    else:
-        return f"{Fore.MAGENTA}NOTE{Fore.RESET} {note}"
 
 
 def format_error(err: Exception, verbosity: int = 0) -> str:
