@@ -15,6 +15,7 @@ from spkrs.io import (
     format_solution,
     format_note,
     format_change,
+    format_decisions,
     change_is_relevant_at_verbosity
 )
 from . import api, solve
@@ -34,38 +35,6 @@ def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
     out = io.StringIO()
     format_decisions(graph.walk(), out, verbosity)
     return out.getvalue()
-
-
-def format_decisions(
-    decisions: Iterable[Tuple[solve.graph.Node, solve.graph.Decision]],
-    out: TextIO,
-    verbosity: int = 1,
-) -> None:
-    level = 0
-    for _, decision in decisions:
-        if verbosity > 1:
-            for note in decision.iter_notes():
-                out.write(f"{'.'*level} {format_note(note)}\n")
-
-        level_change = 1
-        for change in decision.iter_changes():
-
-            if isinstance(change, solve.graph.SetPackage):
-                if change.spec.pkg.build == api.EMBEDDED:
-                    fill = "."
-                else:
-                    fill = ">"
-            elif isinstance(change, solve.graph.StepBack):
-                fill = "!"
-                level_change = -1
-            else:
-                fill = "."
-
-            if not change_is_relevant_at_verbosity(change, verbosity):
-                continue
-
-            out.write(f"{fill*level} {format_change(change, verbosity)}\n")
-        level += level_change
 
 
 def format_error(err: Exception, verbosity: int = 0) -> str:

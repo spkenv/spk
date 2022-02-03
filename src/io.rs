@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::VecDeque;
+
 use colored::Colorize;
 
 use crate::{api, option_map, solve};
@@ -131,6 +133,100 @@ pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
         StepBack(c) => {
             format!("{} {}", "BLOCKED".red(), c.cause)
         }
+    }
+}
+
+pub fn format_decisions<I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
+where
+    I: IntoIterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+{
+    FormattedDecisionsIter::new(decisions, verbosity)
+}
+
+pub struct FormattedDecisionsIter<I>
+where
+    I: Iterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+{
+    inner: I,
+    level: usize,
+    verbosity: u32,
+    output_queue: VecDeque<String>,
+}
+
+impl<I> FormattedDecisionsIter<I>
+where
+    I: Iterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+{
+    pub fn new<T>(inner: T, verbosity: u32) -> Self
+    where
+        T: IntoIterator<IntoIter = I>,
+    {
+        Self {
+            inner: inner.into_iter(),
+            level: 0,
+            verbosity,
+            output_queue: VecDeque::new(),
+        }
+    }
+}
+
+impl<I> Iterator for FormattedDecisionsIter<I>
+where
+    I: Iterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+{
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next) = self.output_queue.pop_front() {
+            return Some(next);
+        }
+
+        let decision = match self.inner.next() {
+            None => return None,
+            Some((_, d)) => d,
+        };
+        if self.verbosity > 1 {
+            let fill: String = ".".repeat(self.level);
+            for note in decision.notes.iter() {
+                self.output_queue
+                    .push_back(format!("{} {}", fill, format_note(note)));
+            }
+        }
+
+        let mut fill: &str;
+        let mut level_change: i64 = 1;
+        for change in decision.changes.iter() {
+            use solve::graph::Change::*;
+            match change {
+                SetPackage(change) => {
+                    if change.spec.pkg.build == Some(api::Build::Embedded) {
+                        fill = ".";
+                    } else {
+                        fill = ">";
+                    }
+                }
+                StepBack(_) => {
+                    fill = "!";
+                    level_change = -1;
+                }
+                _ => {
+                    fill = ".";
+                }
+            }
+
+            if !change_is_relevant_at_verbosity(change, self.verbosity) {
+                continue;
+            }
+
+            let prefix: String = fill.repeat(self.level);
+            self.output_queue.push_back(format!(
+                "{} {}",
+                prefix,
+                format_change(change, self.verbosity)
+            ))
+        }
+        self.level = (self.level as i64 + level_change) as usize;
+        self.output_queue.pop_front()
     }
 }
 
