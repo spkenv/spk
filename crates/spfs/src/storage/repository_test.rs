@@ -16,7 +16,12 @@ use crate::{encoding::Encodable, tracking::TagSpec};
 
 use crate::fixtures::*;
 
-#[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
+#[rstest(
+    tmprepo,
+    case(tmprepo("fs")),
+    case(tmprepo("tar")),
+    case(tmprepo("rpc"))
+)]
 #[tokio::test]
 async fn test_find_aliases(#[future] tmprepo: TempRepo) {
     init_logging();
@@ -90,8 +95,12 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     )
 }
 
-#[rstest(tmprepo, case(tmprepo("fs")), case(tmprepo("tar")))]
-#[tokio::test]
+#[rstest(
+    tmprepo,
+    case(tmprepo("fs")),
+    case(tmprepo("tar")),
+    case(tmprepo("rpc"))
+)]#[tokio::test]
 async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
@@ -106,8 +115,12 @@ async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::T
     assert!(manifest.get_path("broken-link").is_some());
 }
 
-#[rstest(tmprepo, case::fs(tmprepo("fs")), case::fs(tmprepo("tar")))]
-#[tokio::test]
+#[rstest(
+    tmprepo,
+    case(tmprepo("fs")),
+    case(tmprepo("tar")),
+    case(tmprepo("rpc"))
+)]#[tokio::test]
 async fn test_commit_dir(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");

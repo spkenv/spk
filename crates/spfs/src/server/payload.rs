@@ -27,8 +27,6 @@ impl proto::payload_service_server::PayloadService for PayloadService {
     ) -> Result<Response<Self::IterDigestsStream>, Status> {
         let stream = self
             .repo
-            .read()
-            .await
             .iter_payload_digests()
             .map(proto::IterDigestsResponse::from_result)
             .map(Ok);
