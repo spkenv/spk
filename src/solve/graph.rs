@@ -53,6 +53,28 @@ impl Change {
     }
 }
 
+impl<'source> FromPyObject<'source> for Change {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        if let Ok(rp) = RequestPackage::extract(ob) {
+            Ok(Change::RequestPackage(rp))
+        } else if let Ok(rv) = RequestVar::extract(ob) {
+            Ok(Change::RequestVar(rv))
+        } else if let Ok(so) = SetOptions::extract(ob) {
+            Ok(Change::SetOptions(so))
+        } else if let Ok(sp) = SetPackage::extract(ob) {
+            Ok(Change::SetPackage(Box::new(sp)))
+        } else if let Ok(spb) = SetPackageBuild::extract(ob) {
+            Ok(Change::SetPackageBuild(Box::new(spb)))
+        } else if let Ok(sb) = StepBack::extract(ob) {
+            Ok(Change::StepBack(sb))
+        } else {
+            Err(pyo3::exceptions::PyTypeError::new_err(
+                "Not a valid change instance",
+            ))
+        }
+    }
+}
+
 impl IntoPy<Py<PyAny>> for Change {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {

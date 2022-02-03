@@ -14,6 +14,7 @@ from spkrs.io import (
     format_request,
     format_solution,
     format_note,
+    change_is_relevant_at_verbosity
 )
 from . import api, solve
 
@@ -64,22 +65,6 @@ def format_decisions(
 
             out.write(f"{fill*level} {format_change(change, verbosity)}\n")
         level += level_change
-
-
-def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) -> bool:
-
-    levels = {
-        solve.graph.SetPackage: 1,
-        solve.graph.StepBack: 1,
-        solve.graph.RequestPackage: 2,
-        solve.graph.RequestVar: 2,
-        solve.graph.SetOptions: 3,
-    }
-
-    for kind, level in levels.items():
-        if isinstance(change, kind):
-            return bool(verbosity >= level)
-    return bool(verbosity >= 2)
 
 
 def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:

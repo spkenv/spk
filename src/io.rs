@@ -89,6 +89,19 @@ pub fn format_note(note: &solve::graph::NoteEnum) -> String {
     }
 }
 
+pub fn change_is_relevant_at_verbosity(change: &solve::graph::Change, verbosity: u32) -> bool {
+    use solve::graph::Change::*;
+    let relevant_level = match change {
+        SetPackage(_) => 1,
+        StepBack(_) => 1,
+        RequestPackage(_) => 2,
+        RequestVar(_) => 2,
+        SetOptions(_) => 3,
+        SetPackageBuild(_) => 1,
+    };
+    verbosity >= relevant_level
+}
+
 pub mod python {
     use crate::{api, solve};
     use pyo3::prelude::*;
@@ -123,6 +136,11 @@ pub mod python {
         super::format_note(&note)
     }
 
+    #[pyfunction]
+    pub fn change_is_relevant_at_verbosity(change: solve::graph::Change, verbosity: u32) -> bool {
+        super::change_is_relevant_at_verbosity(&change, verbosity)
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(format_ident, m)?)?;
         m.add_function(wrap_pyfunction!(format_build, m)?)?;
@@ -130,6 +148,7 @@ pub mod python {
         m.add_function(wrap_pyfunction!(format_request, m)?)?;
         m.add_function(wrap_pyfunction!(format_solution, m)?)?;
         m.add_function(wrap_pyfunction!(format_note, m)?)?;
+        m.add_function(wrap_pyfunction!(change_is_relevant_at_verbosity, m)?)?;
         Ok(())
     }
 }
