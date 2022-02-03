@@ -1,7 +1,7 @@
-use itertools::Itertools;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::hash_map::{DefaultHasher, Entry};
@@ -645,7 +645,7 @@ impl SetOptions {
 impl SetOptions {
     fn apply(&self, base: &State) -> State {
         // Update options while preserving order to match
-        // python dictionary behavior. "Updating a key
+        // python dictionary behaviour. "Updating a key
         // does not affect the order."
         let mut insertion_order = 0;
         // Build a lookup hash with an insertion order.
