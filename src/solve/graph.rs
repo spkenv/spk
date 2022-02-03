@@ -577,7 +577,7 @@ impl PyIterProtocol for NotesIter {
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
     #[pyo3(get)]
-    request: api::PkgRequest,
+    pub request: api::PkgRequest,
 }
 
 impl RequestPackage {
@@ -598,7 +598,7 @@ impl RequestPackage {
 #[derive(Clone, Debug)]
 pub struct RequestVar {
     #[pyo3(get)]
-    request: api::VarRequest,
+    pub request: api::VarRequest,
 }
 
 impl RequestVar {
@@ -626,7 +626,7 @@ impl RequestVar {
 #[derive(Clone, Debug)]
 pub struct SetOptions {
     #[pyo3(get)]
-    options: api::OptionMap,
+    pub options: api::OptionMap,
 }
 
 #[pymethods]
@@ -688,8 +688,8 @@ impl SetOptions {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackage {
-    spec: Arc<api::Spec>,
-    source: PackageSource,
+    pub spec: Arc<api::Spec>,
+    pub source: PackageSource,
 }
 
 impl SetPackage {
@@ -714,8 +714,8 @@ impl SetPackage {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackageBuild {
-    spec: Arc<api::Spec>,
-    source: PackageSource,
+    pub spec: Arc<api::Spec>,
+    pub source: PackageSource,
 }
 
 impl SetPackageBuild {
@@ -1009,8 +1009,8 @@ impl SkipPackageNote {
 #[derive(Clone, Debug)]
 pub struct StepBack {
     #[pyo3(get)]
-    cause: String,
-    destination: State,
+    pub cause: String,
+    pub destination: State,
 }
 
 impl StepBack {

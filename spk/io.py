@@ -14,6 +14,7 @@ from spkrs.io import (
     format_request,
     format_solution,
     format_note,
+    format_change,
     change_is_relevant_at_verbosity
 )
 from . import api, solve
@@ -65,24 +66,6 @@ def format_decisions(
 
             out.write(f"{fill*level} {format_change(change, verbosity)}\n")
         level += level_change
-
-
-def format_change(change: solve.graph.Change, _verbosity: int = 1) -> str:
-
-    if isinstance(change, solve.graph.RequestPackage):
-        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_request(change.request.pkg.name, [change.request])}"
-    elif isinstance(change, solve.graph.RequestVar):
-        return f"{Fore.BLUE}REQUEST{Fore.RESET} {format_options(api.OptionMap({change.request.var: change.request.value}))}"
-    elif isinstance(change, solve.graph.SetPackageBuild):
-        return f"{Fore.YELLOW}BUILD{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, solve.graph.SetPackage):
-        return f"{Fore.GREEN}RESOLVE{Fore.RESET} {format_ident(change.spec.pkg)}"
-    elif isinstance(change, solve.graph.SetOptions):
-        return f"{Fore.CYAN}ASSIGN{Fore.RESET} {format_options(change.options)}"
-    elif isinstance(change, solve.graph.StepBack):
-        return f"{Fore.RED}BLOCKED{Fore.RESET} {change.cause}"
-    else:
-        return f"{Fore.MAGENTA}OTHER{Fore.RESET} {change}"
 
 
 def format_error(err: Exception, verbosity: int = 0) -> str:

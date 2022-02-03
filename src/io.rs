@@ -4,7 +4,7 @@
 
 use colored::Colorize;
 
-use crate::{api, solve};
+use crate::{api, option_map, solve};
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name().bold().to_string();
@@ -57,7 +57,7 @@ where
     out
 }
 
-pub fn format_solution(solution: &solve::Solution, verbosity: i32) -> String {
+pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     let mut out = "Installed Packages:\n".to_string();
     for req in solution.items() {
         if verbosity > 0 {
@@ -102,6 +102,38 @@ pub fn change_is_relevant_at_verbosity(change: &solve::graph::Change, verbosity:
     verbosity >= relevant_level
 }
 
+pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
+    use solve::graph::Change::*;
+    match change {
+        RequestPackage(c) => {
+            format!(
+                "{} {}",
+                "REQUEST".blue(),
+                format_request(c.request.pkg.name(), [&c.request])
+            )
+        }
+        RequestVar(c) => {
+            format!(
+                "{} {}",
+                "REQUEST".blue(),
+                format_options(&option_map! {c.request.var.clone() => c.request.value.clone()})
+            )
+        }
+        SetPackageBuild(c) => {
+            format!("{} {}", "BUILD".yellow(), format_ident(&c.spec.pkg))
+        }
+        SetPackage(c) => {
+            format!("{} {}", "RESOLVE".green(), format_ident(&c.spec.pkg))
+        }
+        SetOptions(c) => {
+            format!("{} {}", "ASSIGN".cyan(), format_options(&c.options))
+        }
+        StepBack(c) => {
+            format!("{} {}", "BLOCKED".red(), c.cause)
+        }
+    }
+}
+
 pub mod python {
     use crate::{api, solve};
     use pyo3::prelude::*;
@@ -127,7 +159,7 @@ pub mod python {
     }
 
     #[pyfunction]
-    pub fn format_solution(solution: &solve::Solution, verbosity: Option<i32>) -> String {
+    pub fn format_solution(solution: &solve::Solution, verbosity: Option<u32>) -> String {
         super::format_solution(solution, verbosity.unwrap_or_default())
     }
 
@@ -137,8 +169,16 @@ pub mod python {
     }
 
     #[pyfunction]
-    pub fn change_is_relevant_at_verbosity(change: solve::graph::Change, verbosity: u32) -> bool {
-        super::change_is_relevant_at_verbosity(&change, verbosity)
+    pub fn change_is_relevant_at_verbosity(
+        change: solve::graph::Change,
+        verbosity: Option<u32>,
+    ) -> bool {
+        super::change_is_relevant_at_verbosity(&change, verbosity.unwrap_or_default())
+    }
+
+    #[pyfunction]
+    pub fn format_change(change: solve::graph::Change, verbosity: Option<u32>) -> String {
+        super::format_change(&change, verbosity.unwrap_or_default())
     }
 
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
@@ -149,6 +189,7 @@ pub mod python {
         m.add_function(wrap_pyfunction!(format_solution, m)?)?;
         m.add_function(wrap_pyfunction!(format_note, m)?)?;
         m.add_function(wrap_pyfunction!(change_is_relevant_at_verbosity, m)?)?;
+        m.add_function(wrap_pyfunction!(format_change, m)?)?;
         Ok(())
     }
 }
