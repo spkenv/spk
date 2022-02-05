@@ -256,6 +256,25 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
     msg.red().to_string()
 }
 
+pub fn run_and_print_resolve(solver: &solve::Solver, verbosity: u32) -> Result<solve::Solution> {
+    let mut runtime = solver.run();
+    for line in format_decisions(&mut runtime, verbosity) {
+        println!("{}", line?);
+    }
+    Ok(runtime.current_solution()?)
+}
+
+#[allow(clippy::type_complexity)]
+pub fn format_solve_graph(
+    graph: &solve::Graph,
+    verbosity: u32,
+) -> FormattedDecisionsIter<
+    Box<dyn Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>>,
+> {
+    let mapped: Box<dyn Iterator<Item = _>> = Box::new(graph.walk().map(Ok));
+    format_decisions(mapped, verbosity)
+}
+
 pub mod python {
     use crate::{api, solve, Error, Result};
     use pyo3::prelude::*;
@@ -349,6 +368,23 @@ pub mod python {
         }
     }
 
+    #[pyfunction]
+    pub fn format_solve_graph(graph: solve::Graph, verbosity: Option<u32>) -> Result<String> {
+        Ok(
+            super::format_solve_graph(&graph, verbosity.unwrap_or_default())
+                .collect::<Result<Vec<_>>>()?
+                .join("\n"),
+        )
+    }
+
+    #[pyfunction]
+    pub fn run_and_print_resolve(
+        solver: solve::Solver,
+        verbosity: Option<u32>,
+    ) -> Result<solve::Solution> {
+        super::run_and_print_resolve(&solver, verbosity.unwrap_or_default())
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(format_ident, m)?)?;
         m.add_function(wrap_pyfunction!(format_build, m)?)?;
@@ -361,6 +397,8 @@ pub mod python {
         m.add_function(wrap_pyfunction!(format_decisions, m)?)?;
         m.add_function(wrap_pyfunction!(print_decisions, m)?)?;
         m.add_function(wrap_pyfunction!(format_error, m)?)?;
+        m.add_function(wrap_pyfunction!(format_solve_graph, m)?)?;
+        m.add_function(wrap_pyfunction!(run_and_print_resolve, m)?)?;
         Ok(())
     }
 }
