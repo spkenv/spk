@@ -45,7 +45,7 @@ pub enum BuildSource {
     /// Specifies that the binary package should be built
     /// against a set of local files.
     ///
-    /// Source packages are preferred, but this is option
+    /// Source packages are preferred, but this variant
     /// is useful when rapidly modifying and testing against
     /// a local codebase
     LocalPath(PathBuf),
