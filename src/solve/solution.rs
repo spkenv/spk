@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{prelude::*, types::PyDict, PyIterProtocol};
+use pyo3::{prelude::*, types::PyDict};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -113,30 +113,6 @@ impl pyo3::PyObjectProtocol for Solution {
     }
 }
 
-#[pyclass]
-pub struct SolvedRequestIter {
-    iter: std::vec::IntoIter<SolvedRequest>,
-}
-
-impl Iterator for SolvedRequestIter {
-    type Item = SolvedRequest;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
-
-#[pyproto]
-impl PyIterProtocol for SolvedRequestIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<SolvedRequest> {
-        slf.iter.next()
-    }
-}
-
 #[derive(Debug, FromPyObject)]
 pub enum BaseEnvironment<'a> {
     Dict(HashMap<String, String>),
@@ -170,7 +146,7 @@ impl Solution {
         self.by_name.insert(request.pkg.name().to_owned(), package);
     }
 
-    pub fn items(&self) -> SolvedRequestIter {
+    pub fn items(&self) -> Vec<SolvedRequest> {
         let mut items = self
             .resolved
             .clone()
@@ -183,10 +159,7 @@ impl Solution {
             .collect::<Vec<_>>();
         // Test suite expects these items to be returned in original insertion order.
         items.sort_by_key(|sr| self.insertion_order.get(&sr.request).unwrap());
-
-        SolvedRequestIter {
-            iter: items.into_iter(),
-        }
+        items
     }
 
     pub fn get(&self, name: &str) -> PyResult<SolvedRequest> {
@@ -228,11 +201,12 @@ impl Solution {
     /// Return the data of this solution as environment variables.
     ///
     /// If base is given, also clean any existing, conflicting values.
-    pub fn to_environment(
+    #[pyo3(name = "to_environment")]
+    pub fn to_environment_py(
         &self,
         base: Option<BaseEnvironment>,
     ) -> PyResult<HashMap<String, String>> {
-        let mut out = match base {
+        let base = match base {
             Some(BaseEnvironment::Dict(base)) => base,
             Some(BaseEnvironment::Other(base)) => {
                 Python::with_gil(|py| {
@@ -245,6 +219,23 @@ impl Solution {
             }
             None => HashMap::default(),
         };
+        Ok(self.to_environment(Some(base)))
+    }
+}
+
+impl Solution {
+    /// Return the data of this solution as environment variables.
+    ///
+    /// If base is given, also clean any existing, conflicting values.
+    pub fn to_environment<V>(&self, base: Option<V>) -> HashMap<String, String>
+    where
+        V: IntoIterator<Item = (String, String)>,
+    {
+        use std::iter::FromIterator;
+        let mut out = base
+            .map(IntoIterator::into_iter)
+            .map(HashMap::from_iter)
+            .unwrap_or_default();
 
         out.retain(|name, _| !name.starts_with("SPK_PKG_"));
 
@@ -288,6 +279,6 @@ impl Solution {
         }
 
         out.extend(self.options.to_environment().into_iter());
-        Ok(out)
+        out
     }
 }

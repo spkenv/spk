@@ -34,15 +34,16 @@ pub fn must_not_alter_existing_files<P: AsRef<Path>>(diffs: &[Diff], _prefix: P)
                 continue;
             }
         }
-        if diff.mode == DiffMode::Added {
-            continue;
-        }
-        if diff.mode == DiffMode::Changed {
-            if let Some((a, b)) = &diff.entries {
-                let mode_change = a.mode ^ b.mode;
-                let nonperm_change = (mode_change | 0o777) ^ 0o77;
-                if mode_change != 0 && nonperm_change == 0 {
-                    continue;
+        match diff.mode {
+            DiffMode::Added | DiffMode::Unchanged => continue,
+            DiffMode::Removed => (),
+            DiffMode::Changed => {
+                if let Some((a, b)) = &diff.entries {
+                    let mode_change = a.mode ^ b.mode;
+                    let nonperm_change = (mode_change | 0o777) ^ 0o77;
+                    if mode_change != 0 && nonperm_change == 0 {
+                        continue;
+                    }
                 }
             }
         }

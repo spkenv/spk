@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 
+#[cfg(test)]
+#[path = "./env_test.rs"]
+mod env_test;
+
 /// Returns the directory that contains package metadata
 ///
 /// This directory is included as part of the package itself, and

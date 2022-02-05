@@ -4,6 +4,7 @@
 pub mod api;
 pub mod build;
 mod error;
+pub mod exec;
 pub mod io;
 pub mod solve;
 pub mod storage;
@@ -70,7 +71,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_submodule(api_mod)?;
 
     let build_mod = PyModule::new(py, "build")?;
-    build::init_module(&py, build_mod)?;
+    build::python::init_module(&py, build_mod)?;
     m.add_submodule(build_mod)?;
 
     let storage_mod = PyModule::new(py, "storage")?;
@@ -80,6 +81,10 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     let solve_mod = PyModule::new(py, "solve")?;
     solve::init_module(&py, solve_mod)?;
     m.add_submodule(solve_mod)?;
+
+    let exec_mod = PyModule::new(py, "exec")?;
+    exec::python::init_module(&py, exec_mod)?;
+    m.add_submodule(exec_mod)?;
 
     let io_mod = PyModule::new(py, "io")?;
     io::python::init_module(&py, io_mod)?;
@@ -94,6 +99,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     sys.modules['spkrs.build'] = build;\
     sys.modules['spkrs.storage'] = storage;\
     sys.modules['spkrs.solve'] = solve;\
+    sys.modules['spkrs.exec'] = exec;\
     sys.modules['spkrs.io'] = io;\
     ",
         None,

@@ -37,6 +37,16 @@ pub struct Solver {
     validators: Cow<'static, [Validators]>,
 }
 
+impl Default for Solver {
+    fn default() -> Self {
+        Self {
+            repos: Vec::default(),
+            initial_state_builders: Vec::default(),
+            validators: Cow::from(validation::default_validators()),
+        }
+    }
+}
+
 // Methods not exposed to Python
 impl Solver {
     /// Add a request to this solver.
@@ -46,6 +56,11 @@ impl Solver {
             Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
         };
         self.initial_state_builders.push(request);
+    }
+
+    /// Add a repository where the solver can get packages.
+    pub fn add_repository(&mut self, repo: Arc<Mutex<storage::RepositoryHandle>>) {
+        self.repos.push(repo);
     }
 
     fn get_iterator(
@@ -216,15 +231,12 @@ pub enum RequestEnum {
 impl Solver {
     #[new]
     fn new() -> Self {
-        Solver {
-            repos: Vec::default(),
-            initial_state_builders: Vec::default(),
-            validators: Cow::from(validation::default_validators()),
-        }
+        Self::default()
     }
 
     /// Add a repository where the solver can get packages.
-    pub fn add_repository(&mut self, repo: storage::python::Repository) {
+    #[pyo3(name = "add_repository")]
+    pub fn py_add_repository(&mut self, repo: storage::python::Repository) {
         self.repos.push(repo.handle);
     }
 

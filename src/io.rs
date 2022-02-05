@@ -283,7 +283,6 @@ pub mod python {
     pub fn format_ident(pkg: &api::Ident) -> String {
         super::format_ident(pkg)
     }
-
     #[pyfunction]
     pub fn format_build(build: api::Build) -> String {
         super::format_build(&build)

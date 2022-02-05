@@ -1,11 +1,22 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use pyo3::prelude::*;
+use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{api, Result};
+use crate::{
+    api, exec, solve,
+    storage::{self, Repository},
+    Error, Result,
+};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -23,6 +34,447 @@ impl BuildError {
             message: std::fmt::format(format_args),
         })
     }
+}
+
+/// Identifies the source files that should be used
+/// in a binary package build
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildSource {
+    /// Identifies an existing source package to be resolved
+    SourcePackage(api::Ident),
+    /// Specifies that the binary package should be built
+    /// against a set of local files.
+    ///
+    /// Source packages are preferred, but this variant
+    /// is useful when rapidly modifying and testing against
+    /// a local codebase
+    LocalPath(PathBuf),
+}
+
+/// Builds a binary package.
+///
+/// ```
+/// BinaryPackageBuilder
+///     .from_spec(api.Spec.from_dict({
+///         "pkg": "my-pkg",
+///         "build": {"script": "echo hello, world"},
+///      }))
+///     .with_option("debug", "true")
+///     .with_source(".")
+///     .build()
+///     .unwrap()
+/// ```
+#[pyclass]
+#[derive(Clone)]
+pub struct BinaryPackageBuilder {
+    prefix: PathBuf,
+    spec: api::Spec,
+    all_options: api::OptionMap,
+    source: BuildSource,
+    solver: solve::Solver,
+    last_solve_graph: solve::Graph,
+    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
+    interactive: bool,
+}
+
+#[pymethods]
+impl BinaryPackageBuilder {
+    #[staticmethod]
+    pub fn from_spec(spec: api::Spec) -> Self {
+        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
+        Self {
+            spec,
+            source,
+            prefix: PathBuf::from("/spfs"),
+            all_options: api::OptionMap::default(),
+            solver: solve::Solver::default(),
+            last_solve_graph: Default::default(),
+            repos: Default::default(),
+            interactive: false,
+        }
+    }
+    /// Return the resolve graph from the build environment.
+    ///
+    /// This is most useful for debugging build environments that failed to resolve,
+    /// and builds that failed with a SolverError.
+    ///
+    /// If the builder has not run, return an incomplete graph.
+    pub fn get_solve_graph(&self) -> solve::Graph {
+        self.solver.get_last_solve_graph()
+    }
+
+    #[pyo3(name = "build")]
+    fn build_py(&self) -> Result<api::Spec> {
+        // the build function consumes the builder
+        // but we cannot represent that in python
+        self.clone().build()
+    }
+
+    #[pyo3(name = "with_source")]
+    fn with_source_py(mut slf: PyRefMut<Self>, source: Py<PyAny>) -> Result<PyRefMut<Self>> {
+        if let Ok(ident) = source.extract::<api::Ident>(slf.py()) {
+            slf.with_source(BuildSource::SourcePackage(ident));
+        } else if let Ok(path) = source.extract::<String>(slf.py()) {
+            slf.with_source(BuildSource::LocalPath(path.into()));
+        } else {
+            return Err(Error::String("Expected api.Ident or str".to_string()));
+        }
+        Ok(slf)
+    }
+
+    #[pyo3(name = "with_option")]
+    pub fn with_option_py(mut slf: PyRefMut<Self>, name: String, value: String) -> PyRefMut<Self> {
+        slf.with_option(name, value);
+        slf
+    }
+
+    #[pyo3(name = "with_options")]
+    pub fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
+        slf.all_options.extend(options.into_iter());
+        slf
+    }
+
+    #[pyo3(name = "with_repository")]
+    pub fn with_repository_py(
+        mut slf: PyRefMut<Self>,
+        repo: storage::python::Repository,
+    ) -> PyRefMut<Self> {
+        slf.repos.push(repo.handle);
+        slf
+    }
+
+    #[pyo3(name = "with_repositories")]
+    pub fn with_repositories_py(
+        mut slf: PyRefMut<Self>,
+        repos: Vec<storage::python::Repository>,
+    ) -> PyRefMut<Self> {
+        slf.repos.extend(repos.into_iter().map(|r| r.handle));
+        slf
+    }
+
+    #[pyo3(name = "set_interactive")]
+    pub fn set_interactive_py(mut slf: PyRefMut<Self>, interactive: bool) -> PyRefMut<Self> {
+        slf.interactive = interactive;
+        slf
+    }
+
+    #[pyo3(name = "get_build_requirements")]
+    pub fn get_build_requirements_py(&self) -> Result<Vec<api::Request>> {
+        self.get_build_requirements()
+    }
+}
+
+impl BinaryPackageBuilder {
+    pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
+    where
+        N: Into<String>,
+        V: Into<String>,
+    {
+        self.all_options.insert(name.into(), value.into());
+        self
+    }
+
+    pub fn with_options(&mut self, options: api::OptionMap) -> &mut Self {
+        self.all_options.extend(options.into_iter());
+        self
+    }
+
+    pub fn with_source(&mut self, source: BuildSource) -> &mut Self {
+        self.source = source;
+        self
+    }
+
+    pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
+        self.repos.push(Arc::new(Mutex::new(repo)));
+        self
+    }
+
+    pub fn with_repositories(
+        &mut self,
+        repos: impl IntoIterator<Item = storage::RepositoryHandle>,
+    ) -> &mut Self {
+        self.repos
+            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
+        self
+    }
+
+    pub fn set_interactive(&mut self, interactive: bool) -> &mut Self {
+        self.interactive = interactive;
+        self
+    }
+
+    /// Build the requested binary package.
+    pub fn build(mut self) -> Result<api::Spec> {
+        let mut runtime = spfs::active_runtime()?;
+        runtime.set_editable(true)?;
+        runtime.reset_all()?;
+        runtime.reset_stack()?;
+
+        let pkg_options = self.spec.resolve_all_options(&self.all_options);
+        tracing::debug!("package options: {}", pkg_options);
+        let compat = self
+            .spec
+            .build
+            .validate_options(self.spec.pkg.name(), &self.all_options);
+        if !&compat {
+            return Err(Error::String(compat.to_string()));
+        }
+        self.all_options.extend(pkg_options);
+
+        let mut stack = Vec::new();
+        if let BuildSource::SourcePackage(ident) = self.source.clone() {
+            let solution = self.resolve_source_package(&ident)?;
+            stack.extend(exec::resolve_runtime_layers(&solution)?);
+        };
+        let solution = self.resolve_build_environment()?;
+        let mut opts = solution.options();
+        std::mem::swap(&mut opts, &mut self.all_options);
+        self.all_options.extend(opts);
+        stack.extend(exec::resolve_runtime_layers(&solution)?);
+        for digest in stack.into_iter() {
+            runtime.push_digest(&digest)?;
+        }
+        spfs::remount_runtime(&runtime)?;
+        let specs = solution.items();
+        let specs = specs
+            .iter()
+            .map(|solved| &solved.spec)
+            .map(std::sync::Arc::as_ref);
+        self.spec.update_for_build(&self.all_options, specs)?;
+        let env = std::env::vars();
+        let mut env = solution.to_environment(Some(env));
+        env.extend(self.all_options.to_environment());
+        let layer = self.build_and_commit_artifacts(env)?;
+        storage::local_repository()?.publish_package(self.spec.clone(), layer.digest()?)?;
+        Ok(self.spec)
+    }
+
+    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
+        self.solver.reset();
+        self.solver.update_options(self.all_options.clone());
+        let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
+        self.solver.add_repository(local_repo.clone());
+        for repo in self.repos.iter() {
+            if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
+                // local repo is always injected first, and duplicates are redundant
+                continue;
+            }
+            self.solver.add_repository(repo.clone());
+        }
+
+        let ident_range = api::RangeIdent::exact(package);
+        let request = api::PkgRequest {
+            pkg: ident_range,
+            prerelease_policy: api::PreReleasePolicy::IncludeAll,
+            inclusion_policy: api::InclusionPolicy::Always,
+            pin: None,
+            required_compat: None,
+        };
+        self.solver.add_request(request.into());
+
+        let mut runtime = self.solver.run();
+        let solution = runtime.solution();
+        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        Ok(solution?)
+    }
+
+    fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
+        self.solver.reset();
+        self.solver.update_options(self.all_options.clone());
+        self.solver.set_binary_only(true);
+        for repo in self.repos.iter().cloned() {
+            self.solver.add_repository(repo);
+        }
+
+        for request in self.get_build_requirements()? {
+            self.solver.add_request(request);
+        }
+
+        let mut runtime = self.solver.run();
+        let solution = runtime.solution();
+        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        Ok(solution?)
+    }
+
+    /// List the requirements for the build environment.
+    pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
+        let opts = self.spec.resolve_all_options(&self.all_options);
+        self.spec
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                api::Opt::Pkg(opt) => Some(
+                    opt.to_request(opts.get(&opt.pkg).map(String::to_owned))
+                        .map(Into::into),
+                ),
+                api::Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    opts.get(&opt.var)
+                        .map(|opt_value| Ok(opt.to_request(Some(opt_value)).into()))
+                }
+            })
+            .collect()
+    }
+
+    fn build_and_commit_artifacts<I, K, V>(&mut self, env: I) -> Result<spfs::graph::Layer>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        self.build_artifacts(env)?;
+
+        let sources_dir = data_path(
+            &self.spec.pkg.with_build(Some(api::Build::Source)),
+            &self.prefix,
+        );
+
+        let mut runtime = spfs::active_runtime()?;
+        let pattern = sources_dir.strip_prefix(&self.prefix).unwrap().join("**");
+        let pattern = format!("/{}", pattern.to_string_lossy());
+        tracing::info!(
+            "Purging all changes made to source directory: {}",
+            sources_dir.display()
+        );
+        runtime.reset(&[pattern])?;
+        spfs::remount_runtime(&runtime)?;
+
+        tracing::info!("Validating package fileset...");
+        self.spec
+            .build
+            .validation
+            .validate_build_changeset()
+            .map_err(|err| BuildError::new_error(format_args!("{}", err.to_string())))?;
+
+        Ok(spfs::commit_layer(&mut runtime)?)
+    }
+
+    fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        let pkg = &self.spec.pkg;
+        let metadata_dir = data_path(pkg, &self.prefix);
+        let build_spec = build_spec_path(pkg, &self.prefix);
+        let build_options = build_options_path(pkg, &self.prefix);
+        let build_script = build_script_path(pkg, &self.prefix);
+
+        std::fs::create_dir_all(&metadata_dir)?;
+        api::save_spec_file(&build_spec, &self.spec)?;
+        {
+            let mut writer = std::fs::File::create(&build_script)?;
+            writer
+                .write_all(self.spec.build.script.join("\n").as_bytes())
+                .map_err(|err| {
+                    Error::String(format!("Failed to save build script: {}", err.to_string()))
+                })?;
+            writer.sync_data()?;
+        }
+        {
+            let mut writer = std::fs::File::create(&build_options)?;
+            serde_json::to_writer_pretty(&mut writer, &self.all_options).map_err(|err| {
+                Error::String(format!("Failed to save build options: {}", err.to_string()))
+            })?;
+            writer.sync_data()?;
+        }
+
+        let source_dir = match &self.source {
+            BuildSource::SourcePackage(source) => source_package_path(source, &self.prefix),
+            BuildSource::LocalPath(path) => path.clone(),
+        };
+
+        // force the base environment to be setup using bash, so that the
+        // spfs startup and build environment are predictable and consistent
+        // (eg in case the user's shell does not have startup scripts in
+        //  the dependencies, is not supported by spfs, etc)
+        std::env::set_var("SHELL", "bash");
+        let cmd = if self.interactive {
+            let runtime = spfs::active_runtime()?;
+            println!("\nNow entering an interactive build shell");
+            println!(" - your current directory will be set to the sources area");
+            println!(" - build and install your artifacts into /spfs");
+            println!(
+                " - this package's build script can be run from: {}",
+                build_script.display()
+            );
+            println!(" - to cancel and discard this build, run `exit 1`");
+            println!(" - to finalize and save the package, run `exit 0`");
+            spfs::build_interactive_shell_cmd(&runtime)?
+        } else {
+            use std::ffi::OsString;
+            spfs::build_shell_initialized_command(
+                OsString::from("bash"),
+                &mut vec![OsString::from("-ex"), build_script.into_os_string()],
+            )?
+        };
+
+        let mut args = cmd.into_iter();
+        let mut cmd = std::process::Command::new(args.next().unwrap());
+        cmd.args(args);
+        cmd.envs(env);
+        cmd.envs(self.all_options.to_environment());
+        cmd.envs(get_package_build_env(&self.spec));
+        cmd.env("PREFIX", &self.prefix);
+        cmd.current_dir(&source_dir);
+
+        match cmd.status() {
+            Err(err) => Err(err.into()),
+            Ok(status) => match status.code() {
+                Some(0) => Ok(()),
+                Some(code) => Err(BuildError::new_error(format_args!(
+                    "Build script returned non-zero exit status: {}",
+                    code
+                ))),
+                None => Err(BuildError::new_error(format_args!(
+                    "Build script failed unexpectedly"
+                ))),
+            },
+        }
+    }
+}
+
+/// Return the environment variables to be set for a build of the given package spec.
+pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
+    let mut env = HashMap::with_capacity(8);
+    env.insert("SPK_PKG".to_string(), spec.pkg.to_string());
+    env.insert("SPK_PKG_NAME".to_string(), spec.pkg.name().to_string());
+    env.insert("SPK_PKG_VERSION".to_string(), spec.pkg.version.to_string());
+    env.insert(
+        "SPK_PKG_BUILD".to_string(),
+        spec.pkg
+            .build
+            .as_ref()
+            .map(api::Build::to_string)
+            .unwrap_or_default(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_MAJOR".to_string(),
+        spec.pkg.version.major.to_string(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_MINOR".to_string(),
+        spec.pkg.version.minor.to_string(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_PATCH".to_string(),
+        spec.pkg.version.patch.to_string(),
+    );
+    env.insert(
+        "SPK_PKG_VERSION_BASE".to_string(),
+        spec.pkg
+            .version
+            .parts()
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(api::VERSION_SEP),
+    );
+    env
 }
 
 // Reset all file permissions in spfs if permissions is the
@@ -53,7 +505,7 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
                 let perms = std::fs::Permissions::from_mode(a.mode);
                 std::fs::set_permissions(
                     diff.path
-                        .to_path(std::path::PathBuf::from(prefix.as_ref().to_string())),
+                        .to_path(PathBuf::from(prefix.as_ref().to_string())),
                     perms,
                 )?;
                 diff.mode = spfs::tracking::DiffMode::Unchanged;

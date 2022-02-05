@@ -703,6 +703,12 @@ impl ExactVersion {
     }
 }
 
+impl From<Version> for ExactVersion {
+    fn from(version: Version) -> Self {
+        Self { version }
+    }
+}
+
 impl From<ExactVersion> for VersionRange {
     fn from(other: ExactVersion) -> Self {
         VersionRange::Exact(other)

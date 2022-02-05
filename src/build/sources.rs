@@ -1,7 +1,17 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use crate::Result;
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
+
+use pyo3::prelude::*;
+use relative_path::{RelativePath, RelativePathBuf};
+use spfs::prelude::Encodable;
+
+use super::env::data_path;
+use crate::{api, storage, Error, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -21,11 +31,129 @@ impl CollectionError {
     }
 }
 
+/// Builds a source package.
+///
+/// ```
+/// SourcePackageBuilder
+///    .from_spec(api.Spec.from_dict({
+///        "pkg": "my-pkg",
+///     }))
+///    .build()
+///    .unwrap()
+/// ```
+#[pyclass]
+pub struct SourcePackageBuilder {
+    spec: api::Spec,
+    repo: Option<Arc<Mutex<storage::RepositoryHandle>>>,
+    prefix: PathBuf,
+}
+
+#[pymethods]
+impl SourcePackageBuilder {
+    #[staticmethod]
+    pub fn from_spec(mut spec: api::Spec) -> Self {
+        spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
+        Self {
+            spec,
+            repo: None,
+            prefix: PathBuf::from("/spfs"),
+        }
+    }
+
+    #[pyo3(name = "with_target_repository")]
+    pub fn with_target_repository_py(
+        mut slf: PyRefMut<Self>,
+        repo: storage::python::Repository,
+    ) -> PyRefMut<Self> {
+        slf.repo = Some(repo.handle);
+        slf
+    }
+
+    #[pyo3(name = "build")]
+    fn build_py(&mut self) -> Result<api::Ident> {
+        // build is intended to consume the builder,
+        // but we cannot effectively do this from
+        // a python reference. So we make a partial
+        // clone/copy with the assumption that python
+        // won't reuse this builder
+        Self {
+            spec: self.spec.clone(),
+            prefix: self.prefix.clone(),
+            repo: self.repo.take(),
+        }
+        .build()
+    }
+}
+
+impl SourcePackageBuilder {
+    /// Set the repository that the created package should be published to.
+    pub fn with_target_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
+        self.repo = Some(Arc::new(repo.into()));
+        self
+    }
+
+    /// Build the requested source package.
+    pub fn build(mut self) -> Result<api::Ident> {
+        let layer = self.collect_and_commit_sources()?;
+        let repo = match &mut self.repo {
+            Some(r) => r,
+            None => {
+                let repo = storage::local_repository()?;
+                self.repo.insert(Arc::new(Mutex::new(repo.into())))
+            }
+        };
+        let pkg = self.spec.pkg.clone();
+        repo.lock()
+            .unwrap()
+            .publish_package(self.spec, layer.digest()?)?;
+        Ok(pkg)
+    }
+
+    /// Collect sources for the given spec and commit them into an spfs layer.
+    fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
+        let mut runtime = spfs::active_runtime()?;
+        runtime.set_editable(true)?;
+        runtime.reset_all()?;
+        runtime.reset_stack()?;
+        spfs::remount_runtime(&runtime)?;
+
+        let source_dir = data_path(&self.spec.pkg, &self.prefix);
+        collect_sources(&self.spec, &source_dir)?;
+
+        tracing::info!("Validating package source files...");
+        let diffs = spfs::diff(None, None)?;
+        validate_source_changeset(
+            diffs,
+            RelativePathBuf::from(source_dir.to_string_lossy().to_string()),
+        )?;
+
+        Ok(spfs::commit_layer(&mut runtime)?)
+    }
+}
+
+/// Collect the sources for a spec in the given directory.
+pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -> Result<()> {
+    let source_dir = source_dir.as_ref();
+    std::fs::create_dir_all(&source_dir)?;
+
+    let env = super::binary::get_package_build_env(spec);
+    for source in spec.sources.iter() {
+        let target_dir = match source.subdir() {
+            Some(subdir) => subdir.to_path(source_dir),
+            None => source_dir.into(),
+        };
+        std::fs::create_dir_all(&target_dir)
+            .map_err(Error::from)
+            .and_then(|_| source.collect(&target_dir, &env))?;
+    }
+    Ok(())
+}
+
 /// Validate the set of diffs for a source package build.
 ///
 /// # Errors:
 ///   - CollectionError: if any issues are identified in the changeset
-pub fn validate_source_changeset<P: AsRef<relative_path::RelativePath>>(
+pub fn validate_source_changeset<P: AsRef<RelativePath>>(
     diffs: Vec<spfs::tracking::Diff>,
     source_dir: P,
 ) -> Result<()> {

@@ -218,7 +218,7 @@ class PipImporter:
         if self._python_abi is not None:
             host_options["python.abi"] = self._python_abi
         _LOGGER.info("building generated package spec...", pkg=spec.pkg)
-        builder = build.BinaryPackageBuilder().from_spec(spec)
+        builder = build.BinaryPackageBuilder.from_spec(spec)
         try:
             created = (
                 builder.with_options(host_options)

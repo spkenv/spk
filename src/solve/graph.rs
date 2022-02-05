@@ -168,7 +168,7 @@ impl Decision {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
-            let specs = build_env.items().map(|s| s.spec).collect_vec();
+            let specs = build_env.items().into_iter().map(|s| s.spec).collect_vec();
             let options = build_env.options();
             let mut spec = (*self_spec).clone();
             spec.update_for_build(&options, specs.iter().map(Arc::as_ref))?;

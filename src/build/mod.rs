@@ -3,12 +3,11 @@
 // https://github.com/imageworks/spk
 mod binary;
 mod env;
-mod python;
+pub(crate) mod python;
 mod sources;
 
 pub use binary::{
-    build_options_path, build_script_path, build_spec_path, reset_permissions, source_package_path,
-    BuildError,
+    build_options_path, build_script_path, build_spec_path, get_package_build_env,
+    reset_permissions, source_package_path, BinaryPackageBuilder, BuildError,
 };
-pub use python::init_module;
-pub use sources::{validate_source_changeset, CollectionError};
+pub use sources::{validate_source_changeset, CollectionError, SourcePackageBuilder};
