@@ -5,9 +5,7 @@
 
 import spkrs
 
-from spkrs import api, solve
-
-from . import pysolve
+from spkrs import api, solve, io
 
 from . import storage, build, exec, test
 from ._global import load_spec, save_spec

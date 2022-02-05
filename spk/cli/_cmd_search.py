@@ -8,7 +8,6 @@ import argparse
 import structlog
 
 import spk
-from spk.io import format_ident
 
 from . import _flags
 
@@ -42,5 +41,6 @@ def _search(args: argparse.Namespace) -> None:
                 )
                 for v in versions:
                     print(
-                        ("{: <" + str(width) + "}").format(repo_name), format_ident(v)
+                        ("{: <" + str(width) + "}").format(repo_name),
+                        spk.io.format_ident(v),
                     )

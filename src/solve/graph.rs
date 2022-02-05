@@ -1,7 +1,7 @@
-use itertools::Itertools;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::hash_map::{DefaultHasher, Entry};
@@ -49,6 +49,28 @@ impl Change {
             Change::SetPackage(sp) => sp.apply(base),
             Change::SetPackageBuild(spb) => spb.apply(base),
             Change::StepBack(sb) => sb.apply(base),
+        }
+    }
+}
+
+impl<'source> FromPyObject<'source> for Change {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        if let Ok(rp) = RequestPackage::extract(ob) {
+            Ok(Change::RequestPackage(rp))
+        } else if let Ok(rv) = RequestVar::extract(ob) {
+            Ok(Change::RequestVar(rv))
+        } else if let Ok(so) = SetOptions::extract(ob) {
+            Ok(Change::SetOptions(so))
+        } else if let Ok(sp) = SetPackage::extract(ob) {
+            Ok(Change::SetPackage(Box::new(sp)))
+        } else if let Ok(spb) = SetPackageBuild::extract(ob) {
+            Ok(Change::SetPackageBuild(Box::new(spb)))
+        } else if let Ok(sb) = StepBack::extract(ob) {
+            Ok(Change::StepBack(sb))
+        } else {
+            Err(pyo3::exceptions::PyTypeError::new_err(
+                "Not a valid change instance",
+            ))
         }
     }
 }
@@ -511,12 +533,26 @@ pub struct Note {}
 #[derive(Clone, Debug)]
 pub enum NoteEnum {
     SkipPackageNote(SkipPackageNote),
+    Other(String),
+}
+
+impl<'source> FromPyObject<'source> for NoteEnum {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        match SkipPackageNote::extract(ob) {
+            Ok(n) => Ok(Self::SkipPackageNote(n)),
+            Err(_) => {
+                let string = String::extract(ob)?;
+                Ok(Self::Other(string))
+            }
+        }
+    }
 }
 
 impl IntoPy<Py<PyAny>> for NoteEnum {
     fn into_py(self, py: Python) -> Py<PyAny> {
         match self {
-            NoteEnum::SkipPackageNote(n) => n.into_py(py),
+            Self::SkipPackageNote(n) => n.into_py(py),
+            Self::Other(s) => s.into_py(py),
         }
     }
 }
@@ -541,7 +577,7 @@ impl PyIterProtocol for NotesIter {
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
     #[pyo3(get)]
-    request: api::PkgRequest,
+    pub request: api::PkgRequest,
 }
 
 impl RequestPackage {
@@ -562,7 +598,7 @@ impl RequestPackage {
 #[derive(Clone, Debug)]
 pub struct RequestVar {
     #[pyo3(get)]
-    request: api::VarRequest,
+    pub request: api::VarRequest,
 }
 
 impl RequestVar {
@@ -590,7 +626,7 @@ impl RequestVar {
 #[derive(Clone, Debug)]
 pub struct SetOptions {
     #[pyo3(get)]
-    options: api::OptionMap,
+    pub options: api::OptionMap,
 }
 
 #[pymethods]
@@ -609,7 +645,7 @@ impl SetOptions {
 impl SetOptions {
     fn apply(&self, base: &State) -> State {
         // Update options while preserving order to match
-        // python dictionary behavior. "Updating a key
+        // python dictionary behaviour. "Updating a key
         // does not affect the order."
         let mut insertion_order = 0;
         // Build a lookup hash with an insertion order.
@@ -652,8 +688,8 @@ impl SetOptions {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackage {
-    spec: Arc<api::Spec>,
-    source: PackageSource,
+    pub spec: Arc<api::Spec>,
+    pub source: PackageSource,
 }
 
 impl SetPackage {
@@ -678,8 +714,8 @@ impl SetPackage {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackageBuild {
-    spec: Arc<api::Spec>,
-    source: PackageSource,
+    pub spec: Arc<api::Spec>,
+    pub source: PackageSource,
 }
 
 impl SetPackageBuild {
@@ -921,9 +957,18 @@ impl State {
 }
 
 #[derive(Clone, Debug)]
-enum SkipPackageNoteReason {
+pub enum SkipPackageNoteReason {
     String(String),
     Compatibility(api::Compatibility),
+}
+
+impl std::fmt::Display for SkipPackageNoteReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(s) => s.fmt(f),
+            Self::Compatibility(c) => c.fmt(f),
+        }
+    }
 }
 
 impl IntoPy<Py<PyAny>> for SkipPackageNoteReason {
@@ -939,9 +984,9 @@ impl IntoPy<Py<PyAny>> for SkipPackageNoteReason {
 #[derive(Clone, Debug)]
 pub struct SkipPackageNote {
     #[pyo3(get)]
-    pkg: Ident,
+    pub pkg: Ident,
     #[pyo3(get)]
-    reason: SkipPackageNoteReason,
+    pub reason: SkipPackageNoteReason,
 }
 
 impl SkipPackageNote {
@@ -964,8 +1009,8 @@ impl SkipPackageNote {
 #[derive(Clone, Debug)]
 pub struct StepBack {
     #[pyo3(get)]
-    cause: String,
-    destination: State,
+    pub cause: String,
+    pub destination: State,
 }
 
 impl StepBack {
