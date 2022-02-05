@@ -16,6 +16,7 @@ from spkrs.io import (
     format_note,
     format_change,
     format_decisions,
+    print_decisions,
     change_is_relevant_at_verbosity
 )
 from . import api, solve
@@ -26,15 +27,13 @@ def run_and_print_resolve(
     verbosity: int = 1,
 ) -> solve.Solution:
     runtime = solver.run()
-    format_decisions(runtime, out=sys.stdout)
+    print_decisions(runtime)
     return runtime.solution()
 
 
 def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
 
-    out = io.StringIO()
-    format_decisions(graph.walk(), out, verbosity)
-    return out.getvalue()
+    return format_decisions(graph.walk(), verbosity)
 
 
 def format_error(err: Exception, verbosity: int = 0) -> str:

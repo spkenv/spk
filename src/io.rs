@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 use colored::Colorize;
 
-use crate::{api, option_map, solve};
+use crate::{api, option_map, solve, Result};
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name().bold().to_string();
@@ -138,14 +138,14 @@ pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
 
 pub fn format_decisions<I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
 where
-    I: IntoIterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+    I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
 {
     FormattedDecisionsIter::new(decisions, verbosity)
 }
 
 pub struct FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+    I: Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
 {
     inner: I,
     level: usize,
@@ -155,7 +155,7 @@ where
 
 impl<I> FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+    I: Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
 {
     pub fn new<T>(inner: T, verbosity: u32) -> Self
     where
@@ -172,18 +172,19 @@ where
 
 impl<I> Iterator for FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = (solve::graph::Node, solve::graph::Decision)>,
+    I: Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
 {
-    type Item = String;
+    type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.output_queue.pop_front() {
-            return Some(next);
+            return Some(Ok(next));
         }
 
         let decision = match self.inner.next() {
             None => return None,
-            Some((_, d)) => d,
+            Some(Ok((_, d))) => d,
+            Some(Err(err)) => return Some(Err(err)),
         };
         if self.verbosity > 1 {
             let fill: String = ".".repeat(self.level);
@@ -226,12 +227,12 @@ where
             ))
         }
         self.level = (self.level as i64 + level_change) as usize;
-        self.output_queue.pop_front()
+        self.output_queue.pop_front().map(Ok)
     }
 }
 
 pub mod python {
-    use crate::{api, solve};
+    use crate::{api, solve, Result};
     use pyo3::prelude::*;
 
     #[pyfunction]
@@ -277,6 +278,32 @@ pub mod python {
         super::format_change(&change, verbosity.unwrap_or_default())
     }
 
+    #[pyfunction]
+    pub fn format_decisions(decisions: &PyAny, verbosity: Option<u32>) -> PyResult<String> {
+        let iterator = decisions.iter()?.map(|r| {
+            r.and_then(|i| i.extract::<(solve::graph::Node, solve::graph::Decision)>())
+                .map_err(crate::Error::from)
+        });
+        Ok(
+            super::format_decisions(iterator, verbosity.unwrap_or_default())
+                .collect::<Result<Vec<_>>>()?
+                .join("\n"),
+        )
+    }
+
+    #[pyfunction]
+    pub fn print_decisions(decisions: &PyAny, verbosity: Option<u32>) -> PyResult<()> {
+        let iterator = decisions.iter()?.map(|r| {
+            r.and_then(|i| i.extract::<(solve::graph::Node, solve::graph::Decision)>())
+                .map_err(crate::Error::from)
+        });
+        for line in super::format_decisions(iterator, verbosity.unwrap_or_default()) {
+            let line = line?;
+            println!("{}", line);
+        }
+        Ok(())
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(format_ident, m)?)?;
         m.add_function(wrap_pyfunction!(format_build, m)?)?;
@@ -286,6 +313,8 @@ pub mod python {
         m.add_function(wrap_pyfunction!(format_note, m)?)?;
         m.add_function(wrap_pyfunction!(change_is_relevant_at_verbosity, m)?)?;
         m.add_function(wrap_pyfunction!(format_change, m)?)?;
+        m.add_function(wrap_pyfunction!(format_decisions, m)?)?;
+        m.add_function(wrap_pyfunction!(print_decisions, m)?)?;
         Ok(())
     }
 }

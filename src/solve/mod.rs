@@ -11,3 +11,5 @@ mod validation;
 
 pub use errors::Error;
 pub use python::init_module;
+pub use solution::{PackageSource, Solution};
+pub use solver::{Solver, SolverRuntime};

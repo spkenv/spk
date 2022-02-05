@@ -11,6 +11,9 @@ def change_is_relevant_at_verbosity(change: solve.graph.Change, verbosity: int) 
 def format_change(change: solve.graph.Change, verbosity: int = 1) -> str: ...
 def format_decisions(
     decisions: Iterable[Tuple[solve.graph.Node, solve.graph.Decision]],
-    out: TextIO,
+    verbosity: int = 1,
+) -> str: ...
+def print_decisions(
+    decisions: Iterable[Tuple[solve.graph.Node, solve.graph.Decision]],
     verbosity: int = 1,
 ) -> None: ...
