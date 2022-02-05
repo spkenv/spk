@@ -38,7 +38,7 @@ impl SourceSpec {
     /// Collect the represented sources files into the given directory.
     ///
     /// The base build environment should also be provided, in order to
-    /// have validables like SPK_PACKAGE_VERSION available to collection scripts.
+    /// have variables like SPK_PACKAGE_VERSION available to collection scripts.
     pub fn collect(&self, dirname: &Path, env: &HashMap<String, String>) -> Result<()> {
         match self {
             SourceSpec::Local(source) => source.collect(dirname),
