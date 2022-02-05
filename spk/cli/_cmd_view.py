@@ -10,7 +10,7 @@ import structlog
 from ruamel import yaml
 from colorama import Fore, Style
 
-import spk.io
+import spk
 
 from . import _flags
 

@@ -11,7 +11,6 @@ from colorama import Fore, Style
 
 import spkrs
 import spk
-import spk.io
 
 from . import _flags
 
