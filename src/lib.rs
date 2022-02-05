@@ -4,6 +4,7 @@
 pub mod api;
 pub mod build;
 mod error;
+pub mod io;
 pub mod solve;
 pub mod storage;
 
@@ -80,6 +81,10 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     solve::init_module(&py, solve_mod)?;
     m.add_submodule(solve_mod)?;
 
+    let io_mod = PyModule::new(py, "io")?;
+    io::python::init_module(&py, io_mod)?;
+    m.add_submodule(io_mod)?;
+
     // ensure that from spkrs.submodule import xx works
     // as expected on the python side by injecting them
     py.run(
@@ -89,6 +94,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     sys.modules['spkrs.build'] = build;\
     sys.modules['spkrs.storage'] = storage;\
     sys.modules['spkrs.solve'] = solve;\
+    sys.modules['spkrs.io'] = io;\
     ",
         None,
         Some(m.dict()),

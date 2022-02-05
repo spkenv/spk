@@ -11,7 +11,6 @@ import structlog
 from colorama import Fore, Style
 
 import spk
-from spk.io import format_ident
 
 from . import _flags
 
@@ -141,14 +140,14 @@ def _install(args: argparse.Namespace) -> None:
         end = "\n"
         if spec.pkg.build is None:
             end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
-        print("    " + format_ident(spec.pkg), end=end)
+        print("    " + spk.io.format_ident(spec.pkg), end=end)
     if tertiary:
         print("\n  Dependencies:")
         for spec in tertiary:
             end = "\n"
             if spec.pkg.build is None:
                 end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
-            print("    " + format_ident(spec.pkg), end=end)
+            print("    " + spk.io.format_ident(spec.pkg), end=end)
 
     print("")
 

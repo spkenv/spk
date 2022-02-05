@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 mod errors;
-mod graph;
+pub mod graph;
 mod package_iterator;
 mod python;
 mod solution;
 mod solver;
 mod validation;
 
-pub use errors::Error;
+pub(crate) use errors::SolverError;
+pub use errors::{Error, OutOfOptions};
+pub use graph::Graph;
 pub use python::init_module;
+pub use solution::{PackageSource, Solution};
+pub use solver::{Solver, SolverRuntime}; // python integration only
