@@ -17,7 +17,8 @@ from spkrs.io import (
     format_change,
     format_decisions,
     print_decisions,
-    change_is_relevant_at_verbosity
+    format_error,
+    change_is_relevant_at_verbosity,
 )
 from . import api, solve
 
@@ -34,17 +35,3 @@ def run_and_print_resolve(
 def format_solve_graph(graph: solve.Graph, verbosity: int = 1) -> str:
 
     return format_decisions(graph.walk(), verbosity)
-
-
-def format_error(err: Exception, verbosity: int = 0) -> str:
-
-    msg = str(err)
-    if isinstance(err, solve.SolverError):
-        msg = "Failed to resolve"
-        if verbosity == 0:
-            msg += f"{Fore.YELLOW}{Style.DIM}\n * try '--verbose/-v' for more info"
-        elif verbosity < 2:
-            msg += f"{Fore.YELLOW}{Style.DIM}\n * try '-vv' for even more info"
-        elif verbosity < 3:
-            msg += f"{Fore.YELLOW}{Style.DIM}\n * try '-vvv' for even more info"
-    return f"{Fore.RED}{msg}{Style.RESET_ALL}"

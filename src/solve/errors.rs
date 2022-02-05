@@ -12,7 +12,7 @@ create_exception!(errors, SolverError, PyException);
 
 #[derive(Debug)]
 pub enum Error {
-    SolverError(SolverError),
+    SolverError(String),
     OutOfOptions(OutOfOptions),
 }
 
@@ -25,7 +25,7 @@ impl From<Error> for crate::Error {
 impl From<Error> for PyErr {
     fn from(err: Error) -> Self {
         match err {
-            Error::SolverError(ref err) => err.into(),
+            Error::SolverError(s) => SolverError::new_err(s),
             Error::OutOfOptions(err) => SolverError::new_err(err.to_string()),
         }
     }

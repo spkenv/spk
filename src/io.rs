@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 use colored::Colorize;
 
-use crate::{api, option_map, solve, Result};
+use crate::{api, option_map, solve, Error, Result};
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name().bold().to_string();
@@ -231,8 +231,33 @@ where
     }
 }
 
+pub fn format_error(err: &Error, verbosity: u32) -> String {
+    let mut msg = String::new();
+    match err {
+        Error::Solve(err) => {
+            msg.push_str("Failed to resolve");
+            msg.push_str(&format!("\n * {:?}", err));
+            match verbosity {
+                0 => {
+                    msg.push_str(&"\n * try '--verbose/-v' for more info".dimmed().yellow());
+                }
+                1 => {
+                    msg.push_str(&"\n * try '-vv' for even more info".dimmed().yellow());
+                }
+                2 => {
+                    msg.push_str(&"\n * try '-vvv' for even more info".dimmed().yellow());
+                }
+                3.. => (),
+            }
+        }
+        Error::String(err) => msg.push_str(err),
+        err => msg.push_str(&err.to_string()),
+    }
+    msg.red().to_string()
+}
+
 pub mod python {
-    use crate::{api, solve, Result};
+    use crate::{api, solve, Error, Result};
     use pyo3::prelude::*;
 
     #[pyfunction]
@@ -304,6 +329,26 @@ pub mod python {
         Ok(())
     }
 
+    #[pyfunction]
+    pub fn format_error(py: Python<'_>, err: &PyAny, verbosity: Option<u32>) -> String {
+        // we're making an assumption here that only the SolveError is worth
+        // extracting back out of a python exception because that's the only
+        // logic that existed in the format_error function at the time of
+        // porting it
+        let err = PyErr::from_instance(err);
+        if err.is_instance::<solve::SolverError>(py) {
+            super::format_error(
+                &Error::Solve(solve::Error::SolverError(err.to_string())),
+                verbosity.unwrap_or_default(),
+            )
+        } else {
+            super::format_error(
+                &Error::String(err.to_string()),
+                verbosity.unwrap_or_default(),
+            )
+        }
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(format_ident, m)?)?;
         m.add_function(wrap_pyfunction!(format_build, m)?)?;
@@ -315,6 +360,7 @@ pub mod python {
         m.add_function(wrap_pyfunction!(format_change, m)?)?;
         m.add_function(wrap_pyfunction!(format_decisions, m)?)?;
         m.add_function(wrap_pyfunction!(print_decisions, m)?)?;
+        m.add_function(wrap_pyfunction!(format_error, m)?)?;
         Ok(())
     }
 }
