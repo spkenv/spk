@@ -12,13 +12,19 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    env:
+      SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
+      SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
     steps:
       - uses: actions/checkout@v2
       - name: Check Rust Formatting
         run: cargo fmt -- --check
+      - run: sudo apt-get install -y libcap-dev
+      - name: Patch spfs Pull Auth
+        run: sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
       - name: Lint Rust Code with Clippy
-        run: cargo clippy -- -Dwarnings
-  build:
+        run: make lint-rust
+  build_and_test:
     runs-on: ubuntu-18.04
     env:
       SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
@@ -32,5 +38,5 @@ jobs:
       - run: pipenv sync --dev
       - name: Build
         run: pipenv run -- cargo build --verbose
-      - name: Run tests
+      - name: Test
         run: pipenv run -- cargo test --verbose --no-default-features
