@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use rstest::rstest;
 
-use super::{parse_ident, Ident};
+use super::{parse_ident, Ident, RepositoryName};
 use crate::api::{parse_version, Build};
 
 #[rstest]
@@ -28,8 +28,13 @@ fn test_ident_to_yaml() {
 
 #[rstest]
 #[case(
+    "local/hello/1.0.0/src",
+    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "hello".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::Source)}
+)]
+#[case(
     "hello/1.0.0/src",
     Ident{
+        repository_name: None,
         name: "hello".parse().unwrap(),
         version: parse_version("1.0.0").unwrap(),
         build: Some(Build::Source)
@@ -38,6 +43,7 @@ fn test_ident_to_yaml() {
 #[case(
     "python/2.7",
     Ident{
+        repository_name: None,
         name: "python".parse().unwrap(),
         version: parse_version("2.7").unwrap(),
         build: None
