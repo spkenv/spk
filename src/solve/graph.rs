@@ -1019,7 +1019,8 @@ impl State {
     }
 
     fn with_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
-        let mut packages = self.packages.clone();
+        let mut packages = Vec::with_capacity(self.packages.len() + 1);
+        packages.extend(self.packages.iter().cloned());
         packages.push((spec, source));
         let state_id = self.state_id.with_packages(&packages);
         Self {
