@@ -196,7 +196,6 @@ impl RepositoryPackageIterator {
 
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
-    pkg: api::Ident,
     repo: Arc<Mutex<storage::RepositoryHandle>>,
     builds: VecDeque<api::Ident>,
     spec: Option<Arc<api::Spec>>,
@@ -272,7 +271,6 @@ impl RepositoryBuildIterator {
         builds.sort_by_key(|pkg| !pkg.is_source());
 
         Ok(RepositoryBuildIterator {
-            pkg,
             repo,
             builds: builds.into(),
             spec,

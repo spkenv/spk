@@ -18,7 +18,9 @@ clean: packages.clean
 .PHONY: lint lint-python lint-rust
 lint: lint-rust lint-python
 lint-rust:
-	cargo clippy -- -Dwarnings
+	# we need to ingore this clippy warning until the next
+	# release of py03 which solves for it
+	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
 lint-python:
 	pipenv run -- mypy spk
 	pipenv run -- black --check spk setup.py spkrs

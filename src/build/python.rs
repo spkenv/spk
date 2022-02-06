@@ -42,6 +42,7 @@ fn build_spec_path(path: &api::Ident, prefix: Option<&str>) -> String {
 }
 
 #[pyfunction]
+#[allow(clippy::needless_option_as_deref)]
 fn source_package_path(path: &api::Ident, prefix: Option<&str>) -> String {
     super::source_package_path(path)
         .to_path(prefix.unwrap_or("/spfs"))
