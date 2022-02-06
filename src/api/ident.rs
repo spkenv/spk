@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{convert::TryFrom, fmt::Write, str::FromStr};
+use std::{collections::HashSet, convert::TryFrom, fmt::Write, str::FromStr};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -30,6 +30,9 @@ macro_rules! ident {
     };
 }
 
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct RepositoryName(String);
+
 /// Ident represents a package identifier.
 ///
 /// The identifier is either a specific package or
@@ -37,6 +40,7 @@ macro_rules! ident {
 /// syntax and context
 #[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident {
+    repository_name: Option<RepositoryName>,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
@@ -71,6 +75,7 @@ impl Ident {
     /// Return a copy of this identifier with the given version number instead
     pub fn with_version(&self, version: Version) -> Ident {
         Self {
+            repository_name: self.repository_name.clone(),
             name: self.name.clone(),
             version,
             build: self.build.clone(),
@@ -93,6 +98,7 @@ impl Ident {
 impl Ident {
     pub fn new(name: PkgNameBuf) -> Self {
         Self {
+            repository_name: Default::default(),
             name,
             version: Default::default(),
             build: Default::default(),
@@ -151,19 +157,39 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
-        let mut parts = source.split('/');
-        let name = parts.next().unwrap_or_default();
-        let version = parts.next();
-        let build = parts.next();
+        // TODO: this list of possible names should come from reading
+        // the config file
+        let known_repositories: HashSet<&'static str> =
+            ["local", "origin"].iter().cloned().collect();
 
-        if parts.next().is_some() {
-            return Err(InvalidNameError::new_error(format!(
-                "Too many tokens in package identifier, expected at most 2 slashes ('/'): {}",
-                source
-            )));
-        }
+        let parts = source.split('/').collect::<Vec<_>>();
+
+        let (repository_name, name, version, build) = match parts[..] {
+            [] => unreachable!(),
+            [name] => (None, name, None, None),
+            [repository_name, name] if known_repositories.contains(repository_name) => {
+                (Some(repository_name), name, None, None)
+            }
+            [name, version] => (None, name, Some(version), None),
+            [repository_name, name, version] if known_repositories.contains(repository_name) => {
+                (Some(repository_name), name, Some(version), None)
+            }
+            [name, version, build] => (None, name, Some(version), Some(build)),
+            [repository_name, name, version, build] => {
+                (Some(repository_name), name, Some(version), Some(build))
+            }
+            [_, _, _, _, ..] => {
+                return Err(InvalidNameError::new_error(format!(
+                    "Too many tokens in package identifier, expected at most 3 slashes ('/'): {}",
+                    source
+                )))
+            }
+        };
 
         let mut ident = Self::new(name.parse()?);
+        if let Some(repository_name) = repository_name {
+            ident.repository_name = Some(RepositoryName(repository_name.to_owned()));
+        }
         if let Some(version) = version {
             ident.version = parse_version(version)?;
         }
