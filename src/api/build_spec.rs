@@ -187,9 +187,8 @@ impl<'de> BuildSpec {
             ..BuildSpec::default()
         };
         if let Some(script) = raw.script {
-            bs.script = deserialize_script(script).map_err(|err| {
-                serde::de::Error::custom(format!("build.script: {}", err.to_string()))
-            })?;
+            bs.script = deserialize_script(script)
+                .map_err(|err| serde::de::Error::custom(format!("build.script: {}", err)))?;
         }
         if !raw.variants.is_empty() {
             bs.variants = raw.variants

@@ -351,7 +351,7 @@ impl BinaryPackageBuilder {
         tracing::info!("Validating package fileset...");
         self.spec
             .validate_build_changeset()
-            .map_err(|err| BuildError::new_error(format_args!("{}", err.to_string())))?;
+            .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
         commit_component_layers(&self.spec, &mut runtime)
     }
@@ -374,16 +374,13 @@ impl BinaryPackageBuilder {
             let mut writer = std::fs::File::create(&build_script)?;
             writer
                 .write_all(self.spec.build.script.join("\n").as_bytes())
-                .map_err(|err| {
-                    Error::String(format!("Failed to save build script: {}", err.to_string()))
-                })?;
+                .map_err(|err| Error::String(format!("Failed to save build script: {}", err)))?;
             writer.sync_data()?;
         }
         {
             let mut writer = std::fs::File::create(&build_options)?;
-            serde_json::to_writer_pretty(&mut writer, &self.all_options).map_err(|err| {
-                Error::String(format!("Failed to save build options: {}", err.to_string()))
-            })?;
+            serde_json::to_writer_pretty(&mut writer, &self.all_options)
+                .map_err(|err| Error::String(format!("Failed to save build options: {}", err)))?;
             writer.sync_data()?;
         }
         for cmpt in self.spec.install.components.iter() {

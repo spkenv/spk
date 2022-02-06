@@ -92,7 +92,7 @@ impl Ident {
 
     pub fn version_and_build(&self) -> Option<String> {
         match &self.build {
-            Some(build) => Some(format!("{}/{}", self.version.to_string(), build.digest())),
+            Some(build) => Some(format!("{}/{}", self.version, build.digest())),
             None => {
                 if self.version.is_zero() {
                     None
