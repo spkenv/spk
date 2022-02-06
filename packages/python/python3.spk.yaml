@@ -76,3 +76,18 @@ install:
       fromBuildEnv: x.x
       include: IfAlreadyPresent
     - pkg: stdfs
+  components:
+    - name: run
+      files:
+        - /etc/
+        - /bin/
+        - /lib/
+        - !/lib/pkgconfig
+    - name: build
+      uses: [run]
+      files:
+        - /include/
+        - /lib/pkgconfig
+    - name: man
+      files:
+        - /share/man

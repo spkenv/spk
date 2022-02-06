@@ -5,7 +5,6 @@ weight: 110
 ---
 ## Package Spec
 
-
 | Field      | Type                              | Description                                                                                                                                           |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pkg        | _[Identifier](#identifier)_       | The name and version number of this package                                                                                                           |
@@ -34,7 +33,6 @@ A source spec can be one of [LocalSource](#localsource), [GitSource](#gitsource)
 
 Defines a local directory to collect sources from. This process will also automatically detect a git repository and not transfer ignored files.
 
-
 | Field   | Type        | Description                                                                                      |
 | ------- | ----------- | ------------------------------------------------------------------------------------------------ |
 | path    | _str_       | The relative or absolute path to a local directory                                               |
@@ -45,7 +43,6 @@ Defines a local directory to collect sources from. This process will also automa
 ### GitSource
 
 Clones a git repository as package source files.
-
 
 | Field  | Type  | Description                                                    |
 | ------ | ----- | -------------------------------------------------------------- |
@@ -80,7 +77,6 @@ A build option can be one of [VariableOption](#variableoption), or [PackageOptio
 
 Variable options represents some arbitrary configuration parameter to the build. When the value of this string changes, a new build of the package is required. Some common examples of these options are: `arch`, `os`, `debug`.
 
-
 | Field       | Type        | Description                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | var         | _str_       | The name of the option, with optional default value (eg`my_option` or `my_option/default_value`)                                                                                                                                                                                                                                                                                                                                 |
@@ -91,7 +87,6 @@ Variable options represents some arbitrary configuration parameter to the build.
 #### PackageOption
 
 Package options define a package that is required at build time.
-
 
 | Field            | Type                                    | Description                                                                                                                                                                                    |
 | ---------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -122,7 +117,6 @@ The ValidationSpec modifies the default validation process for packages, primari
 
 A test spec defines one test script that should be run against the package to validate it. Each test script can run against one stage of the package, meaning that you can define test processes for the source package, build environment (unit tests), or install environment (integration tests).
 
-
 | Field        | Type                            | Description                                                                                                                        |
 | ------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | stage        | _str_                           | The stage that this test validates, one of:**sources**, **build**, **install**                                                     |
@@ -132,18 +126,29 @@ A test spec defines one test script that should be run against the package to va
 
 ## InstallSpec
 
+| Field        | Type                                    | Description                                                                                                                                                          |
+| ------------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| requirements | _List[[Request](#request)]_             | The set of packages required at runtime, this list applies universally to all components.                                                                            |
+| embedded     | _List[[Spec](#spec)]_                   | A list of packages that come bundled in this one                                                                                                                     |
+| components   | _List[[ComponentSpec](#componentspec)]_ | The set of components that this package provides. If not otherwise specified, a `build` and `run` component are automatically generated and inserted into this list. |
 
-| Field        | Type                        | Description                                      |
-| ------------ | --------------------------- | ------------------------------------------------ |
-| requirements | _List[[Request](#request)]_ | The set of packages required at runtime          |
-| embedded     | _List[[Spec](#spec)]_       | A list of packages that come bundled in this one |
+#### ComponentSpec
+
+The component spec defines a single component of a package. Components can be individually requested for a package. The `build` and `run` components are generated automatically unless they are defined explicitly for a package.
+
+| Field        | Type                        | Description                                                                                                                                             |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name         | _string_                    | The name of this component                                                                                                                              |
+| files        | _List[string]_              | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
+| uses         | _List[string]_              | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.                              |
+| requirements | _List[[Request](#request)]_ | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
+| embedded     | _List[[Spec](#spec)]_       | A list of packages that are embedded in this component                                                                            |
 
 ### Request
 
 A build option can be one of [VariableRequest](#variablerequest), or [PackageRequest](#packagerequest).
 
 #### VariableRequest
-
 
 | Field        | Type   | Description                                                                                                                                                                 |
 | ------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -152,16 +157,26 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 #### PackageRequest
 
-
 | Field            | Type                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| pkg              | RangeIdentifier                         | Like an[Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| pkg              | _[`RangeIdentifier`](#rangeidentifier)_ | Specifies a desired package, components and acceptable version range.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | inclusionPolicy  | _[InclusionPolicy](#inclusionpolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | fromBuildEnv     | _str_ or _bool_                         | Either true, or a template to generate this request from using the version of the package that was resolved into the build environment. This template takes the form`x.x.x`, where any _x_ is replaced by digits in the version number. For example, if `python/2.7.5` is in the build environment, the template `~x.x` would become `~2.7`. The special values of `Binary` and `API` can be used to request a binary or api compatible package to the one in the build environment, respectively. For Example, if `mypkg/1.2.3.4` is in the build environment, the template `API` would become `API:1.2.3.4`. A value of `true` works the same as `Binary`. |
 
-#### PreReleasePolicy
+#### RangeIdentifier
 
+Like an [Identifier](#identifier) but with a verison range rather than an exact version, see [versioning](../versioning). Additionally, range identifiers can be used to identify one or more package components. The `name:component` syntax can be used when only one component is desired, and the `:{component,component}` syntax for when multiple are desired:
+
+```txt
+mypkg:lib/1.0.0
+mypkg:dev/1.0.0
+mypkg:debug/1.0.0
+mypkg:{lib,dev}/1.0.0
+mypkg:{lib,dev,debug}/1.0.0
+```
+
+#### PreReleasePolicy
 
 | Value                | Description                                 |
 | -------------------- | ------------------------------------------- |
@@ -169,7 +184,6 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 | IncludeAll           | Include all pre-release package versions    |
 
 #### InclusionPolicy
-
 
 | Value            | Description                                                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,7 +193,6 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 ## Identifier
 
 The package identifier takes the form `<name>[/<version>[/<build>]]`, where:
-
 
 | Component | Description                                                                                                                                                                                                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

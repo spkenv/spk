@@ -19,28 +19,32 @@ fn validate_source_changeset() -> Result<()> {
 
 #[pyfunction]
 fn build_options_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::build_options_path(path, prefix.unwrap_or("/spfs"))
+    super::build_options_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
 
 #[pyfunction]
 fn build_script_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::build_script_path(path, prefix.unwrap_or("/spfs"))
+    super::build_script_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
 
 #[pyfunction]
 fn build_spec_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::build_spec_path(path, prefix.unwrap_or("/spfs"))
+    super::build_spec_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
 
 #[pyfunction]
 fn source_package_path(path: &api::Ident, prefix: Option<&str>) -> String {
-    super::source_package_path(path, prefix.unwrap_or("/spfs"))
+    super::source_package_path(path)
+        .to_path(prefix.unwrap_or("/spfs"))
         .to_string_lossy()
         .to_string()
 }
@@ -52,12 +56,12 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
 
 #[pyfunction]
 pub fn data_path(pkg: &api::Ident, prefix: PathBuf) -> PathBuf {
-    super::env::data_path(pkg, prefix)
+    super::env::data_path(pkg).to_path(prefix)
 }
 
 #[pyfunction]
-pub fn collect_sources(apec: &api::Spec, source_dir: PathBuf) -> Result<()> {
-    super::sources::collect_sources(apec, source_dir)
+pub fn collect_sources(spec: &api::Spec, source_dir: PathBuf) -> Result<()> {
+    super::sources::collect_sources(spec, source_dir)
 }
 
 pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {

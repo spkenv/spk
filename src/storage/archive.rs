@@ -90,9 +90,11 @@ fn copy_package(
         return Ok(());
     }
 
-    let digest = src_repo.get_package(pkg)?;
+    let components = src_repo.get_package(pkg)?;
     tracing::info!(?pkg, "exporting");
-    spfs::sync_ref(digest.to_string(), src_repo, dst_repo)?;
-    dst_repo.publish_package(spec, digest)?;
+    for (_name, digest) in components.iter() {
+        spfs::sync_ref(digest.to_string(), src_repo, dst_repo)?;
+    }
+    dst_repo.publish_package(spec, components)?;
     Ok(())
 }

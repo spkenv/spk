@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use super::Repository;
 use crate::{api, Error, Result};
 
-type BuildMap = HashMap<api::Build, (api::Spec, spfs::encoding::Digest)>;
+type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
+type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
 
 #[derive(Default, Clone, Debug)]
 pub struct MemRepository {
@@ -62,6 +63,21 @@ impl Repository for MemRepository {
         }
     }
 
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+        let build = match pkg.build.as_ref() {
+            Some(b) => b,
+            None => return Ok(Vec::new()),
+        };
+        Ok(self
+            .packages
+            .get(pkg.name())
+            .and_then(|versions| versions.get(&pkg.version))
+            .and_then(|builds| builds.get(build))
+            .map(|(_, build_map)| build_map)
+            .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
+            .unwrap_or_default())
+    }
+
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
         match &pkg.build {
             None => self
@@ -83,7 +99,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
+    fn get_package(&self, pkg: &api::Ident) -> Result<ComponentMap> {
         match &pkg.build {
             None => Err(Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
@@ -146,7 +162,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn publish_package(&mut self, spec: api::Spec, digest: spfs::encoding::Digest) -> Result<()> {
+    fn publish_package(&mut self, spec: api::Spec, components: ComponentMap) -> Result<()> {
         let build = match &spec.pkg.build {
             Some(b) => b.to_owned(),
             None => {
@@ -174,7 +190,7 @@ impl Repository for MemRepository {
             }
         };
 
-        builds.insert(build, (spec, digest));
+        builds.insert(build, (spec, components));
         Ok(())
     }
 

@@ -103,9 +103,11 @@ impl SourcePackageBuilder {
             }
         };
         let pkg = self.spec.pkg.clone();
+        let mut components = std::collections::HashMap::with_capacity(1);
+        components.insert(api::Component::Source, layer.digest()?);
         repo.lock()
             .unwrap()
-            .publish_package(self.spec, layer.digest()?)?;
+            .publish_package(self.spec, components)?;
         Ok(pkg)
     }
 
@@ -117,7 +119,7 @@ impl SourcePackageBuilder {
         runtime.reset_stack()?;
         spfs::remount_runtime(&runtime)?;
 
-        let source_dir = data_path(&self.spec.pkg, &self.prefix);
+        let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
         collect_sources(&self.spec, &source_dir)?;
 
         tracing::info!("Validating package source files...");

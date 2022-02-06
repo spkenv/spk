@@ -95,7 +95,6 @@ def _install(args: argparse.Namespace) -> None:
 
     for solved in env.items():
         solver.add_request(solved.request)
-        solver.add_request(spk.solve.graph.SetPackage(solved.spec, solved.source))
     for request in requests:
         solver.add_request(request)
 

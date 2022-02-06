@@ -1,11 +1,42 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::HashSet;
+
 use rstest::rstest;
 use serde_yaml;
 
-use super::{InclusionPolicy, PkgRequest, PreReleasePolicy, VarRequest};
+use super::{parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, VarRequest};
 use crate::api;
+
+#[rstest]
+#[case("python/3.1.0", &[])]
+#[case("python:lib/3.1.0", &["lib"])]
+#[case("python:{lib}/3.1.0", &["lib"])]
+#[case("python:{lib,bin}/3.1.0", &["lib", "bin"])]
+#[case("python:{lib,bin,dev}/3.1.0", &["lib", "bin", "dev"])]
+#[should_panic]
+#[case("python.Invalid/3.1.0", &[""])]
+#[should_panic]
+#[case("python.lib,bin/3.1.0", &[""])]
+fn test_parse_ident_range_components(#[case] source: &str, #[case] expected: &[&str]) {
+    let actual = parse_ident_range(source).unwrap();
+    let expected: HashSet<_> = expected
+        .iter()
+        .map(api::Component::parse)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(actual.components, expected);
+}
+
+#[rstest]
+fn test_range_ident_restrict_components() {
+    let mut first = parse_ident_range("python:lib").unwrap();
+    let second = parse_ident_range("python:bin").unwrap();
+    let expected = parse_ident_range("python:{bin,lib}").unwrap();
+    first.restrict(&second).unwrap();
+    assert_eq!(first.components, expected.components);
+}
 
 #[rstest]
 fn test_prerelease_policy() {

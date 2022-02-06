@@ -17,6 +17,7 @@ extension-module = ["pyo3/extension-module"]
 colored = "2.0.0"
 data-encoding = "2.3.0"
 dyn-clone = "1.0.4"
+ignore = "0.4.18"
 indexmap = "1.7.0"
 itertools = "0.9"
 once_cell = "1.8.0"

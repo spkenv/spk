@@ -1,6 +1,8 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::collections::HashMap;
+
 use spfs::prelude::*;
 
 use super::Repository;
@@ -111,6 +113,18 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+        if pkg.build.is_none() {
+            return Ok(Vec::new());
+        }
+        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        entries
+            .into_iter()
+            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+            .map(api::Component::parse)
+            .collect()
+    }
+
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
@@ -127,17 +141,34 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn get_package(&self, pkg: &api::Ident) -> Result<spfs::encoding::Digest> {
+    fn get_package(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        let components: Result<Vec<api::Component>> = entries
+            .into_iter()
+            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+            .map(api::Component::parse)
+            .collect();
+
         let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
         path.push(pkg.to_string());
-        path.push("spec.yaml");
-
-        match find_layer_by_filename(&path) {
-            Err(Error::SPFS(spfs::Error::UnknownReference(_))) => {
-                Err(Error::PackageNotFoundError(pkg.clone()))
-            }
-            res => res,
-        }
+        let mapped: Result<_> = components?
+            .into_iter()
+            .map(|name| {
+                find_layer_by_filename(path.join(format!("{}.cmpt", name)))
+                    .map(|digest| (name, digest))
+                    .map_err(|err| {
+                        if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                            Error::PackageNotFoundError(pkg.clone())
+                        } else {
+                            err
+                        }
+                    })
+            })
+            .collect();
+        mapped
     }
 
     fn force_publish_spec(&mut self, _spec: api::Spec) -> Result<()> {
@@ -154,7 +185,11 @@ impl Repository for RuntimeRepository {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_package(&mut self, _spec: api::Spec, _digest: spfs::encoding::Digest) -> Result<()> {
+    fn publish_package(
+        &mut self,
+        _spec: api::Spec,
+        _components: HashMap<api::Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))

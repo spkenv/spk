@@ -1,7 +1,7 @@
 # Copyright (c) 2021 Sony Pictures Imageworks, et al.
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 import sys
 
 import spkrs
@@ -9,7 +9,7 @@ import pytest
 
 import spk
 
-from .. import api, io
+from .. import SolverError, api, io
 from spkrs import storage, solve
 from spkrs.solve import Solver
 
@@ -21,19 +21,26 @@ def solver() -> Solver:
 
 
 def make_repo(
-    specs: List[Union[Dict, api.Spec]], opts: api.OptionMap = api.OptionMap()
+    specs: List[Union[Dict, api.Spec, Tuple[api.Spec, Dict[str, spkrs.Digest]]]],
+    opts: api.OptionMap = api.OptionMap(),
 ) -> storage.Repository:
 
     repo = storage.mem_repository()
 
-    def add_pkg(s: Union[Dict, api.Spec]) -> None:
+    def add_pkg(
+        s: Union[Dict, api.Spec, Tuple[api.Spec, Dict[str, spkrs.Digest]]]
+    ) -> None:
         if isinstance(s, dict):
             spec = api.Spec.from_dict(s)
             s = spec.copy()
             spec.pkg = spec.pkg.with_build(None)
             repo.force_publish_spec(spec)
-            s = make_build(s.to_dict(), [], opts)
-        repo.publish_package(s, spkrs.EMPTY_DIGEST)
+            s, cmpts = make_build_and_components(s.to_dict(), [], opts)
+        elif isinstance(s, tuple):
+            s, cmpts = s
+        else:
+            cmpts = dict((c.name, spkrs.EMPTY_DIGEST) for c in s.install.components)
+        repo.publish_package(s, cmpts)
 
     for s in specs:
         add_pkg(s)
@@ -42,16 +49,31 @@ def make_repo(
 
 
 def make_build(
-    spec_dict: Dict, deps: List[api.Spec] = [], opts: api.OptionMap = api.OptionMap()
+    spec_dict: Dict,
+    deps: List[api.Spec] = [],
+    opts: api.OptionMap = api.OptionMap(),
 ) -> api.Spec:
+
+    return make_build_and_components(spec_dict, deps, opts)[0]
+
+
+def make_build_and_components(
+    spec_dict: Dict,
+    deps: List[api.Spec] = [],
+    opts: api.OptionMap = api.OptionMap(),
+    components: List[str] = None,
+) -> Tuple[api.Spec, Dict[str, spkrs.Digest]]:
 
     spec = api.Spec.from_dict(spec_dict)
     if spec.pkg.build == api.SRC:
-        return spec
+        return spec, {"src": spkrs.EMPTY_DIGEST}
     build_opts = opts.copy()
     build_opts.update(spec.resolve_all_options(build_opts))
     spec.update_spec_for_build(build_opts, deps)
-    return spec
+    if components is None:
+        components = [c.name for c in spec.install.components]
+    cmpts = dict((c, spkrs.EMPTY_DIGEST) for c in components)
+    return spec, cmpts
 
 
 def test_solver_no_requests(solver: Solver) -> None:
@@ -67,7 +89,7 @@ def test_solver_package_with_no_spec(solver: Solver) -> None:
     spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
 
     # publish package without publishing spec
-    repo.publish_package(spec, spkrs.EMPTY_DIGEST)
+    repo.publish_package(spec, {"run": spkrs.EMPTY_DIGEST})
 
     solver.update_options(options)
     solver.add_repository(repo)
@@ -816,7 +838,7 @@ def test_solver_some_versions_conflicting_requests(solver: Solver) -> None:
 
     # test when there is a package with some version that have a conflicting dependency
     # - the solver passes over the one with conflicting
-    # - tthe solver logs compat info for versions with conflicts
+    # - the solver logs compat info for versions with conflicts
 
     repo = make_repo(
         [
@@ -843,7 +865,9 @@ def test_solver_some_versions_conflicting_requests(solver: Solver) -> None:
     solver.add_repository(repo)
     solver.add_request("my-lib")
 
-    io.run_and_print_resolve(solver, verbosity=100)
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    assert solution.get("dep").spec.pkg.version == "2.0.0"
 
 
 def test_solver_embedded_request_invalidates(solver: Solver) -> None:
@@ -1049,4 +1073,274 @@ def test_solver_build_options_dont_affect_compat(solver: Solver) -> None:
     # this time the explicit request will cause a failure
     solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
     with pytest.raises(solve.SolverError):
+        solution = io.run_and_print_resolve(solver, verbosity=100)
+
+
+def test_solver_components() -> None:
+
+    # test when a package is requested with specific components
+    # - all the aggregated components are selected in the resolve
+    # - the final build has published layers for each component
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "interpreter"},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                    ]
+                },
+            },
+            {
+                "pkg": "pkga",
+                "install": {
+                    "requirements": [{"pkg": "python:lib/3.7.3"}, {"pkg": "pkgb"}]
+                },
+            },
+            {
+                "pkg": "pkgb",
+                "install": {"requirements": [{"pkg": "python:{doc,interpreter,run}"}]},
+            },
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("pkga")
+    solver.add_request("pkgb")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    assert solution.get("python").request.pkg.components == {
+        "interpreter",
+        "doc",
+        "lib",
+        "run",
+    }
+
+
+def test_solver_all_component() -> None:
+
+    # test when a package is requested with the 'all' component
+    # - all the specs components are selected in the resolve
+    # - the final build has published layers for each component
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "bin", "uses": ["lib"]},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                        {"name": "dev", "uses": ["doc"]},
+                    ]
+                },
+            },
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("python:all")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    resolved = solution.get("python")
+    assert resolved.request.pkg.components == set(["all"])
+    expected = ["bin", "build", "dev", "doc", "lib", "run"]
+    source = resolved.source
+    assert isinstance(source, tuple)
+    assert sorted(source[1].keys()) == expected
+
+
+def test_solver_component_availability() -> None:
+
+    # test when a package is requested with some component
+    # - all the specs components are selected in the resolve
+    # - the final build has published layers for each component
+
+    spec373 = {
+        "pkg": "python/3.7.3",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
+    }
+    spec372 = spec373.copy()
+    spec372["pkg"] = "python/3.7.2"
+    spec371 = spec373.copy()
+    spec371["pkg"] = "python/3.7.1"
+
+    repo = make_repo(
+        [
+            # the first pkg has what we want on paper, but didn't actually publish
+            # the components that we need (missing bin)
+            make_build_and_components(spec373, components=["lib"]),
+            # the second pkg has what we request, but is missing a dependant component (lib)
+            make_build_and_components(spec372, components=["bin"]),
+            # but the last/lowest version number has a publish for all components
+            # and should be the one that is selected because of this
+            make_build_and_components(spec371, components=["bin", "lib"]),
+        ]
+    )
+    repo.publish_spec(api.Spec.from_dict(spec373))
+    repo.publish_spec(api.Spec.from_dict(spec372))
+    repo.publish_spec(api.Spec.from_dict(spec371))
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("python:bin")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    resolved = solution.get("python")
+    assert resolved.spec.pkg.version == "3.7.1", (
+        "should resolve the only version with all "
+        "the components we need actually published"
+    )
+    source = resolved.source
+    assert isinstance(source, tuple)
+    assert sorted(source[1].keys()) == ["bin", "lib"]
+
+
+def test_solver_component_requirements() -> None:
+
+    # test when a component has it's own list of requirements
+    # - the requirements are added to the existing set of requirements
+    # - the additional requirements are resolved
+    # - even if it's a component that's only used by the one that was requested
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "dep"}],
+                    "components": [
+                        {"name": "build", "uses": ["build2"]},
+                        {"name": "build2", "requirements": [{"pkg": "depb"}]},
+                        {"name": "run", "requirements": [{"pkg": "depr"}]},
+                    ],
+                },
+            },
+            {"pkg": "dep"},
+            {"pkg": "depb"},
+            {"pkg": "depr"},
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("mypkg:build")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    solution.get("dep")  # should exist
+    solution.get("depb")  # should exist
+    with pytest.raises(KeyError):
+        solution.get("depr")
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("mypkg:run")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    solution.get("dep")  # should exist
+    solution.get("depr")  # should exist
+    with pytest.raises(KeyError):
+        solution.get("depb")
+
+
+def test_solver_component_requirements_extending() -> None:
+
+    # test when an additional component is requested after a package is resolved
+    # - the new components requirements are still added and resolved
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "depa",
+                "install": {
+                    "components": [
+                        {"name": "run", "requirements": [{"pkg": "depc"}]},
+                    ],
+                },
+            },
+            {"pkg": "depb", "install": {"requirements": [{"pkg": "depa:run"}]}},
+            {"pkg": "depc"},
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    # the initial resolve of this component will add no new requirements
+    solver.add_request("depa:build")
+    # depb has its own requirement on depa:run, which, also
+    # has a new requirement on depc
+    solver.add_request("depb")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    solution.get("depc")  # should exist
+
+
+def test_solver_component_embedded() -> None:
+
+    # test when a component has it's own list of embedded packages
+    # - the embedded package is immediately selected
+    # - it must be compatible with any previous requirements
+
+    repo = make_repo(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "build", "embedded": [{"pkg": "dep-e1/1.0.0"}]},
+                        {"name": "run", "embedded": [{"pkg": "dep-e2/1.0.0"}]},
+                    ],
+                },
+            },
+            {"pkg": "dep-e1/1.0.0"},
+            {"pkg": "dep-e1/2.0.0"},
+            {"pkg": "dep-e2/1.0.0"},
+            {"pkg": "dep-e2/2.0.0"},
+            {
+                "pkg": "downstream1",
+                "install": {
+                    "requirements": [{"pkg": "dep-e1"}, {"pkg": "mypkg:build"}]
+                },
+            },
+            {
+                "pkg": "downstream2",
+                "install": {
+                    "requirements": [{"pkg": "dep-e2/2.0.0"}, {"pkg": "mypkg:run"}]
+                },
+            },
+        ]
+    )
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("downstream1")
+
+    solution = io.run_and_print_resolve(solver, verbosity=100)
+
+    assert solution.get("dep-e1").spec.pkg.build == "embedded"
+
+    solver = Solver()
+    solver.add_repository(repo)
+    solver.add_request("downstream2")
+
+    with pytest.raises(SolverError):
+        # should fail because the one embedded package
+        # does not meet the requirements in downstream spec
         solution = io.run_and_print_resolve(solver, verbosity=100)

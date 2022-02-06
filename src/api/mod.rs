@@ -5,6 +5,9 @@
 mod build;
 mod build_spec;
 mod compat;
+mod component_spec;
+mod component_spec_list;
+mod embedded_packages_list;
 mod ident;
 mod install_spec;
 mod meta;
@@ -13,6 +16,7 @@ mod option;
 mod option_map;
 mod python;
 mod request;
+mod requirements_list;
 mod source_spec;
 mod spec;
 mod test_spec;
@@ -24,6 +28,9 @@ mod version_range;
 pub use build::{parse_build, Build, InvalidBuildError};
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
+pub use component_spec::{Component, ComponentSpec, FileMatcher};
+pub use component_spec_list::ComponentSpecList;
+pub use embedded_packages_list::EmbeddedPackagesList;
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
@@ -34,6 +41,7 @@ pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
     VarRequest,
 };
+pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{read_spec_file, save_spec_file, Spec};
 

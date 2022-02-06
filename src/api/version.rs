@@ -8,6 +8,7 @@ use std::{
 };
 
 use pyo3::prelude::*;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::validate_tag_name;
 use crate::Error;
@@ -351,6 +352,24 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
     v.pre = parse_tag_set(pre)?;
     v.post = parse_tag_set(post)?;
     Ok(v)
+}
+
+impl Serialize for Version {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+impl<'de> Deserialize<'de> for Version {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::from_str(&s).map_err(de::Error::custom)
+    }
 }
 
 fn break_string<'a>(string: &'a str, sep: &str) -> (&'a str, &'a str) {

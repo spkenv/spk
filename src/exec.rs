@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::{io, solve, storage, Error, Result};
+use crate::{api, io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
@@ -20,28 +20,34 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
             }
         }
 
-        let repo = match resolved.source {
-            solve::PackageSource::Repository(repo) => repo,
+        let (repo, components) = match resolved.source {
+            solve::PackageSource::Repository { repo, components } => (repo, components),
             solve::PackageSource::Spec(_) => continue,
         };
 
-        let digest = repo
-            .lock()
-            .unwrap()
-            .get_package(&resolved.spec.pkg)
-            .map_err(|err| match err {
-                Error::PackageNotFoundError(pkg) => Error::String(format!(
-                    "Resolved package disappeared, please try again ({})",
-                    pkg
-                )),
-                _ => err,
-            })?;
-
-        if !local_repo.has_object(&digest) {
-            to_sync.push((resolved.spec, repo.clone(), digest))
+        let mut desired_components = resolved.request.pkg.components;
+        if desired_components.remove(&api::Component::All) {
+            desired_components.extend(components.keys().cloned());
         }
 
-        stack.push(digest);
+        for name in desired_components.into_iter() {
+            let digest = components.get(&name).ok_or_else(|| {
+                Error::String(format!(
+                    "Resolved component '{}' went missing, this is likely a bug in the solver",
+                    name
+                ))
+            })?;
+
+            if stack.contains(digest) {
+                continue;
+            }
+
+            if !local_repo.has_object(digest) {
+                to_sync.push((resolved.spec.clone(), repo.clone(), *digest))
+            }
+
+            stack.push(*digest);
+        }
     }
 
     let to_sync_count = to_sync.len();

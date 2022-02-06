@@ -41,12 +41,13 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
             .with_options(options)
             .build()
         )
-        compiled_solution.add(req, spec, local_repo)
+        source = (local_repo, local_repo.get_package(spec.pkg))
+        compiled_solution.add(req, spec, source)
     return compiled_solution
 
 
 def setup_current_runtime(solution: solve.Solution) -> None:
-    """Modify the active spfs runtime to include exactly the packges in the given solution."""
+    """Modify the active spfs runtime to include exactly the packages in the given solution."""
 
     _runtime = spkrs.active_runtime()
     stack = resolve_runtime_layers(solution)

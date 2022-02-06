@@ -256,6 +256,57 @@ install:
       include: IfAlreadyPresent
 ```
 
+#### Components
+
+Every package in spk is divided into multiple components. The `build` and `run` components are always present, and are intended to represent the set of files needed when building against the package vs simply running against the software within. By default, the `build` and `run` components will be the same, but you can help ensure that downstream consumers only get what they need by refining what these components include.
+
+```yaml
+install:
+  components:
+  - name: run
+    # only the compiled libraries are needed at runtime
+    files: [lib/mylib*.so]
+  - name: build
+    # but everything else (debug symbols or static libraries, for example)
+    # should be pulled in when building against this package
+    files: ['*']
+```
+
+Packages can also define any number of supplementary components which contain some subset of the files created by the build process. These might be used to separate a software library from executables, or static from dynamic libraries. Ultimately, the goal is to define useful sets of files so that downstream consumers only need to pull in what they actually need from your package.
+
+Additionally, components can also declare simple dependencies on one another, which is referred to as one component _using_ another.
+
+```yaml
+install:
+  components:
+  - name: lib
+    # files follow the same semantics as a gitignore/gitinclude file
+    files: [lib/mylib*.so]
+  - name: bin
+    uses: lib
+    files: [bin/]
+  - name: run
+    uses: [lib, bin]
+  - name: build
+    uses: [run]
+```
+
+Finally, you can extend and augment both the requirements and embedded packages for each component. These are added on top of any requirements or embedded packages defined at the install level.
+
+```yaml
+install:
+  requirements:
+    - pkg: python
+  components:
+  - name: bin
+    requirements:
+      # narrow the package requirement for python to
+      # exactly python 3.7.3 for this component
+      - pkg: python/=3.7.3
+      # add a new requirement for this component
+      - pkg: python-requests
+```
+
 #### Embedded Packages
 
 Some software, like Maya or other DCC applications, come bundled with their own specific version of many libraries. SPK can represent this bundled software natively, so that environments can be properly resolved using it. For example, Maya bundles it's own version of `qt`, and no other version of qt should be resolved into the environment. By defining `qt` as an embedded package, users who request envrionments with both `maya` and `qt`, will have qt resolved to the one bundled in the `maya` package, if compatible. If maya embeds `qt/5.12` but the user requests `qt/4.8` then the resolve will fail as expected since this environment is unsafe.

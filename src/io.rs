@@ -40,38 +40,67 @@ pub fn format_request<'a, R>(name: &str, requests: R) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
-    let mut out = format!("{}/", name.bold());
-    let versions: Vec<String> = requests
-        .into_iter()
-        .map(|req| {
-            let mut version = req.pkg.version.to_string();
-            if version.is_empty() {
-                version.push('*')
-            }
-            let build = match req.pkg.build {
-                Some(ref b) => format!("/{}", format_build(b)),
-                None => "".to_string(),
-            };
-            format!("{}{}", version.bright_blue(), build)
-        })
-        .collect();
+    let mut out = name.bold().to_string();
+    let mut versions = Vec::new();
+    let mut components = std::collections::HashSet::new();
+    for req in requests.into_iter() {
+        let mut version = req.pkg.version.to_string();
+        if version.is_empty() {
+            version.push('*')
+        }
+        let build = match req.pkg.build {
+            Some(ref b) => format!("/{}", format_build(b)),
+            None => "".to_string(),
+        };
+        versions.push(format!("{}{}", version.bright_blue(), build));
+        components.extend(&mut req.pkg.components.iter().cloned());
+    }
+    if !components.is_empty() {
+        out.push_str(&format!(":{}", format_components(&components).dimmed()));
+    }
+    out.push('/');
     out.push_str(&versions.join(","));
+    out
+}
+
+pub fn format_components<'a, I>(components: I) -> String
+where
+    I: IntoIterator<Item = &'a api::Component>,
+{
+    let mut components: Vec<_> = components
+        .into_iter()
+        .map(api::Component::to_string)
+        .collect();
+    components.sort();
+    let mut out = components.join(",");
+    if components.len() > 1 {
+        out = format!("{}{}{}", "{".dimmed(), out, "}".dimmed(),)
+    }
     out
 }
 
 pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     let mut out = "Installed Packages:\n".to_string();
     for req in solution.items() {
+        let mut installed = api::PkgRequest::from_ident(&req.spec.pkg);
+        if let solve::PackageSource::Repository { components, .. } = req.source {
+            let mut installed_components = req.request.pkg.components;
+            if installed_components.remove(&api::Component::All) {
+                installed_components.extend(components.keys().cloned());
+            }
+            installed.pkg.components = installed_components;
+        }
+
+        out.push_str(&format!(
+            "  {}",
+            format_request(req.spec.pkg.name(), &[installed])
+        ));
         if verbosity > 0 {
             let options = req.spec.resolve_all_options(&api::OptionMap::default());
-            out.push_str(&format!(
-                "  {} {}\n",
-                format_ident(&req.spec.pkg),
-                format_options(&options)
-            ));
-        } else {
-            out.push_str(&format!("  {}\n", format_ident(&req.spec.pkg)));
+            out.push(' ');
+            out.push_str(&format_options(&options));
         }
+        out.push('\n');
     }
     out
 }
@@ -304,6 +333,11 @@ pub mod python {
     }
 
     #[pyfunction]
+    pub fn format_components(components: Vec<api::Component>) -> String {
+        super::format_components(components.iter())
+    }
+
+    #[pyfunction]
     pub fn format_note(note: solve::graph::NoteEnum) -> String {
         super::format_note(&note)
     }
@@ -390,6 +424,7 @@ pub mod python {
         m.add_function(wrap_pyfunction!(format_options, m)?)?;
         m.add_function(wrap_pyfunction!(format_request, m)?)?;
         m.add_function(wrap_pyfunction!(format_solution, m)?)?;
+        m.add_function(wrap_pyfunction!(format_components, m)?)?;
         m.add_function(wrap_pyfunction!(format_note, m)?)?;
         m.add_function(wrap_pyfunction!(change_is_relevant_at_verbosity, m)?)?;
         m.add_function(wrap_pyfunction!(format_change, m)?)?;

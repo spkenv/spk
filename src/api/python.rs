@@ -137,6 +137,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::Spec>()?;
     m.add_class::<super::BuildSpec>()?;
     m.add_class::<super::InstallSpec>()?;
+    m.add_class::<super::ComponentSpec>()?;
     m.add_class::<super::PkgRequest>()?;
     m.add_class::<super::RangeIdent>()?;
     m.add_class::<super::VarRequest>()?;
@@ -271,6 +272,25 @@ impl<'source> FromPyObject<'source> for super::TestStage {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
         let string = <&'source str>::extract(ob)?;
         match serde_yaml::from_str(string) {
+            Ok(ts) => Ok(ts),
+            Err(err) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{:?}",
+                err
+            ))),
+        }
+    }
+}
+
+impl IntoPy<Py<types::PyAny>> for super::Component {
+    fn into_py(self, py: Python) -> Py<types::PyAny> {
+        self.to_string().into_py(py)
+    }
+}
+
+impl<'source> FromPyObject<'source> for super::Component {
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+        let string = <&'source str>::extract(ob)?;
+        match std::convert::TryFrom::try_from(string) {
             Ok(ts) => Ok(ts),
             Err(err) => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{:?}",

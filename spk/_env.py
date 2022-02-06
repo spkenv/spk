@@ -37,10 +37,15 @@ def current_env() -> solve.Solution:
             for pkg in runtime.list_package_builds(pkg):
 
                 spec = runtime.read_spec(pkg)
+                components = runtime.get_package(spec.pkg)
+                range_ident = api.parse_ident_range(
+                    f"{pkg.name}/={pkg.version}/{pkg.build}"
+                )
+                range_ident.components = set(components.keys())
                 request = api.PkgRequest(
-                    api.parse_ident_range(f"{pkg.name}/={pkg.version}/{pkg.build}"),
+                    range_ident,
                     prerelease_policy="IncludeAll",
                 )
-                solution.add(request, spec, runtime)
+                solution.add(request, spec, (runtime, components))
 
     return solution

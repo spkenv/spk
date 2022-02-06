@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::path::{Path, PathBuf};
+use relative_path::RelativePathBuf;
 
 use crate::api;
 
@@ -13,11 +13,7 @@ mod env_test;
 /// Returns the directory that contains package metadata
 ///
 /// This directory is included as part of the package itself, and
-/// nearly always has a prefix of /spfs
-pub fn data_path<P: AsRef<Path>>(pkg: &api::Ident, prefix: P) -> PathBuf {
-    prefix
-        .as_ref()
-        .join("spk")
-        .join("pkg")
-        .join(pkg.to_string())
+/// should nearly always be assumed as relative to /spfs
+pub fn data_path(pkg: &api::Ident) -> RelativePathBuf {
+    RelativePathBuf::from("/spk/pkg").join(pkg.to_string())
 }

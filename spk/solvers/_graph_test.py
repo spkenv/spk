@@ -19,8 +19,8 @@ def test_resolve_build_same_result() -> None:
     build_spec = spec.copy()
     build_spec.update_spec_for_build(api.OptionMap(), [])
 
-    resolve = graph.ResolvePackage(build_spec, build_spec)
-    build = graph.BuildPackage(spec, spec, Solution())
+    resolve = graph.ResolvePackage(build_spec, base, set(), build_spec)
+    build = graph.BuildPackage(spec, base, set(), Solution())
 
     with_binary = resolve.apply(base)
     with_build = build.apply(base)

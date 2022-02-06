@@ -5,6 +5,9 @@ import os
 import pytest
 import py.path
 
+import spkrs
+
+from spkrs.storage import runtime_repository
 from .. import api, storage
 from . import SourcePackageBuilder, data_path
 from . import BinaryPackageBuilder
@@ -232,7 +235,7 @@ def test_build_package_source_cleanup(tmprepo: storage.Repository) -> None:
 
     pkg = BinaryPackageBuilder.from_spec(spec).with_repository(tmprepo).build()
 
-    digest = storage.local_repository().get_package(pkg.pkg)
+    digest = storage.local_repository().get_package(pkg.pkg)["run"]
     out = subprocess.check_output(
         ["spfs", "ls", str(digest), data_path(src_pkg, prefix="")]
     )
@@ -283,3 +286,52 @@ def test_build_package_requirement_propagation(tmprepo: storage.Repository) -> N
     assert req.var == "base.inherited", "should be inherited with package namespace"
     assert not req.pin, "should not be pinned after build"
     assert req.value == "val", "should be rendered to build time var"
+
+
+def test_default_build_component() -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "mypkg/1.0.0",
+            "sources": [],
+            "build": {
+                "options": [{"pkg": "somepkg/1.0.0"}],
+                "script": "echo building...",
+            },
+        }
+    )
+    builder = BinaryPackageBuilder.from_spec(spec)
+    requirements = list(builder.get_build_requirements())
+    assert len(requirements) == 1, "should have one build requirement"
+    req = requirements[0]
+    assert isinstance(req, api.PkgRequest)
+    assert req.pkg.components == set(["build"]), (
+        "a build request with no components should have the default",
+        "build component injected automatically"
+    )
+
+
+def test_build_components_metadata(tmpspfs: spkrs.storage.Repository) -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "mypkg/1.0.0",
+            "sources": [],
+            "build": {
+                "script": "echo building...",
+            },
+            "components": [{
+                "name": "custom",
+            }]
+        }
+    )
+    spec = BinaryPackageBuilder.from_spec(spec).with_source(".").build()
+    runtime_repo = spkrs.storage.runtime_repository()
+    published = tmpspfs.get_package(spec.pkg)
+    for component in spec.install.components:
+        digest = published[component.name]
+        spkrs.reconfigure_runtime(stack=[digest], reset=['*'])
+        # the package should be "available" no matter what
+        # component is installed
+        installed = runtime_repo.get_package(spec.pkg)
+        assert installed == {component.name: digest}, "runtime repo should only show installed components"

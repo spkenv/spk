@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Build, CompatRule, OptionMap, Request},
+    api::{self, Build, CompatRule, Component, OptionMap, Request},
     solve::graph::{GraphError, StepBack},
     storage, Error, Result,
 };
@@ -26,6 +26,10 @@ use super::{
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
 };
+
+#[cfg(test)]
+#[path = "./solver_test.rs"]
+mod solver_test;
 
 create_exception!(errors, SolverFailedError, SolverError);
 
@@ -170,7 +174,7 @@ impl Solver {
                     }
                 }
 
-                compat = self.validate(&node.state, &spec)?;
+                compat = self.validate(&node.state, &spec, &repo)?;
                 if !&compat {
                     notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg.clone(),
@@ -182,9 +186,11 @@ impl Solver {
                 let mut decision = if build_from_source {
                     match self.resolve_new_build(&spec, &node.state) {
                         Ok(build_env) => {
-                            match Decision::build_package(spec.clone(), &repo, &build_env) {
+                            match Decision::builder(spec.clone(), &node.state)
+                                .with_components(&request.pkg.components)
+                                .build_package(&build_env)
+                            {
                                 Ok(decision) => decision,
-
                                 Err(err) => {
                                     notes.push(NoteEnum::SkipPackageNote(
                                         SkipPackageNote::new_from_message(
@@ -209,7 +215,9 @@ impl Solver {
                         }
                     }
                 } else {
-                    Decision::resolve_package(&spec, repo)
+                    Decision::builder(spec, &node.state)
+                        .with_components(&request.pkg.components)
+                        .resolve_package(repo)
                 };
                 decision.add_notes(notes.iter());
                 return Ok(Some(decision));
@@ -217,6 +225,21 @@ impl Solver {
         }
 
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
+    }
+
+    fn validate(
+        &self,
+        node: &State,
+        spec: &api::Spec,
+        source: &PackageSource,
+    ) -> Result<api::Compatibility> {
+        for validator in self.validators.as_ref() {
+            let compat = validator.validate(node, spec, source)?;
+            if !&compat {
+                return Ok(compat);
+            }
+        }
+        Ok(api::Compatibility::Compatible)
     }
 }
 
@@ -259,6 +282,9 @@ impl Solver {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
                     })?;
                     request.required_compat = Some(CompatRule::API);
+                    if request.pkg.components.is_empty() {
+                        request.pkg.components.insert(Component::Run);
+                    }
                     break api::Request::Pkg(request);
                 }
                 RequestEnum::Request(request) => break request,
@@ -340,8 +366,13 @@ impl Solver {
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(&option.pkg);
-                let request = option.to_request(given.cloned())?;
-                self.add_request(request)
+                let mut request = option.to_request(given.cloned())?;
+                // if no components were explicitly requested in a build option,
+                // then we inject the default for this context
+                if request.pkg.components.is_empty() {
+                    request.pkg.components.insert(Component::Build);
+                }
+                self.add_request(request.into())
             }
         }
 
@@ -357,16 +388,6 @@ impl Solver {
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Change::SetOptions(graph::SetOptions::new(options)))
-    }
-
-    fn validate(&self, node: &State, spec: &api::Spec) -> Result<api::Compatibility> {
-        for validator in self.validators.as_ref() {
-            let compat = validator.validate(node, spec)?;
-            if !&compat {
-                return Ok(compat);
-            }
-        }
-        Ok(api::Compatibility::Compatible)
     }
 }
 

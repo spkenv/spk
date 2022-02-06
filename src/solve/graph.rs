@@ -19,6 +19,10 @@ use super::{
     solution::{PackageSource, Solution},
 };
 
+#[cfg(test)]
+#[path = "./graph_test.rs"]
+mod graph_test;
+
 pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(|| Arc::new(State::default()));
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
@@ -154,56 +158,65 @@ impl Decision {
         }
     }
 
+    pub fn builder<'state>(
+        spec: Arc<api::Spec>,
+        base: &'state State,
+    ) -> DecisionBuilder<'state, 'static> {
+        DecisionBuilder::new(spec, base)
+    }
+
     pub fn add_notes<'a>(&mut self, notes: impl Iterator<Item = &'a NoteEnum>) {
         self.notes.extend(notes.cloned())
     }
+}
 
-    pub fn build_package(
-        spec: Arc<api::Spec>,
-        _source: &PackageSource,
-        build_env: &Solution,
-    ) -> crate::Result<Decision> {
-        let self_spec = spec;
+pub struct DecisionBuilder<'state, 'cmpt> {
+    base: &'state State,
+    spec: Arc<api::Spec>,
+    components: HashSet<&'cmpt api::Component>,
+}
 
+impl<'state> DecisionBuilder<'state, 'static> {
+    pub fn new(spec: Arc<api::Spec>, base: &'state State) -> Self {
+        Self {
+            base,
+            spec,
+            components: HashSet::new(),
+        }
+    }
+}
+
+impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
+    pub fn with_components<'a>(
+        self,
+        components: impl IntoIterator<Item = &'a api::Component>,
+    ) -> DecisionBuilder<'state, 'a> {
+        DecisionBuilder {
+            components: components.into_iter().collect(),
+            spec: self.spec,
+            base: self.base,
+        }
+    }
+
+    pub fn build_package(self, build_env: &Solution) -> crate::Result<Decision> {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
             let specs = build_env.items().into_iter().map(|s| s.spec).collect_vec();
             let options = build_env.options();
-            let mut spec = (*self_spec).clone();
+            let mut spec = (*self.spec).clone();
             spec.update_for_build(&options, specs.iter().map(Arc::as_ref))?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
                 spec.clone(),
-                self_spec.clone(),
+                self.spec.clone(),
             ))));
-            for req in &spec.install.requirements {
-                match req {
-                    api::Request::Pkg(req) => {
-                        changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
-                    }
-                    api::Request::Var(req) => {
-                        changes.push(Change::RequestVar(RequestVar::new(req.clone())))
-                    }
-                }
-            }
 
-            let mut opts = api::OptionMap::default();
-            opts.insert(
-                self_spec.pkg.name().to_owned(),
-                self_spec.compat.render(&self_spec.pkg.version),
-            );
-            for opt in &spec.build.options {
-                let value = opt.get_value(None);
-                if !value.is_empty() {
-                    let name = opt.namespaced_name(spec.pkg.name());
-                    opts.insert(name, value);
-                }
-            }
-            if !opts.is_empty() {
-                changes.push(Change::SetOptions(SetOptions::new(opts)));
-            }
+            changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
+            changes.extend(self.components_to_changes(&self.spec.install.components));
+            changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
+            changes.push(Self::options_to_change(&spec));
 
             Ok(changes)
         };
@@ -214,55 +227,22 @@ impl Decision {
         })
     }
 
-    pub fn resolve_package(spec: &api::Spec, source: PackageSource) -> Decision {
-        let spec = Arc::new(spec.clone());
+    pub fn resolve_package(self, source: PackageSource) -> Decision {
         let generate_changes = || {
             let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
-                spec.clone(),
+                self.spec.clone(),
                 source,
             )))];
 
             // installation options are not relevant for source packages
-            if spec.pkg.is_source() {
+            if self.spec.pkg.is_source() {
                 return changes;
             }
 
-            for req in &spec.install.requirements {
-                match req {
-                    api::Request::Pkg(req) => {
-                        changes.push(Change::RequestPackage(RequestPackage::new(req.clone())))
-                    }
-                    api::Request::Var(req) => {
-                        changes.push(Change::RequestVar(RequestVar::new(req.clone())))
-                    }
-                }
-            }
-
-            for embedded in &spec.install.embedded {
-                changes.push(Change::RequestPackage(RequestPackage::new(
-                    api::PkgRequest::from_ident(&embedded.pkg),
-                )));
-                changes.push(Change::SetPackage(Box::new(SetPackage::new(
-                    Arc::new(embedded.clone()),
-                    PackageSource::Spec(spec.clone()),
-                ))));
-            }
-
-            let mut opts = api::OptionMap::default();
-            opts.insert(
-                spec.pkg.name().to_owned(),
-                spec.compat.render(&spec.pkg.version),
-            );
-            for opt in &spec.build.options {
-                let value = opt.get_value(None);
-                if !value.is_empty() {
-                    let name = opt.namespaced_name(spec.pkg.name());
-                    opts.insert(name, value);
-                }
-            }
-            if !opts.is_empty() {
-                changes.push(Change::SetOptions(SetOptions::new(opts)));
-            }
+            changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
+            changes.extend(self.components_to_changes(&self.spec.install.components));
+            changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
+            changes.push(Self::options_to_change(&self.spec));
 
             changes
         };
@@ -271,6 +251,111 @@ impl Decision {
             changes: generate_changes(),
             notes: Vec::default(),
         }
+    }
+
+    fn requirements_to_changes(&self, requirements: &api::RequirementsList) -> Vec<Change> {
+        requirements
+            .iter()
+            .flat_map(|req| match req {
+                api::Request::Pkg(req) => self.pkg_request_to_changes(req),
+                api::Request::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
+            })
+            .collect()
+    }
+
+    fn components_to_changes(&self, components: &api::ComponentSpecList) -> Vec<Change> {
+        let mut changes = vec![];
+        let required = self
+            .spec
+            .install
+            .components
+            .resolve_uses(self.components.iter().cloned());
+        for component in components.iter() {
+            if !required.contains(&component.name) {
+                continue;
+            }
+            changes.extend(self.requirements_to_changes(&component.requirements));
+            changes.extend(self.embedded_to_changes(&component.embedded));
+        }
+        changes
+    }
+
+    fn pkg_request_to_changes(&self, req: &api::PkgRequest) -> Vec<Change> {
+        let mut req = std::borrow::Cow::Borrowed(req);
+        if req.pkg.components.is_empty() {
+            // if no component was requested specifically,
+            // then we must assume the default run component
+            req.to_mut().pkg.components.insert(api::Component::Run);
+        }
+        let mut changes = vec![Change::RequestPackage(RequestPackage::new(
+            req.clone().into_owned(),
+        ))];
+        // we need to check if this request will change a previously
+        // resolved package (eg: by adding a new component with new requirements)
+        let (spec, _source) = match self.base.get_current_resolve(req.pkg.name()) {
+            Ok(e) => e,
+            Err(_) => return changes,
+        };
+        let existing = match self.base.get_merged_request(req.pkg.name()) {
+            Ok(r) => r,
+            // the error case here should not be possible since we have
+            // already found a resolved package...
+            Err(_) => return changes,
+        };
+        let new_components = spec
+            .install
+            .components
+            .resolve_uses(req.pkg.components.iter());
+        let existing_components = spec
+            .install
+            .components
+            .resolve_uses(existing.pkg.components.iter());
+        let added_components = new_components
+            .difference(&existing_components)
+            .collect::<HashSet<_>>();
+        if added_components.is_empty() {
+            return changes;
+        }
+        for component in spec.install.components.iter() {
+            if !added_components.contains(&component.name) {
+                continue;
+            }
+            changes.extend(self.requirements_to_changes(&component.requirements));
+        }
+        changes
+    }
+
+    fn embedded_to_changes(&self, embedded: &api::EmbeddedPackagesList) -> Vec<Change> {
+        embedded
+            .iter()
+            .flat_map(|embedded| {
+                [
+                    Change::RequestPackage(RequestPackage::new(api::PkgRequest::from_ident(
+                        &embedded.pkg,
+                    ))),
+                    Change::SetPackage(Box::new(SetPackage::new(
+                        Arc::new(embedded.clone()),
+                        PackageSource::Spec(self.spec.clone()),
+                    ))),
+                ]
+            })
+            .collect()
+    }
+
+    fn options_to_change(spec: &api::Spec) -> Change {
+        let mut opts = api::OptionMap::default();
+        opts.insert(
+            spec.pkg.name().to_owned(),
+            spec.compat.render(&spec.pkg.version),
+        );
+        for opt in &spec.build.options {
+            let value = opt.get_value(None);
+            if !value.is_empty() {
+                let name = opt.namespaced_name(spec.pkg.name());
+                opts.insert(name, value);
+            }
+        }
+        Change::SetOptions(SetOptions::new(opts))
     }
 }
 
@@ -840,11 +925,11 @@ impl State {
     pub fn get_current_resolve(
         &self,
         name: &str,
-    ) -> errors::GetCurrentResolveResult<Arc<api::Spec>> {
+    ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
         // TODO: cache this
-        for (spec, _) in &self.packages {
+        for (spec, source) in &self.packages {
             if spec.pkg.name() == name {
-                return Ok(spec.clone());
+                return Ok((spec, source));
             }
         }
         Err(errors::GetCurrentResolveError::PackageNotResolved(format!(
