@@ -15,8 +15,11 @@ packages.%:
 .PHONY: clean
 clean: packages.clean
 
-.PHONY: lint
-lint:
+.PHONY: lint lint-python lint-rust
+lint: lint-rust lint-python
+lint-rust:
+	cargo clippy -- -Dwarnings
+lint-python:
 	pipenv run -- mypy spk
 	pipenv run -- black --check spk setup.py spkrs
 
