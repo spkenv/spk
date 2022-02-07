@@ -824,6 +824,111 @@ impl SetPackageBuild {
     }
 }
 
+#[derive(Clone, Debug)]
+struct StateId {
+    pkg_requests_hash: u64,
+    var_requests_hash: u64,
+    packages_hash: u64,
+    options_hash: u64,
+    full_hash: u64,
+}
+
+impl StateId {
+    #[inline]
+    fn id(&self) -> u64 {
+        self.full_hash
+    }
+
+    fn new(
+        pkg_requests_hash: u64,
+        var_requests_hash: u64,
+        packages_hash: u64,
+        options_hash: u64,
+    ) -> Self {
+        let full_hash = {
+            let mut hasher = DefaultHasher::new();
+            pkg_requests_hash.hash(&mut hasher);
+            var_requests_hash.hash(&mut hasher);
+            packages_hash.hash(&mut hasher);
+            options_hash.hash(&mut hasher);
+            hasher.finish()
+        };
+        Self {
+            pkg_requests_hash,
+            var_requests_hash,
+            packages_hash,
+            options_hash,
+            full_hash,
+        }
+    }
+
+    fn options_hash(options: &[(String, String)]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        options.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn pkg_requests_hash(pkg_requests: &[api::PkgRequest]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        pkg_requests.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn packages_hash(packages: &[(Arc<api::Spec>, PackageSource)]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        for (p, _) in packages.iter() {
+            p.hash(&mut hasher)
+        }
+        hasher.finish()
+    }
+
+    fn var_requests_hash(var_requests: &[api::VarRequest]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        var_requests.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn with_options(&self, options: &[(String, String)]) -> Self {
+        Self::new(
+            self.pkg_requests_hash,
+            self.var_requests_hash,
+            self.packages_hash,
+            StateId::options_hash(options),
+        )
+    }
+
+    fn with_pkg_requests(&self, pkg_requests: &[api::PkgRequest]) -> Self {
+        Self::new(
+            StateId::pkg_requests_hash(pkg_requests),
+            self.var_requests_hash,
+            self.packages_hash,
+            self.options_hash,
+        )
+    }
+
+    fn with_packages(&self, packages: &[(Arc<api::Spec>, PackageSource)]) -> Self {
+        Self::new(
+            self.pkg_requests_hash,
+            self.var_requests_hash,
+            StateId::packages_hash(packages),
+            self.options_hash,
+        )
+    }
+
+    fn with_var_requests_and_options(
+        &self,
+        var_requests: &[api::VarRequest],
+        options: &[(String, String)],
+    ) -> Self {
+        Self::new(
+            self.pkg_requests_hash,
+            StateId::var_requests_hash(var_requests),
+            self.packages_hash,
+            StateId::options_hash(options),
+        )
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct State {
@@ -832,8 +937,7 @@ pub struct State {
     var_requests: Vec<api::VarRequest>,
     packages: Vec<(Arc<api::Spec>, PackageSource)>,
     options: Vec<(String, String)>,
-    #[pyo3(get, name = "id")]
-    hash_cache: u64,
+    state_id: StateId,
 }
 
 #[pymethods]
@@ -871,6 +975,11 @@ impl State {
         // TODO: cache this
         self.options.iter().cloned().collect()
     }
+
+    #[getter]
+    pub fn id(&self) -> u64 {
+        self.state_id.id()
+    }
 }
 
 impl State {
@@ -884,33 +993,19 @@ impl State {
         // may be states constructed where the id is
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
-        //
-        // TODO: Since new states are constructed from
-        // old states by modifying one field at a time,
-        // it would be more efficient to save the hash
-        // of each of the four members, so those individual
-        // hashes don't need to be recalculated in the
-        // new object.
-        let mut hasher = DefaultHasher::new();
-        pkg_requests.hash(&mut hasher);
-        var_requests.hash(&mut hasher);
-        for (p, _) in packages.iter() {
-            p.hash(&mut hasher)
-        }
-        options.hash(&mut hasher);
-
+        let state_id = StateId::new(
+            StateId::pkg_requests_hash(&pkg_requests),
+            StateId::var_requests_hash(&var_requests),
+            StateId::packages_hash(&packages),
+            StateId::options_hash(&options),
+        );
         State {
             pkg_requests,
             var_requests,
             packages,
             options,
-            hash_cache: hasher.finish(),
+            state_id,
         }
-    }
-
-    #[inline]
-    pub fn id(&self) -> u64 {
-        self.hash_cache
     }
 
     pub fn as_solution(&self) -> PyResult<Solution> {
@@ -998,33 +1093,39 @@ impl State {
     }
 
     fn with_options(&self, options: Vec<(String, String)>) -> Self {
-        State::new(
-            self.pkg_requests.clone(),
-            self.var_requests.clone(),
-            self.packages.clone(),
+        let state_id = self.state_id.with_options(&options);
+        Self {
+            pkg_requests: self.pkg_requests.clone(),
+            var_requests: self.var_requests.clone(),
+            packages: self.packages.clone(),
             options,
-        )
+            state_id,
+        }
     }
 
     fn with_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
-        let mut new_packages = self.packages.clone();
-        new_packages.push((spec, source));
-
-        State::new(
-            self.pkg_requests.clone(),
-            self.var_requests.clone(),
-            new_packages,
-            self.options.clone(),
-        )
+        let mut packages = Vec::with_capacity(self.packages.len() + 1);
+        packages.extend(self.packages.iter().cloned());
+        packages.push((spec, source));
+        let state_id = self.state_id.with_packages(&packages);
+        Self {
+            pkg_requests: self.pkg_requests.clone(),
+            var_requests: self.var_requests.clone(),
+            packages,
+            options: self.options.clone(),
+            state_id,
+        }
     }
 
     fn with_pkg_requests(&self, pkg_requests: Vec<api::PkgRequest>) -> Self {
-        State::new(
+        let state_id = self.state_id.with_pkg_requests(&pkg_requests);
+        Self {
             pkg_requests,
-            self.var_requests.clone(),
-            self.packages.clone(),
-            self.options.clone(),
-        )
+            var_requests: self.var_requests.clone(),
+            packages: self.packages.clone(),
+            options: self.options.clone(),
+            state_id,
+        }
     }
 
     fn with_var_requests_and_options(
@@ -1032,12 +1133,16 @@ impl State {
         var_requests: Vec<api::VarRequest>,
         options: Vec<(String, String)>,
     ) -> Self {
-        State::new(
-            self.pkg_requests.clone(),
+        let state_id = self
+            .state_id
+            .with_var_requests_and_options(&var_requests, &options);
+        Self {
+            pkg_requests: self.pkg_requests.clone(),
             var_requests,
-            self.packages.clone(),
+            packages: self.packages.clone(),
             options,
-        )
+            state_id,
+        }
     }
 }
 
