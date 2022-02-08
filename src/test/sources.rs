@@ -73,15 +73,16 @@ impl PackageSourceTester {
 impl PackageSourceTester {
     #[new]
     pub fn new(spec: api::Spec, script: String) -> Self {
-        // self._prefix = "/spfs"
-        // self._spec = spec
-        // self._script = script
-        // self._repos: List[storage.Repository] = []
-        // self._options = api.OptionMap()
-        // self._additional_requirements: List[api.Request] = []
-        // self._source: Optional[str] = None
-        // self._last_solve_graph = solve.Graph()
-        todo!()
+        Self {
+            prefix: PathBuf::from("/spfs"),
+            spec,
+            script,
+            repos: Vec::new(),
+            options: api::OptionMap::default(),
+            additional_requirements: Vec::new(),
+            source: None,
+            last_solve_graph: solve::Graph::default(),
+        }
     }
 
     #[pyo3(name = "get_solve_graph")]
@@ -96,7 +97,7 @@ impl PackageSourceTester {
     }
 
     #[pyo3(name = "with_options")]
-    fn with_options_py(mut slf: PyRefMut<Self>, mut options: api::OptionMap) -> PyRefMut<Self> {
+    fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
         slf.with_options(options);
         slf
     }
