@@ -7,6 +7,6 @@ mod install;
 pub mod python;
 mod sources;
 
-pub use build::PackageBuildTester;
+pub use build::{PackageBuildTester, TestError};
 pub use install::PackageInstallTester;
 pub use sources::PackageSourceTester;

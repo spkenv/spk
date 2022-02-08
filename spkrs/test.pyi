@@ -1,4 +1,5 @@
-
+class TestError(Exception):
+    pass
 
 class PackageSourceTester:
     pass
