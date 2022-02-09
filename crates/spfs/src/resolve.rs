@@ -142,7 +142,7 @@ pub async fn compute_object_manifest(
 /// These are returned as a list, from bottom to top.
 pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
     let config = load_config()?;
-    let mut repo = config.get_repository().await?.into();
+    let repo = config.get_repository().await?.into();
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().iter(), Some(&repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());

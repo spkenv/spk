@@ -47,7 +47,7 @@ pub struct CmdClean {
 
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut repo = match &self.remote {
+        let repo = match &self.remote {
             Some(remote) => config.get_remote(remote).await?,
             None => config.get_repository().await?.into(),
         };
@@ -57,7 +57,7 @@ impl CmdClean {
             || self.prune_if_more_than.is_some()
             || self.keep_if_less_than.is_some()
         {
-            self.prune(&mut repo).await?;
+            self.prune(&repo).await?;
         }
 
         let mut unattached = spfs::get_all_unattached_objects(&repo).await?;
@@ -88,7 +88,7 @@ impl CmdClean {
         }
     }
 
-    async fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
+    async fn prune(&mut self, repo: &RepositoryHandle) -> spfs::Result<()> {
         let prune_if_older_than = age_to_date(
             self.prune_if_older_than
                 .clone()

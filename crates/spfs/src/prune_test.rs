@@ -15,7 +15,7 @@ fixtures!();
 #[rstest]
 #[tokio::test]
 async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo.await;
+    let (_td, tmprepo) = tmprepo.await;
     let mut old = tracking::Tag::new(
         Some("testing".to_string()),
         "prune",
@@ -65,7 +65,7 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_prunable_tags_version(#[future] tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo.await;
+    let (_td, tmprepo) = tmprepo.await;
     let tag = tracking::TagSpec::parse("testing/versioned").unwrap();
     let tag5 = tmprepo
         .push_tag(&tag, &encoding::EMPTY_DIGEST.into())
@@ -133,10 +133,10 @@ async fn test_prunable_tags_version(#[future] tmprepo: TempRepo) {
 #[tokio::test]
 async fn test_prune_tags(#[future] tmprepo: TempRepo) {
     init_logging();
-    let (_td, mut tmprepo) = tmprepo.await;
+    let (_td, tmprepo) = tmprepo.await;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();
 
-    async fn reset(tmprepo: &mut storage::RepositoryHandle) -> HashMap<i32, tracking::Tag> {
+    async fn reset(tmprepo: &storage::RepositoryHandle) -> HashMap<i32, tracking::Tag> {
         let tag = tracking::TagSpec::parse("test/prune").unwrap();
         let mut tags = HashMap::new();
         match tmprepo.remove_tag_stream(&tag).await {
@@ -155,9 +155,9 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         tags
     }
 
-    let tags = reset(&mut tmprepo).await;
+    let tags = reset(&tmprepo).await;
     prune_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
             prune_if_older_than: Some(Utc.ymd(2025, 1, 1).and_hms(0, 0, 0)),
             ..Default::default()
@@ -174,9 +174,9 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         );
     }
 
-    let tags = reset(&mut tmprepo).await;
+    let tags = reset(&tmprepo).await;
     prune_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
             prune_if_version_more_than: Some(2),
             ..Default::default()
@@ -204,9 +204,9 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         );
     }
 
-    let _tags = reset(&mut tmprepo).await;
+    let _tags = reset(&tmprepo).await;
     prune_tags(
-        &mut tmprepo,
+        &tmprepo,
         &PruneParameters {
             prune_if_older_than: Some(Utc.ymd(2030, 1, 1).and_hms(0, 0, 0)),
             ..Default::default()

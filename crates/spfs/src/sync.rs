@@ -14,15 +14,15 @@ mod sync_test;
 
 pub async fn push_ref<R: AsRef<str>>(
     reference: R,
-    mut remote: Option<storage::RepositoryHandle>,
+    remote: Option<storage::RepositoryHandle>,
 ) -> Result<graph::Object> {
     let config = load_config()?;
     let local = config.get_repository().await?.into();
-    let mut remote = match remote.take() {
+    let remote = match remote {
         Some(remote) => remote,
         None => config.get_remote("origin").await?,
     };
-    sync_ref(reference, &local, &mut remote).await
+    sync_ref(reference, &local, &remote).await
 }
 
 /// Pull a reference to the local repository, searching all configured remotes.
@@ -55,7 +55,7 @@ pub async fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
 pub async fn sync_ref<R: AsRef<str>>(
     reference: R,
     src: &storage::RepositoryHandle,
-    dest: &mut storage::RepositoryHandle,
+    dest: &storage::RepositoryHandle,
 ) -> Result<graph::Object> {
     let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
         match src.resolve_tag(&tag).await {
@@ -81,7 +81,7 @@ pub async fn sync_ref<R: AsRef<str>>(
 pub async fn sync_object<'a>(
     obj: &'a graph::Object,
     src: &'a storage::RepositoryHandle,
-    dest: &'a mut storage::RepositoryHandle,
+    dest: &'a storage::RepositoryHandle,
 ) -> Result<()> {
     use graph::Object;
     match obj {
@@ -96,7 +96,7 @@ pub async fn sync_object<'a>(
 pub async fn sync_platform(
     platform: &graph::Platform,
     src: &storage::RepositoryHandle,
-    dest: &mut storage::RepositoryHandle,
+    dest: &storage::RepositoryHandle,
 ) -> Result<()> {
     let digest = platform.digest()?;
     if dest.has_platform(digest).await {
@@ -116,7 +116,7 @@ pub async fn sync_platform(
 pub async fn sync_layer(
     layer: &graph::Layer,
     src: &storage::RepositoryHandle,
-    dest: &mut storage::RepositoryHandle,
+    dest: &storage::RepositoryHandle,
 ) -> Result<()> {
     let layer_digest = layer.digest()?;
     if dest.has_layer(layer_digest).await {
@@ -135,7 +135,7 @@ pub async fn sync_layer(
 pub async fn sync_manifest(
     manifest: &graph::Manifest,
     src: &storage::RepositoryHandle,
-    dest: &mut storage::RepositoryHandle,
+    dest: &storage::RepositoryHandle,
 ) -> Result<()> {
     let manifest_digest = manifest.digest()?;
     if dest.has_manifest(manifest_digest).await {
@@ -162,8 +162,8 @@ pub async fn sync_manifest(
         let src_address = src.address();
         let future = tokio::spawn(async move {
             let src = storage::open_repository(src_address).await?;
-            let mut dest = storage::open_repository(dest_address).await?;
-            sync_entry(&entry, &src, &mut dest).await?;
+            let dest = storage::open_repository(dest_address).await?;
+            sync_entry(&entry, &src, &dest).await?;
             Ok(entry.size)
         });
         futures.push(future);
@@ -202,7 +202,7 @@ pub async fn sync_manifest(
 async fn sync_entry(
     entry: &graph::Entry,
     src: &storage::RepositoryHandle,
-    dest: &mut storage::RepositoryHandle,
+    dest: &storage::RepositoryHandle,
 ) -> Result<()> {
     if !entry.kind.is_blob() {
         return Ok(());
@@ -217,7 +217,7 @@ async fn sync_entry(
 async fn sync_blob(
     blob: &graph::Blob,
     src: &storage::RepositoryHandle,
-    dest: &mut storage::RepositoryHandle,
+    dest: &storage::RepositoryHandle,
 ) -> Result<()> {
     if dest.has_payload(blob.payload).await {
         tracing::trace!(digest = ?blob.payload, "blob payload already synced");

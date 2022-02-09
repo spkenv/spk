@@ -50,8 +50,8 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let mut local: RepositoryHandle = config.get_repository().await.unwrap().into();
-    let mut remote = config.get_remote("origin").await.unwrap();
+    let local: RepositoryHandle = config.get_repository().await.unwrap().into();
+    let remote = config.get_remote("origin").await.unwrap();
     let manifest = local.commit_dir(src_dir.as_path()).await.unwrap();
     let layer = local
         .create_layer(&graph::Manifest::from(&manifest))
@@ -63,14 +63,12 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
         .await
         .unwrap();
 
-    sync_ref(tag.to_string(), &local, &mut remote)
-        .await
-        .unwrap();
+    sync_ref(tag.to_string(), &local, &remote).await.unwrap();
 
     assert!(remote.read_ref("testing").await.is_ok());
     assert!(remote.has_layer(layer.digest().unwrap()).await);
 
-    assert!(sync_ref(tag.to_string(), &local, &mut remote).await.is_ok());
+    assert!(sync_ref(tag.to_string(), &local, &remote).await.is_ok());
 }
 
 #[rstest]
@@ -82,12 +80,12 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let mut repo_a: RepositoryHandle =
+    let repo_a: RepositoryHandle =
         storage::fs::FSRepository::create(tmpdir.path().join("repo_a").as_path())
             .await
             .unwrap()
             .into();
-    let mut repo_b: RepositoryHandle =
+    let repo_b: RepositoryHandle =
         storage::fs::FSRepository::create(tmpdir.path().join("repo_b").as_path())
             .await
             .unwrap()
@@ -108,7 +106,7 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
         .await
         .unwrap();
 
-    sync_ref("testing", &repo_a, &mut repo_b)
+    sync_ref("testing", &repo_a, &repo_b)
         .await
         .expect("failed to sync ref");
 
@@ -122,7 +120,7 @@ async fn test_sync_ref(tmpdir: tempdir::TempDir) {
     std::fs::create_dir_all(tmpdir.path().join("repo_a/objects")).unwrap();
     std::fs::create_dir_all(tmpdir.path().join("repo_a/payloads")).unwrap();
     std::fs::create_dir_all(tmpdir.path().join("repo_a/tags")).unwrap();
-    sync_ref("testing", &repo_b, &mut repo_a)
+    sync_ref("testing", &repo_b, &repo_a)
         .await
         .expect("failed to sync back");
 
@@ -140,15 +138,15 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let mut repo_a: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_a"))
+    let repo_a: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_a"))
         .await
         .unwrap()
         .into();
-    let mut repo_tar: RepositoryHandle = storage::tar::TarRepository::create(dir.join("repo.tar"))
+    let repo_tar: RepositoryHandle = storage::tar::TarRepository::create(dir.join("repo.tar"))
         .await
         .unwrap()
         .into();
-    let mut repo_b: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_b"))
+    let repo_b: RepositoryHandle = storage::fs::FSRepository::create(dir.join("repo_b"))
         .await
         .unwrap()
         .into();
@@ -168,13 +166,13 @@ async fn test_sync_through_tar(tmpdir: tempdir::TempDir) {
         .await
         .unwrap();
 
-    sync_ref("testing", &repo_a, &mut repo_tar).await.unwrap();
+    sync_ref("testing", &repo_a, &repo_tar).await.unwrap();
     drop(repo_tar);
     let repo_tar = storage::tar::TarRepository::open(dir.join("repo.tar"))
         .await
         .unwrap()
         .into();
-    sync_ref("testing", &repo_tar, &mut repo_b).await.unwrap();
+    sync_ref("testing", &repo_tar, &repo_b).await.unwrap();
 
     assert!(repo_b.read_ref("testing").await.is_ok());
     assert!(repo_b.has_layer(layer.digest().unwrap()).await);

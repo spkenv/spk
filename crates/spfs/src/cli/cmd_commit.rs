@@ -30,7 +30,7 @@ impl CmdCommit {
             return Ok(1);
         }
 
-        let mut repo = config.get_repository().await?;
+        let repo = config.get_repository().await?;
 
         let result: spfs::graph::Object = match self.kind.as_str() {
             "layer" => spfs::commit_layer(&mut runtime).await?.into(),

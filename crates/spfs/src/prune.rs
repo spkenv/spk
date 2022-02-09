@@ -76,7 +76,7 @@ pub async fn get_prunable_tags(
 }
 
 pub async fn prune_tags(
-    repo: &mut storage::RepositoryHandle,
+    repo: &storage::RepositoryHandle,
     params: &PruneParameters,
 ) -> Result<HashSet<tracking::Tag>> {
     let to_prune = get_prunable_tags(repo, params).await?;
