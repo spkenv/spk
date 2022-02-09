@@ -42,9 +42,9 @@ pub trait BlobStorage: graph::Database + Sync + Send {
     }
 
     /// Store the given blob
-    async fn write_blob(&mut self, blob: graph::Blob) -> Result<()> {
+    async fn write_blob(&self, blob: graph::Blob) -> Result<()> {
         self.write_object(&graph::Object::Blob(blob)).await
     }
 }
 
-impl<T: BlobStorage> BlobStorage for &mut T {}
+impl<T: BlobStorage> BlobStorage for &T {}

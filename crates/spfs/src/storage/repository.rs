@@ -106,7 +106,7 @@ pub trait Repository:
 
     /// Commit the data from 'reader' as a blob in this repository
     async fn commit_blob(
-        &mut self,
+        &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<encoding::Digest> {
         let (digest, size) = self.write_data(reader).await?;
@@ -119,41 +119,33 @@ pub trait Repository:
     ///
     /// This collects all files to store as blobs and maintains a
     /// render of the manifest for use immediately.
-    async fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
+    async fn commit_dir(&self, path: &std::path::Path) -> Result<tracking::Manifest> {
         let path = tokio::fs::canonicalize(path).await?;
-        // NOTE(rbottriell): I tried many different ways to define and structure
-        // the manifest builder in order to avoid these additional sync primitives
-        // but this is the best that I could come up with after all... basically
-        // we need to wrap self so that it can be safely sent and shared with
-        // the manifest buidler but then still be able to use it after the build
-        // is finished. Overall, I'm still suspicious that there is a cleaner
-        // way to get this to work properly since self is already bound to sync + send
-        let repo = std::sync::Arc::new(tokio::sync::Mutex::new(self));
+        let repo = std::sync::Arc::new(self);
         let manifest = {
-            let mut builder = tracking::ManifestBuilder::new(|reader| async {
-                repo.lock().await.commit_blob(reader).await
-            });
+            let mut builder =
+                tracking::ManifestBuilder::new(|reader| async { repo.commit_blob(reader).await });
             tracing::info!("committing files");
             builder.compute_manifest(path).await?
         };
 
-        let mut slf = repo.lock().await;
         tracing::info!("writing manifest");
         let storable = Manifest::from(&manifest);
-        slf.write_object(&graph::Object::Manifest(storable)).await?;
+        repo.write_object(&graph::Object::Manifest(storable))
+            .await?;
         for node in manifest.walk() {
             if !node.entry.kind.is_blob() {
                 continue;
             }
             let blob = Blob::new(node.entry.object, node.entry.size);
-            slf.write_object(&graph::Object::Blob(blob)).await?;
+            repo.write_object(&graph::Object::Blob(blob)).await?;
         }
 
         Ok(manifest)
     }
 }
 
-impl<T: Repository> Repository for &mut T {
+impl<T: Repository> Repository for &T {
     fn address(&self) -> url::Url {
         Repository::address(&**self)
     }

@@ -46,7 +46,7 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
     }
 }
 
-impl<T: ManifestStorage> ManifestStorage for &mut T {}
+impl<T: ManifestStorage> ManifestStorage for &T {}
 
 #[async_trait::async_trait]
 pub trait ManifestViewer: Send + Sync {

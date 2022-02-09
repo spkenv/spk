@@ -43,7 +43,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
 
     /// Create and storage a new platform for the given platform.
     /// Layers are ordered bottom to top.
-    async fn create_platform(&mut self, layers: Vec<encoding::Digest>) -> Result<graph::Platform> {
+    async fn create_platform(&self, layers: Vec<encoding::Digest>) -> Result<graph::Platform> {
         let platform = graph::Platform::new(layers.into_iter())?;
         let storable = graph::Object::Platform(platform);
         self.write_object(&storable).await?;
@@ -55,4 +55,4 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     }
 }
 
-impl<T: PlatformStorage> PlatformStorage for &mut T {}
+impl<T: PlatformStorage> PlatformStorage for &T {}

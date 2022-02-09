@@ -234,40 +234,21 @@ impl<T: DatabaseView> DatabaseView for &T {
 }
 
 #[async_trait::async_trait]
-impl<T: DatabaseView> DatabaseView for &mut T {
-    async fn read_object(&self, digest: encoding::Digest) -> Result<Object> {
-        DatabaseView::read_object(&**self, digest).await
-    }
-
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        DatabaseView::iter_digests(&**self)
-    }
-
-    fn iter_objects(&self) -> DatabaseIterator<'_> {
-        DatabaseView::iter_objects(&**self)
-    }
-
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db> {
-        DatabaseView::walk_objects(&**self, root)
-    }
-}
-
-#[async_trait::async_trait]
 pub trait Database: DatabaseView {
     /// Write an object to the database, for later retrieval.
-    async fn write_object(&mut self, obj: &Object) -> Result<()>;
+    async fn write_object(&self, obj: &Object) -> Result<()>;
 
     /// Remove an object from the database.
-    async fn remove_object(&mut self, digest: encoding::Digest) -> Result<()>;
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()>;
 }
 
 #[async_trait::async_trait]
-impl<T: Database> Database for &mut T {
-    async fn write_object(&mut self, obj: &Object) -> Result<()> {
-        Database::write_object(&mut **self, obj).await
+impl<T: Database> Database for &T {
+    async fn write_object(&self, obj: &Object) -> Result<()> {
+        Database::write_object(&**self, obj).await
     }
 
-    async fn remove_object(&mut self, digest: encoding::Digest) -> Result<()> {
-        Database::remove_object(&mut **self, digest).await
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
+        Database::remove_object(&**self, digest).await
     }
 }

@@ -83,7 +83,7 @@ pub trait TagStorage: Send + Sync {
 
     /// Push the given tag onto the tag stream.
     async fn push_tag(
-        &mut self,
+        &self,
         tag: &tracking::TagSpec,
         target: &encoding::Digest,
     ) -> Result<tracking::Tag> {
@@ -108,19 +108,19 @@ pub trait TagStorage: Send + Sync {
     }
 
     /// Push the given tag data to the tag stream, regardless of if it's valid.
-    async fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()>;
+    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()>;
 
     /// Remove an entire tag and all related tag history.
     ///
     /// If the given tag spec contains a version, the version is ignored.
-    async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()>;
+    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()>;
 
     /// Remove the oldest stored instance of the given tag.
-    async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()>;
+    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()>;
 }
 
 #[async_trait::async_trait]
-impl<T: TagStorage> TagStorage for &mut T {
+impl<T: TagStorage> TagStorage for &T {
     async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
         TagStorage::resolve_tag(&**self, tag_spec).await
     }
@@ -147,15 +147,15 @@ impl<T: TagStorage> TagStorage for &mut T {
         TagStorage::read_tag(&**self, tag).await
     }
 
-    async fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        TagStorage::push_raw_tag(&mut **self, tag).await
+    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        TagStorage::push_raw_tag(&**self, tag).await
     }
 
-    async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
-        TagStorage::remove_tag_stream(&mut **self, tag).await
+    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
+        TagStorage::remove_tag_stream(&**self, tag).await
     }
 
-    async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        TagStorage::remove_tag(&mut **self, tag).await
+    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        TagStorage::remove_tag(&**self, tag).await
     }
 }

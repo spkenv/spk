@@ -22,7 +22,7 @@ pub trait PayloadStorage: Sync + Send {
 
     /// Store the contents of the given stream, returning its digest and size
     async fn write_data(
-        &mut self,
+        &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)>;
 
@@ -39,20 +39,20 @@ pub trait PayloadStorage: Sync + Send {
     ///
     /// Errors:
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
-    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()>;
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()>;
 }
 
 #[async_trait::async_trait]
-impl<T: PayloadStorage> PayloadStorage for &mut T {
+impl<T: PayloadStorage> PayloadStorage for &T {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
     async fn write_data(
-        &mut self,
+        &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
-        PayloadStorage::write_data(&mut **self, reader).await
+        PayloadStorage::write_data(&**self, reader).await
     }
 
     async fn open_payload(
@@ -62,7 +62,7 @@ impl<T: PayloadStorage> PayloadStorage for &mut T {
         PayloadStorage::open_payload(&**self, digest).await
     }
 
-    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
-        PayloadStorage::remove_payload(&mut **self, digest).await
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+        PayloadStorage::remove_payload(&**self, digest).await
     }
 }
