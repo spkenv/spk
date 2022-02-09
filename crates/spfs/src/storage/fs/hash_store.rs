@@ -65,7 +65,7 @@ impl FSHashStore {
 
     /// Write all data in the given reader to a file in this storage
     pub async fn write_data(
-        &mut self,
+        &self,
         mut reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();

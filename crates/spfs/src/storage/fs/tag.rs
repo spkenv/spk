@@ -168,7 +168,7 @@ impl TagStorage for FSRepository {
         }
     }
 
-    async fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
@@ -176,7 +176,7 @@ impl TagStorage for FSRepository {
         self.push_raw_tag_without_lock(tag).await
     }
 
-    async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
+    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         let lock = match TagLock::new(&filepath).await {
@@ -218,7 +218,7 @@ impl TagStorage for FSRepository {
         Ok(())
     }
 
-    async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         let _lock = TagLock::new(&filepath).await?;

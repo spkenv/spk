@@ -4,6 +4,7 @@
 
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use futures::Stream;
 use relative_path::RelativePath;
@@ -20,7 +21,7 @@ use crate::{encoding, prelude::*, tracking};
 /// and re-packed to an archive on drop. This is not efficient for
 /// large repos and is not safe for multiple reader/writers.
 pub struct TarRepository {
-    up_to_date: bool,
+    up_to_date: AtomicBool,
     archive: std::path::PathBuf,
     repo_dir: tempdir::TempDir,
     repo: crate::storage::fs::FSRepository,
@@ -58,7 +59,7 @@ impl TarRepository {
         let repo_path = tmpdir.path().to_path_buf();
         archive.unpack(&repo_path)?;
         Ok(Self {
-            up_to_date: false,
+            up_to_date: AtomicBool::new(false),
             archive: path,
             repo_dir: tmpdir,
             repo: crate::storage::fs::FSRepository::create(&repo_path).await?,
@@ -73,14 +74,15 @@ impl TarRepository {
         let mut builder = Builder::new(&mut file);
         builder.append_dir_all(".", self.repo_dir.path())?;
         builder.finish()?;
-        self.up_to_date = true;
+        self.up_to_date
+            .store(true, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }
 
 impl Drop for TarRepository {
     fn drop(&mut self) {
-        if self.up_to_date {
+        if self.up_to_date.load(Ordering::Acquire) {
             return;
         }
         if let Err(err) = self.flush() {
@@ -120,15 +122,15 @@ impl graph::DatabaseView for TarRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for TarRepository {
-    async fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
+    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
         self.repo.write_object(obj).await?;
-        self.up_to_date = false;
+        self.up_to_date.store(false, Ordering::Release);
         Ok(())
     }
 
-    async fn remove_object(&mut self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         self.repo.remove_object(digest).await?;
-        self.up_to_date = false;
+        self.up_to_date.store(false, Ordering::Release);
         Ok(())
     }
 }
@@ -140,11 +142,12 @@ impl PayloadStorage for TarRepository {
     }
 
     async fn write_data(
-        &mut self,
+        &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let res = self.repo.write_data(reader).await?;
-        self.up_to_date = false;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(res)
     }
 
@@ -155,9 +158,10 @@ impl PayloadStorage for TarRepository {
         self.repo.open_payload(digest).await
     }
 
-    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         self.repo.remove_payload(digest).await?;
-        self.up_to_date = false;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }
@@ -190,21 +194,24 @@ impl TagStorage for TarRepository {
         self.repo.read_tag(tag).await
     }
 
-    async fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
         self.repo.push_raw_tag(tag).await?;
-        self.up_to_date = false;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
-    async fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
+    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
         self.repo.remove_tag_stream(tag).await?;
-        self.up_to_date = false;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
-    async fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
+    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         self.repo.remove_tag(tag).await?;
-        self.up_to_date = false;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }

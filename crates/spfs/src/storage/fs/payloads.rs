@@ -16,7 +16,7 @@ impl crate::storage::PayloadStorage for FSRepository {
     }
 
     async fn write_data(
-        &mut self,
+        &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader).await
@@ -36,7 +36,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         }
     }
 
-    async fn remove_payload(&mut self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         let path = self.payloads.build_digest_path(&digest);
         match tokio::fs::remove_file(&path).await {
             Ok(()) => Ok(()),
