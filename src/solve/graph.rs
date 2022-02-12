@@ -1,7 +1,6 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use itertools::Itertools;
 use once_cell::sync::Lazy;
 use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::hash_map::{DefaultHasher, Entry};
@@ -202,10 +201,10 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
-            let specs = build_env.items().into_iter().map(|s| s.spec).collect_vec();
+            let specs = build_env.items().into_iter().map(|s| s.spec);
             let options = build_env.options();
             let mut spec = (*self.spec).clone();
-            spec.update_for_build(&options, specs.iter().map(Arc::as_ref))?;
+            spec.update_for_build(&options, specs)?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(

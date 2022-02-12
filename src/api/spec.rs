@@ -172,13 +172,17 @@ impl Spec {
 
 impl Spec {
     /// Update this spec to represent a specific binary package build.
-    pub fn update_for_build<'a, I>(&mut self, options: &OptionMap, resolved: I) -> Result<()>
+    pub fn update_for_build<I, S>(&mut self, options: &OptionMap, resolved: I) -> Result<()>
     where
-        I: Iterator<Item = &'a Spec>,
+        I: IntoIterator<Item = S>,
+        S: AsRef<Spec>,
     {
-        let specs: HashMap<_, _> = resolved.map(|s| (s.pkg.name(), s)).collect();
+        let specs: HashMap<_, _> = resolved
+            .into_iter()
+            .map(|s| (s.as_ref().pkg.name().to_string(), s))
+            .collect();
         for (dep_name, dep_spec) in specs.iter() {
-            for opt in dep_spec.build.options.iter() {
+            for opt in dep_spec.as_ref().build.options.iter() {
                 if let Opt::Var(opt) = opt {
                     if let Inheritance::Weak = opt.inheritance {
                         continue;
@@ -217,7 +221,7 @@ impl Spec {
                     continue;
                 }
                 Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg.as_str());
+                    let spec = specs.get(&opt.pkg);
                     match spec {
                         None => {
                             return Err(Error::String(format!(
@@ -226,7 +230,7 @@ impl Spec {
                             )));
                         }
                         Some(spec) => {
-                            let rendered = spec.compat.render(&spec.pkg.version);
+                            let rendered = spec.as_ref().compat.render(&spec.as_ref().pkg.version);
                             opt.set_value(rendered)?;
                         }
                     }
@@ -235,7 +239,7 @@ impl Spec {
         }
 
         self.install
-            .render_all_pins(options, specs.iter().map(|(_, s)| &s.pkg))?;
+            .render_all_pins(options, specs.iter().map(|(_, s)| &s.as_ref().pkg))?;
         let digest = self.resolve_all_options(options).digest();
         self.pkg.set_build(Some(Build::Digest(digest)));
         Ok(())
