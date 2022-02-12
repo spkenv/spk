@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Sequence
 
-from .. import solve, api, storage
+from . import solve, api, storage
 
 class TestError(Exception):
     pass
@@ -16,7 +16,7 @@ class PackageSourceTester:
     ) -> PackageSourceTester: ...
     def with_source(self, source: str) -> PackageSourceTester: ...
     def with_requirements(
-        self, requests: List[api.Request]
+        self, requests: Sequence[api.Request]
     ) -> PackageSourceTester: ...
     def test(self) -> None: ...
 

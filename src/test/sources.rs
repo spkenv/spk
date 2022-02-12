@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::ffi::OsString;
+use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use pyo3::prelude::*;
 
-use crate::{api, solve, storage, Result};
+use super::TestError;
+use crate::{api, build, exec, solve, storage, Result};
 
 #[pyclass]
 pub struct PackageSourceTester {
@@ -18,16 +21,16 @@ pub struct PackageSourceTester {
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: Option<PathBuf>,
-    last_solve_graph: solve::Graph,
+    last_solve_graph: Arc<RwLock<solve::Graph>>,
 }
 
 impl PackageSourceTester {
-    fn with_option(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
+    pub fn with_option(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
         self.options.insert(name.into(), value.into());
         self
     }
 
-    fn with_options(&mut self, mut options: api::OptionMap) -> &mut Self {
+    pub fn with_options(&mut self, mut options: api::OptionMap) -> &mut Self {
         self.options.append(&mut options);
         self
     }
@@ -48,12 +51,15 @@ impl PackageSourceTester {
 
     /// Setting the source path for this test will validate this
     /// local path rather than a source package's contents.
-    fn with_source(&mut self, source: Option<PathBuf>) -> &mut Self {
+    pub fn with_source(&mut self, source: Option<PathBuf>) -> &mut Self {
         self.source = source;
         self
     }
 
-    fn with_requirements(&mut self, requests: impl IntoIterator<Item = api::Request>) -> &mut Self {
+    pub fn with_requirements(
+        &mut self,
+        requests: impl IntoIterator<Item = api::Request>,
+    ) -> &mut Self {
         self.additional_requirements.extend(requests);
         self
     }
@@ -64,8 +70,8 @@ impl PackageSourceTester {
     /// and test that failed with a SolverError.
     ///
     /// If the tester has not run, return an incomplete graph.
-    pub fn get_solve_graph(&self) -> &solve::Graph {
-        &self.last_solve_graph
+    pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
+        self.last_solve_graph.clone()
     }
 }
 
@@ -81,13 +87,13 @@ impl PackageSourceTester {
             options: api::OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
-            last_solve_graph: solve::Graph::default(),
+            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
         }
     }
 
     #[pyo3(name = "get_solve_graph")]
     fn get_solve_graph_py(&self) -> solve::Graph {
-        self.last_solve_graph.clone()
+        self.get_solve_graph().read().unwrap().clone()
     }
 
     #[pyo3(name = "with_option")]
@@ -135,47 +141,89 @@ impl PackageSourceTester {
         slf
     }
 
-    pub fn test(&self) -> Result<()> {
-        // spkrs.reconfigure_runtime(editable=True, stack=[], reset=["*"])
+    pub fn test(&mut self) -> Result<()> {
+        let mut rt = spfs::active_runtime()?;
+        rt.set_editable(true)?;
+        rt.reset_all()?;
+        rt.reset_stack()?;
 
-        // solver = solve.Solver()
-        // for request in self._additional_requirements:
-        //     solver.add_request(request)
-        // solver.update_options(&self._options)
-        // for repo in self._repos:
-        //     solver.add_repository(repo)
-        // solver.add_request(&self._spec.pkg.with_build(api.SRC))
-        // runtime = solver.run()
-        // try:
-        //     solution = runtime.solution()
-        // finally:
-        //     self._last_solve_graph = runtime.graph()
+        let mut solver = solve::Solver::default();
+        solver.set_binary_only(true);
+        for request in self.additional_requirements.drain(..) {
+            solver.add_request(request)
+        }
+        solver.update_options(self.options.clone());
+        for repo in self.repos.iter().cloned() {
+            solver.add_repository(repo);
+        }
 
-        // layers = exec.resolve_runtime_layers(solution)
-        // spkrs.reconfigure_runtime(stack=layers)
+        if self.source.is_none() {
+            // we only require the source package to actually exist
+            // if a local directory has not been specified for the test
+            let source_pkg = self.spec.pkg.with_build(Some(api::Build::Source));
+            let mut ident_range = api::RangeIdent::exact(&source_pkg);
+            ident_range.components.insert(api::Component::Source);
+            let request = api::PkgRequest {
+                pkg: ident_range,
+                prerelease_policy: api::PreReleasePolicy::IncludeAll,
+                inclusion_policy: api::InclusionPolicy::Always,
+                pin: None,
+                required_compat: None,
+            };
+            solver.add_request(request.into());
+        }
 
-        // env = solution.to_environment(os.environ)
-        // env["PREFIX"] = self._prefix
+        let mut runtime = solver.run();
+        let result = runtime.solution();
+        self.last_solve_graph = runtime.graph();
+        let solution = result?;
 
-        // if self._source is not None:
-        //     source_dir = self._source
-        // else:
-        //     source_dir = build.source_package_path(
-        //         self._spec.pkg.with_build(api.SRC), self._prefix
-        //     )
-        // with tempfile.NamedTemporaryFile("w+") as script_file:
-        //     script_file.write(&self._script)
-        //     script_file.flush()
-        //     os.environ["SHELL"] = "bash"
-        //     cmd = spkrs.build_shell_initialized_command("bash", "-ex", script_file.name)
+        for layer in exec::resolve_runtime_layers(&solution)? {
+            rt.push_digest(&layer)?;
+        }
+        spfs::remount_runtime(&rt)?;
 
-        //     with build.deferred_signals():
-        //         proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
-        //         proc.wait()
-        //     if proc.returncode != 0:
-        //         raise TestError(
-        //             f"Test script returned non-zero exit status: {proc.returncode}"
-        //         )
-        todo!()
+        let mut env = solution.to_environment(Some(std::env::vars()));
+        env.insert(
+            "PREFIX".to_string(),
+            self.prefix
+                .to_str()
+                .ok_or_else(|| {
+                    crate::Error::String("Test prefix must be a valid unicode string".to_string())
+                })?
+                .to_string(),
+        );
+
+        let source_dir = match &self.source {
+            Some(source) => source.clone(),
+            None => build::source_package_path(&self.spec.pkg.with_build(Some(api::Build::Source)))
+                .to_path(&self.prefix),
+        };
+
+        let tmpdir = tempdir::TempDir::new("spk-test")?;
+        let script_path = tmpdir.path().join("test.sh");
+        let mut script_file = std::fs::File::create(&script_path)?;
+        script_file.write_all(self.script.as_bytes())?;
+        script_file.sync_data()?;
+        // TODO: this should be more easily configurable on the spfs side
+        std::env::set_var("SHELL", "bash");
+        let args = spfs::build_shell_initialized_command(
+            OsString::from("bash"),
+            &mut vec![OsString::from("-ex"), script_path.into_os_string()],
+        )?;
+        let mut cmd = std::process::Command::new(args.get(0).unwrap());
+        let status = cmd
+            .args(&args[1..])
+            .envs(env)
+            .current_dir(source_dir)
+            .status()?;
+        if !status.success() {
+            Err(TestError::new_error(format!(
+                "Test script returned non-zero exit status: {}",
+                status.code().unwrap_or(1)
+            )))
+        } else {
+            Ok(())
+        }
     }
 }
