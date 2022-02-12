@@ -140,7 +140,7 @@ def configure_spops() -> None:
 def configure_logging(args: argparse.Namespace) -> None:
 
     colorama.init()
-    spkrs.configure_logging(0)
+    spkrs.configure_logging(args.verbose)
 
     level = logging.INFO
     processors = [
