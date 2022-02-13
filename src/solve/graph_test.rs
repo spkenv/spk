@@ -31,7 +31,7 @@ fn test_request_default_component() {
         "default run component should be injected when none specified"
     );
 
-    let build_state = DecisionBuilder::new(spec.clone(), &base)
+    let build_state = DecisionBuilder::new(spec, &base)
         .build_package(&solve::solution::Solution::new(None))
         .unwrap()
         .apply(base.clone());

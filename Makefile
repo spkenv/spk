@@ -15,8 +15,13 @@ packages.%:
 .PHONY: clean
 clean: packages.clean
 
-.PHONY: lint
-lint:
+.PHONY: lint lint-python lint-rust
+lint: lint-rust lint-python
+lint-rust:
+	# we need to ingore this clippy warning until the next
+	# release of py03 which solves for it
+	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
+lint-python:
 	pipenv run -- mypy spk
 	pipenv run -- black --check spk setup.py spkrs
 
@@ -28,8 +33,14 @@ format:
 devel:
 	pipenv run -- python setup.py develop
 
-.PHONY: test
-test:
+.PHONY: test test-python test-rust
+test: test-rust test-python
+test-rust:
+	# other tooling (rust-analyzer) can create
+	# unhappy builds of pyo3 which cause the build of
+	# the tests to fail
+	cargo clean -p pyo3 && cargo test --no-default-features
+test-python:
 	mkdir -p /tmp/spfs-runtimes
 	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
 	pipenv run -- spfs run - -- pytest -x -vvv
