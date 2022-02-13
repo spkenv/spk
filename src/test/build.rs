@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+use std::io::Write;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
@@ -6,7 +8,11 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use pyo3::prelude::*;
 
-use crate::{api, solve, storage, Result};
+use crate::{
+    api,
+    build::{self, BuildSource},
+    exec, solve, storage, Error, Result,
+};
 
 /// Denotes that a test has failed or was invalid.
 #[derive(Debug)]
@@ -28,7 +34,7 @@ pub struct PackageBuildTester {
     repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
-    source: Option<PathBuf>,
+    source: BuildSource,
     last_solve_graph: Arc<RwLock<solve::Graph>>,
 }
 
@@ -59,7 +65,7 @@ impl PackageBuildTester {
 
     /// Setting the source path for this test will validate this
     /// local path rather than a source package's contents.
-    pub fn with_source(&mut self, source: Option<PathBuf>) -> &mut Self {
+    pub fn with_source(&mut self, source: BuildSource) -> &mut Self {
         self.source = source;
         self
     }
@@ -87,6 +93,7 @@ impl PackageBuildTester {
 impl PackageBuildTester {
     #[new]
     pub fn new(spec: api::Spec, script: String) -> Self {
+        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
             prefix: PathBuf::from("/spfs"),
             spec,
@@ -94,90 +101,176 @@ impl PackageBuildTester {
             repos: Vec::new(),
             options: api::OptionMap::default(),
             additional_requirements: Vec::new(),
-            source: None,
+            source,
             last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
         }
     }
 
-    pub fn test(&self) -> Result<()> {
-        // spkrs.reconfigure_runtime(editable=True, reset=["*"], stack=[])
-
-        // solution = self._resolve_source_package()
-        // stack = exec.resolve_runtime_layers(solution)
-        // spkrs.reconfigure_runtime(stack=stack)
-
-        // solver = solve.Solver()
-        // for request in self._additional_requirements:
-        //     solver.add_request(request)
-        // solver.update_options(self._options)
-        // for repo in self._repos:
-        //     solver.add_repository(repo)
-        // if isinstance(self._source, api.Ident):
-        //     ident_range = api.parse_ident_range(
-        //         f"{self._source.name}/={self._source.version}/{self._source.build}"
-        //     )
-        //     request = api.PkgRequest(ident_range, "IncludeAll")
-        //     solver.add_request(request)
-        // solver.configure_for_build_environment(self._spec)
-        // runtime = solver.run()
-        // try:
-        //     solution = runtime.solution()
-        // finally:
-        //     self._last_solve_graph = runtime.graph()
-
-        // stack = exec.resolve_runtime_layers(solution)
-        // spkrs.reconfigure_runtime(stack=stack)
-
-        // specs = list(s for _, s, _ in solution.items())
-        // self._options.update(solution.options())
-        // self._spec.update_spec_for_build(self._options, specs)
-
-        // env = solution.to_environment(os.environ)
-        // env.update(self._spec.resolve_all_options(solution.options()).to_environment())
-        // env.update(build.get_package_build_env(self._spec))
-        // env["PREFIX"] = self._prefix
-
-        // source_dir = build.source_package_path(
-        //     self._spec.pkg.with_build(api.SRC), self._prefix
-        // )
-        // with tempfile.NamedTemporaryFile("w+") as script_file:
-        //     script_file.write(self._script)
-        //     script_file.flush()
-        //     os.environ["SHELL"] = "bash"
-        //     cmd = spkrs.build_shell_initialized_command("bash", "-ex", script_file.name)
-
-        //     with build.deferred_signals():
-        //         proc = subprocess.Popen(cmd, cwd=source_dir, env=env)
-        //         proc.wait()
-        //     if proc.returncode != 0:
-        //         raise TestError(
-        //             f"Test script returned non-zero exit status: {proc.returncode}"
-        //         )
-        todo!()
+    #[pyo3(name = "get_solve_graph")]
+    fn get_solve_graph_py(&self) -> solve::Graph {
+        self.get_solve_graph().read().unwrap().clone()
     }
 
-    fn resolve_source_package(&self) -> Result<solve::Solution> {
-        // solver = solve.Solver()
-        // solver.update_options(self._options)
-        // solver.add_repository(storage.local_repository())
-        // for repo in self._repos:
-        //     if repo == storage.local_repository():
-        //         # local repo is always injected first, and duplicates are redundant
-        //         continue
-        //     solver.add_repository(repo)
+    #[pyo3(name = "with_option")]
+    fn with_option_py(mut slf: PyRefMut<Self>, name: String, value: String) -> PyRefMut<Self> {
+        slf.with_option(name, value);
+        slf
+    }
 
-        // if isinstance(self._source, api.Ident):
-        //     ident_range = api.parse_ident_range(
-        //         f"{self._source.name}/={self._source.version}/{self._source.build}"
-        //     )
-        //     request = api.PkgRequest(ident_range, "IncludeAll")
-        //     solver.add_request(request)
+    #[pyo3(name = "with_options")]
+    fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
+        slf.with_options(options);
+        slf
+    }
 
-        // runtime = solver.run()
-        // try:
-        //     return runtime.solution()
-        // finally:
-        //     self._last_solve_graph = runtime.graph()
-        todo!()
+    #[pyo3(name = "with_repository")]
+    fn with_repository_py(
+        mut slf: PyRefMut<Self>,
+        repo: storage::python::Repository,
+    ) -> PyRefMut<Self> {
+        slf.repos.push(repo.handle);
+        slf
+    }
+
+    #[pyo3(name = "with_repositories")]
+    fn with_repositories_py(
+        mut slf: PyRefMut<Self>,
+        repos: Vec<storage::python::Repository>,
+    ) -> PyRefMut<Self> {
+        slf.repos.extend(&mut repos.into_iter().map(|r| r.handle));
+        slf
+    }
+
+    #[pyo3(name = "with_source")]
+    fn with_source_py(mut slf: PyRefMut<Self>, source: Py<PyAny>) -> Result<PyRefMut<Self>> {
+        if let Ok(ident) = source.extract::<api::Ident>(slf.py()) {
+            slf.with_source(BuildSource::SourcePackage(ident));
+        } else if let Ok(path) = source.extract::<String>(slf.py()) {
+            slf.with_source(BuildSource::LocalPath(path.into()));
+        } else {
+            return Err(Error::String("Expected api.Ident or str".to_string()));
+        }
+        Ok(slf)
+    }
+
+    #[pyo3(name = "with_requirements")]
+    fn with_requirements_py(
+        mut slf: PyRefMut<Self>,
+        requests: Vec<api::Request>,
+    ) -> PyRefMut<Self> {
+        slf.additional_requirements.extend(requests);
+        slf
+    }
+
+    pub fn test(&mut self) -> Result<()> {
+        let mut rt = spfs::active_runtime()?;
+        rt.set_editable(true)?;
+        rt.reset_all()?;
+        rt.reset_stack()?;
+
+        let mut stack = Vec::new();
+        if let BuildSource::SourcePackage(pkg) = self.source.clone() {
+            let solution = self.resolve_source_package(&pkg)?;
+            stack.append(&mut exec::resolve_runtime_layers(&solution)?);
+        }
+
+        let mut solver = solve::Solver::default();
+        solver.set_binary_only(true);
+        for request in self.additional_requirements.drain(..) {
+            solver.add_request(request)
+        }
+        solver.update_options(self.options.clone());
+        for repo in self.repos.iter().cloned() {
+            solver.add_repository(repo);
+        }
+        solver.configure_for_build_environment(&self.spec)?;
+        let mut runtime = solver.run();
+        let result = runtime.solution();
+        self.last_solve_graph = runtime.graph();
+        let solution = result?;
+
+        for layer in exec::resolve_runtime_layers(&solution)? {
+            rt.push_digest(&layer)?;
+        }
+        spfs::remount_runtime(&rt)?;
+
+        self.options.extend(solution.options());
+        let resolved = solution.items().into_iter().map(|r| r.spec);
+        self.spec.update_for_build(&self.options, resolved)?;
+
+        let mut env = solution.to_environment(Some(std::env::vars()));
+        env.insert(
+            "PREFIX".to_string(),
+            self.prefix
+                .to_str()
+                .ok_or_else(|| {
+                    crate::Error::String("Test prefix must be a valid unicode string".to_string())
+                })?
+                .to_string(),
+        );
+
+        let source_dir = match &self.source {
+            BuildSource::SourcePackage(source) => {
+                build::source_package_path(source).to_path(&self.prefix)
+            }
+            BuildSource::LocalPath(path) => path.clone(),
+        };
+
+        let tmpdir = tempdir::TempDir::new("spk-test")?;
+        let script_path = tmpdir.path().join("test.sh");
+        let mut script_file = std::fs::File::create(&script_path)?;
+        script_file.write_all(self.script.as_bytes())?;
+        script_file.sync_data()?;
+        // TODO: this should be more easily configurable on the spfs side
+        std::env::set_var("SHELL", "bash");
+        let args = spfs::build_shell_initialized_command(
+            OsString::from("bash"),
+            &mut vec![OsString::from("-ex"), script_path.into_os_string()],
+        )?;
+        let mut cmd = std::process::Command::new(args.get(0).unwrap());
+        let status = cmd
+            .args(&args[1..])
+            .envs(env)
+            .current_dir(source_dir)
+            .status()?;
+        if !status.success() {
+            Err(TestError::new_error(format!(
+                "Test script returned non-zero exit status: {}",
+                status.code().unwrap_or(1)
+            )))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
+        let mut solver = solve::Solver::default();
+        solver.set_binary_only(true);
+        solver.update_options(self.options.clone());
+        let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
+        solver.add_repository(local_repo.clone());
+        for repo in self.repos.iter() {
+            if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
+                // local repo is always injected first, and duplicates are redundant
+                continue;
+            }
+            solver.add_repository(repo.clone());
+        }
+
+        let mut ident_range = api::RangeIdent::exact(package);
+        ident_range.components.insert(api::Component::Source);
+        let request = api::PkgRequest {
+            pkg: ident_range,
+            prerelease_policy: api::PreReleasePolicy::IncludeAll,
+            inclusion_policy: api::InclusionPolicy::Always,
+            pin: None,
+            required_compat: None,
+        };
+        solver.add_request(request.into());
+
+        let mut runtime = solver.run();
+        let solution = runtime.solution();
+        self.last_solve_graph = runtime.graph();
+        Ok(solution?)
     }
 }
