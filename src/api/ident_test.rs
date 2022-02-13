@@ -49,6 +49,19 @@ fn test_ident_to_yaml() {
         build: None
     }
 )]
+// pathological cases: package named "local"
+#[case(
+    "local/1.0.0/src",
+    Ident{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::Source)}
+)]
+#[case(
+    "local/1.0.0/DEADBEEF",
+    Ident{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::from_str("DEADBEEF").unwrap())}
+)]
+#[case(
+    "local/1.0.0",
+    Ident{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: None}
+)]
 fn test_parse_ident(#[case] input: &str, #[case] expected: Ident) {
     let actual = parse_ident(input).unwrap();
     assert_eq!(actual, expected);
