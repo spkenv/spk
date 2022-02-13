@@ -166,18 +166,85 @@ impl FromStr for Ident {
 
         let (repository_name, name, version, build) = match parts[..] {
             [] => unreachable!(),
-            [name] => (None, name, None, None),
-            [repository_name, name] if known_repositories.contains(repository_name) => {
-                (Some(repository_name), name, None, None)
+            [name] => (None, name.parse().map(Self::new), None, None),
+            [repo_or_name, name_or_version] => {
+                let is_known_repo = known_repositories.contains(repo_or_name);
+                let first_is_legal_name = repo_or_name.parse().map(Self::new);
+                let second_is_legal_name = name_or_version.parse().map(Self::new);
+                let second_as_version = parse_version(name_or_version);
+                if is_known_repo {
+                    // Assume first component is a repository name unless the
+                    // second component doesn't parse as a name but does parse as
+                    // a version.
+                    if second_is_legal_name.is_err() && second_as_version.is_ok() {
+                        (None, first_is_legal_name, Some(second_as_version), None)
+                    } else {
+                        (Some(repo_or_name), second_is_legal_name, None, None)
+                    }
+                } else if second_as_version.is_err() {
+                    // If the second component isn't a version, then the first
+                    // component could be an unrecognized repository name.
+                    (Some(repo_or_name), second_is_legal_name, None, None)
+                } else {
+                    (None, first_is_legal_name, Some(second_as_version), None)
+                }
             }
-            [name, version] => (None, name, Some(version), None),
-            [repository_name, name, version] if known_repositories.contains(repository_name) => {
-                (Some(repository_name), name, Some(version), None)
+            [repo_or_name, name_or_version, version_or_build] => {
+                let is_known_repo = known_repositories.contains(repo_or_name);
+                let first_is_legal_name = repo_or_name.parse().map(Self::new);
+                let second_is_legal_name = name_or_version.parse().map(Self::new);
+                let second_as_version = parse_version(name_or_version);
+                let third_as_version = parse_version(version_or_build);
+                let third_as_build = parse_build(version_or_build);
+                if is_known_repo {
+                    // For the first component to be a repository, the remaining components
+                    // need to be valid.
+                    if second_is_legal_name.is_ok() && third_as_version.is_ok() {
+                        (
+                            Some(repo_or_name),
+                            second_is_legal_name,
+                            Some(third_as_version),
+                            None,
+                        )
+                    } else {
+                        // First component is more likely to be a package name.
+                        (
+                            None,
+                            first_is_legal_name,
+                            Some(second_as_version),
+                            Some(third_as_build),
+                        )
+                    }
+                } else {
+                    // Assume the first component isn't a repository name if the
+                    // remaining components validate as expected.
+                    if first_is_legal_name.is_ok()
+                        && second_as_version.is_ok()
+                        && third_as_build.is_ok()
+                    {
+                        (
+                            None,
+                            first_is_legal_name,
+                            Some(second_as_version),
+                            Some(third_as_build),
+                        )
+                    } else {
+                        // First component is more likely to be a repository name.
+                        (
+                            Some(repo_or_name),
+                            second_is_legal_name,
+                            Some(third_as_version),
+                            None,
+                        )
+                    }
+                }
             }
-            [name, version, build] => (None, name, Some(version), Some(build)),
-            [repository_name, name, version, build] => {
-                (Some(repository_name), name, Some(version), Some(build))
-            }
+            [repository_name, name, version, build] => (
+                Some(repository_name),
+                name.parse().map(Self::new),
+                Some(parse_version(version)),
+                Some(parse_build(build)),
+            ),
             [_, _, _, _, ..] => {
                 return Err(InvalidNameError::new_error(format!(
                     "Too many tokens in package identifier, expected at most 3 slashes ('/'): {}",
@@ -186,15 +253,15 @@ impl FromStr for Ident {
             }
         };
 
-        let mut ident = Self::new(name.parse()?);
+        let mut ident = name?;
         if let Some(repository_name) = repository_name {
             ident.repository_name = Some(RepositoryName(repository_name.to_owned()));
         }
         if let Some(version) = version {
-            ident.version = parse_version(version)?;
+            ident.version = version?;
         }
         if let Some(build) = build {
-            ident.build = Some(parse_build(build)?);
+            ident.build = Some(build?);
         }
         Ok(ident)
     }
