@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
@@ -73,7 +73,7 @@ pub struct BinaryPackageBuilder {
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
-    last_solve_graph: solve::Graph,
+    last_solve_graph: Arc<RwLock<solve::Graph>>,
     repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     interactive: bool,
 }
@@ -89,19 +89,15 @@ impl BinaryPackageBuilder {
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
             solver: solve::Solver::default(),
-            last_solve_graph: Default::default(),
+            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
             repos: Default::default(),
             interactive: false,
         }
     }
-    /// Return the resolve graph from the build environment.
-    ///
-    /// This is most useful for debugging build environments that failed to resolve,
-    /// and builds that failed with a SolverError.
-    ///
-    /// If the builder has not run, return an incomplete graph.
-    pub fn get_solve_graph(&self) -> solve::Graph {
-        self.solver.get_last_solve_graph()
+
+    #[pyo3(name = "get_solve_graph")]
+    fn get_solve_graph_py(&self) -> solve::Graph {
+        self.last_solve_graph.read().unwrap().clone()
     }
 
     #[pyo3(name = "build")]
@@ -204,6 +200,16 @@ impl BinaryPackageBuilder {
         self
     }
 
+    /// Return the resolve graph from the build environment.
+    ///
+    /// This is most useful for debugging build environments that failed to resolve,
+    /// and builds that failed with a SolverError.
+    ///
+    /// If the builder has not run, return an incomplete graph.
+    pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
+        self.last_solve_graph.clone()
+    }
+
     /// Build the requested binary package.
     pub fn build(mut self) -> Result<api::Spec> {
         let mut runtime = spfs::active_runtime()?;
@@ -276,7 +282,7 @@ impl BinaryPackageBuilder {
 
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
-        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        self.last_solve_graph = runtime.graph();
         Ok(solution?)
     }
 
@@ -294,7 +300,7 @@ impl BinaryPackageBuilder {
 
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
-        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        self.last_solve_graph = runtime.graph();
         Ok(solution?)
     }
 
