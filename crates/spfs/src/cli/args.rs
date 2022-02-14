@@ -133,7 +133,10 @@ macro_rules! main {
             let mut opt = $cmd::from_args();
             let config = configure!(opt, $sentry);
 
-            let rt = match tokio::runtime::Runtime::new() {
+            let rt = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
                 Err(err) => {
                     tracing::error!("Failed to establish runtime: {:?}", err);
                     return 1;
