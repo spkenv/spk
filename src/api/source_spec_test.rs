@@ -4,9 +4,7 @@
 use rstest::rstest;
 
 use super::{GitSource, LocalSource, ScriptSource, TarSource};
-use crate::fixtures;
-
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 fn test_local_source_dir() {

@@ -6,7 +6,7 @@ use spfs::prelude::*;
 use super::SPFSRepository;
 use crate::storage::Repository;
 
-crate::fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 fn test_repo_meta_tag_is_valid() {
