@@ -3,13 +3,16 @@
 // https://github.com/imageworks/spk
 
 use std::{
+    ffi::OsString,
+    io::Write,
     path::PathBuf,
     sync::{Arc, Mutex, RwLock},
 };
 
 use pyo3::prelude::*;
 
-use crate::{api, solve, storage, Result};
+use super::TestError;
+use crate::{api, exec, solve, storage, Result};
 
 #[pyclass]
 pub struct PackageInstallTester {
@@ -141,40 +144,82 @@ impl PackageInstallTester {
     }
 
     pub fn test(&mut self) -> Result<()> {
-        // spkrs.reconfigure_runtime(stack=[], editable=True, reset=["*"])
+        let mut rt = spfs::active_runtime()?;
+        rt.set_editable(true)?;
+        rt.reset_all()?;
+        rt.reset_stack()?;
 
-        // solver = solve.Solver()
-        // for request in self._additional_requirements:
-        //     solver.add_request(request)
-        // solver.update_options(self._options)
-        // for repo in self._repos:
-        //     solver.add_repository(repo)
-        // solver.add_request(self._spec.pkg)
-        // solution = solver.solve()
+        let mut solver = solve::Solver::default();
+        solver.set_binary_only(true);
+        for request in self.additional_requirements.drain(..) {
+            solver.add_request(request)
+        }
+        solver.update_options(self.options.clone());
+        for repo in self.repos.iter().cloned() {
+            solver.add_repository(repo);
+        }
 
-        // layers = exec.resolve_runtime_layers(solution)
-        // spkrs.reconfigure_runtime(stack=layers)
+        let pkg = api::RangeIdent::exact(&self.spec.pkg);
+        let request = api::PkgRequest {
+            pkg,
+            prerelease_policy: api::PreReleasePolicy::IncludeAll,
+            inclusion_policy: api::InclusionPolicy::Always,
+            pin: None,
+            required_compat: None,
+        };
+        solver.add_request(request.into());
 
-        // env = solution.to_environment(os.environ)
-        // env["PREFIX"] = self._prefix
+        let mut runtime = solver.run();
+        let result = runtime.solution();
+        self.last_solve_graph = runtime.graph();
+        let solution = result?;
 
-        // source_dir = "."
-        // if self._source is not None:
-        //     source_dir = self._source
+        for layer in exec::resolve_runtime_layers(&solution)? {
+            rt.push_digest(&layer)?;
+        }
+        spfs::remount_runtime(&rt)?;
 
-        // with tempfile.NamedTemporaryFile("w+") as script_file:
-        //     script_file.write(self._script)
-        //     script_file.flush()
-        //     os.environ["SHELL"] = "bash"
-        //     cmd = spkrs.build_shell_initialized_command("bash", "-ex", script_file.name)
+        let mut env = solution.to_environment(Some(std::env::vars()));
+        env.insert(
+            "PREFIX".to_string(),
+            self.prefix
+                .to_str()
+                .ok_or_else(|| {
+                    crate::Error::String("Test prefix must be a valid unicode string".to_string())
+                })?
+                .to_string(),
+        );
 
-        //     with build.deferred_signals():
-        //         proc = subprocess.Popen(cmd, env=env, cwd=source_dir)
-        //         proc.wait()
-        //     if proc.returncode != 0:
-        //         raise TestError(
-        //             f"Test script returned non-zero exit status: {proc.returncode}"
-        //         )
-        todo!()
+        let source_dir = match &self.source {
+            Some(source) => source.clone(),
+            None => PathBuf::from("."),
+        };
+
+        let tmpdir = tempdir::TempDir::new("spk-test")?;
+        let script_path = tmpdir.path().join("test.sh");
+        let mut script_file = std::fs::File::create(&script_path)?;
+        script_file.write_all(self.script.as_bytes())?;
+        script_file.sync_data()?;
+
+        // TODO: this should be more easily configurable on the spfs side
+        std::env::set_var("SHELL", "bash");
+        let args = spfs::build_shell_initialized_command(
+            OsString::from("bash"),
+            &mut vec![OsString::from("-ex"), script_path.into_os_string()],
+        )?;
+        let mut cmd = std::process::Command::new(args.get(0).unwrap());
+        let status = cmd
+            .args(&args[1..])
+            .envs(env)
+            .current_dir(source_dir)
+            .status()?;
+        if !status.success() {
+            Err(TestError::new_error(format!(
+                "Test script returned non-zero exit status: {}",
+                status.code().unwrap_or(1)
+            )))
+        } else {
+            Ok(())
+        }
     }
 }
