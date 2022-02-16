@@ -26,6 +26,9 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
         };
 
         let mut desired_components = resolved.request.pkg.components;
+        if desired_components.is_empty() {
+            desired_components.insert(api::Component::All);
+        }
         if desired_components.remove(&api::Component::All) {
             desired_components.extend(components.keys().cloned());
         }
