@@ -6,6 +6,7 @@ use std::io::Write;
 use rstest::rstest;
 
 use super::Spec;
+use crate::fixtures::*;
 
 #[rstest]
 fn test_empty_spec_is_valid() {
@@ -19,8 +20,7 @@ fn test_explicit_no_sources() {
 }
 
 #[rstest]
-fn test_sources_relative_to_spec_file() {
-    let tmpdir = tempdir::TempDir::new("spk_test").unwrap();
+fn test_sources_relative_to_spec_file(tmpdir: tempdir::TempDir) {
     let spec_dir = tmpdir.path().join("dir");
     std::fs::create_dir(&spec_dir).unwrap();
     let spec_file = spec_dir.join("package.spk.yaml");
