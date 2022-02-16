@@ -23,7 +23,7 @@ use crate::{Error, Result};
 #[path = "./request_test.rs"]
 mod request_test;
 
-/// Identitfies a range of package versions and builds.
+/// Identifies a range of package versions and builds.
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeIdent {
@@ -48,13 +48,19 @@ impl std::hash::Hash for RangeIdent {
 }
 
 impl RangeIdent {
-    pub fn exact(ident: &super::Ident) -> Self {
+    /// Create a range ident that exactly requests the identified package
+    ///
+    /// The returned range will request all components of the given package.
+    pub fn exact<I>(ident: &super::Ident, components: I) -> Self
+    where
+        I: IntoIterator<Item = Component>,
+    {
         Self {
             name: ident.name().to_string(),
             version: super::VersionFilter::single(
                 super::ExactVersion::from(ident.version.clone()).into(),
             ),
-            components: Default::default(),
+            components: components.into_iter().collect(),
             build: ident.build.clone(),
         }
     }
