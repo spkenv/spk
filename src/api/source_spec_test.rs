@@ -8,7 +8,7 @@ use crate::fixtures::*;
 
 #[rstest]
 fn test_local_source_dir() {
-    let _guard = init_logging();
+    init_logging();
     let tmpdir = tempdir::TempDir::new("").unwrap();
     let source_dir = tmpdir.path().join("source");
     let dest_dir = tmpdir.path().join("dest");
@@ -26,7 +26,7 @@ fn test_local_source_dir() {
 
 #[rstest]
 fn test_local_source_file() {
-    let _guard = init_logging();
+    init_logging();
     let tmpdir = tempdir::TempDir::new("").unwrap();
     let source_dir = tmpdir.path().join("source");
     let dest_dir = tmpdir.path().join("dest");
@@ -44,7 +44,7 @@ fn test_local_source_file() {
 
 #[rstest]
 fn test_git_sources() {
-    let _guard = init_logging();
+    init_logging();
     let tmpdir = tempdir::TempDir::new("").unwrap();
     let source_dir = tmpdir.path().join("source");
     let dest_dir = tmpdir.path().join("dest");
@@ -62,7 +62,7 @@ fn test_git_sources() {
 
 #[rstest]
 fn test_tar_sources() {
-    let _guard = init_logging();
+    init_logging();
     let tmpdir = tempdir::TempDir::new("").unwrap();
     let filename = tmpdir.path().join("archive.tar.gz");
     let mut tar_cmd = std::process::Command::new("tar");
@@ -80,7 +80,7 @@ fn test_tar_sources() {
 
 #[rstest]
 fn test_script_sources() {
-    let _guard = init_logging();
+    init_logging();
     let tmpdir = tempdir::TempDir::new("").unwrap();
     let spec = "{script: ['mkdir spk', 'touch spk/__init__.py']}".to_string();
     let source: ScriptSource = serde_yaml::from_str(&spec).unwrap();
