@@ -25,6 +25,13 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
             solve::PackageSource::Spec(_) => continue,
         };
 
+        if resolved.request.pkg.components.is_empty() {
+            tracing::warn!(
+                "Package request for '{}' identified no components, nothing will be included",
+                resolved.request.pkg.name()
+            );
+            continue;
+        }
         let mut desired_components = resolved.request.pkg.components;
         if desired_components.remove(&api::Component::All) {
             desired_components.extend(components.keys().cloned());
