@@ -129,29 +129,20 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m)]
     #[pyo3(name = "configure_logging")]
-    fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
-        if verbosity == 0 {
-            let parse_result = std::env::var("SPFS_VERBOSITY")
-                .unwrap_or_else(|_| "0".to_string())
-                .parse::<usize>();
-            if let Ok(parsed) = parse_result {
-                verbosity = usize::max(parsed, verbosity);
-            }
-        }
-        std::env::set_var("SPFS_VERBOSITY", verbosity.to_string());
-        use tracing_subscriber::layer::SubscriberExt;
-        if std::env::var("RUST_LOG").is_err() {
-            std::env::set_var("RUST_LOG", "spfs=trace");
-        }
-        let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
-        let level_filter = match verbosity {
-            0 => tracing_subscriber::filter::LevelFilter::INFO,
-            1 => tracing_subscriber::filter::LevelFilter::DEBUG,
-            _ => tracing_subscriber::filter::LevelFilter::TRACE,
+    fn configure_logging(_py: Python, verbosity: usize) -> Result<()> {
+        let base_directives = match verbosity {
+            0 => "spk=info,spfs=warn",
+            1 => "spk=debug,spfs=info",
+            2 => "spk=trace,spfs=debug",
+            _ => "spk=trace,spfs=trace",
         };
-        let registry = tracing_subscriber::Registry::default()
-            .with(env_filter)
-            .with(level_filter);
+        use tracing_subscriber::layer::SubscriberExt;
+        let overrides = std::env::var("RUST_LOG").unwrap_or_default();
+        // we rely on the fact that proceeding entries will override
+        // anything that came before it in the case of duplicates
+        let directives = format!("{},{}", base_directives, overrides);
+        let env_filter = tracing_subscriber::filter::EnvFilter::from(directives);
+        let registry = tracing_subscriber::Registry::default().with(env_filter);
         let mut fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stderr)
             .without_time();
