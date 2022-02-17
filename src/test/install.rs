@@ -51,8 +51,8 @@ impl PackageInstallTester {
         self
     }
 
-    /// Setting the source path for this test will validate this
-    /// local path rather than a source package's contents.
+    /// Run the test script in the given working dir rather
+    /// than inheriting the current one.
     pub fn with_source(&mut self, source: Option<PathBuf>) -> &mut Self {
         self.source = source;
         self

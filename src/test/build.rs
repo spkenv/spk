@@ -1,8 +1,9 @@
-use std::ffi::OsString;
-use std::io::Write;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::ffi::OsString;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -63,8 +64,8 @@ impl PackageBuildTester {
         self
     }
 
-    /// Setting the source path for this test will validate this
-    /// local path rather than a source package's contents.
+    /// Setting the source determines whether the script runs in
+    /// the root of an existing source package or a local directory.
     pub fn with_source(&mut self, source: BuildSource) -> &mut Self {
         self.source = source;
         self
