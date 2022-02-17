@@ -5,7 +5,7 @@
 
 import spkrs
 
-from spkrs import api, solve, io
+from spkrs import api, solve, io, test
 
 from . import storage, build, exec, test
 from ._global import load_spec, save_spec
