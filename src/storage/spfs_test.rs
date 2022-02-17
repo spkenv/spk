@@ -6,7 +6,7 @@ use spfs::prelude::*;
 use super::SPFSRepository;
 use crate::storage::Repository;
 
-crate::fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 fn test_repo_meta_tag_is_valid() {
@@ -21,10 +21,9 @@ fn test_repo_version_is_valid() {
 }
 
 #[rstest]
-fn test_metadata_io() {
+fn test_metadata_io(tmpdir: tempdir::TempDir) {
     init_logging();
-    let dir = tempdir::TempDir::new("spk_test").unwrap();
-    let repo_root = dir.path();
+    let repo_root = tmpdir.path();
     let mut repo =
         SPFSRepository::from(spfs::storage::fs::FSRepository::create(repo_root).unwrap());
 
@@ -35,11 +34,10 @@ fn test_metadata_io() {
 }
 
 #[rstest]
-fn test_upgrade_sets_version() {
+fn test_upgrade_sets_version(tmpdir: tempdir::TempDir) {
     init_logging();
     let current_version = crate::api::Version::from_str(super::REPO_VERSION).unwrap();
-    let dir = tempdir::TempDir::new("spk_test").unwrap();
-    let repo_root = dir.path();
+    let repo_root = tmpdir.path();
     let mut repo =
         SPFSRepository::from(spfs::storage::fs::FSRepository::create(repo_root).unwrap());
 
@@ -50,10 +48,9 @@ fn test_upgrade_sets_version() {
 }
 
 #[rstest]
-fn test_upgrade_changes_tags() {
+fn test_upgrade_changes_tags(tmpdir: tempdir::TempDir) {
     init_logging();
-    let dir = tempdir::TempDir::new("spk_test").unwrap();
-    let repo_root = dir.path();
+    let repo_root = tmpdir.path();
     let mut spfs_repo = spfs::storage::fs::FSRepository::create(repo_root).unwrap();
     let mut repo = SPFSRepository::new(&format!("file://{}", repo_root.display())).unwrap();
 
