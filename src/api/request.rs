@@ -50,7 +50,7 @@ impl std::hash::Hash for RangeIdent {
 impl RangeIdent {
     /// Create a range ident that exactly requests the identified package
     ///
-    /// The returned range will request all components of the given package.
+    /// The returned range will request the identified components of the given package.
     pub fn exact<I>(ident: &super::Ident, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
