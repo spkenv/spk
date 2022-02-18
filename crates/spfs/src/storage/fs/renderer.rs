@@ -247,7 +247,7 @@ fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     let marker_path = render_path.as_ref().with_file_name(name);
     // create if it doesn't exist but don't fail if it already exists (no exclusive open)
     std::fs::OpenOptions::new()
-        .create_new(true)
+        .create(true)
         .write(true)
         .open(&marker_path)?;
     Ok(())
