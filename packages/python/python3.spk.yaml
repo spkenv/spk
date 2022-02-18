@@ -51,9 +51,6 @@ build:
     - ln -sf python3 /spfs/bin/python
     # python is best in spfs when pyc files are not used at all
     - find /spfs -type f -name "*.pyc" | xargs rm
-    - mkdir -p /spfs/etc/spfs/startup.d
-    - echo "export PYTHONDONTWRITEBYTECODE=1" > /spfs/etc/spfs/startup.d/activate-python.sh
-    - echo "setenv PYTHONDONTWRITEBYTECODE 1" > /spfs/etc/spfs/startup.d/activate-python.csh
 
 tests:
   - stage: install
@@ -71,6 +68,9 @@ tests:
       - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
 
 install:
+  environment:
+    - set: PYTHONDONTWRITEBYTECODE
+      value: 1
   requirements:
     - pkg: gcc
       fromBuildEnv: x.x

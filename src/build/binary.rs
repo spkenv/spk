@@ -100,6 +100,12 @@ impl BinaryPackageBuilder {
         self.last_solve_graph.read().unwrap().clone()
     }
 
+    #[pyo3(name = "with_prefix")]
+    pub fn with_prefix_py(mut slf: PyRefMut<Self>, prefix: PathBuf) -> PyRefMut<Self> {
+        slf.with_prefix(prefix);
+        slf
+    }
+
     #[pyo3(name = "build")]
     fn build_py(&self) -> Result<api::Spec> {
         // the build function consumes the builder
@@ -159,9 +165,18 @@ impl BinaryPackageBuilder {
     pub fn get_build_requirements_py(&self) -> Result<Vec<api::Request>> {
         self.get_build_requirements()
     }
+
+    #[pyo3(name = "generate_startup_scripts")]
+    pub fn generate_startup_scripts_py(&self) -> Result<()> {
+        self.generate_startup_scripts()
+    }
 }
 
 impl BinaryPackageBuilder {
+    pub fn with_prefix(&mut self, prefix: PathBuf) {
+        self.prefix = prefix
+    }
+
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
     where
         N: Into<String>,
@@ -432,19 +447,46 @@ impl BinaryPackageBuilder {
         cmd.env("PREFIX", &self.prefix);
         cmd.current_dir(&source_dir);
 
-        match cmd.status() {
-            Err(err) => Err(err.into()),
-            Ok(status) => match status.code() {
-                Some(0) => Ok(()),
-                Some(code) => Err(BuildError::new_error(format_args!(
+        match cmd.status()?.code() {
+            Some(0) => (),
+            Some(code) => {
+                return Err(BuildError::new_error(format_args!(
                     "Build script returned non-zero exit status: {}",
                     code
-                ))),
-                None => Err(BuildError::new_error(format_args!(
+                )))
+            }
+            None => {
+                return Err(BuildError::new_error(format_args!(
                     "Build script failed unexpectedly"
-                ))),
-            },
+                )))
+            }
         }
+        self.generate_startup_scripts()
+    }
+
+    fn generate_startup_scripts(&self) -> Result<()> {
+        let ops = &self.spec.install.environment;
+        if ops.is_empty() {
+            return Ok(());
+        }
+
+        let startup_dir = self.prefix.join("etc").join("spfs").join("startup.d");
+        if let Err(err) = std::fs::create_dir_all(&startup_dir) {
+            match err.kind() {
+                std::io::ErrorKind::AlreadyExists => (),
+                _ => return Err(err.into()),
+            }
+        }
+
+        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.pkg.name()));
+        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.pkg.name()));
+        let mut csh_file = std::fs::File::create(startup_file_csh)?;
+        let mut sh_file = std::fs::File::create(startup_file_sh)?;
+        for op in ops {
+            csh_file.write_fmt(format_args!("{}\n", op.tcsh_source()))?;
+            sh_file.write_fmt(format_args!("{}\n", op.bash_source()))?;
+        }
+        Ok(())
     }
 }
 

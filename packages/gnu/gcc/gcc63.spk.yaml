@@ -41,9 +41,6 @@ build:
     - make install
     # no need to keep extra bloat files in info dir
     - rm -r /spfs/share/info
-    # include activation scripts
-    - mkdir -p /spfs/etc/spfs/startup.d
-    - cp ../activate-gcc.{csh,sh} /spfs/etc/spfs/startup.d/
 
 tests:
   - stage: install
@@ -53,6 +50,11 @@ tests:
       - rm test.c test.o
 
 install:
+  environment:
+    - set: CC
+      value: /spfs/bin/gcc
+    - set: CXX
+      value: /spfs/bin/g++
   requirements:
     - pkg: stdfs
     - pkg: mpfr
