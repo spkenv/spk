@@ -99,11 +99,8 @@ pub struct AppendEnv {
 #[pymethods]
 impl AppendEnv {
     /// Return the separator for this append operation
-    pub fn sep<'a>(&'a self) -> &'a str {
-        self.separator
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or(DEFAULT_VAR_SEP)
+    pub fn sep(&self) -> &str {
+        self.separator.as_deref().unwrap_or(DEFAULT_VAR_SEP)
     }
 
     /// Construct the bash source representation for this operation
@@ -160,11 +157,8 @@ pub struct PrependEnv {
 #[pymethods]
 impl PrependEnv {
     /// Return the separator for this prepend operation
-    pub fn sep<'a>(&'a self) -> &'a str {
-        self.separator
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or(DEFAULT_VAR_SEP)
+    pub fn sep(&self) -> &str {
+        self.separator.as_deref().unwrap_or(DEFAULT_VAR_SEP)
     }
 
     /// Construct the bash source representation for this operation
