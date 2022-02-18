@@ -4,9 +4,20 @@
 
 use std::{collections::HashSet, convert::TryFrom, fmt::Write, str::FromStr};
 
+use nom::{
+    branch::alt,
+    bytes::complete::{is_not, tag, take_while1, take_while_m_n},
+    character::complete::{char, digit1},
+    combinator::{eof, fail, map, map_res, opt, peek, recognize},
+    multi::{many1, separated_list1},
+    sequence::{pair, preceded, separated_pair, terminated},
+    IResult,
+};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{parse_build, parse_version, Build, InvalidNameError, PkgNameBuf, Version};
+use crate::api::PkgName;
+
+use super::{parse_build, parse_version, Build, PkgNameBuf, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -162,108 +173,167 @@ impl FromStr for Ident {
         let known_repositories: HashSet<&'static str> =
             ["local", "origin"].iter().cloned().collect();
 
-        let parts = source.split('/').collect::<Vec<_>>();
+        #[inline]
+        fn is_base32_digit(c: char) -> bool {
+            ('A'..='Z').contains(&c) || ('2'..='7').contains(&c)
+        }
 
-        let (repository_name, name, version, build) = match parts[..] {
-            [] => unreachable!(),
-            [name] => (None, name.parse().map(Self::new), None, None),
-            [repo_or_name, name_or_version] => {
-                let is_known_repo = known_repositories.contains(repo_or_name);
-                let first_is_legal_name = repo_or_name.parse().map(Self::new);
-                let second_is_legal_name = name_or_version.parse().map(Self::new);
-                let second_as_version = parse_version(name_or_version);
-                if is_known_repo {
-                    // Assume first component is a repository name unless the
-                    // second component doesn't parse as a name but does parse as
-                    // a version.
-                    if second_is_legal_name.is_err() && second_as_version.is_ok() {
-                        (None, first_is_legal_name, Some(second_as_version), None)
-                    } else {
-                        (Some(repo_or_name), second_is_legal_name, None, None)
-                    }
-                } else if second_as_version.is_err() {
-                    // If the second component isn't a version, then the first
-                    // component could be an unrecognized repository name.
-                    (Some(repo_or_name), second_is_legal_name, None, None)
-                } else {
-                    (None, first_is_legal_name, Some(second_as_version), None)
-                }
-            }
-            [repo_or_name, name_or_version, version_or_build] => {
-                let is_known_repo = known_repositories.contains(repo_or_name);
-                let first_is_legal_name = repo_or_name.parse().map(Self::new);
-                let second_is_legal_name = name_or_version.parse().map(Self::new);
-                let second_as_version = parse_version(name_or_version);
-                let third_as_version = parse_version(version_or_build);
-                let third_as_build = parse_build(version_or_build);
-                if is_known_repo {
-                    // For the first component to be a repository, the remaining components
-                    // need to be valid.
-                    if second_is_legal_name.is_ok() && third_as_version.is_ok() {
-                        (
-                            Some(repo_or_name),
-                            second_is_legal_name,
-                            Some(third_as_version),
-                            None,
-                        )
-                    } else {
-                        // First component is more likely to be a package name.
-                        (
-                            None,
-                            first_is_legal_name,
-                            Some(second_as_version),
-                            Some(third_as_build),
-                        )
-                    }
-                } else {
-                    // Assume the first component isn't a repository name if the
-                    // remaining components validate as expected.
-                    if first_is_legal_name.is_ok()
-                        && second_as_version.is_ok()
-                        && third_as_build.is_ok()
-                    {
-                        (
-                            None,
-                            first_is_legal_name,
-                            Some(second_as_version),
-                            Some(third_as_build),
-                        )
-                    } else {
-                        // First component is more likely to be a repository name.
-                        (
-                            Some(repo_or_name),
-                            second_is_legal_name,
-                            Some(third_as_version),
-                            None,
-                        )
-                    }
-                }
-            }
-            [repository_name, name, version, build] => (
-                Some(repository_name),
-                name.parse().map(Self::new),
-                Some(parse_version(version)),
-                Some(parse_build(build)),
-            ),
-            [_, _, _, _, ..] => {
-                return Err(InvalidNameError::new_error(format!(
-                    "Too many tokens in package identifier, expected at most 3 slashes ('/'): {}",
-                    source
-                )))
-            }
-        };
+        #[inline]
+        fn is_legal_package_name_chr(c: char) -> bool {
+            c.is_ascii_alphanumeric() || c == '-'
+        }
 
-        let mut ident = name?;
-        if let Some(repository_name) = repository_name {
-            ident.repository_name = Some(RepositoryName(repository_name.to_owned()));
+        #[inline]
+        fn is_legal_repo_name_chr(c: char) -> bool {
+            is_legal_package_name_chr(c)
         }
-        if let Some(version) = version {
-            ident.version = version?;
+
+        #[inline]
+        fn is_legal_tag_name_chr(c: char) -> bool {
+            c.is_ascii_alphanumeric()
         }
-        if let Some(build) = build {
-            ident.build = Some(build?);
+
+        fn package_name(input: &str) -> IResult<&str, &PkgName> {
+            map(
+                take_while_m_n(
+                    PkgName::MIN_LEN,
+                    PkgName::MAX_LEN,
+                    is_legal_package_name_chr,
+                ),
+                |s: &str| {
+                    // Safety: we only generate valid package names.
+                    unsafe { PkgName::from_str(s) }
+                },
+            )(input)
         }
-        Ok(ident)
+
+        fn package_ident(input: &str) -> IResult<&str, Ident> {
+            terminated(
+                map(package_name, |name| Ident::new(name.to_owned())),
+                peek(alt((tag("/"), eof))),
+            )(input)
+        }
+
+        fn package_name_and_not_version(input: &str) -> IResult<&str, Ident> {
+            let (tail, ident) = package_ident(input)?;
+            // To disambiguate cases like:
+            //    111/222
+            // If "222" is a valid version string and is the end of input,
+            // return an Error here so that "111" will be treated as the
+            // package name instead of as a repository name.
+            if terminated(version_str, eof)(input).is_ok() {
+                return fail("could be version");
+            }
+            // To disambiguate cases like:
+            //    222/333/44444444
+            // If "333" is a valid version string and "44444444" is a
+            // valid build string and is the end of input, return an Error
+            // here so that "222" will be treated as the package name
+            // instead of as a repository name.
+            let prefixed = format!("/{}", input);
+            if let Ok((_, (_version, Some(_build)))) =
+                dbg!(terminated(version_and_build, eof)(dbg!(prefixed.as_str())))
+            {
+                return fail("could be a build");
+            }
+            Ok((tail, ident))
+        }
+
+        fn known_repository_name<'a>(
+            known_repositories: &'a HashSet<&str>,
+        ) -> impl Fn(&str) -> IResult<&str, &str> + 'a {
+            move |input| {
+                let (input, name) = recognize(many1(is_not("/")))(input)?;
+                if known_repositories.contains(name) {
+                    return Ok((input, name));
+                }
+                fail("not a known repository")
+            }
+        }
+
+        fn repo_name<'a>(
+            known_repositories: &'a HashSet<&'a str>,
+        ) -> impl Fn(&str) -> IResult<&str, &str> + 'a {
+            move |input| {
+                // To disambiguate cases like:
+                //    local/222
+                // If "local" is a known repository name and "222" is a valid
+                // package name and the end of input, treat the first component
+                // as a repository name instead of a package name.
+                alt((
+                    terminated(
+                        terminated(known_repository_name(known_repositories), char('/')),
+                        peek(terminated(take_while1(is_legal_package_name_chr), eof)),
+                    ),
+                    terminated(
+                        terminated(take_while1(is_legal_repo_name_chr), char('/')),
+                        // Reject treating the consumed component as a repository name if the following
+                        // components are more likely to mean the consumed component was actually a
+                        // package name. This puts more emphasis on interpreting input the same as before
+                        // repository names were added.
+                        peek(package_name_and_not_version),
+                    ),
+                ))(input)
+            }
+        }
+
+        fn tag_name(input: &str) -> IResult<&str, &str> {
+            take_while1(is_legal_tag_name_chr)(input)
+        }
+
+        fn ptag(input: &str) -> IResult<&str, (&str, &str)> {
+            separated_pair(tag_name, char('.'), digit1)(input)
+        }
+
+        fn version_str(input: &str) -> IResult<&str, &str> {
+            recognize(pair(
+                separated_list1(char('.'), digit1),
+                pair(
+                    opt(preceded(char('-'), ptag)),
+                    opt(preceded(char('+'), ptag)),
+                ),
+            ))(input)
+        }
+
+        fn base32_build(input: &str) -> IResult<&str, &str> {
+            take_while_m_n(8, 8, is_base32_digit)(input)
+        }
+
+        fn build(input: &str) -> IResult<&str, &str> {
+            preceded(char('/'), alt((tag("src"), base32_build)))(input)
+        }
+
+        fn version_and_build(input: &str) -> IResult<&str, (Version, Option<Build>)> {
+            pair(
+                preceded(char('/'), map_res(version_str, parse_version)),
+                opt(map_res(build, parse_build)),
+            )(input)
+        }
+
+        fn ident<'a, 'b>(
+            known_repositories: &'a HashSet<&str>,
+            input: &'b str,
+        ) -> IResult<&'b str, Ident> {
+            let (input, repository_name) = opt(repo_name(known_repositories))(input)?;
+            let (input, mut ident) = package_ident(input)?;
+            if let Some(repository_name) = repository_name {
+                ident.repository_name = Some(RepositoryName(repository_name.to_owned()));
+            }
+            let (input, version_and_build) = opt(version_and_build)(input)?;
+            eof(input)?;
+            match version_and_build {
+                Some(v_and_b) => {
+                    ident.version = v_and_b.0;
+                    ident.build = v_and_b.1;
+                    Ok(("", ident))
+                }
+                None => Ok(("", ident)),
+            }
+        }
+
+        ident(&known_repositories, source)
+            .map(|(_, ident)| ident)
+            .map_err(|err| crate::Error::String(err.to_string()))
     }
 }
 
