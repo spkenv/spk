@@ -167,8 +167,8 @@ impl Borrow<OptName> for PkgNameBuf {
 pub struct PkgName(str);
 
 impl PkgName {
-    const MIN_LEN: usize = 2;
-    const MAX_LEN: usize = 64;
+    pub(crate) const MIN_LEN: usize = 2;
+    pub(crate) const MAX_LEN: usize = 64;
 
     /// Wrap a str as a PkgName
     ///
@@ -176,7 +176,7 @@ impl PkgName {
     ///
     /// This function bypasses validation and should not be used
     /// unless the given argument is known to be valid
-    const unsafe fn from_str(inner: &str) -> &Self {
+    pub(crate) const unsafe fn from_str(inner: &str) -> &Self {
         unsafe { &*(inner as *const str as *const PkgName) }
     }
 
