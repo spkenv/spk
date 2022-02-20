@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from spk.exec import _LOGGER
 from typing import Dict, Iterator, List, Tuple
 import os
 import re
@@ -15,7 +14,9 @@ from colorama import Fore
 from ruamel import yaml
 import spk
 import spkrs
+import structlog
 
+_LOGGER = structlog.get_logger("spk.cli")
 OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
 
 
