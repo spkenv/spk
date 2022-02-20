@@ -308,7 +308,14 @@ impl FromStr for Ident {
         }
 
         fn build(input: &str) -> IResult<&str, &str> {
-            preceded(char('/'), alt((tag("src"), base32_build)))(input)
+            preceded(
+                char('/'),
+                alt((
+                    tag(super::build::SRC),
+                    tag(super::build::EMBEDDED),
+                    base32_build,
+                )),
+            )(input)
         }
 
         fn version_and_build(input: &str) -> IResult<&str, (Version, Option<Build>)> {
