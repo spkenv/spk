@@ -197,17 +197,16 @@ impl BinaryPackageBuilder {
         self
     }
 
-    pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repos.push(Arc::new(Mutex::new(repo)));
+    pub fn with_repository(&mut self, repo: Arc<Mutex<storage::RepositoryHandle>>) -> &mut Self {
+        self.repos.push(repo);
         self
     }
 
     pub fn with_repositories(
         &mut self,
-        repos: impl IntoIterator<Item = storage::RepositoryHandle>,
+        repos: impl IntoIterator<Item = Arc<Mutex<storage::RepositoryHandle>>>,
     ) -> &mut Self {
-        self.repos
-            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
+        self.repos.extend(repos);
         self
     }
 
@@ -227,7 +226,7 @@ impl BinaryPackageBuilder {
     }
 
     /// Build the requested binary package.
-    pub fn build(mut self) -> Result<api::Spec> {
+    pub fn build(&mut self) -> Result<api::Spec> {
         let mut runtime = spfs::active_runtime()?;
         runtime.set_editable(true)?;
         runtime.reset_all()?;
@@ -271,7 +270,7 @@ impl BinaryPackageBuilder {
         crate::HANDLE
             .block_on(storage::local_repository())?
             .publish_package(self.spec.clone(), components)?;
-        Ok(self.spec)
+        Ok(self.spec.clone())
     }
 
     fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
