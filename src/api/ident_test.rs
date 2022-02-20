@@ -4,10 +4,16 @@
 
 use std::str::FromStr;
 
+use itertools::Itertools;
+use proptest::{
+    collection::{btree_map, vec},
+    option::weighted,
+    prelude::*,
+};
 use rstest::rstest;
 
 use super::{parse_ident, Ident, RepositoryName};
-use crate::api::{parse_version, Build, Version};
+use crate::api::{parse_version, Build, PkgNameBuf, TagSet, Version};
 
 #[rstest]
 #[case("package")]
@@ -104,4 +110,80 @@ fn test_ident_to_yaml() {
 fn test_parse_ident(#[case] input: &str, #[case] expected: Ident) {
     let actual = parse_ident(input).unwrap();
     assert_eq!(actual, expected);
+}
+
+prop_compose! {
+    // These name length limits come from PkgName::MIN_LEN and PkgName::MAX_LEN
+    fn arb_pkg_name()(name in "[a-z-]{2,64}") -> PkgNameBuf {
+        // Safety: We only generate names that are valid.
+        unsafe { PkgNameBuf::from_string(name) }
+    }
+}
+
+prop_compose! {
+    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_name().prop_map(|name| name.into_inner())])) -> Option<RepositoryName> {
+        name.map(RepositoryName)
+    }
+}
+
+prop_compose! {
+    fn arb_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..10)) -> TagSet {
+        TagSet { tags }
+    }
+}
+
+fn arb_version() -> impl Strategy<Value = Option<Version>> {
+    weighted(
+        0.9,
+        (vec(any::<u32>(), 0..10), arb_tagset(), arb_tagset()).prop_map(|(parts, pre, post)| {
+            Version {
+                // We don't expect to generate any values that have
+                // `plus_epsilon` enabled.
+                parts: parts.into(),
+                pre,
+                post,
+            }
+        }),
+    )
+}
+
+fn arb_build() -> impl Strategy<Value = Option<Build>> {
+    weighted(
+        0.9,
+        prop_oneof![
+            Just(Build::Source),
+            Just(Build::Embedded),
+            "[2-7A-Z]{8}"
+                .prop_filter("valid BASE32 value", |s| data_encoding::BASE32
+                    .decode(s.as_bytes())
+                    .is_ok())
+                .prop_map(|digest| Build::from_str(digest.as_str()).unwrap())
+        ],
+    )
+}
+
+proptest! {
+    #[test]
+    fn prop_test_parse_ident(
+            repo in arb_repo(),
+            name in arb_pkg_name(),
+            version in arb_version(),
+            build in arb_build()) {
+        // If specifying a build, a version must also be specified.
+        prop_assume!(build.is_none() || version.is_some());
+        let ident = [
+            repo.as_ref().map(|r| r.0.to_owned()),
+            Some(name.clone().into_inner()),
+            version.as_ref().map(|v| v.to_string()),
+            build.as_ref().map(|b| b.to_string()),
+        ].iter().flatten().join("/");
+        let parsed = parse_ident(&ident).unwrap();
+        // XXX: This doesn't handle the ambiguous corner cases as checked
+        // by `test_parse_ident`; such inputs are very unlikely to be
+        // generated randomly here.
+        assert_eq!(parsed.repository_name, repo);
+        assert_eq!(parsed.name, name);
+        assert_eq!(parsed.version, version.unwrap_or_default());
+        assert_eq!(parsed.build, build);
+    }
 }
