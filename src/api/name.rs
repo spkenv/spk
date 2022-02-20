@@ -162,6 +162,24 @@ impl Borrow<OptName> for PkgNameBuf {
     }
 }
 
+// Allow tests to manufacture `PkgNameBuf`s with known good values.
+#[cfg(test)]
+impl PkgNameBuf {
+    /// Create a `PkgNameBuf` from a `String`
+    ///
+    /// # Safety
+    ///
+    /// No validation is performed on `name`.
+    pub(crate) unsafe fn from_string(name: String) -> Self {
+        Self(name)
+    }
+
+    /// Consume the `PkgNameBuf`, returning the inner `String`.
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
 /// A valid package name
 #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PkgName(str);
