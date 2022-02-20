@@ -296,7 +296,11 @@ impl FromStr for Ident {
         }
 
         fn base32_build(input: &str) -> IResult<&str, &str> {
-            take_while_m_n(8, 8, is_base32_digit)(input)
+            take_while_m_n(
+                super::option_map::DIGEST_SIZE,
+                super::option_map::DIGEST_SIZE,
+                is_base32_digit,
+            )(input)
         }
 
         fn build(input: &str) -> IResult<&str, &str> {
