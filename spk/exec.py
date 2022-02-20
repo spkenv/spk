@@ -9,7 +9,7 @@ import structlog
 import colorama
 
 import spkrs
-from spkrs.exec import resolve_runtime_layers
+from spkrs.exec import resolve_runtime_layers, setup_current_runtime
 from . import solve, storage, io, build, api
 
 _LOGGER = structlog.get_logger("spk.exec")
@@ -44,11 +44,3 @@ def build_required_packages(solution: solve.Solution) -> solve.Solution:
         source = (local_repo, local_repo.get_package(spec.pkg))
         compiled_solution.add(req, spec, source)
     return compiled_solution
-
-
-def setup_current_runtime(solution: solve.Solution) -> None:
-    """Modify the active spfs runtime to include exactly the packages in the given solution."""
-
-    _runtime = spkrs.active_runtime()
-    stack = resolve_runtime_layers(solution)
-    spkrs.reconfigure_runtime(stack=stack)

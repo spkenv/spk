@@ -78,6 +78,18 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
     Ok(stack)
 }
 
+/// Modify the active spfs runtime to include exactly the packages in the given solution.
+pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+    let mut rt = spfs::active_runtime()?;
+    let stack = resolve_runtime_layers(solution)?;
+    rt.reset_stack()?;
+    for digest in stack {
+        rt.push_digest(&digest)?;
+    }
+    spfs::remount_runtime(&rt)?;
+    Ok(())
+}
+
 pub mod python {
     use crate::{solve, Digest, Result};
     use pyo3::prelude::*;
@@ -90,8 +102,14 @@ pub mod python {
             .collect())
     }
 
+    #[pyfunction]
+    pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+        super::setup_current_runtime(solution)
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(resolve_runtime_layers, m)?)?;
+        m.add_function(wrap_pyfunction!(setup_current_runtime, m)?)?;
         Ok(())
     }
 }
