@@ -285,12 +285,16 @@ impl FromStr for Ident {
             separated_pair(tag_name, char('.'), digit1)(input)
         }
 
+        fn ptagset(input: &str) -> IResult<&str, Vec<(&str, &str)>> {
+            separated_list1(char(','), ptag)(input)
+        }
+
         fn version_str(input: &str) -> IResult<&str, &str> {
             recognize(pair(
                 separated_list1(char('.'), digit1),
                 pair(
-                    opt(preceded(char('-'), ptag)),
-                    opt(preceded(char('+'), ptag)),
+                    opt(preceded(char('-'), ptagset)),
+                    opt(preceded(char('+'), ptagset)),
                 ),
             ))(input)
         }
