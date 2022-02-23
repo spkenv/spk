@@ -25,6 +25,8 @@ pub enum Error {
     InvalidRemoteUrl(#[from] url::ParseError),
     #[error("Invalid date time: {0:?}")]
     InvalidDateTime(#[from] chrono::ParseError),
+    #[error(transparent)]
+    Caps(#[from] caps::errors::CapsError),
 
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]

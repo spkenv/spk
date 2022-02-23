@@ -276,17 +276,24 @@ fn with_cap_fowner<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    use capabilities::{Capabilities, Capability, Flag};
+    use caps::{CapSet, Capability};
 
     let desired_cap: Capability = Capability::CAP_FOWNER;
-    let mut current_caps = Capabilities::from_current_proc().ok();
-    if let Some(caps) = current_caps.as_mut() {
-        if caps.check(desired_cap, Flag::Effective) {
+    let mut orig_caps = match caps::read(None, CapSet::Effective) {
+        Ok(caps) => Some(caps),
+        Err(err) => {
+            tracing::warn!(?err, "Failed to read current capabilities");
+            None
+        }
+    };
+    if let Some(caps) = orig_caps.as_mut() {
+        if caps.contains(&desired_cap) {
             // permissions already available, don't do any changes to caps
-            current_caps = None
+            orig_caps = None;
         } else {
-            caps.update(&[desired_cap], Flag::Effective, true);
-            if let Err(err) = caps.apply() {
+            let mut new_caps = caps.clone();
+            new_caps.insert(desired_cap);
+            if let Err(err) = caps::set(None, CapSet::Effective, &new_caps) {
                 tracing::warn!(?err, "Failed to get necessary capabilities");
             }
         }
@@ -294,9 +301,8 @@ where
 
     let res = f();
 
-    if let Some(caps) = current_caps.as_mut() {
-        caps.update(&[desired_cap], Flag::Effective, false);
-        if let Err(err) = caps.apply() {
+    if let Some(orig_caps) = orig_caps {
+        if let Err(err) = caps::set(None, CapSet::Effective, &orig_caps) {
             panic!("Failed to release capabilities, this is unsafe: {:?}", err);
         }
     }
