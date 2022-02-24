@@ -71,15 +71,9 @@ fn check_can_join() -> Result<()> {
 // Checks if the current process has the capabilities required
 // to join an existing runtime
 fn have_required_join_capabilities() -> Result<bool> {
-    Ok(caps::has_cap(
-        None,
-        caps::CapSet::Effective,
-        caps::Capability::CAP_SYS_ADMIN,
-    )? && caps::has_cap(
-        None,
-        caps::CapSet::Effective,
-        caps::Capability::CAP_SYS_CHROOT,
-    )?)
+    let effective = caps::read(None, caps::CapSet::Effective)?;
+    Ok(effective.contains(&caps::Capability::CAP_SYS_ADMIN)
+        && effective.contains(&caps::Capability::CAP_SYS_CHROOT))
 }
 
 pub fn enter_mount_namespace() -> Result<()> {
