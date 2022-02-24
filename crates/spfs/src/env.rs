@@ -399,6 +399,8 @@ fn is_mounted<P: AsRef<Path>>(target: P) -> Result<bool> {
 pub fn drop_all_capabilities() -> Result<()> {
     tracing::debug!("drop all capabilities/privileges...");
     caps::clear(None, caps::CapSet::Effective)?;
+    caps::clear(None, caps::CapSet::Permitted)?;
+    caps::clear(None, caps::CapSet::Inheritable)?;
 
     // the dumpable attribute can become unset when changing pids or
     // calling a binary with capabilities (spfs). Resetting this to one
