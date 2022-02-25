@@ -7,8 +7,6 @@
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
-use capabilities::{Capabilities, Capability, Flag};
-
 use super::runtime;
 use crate::{Error, Result};
 
@@ -73,9 +71,9 @@ fn check_can_join() -> Result<()> {
 // Checks if the current process has the capabilities required
 // to join an existing runtime
 fn have_required_join_capabilities() -> Result<bool> {
-    let caps = Capabilities::from_current_proc()?;
-    Ok(caps.check(Capability::CAP_SYS_ADMIN, Flag::Effective)
-        && caps.check(Capability::CAP_SYS_CHROOT, Flag::Effective))
+    let effective = caps::read(None, caps::CapSet::Effective)?;
+    Ok(effective.contains(&caps::Capability::CAP_SYS_ADMIN)
+        && effective.contains(&caps::Capability::CAP_SYS_CHROOT))
 }
 
 pub fn enter_mount_namespace() -> Result<()> {
@@ -400,9 +398,9 @@ fn is_mounted<P: AsRef<Path>>(target: P) -> Result<bool> {
 // Drop all of the capabilities held by the current thread
 pub fn drop_all_capabilities() -> Result<()> {
     tracing::debug!("drop all capabilities/privileges...");
-    let mut caps = Capabilities::from_current_proc()?;
-    caps.reset_all();
-    caps.apply()?;
+    caps::clear(None, caps::CapSet::Effective)?;
+    caps::clear(None, caps::CapSet::Permitted)?;
+    caps::clear(None, caps::CapSet::Inheritable)?;
 
     // the dumpable attribute can become unset when changing pids or
     // calling a binary with capabilities (spfs). Resetting this to one

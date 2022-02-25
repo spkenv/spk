@@ -276,27 +276,29 @@ fn with_cap_fowner<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    use capabilities::{Capabilities, Capability, Flag};
+    use caps::{CapSet, Capability};
 
     let desired_cap: Capability = Capability::CAP_FOWNER;
-    let mut current_caps = Capabilities::from_current_proc().ok();
-    if let Some(caps) = current_caps.as_mut() {
-        if caps.check(desired_cap, Flag::Effective) {
-            // permissions already available, don't do any changes to caps
-            current_caps = None
-        } else {
-            caps.update(&[desired_cap], Flag::Effective, true);
-            if let Err(err) = caps.apply() {
+    let raised_cap = match caps::has_cap(None, CapSet::Effective, desired_cap) {
+        Ok(true) => false,
+        Ok(false) => {
+            if let Err(err) = caps::raise(None, CapSet::Effective, desired_cap) {
                 tracing::warn!(?err, "Failed to get necessary capabilities");
+                false
+            } else {
+                true
             }
         }
-    }
+        Err(err) => {
+            tracing::warn!(?err, "Failed to read current capabilities");
+            false
+        }
+    };
 
     let res = f();
 
-    if let Some(caps) = current_caps.as_mut() {
-        caps.update(&[desired_cap], Flag::Effective, false);
-        if let Err(err) = caps.apply() {
+    if raised_cap {
+        if let Err(err) = caps::drop(None, CapSet::Effective, desired_cap) {
             panic!("Failed to release capabilities, this is unsafe: {:?}", err);
         }
     }

@@ -39,7 +39,7 @@ name = "spfs-render"
 path = "src/cli/cmd_render.rs"
 
 [dependencies]
-capabilities = "0.3.0"
+caps = "0.5.3"
 chrono = "0.4.19"
 colored = "2.0.0"
 config = "0.10.1"
