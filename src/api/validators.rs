@@ -24,8 +24,9 @@ pub fn must_collect_all_files<P: AsRef<Path>>(
             .into_iter()
             .filter(|d| match &d.entries {
                 Some((_, b)) => component.files.matches(&d.path.to_path("/"), b.is_dir()),
+                None if d.mode.is_unchanged() => false,
                 None => {
-                    tracing::warn!("spfs provided a diff with no entries");
+                    tracing::warn!("spfs provided a diff with no entries: {}", d);
                     false
                 }
             })
