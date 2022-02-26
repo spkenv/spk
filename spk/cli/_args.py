@@ -53,7 +53,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "-v",
         action="count",
         help="Enable verbose output (can be specified more than once)",
-        default=int(os.getenv("SPK_VERBOSITY", 0)),
+        default=0,
     )
 
     parser = argparse.ArgumentParser(
@@ -151,7 +151,6 @@ def configure_logging(args: argparse.Namespace) -> None:
 
     logging.getLogger("spfs").setLevel(logging.INFO)
     logging.getLogger("urllib3").setLevel(logging.CRITICAL + 1)
-    os.environ["SPK_VERBOSITY"] = str(args.verbose)
     if args.verbose > 0:
         level = logging.DEBUG
         processors.extend(
