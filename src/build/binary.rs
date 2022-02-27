@@ -646,6 +646,7 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
                     perms,
                 )?;
             }
+            b.mode = a.mode;
             diff.mode = spfs::tracking::DiffMode::Unchanged;
         }
     }
