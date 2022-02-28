@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+import os
+import sys
 from typing import List, Optional, Set
 import re
 import tempfile
@@ -14,7 +16,7 @@ from pathlib import Path
 
 import structlog
 
-from .. import api, storage, build, solve, io
+from spk import api, storage, build, solve, io
 
 
 _LOGGER = structlog.get_logger("spk.external.pip")
@@ -322,3 +324,31 @@ def _to_spk_range_prefix(prefix: str) -> str:
         return pip_to_spk[prefix]
     except KeyError:
         raise ValueError(f"Unhandled pip version range prefix: {prefix}")
+
+
+if "SCRIPT_TESTING" in os.environ:
+    for version, expected in [
+        ("1.0.0", "1.0.0"),
+        ("1.0.dev456", "1.0-dev.456"),
+        ("1.0a1", "1.0-a.1"),
+        ("1.0a2.dev456", "1.0-a.2,dev.456"),
+        ("1.0a12.dev456", "1.0-a.12,dev.456"),
+        ("1.0a12", "1.0-a.12"),
+        ("1.0b1.dev456", "1.0-b.1,dev.456"),
+        ("1.0b2", "1.0-b.2"),
+        ("1.0b2.post345.dev456", "1.0-b.2,dev.456+post.345"),
+        ("1.0b2.post345", "1.0-b.2+post.345"),
+        ("1.0rc1.dev456", "1.0-dev.456,rc.1"),
+        ("1.0rc1", "1.0-rc.1"),
+        ("1.0", "1.0"),
+        ("1.0+abc.5", "1.0"),
+        ("1.0+abc.7", "1.0"),
+        ("1.0+5", "1.0"),
+        ("1.0.post456.dev34", "1.0-dev.34+post.456"),
+        ("1.0.post456", "1.0+post.456"),
+        ("1.1.dev1", "1.1-dev.1"),
+    ]:
+        actual = _to_spk_version(version)
+        api.parse_version(actual)  # must be valid
+        assert actual == expected
+    sys.exit(0)

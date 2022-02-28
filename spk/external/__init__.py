@@ -3,5 +3,3 @@
 # https://github.com/imageworks/spk
 
 """Utilities to interop with external packaging systems."""
-
-from ._pip import import_pip
