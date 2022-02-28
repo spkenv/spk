@@ -130,18 +130,22 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
     #[pyo3(name = "configure_logging")]
     fn configure_logging(_py: Python, verbosity: usize) -> Result<()> {
-        let base_directives = match verbosity {
+        use tracing_subscriber::layer::SubscriberExt;
+        let mut directives = match verbosity {
             0 => "spk=info,spfs=warn",
             1 => "spk=debug,spfs=info",
             2 => "spk=trace,spfs=debug",
             _ => "spk=trace,spfs=trace",
-        };
-        use tracing_subscriber::layer::SubscriberExt;
-        let overrides = std::env::var("RUST_LOG").unwrap_or_default();
-        // we rely on the fact that proceeding entries will override
-        // anything that came before it in the case of duplicates
-        let directives = format!("{},{}", base_directives, overrides);
-        let env_filter = tracing_subscriber::filter::EnvFilter::from(directives);
+        }
+        .to_string();
+        if let Ok(overrides) = std::env::var("RUST_LOG") {
+            // this is a common scenario because spk often calls itself
+            if directives != overrides {
+                directives = format!("{},{}", directives, overrides);
+            }
+        }
+        std::env::set_var("RUST_LOG", &directives);
+        let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
         let registry = tracing_subscriber::Registry::default().with(env_filter);
         let mut fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stderr)
