@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+from typing import List, Optional, Set
 import os
 import sys
-from typing import List, Optional, Set
 import re
+import argparse
 import tempfile
 import subprocess
 import pkginfo
@@ -16,6 +17,7 @@ from pathlib import Path
 
 import structlog
 
+import spk
 from spk import api, storage, build, solve, io
 
 
@@ -23,33 +25,82 @@ _LOGGER = structlog.get_logger("spk.external.pip")
 BAKED_PYTHON_PACKAGES = ("setuptools", "pip", "wheel")
 
 
-def import_pip(
-    name: str,
-    version: str = "",
-    python_version: str = "3",
-    python_abi: str = None,
-    recursive: bool = True,
-) -> List[api.Spec]:
-    """Import an SpComp2 into the spk ecosystem.
-
-    Args:
-      name (str): the name of the pip to import
-      version (str): the version of the pip package to import
-      python_version (str): the version of python to import for
-      python_abi (str): the exact python abi to import for
-      recursive (bool): if true, also import all required dependencies
-
-    Returns:
-      List(spk.api.Spec): The imported packages, which will exist in the local repo
-    """
-
-    return (
-        PipImporter()
-        .with_python_version(python_version)
-        .with_python_abi(python_abi)
-        .recursive(recursive)
-        .import_package(name, version)
+def main() -> int:
+    pip_cmd = argparse.ArgumentParser(
+        "spk-convert-pip", description="Convert and import packages using pip"
     )
+    pip_cmd.add_argument(
+        "--python-version", default="3.7", help="The version of python to install for"
+    )
+    pip_cmd.add_argument("--python-abi", help="The python abi to target")
+    pip_cmd.add_argument(
+        "--target-repo",
+        "-r",
+        type=str,
+        metavar="NAME",
+        default="origin",
+        help="The repository to publish to. Any configured spfs repository can be named here.",
+    )
+    pip_cmd.add_argument(
+        "--publish",
+        default=None,
+        action="store_true",
+        help="Also publish the packages after convert",
+    )
+    pip_cmd.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        default=False,
+        help="Forcefully overwrite any existing publishes",
+    )
+    pip_cmd.add_argument(
+        "--no-deps",
+        dest="deps",
+        action="store_false",
+        default=True,
+        help="Do not follow and convert dependencies of the requested pip packages",
+    )
+    pip_cmd.add_argument(
+        "packages",
+        nargs="+",
+        metavar="NAME[VERSION]",
+        help="The pip packages to import (eg: pytest,  PySide2>=5)",
+    )
+    args = pip_cmd.parse_args()
+
+    specs = []
+    importer = (
+        PipImporter()
+        .with_python_version(args.python_version)
+        .with_python_abi(args.python_abi)
+        .recursive(args.deps)
+    )
+    for name in args.packages:
+        version = ""
+        match = re.match(r"^(.*?)([<>=~]+.*)?$", name)
+        if match:
+            name, version = match.group(1), match.group(2) or ""
+
+        specs.extend(importer.import_package(name, version))
+
+    print("\nThe following packages were converted:\n")
+    for spec in specs:
+        print(f"  {spk.io.format_ident(spec.pkg)} ", end="")
+        print(spk.io.format_options(spec.resolve_all_options(spk.api.OptionMap())))
+    print("")
+
+    if args.publish is None:
+        print("These packages are now available in the local repository")
+        args.publish = bool(
+            input("Do you want to also publish these packages? [y/N]: ").lower()
+            in ("y", "yes")
+        )
+
+    if args.publish:
+        publisher = spk.Publisher().with_target(args.target_repo).force(args.force)
+        for spec in specs:
+            publisher.publish(spec.pkg)
 
 
 class PipImporter:
@@ -352,3 +403,7 @@ if "SCRIPT_TESTING" in os.environ:
         api.parse_version(actual)  # must be valid
         assert actual == expected
     sys.exit(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
