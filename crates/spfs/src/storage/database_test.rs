@@ -19,7 +19,8 @@ async fn test_object_existance(#[future] tmprepo: TempRepo) {
     let digest = encoding::EMPTY_DIGEST.into();
     let obj = graph::Blob::new(digest, 0).into();
     tmprepo
-        .write_object(&obj).await
+        .write_object(&obj)
+        .await
         .expect("failed to write object data");
 
     let actual = tmprepo.has_object(digest).await;

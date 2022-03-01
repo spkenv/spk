@@ -25,9 +25,7 @@ impl proto::tag_service_server::TagService for TagService {
         tracing::trace!("recieve request");
         let request = request.into_inner();
         let path = relative_path::RelativePath::new(&request.path);
-        let entries: crate::Result<Vec<_>> = {
-            self.repo.ls_tags(path).collect().await
-        };
+        let entries: crate::Result<Vec<_>> = { self.repo.ls_tags(path).collect().await };
         let entries = proto::handle_error!(entries);
 
         let data = proto::LsTagsResponse::ok(proto::ls_tags_response::EntryList { entries });

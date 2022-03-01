@@ -31,9 +31,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
     ) -> Result<Response<proto::ReadObjectResponse>, Status> {
         let request = request.into_inner();
         let digest = proto::handle_error!(request.digest.try_into());
-        let object = {
-            proto::handle_error!(self.repo.read_object(digest).await)
-        };
+        let object = { proto::handle_error!(self.repo.read_object(digest).await) };
         let result = proto::ReadObjectResponse::ok((&object).into());
         Ok(Response::new(result))
     }
@@ -56,14 +54,18 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         &self,
         _request: Request<proto::IterObjectsRequest>,
     ) -> Result<Response<Self::IterObjectsStream>, Status> {
-        Err(Status::unimplemented("object iteration is no yet supported directly over gRPC"))
+        Err(Status::unimplemented(
+            "object iteration is no yet supported directly over gRPC",
+        ))
     }
 
     async fn walk_objects(
         &self,
         _request: Request<proto::WalkObjectsRequest>,
     ) -> Result<Response<Self::WalkObjectsStream>, Status> {
-        Err(Status::unimplemented("object walking is no yet supported directly over gRPC"))
+        Err(Status::unimplemented(
+            "object walking is no yet supported directly over gRPC",
+        ))
     }
 
     async fn write_object(

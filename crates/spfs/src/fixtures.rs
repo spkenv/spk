@@ -130,7 +130,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             let repo = Arc::new(spfs::storage::RepositoryHandle::FS(
                 spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
                     .await
-                    .unwrap()
+                    .unwrap(),
             ));
             let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
             let http_listener = std::net::TcpListener::bind(listen).unwrap();
