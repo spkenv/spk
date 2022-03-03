@@ -245,7 +245,7 @@ pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Resu
 
 pub struct ManifestBuilder<H, F>
 where
-    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>) -> F + Send,
+    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>) -> F + Send,
     F: Future<Output = Result<encoding::Digest>> + Send,
 {
     hasher: H,
@@ -253,7 +253,7 @@ where
 
 impl<H, F> ManifestBuilder<H, F>
 where
-    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>) -> F + Send,
+    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>) -> F + Send,
     F: Future<Output = Result<encoding::Digest>> + Send,
 {
     pub fn new(hasher: H) -> Self {

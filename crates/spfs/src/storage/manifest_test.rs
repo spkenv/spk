@@ -5,18 +5,21 @@
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::graph::{Database, DatabaseView, Manifest};
-use crate::storage::{fs::FSRepository, ManifestStorage};
+use crate::graph::Manifest;
 use crate::{encoding::Encodable, tracking};
 
-fixtures!();
+use crate::fixtures::*;
 
-#[rstest]
+#[rstest(
+    repo,
+    case::fs(tmprepo("fs")),
+    case::tar(tmprepo("tar")),
+    case::rpc(tmprepo("rpc"))
+)]
 #[tokio::test]
-async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
+async fn test_read_write_manifest(#[future] repo: TempRepo, tmpdir: tempdir::TempDir) {
     let dir = tmpdir.path();
-    let repo = FSRepository::create(dir.join("repo")).await.unwrap();
-
+    let repo = repo.await;
     std::fs::File::create(dir.join("file.txt")).unwrap();
     let manifest = Manifest::from(&tracking::compute_manifest(&dir).await.unwrap());
     let expected = manifest.digest().unwrap();
@@ -33,26 +36,28 @@ async fn test_read_write_manifest(tmpdir: tempdir::TempDir) {
     assert!(digests.contains(&expected));
 }
 
-#[rstest]
+#[rstest(
+    repo,
+    case::fs(tmprepo("fs")),
+    case::tar(tmprepo("tar")),
+    case::rpc(tmprepo("rpc"))
+)]
 #[tokio::test]
-async fn test_manifest_parity(tmpdir: tempdir::TempDir) {
+async fn test_manifest_parity(#[future] repo: TempRepo, tmpdir: tempdir::TempDir) {
     init_logging();
 
     let dir = tmpdir.path();
-    let storage = FSRepository::create(dir.join("storage"))
-        .await
-        .expect("failed to make repo");
+    let repo = repo.await;
 
     std::fs::create_dir(dir.join("dir")).unwrap();
     std::fs::write(dir.join("dir/file.txt"), "").unwrap();
     let expected = tracking::compute_manifest(&dir).await.unwrap();
     let storable = Manifest::from(&expected);
     let digest = storable.digest().unwrap();
-    storage
-        .write_object(&storable.into())
+    repo.write_object(&storable.into())
         .await
         .expect("failed to store manifest object");
-    let out = storage
+    let out = repo
         .read_manifest(digest)
         .await
         .expect("stored manifest was not written");

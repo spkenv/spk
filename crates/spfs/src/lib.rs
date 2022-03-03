@@ -10,7 +10,6 @@ extern crate serde_derive;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
-#[macro_use]
 pub mod fixtures;
 
 pub mod encoding;
@@ -18,7 +17,10 @@ pub mod env;
 pub mod graph;
 pub mod io;
 pub mod prelude;
+pub mod proto;
 pub mod runtime;
+#[cfg(feature = "server")]
+pub mod server;
 pub mod storage;
 pub mod tracking;
 

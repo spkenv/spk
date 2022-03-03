@@ -14,6 +14,10 @@ pub(crate) type TagStream = Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + S
 pub(crate) type TagSpecAndTagStream = (tracking::TagSpec, TagStream);
 pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 
+#[cfg(test)]
+#[path = "./tag_test.rs"]
+mod tag_test;
+
 /// A location where tags are tracked and persisted.
 #[async_trait::async_trait]
 pub trait TagStorage: Send + Sync {
@@ -55,7 +59,7 @@ pub trait TagStorage: Send + Sync {
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>>;
 
     /// Iterate through the available tags in this storage.
-    fn iter_tags(&self) -> Pin<Box<dyn Stream<Item = IterTagsItem>>> {
+    fn iter_tags(&self) -> Pin<Box<dyn Stream<Item = IterTagsItem> + Send>> {
         let stream = self.iter_tag_streams();
         let mapped = futures::StreamExt::filter_map(stream, |res| async {
             match res {

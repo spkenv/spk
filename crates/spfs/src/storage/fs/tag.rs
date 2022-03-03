@@ -28,10 +28,6 @@ use crate::{
 };
 use encoding::{Decodable, Encodable};
 
-#[cfg(test)]
-#[path = "./tag_test.rs"]
-mod tag_test;
-
 const TAG_EXT: &str = "tag";
 
 impl FSRepository {

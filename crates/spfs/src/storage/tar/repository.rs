@@ -137,13 +137,13 @@ impl graph::Database for TarRepository {
 
 #[async_trait::async_trait]
 impl PayloadStorage for TarRepository {
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.repo.iter_payload_digests()
     }
 
     async fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let res = self.repo.write_data(reader).await?;
         self.up_to_date
@@ -154,7 +154,7 @@ impl PayloadStorage for TarRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
         self.repo.open_payload(digest).await
     }
 

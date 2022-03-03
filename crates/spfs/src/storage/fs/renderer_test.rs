@@ -10,7 +10,7 @@ use crate::graph::Manifest;
 use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage, Repository};
 use crate::tracking;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

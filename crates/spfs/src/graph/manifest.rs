@@ -63,6 +63,18 @@ impl From<&tracking::Entry> for Manifest {
 }
 
 impl Manifest {
+    /// Create a new manifest with the given tree as the root.
+    ///
+    /// It's very possible to create an internally inconsistent manifest
+    /// this way, so ensure that any additional tree entries in the given
+    /// root tree are subsequently inserted into the created manifest
+    pub(crate) fn new(root: Tree) -> Self {
+        Self {
+            root,
+            ..Default::default()
+        }
+    }
+
     /// Return the root tree object of this manifest.
     pub fn root(&self) -> &Tree {
         &self.root
@@ -83,7 +95,7 @@ impl Manifest {
 
     /// Add a tree to be tracked in this manifest, returning
     /// it if the same tree already exists.
-    fn insert_tree(&mut self, tree: Tree) -> Result<Option<Tree>> {
+    pub(crate) fn insert_tree(&mut self, tree: Tree) -> Result<Option<Tree>> {
         let digest = tree.digest()?;
         if let Some(tree) = self.trees.insert(digest, tree) {
             Ok(Some(tree))

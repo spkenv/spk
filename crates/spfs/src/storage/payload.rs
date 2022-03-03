@@ -9,11 +9,15 @@ use futures::Stream;
 use crate::encoding;
 use crate::Result;
 
+#[cfg(test)]
+#[path = "payload_test.rs"]
+mod payload_test;
+
 /// Stores arbitrary binary data payloads using their content digest.
 #[async_trait::async_trait]
 pub trait PayloadStorage: Sync + Send {
     /// Iterate all the payloads in this storage.
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>>;
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if the identified payload exists.
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
@@ -23,7 +27,7 @@ pub trait PayloadStorage: Sync + Send {
     /// Store the contents of the given stream, returning its digest and size
     async fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle to the full content of a payload.
@@ -33,7 +37,7 @@ pub trait PayloadStorage: Sync + Send {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>>;
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>>;
 
     /// Remove the payload idetified by the given digest.
     ///
@@ -44,13 +48,13 @@ pub trait PayloadStorage: Sync + Send {
 
 #[async_trait::async_trait]
 impl<T: PayloadStorage> PayloadStorage for &T {
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
     async fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         PayloadStorage::write_data(&**self, reader).await
     }
@@ -58,7 +62,7 @@ impl<T: PayloadStorage> PayloadStorage for &T {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
         PayloadStorage::open_payload(&**self, digest).await
     }
 

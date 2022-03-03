@@ -27,6 +27,8 @@ pub enum Error {
     InvalidDateTime(#[from] chrono::ParseError),
     #[error(transparent)]
     Caps(#[from] caps::errors::CapsError),
+    #[error("Error communicating with the server: {0:?}")]
+    Tonic(#[from] tonic::Status),
 
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]

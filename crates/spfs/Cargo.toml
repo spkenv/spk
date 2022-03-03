@@ -37,6 +37,21 @@ path = "src/cli/cmd_init.rs"
 [[bin]]
 name = "spfs-render"
 path = "src/cli/cmd_render.rs"
+[[bin]]
+name = "spfs-server"
+path = "src/cli/cmd_server.rs"
+required-features = ["server"]
+
+[features]
+default = ["server"]
+server = [
+    "tokio/signal",
+    "tokio-stream/net",
+    "hyper/server",
+    "tokio-util/codec",
+    "tokio-util/io",
+    "tokio-util/io-util",
+]
 
 [dependencies]
 async-trait = "0.1.52"
@@ -51,13 +66,16 @@ faccess = "0.2.3"
 futures = "0.3.9"
 gitignore = "1.0.7"
 glob = "0.3.0"
+hyper = { version = "0.14.16", features = ["client"] }
 indicatif = "0.16.2"
 itertools = "0.9.0"
 libc = "0.2.80"
 nix = "0.19.0"
 palaver = "0.2.8"
+prost = "0.9.0"
 rand = "0.7.3"
 relative-path = "1.3.2"
+reqwest = { version = "0.11.7", features = ["stream"] }
 ring = "0.16.15"
 semver = "0.11.0"
 sentry = "0.21.0"
@@ -79,7 +97,9 @@ tokio = { version = "1.15", features = [
     "sync",
     "process",
 ] }
-tokio-stream = "0.1.8"
+tokio-stream = { version = "0.1", features = ["net"], optional = true }
+tokio-util = { version = "0.6", features = ["compat"] }
+tonic = "0.6.1"
 tracing = "0.1.22"
 tracing-subscriber = "0.2.15"
 unicode_reader = "1.0.1"
@@ -88,6 +108,9 @@ uuid = { version = "0.8.1", features = ["v4"] }
 walkdir = "2.3.1"
 whoami = "0.9.0"
 thiserror = "1.0"
+
+[build-dependencies]
+tonic-build = "0.6.0"
 
 [dev-dependencies]
 rstest = { version = "0.12", default_features = false }

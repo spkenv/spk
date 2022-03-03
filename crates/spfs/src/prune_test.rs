@@ -10,12 +10,12 @@ use super::{get_prunable_tags, prune_tags, PruneParameters};
 use crate::{encoding, storage, tracking, Error};
 use std::collections::HashMap;
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]
 async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
-    let (_td, tmprepo) = tmprepo.await;
+    let tmprepo = tmprepo.await;
     let mut old = tracking::Tag::new(
         Some("testing".to_string()),
         "prune",
@@ -65,7 +65,7 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
 #[rstest]
 #[tokio::test]
 async fn test_prunable_tags_version(#[future] tmprepo: TempRepo) {
-    let (_td, tmprepo) = tmprepo.await;
+    let tmprepo = tmprepo.await;
     let tag = tracking::TagSpec::parse("testing/versioned").unwrap();
     let tag5 = tmprepo
         .push_tag(&tag, &encoding::EMPTY_DIGEST.into())
@@ -133,7 +133,7 @@ async fn test_prunable_tags_version(#[future] tmprepo: TempRepo) {
 #[tokio::test]
 async fn test_prune_tags(#[future] tmprepo: TempRepo) {
     init_logging();
-    let (_td, tmprepo) = tmprepo.await;
+    let tmprepo = tmprepo.await;
     let tag = tracking::TagSpec::parse("test/prune").unwrap();
 
     async fn reset(tmprepo: &storage::RepositoryHandle) -> HashMap<i32, tracking::Tag> {

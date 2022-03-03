@@ -11,13 +11,13 @@ use crate::{encoding, Error, Result};
 
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for FSRepository {
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         Box::pin(self.payloads.iter())
     }
 
     async fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader).await
     }
@@ -25,7 +25,7 @@ impl crate::storage::PayloadStorage for FSRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
         let path = self.payloads.build_digest_path(&digest);
         match tokio::fs::File::open(&path).await {
             Ok(file) => Ok(Box::pin(file)),

@@ -42,6 +42,7 @@ main!(Opt);
                   \n    pull         pull one or more object to the local repository\
                   \n    push         push one or more objects to a remote repository\
                   \n    render       render the contents of an environment or layer\
+                  \n    server       run an spfs server (if installed)\
                   "
 )]
 pub struct Opt {

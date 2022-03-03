@@ -132,6 +132,13 @@ where
 
     /// Write this object in binary format.
     fn encode(&self, writer: &mut impl Write) -> Result<()>;
+
+    /// Encode this object into it's binary form in memory.
+    fn encode_to_bytes(&self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        self.encode(&mut buf)?;
+        Ok(buf)
+    }
 }
 
 pub trait Decodable
@@ -262,6 +269,9 @@ impl AsRef<Digest> for Digest {
 impl<'a> Digest {
     pub fn as_bytes(&'a self) -> &'a [u8] {
         self.0.as_ref()
+    }
+    pub fn into_bytes(self) -> [u8; DIGEST_SIZE] {
+        self.0
     }
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {

@@ -6,12 +6,12 @@ use rstest::rstest;
 use super::resolve_stack_to_layers;
 use crate::{encoding, graph, prelude::*};
 
-fixtures!();
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]
 async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
-    let (_dir, repo) = tmprepo.await;
+    let repo = tmprepo.await;
     let layer = graph::Layer::new(encoding::EMPTY_DIGEST.into());
     let platform = graph::Platform::new(vec![layer.clone(), layer.clone()].into_iter()).unwrap();
     let stack = vec![layer.digest().unwrap(), platform.digest().unwrap()];
