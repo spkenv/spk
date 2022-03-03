@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use structopt::StructOpt;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdTags {
@@ -15,16 +16,17 @@ pub struct CmdTags {
 }
 
 impl CmdTags {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
-        for tag in repo.iter_tags() {
+        let mut tag_streams = repo.iter_tags();
+        while let Some(tag) = tag_streams.next().await {
             let (_, tag) = tag?;
             println!(
                 "{}",
-                spfs::io::format_digest(&tag.target.to_string(), Some(&repo))?
+                spfs::io::format_digest(&tag.target.to_string(), Some(&repo)).await?
             );
         }
         Ok(0)

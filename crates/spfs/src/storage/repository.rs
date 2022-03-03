@@ -1,8 +1,10 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::{collections::HashSet, pin::Pin};
 
-use std::collections::HashSet;
+use async_trait::async_trait;
+use tokio_stream::StreamExt;
 
 use super::ManifestViewer;
 use crate::{encoding, graph, tracking, Error, Result};
@@ -29,6 +31,7 @@ impl std::string::ToString for Ref {
 }
 
 /// Represents a storage location for spfs data.
+#[async_trait]
 pub trait Repository:
     super::TagStorage
     + super::PayloadStorage
@@ -39,10 +42,9 @@ pub trait Repository:
     + graph::Database
     + graph::DatabaseView
     + std::fmt::Debug
+    + Send
+    + Sync
 {
-    /// Attempt to open this repository at the given url
-    //fn open(address: url::Url) -> Result<Self>;
-
     /// Return the address of this repository.
     fn address(&self) -> url::Url;
 
@@ -55,34 +57,35 @@ pub trait Repository:
     }
 
     /// Return true if this repository contains the given reference.
-    fn has_ref(&self, reference: &str) -> bool {
-        self.read_ref(reference).is_ok()
+    async fn has_ref(&self, reference: &str) -> bool {
+        self.read_ref(reference).await.is_ok()
     }
 
     /// Resolve a tag or digest string into it's absolute digest.
-    fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
+    async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
         if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
-            if let Ok(tag) = self.resolve_tag(&tag_spec) {
+            if let Ok(tag) = self.resolve_tag(&tag_spec).await {
                 return Ok(tag.target);
             }
         }
 
         let partial = encoding::PartialDigest::parse(reference)
             .map_err(|_| Error::UnknownReference(reference.to_string()))?;
-        self.resolve_full_digest(&partial)
+        self.resolve_full_digest(&partial).await
     }
 
     /// Read an object of unknown type by tag or digest.
-    fn read_ref(&self, reference: &str) -> Result<graph::Object> {
-        let digest = self.resolve_ref(reference)?;
-        self.read_object(&digest)
+    async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
+        let digest = self.resolve_ref(reference).await?;
+        self.read_object(digest).await
     }
 
     /// Return the other identifiers that can be used for 'reference'.
-    fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
+    async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
         let mut aliases = HashSet::new();
-        let digest = self.read_ref(reference)?.digest()?;
-        for spec in self.find_tags(&digest) {
+        let digest = self.read_ref(reference).await?.digest()?;
+        let mut tags = self.find_tags(&digest);
+        while let Some(spec) = tags.next().await {
             aliases.insert(Ref::TagSpec(spec?));
         }
         if reference != digest.to_string().as_str() {
@@ -102,10 +105,13 @@ pub trait Repository:
     }
 
     /// Commit the data from 'reader' as a blob in this repository
-    fn commit_blob(&mut self, reader: &mut dyn std::io::Read) -> Result<encoding::Digest> {
-        let (digest, size) = self.write_data(reader)?;
+    async fn commit_blob(
+        &self,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+    ) -> Result<encoding::Digest> {
+        let (digest, size) = self.write_data(reader).await?;
         let blob = Blob::new(digest, size);
-        self.write_object(&graph::Object::Blob(blob))?;
+        self.write_object(&graph::Object::Blob(blob)).await?;
         Ok(digest)
     }
 
@@ -113,30 +119,33 @@ pub trait Repository:
     ///
     /// This collects all files to store as blobs and maintains a
     /// render of the manifest for use immediately.
-    fn commit_dir(&mut self, path: &std::path::Path) -> Result<tracking::Manifest> {
-        let path = std::fs::canonicalize(path)?;
-        let mut builder = tracking::ManifestBuilder::new(|reader| self.commit_blob(*reader));
-
-        tracing::info!("committing files");
-        let manifest = builder.compute_manifest(path)?;
-        drop(builder);
+    async fn commit_dir(&self, path: &std::path::Path) -> Result<tracking::Manifest> {
+        let path = tokio::fs::canonicalize(path).await?;
+        let repo = std::sync::Arc::new(self);
+        let manifest = {
+            let mut builder =
+                tracking::ManifestBuilder::new(|reader| async { repo.commit_blob(reader).await });
+            tracing::info!("committing files");
+            builder.compute_manifest(path).await?
+        };
 
         tracing::info!("writing manifest");
         let storable = Manifest::from(&manifest);
-        self.write_object(&graph::Object::Manifest(storable))?;
+        repo.write_object(&graph::Object::Manifest(storable))
+            .await?;
         for node in manifest.walk() {
             if !node.entry.kind.is_blob() {
                 continue;
             }
             let blob = Blob::new(node.entry.object, node.entry.size);
-            self.write_object(&graph::Object::Blob(blob))?;
+            repo.write_object(&graph::Object::Blob(blob)).await?;
         }
 
         Ok(manifest)
     }
 }
 
-impl<T: Repository> Repository for &mut T {
+impl<T: Repository> Repository for &T {
     fn address(&self) -> url::Url {
         Repository::address(&**self)
     }

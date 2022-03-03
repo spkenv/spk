@@ -104,10 +104,9 @@ pub fn configure_logging(mut verbosity: usize) {
 #[macro_export]
 macro_rules! main {
     ($cmd:ident) => {
-        main!($cmd, sentry = true);
+        main!($cmd, sentry = true, sync = false);
     };
-    ($cmd:ident, sentry = $sentry:literal) => {
-
+    ($cmd:ident, sentry = $sentry:literal, sync = true) => {
         fn main() {
             // because this function exits right away it does not
             // properly handle destruction of data, so we put the actual
@@ -116,30 +115,68 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::from_args();
-            // sentry makes this process multithreaded, and must be disabled
-            // for commands that use system calls which are bothered by this
-            if $sentry { args::configure_sentry() };
-            args::configure_logging(opt.verbose);
-            args::configure_spops(opt.verbose);
-
-            let config = match spfs::load_config() {
-                Err(err) => {
-                    tracing::error!(err = ?err, "failed to load config");
-                    return 1;
-                }
-                Ok(config) => config,
-            };
+            let config = configure!(opt, $sentry);
 
             let result = opt.run(&config);
 
-            match result {
+            handle_result!(result)
+        }
+    };
+    ($cmd:ident, sentry = $sentry:literal, sync = false) => {
+        fn main() {
+            // because this function exits right away it does not
+            // properly handle destruction of data, so we put the actual
+            // logic into a separate function/scope
+            std::process::exit(main2())
+        }
+        fn main2() -> i32 {
+            let mut opt = $cmd::from_args();
+            let config = configure!(opt, $sentry);
+
+            let rt = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
                 Err(err) => {
-                    args::capture_if_relevant(&err);
-                    tracing::error!("{}", err);
-                    1
+                    tracing::error!("Failed to establish runtime: {:?}", err);
+                    return 1;
                 }
-                Ok(code) => code,
+                Ok(rt) => rt,
+            };
+            let result = rt.block_on(opt.run(&config));
+
+            handle_result!(result)
+        }
+    };
+}
+
+macro_rules! configure {
+    ($opt:ident, $sentry:literal) => {{
+        // sentry makes this process multithreaded, and must be disabled
+        // for commands that use system calls which are bothered by this
+        if $sentry { args::configure_sentry() }
+        args::configure_logging($opt.verbose);
+        args::configure_spops($opt.verbose);
+
+        match spfs::load_config() {
+            Err(err) => {
+                tracing::error!(err = ?err, "failed to load config");
+                return 1;
             }
+            Ok(config) => config,
+        }
+    }};
+}
+
+macro_rules! handle_result {
+    ($result:ident) => {
+        match $result {
+            Err(err) => {
+                args::capture_if_relevant(&err);
+                tracing::error!("{}", err);
+                1
+            }
+            Ok(code) => code,
         }
     };
 }

@@ -4,15 +4,20 @@
 
 use std::collections::HashSet;
 
+use tokio_stream::StreamExt;
+
 use super::database::DatabaseView;
 use crate::storage::PayloadStorage;
 use crate::Error;
 
 /// Validate that all objects can be loaded and their children are accessible.
-pub fn check_database_integrity<'db>(db: impl DatabaseView + PayloadStorage + 'db) -> Vec<Error> {
+pub async fn check_database_integrity<'db>(
+    db: impl DatabaseView + PayloadStorage + 'db,
+) -> Vec<Error> {
     let mut errors = Vec::new();
     let mut visited = HashSet::new();
-    for obj in db.iter_objects() {
+    let mut objects = db.iter_objects();
+    while let Some(obj) = objects.next().await {
         match obj {
             Err(err) => errors.push(format!("Error in iter_objects: {}", err).into()),
             Ok((_digest, obj)) => {
@@ -21,11 +26,11 @@ pub fn check_database_integrity<'db>(db: impl DatabaseView + PayloadStorage + 'd
                         continue;
                     }
                     visited.insert(digest);
-                    match db.read_object(&digest) {
+                    match db.read_object(digest).await {
                         Err(err) => {
                             errors.push(format!("Error reading object {}: {}", &digest, err).into())
                         }
-                        Ok(obj) if obj.has_payload() => match db.open_payload(&digest) {
+                        Ok(obj) if obj.has_payload() => match db.open_payload(digest).await {
                             Err(Error::UnknownObject(_)) => errors.push(
                                 format!("{} object missing payload: {}", obj.to_string(), digest)
                                     .into(),

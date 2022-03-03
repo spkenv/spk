@@ -23,25 +23,25 @@ pub struct CmdInfo {
 }
 
 impl CmdInfo {
-    pub fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
 
         if self.refs.is_empty() {
-            print_global_info(&repo)?;
+            print_global_info(&repo).await?;
         } else {
             for reference in self.refs.iter() {
-                let item = repo.read_ref(reference.as_str())?;
-                pretty_print_ref(item, &repo, verbosity)?;
+                let item = repo.read_ref(reference.as_str()).await?;
+                pretty_print_ref(item, &repo, verbosity).await?;
             }
         }
         Ok(0)
     }
 }
 
-fn pretty_print_ref(
+async fn pretty_print_ref(
     obj: spfs::graph::Object,
     repo: &spfs::storage::RepositoryHandle,
     verbosity: usize,
@@ -53,13 +53,13 @@ fn pretty_print_ref(
             println!(
                 " {} {}",
                 "refs:".bright_blue(),
-                spfs::io::format_digest(obj.digest()?.to_string(), Some(repo))?
+                spfs::io::format_digest(obj.digest()?.to_string(), Some(repo)).await?
             );
             println!("{}", "stack:".bright_blue());
             for reference in obj.stack {
                 println!(
                     "  - {}",
-                    spfs::io::format_digest(reference.to_string(), Some(repo))?
+                    spfs::io::format_digest(reference.to_string(), Some(repo)).await?
                 );
             }
         }
@@ -69,12 +69,12 @@ fn pretty_print_ref(
             println!(
                 " {} {}",
                 "refs:".bright_blue(),
-                spfs::io::format_digest(obj.digest()?.to_string(), Some(repo))?
+                spfs::io::format_digest(obj.digest()?.to_string(), Some(repo)).await?
             );
             println!(
                 " {} {}",
                 "manifest:".bright_blue(),
-                spfs::io::format_digest(obj.manifest.to_string(), Some(repo))?
+                spfs::io::format_digest(obj.manifest.to_string(), Some(repo)).await?
             );
         }
 
@@ -91,7 +91,7 @@ fn pretty_print_ref(
                     " {:06o} {} {} {}",
                     node.entry.mode,
                     node.entry.kind,
-                    spfs::io::format_digest(node.entry.object.to_string(), Some(repo))?,
+                    spfs::io::format_digest(node.entry.object.to_string(), Some(repo)).await?,
                     node.path.to_string(),
                 );
                 count += 1;
@@ -107,7 +107,7 @@ fn pretty_print_ref(
             println!(
                 " {} {}",
                 "digest:".bright_blue(),
-                spfs::io::format_digest(obj.payload.to_string(), Some(repo))?
+                spfs::io::format_digest(obj.payload.to_string(), Some(repo)).await?
             );
             println!(
                 " {} {}",
@@ -121,7 +121,7 @@ fn pretty_print_ref(
 }
 
 /// Display the status of the current runtime.
-fn print_global_info(repo: &spfs::storage::RepositoryHandle) -> spfs::Result<()> {
+async fn print_global_info(repo: &spfs::storage::RepositoryHandle) -> spfs::Result<()> {
     let runtime = spfs::active_runtime()?;
 
     println!("{}", "Active Runtime:".green());
@@ -136,7 +136,7 @@ fn print_global_info(repo: &spfs::storage::RepositoryHandle) -> spfs::Result<()>
     for digest in stack {
         println!(
             "  - {}",
-            spfs::io::format_digest(digest.to_string(), Some(repo))?
+            spfs::io::format_digest(digest.to_string(), Some(repo)).await?
         );
     }
     println!();

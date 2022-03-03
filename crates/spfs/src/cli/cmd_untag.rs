@@ -29,10 +29,10 @@ pub struct CmdUntag {
 }
 
 impl CmdUntag {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
 
         let has_version = self.tag.contains('~') || self.latest;
@@ -45,10 +45,10 @@ impl CmdUntag {
         }
 
         if self.all {
-            repo.remove_tag_stream(&tag)?;
+            repo.remove_tag_stream(&tag).await?;
         } else {
-            let resolved = repo.resolve_tag(&tag)?;
-            repo.remove_tag(&resolved)?;
+            let resolved = repo.resolve_tag(&tag).await?;
+            repo.remove_tag(&resolved).await?;
         }
         tracing::info!(?tag, "removed");
         Ok(0)

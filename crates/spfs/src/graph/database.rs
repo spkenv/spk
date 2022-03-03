@@ -2,14 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, pin::Pin, task::Poll};
+
+use futures::{Future, Stream, StreamExt};
 
 use super::Object;
 use crate::{encoding, Error, Result};
 
 /// Walks an object tree depth-first starting at some root digest
+#[allow(clippy::type_complexity)]
 pub struct DatabaseWalker<'db> {
     db: &'db dyn DatabaseView,
+    next: Option<(
+        encoding::Digest,
+        Pin<Box<dyn Future<Output = Result<Object>> + Send + 'db>>,
+    )>,
     queue: VecDeque<encoding::Digest>,
 }
 
@@ -22,37 +29,56 @@ impl<'db> DatabaseWalker<'db> {
     pub fn new(db: &'db dyn DatabaseView, root: encoding::Digest) -> Self {
         let mut queue = VecDeque::new();
         queue.push_back(root);
-        DatabaseWalker { db, queue }
+        DatabaseWalker {
+            db,
+            queue,
+            next: None,
+        }
     }
 }
 
-impl<'db> Iterator for DatabaseWalker<'db> {
+impl<'db> Stream for DatabaseWalker<'db> {
     type Item = Result<(encoding::Digest, Object)>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.queue.pop_front();
-        match &next {
-            None => None,
-            Some(next) => {
-                let obj = self.db.read_object(next);
-                match obj {
-                    Ok(obj) => {
-                        for digest in obj.child_objects() {
-                            self.queue.push_back(digest);
-                        }
-                        Some(Ok((*next, obj)))
-                    }
-                    Err(err) => Some(Err(err)),
-                }
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let (digest, mut current_future) = match self.next.take() {
+            Some(f) => f,
+            None => match self.queue.pop_front() {
+                None => return Poll::Ready(None),
+                Some(digest) => (digest, self.db.read_object(digest)),
+            },
+        };
+
+        match Pin::new(&mut current_future).poll(cx) {
+            Poll::Pending => {
+                self.next = Some((digest, current_future));
+                Poll::Pending
             }
+            Poll::Ready(obj) => Poll::Ready(match obj {
+                Ok(obj) => {
+                    for digest in obj.child_objects() {
+                        self.queue.push_back(digest);
+                    }
+                    Some(Ok((digest, obj)))
+                }
+                Err(err) => Some(Err(err)),
+            }),
         }
     }
 }
 
 /// Iterates all objects in a database, in no particular order
+#[allow(clippy::type_complexity)]
 pub struct DatabaseIterator<'db> {
     db: &'db dyn DatabaseView,
-    inner: Box<dyn Iterator<Item = Result<encoding::Digest>>>,
+    next: Option<(
+        encoding::Digest,
+        Pin<Box<dyn Future<Output = Result<Object>> + Send + 'db>>,
+    )>,
+    inner: Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>,
 }
 
 impl<'db> DatabaseIterator<'db> {
@@ -63,47 +89,62 @@ impl<'db> DatabaseIterator<'db> {
     /// The same as [`DatabaseView::read_object`]
     pub fn new(db: &'db dyn DatabaseView) -> Self {
         let iter = db.iter_digests();
-        DatabaseIterator { db, inner: iter }
+        DatabaseIterator {
+            db,
+            inner: iter,
+            next: None,
+        }
     }
 }
 
-impl<'db> Iterator for DatabaseIterator<'db> {
+impl<'db> Stream for DatabaseIterator<'db> {
     type Item = Result<(encoding::Digest, Object)>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.inner.next();
-        match next {
-            None => None,
-            Some(next) => match next {
-                Err(err) => Some(Err(err)),
-                Ok(next) => {
-                    let obj = self.db.read_object(&next);
-                    match obj {
-                        Ok(obj) => Some(Ok((next, obj))),
-                        Err(err) => Some(Err(
-                            format!("Error reading object {}: {}", &next, err).into()
-                        )),
-                    }
-                }
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let (digest, mut current_future) = match self.next.take() {
+            Some(f) => f,
+            None => match Pin::new(&mut self.inner).poll_next(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(inner_next) => match inner_next {
+                    None => return Poll::Ready(None),
+                    Some(Err(err)) => return Poll::Ready(Some(Err(err))),
+                    Some(Ok(digest)) => (digest, self.db.read_object(digest)),
+                },
             },
+        };
+        match Pin::new(&mut current_future).poll(cx) {
+            Poll::Pending => {
+                self.next = Some((digest, current_future));
+                Poll::Pending
+            }
+            Poll::Ready(res) => Poll::Ready(match res {
+                Ok(obj) => Some(Ok((digest, obj))),
+                Err(err) => Some(Err(
+                    format!("Error reading object {}: {}", &digest, err).into()
+                )),
+            }),
         }
     }
 }
 
 /// A read-only object database.
-pub trait DatabaseView {
+#[async_trait::async_trait]
+pub trait DatabaseView: Sync + Send {
     /// Read information about the given object from the database.
     ///
     /// # Errors:
     /// - [`spfs::Error::UnknownObject`]: if the object is not in this database
-    fn read_object(&self, digest: &encoding::Digest) -> Result<Object>;
+    async fn read_object(&self, digest: encoding::Digest) -> Result<Object>;
 
     /// Iterate all the object digests in this database.
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>>;
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if this database contains the identified object
-    fn has_object(&self, digest: &encoding::Digest) -> bool {
-        self.read_object(digest).is_ok()
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        self.read_object(digest).await.is_ok()
     }
 
     /// Iterate all the object in this database.
@@ -116,18 +157,19 @@ pub trait DatabaseView {
     ///
     /// By default this is an O(n) operation defined by the number of objects.
     /// Other implemntations may provide better results.
-    fn get_shortened_digest(&self, digest: &encoding::Digest) -> String {
+    async fn get_shortened_digest(&self, digest: encoding::Digest) -> String {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
-        for other in self.iter_digests() {
+        let mut digests = self.iter_digests();
+        while let Some(other) = digests.next().await {
             match other {
                 Err(_) => continue,
                 Ok(other) => {
                     if &other.as_bytes()[0..shortest_size] != shortest {
                         continue;
                     }
-                    if &other == digest {
+                    if other == digest {
                         continue;
                     }
                     while &other.as_bytes()[..shortest_size] == shortest {
@@ -148,12 +190,16 @@ pub trait DatabaseView {
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple objects
-    fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<encoding::Digest> {
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<encoding::Digest> {
         if let Some(digest) = partial.to_digest() {
             return Ok(digest);
         }
         let mut options = Vec::new();
-        for digest in self.iter_digests() {
+        let mut digests = self.iter_digests();
+        while let Some(digest) = digests.next().await {
             let digest = digest?;
             if &digest.as_bytes()[..partial.len()] == partial.as_slice() {
                 options.push(digest)
@@ -168,12 +214,13 @@ pub trait DatabaseView {
     }
 }
 
+#[async_trait::async_trait]
 impl<T: DatabaseView> DatabaseView for &T {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
-        DatabaseView::read_object(&**self, digest)
+    async fn read_object(&self, digest: encoding::Digest) -> Result<Object> {
+        DatabaseView::read_object(&**self, digest).await
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         DatabaseView::iter_digests(&**self)
     }
 
@@ -186,38 +233,22 @@ impl<T: DatabaseView> DatabaseView for &T {
     }
 }
 
-impl<T: DatabaseView> DatabaseView for &mut T {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<Object> {
-        DatabaseView::read_object(&**self, digest)
-    }
-
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
-        DatabaseView::iter_digests(&**self)
-    }
-
-    fn iter_objects(&self) -> DatabaseIterator<'_> {
-        DatabaseView::iter_objects(&**self)
-    }
-
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db> {
-        DatabaseView::walk_objects(&**self, root)
-    }
-}
-
+#[async_trait::async_trait]
 pub trait Database: DatabaseView {
     /// Write an object to the database, for later retrieval.
-    fn write_object(&mut self, obj: &Object) -> Result<()>;
+    async fn write_object(&self, obj: &Object) -> Result<()>;
 
     /// Remove an object from the database.
-    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()>;
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()>;
 }
 
-impl<T: Database> Database for &mut T {
-    fn write_object(&mut self, obj: &Object) -> Result<()> {
-        Database::write_object(&mut **self, obj)
+#[async_trait::async_trait]
+impl<T: Database> Database for &T {
+    async fn write_object(&self, obj: &Object) -> Result<()> {
+        Database::write_object(&**self, obj).await
     }
 
-    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
-        Database::remove_object(&mut **self, digest)
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
+        Database::remove_object(&**self, digest).await
     }
 }

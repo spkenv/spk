@@ -3,11 +3,15 @@
 // https://github.com/imageworks/spk
 
 use std::path::Path;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use futures::Stream;
+use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::graph;
-use crate::storage::tag::TagSpecAndTagIter;
+use crate::storage::tag::TagSpecAndTagStream;
 use crate::Result;
 use crate::{encoding, prelude::*, tracking};
 
@@ -17,7 +21,7 @@ use crate::{encoding, prelude::*, tracking};
 /// and re-packed to an archive on drop. This is not efficient for
 /// large repos and is not safe for multiple reader/writers.
 pub struct TarRepository {
-    up_to_date: bool,
+    up_to_date: AtomicBool,
     archive: std::path::PathBuf,
     repo_dir: tempdir::TempDir,
     repo: crate::storage::fs::FSRepository,
@@ -30,7 +34,7 @@ impl std::fmt::Debug for TarRepository {
 }
 
 impl TarRepository {
-    pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub async fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
             if let Some(parent) = path.parent() {
@@ -42,12 +46,12 @@ impl TarRepository {
                 .open(&path)?;
             Builder::new(&mut file).finish()?;
         }
-        Self::open(path)
+        Self::open(path).await
     }
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().canonicalize()?;
         let mut file = std::fs::File::open(&path)?;
         let mut archive = Archive::new(&mut file);
@@ -55,10 +59,10 @@ impl TarRepository {
         let repo_path = tmpdir.path().to_path_buf();
         archive.unpack(&repo_path)?;
         Ok(Self {
-            up_to_date: false,
+            up_to_date: AtomicBool::new(false),
             archive: path,
             repo_dir: tmpdir,
-            repo: crate::storage::fs::FSRepository::create(&repo_path)?,
+            repo: crate::storage::fs::FSRepository::create(&repo_path).await?,
         })
     }
 
@@ -70,14 +74,15 @@ impl TarRepository {
         let mut builder = Builder::new(&mut file);
         builder.append_dir_all(".", self.repo_dir.path())?;
         builder.finish()?;
-        self.up_to_date = true;
+        self.up_to_date
+            .store(true, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }
 
 impl Drop for TarRepository {
     fn drop(&mut self) {
-        if self.up_to_date {
+        if self.up_to_date.load(Ordering::Acquire) {
             return;
         }
         if let Err(err) = self.flush() {
@@ -96,12 +101,13 @@ impl Drop for TarRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl graph::DatabaseView for TarRepository {
-    fn read_object(&self, digest: &encoding::Digest) -> Result<graph::Object> {
-        self.repo.read_object(digest)
+    async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
+        self.repo.read_object(digest).await
     }
 
-    fn iter_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.repo.iter_digests()
     }
 
@@ -114,84 +120,98 @@ impl graph::DatabaseView for TarRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl graph::Database for TarRepository {
-    fn write_object(&mut self, obj: &graph::Object) -> Result<()> {
-        self.repo.write_object(obj)?;
-        self.up_to_date = false;
+    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+        self.repo.write_object(obj).await?;
+        self.up_to_date.store(false, Ordering::Release);
         Ok(())
     }
 
-    fn remove_object(&mut self, digest: &encoding::Digest) -> Result<()> {
-        self.repo.remove_object(digest)?;
-        self.up_to_date = false;
+    async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
+        self.repo.remove_object(digest).await?;
+        self.up_to_date.store(false, Ordering::Release);
         Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl PayloadStorage for TarRepository {
-    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
         self.repo.iter_payload_digests()
     }
 
-    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
-        let res = self.repo.write_data(reader)?;
-        self.up_to_date = false;
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+    ) -> Result<(encoding::Digest, u64)> {
+        let res = self.repo.write_data(reader).await?;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(res)
     }
 
-    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
-        self.repo.open_payload(digest)
+    async fn open_payload(
+        &self,
+        digest: encoding::Digest,
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
+        self.repo.open_payload(digest).await
     }
 
-    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        self.repo.remove_payload(digest)?;
-        self.up_to_date = false;
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+        self.repo.remove_payload(digest).await?;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl TagStorage for TarRepository {
-    fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        self.repo.resolve_tag(tag_spec)
+    async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
+        self.repo.resolve_tag(tag_spec).await
     }
 
-    fn ls_tags(
-        &self,
-        path: &relative_path::RelativePath,
-    ) -> Result<Box<dyn Iterator<Item = String>>> {
+    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
         self.repo.ls_tags(path)
     }
 
     fn find_tags(
         &self,
         digest: &encoding::Digest,
-    ) -> Box<dyn Iterator<Item = Result<tracking::TagSpec>>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         self.repo.find_tags(digest)
     }
 
-    fn iter_tag_streams(&self) -> Box<dyn Iterator<Item = Result<TagSpecAndTagIter>>> {
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         self.repo.iter_tag_streams()
     }
 
-    fn read_tag(&self, tag: &tracking::TagSpec) -> Result<Box<dyn Iterator<Item = tracking::Tag>>> {
-        self.repo.read_tag(tag)
+    async fn read_tag(
+        &self,
+        tag: &tracking::TagSpec,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
+        self.repo.read_tag(tag).await
     }
 
-    fn push_raw_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.push_raw_tag(tag)?;
-        self.up_to_date = false;
+    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        self.repo.push_raw_tag(tag).await?;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
-    fn remove_tag_stream(&mut self, tag: &tracking::TagSpec) -> Result<()> {
-        self.repo.remove_tag_stream(tag)?;
-        self.up_to_date = false;
+    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
+        self.repo.remove_tag_stream(tag).await?;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
-    fn remove_tag(&mut self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.remove_tag(tag)?;
-        self.up_to_date = false;
+    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        self.repo.remove_tag(tag).await?;
+        self.up_to_date
+            .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }

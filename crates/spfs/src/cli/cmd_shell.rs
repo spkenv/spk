@@ -44,7 +44,7 @@ pub struct CmdShell {
 }
 
 impl CmdShell {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut run_cmd = cmd_run::CmdRun {
             verbose: self.verbose,
             pull: self.pull,
@@ -54,6 +54,6 @@ impl CmdShell {
             cmd: Default::default(),
             args: Default::default(),
         };
-        run_cmd.run(config)
+        run_cmd.run(config).await
     }
 }

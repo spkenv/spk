@@ -5,23 +5,38 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Display;
 use std::io::{Read, Write};
+use std::pin::Pin;
+use std::task::Poll;
 
 use data_encoding::BASE32;
 use ring::digest::{Context, SHA256, SHA256_OUTPUT_LEN};
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::binary;
 use crate::{Error, Result};
 
-pub struct Hasher<'t> {
+/// The Hasher calculates a [`Digest`] from the bytes written to it.
+///
+/// A write-though target can optionally specified
+/// at creation time using the `Hasher::with_target` constructor.
+/// In this form, the hasher will write to the given target
+/// while also being able to provide the final digest of
+/// everything that was written.
+///
+/// If constructed with a [`tokio::io::AsyncRead`] instance,
+/// the hasher will instead act like an `AsyncRead`.
+pub struct Hasher<T> {
     ctx: Context,
-    target: Option<&'t mut dyn Write>,
+    target: T,
 }
 
-impl<'t> Hasher<'t> {
-    pub fn with_target(mut self, writer: &'t mut impl Write) -> Self {
-        self.target.replace(writer);
-        self
+impl<T> Hasher<T> {
+    pub fn with_target(writer: T) -> Self {
+        Self {
+            ctx: Context::new(&SHA256),
+            target: writer,
+        }
     }
 
     pub fn digest(self) -> Digest {
@@ -34,39 +49,73 @@ impl<'t> Hasher<'t> {
     }
 }
 
-impl<'t> Default for Hasher<'t> {
+impl Default for Hasher<std::io::Sink> {
     fn default() -> Self {
         Self {
             ctx: Context::new(&SHA256),
-            target: None,
+            target: std::io::sink(),
         }
     }
 }
 
-impl<'t> std::ops::Deref for Hasher<'t> {
+impl<T> std::ops::Deref for Hasher<T> {
     type Target = Context;
 
     fn deref(&self) -> &Self::Target {
         &self.ctx
     }
 }
-impl<'t> std::ops::DerefMut for Hasher<'t> {
+impl<T> std::ops::DerefMut for Hasher<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ctx
     }
 }
 
-impl<'t> Write for Hasher<'t> {
+impl<T> Write for Hasher<T>
+where
+    T: Write,
+{
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.ctx.update(buf);
-        if let Some(target) = self.target.as_mut() {
-            target.write_all(buf)?;
-        }
+        self.target.write_all(buf)?;
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
+        self.target.flush()
+    }
+}
+
+impl<T> AsyncWrite for Hasher<T>
+where
+    T: AsyncWrite + Unpin,
+{
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let written = match Pin::new(&mut self.target).poll_write(cx, buf) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+            Poll::Ready(Ok(count)) => count,
+        };
+        self.ctx.update(&buf[..written]);
+        Poll::Ready(Ok(written))
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.target).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.target).poll_shutdown(cx)
     }
 }
 
@@ -229,7 +278,28 @@ impl<'a> Digest {
         digest_str.try_into()
     }
 
-    pub fn from_reader(reader: &mut impl Read) -> Result<Self> {
+    pub async fn from_async_reader(mut reader: impl AsyncRead + Unpin) -> Result<Self> {
+        use tokio::io::AsyncReadExt;
+        let mut ctx = Context::new(&SHA256);
+        let mut buf = Vec::with_capacity(4096);
+        let mut count;
+        buf.resize(4096, 0);
+        loop {
+            count = reader.read(buf.as_mut_slice()).await?;
+            if count == 0 {
+                break;
+            }
+            ctx.update(&buf.as_slice()[..count]);
+        }
+        let ring_digest = ctx.finish();
+        let bytes = match ring_digest.as_ref().try_into() {
+            Err(err) => return Err(Error::new(format!("internal error: {:?}", err))),
+            Ok(b) => b,
+        };
+        Ok(Digest(bytes))
+    }
+
+    pub fn from_reader(mut reader: impl Read) -> Result<Self> {
         let mut ctx = Context::new(&SHA256);
         let mut buf = Vec::with_capacity(4096);
         let mut count;

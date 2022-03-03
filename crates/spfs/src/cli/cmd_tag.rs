@@ -21,16 +21,16 @@ pub struct CmdTag {
 }
 
 impl CmdTag {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
 
-        let target = repo.read_ref(self.reference.as_str())?.digest()?;
+        let target = repo.read_ref(self.reference.as_str()).await?.digest()?;
         for tag in self.tags.iter() {
             let tag = tag.parse()?;
-            repo.push_tag(&tag, &target)?;
+            repo.push_tag(&tag, &target).await?;
             tracing::info!(?tag, "created");
         }
         Ok(0)

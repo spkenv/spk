@@ -30,11 +30,11 @@ pub struct CmdPush {
 }
 
 impl CmdPush {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_repository()?.into();
-        let mut remote = config.get_remote(&self.remote)?;
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = config.get_repository().await?.into();
+        let remote = config.get_remote(&self.remote).await?;
         for reference in self.refs.iter() {
-            spfs::sync_ref(reference, &repo, &mut remote)?;
+            spfs::sync_ref(reference, &repo, &remote).await?;
         }
 
         Ok(0)

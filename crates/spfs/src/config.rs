@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use config::{Config as ConfigBase, Environment, File};
+use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
 use std::path::PathBuf;
@@ -103,13 +104,15 @@ impl Config {
     }
 
     /// Open a connection to all remote repositories
-    pub fn list_remotes(&self) -> Result<Vec<storage::RepositoryHandle>> {
-        self.remote.keys().map(|s| self.get_remote(s)).collect()
+    pub async fn list_remotes(&self) -> Result<Vec<storage::RepositoryHandle>> {
+        let futures: futures::stream::FuturesUnordered<_> =
+            self.remote.keys().map(|s| self.get_remote(s)).collect();
+        futures.collect().await
     }
 
     /// Get the local repository instance as configured.
-    pub fn get_repository(&self) -> Result<storage::fs::FSRepository> {
-        storage::fs::FSRepository::create(&self.storage.root)
+    pub async fn get_repository(&self) -> Result<storage::fs::FSRepository> {
+        storage::fs::FSRepository::create(&self.storage.root).await
     }
 
     /// Get the local runtime storage, as configured.
@@ -118,7 +121,7 @@ impl Config {
     }
 
     /// Get a remote repostory by name or address.
-    pub fn get_remote<S: AsRef<str>>(
+    pub async fn get_remote<S: AsRef<str>>(
         &self,
         name_or_address: S,
     ) -> Result<storage::RepositoryHandle> {
@@ -133,7 +136,7 @@ impl Config {
             }
         };
         tracing::debug!(addr = addr.as_str(), "opening repository");
-        storage::open_repository(addr)
+        storage::open_repository(addr).await
     }
 }
 

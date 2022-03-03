@@ -26,9 +26,9 @@ pub struct CmdReset {
 }
 
 impl CmdReset {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut runtime = spfs::active_runtime()?;
-        let repo = config.get_repository()?;
+        let repo = config.get_repository().await?;
         if let Some(reference) = &self.reference {
             runtime.reset::<&str>(&[])?;
             runtime.reset_stack()?;
@@ -37,7 +37,7 @@ impl CmdReset {
                 _ => {
                     let env_spec = spfs::tracking::parse_env_spec(reference)?;
                     for target in env_spec.iter() {
-                        let obj = repo.read_ref(target.to_string().as_ref())?;
+                        let obj = repo.read_ref(target.to_string().as_ref()).await?;
                         runtime.push_digest(&obj.digest()?)?;
                     }
                 }
@@ -51,7 +51,7 @@ impl CmdReset {
             runtime.set_editable(true)?;
         }
 
-        spfs::remount_runtime(&runtime)?;
+        spfs::remount_runtime(&runtime).await?;
         Ok(0)
     }
 }

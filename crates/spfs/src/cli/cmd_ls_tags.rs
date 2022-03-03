@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use structopt::StructOpt;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdLsTags {
@@ -20,16 +21,19 @@ pub struct CmdLsTags {
 }
 
 impl CmdLsTags {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
 
         let path = relative_path::RelativePathBuf::from(&self.path);
-        let names = repo.ls_tags(&path)?;
-        for name in names {
-            println!("{}", name);
+        let mut names = repo.ls_tags(&path);
+        while let Some(item) = names.next().await {
+            match item {
+                Ok(name) => println!("{}", name),
+                Err(err) => tracing::error!("{}", err),
+            }
         }
         Ok(0)
     }

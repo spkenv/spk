@@ -30,15 +30,15 @@ pub struct CmdPull {
 }
 
 impl CmdPull {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut repo = config.get_repository()?.into();
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = config.get_repository().await?.into();
         let remote = match &self.remote {
-            None => config.get_remote("origin")?,
-            Some(remote) => config.get_remote(remote)?,
+            None => config.get_remote("origin").await?,
+            Some(remote) => config.get_remote(remote).await?,
         };
 
         for reference in self.refs.iter() {
-            spfs::sync_ref(reference, &remote, &mut repo)?;
+            spfs::sync_ref(reference, &remote, &repo).await?;
         }
 
         Ok(0)

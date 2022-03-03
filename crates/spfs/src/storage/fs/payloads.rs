@@ -2,40 +2,46 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::io::ErrorKind;
+use std::{io::ErrorKind, pin::Pin};
+
+use futures::Stream;
 
 use super::FSRepository;
 use crate::{encoding, Error, Result};
 
+#[async_trait::async_trait]
 impl crate::storage::PayloadStorage for FSRepository {
-    fn iter_payload_digests(&self) -> Box<dyn Iterator<Item = Result<encoding::Digest>>> {
-        match self.payloads.iter() {
-            Ok(iter) => Box::new(iter),
-            Err(err) => Box::new(vec![Err(err)].into_iter()),
-        }
+    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>>>> {
+        Box::pin(self.payloads.iter())
     }
 
-    fn write_data(&mut self, reader: &mut dyn std::io::Read) -> Result<(encoding::Digest, u64)> {
-        self.payloads.write_data(reader)
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>,
+    ) -> Result<(encoding::Digest, u64)> {
+        self.payloads.write_data(reader).await
     }
 
-    fn open_payload(&self, digest: &encoding::Digest) -> Result<Box<dyn std::io::Read>> {
-        let path = self.payloads.build_digest_path(digest);
-        match std::fs::File::open(&path) {
-            Ok(file) => Ok(Box::new(file)),
+    async fn open_payload(
+        &self,
+        digest: encoding::Digest,
+    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>> {
+        let path = self.payloads.build_digest_path(&digest);
+        match tokio::fs::File::open(&path).await {
+            Ok(file) => Ok(Box::pin(file)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
+                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(err.into()),
             },
         }
     }
 
-    fn remove_payload(&mut self, digest: &encoding::Digest) -> Result<()> {
-        let path = self.payloads.build_digest_path(digest);
-        match std::fs::remove_file(&path) {
+    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+        let path = self.payloads.build_digest_path(&digest);
+        match tokio::fs::remove_file(&path).await {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
+                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(err.into()),
             },
         }

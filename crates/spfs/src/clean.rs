@@ -4,8 +4,7 @@
 
 use std::collections::HashSet;
 
-use indicatif::ParallelProgressIterator;
-use rayon::prelude::*;
+use tokio_stream::StreamExt;
 
 use crate::{encoding, storage, Error, Result};
 
@@ -14,14 +13,14 @@ use crate::{encoding, storage, Error, Result};
 mod clean_test;
 
 /// Clean all untagged objects from the given repo.
-pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
-    let unattached = get_all_unattached_objects(repo)?;
+pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
+    let unattached = get_all_unattached_objects(repo).await?;
     if unattached.is_empty() {
         tracing::info!("nothing to clean!");
     } else {
         tracing::info!("removing orphaned data");
         let count = unattached.len();
-        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo)?;
+        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo).await?;
         tracing::info!("cleaned {} objects", count);
     }
     Ok(())
@@ -31,7 +30,7 @@ pub fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
 ///
 /// # Errors
 /// - [`spfs::Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
-pub fn purge_objects(
+pub async fn purge_objects(
     objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
 ) -> Result<()> {
@@ -39,51 +38,66 @@ pub fn purge_objects(
     let style = indicatif::ProgressStyle::default_bar()
         .template("       {msg:<21} [{bar:40}] {pos:>7}/{len:7}")
         .progress_chars("=>-");
-    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style.clone());
-    bar.set_message("1/3 cleaning objects");
-    let mut results: Vec<_> = objects
-        .par_iter()
-        .progress_with(bar)
-        .map(|digest| {
-            let res = clean_object(repo, digest);
-            if res.is_ok() {
-                tracing::trace!(?digest, "successfully removed object");
-            }
-            res
-        })
-        .collect();
-    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style.clone());
-    bar.set_message("2/3 cleaning payloads");
-    results.append(
-        &mut objects
-            .par_iter()
-            .progress_with(bar)
-            .map(|digest| {
-                let res = clean_payload(repo, digest);
-                if res.is_ok() {
-                    tracing::trace!(?digest, "successfully removed payload");
-                }
-                res
-            })
-            .collect(),
-    );
-    let bar = indicatif::ProgressBar::new(objects.len() as u64).with_style(style);
-    bar.set_message("3/3 cleaning renders");
-    results.append(
-        &mut objects
-            .par_iter()
-            .progress_with(bar)
-            .map(|digest| {
-                let res = clean_render(repo, digest);
-                if res.is_ok() {
-                    tracing::trace!(?digest, "successfully removed render");
-                }
-                res
-            })
-            .collect(),
-    );
+    let obj_count = objects.len() as u64;
+    let multibar = std::sync::Arc::new(indicatif::MultiProgress::new());
+    let obj_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
+    obj_bar.set_style(style.clone());
+    obj_bar.set_message("cleaning objects");
+    let payload_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
+    payload_bar.set_style(style.clone());
+    payload_bar.set_message("cleaning payloads");
+    let render_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
+    render_bar.set_style(style);
+    render_bar.set_message("cleaning renders");
+    let mut errors = Vec::new();
 
-    let errors: Vec<_> = results.into_iter().filter_map(|res| res.err()).collect();
+    let bars_future = tokio::task::spawn_blocking(move || multibar.join());
+    let map_err = |e| Error::String(format!("Unexpected error in clean process: {}", e));
+
+    // we still do each of these pieces separately, because we'd like
+    // to ensure that objects are removed successfully before any
+    // related payloads, etc...
+    let mut futures: futures::stream::FuturesUnordered<_> = objects
+        .iter()
+        .map(|digest| tokio::spawn(clean_object(repo.clone(), **digest)))
+        .collect();
+    while let Some(result) = futures.next().await {
+        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
+            errors.push(err);
+        }
+        obj_bar.inc(1);
+    }
+    obj_bar.finish();
+
+    let mut futures: futures::stream::FuturesUnordered<_> = objects
+        .iter()
+        .map(|digest| tokio::spawn(clean_payload(repo.clone(), **digest)))
+        .collect();
+    while let Some(result) = futures.next().await {
+        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
+            errors.push(err);
+        }
+        payload_bar.inc(1);
+    }
+    payload_bar.finish();
+
+    let mut futures: futures::stream::FuturesUnordered<_> = objects
+        .iter()
+        .map(|digest| tokio::spawn(clean_render(repo.clone(), **digest)))
+        .collect();
+    while let Some(result) = futures.next().await {
+        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
+            errors.push(err);
+        }
+        render_bar.inc(1);
+    }
+    render_bar.finish();
+
+    match bars_future.await {
+        Err(err) => tracing::warn!("{}", err),
+        Ok(Err(err)) => tracing::warn!("{}", err),
+        _ => (),
+    }
 
     if !errors.is_empty() {
         Err(Error::IncompleteClean { errors })
@@ -92,9 +106,9 @@ pub fn purge_objects(
     }
 }
 
-fn clean_object(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
-    let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_object(digest);
+async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
+    let repo = storage::open_repository(repo_addr).await?;
+    let res = repo.remove_object(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -102,9 +116,9 @@ fn clean_object(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     }
 }
 
-fn clean_payload(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
-    let mut repo = storage::open_repository(repo_addr)?;
-    let res = repo.remove_payload(digest);
+async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
+    let repo = storage::open_repository(repo_addr).await?;
+    let res = repo.remove_payload(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -112,10 +126,10 @@ fn clean_payload(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> 
     }
 }
 
-fn clean_render(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
-    let repo = storage::open_repository(repo_addr)?;
+async fn clean_render(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
+    let repo = storage::open_repository(repo_addr).await?;
     let viewer = repo.renders()?;
-    let res = viewer.remove_rendered_manifest(digest);
+    let res = viewer.remove_rendered_manifest(digest).await;
     if let Err(crate::Error::UnknownObject(_)) = res {
         Ok(())
     } else {
@@ -123,26 +137,28 @@ fn clean_render(repo_addr: &url::Url, digest: &encoding::Digest) -> Result<()> {
     }
 }
 
-pub fn get_all_unattached_objects(
+pub async fn get_all_unattached_objects(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     tracing::info!("evaluating repository digraph");
     let mut digests = HashSet::new();
-    for digest in repo.iter_digests() {
+    let mut digest_stream = repo.iter_digests();
+    while let Some(digest) = digest_stream.next().await {
         digests.insert(digest?);
     }
-    let attached = &get_all_attached_objects(repo)?;
+    let attached = &get_all_attached_objects(repo).await?;
     Ok(digests.difference(attached).copied().collect())
 }
 
-pub fn get_all_unattached_payloads(
+pub async fn get_all_unattached_payloads(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     tracing::info!("searching for orphaned payloads");
     let mut orphaned_payloads = HashSet::new();
-    for digest in repo.iter_payload_digests() {
+    let mut payloads = repo.iter_payload_digests();
+    while let Some(digest) = payloads.next().await {
         let digest = digest?;
-        match repo.read_blob(&digest) {
+        match repo.read_blob(digest).await {
             Err(Error::UnknownObject(_)) => {
                 orphaned_payloads.insert(digest);
             }
@@ -153,14 +169,15 @@ pub fn get_all_unattached_payloads(
     Ok(orphaned_payloads)
 }
 
-pub fn get_all_attached_objects(
+pub async fn get_all_attached_objects(
     repo: &storage::RepositoryHandle,
 ) -> Result<HashSet<encoding::Digest>> {
     let mut to_process = Vec::new();
-    for item in repo.iter_tag_streams() {
-        let (_, stream) = item?;
-        for tag in stream {
-            to_process.push(tag.target);
+    let mut tag_streams = repo.iter_tag_streams();
+    while let Some(item) = tag_streams.next().await {
+        let (_, mut stream) = item?;
+        while let Some(tag) = stream.next().await {
+            to_process.push(tag?.target);
         }
     }
 
@@ -173,7 +190,7 @@ pub fn get_all_attached_objects(
                     continue;
                 }
                 tracing::debug!(?digest, "walking");
-                let obj = match repo.read_object(&digest) {
+                let obj = match repo.read_object(digest).await {
                     Ok(obj) => obj,
                     Err(err) => match err {
                         crate::Error::UnknownObject(err) => {

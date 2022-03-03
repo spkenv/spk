@@ -13,8 +13,11 @@ use crate::tracking;
 fixtures!();
 
 #[rstest]
-fn test_render_manifest(tmpdir: tempdir::TempDir) {
-    let mut storage = FSRepository::create(tmpdir.path().join("storage")).unwrap();
+#[tokio::test]
+async fn test_render_manifest(tmpdir: tempdir::TempDir) {
+    let storage = FSRepository::create(tmpdir.path().join("storage"))
+        .await
+        .unwrap();
 
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
@@ -22,33 +25,39 @@ fn test_render_manifest(tmpdir: tempdir::TempDir) {
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let manifest = tracking::compute_manifest(&src_dir).unwrap();
+    let manifest = tracking::compute_manifest(&src_dir).await.unwrap();
 
     for node in manifest.walk_abs(&src_dir.to_str().unwrap()) {
         if node.entry.kind.is_blob() {
-            let mut data = std::fs::File::open(&node.path.to_path("/")).unwrap();
-            storage.write_data(&mut data).unwrap();
+            let data = tokio::fs::File::open(&node.path.to_path("/"))
+                .await
+                .unwrap();
+            storage.write_data(Box::pin(data)).await.unwrap();
         }
     }
 
     let expected = Manifest::from(&manifest);
     let rendered_path = storage
         .render_manifest(&expected)
+        .await
         .expect("should successfully rener manfest");
-    let actual = Manifest::from(&tracking::compute_manifest(rendered_path).unwrap());
+    let actual = Manifest::from(&tracking::compute_manifest(rendered_path).await.unwrap());
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
 }
 
 #[rstest]
-fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
-    let mut tmprepo = FSRepository::create(tmpdir.path().join("repo")).unwrap();
+#[tokio::test]
+async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
+    let tmprepo = FSRepository::create(tmpdir.path().join("repo"))
+        .await
+        .unwrap();
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let expected_manifest = tmprepo.commit_dir(&src_dir).unwrap();
+    let expected_manifest = tmprepo.commit_dir(&src_dir).await.unwrap();
     let manifest = Manifest::from(&expected_manifest);
 
     let render = tmprepo
@@ -57,10 +66,10 @@ fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
         .unwrap()
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
-    tmprepo.render_manifest(&manifest).unwrap();
+    tmprepo.render_manifest(&manifest).await.unwrap();
     assert!(render.exists(), "render should be seen as existing");
     assert!(was_render_completed(&render));
-    let rendered_manifest = tracking::compute_manifest(&render).unwrap();
+    let rendered_manifest = tracking::compute_manifest(&render).await.unwrap();
     let diffs = tracking::compute_diff(&expected_manifest, &rendered_manifest);
     println!("DIFFS:");
     println!("{}", crate::io::format_diffs(diffs.iter()));

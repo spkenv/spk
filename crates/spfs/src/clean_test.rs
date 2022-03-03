@@ -17,63 +17,70 @@ use storage::prelude::*;
 fixtures!();
 
 #[rstest]
-fn test_get_attached_objects(tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo;
-    let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.write_data(&mut reader).unwrap();
+#[tokio::test]
+async fn test_get_attached_objects(#[future] tmprepo: TempRepo) {
+    let (_td, tmprepo) = tmprepo.await;
+    let reader = Box::pin("hello, world".as_bytes());
+    let (payload_digest, _) = tmprepo.write_data(reader).await.unwrap();
     let blob = graph::Blob::new(payload_digest, 0);
-    tmprepo.write_blob(blob).unwrap();
+    tmprepo.write_blob(blob).await.unwrap();
 
     assert_eq!(
-        get_all_attached_objects(&tmprepo).unwrap(),
+        get_all_attached_objects(&tmprepo).await.unwrap(),
         Default::default(),
         "single blob should not be attached"
     );
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
-        get_all_unattached_objects(&tmprepo).unwrap(),
+        get_all_unattached_objects(&tmprepo).await.unwrap(),
         expected,
         "single blob should be unattached"
     );
 }
 
 #[rstest]
-fn test_get_attached_payloads(tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo;
-    let mut reader = "hello, world".as_bytes();
-    let (payload_digest, _) = tmprepo.write_data(&mut reader).unwrap();
+#[tokio::test]
+async fn test_get_attached_payloads(#[future] tmprepo: TempRepo) {
+    let (_td, tmprepo) = tmprepo.await;
+    let reader = Box::pin("hello, world".as_bytes());
+    let (payload_digest, _) = tmprepo.write_data(reader).await.unwrap();
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(
-        get_all_unattached_payloads(&tmprepo).unwrap(),
+        get_all_unattached_payloads(&tmprepo).await.unwrap(),
         expected,
         "single payload should be attached when no blob"
     );
 
     let blob = graph::Blob::new(payload_digest, 0);
-    tmprepo.write_blob(blob).unwrap();
+    tmprepo.write_blob(blob).await.unwrap();
 
     assert_eq!(
-        get_all_unattached_payloads(&tmprepo).unwrap(),
+        get_all_unattached_payloads(&tmprepo).await.unwrap(),
         Default::default(),
         "single payload should be attached to blob"
     );
 }
 
 #[rstest]
-fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
-    let _guard = init_logging();
-    let (tmpdir, mut tmprepo) = tmprepo;
+#[tokio::test]
+async fn test_get_attached_unattached_objects_blob(#[future] tmprepo: TempRepo) {
+    init_logging();
+    let (tmpdir, tmprepo) = tmprepo.await;
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
 
-    let manifest = tmprepo.commit_dir(data_dir.as_path()).unwrap();
+    let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
     let tag = tracking::TagSpec::parse("my_tag").unwrap();
-    tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
+    tmprepo
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
     let blob_digest = manifest
         .root()
         .entries
@@ -83,12 +90,14 @@ fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
 
     assert!(
         get_all_attached_objects(&tmprepo)
+            .await
             .unwrap()
             .contains(&blob_digest),
         "blob in manifest in tag should be attached"
     );
     assert!(
         !get_all_unattached_objects(&tmprepo)
+            .await
             .unwrap()
             .contains(&blob_digest),
         "blob in manifest in tag should not be unattached"
@@ -96,10 +105,11 @@ fn test_get_attached_unattached_objects_blob(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_clean_untagged_objects(tmprepo: TempRepo) {
-    let _guard = init_logging();
+#[tokio::test]
+async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo) {
+    init_logging();
 
-    let (tmpdir, mut tmprepo) = tmprepo;
+    let (tmpdir, tmprepo) = tmprepo.await;
     let data_dir_1 = tmpdir.path().join("data");
     ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
     ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
@@ -110,22 +120,28 @@ fn test_clean_untagged_objects(tmprepo: TempRepo) {
     ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
     ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
-    let manifest1 = tmprepo.commit_dir(data_dir_1.as_path()).unwrap();
+    let manifest1 = tmprepo.commit_dir(data_dir_1.as_path()).await.unwrap();
 
-    let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).unwrap();
+    let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest2))
+        .await
         .unwrap();
     let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
-    tmprepo.push_tag(&tag, &layer.digest().unwrap()).unwrap();
+    tmprepo
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
 
-    clean_untagged_objects(&tmprepo).expect("failed to clean objects");
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean objects");
 
     for node in manifest1.walk() {
         if !node.entry.kind.is_blob() {
             continue;
         }
-        let res = tmprepo.open_payload(&node.entry.object);
+        let res = tmprepo.open_payload(node.entry.object).await;
         if let Err(Error::UnknownObject(_)) = res {
             continue;
         }
@@ -143,31 +159,37 @@ fn test_clean_untagged_objects(tmprepo: TempRepo) {
             continue;
         }
         tmprepo
-            .open_payload(&node.entry.object)
+            .open_payload(node.entry.object)
+            .await
             .expect("expected payload not to be cleaned");
     }
 }
 
 #[rstest]
-fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
-    let (_td, mut tmprepo) = tmprepo;
+#[tokio::test]
+async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
+    let (_td, tmprepo) = tmprepo.await;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
     let platform = tmprepo
         .create_platform(vec![layer.digest().unwrap()])
+        .await
         .unwrap();
 
-    clean_untagged_objects(&tmprepo).expect("failed to clean objects");
+    clean_untagged_objects(&tmprepo)
+        .await
+        .expect("failed to clean objects");
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(&layer.digest().unwrap()) {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(layer.digest().unwrap()).await {
         // ok
     } else {
         panic!("expected layer to be cleaned")
     }
 
-    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(&platform.digest().unwrap()) {
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(platform.digest().unwrap()).await {
         // ok
     } else {
         panic!("expected platform to be cleaned")
@@ -175,9 +197,10 @@ fn test_clean_untagged_objects_layers_platforms(tmprepo: TempRepo) {
 }
 
 #[rstest]
-fn test_clean_manifest_renders(tmprepo: TempRepo) {
-    let (tmpdir, tmprepo) = tmprepo;
-    let mut tmprepo = match tmprepo {
+#[tokio::test]
+async fn test_clean_manifest_renders(#[future] tmprepo: TempRepo) {
+    let (tmpdir, tmprepo) = tmprepo.await;
+    let tmprepo = match tmprepo {
         storage::RepositoryHandle::FS(repo) => repo,
         _ => {
             println!("Unsupported repo for this test");
@@ -189,22 +212,27 @@ fn test_clean_manifest_renders(tmprepo: TempRepo) {
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
     ensure(data_dir.join("dir/name.txt"), "john doe");
 
-    let manifest = tmprepo.commit_dir(data_dir.as_path()).unwrap();
+    let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
     let _platform = tmprepo
         .create_platform(vec![layer.digest().unwrap()])
+        .await
         .unwrap();
 
     tmprepo
         .render_manifest(&graph::Manifest::from(&manifest))
+        .await
         .unwrap();
 
     let files = list_files(tmprepo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
-    clean_untagged_objects(&tmprepo.clone().into()).expect("failed to clean repo");
+    clean_untagged_objects(&tmprepo.clone().into())
+        .await
+        .expect("failed to clean repo");
 
     let files = list_files(tmprepo.renders.unwrap().root());
     assert!(files.is_empty(), "should remove all created data files");

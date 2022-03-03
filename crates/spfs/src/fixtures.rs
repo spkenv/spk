@@ -11,13 +11,13 @@ macro_rules! fixtures {
         type TempRepo = (TempDir, spfs::storage::RepositoryHandle);
 
         #[allow(dead_code)]
-        fn init_logging() -> tracing::dispatcher::DefaultGuard {
+        fn init_logging() {
             let sub = tracing_subscriber::FmtSubscriber::builder()
                 .with_max_level(tracing::Level::TRACE)
                 .without_time()
                 .with_test_writer()
                 .finish();
-            tracing::subscriber::set_default(sub)
+            let _ = tracing::subscriber::set_global_default(sub);
         }
 
         #[fixture]
@@ -61,13 +61,15 @@ macro_rules! fixtures {
         }
 
         #[fixture(kind = "fs")]
-        fn tmprepo(kind: &str) -> (tempdir::TempDir, spfs::storage::RepositoryHandle) {
+        async fn tmprepo(kind: &str) -> (tempdir::TempDir, spfs::storage::RepositoryHandle) {
             let tmpdir = tmpdir();
             let repo = match kind {
                 "fs" => spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
+                    .await
                     .unwrap()
                     .into(),
                 "tar" => spfs::storage::tar::TarRepository::create(tmpdir.path().join("repo.tar"))
+                    .await
                     .unwrap()
                     .into(),
                 _ => panic!("unknown repo kind '{}'", kind),

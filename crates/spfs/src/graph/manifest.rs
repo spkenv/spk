@@ -14,23 +14,13 @@ use encoding::Decodable;
 #[path = "./manifest_test.rs"]
 mod manifest_test;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct Manifest {
     root: Tree,
     // because manifests are encoded - the ordering of trees are important
     // to maintain in order to create consistent hashing
     tree_order: Vec<encoding::Digest>,
     trees: BTreeMap<encoding::Digest, Tree>,
-}
-
-impl Default for Manifest {
-    fn default() -> Self {
-        Manifest {
-            root: Default::default(),
-            trees: Default::default(),
-            tree_order: Default::default(),
-        }
-    }
 }
 
 impl From<&tracking::Manifest> for Manifest {

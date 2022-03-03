@@ -9,7 +9,10 @@ use structopt::StructOpt;
 #[macro_use]
 mod args;
 
-main!(CmdEnter, sentry = false);
+// The runtime setup process manages the current namespace
+// which operates only on the current thread. For this reason
+// we must use a single threaded async runtime, if any.
+main!(CmdEnter, sentry = false, sync = true);
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -38,36 +41,26 @@ pub struct CmdEnter {
 
 impl CmdEnter {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        // Acquire expected effective caps.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|err| {
+                spfs::Error::String(format!("Failed to establish async runtime: {:?}", err))
+            })?;
+        rt.block_on(self.run_async(config))
+    }
 
-        use caps::{CapSet, Capability};
-
-        let mut current_caps = caps::read(None, CapSet::Effective)?;
-        for needed_cap in &[
-            // These were formerly already effective by default
-            // via `setcap`, before the addition of CAP_FOWNER,
-            // which we do not want to be effective by default.
-            // It is not legal to set some caps with `+ep` and
-            // others with just `+p`.
-            Capability::CAP_SETUID,
-            Capability::CAP_CHOWN,
-            Capability::CAP_MKNOD,
-            Capability::CAP_SYS_ADMIN,
-        ] {
-            current_caps.insert(*needed_cap);
-        }
-        caps::set(None, CapSet::Effective, &current_caps)?;
-
+    pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
         if self.remount {
-            spfs::reinitialize_runtime(&runtime)?;
+            spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
             let cmd = match self.cmd.take() {
                 Some(cmd) => cmd,
                 None => return Err("command is required and was not given".into()),
             };
-            spfs::initialize_runtime(&runtime, config)?;
+            spfs::initialize_runtime(&runtime, config).await?;
 
             tracing::trace!("{:?} {:?}", cmd, self.args);
             use std::os::unix::ffi::OsStrExt;

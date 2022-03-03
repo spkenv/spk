@@ -23,7 +23,7 @@ pub struct CmdInit {
 }
 
 impl CmdInit {
-    pub fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         tracing::debug!("initializing runtime environment");
         let _handle = match &self.runtime_root_dir {
             Some(root) => {

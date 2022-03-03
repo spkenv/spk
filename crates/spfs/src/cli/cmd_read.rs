@@ -25,12 +25,12 @@ pub struct CmdRead {
 }
 
 impl CmdRead {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
-        let item = repo.read_ref(self.reference.as_str())?;
+        let item = repo.read_ref(self.reference.as_str()).await?;
         use spfs::graph::Object;
         let blob = match item {
             Object::Blob(blob) => blob,
@@ -43,7 +43,7 @@ impl CmdRead {
                     }
                     Some(p) => p.strip_prefix("/spfs").unwrap_or(p).to_string(),
                 };
-                let manifest = spfs::compute_object_manifest(item, &repo)?;
+                let manifest = spfs::compute_object_manifest(item, &repo).await?;
                 let entry = match manifest.get_path(&path) {
                     Some(e) => e,
                     None => {
@@ -55,12 +55,12 @@ impl CmdRead {
                     tracing::error!("path is a directory or masked file: {}", path);
                     return Ok(1);
                 }
-                repo.read_blob(&entry.object)?
+                repo.read_blob(entry.object).await?
             }
         };
 
-        let mut payload = repo.open_payload(&blob.digest())?;
-        std::io::copy(&mut payload, &mut std::io::stdout())?;
+        let mut payload = repo.open_payload(blob.digest()).await?;
+        tokio::io::copy(&mut payload, &mut tokio::io::stdout()).await?;
         Ok(0)
     }
 }

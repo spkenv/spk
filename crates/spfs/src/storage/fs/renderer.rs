@@ -5,6 +5,8 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use tokio::io::AsyncReadExt;
+
 use super::FSRepository;
 use crate::{
     encoding::{self, Encodable},
@@ -22,13 +24,14 @@ pub enum RenderType {
     Copy,
 }
 
+#[async_trait::async_trait]
 impl ManifestViewer for FSRepository {
-    fn has_rendered_manifest(&self, digest: &encoding::Digest) -> bool {
+    async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return false,
         };
-        let rendered_dir = renders.build_digest_path(digest);
+        let rendered_dir = renders.build_digest_path(&digest);
         was_render_completed(&rendered_dir)
     }
 
@@ -36,7 +39,7 @@ impl ManifestViewer for FSRepository {
     ///
     /// # Errors:
     /// - if any of the blobs in the manifest are not available in this repo.
-    fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
+    async fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return Err(Error::NoRenderStorage(self.address())),
@@ -52,14 +55,15 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)?;
+        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
+            .await?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
-        match std::fs::rename(&working_dir, &rendered_dirpath) {
+        match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
             Ok(_) => (),
             Err(err) => match err.kind() {
                 std::io::ErrorKind::AlreadyExists => {
-                    if let Err(err) = open_perms_and_remove_all(&working_dir) {
+                    if let Err(err) = open_perms_and_remove_all(&working_dir).await {
                         tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
                     }
                 }
@@ -67,37 +71,37 @@ impl ManifestViewer for FSRepository {
             },
         }
 
-        mark_render_completed(&rendered_dirpath)?;
+        mark_render_completed(&rendered_dirpath).await?;
         Ok(rendered_dirpath)
     }
 
     /// Remove the identified render from this storage.
-    fn remove_rendered_manifest(&self, digest: &crate::encoding::Digest) -> Result<()> {
+    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
         let renders = match &self.renders {
             Some(renders) => renders,
             None => return Ok(()),
         };
-        let rendered_dirpath = renders.build_digest_path(digest);
+        let rendered_dirpath = renders.build_digest_path(&digest);
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_dirpath = renders.workdir().join(uuid);
         renders.ensure_base_dir(&working_dirpath)?;
-        if let Err(err) = std::fs::rename(&rendered_dirpath, &working_dirpath) {
+        if let Err(err) = tokio::fs::rename(&rendered_dirpath, &working_dirpath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
                 _ => Err(crate::Error::wrap_io(
                     err,
-                    "Failed to pull render for deletion",
+                    "Failed to yank render for deletion",
                 )),
             };
         }
 
-        unmark_render_completed(&rendered_dirpath)?;
-        open_perms_and_remove_all(&working_dirpath)
+        unmark_render_completed(&rendered_dirpath).await?;
+        open_perms_and_remove_all(&working_dirpath).await
     }
 }
 
 impl FSRepository {
-    pub fn render_manifest_into_dir(
+    pub async fn render_manifest_into_dir(
         &self,
         manifest: &crate::graph::Manifest,
         target_dir: impl AsRef<Path>,
@@ -107,59 +111,59 @@ impl FSRepository {
         let entries: Vec<_> = walkable
             .walk_abs(&target_dir.as_ref().to_string_lossy())
             .collect();
-        // Acquire FOWNER here to allow us to:
-        // 1. create hard links to files that are not owned by us
-        //    (see: /proc/sys/fs/protected_hardlinks);
-        // 2. chmod these newly created hard links that are not
-        //    owned by us.
-        with_cap_fowner(|| {
-            for node in entries.iter() {
-                let res = match node.entry.kind {
-                    tracking::EntryKind::Tree => {
-                        std::fs::create_dir_all(&node.path.to_path("/")).map_err(|e| e.into())
-                    }
-                    tracking::EntryKind::Mask => continue,
-                    tracking::EntryKind::Blob => {
-                        self.render_blob(node.path.to_path("/"), node.entry, &render_type)
-                    }
-                };
-                if let Err(err) = res {
-                    return Err(err.wrap(format!("Failed to render [{}]", node.path)));
+        // we used to get CAP_FOWNER here, but with async
+        // it can no longer garentee anything useful
+        // (the process can happen in other threads, and
+        // other code can run in the current thread)
+        for node in entries.iter() {
+            let res = match node.entry.kind {
+                tracking::EntryKind::Tree => tokio::fs::create_dir_all(&node.path.to_path("/"))
+                    .await
+                    .map_err(|e| e.into()),
+                tracking::EntryKind::Mask => continue,
+                tracking::EntryKind::Blob => {
+                    self.render_blob(node.path.to_path("/"), node.entry, &render_type)
+                        .await
                 }
+            };
+            if let Err(err) = res {
+                return Err(err.wrap(format!("Failed to render [{}]", node.path)));
             }
+        }
 
-            for node in entries.iter().rev() {
-                if node.entry.kind.is_mask() {
-                    continue;
-                }
-                if node.entry.is_symlink() {
-                    continue;
-                }
-                if let Err(err) = std::fs::set_permissions(
-                    &node.path.to_path("/"),
-                    std::fs::Permissions::from_mode(node.entry.mode),
-                ) {
-                    return Err(Error::wrap_io(
-                        err,
-                        format!("Failed to set permissions [{}]", node.path),
-                    ));
-                }
+        for node in entries.iter().rev() {
+            if node.entry.kind.is_mask() {
+                continue;
             }
+            if node.entry.is_symlink() {
+                continue;
+            }
+            if let Err(err) = tokio::fs::set_permissions(
+                &node.path.to_path("/"),
+                std::fs::Permissions::from_mode(node.entry.mode),
+            )
+            .await
+            {
+                return Err(Error::wrap_io(
+                    err,
+                    format!("Failed to set permissions [{}]", node.path),
+                ));
+            }
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 
-    fn render_blob<P: AsRef<Path>>(
+    async fn render_blob<P: AsRef<Path>>(
         &self,
         rendered_path: P,
         entry: &tracking::Entry,
         render_type: &RenderType,
     ) -> Result<()> {
         if entry.is_symlink() {
-            let mut reader = self.open_payload(&entry.object)?;
+            let mut reader = self.open_payload(entry.object).await?;
             let mut target = String::new();
-            reader.read_to_string(&mut target)?;
+            reader.read_to_string(&mut target).await?;
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
@@ -172,7 +176,7 @@ impl FSRepository {
         let committed_path = self.payloads.build_digest_path(&entry.object);
         match render_type {
             RenderType::HardLink => {
-                if let Err(err) = std::fs::hard_link(&committed_path, &rendered_path) {
+                if let Err(err) = tokio::fs::hard_link(&committed_path, &rendered_path).await {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
                         _ => {
@@ -189,7 +193,7 @@ impl FSRepository {
                 }
             }
             RenderType::Copy => {
-                if let Err(err) = std::fs::copy(&committed_path, &rendered_path) {
+                if let Err(err) = tokio::fs::copy(&committed_path, &rendered_path).await {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
                         _ => return Err(Error::wrap_io(err, "Failed to copy file")),
@@ -208,20 +212,23 @@ impl FSRepository {
 /// that need to be removed but on which the user doesn't have enough permissions.
 /// It does assume that the current user owns the file, as it may not be possible to
 /// change permissions before removal otherwise.
-fn open_perms_and_remove_all(root: &Path) -> Result<()> {
-    for entry in std::fs::read_dir(&root)? {
-        let entry = entry?;
+#[async_recursion::async_recursion]
+async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
+    let mut read_dir = tokio::fs::read_dir(&root).await?;
+    // TODO: parallelize this with async
+    while let Some(entry) = read_dir.next_entry().await? {
         let entry_path = root.join(entry.file_name());
-        let file_type = entry.file_type()?;
-        let _ = std::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777));
+        let file_type = entry.file_type().await?;
+        let _ =
+            tokio::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777)).await;
         if file_type.is_symlink() || file_type.is_file() {
-            std::fs::remove_file(&entry_path)?;
+            tokio::fs::remove_file(&entry_path).await?;
         }
         if file_type.is_dir() {
-            open_perms_and_remove_all(&entry_path)?;
+            open_perms_and_remove_all(&entry_path).await?;
         }
     }
-    std::fs::remove_dir(&root)?;
+    tokio::fs::remove_dir(&root).await?;
     Ok(())
 }
 
@@ -237,7 +244,7 @@ fn was_render_completed<P: AsRef<Path>>(render_path: P) -> bool {
 }
 
 /// panics if the given path does not have a directory name
-fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
+async fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     let mut name = render_path
         .as_ref()
         .file_name()
@@ -246,14 +253,15 @@ fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     name.push(".completed");
     let marker_path = render_path.as_ref().with_file_name(name);
     // create if it doesn't exist but don't fail if it already exists (no exclusive open)
-    std::fs::OpenOptions::new()
+    tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&marker_path)?;
+        .open(&marker_path)
+        .await?;
     Ok(())
 }
 
-fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
+async fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     let mut name = render_path
         .as_ref()
         .file_name()
@@ -261,7 +269,7 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
         .to_os_string();
     name.push(".completed");
     let marker_path = render_path.as_ref().with_file_name(name);
-    if let Err(err) = std::fs::remove_file(&marker_path) {
+    if let Err(err) = tokio::fs::remove_file(&marker_path).await {
         match err.kind() {
             std::io::ErrorKind::NotFound => Ok(()),
             _ => Err(err.into()),
@@ -269,39 +277,4 @@ fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     } else {
         Ok(())
     }
-}
-
-#[cfg(target_os = "linux")]
-fn with_cap_fowner<F, R>(f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    use caps::{CapSet, Capability};
-
-    let desired_cap: Capability = Capability::CAP_FOWNER;
-    let raised_cap = match caps::has_cap(None, CapSet::Effective, desired_cap) {
-        Ok(true) => false,
-        Ok(false) => {
-            if let Err(err) = caps::raise(None, CapSet::Effective, desired_cap) {
-                tracing::warn!(?err, "Failed to get necessary capabilities");
-                false
-            } else {
-                true
-            }
-        }
-        Err(err) => {
-            tracing::warn!(?err, "Failed to read current capabilities");
-            false
-        }
-    };
-
-    let res = f();
-
-    if raised_cap {
-        if let Err(err) = caps::drop(None, CapSet::Effective, desired_cap) {
-            panic!("Failed to release capabilities, this is unsafe: {:?}", err);
-        }
-    }
-
-    res
 }

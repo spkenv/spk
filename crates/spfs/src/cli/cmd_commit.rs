@@ -22,7 +22,7 @@ pub struct CmdCommit {
 }
 
 impl CmdCommit {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut runtime = spfs::active_runtime()?;
 
         if !runtime.is_editable() {
@@ -30,11 +30,11 @@ impl CmdCommit {
             return Ok(1);
         }
 
-        let mut repo = config.get_repository()?;
+        let repo = config.get_repository().await?;
 
         let result: spfs::graph::Object = match self.kind.as_str() {
-            "layer" => spfs::commit_layer(&mut runtime)?.into(),
-            "platform" => spfs::commit_platform(&mut runtime)?.into(),
+            "layer" => spfs::commit_layer(&mut runtime).await?.into(),
+            "platform" => spfs::commit_platform(&mut runtime).await?.into(),
             _ => {
                 tracing::error!("cannot commit {}", self.kind);
                 return Ok(1);
@@ -50,7 +50,7 @@ impl CmdCommit {
                     continue;
                 }
             };
-            repo.push_tag(&tag_spec, &result.digest()?)?;
+            repo.push_tag(&tag_spec, &result.digest()?).await?;
             tracing::info!(?tag, "created");
         }
 

@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::fs::DirEntry;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
+use std::pin::Pin;
 
+use futures::Future;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
+use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
 use crate::encoding;
@@ -237,49 +238,53 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
-pub fn compute_manifest<P: AsRef<std::path::Path>>(path: P) -> Result<Manifest> {
-    let mut builder = ManifestBuilder::default();
-    builder.compute_manifest(path)
+pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
+    let mut builder = ManifestBuilder::new(encoding::Digest::from_async_reader);
+    builder.compute_manifest(path).await
 }
 
-pub struct ManifestBuilder<'h> {
-    hasher: Box<dyn FnMut(Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> + 'h>,
+pub struct ManifestBuilder<H, F>
+where
+    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>) -> F + Send,
+    F: Future<Output = Result<encoding::Digest>> + Send,
+{
+    hasher: H,
 }
 
-impl<'h> Default for ManifestBuilder<'h> {
-    fn default() -> Self {
-        Self::new(|mut reader| encoding::Digest::from_reader(&mut reader))
-    }
-}
-
-impl<'h> ManifestBuilder<'h> {
-    pub fn new(
-        hasher: impl FnMut(Box<&mut dyn std::io::Read>) -> Result<encoding::Digest> + 'h,
-    ) -> Self {
-        Self {
-            hasher: Box::new(hasher),
-        }
+impl<H, F> ManifestBuilder<H, F>
+where
+    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + 'static>>) -> F + Send,
+    F: Future<Output = Result<encoding::Digest>> + Send,
+{
+    pub fn new(hasher: H) -> Self {
+        Self { hasher }
     }
 
     /// Build a manifest that describes a directorie's contents.
-    pub fn compute_manifest<P: AsRef<std::path::Path>>(&mut self, path: P) -> Result<Manifest> {
+    pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(
+        &mut self,
+        path: P,
+    ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        self.compute_tree_node(path, &mut manifest.root)?;
+        self.compute_tree_node(path, &mut manifest.root).await?;
         Ok(manifest)
     }
 
-    fn compute_tree_node<P: AsRef<std::path::Path>>(
+    #[async_recursion::async_recursion]
+    async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
         &mut self,
         dirname: P,
         tree_node: &mut Entry,
     ) -> Result<()> {
         tree_node.kind = EntryKind::Tree;
-        for dir_entry in std::fs::read_dir(&dirname)? {
-            let dir_entry = dir_entry?;
-            let path = dirname.as_ref().join(dir_entry.file_name());
+        let base = dirname.as_ref();
+        let mut read_dir = tokio::fs::read_dir(base).await?;
+        // TODO: make this more parallel, if possible
+        while let Some(dir_entry) = read_dir.next_entry().await? {
+            let path = base.join(dir_entry.file_name());
             let mut entry = Entry::default();
-            self.compute_node(path, &dir_entry, &mut entry)?;
+            self.compute_node(path, &dir_entry, &mut entry).await?;
             tree_node
                 .entries
                 .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
@@ -288,19 +293,19 @@ impl<'h> ManifestBuilder<'h> {
         Ok(())
     }
 
-    fn compute_node<P: AsRef<std::path::Path>>(
+    async fn compute_node<P: AsRef<std::path::Path> + Send>(
         &mut self,
         path: P,
         dir_entry: &DirEntry,
         entry: &mut Entry,
     ) -> Result<()> {
-        let stat_result = match std::fs::symlink_metadata(&path) {
+        let stat_result = match tokio::fs::symlink_metadata(&path).await {
             Ok(r) => r,
             Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
                 // Heuristic: if lstat fails with ENOENT, but `dir_entry` exists,
                 // then the directory entry exists but it might be a whiteout file.
                 // Assume so if `dir_entry` says it is a character device.
-                match dir_entry.file_type() {
+                match dir_entry.file_type().await {
                     Ok(ft) if ft.is_char_device() => {
                         // XXX: mode and size?
                         entry.kind = EntryKind::Mask;
@@ -318,11 +323,18 @@ impl<'h> ManifestBuilder<'h> {
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
-            let link_target = std::fs::read_link(&path)?;
+            let link_target = tokio::fs::read_link(&path)
+                .await?
+                .into_os_string()
+                .into_string()
+                .map_err(|_| {
+                    crate::Error::String("Symlinks must point to a valid utf-8 path".to_string())
+                })?
+                .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = (self.hasher)(Box::new(&mut link_target.as_os_str().as_bytes()))?;
+            entry.object = (self.hasher)(Box::pin(std::io::Cursor::new(link_target))).await?;
         } else if file_type.is_dir() {
-            self.compute_tree_node(path, entry)?;
+            self.compute_tree_node(path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
@@ -330,8 +342,8 @@ impl<'h> ManifestBuilder<'h> {
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
             entry.kind = EntryKind::Blob;
-            let mut reader = std::fs::File::open(path)?;
-            entry.object = (self.hasher)(Box::new(&mut reader))?;
+            let reader = tokio::fs::File::open(path).await?;
+            entry.object = (self.hasher)(Box::pin(reader)).await?;
         }
         Ok(())
     }

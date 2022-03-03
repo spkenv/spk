@@ -46,10 +46,10 @@ pub struct CmdClean {
 }
 
 impl CmdClean {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
 
         if self.prune_if_older_than.is_some()
@@ -57,11 +57,11 @@ impl CmdClean {
             || self.prune_if_more_than.is_some()
             || self.keep_if_less_than.is_some()
         {
-            self.prune(&mut repo)?;
+            self.prune(&repo).await?;
         }
 
-        let mut unattached = spfs::get_all_unattached_objects(&repo)?;
-        unattached.extend(spfs::get_all_unattached_payloads(&repo)?);
+        let mut unattached = spfs::get_all_unattached_objects(&repo).await?;
+        unattached.extend(spfs::get_all_unattached_payloads(&repo).await?);
         if unattached.is_empty() {
             tracing::info!("no objects to remove");
             return Ok(0);
@@ -79,7 +79,7 @@ impl CmdClean {
             }
         }
 
-        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo) {
+        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo).await {
             Err(err) => Err(err),
             Ok(_) => {
                 tracing::info!("clean successfull");
@@ -88,7 +88,7 @@ impl CmdClean {
         }
     }
 
-    fn prune(&mut self, repo: &mut RepositoryHandle) -> spfs::Result<()> {
+    async fn prune(&mut self, repo: &RepositoryHandle) -> spfs::Result<()> {
         let prune_if_older_than = age_to_date(
             self.prune_if_older_than
                 .clone()
@@ -118,7 +118,7 @@ impl CmdClean {
         tracing::info!("and leaving tags with version <= {:?}", keep_if_less_than);
 
         tracing::info!("searching for tags to prune...");
-        let to_prune = spfs::get_prunable_tags(repo, &params)?;
+        let to_prune = spfs::get_prunable_tags(repo, &params).await?;
         if to_prune.is_empty() {
             tracing::info!("no tags to prune");
             return Ok(());
@@ -149,7 +149,7 @@ impl CmdClean {
         }
 
         for tag in to_prune.iter() {
-            repo.remove_tag(tag)?;
+            repo.remove_tag(tag).await?;
         }
         Ok(())
     }

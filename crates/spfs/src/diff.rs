@@ -13,27 +13,27 @@ use crate::{tracking, Result};
 ///         (defaults to the current runtime)
 /// - **top**: The tag or id to diff the base against
 ///         (defaults to the contents of /spfs)
-pub fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tracking::Diff>> {
+pub async fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tracking::Diff>> {
     let base_manifest = match base {
         None => {
             tracing::debug!("computing runtime manifest as base");
             let runtime = active_runtime()?;
-            compute_runtime_manifest(&runtime)?
+            compute_runtime_manifest(&runtime).await?
         }
         Some(base) => {
             tracing::debug!(reference = %base, "computing base manifest");
-            compute_manifest(base)?
+            compute_manifest(base).await?
         }
     };
 
     let top_manifest = match top {
         None => {
             tracing::debug!("computing manifest for /spfs");
-            tracking::compute_manifest("/spfs")?
+            tracking::compute_manifest("/spfs").await?
         }
         Some(top) => {
             tracing::debug!(reference = ?top, "computing top manifest");
-            compute_manifest(top)?
+            compute_manifest(top).await?
         }
     };
 

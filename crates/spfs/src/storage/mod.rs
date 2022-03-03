@@ -68,7 +68,8 @@ impl From<tar::TarRepository> for RepositoryHandle {
     }
 }
 
-pub fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
+/// Open the repository at the given url address
+pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
     use url::Url;
 
     let url = match Url::parse(address.as_ref()) {
@@ -79,9 +80,9 @@ pub fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHan
     match url.scheme() {
         "file" | "" => {
             if url.path().ends_with(".tar") {
-                Ok(tar::TarRepository::open(url.path())?.into())
+                Ok(tar::TarRepository::open(url.path()).await?.into())
             } else {
-                Ok(fs::FSRepository::open(url.path())?.into())
+                Ok(fs::FSRepository::open(url.path()).await?.into())
             }
         }
         scheme => Err(format!("Unsupported repository scheme: '{}'", scheme).into()),

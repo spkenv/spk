@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use chrono::prelude::*;
+use tokio_stream::StreamExt;
 
 use crate::{storage, tracking, Result};
 use std::{collections::HashSet, convert::TryInto};
@@ -48,15 +49,18 @@ impl PruneParameters {
     }
 }
 
-pub fn get_prunable_tags(
+pub async fn get_prunable_tags(
     tags: &storage::RepositoryHandle,
     params: &PruneParameters,
 ) -> Result<HashSet<tracking::Tag>> {
     let mut to_prune = HashSet::new();
-    for res in tags.iter_tag_streams() {
+    let mut tag_streams = tags.iter_tag_streams();
+    while let Some(res) = tag_streams.next().await {
         let (spec, stream) = res?;
+        let mut stream = futures::StreamExt::enumerate(stream);
         tracing::debug!("searching for history to prune in {}", spec.to_string());
-        for (version, tag) in stream.enumerate() {
+        while let Some((version, tag)) = stream.next().await {
+            let tag = tag?;
             let versioned_spec = tracking::build_tag_spec(
                 spec.org(),
                 spec.name(),
@@ -71,14 +75,14 @@ pub fn get_prunable_tags(
     Ok(to_prune)
 }
 
-pub fn prune_tags(
-    repo: &mut storage::RepositoryHandle,
+pub async fn prune_tags(
+    repo: &storage::RepositoryHandle,
     params: &PruneParameters,
 ) -> Result<HashSet<tracking::Tag>> {
-    let to_prune = get_prunable_tags(repo, params)?;
+    let to_prune = get_prunable_tags(repo, params).await?;
     for tag in to_prune.iter() {
-        tracing::trace!(tag = ?tag, "removing tag");
-        repo.remove_tag(tag)?;
+        tracing::trace!(?tag, "removing tag");
+        repo.remove_tag(tag).await?;
     }
     Ok(to_prune)
 }

@@ -8,7 +8,7 @@ use structopt::StructOpt;
 pub struct CmdConfig {}
 
 impl CmdConfig {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let out = serde_json::to_string_pretty(&config)?;
         println!("{}", out);
         Ok(0)

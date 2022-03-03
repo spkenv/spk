@@ -25,19 +25,19 @@ pub struct CmdLs {
 }
 
 impl CmdLs {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
-        let item = repo.read_ref(self.reference.as_str())?;
+        let item = repo.read_ref(self.reference.as_str()).await?;
 
         let path = self
             .path
             .strip_prefix("/spfs")
             .unwrap_or(&self.path)
             .to_string();
-        let manifest = spfs::compute_object_manifest(item, &repo)?;
+        let manifest = spfs::compute_object_manifest(item, &repo).await?;
         if let Some(entries) = manifest.list_dir(path.as_str()) {
             for name in entries {
                 println!("{}", name);

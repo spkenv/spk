@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use structopt::StructOpt;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, StructOpt)]
 pub struct CmdLayers {
@@ -15,16 +16,17 @@ pub struct CmdLayers {
 }
 
 impl CmdLayers {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
-        for layer in repo.iter_layers() {
+        let mut layers = repo.iter_layers();
+        while let Some(layer) = layers.next().await {
             let (digest, _) = layer?;
             println!(
                 "{}",
-                spfs::io::format_digest(&digest.to_string(), Some(&repo))?
+                spfs::io::format_digest(&digest.to_string(), Some(&repo)).await?
             );
         }
         Ok(0)

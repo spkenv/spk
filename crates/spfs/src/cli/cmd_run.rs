@@ -45,8 +45,8 @@ pub struct CmdRun {
 }
 
 impl CmdRun {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_repository()?;
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = config.get_repository().await?;
         let runtimes = config.get_runtime_storage()?;
         let mut runtime = match &self.name {
             Some(name) => runtimes.create_named_runtime(name)?,
@@ -58,12 +58,12 @@ impl CmdRun {
                 let env_spec = spfs::tracking::parse_env_spec(reference)?;
                 for target in env_spec {
                     let target = target.to_string();
-                    if self.pull || !repo.has_ref(target.as_str()) {
+                    if self.pull || !repo.has_ref(target.as_str()).await {
                         tracing::info!(reference = ?target, "pulling target ref");
-                        spfs::pull_ref(target.as_str())?
+                        spfs::pull_ref(target.as_str()).await?
                     }
 
-                    let obj = repo.read_ref(target.as_str())?;
+                    let obj = repo.read_ref(target.as_str()).await?;
                     runtime.push_digest(&obj.digest()?)?;
                 }
             }

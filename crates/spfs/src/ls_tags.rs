@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::pin::Pin;
+
+use futures::Stream;
+
 use super::config::load_config;
 use super::storage::prelude::*;
 use crate::Result;
@@ -15,13 +19,18 @@ use crate::Result;
 /// Then ls_tags("spi") would return:
 ///     stable
 ///     latest
-pub fn ls_tags<P: AsRef<relative_path::RelativePath>>(
+pub async fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
-) -> Result<Box<dyn Iterator<Item = String>>> {
-    let config = load_config()?;
-    let repo = config.get_repository()?;
+) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
+    let repo = match load_config() {
+        Ok(c) => match c.get_repository().await {
+            Ok(repo) => repo,
+            Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
+        },
+        Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
+    };
     match path {
-        Some(path) => Ok(repo.ls_tags(path.as_ref())?),
-        None => Ok(repo.ls_tags(relative_path::RelativePath::new("/"))?),
+        Some(path) => repo.ls_tags(path.as_ref()),
+        None => repo.ls_tags(relative_path::RelativePath::new("/")),
     }
 }

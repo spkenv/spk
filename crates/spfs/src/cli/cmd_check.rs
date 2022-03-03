@@ -17,16 +17,16 @@ pub struct CmdCheck {
 }
 
 impl CmdCheck {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote)?,
-            None => config.get_repository()?.into(),
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
         };
 
         tracing::info!("walking repository...");
         let errors = match repo {
-            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo),
-            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo),
+            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo).await,
+            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo).await,
         };
         for error in errors.iter() {
             tracing::error!("{:?}", error);
