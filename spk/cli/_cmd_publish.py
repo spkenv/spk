@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import Any
+from typing import Any, List
 import argparse
 
 import structlog
@@ -57,8 +57,14 @@ def _publish(args: argparse.Namespace) -> None:
         .skip_source_packages(args.no_source)
     )
 
+    published: List[spk.api.Ident] = []
     for pkg in args.packages:
 
-        publisher.publish(pkg)
+        published.extend(publisher.publish(pkg))
+
+    if not published:
+        _LOGGER.warn(
+            "No packages were published, did you forget to specify a version number? (spk publish mypackage/1.0.2)"
+        )
 
     _LOGGER.info("done")
