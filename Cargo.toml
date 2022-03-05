@@ -61,3 +61,6 @@ spk = { path = ".", features = ["test-macros"] }
 [profile.release]
 lto = true
 codegen-units = 1
+
+[workspace]
+members = ["spk-launcher"]

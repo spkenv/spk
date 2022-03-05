@@ -19,6 +19,14 @@ components:
       tags:
         - proxy
 
+  - kind: RustCrate
+    name: spk-launcher
+    location: spk-launcher
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
+
   - kind: HugoDocs
     name: docs
     location: docs

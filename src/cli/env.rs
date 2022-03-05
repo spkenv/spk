@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::ffi::{OsStr, OsString};
+
 use anyhow::{Context, Result};
+use once_cell::sync::Lazy;
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> sentry::ClientInitGuard {
@@ -66,4 +69,14 @@ pub fn configure_logging(verbosity: u32) -> Result<()> {
     }
     let sub = registry.with(fmt_layer);
     tracing::subscriber::set_global_default(sub).context("Failed to set default logger")
+}
+
+static SPK_EXE: Lazy<&OsStr> = Lazy::new(|| match std::env::var_os("SPK_BIN_PATH") {
+    Some(p) => Box::leak(Box::new(p)),
+    None => Box::leak(Box::new(OsString::from("spk"))),
+});
+
+/// Return the spk executable to use when launching spk as a subprocess.
+pub fn spk_exe() -> &'static OsStr {
+    *SPK_EXE
 }

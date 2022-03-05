@@ -1,0 +1,19 @@
+#! /bin/bash
+
+set -o errexit
+
+[[ $# -lt 1 || $# -gt 2 ]] && echo "Usage: `basename $0` <spk version> [<tag name>]" && exit 1
+
+spk_version="$1"
+tag_name="${2:-$spk_version}"
+
+# 1. build logic from spk.spec
+mkdir -p build
+dev toolchain install Rust
+source ~/.bashrc
+dev env -- cargo build --release --features sentry
+
+# 2. create a new spfs layer
+spfs run - -- sh -c "mkdir /spfs/opt \
+  && cp target/release/spk /spfs/opt/spk.dist/ \
+  && spfs commit platform --tag spk/\"$tag_name\""

@@ -23,6 +23,10 @@ _LOGGER = logging.getLogger()
 BAKED_PYTHON_PACKAGES = ("setuptools", "pip", "wheel")
 
 
+def spk_exe() -> str:
+    return os.environ.get("SPK_BIN_PATH", "spk")
+
+
 def main() -> int:
     pip_cmd = argparse.ArgumentParser(
         "spk-convert-pip", description="Convert and import packages using pip"
@@ -95,7 +99,7 @@ def main() -> int:
         )
 
     if args.publish:
-        cmd = ["spk", "publish", "-r", args.target_repo]
+        cmd = [spk_exe(), "publish", "-r", args.target_repo]
         if args.force:
             cmd.append("--force")
         args.extend([spec["pkg"] for spec in specs])
@@ -262,7 +266,8 @@ class PipImporter:
             _LOGGER.info(f"building generated package spec... {spec['pkg']}")
             try:
                 subprocess.check_output(
-                    ["spk", "build", "-vv", spec_file.name], stderr=subprocess.STDOUT
+                    [spk_exe(), "build", "-vv", spec_file.name],
+                    stderr=subprocess.STDOUT,
                 )
             except subprocess.CalledProcessError as e:
                 print(e.stdout.decode())
