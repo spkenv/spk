@@ -10,23 +10,27 @@ use crate::{api, storage::RepositoryHandle, Result};
 
 #[pyfunction]
 fn local_repository() -> Result<Repository> {
-    super::local_repository().map(|r| Repository {
-        handle: Arc::new(RepositoryHandle::SPFS(r).into()),
-    })
+    crate::HANDLE
+        .block_on(super::local_repository())
+        .map(|r| Repository {
+            handle: Arc::new(RepositoryHandle::SPFS(r).into()),
+        })
 }
 
 #[pyfunction(path = "\"origin\"")]
 fn remote_repository(path: &str) -> Result<Repository> {
-    super::remote_repository(path).map(|r| Repository {
-        handle: Arc::new(RepositoryHandle::SPFS(r).into()),
-    })
+    crate::HANDLE
+        .block_on(super::remote_repository(path))
+        .map(|r| Repository {
+            handle: Arc::new(RepositoryHandle::SPFS(r).into()),
+        })
 }
 
 #[pyfunction]
 fn open_tar_repository(path: &str, create: Option<bool>) -> Result<Repository> {
     let repo = match create {
-        Some(true) => spfs::storage::tar::TarRepository::create(path)?,
-        _ => spfs::storage::tar::TarRepository::open(path)?,
+        Some(true) => crate::HANDLE.block_on(spfs::storage::tar::TarRepository::create(path))?,
+        _ => crate::HANDLE.block_on(spfs::storage::tar::TarRepository::open(path))?,
     };
     let handle: spfs::storage::RepositoryHandle = repo.into();
     Ok(Repository {
@@ -37,8 +41,8 @@ fn open_tar_repository(path: &str, create: Option<bool>) -> Result<Repository> {
 #[pyfunction]
 fn open_spfs_repository(path: &str, create: Option<bool>) -> Result<Repository> {
     let repo = match create {
-        Some(true) => spfs::storage::fs::FSRepository::create(path)?,
-        _ => spfs::storage::fs::FSRepository::open(path)?,
+        Some(true) => crate::HANDLE.block_on(spfs::storage::fs::FSRepository::create(path))?,
+        _ => crate::HANDLE.block_on(spfs::storage::fs::FSRepository::open(path))?,
     };
     let handle: spfs::storage::RepositoryHandle = repo.into();
     Ok(Repository {
@@ -62,12 +66,13 @@ fn runtime_repository() -> Repository {
 
 #[pyfunction]
 fn export_package(pkg: &api::Ident, filename: &str) -> Result<()> {
+    let _guard = crate::HANDLE.enter();
     super::export_package(pkg, filename)
 }
 
 #[pyfunction]
 fn import_package(filename: &str) -> Result<()> {
-    super::import_package(filename)
+    crate::HANDLE.block_on(super::import_package(filename))
 }
 
 #[pyclass]
@@ -79,24 +84,31 @@ pub struct Repository {
 #[pymethods]
 impl Repository {
     fn is_spfs(&self) -> bool {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().is_spfs()
     }
     fn list_packages(&self) -> Result<Vec<String>> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().list_packages()
     }
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().list_package_versions(name)
     }
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().list_package_builds(pkg)
     }
     fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().list_build_components(pkg)
     }
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().read_spec(pkg)
     }
     fn get_package(&self, pkg: &api::Ident) -> Result<HashMap<api::Component, crate::Digest>> {
+        let _guard = crate::HANDLE.enter();
         Ok(self
             .handle
             .lock()
@@ -107,12 +119,15 @@ impl Repository {
             .collect())
     }
     fn publish_spec(&self, spec: api::Spec) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().publish_spec(spec)
     }
     fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().remove_spec(pkg)
     }
     fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().force_publish_spec(spec)
     }
     fn publish_package(
@@ -120,10 +135,12 @@ impl Repository {
         spec: api::Spec,
         components: HashMap<api::Component, crate::Digest>,
     ) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         let mapped = components.into_iter().map(|(c, d)| (c, d.inner)).collect();
         self.handle.lock().unwrap().publish_package(spec, mapped)
     }
     fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().remove_package(pkg)
     }
     pub fn push_digest(&self, digest: &crate::Digest, dest: &mut Self) -> Result<()> {
@@ -132,7 +149,7 @@ impl Repository {
             &mut *dest.handle.lock().unwrap(),
         ) {
             (RepositoryHandle::SPFS(src), RepositoryHandle::SPFS(dest)) => {
-                spfs::sync_ref(digest.inner.to_string(), src, dest)?;
+                crate::HANDLE.block_on(spfs::sync_ref(digest.inner.to_string(), src, dest))?;
                 Ok(())
             }
             _ => Err(crate::Error::PyErr(exceptions::PyValueError::new_err(
@@ -141,6 +158,7 @@ impl Repository {
         }
     }
     pub fn upgrade(&mut self) -> Result<String> {
+        let _guard = crate::HANDLE.enter();
         self.handle.lock().unwrap().upgrade()
     }
 }
