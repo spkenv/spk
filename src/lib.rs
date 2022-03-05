@@ -14,6 +14,18 @@ mod fixtures;
 
 pub use error::{Error, Result};
 
+lazy_static::lazy_static! {
+    pub(crate) static ref HANDLE: tokio::runtime::Handle = {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let handle = rt.handle().clone();
+        std::thread::spawn(move || rt.block_on(futures::future::pending::<()>()));
+        handle
+    };
+}
+
 // -- begin python wrappers --
 
 use pyo3::prelude::*;
