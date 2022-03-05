@@ -7,7 +7,7 @@ use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
 pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>> {
-    let mut local_repo = storage::local_repository()?;
+    let local_repo = crate::HANDLE.block_on(storage::local_repository())?;
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
@@ -54,7 +54,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 continue;
             }
 
-            if !local_repo.has_object(digest) {
+            if !crate::HANDLE.block_on(local_repo.has_object(*digest)) {
                 to_sync.push((resolved.spec.clone(), repo.clone(), *digest))
             }
 
@@ -71,7 +71,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 to_sync_count,
                 io::format_ident(&spec.pkg),
             );
-            spfs::sync_ref(digest.to_string(), repo, &mut local_repo)?;
+            crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), repo, &local_repo))?;
         }
     }
 

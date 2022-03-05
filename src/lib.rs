@@ -187,7 +187,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
 
         // make editable first before trying to make any changes
         runtime.set_editable(true)?;
-        spfs::remount_runtime(&runtime)?;
+        HANDLE.block_on(spfs::remount_runtime(&runtime))?;
 
         if let Some(editable) = editable {
             runtime.set_editable(editable)?;
@@ -202,7 +202,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
                 runtime.push_digest(&digest.inner)?;
             }
         }
-        spfs::remount_runtime(&runtime)?;
+        HANDLE.block_on(spfs::remount_runtime(&runtime))?;
         Ok(())
     }
 
@@ -232,24 +232,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
     #[pyo3(name = "commit_layer")]
     fn commit_layer(runtime: &mut Runtime) -> Result<Digest> {
-        let layer = spfs::commit_layer(&mut runtime.inner)?;
+        let layer = crate::HANDLE.block_on(spfs::commit_layer(&mut runtime.inner))?;
         Ok(Digest::from(layer.digest()?))
-    }
-    #[pyfn(m)]
-    #[pyo3(name = "find_layer_by_filename")]
-    fn find_layer_by_filename(path: &str) -> Result<Digest> {
-        let runtime = spfs::active_runtime()?;
-        let repo = spfs::load_config()?.get_repository()?.into();
-
-        let stack = runtime.get_stack();
-        let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
-        for layer in layers.iter().rev() {
-            let manifest = repo.read_manifest(&layer.manifest)?.unlock();
-            if manifest.get_path(&path).is_some() {
-                return Ok(layer.digest()?.into());
-            }
-        }
-        Err(spfs::graph::UnknownReferenceError::new(path).into())
     }
 
     #[pyfn(m)]
@@ -257,7 +241,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     fn render_into_dir(stack: Vec<Digest>, path: &str) -> Result<()> {
         let items: Vec<String> = stack.into_iter().map(|d| d.inner.to_string()).collect();
         let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;
-        spfs::render_into_directory(&env_spec, path)?;
+        crate::HANDLE.block_on(spfs::render_into_directory(&env_spec, path))?;
         Ok(())
     }
 

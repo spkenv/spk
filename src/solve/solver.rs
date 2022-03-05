@@ -428,6 +428,7 @@ impl SolverRuntime {
     /// If needed, this function will iterate any remaining
     /// steps for the current state.
     pub fn solution(&mut self) -> PyResult<Solution> {
+        let _guard = crate::HANDLE.enter();
         for item in self.iter() {
             item?;
         }
@@ -563,6 +564,7 @@ impl PyIterProtocol for SolverRuntime {
     }
 
     fn __next__(mut slf: PyRefMut<Self>) -> Result<Option<(Node, Decision)>> {
+        let _guard = crate::HANDLE.enter();
         match slf.next() {
             Some(Ok(i)) => Ok(Some(i)),
             Some(Err(err)) => Err(err),

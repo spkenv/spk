@@ -108,6 +108,7 @@ impl BinaryPackageBuilder {
 
     #[pyo3(name = "build")]
     fn build_py(&self) -> Result<api::Spec> {
+        let _guard = crate::HANDLE.enter();
         // the build function consumes the builder
         // but we cannot represent that in python
         self.clone().build()
@@ -246,7 +247,7 @@ impl BinaryPackageBuilder {
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             let solution = self.resolve_source_package(&ident)?;
-            stack.extend(exec::resolve_runtime_layers(&solution)?);
+            stack.extend(exec::resolve_runtime_layers(&solution)?)
         };
         let solution = self.resolve_build_environment()?;
         let mut opts = solution.options();
@@ -256,7 +257,7 @@ impl BinaryPackageBuilder {
         for digest in stack.into_iter() {
             runtime.push_digest(&digest)?;
         }
-        spfs::remount_runtime(&runtime)?;
+        crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
         let specs = solution.items();
         let specs = specs
             .iter()
@@ -266,15 +267,19 @@ impl BinaryPackageBuilder {
         let env = std::env::vars();
         let mut env = solution.to_environment(Some(env));
         env.extend(self.all_options.to_environment());
-        let components = self.build_and_commit_artifacts(env)?;
-        storage::local_repository()?.publish_package(self.spec.clone(), components)?;
+        let components = crate::HANDLE.block_on(self.build_and_commit_artifacts(env))?;
+        crate::HANDLE
+            .block_on(storage::local_repository())?
+            .publish_package(self.spec.clone(), components)?;
         Ok(self.spec)
     }
 
     fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
-        let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
+        let local_repo = Arc::new(Mutex::new(
+            crate::HANDLE.block_on(storage::local_repository())?.into(),
+        ));
         self.solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
             if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
@@ -348,7 +353,7 @@ impl BinaryPackageBuilder {
         Ok(requests)
     }
 
-    fn build_and_commit_artifacts<I, K, V>(
+    async fn build_and_commit_artifacts<I, K, V>(
         &mut self,
         env: I,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>
@@ -368,14 +373,15 @@ impl BinaryPackageBuilder {
             sources_dir.to_path(&self.prefix).display()
         );
         runtime.reset(&[pattern])?;
-        spfs::remount_runtime(&runtime)?;
+        spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package fileset...");
         self.spec
             .validate_build_changeset()
+            .await
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
-        commit_component_layers(&self.spec, &mut runtime)
+        commit_component_layers(&self.spec, &mut runtime).await
     }
 
     fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
@@ -531,29 +537,27 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
     env
 }
 
-pub fn commit_component_layers(
+pub async fn commit_component_layers(
     spec: &api::Spec,
     runtime: &mut spfs::runtime::Runtime,
 ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-    let layer = spfs::commit_layer(runtime)?;
+    let layer = spfs::commit_layer(runtime).await?;
     let config = spfs::load_config()?;
-    let mut repo = config.get_repository()?;
-    let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+    let repo = config.get_repository().await?;
+    let manifest = repo.read_manifest(layer.manifest).await?.unlock();
     let manifests = split_manifest_by_component(&spec.pkg, &manifest, &spec.install.components)?;
-    manifests
-        .into_iter()
-        .map(|(name, m)| (name, spfs::graph::Manifest::from(&m)))
-        .map(|(name, m)| {
-            let layer = spfs::graph::Layer {
-                manifest: m.digest().unwrap(),
-            };
-            let layer_digest = layer.digest().unwrap();
-            repo.write_object(&m.into())
-                .and_then(|_| repo.write_object(&layer.into()))
-                .map_err(crate::Error::from)
-                .map(|_| (name, layer_digest))
-        })
-        .collect()
+    let mut committed = HashMap::with_capacity(manifests.len());
+    for (component, manifest) in manifests {
+        let manifest = spfs::graph::Manifest::from(&manifest);
+        let layer = spfs::graph::Layer {
+            manifest: manifest.digest().unwrap(),
+        };
+        let layer_digest = layer.digest().unwrap();
+        repo.write_object(&manifest.into()).await?;
+        repo.write_object(&layer.into()).await?;
+        committed.insert(component, layer_digest);
+    }
+    Ok(committed)
 }
 
 fn split_manifest_by_component(

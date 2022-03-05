@@ -30,7 +30,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempdir::TempDir) {
 
     let spec = super::read_spec_file(&spec_file).unwrap();
     if let Some(super::SourceSpec::Local(local)) = spec.sources.get(0) {
-        assert_eq!(&local.path, &spec_dir);
+        assert_eq!(local.path, spec_dir.join("."));
     } else {
         panic!("expected spec to have one local source spec");
     }
