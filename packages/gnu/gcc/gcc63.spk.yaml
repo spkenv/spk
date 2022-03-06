@@ -2,8 +2,6 @@ pkg: gcc/6.3.0
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-6.3.0/gcc-6.3.0.tar.gz
-  - path: activate-gcc.csh
-  - path: activate-gcc.sh
 
 build:
   options:

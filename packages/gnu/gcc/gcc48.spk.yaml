@@ -2,8 +2,6 @@ pkg: gcc/4.8.5
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-4.8.5/gcc-4.8.5.tar.gz
-  - path: activate-gcc.csh
-  - path: activate-gcc.sh
 
 build:
   options:
