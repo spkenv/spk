@@ -25,7 +25,7 @@ impl CmdDiff {
         if out.trim().is_empty() {
             tracing::info!("no changes");
         } else {
-            println!("{}", out);
+            println!("{out}");
         }
         Ok(0)
     }

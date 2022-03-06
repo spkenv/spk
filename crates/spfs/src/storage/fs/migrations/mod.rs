@@ -21,7 +21,7 @@ pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
     tracing::info!("migrating data...");
     let migrated_path = migrate_repo(&root).await?;
     tracing::info!("swapping out migrated data...");
-    let backup_path = root.with_file_name(format!("{}-backup", repo_name));
+    let backup_path = root.with_file_name(format!("{repo_name}-backup"));
     tokio::fs::rename(&root, &backup_path).await?;
     tokio::fs::rename(&migrated_path, &root).await?;
     tracing::info!("purging old data...");
@@ -52,13 +52,13 @@ pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
             continue;
         }
 
-        let migrated_path = root.with_file_name(format!("{}-{}", repo_name, version));
+        let migrated_path = root.with_file_name(format!("{repo_name}-{version}"));
         if migrated_path.exists() {
             return Err(format!("found existing migration data: {:?}", migrated_path).into());
         }
-        tracing::info!("migrating data from {} to {}...", last_migration, version);
+        tracing::info!("migrating data from {last_migration} to {version}...");
         migration_func(&root, &migrated_path)?;
-        root = root.with_file_name(format!("{}-migrated", repo_name));
+        root = root.with_file_name(format!("{repo_name}-migrated"));
         tokio::fs::rename(&migrated_path, &root).await?;
     }
 

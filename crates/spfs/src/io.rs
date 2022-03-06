@@ -73,7 +73,7 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
         };
         let mut out = String::new();
         out += format!("{:>8}", diff.mode).bold().as_ref();
-        out += format!("/spfs{}{}", diff.path, about).as_ref();
+        out += format!("/spfs{}{about}", diff.path).as_ref();
         let out = match diff.mode {
             tracking::DiffMode::Added => out.green(),
             tracking::DiffMode::Removed => out.red(),
@@ -96,9 +96,9 @@ pub fn format_size(size: u64) -> String {
     let mut size = size as f64;
     for unit in &["B", "Ki", "Mi", "Gi", "Ti"] {
         if size < 1024.0 {
-            return format!("{:3.1} {}", size, unit);
+            return format!("{size:3.1} {unit}");
         }
         size /= 1024.0;
     }
-    format!("{:3.1} Pi", size)
+    format!("{size:3.1} Pi")
 }

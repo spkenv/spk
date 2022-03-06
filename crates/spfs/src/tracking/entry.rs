@@ -63,7 +63,7 @@ impl FromStr for EntryKind {
             "tree" => Ok(Self::Tree),
             "file" => Ok(Self::Blob),
             "mask" => Ok(Self::Mask),
-            kind => Err(format!("invalid entry kind: {}", kind).into()),
+            kind => Err(format!("invalid entry kind: {kind}").into()),
         }
     }
 }

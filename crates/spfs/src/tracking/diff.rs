@@ -72,13 +72,13 @@ impl Diff {
             None => (),
             Some((a, b)) => {
                 if a.mode != b.mode {
-                    details = format!("{} {{{:06o} => {:06o}}}", details, a.mode, b.mode);
+                    details = format!("{details} {{{:06o} => {:06o}}}", a.mode, b.mode);
                 }
                 if a.kind != b.kind {
-                    details = format!("{} {{{} => {}}}", details, a.kind, b.kind);
+                    details = format!("{details} {{{} => {}}}", a.kind, b.kind);
                 }
                 if a.object != b.object {
-                    details = format!("{} {{!object!}}", details);
+                    details = format!("{details} {{!object!}}");
                 }
             }
         }

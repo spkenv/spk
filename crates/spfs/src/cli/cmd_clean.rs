@@ -133,7 +133,7 @@ impl CmdClean {
             info += spec_str.bold().to_string().as_ref();
             info += tag.user.blue().to_string().as_ref();
             info += tag.time.to_string().blue().as_ref(); // %F %R
-            println!("{}", info);
+            println!("{info}");
         }
 
         if !self.yes {
@@ -161,7 +161,7 @@ fn age_to_date(age: String) -> spfs::Result<DateTime<Utc>> {
         .parse()
         .map_err(|err| spfs::Error::from(format!("{:?}", err)))?;
     if num < 0 {
-        return Err(format!("provided age must be greater than zero: '{}'", age).into());
+        return Err(format!("provided age must be greater than zero: '{age}'").into());
     }
 
     match postfix {
@@ -171,10 +171,8 @@ fn age_to_date(age: String) -> spfs::Result<DateTime<Utc>> {
         "h" => Ok(Utc::now() - chrono::Duration::hours(num)),
         "m" => Ok(Utc::now() - chrono::Duration::minutes(num)),
         "s" => Ok(Utc::now() - chrono::Duration::seconds(num)),
-        _ => Err(format!(
-            "Unknown age postfix: '{}', must be one of y, w, d, h, m, s",
-            postfix
-        )
-        .into()),
+        _ => {
+            Err(format!("Unknown age postfix: '{postfix}', must be one of y, w, d, h, m, s").into())
+        }
     }
 }
