@@ -836,7 +836,7 @@ pub struct CompatRange {
 impl CompatRange {
     pub fn new_version_range<R: AsRef<str>>(range: R) -> Result<VersionRange> {
         let range = range.as_ref();
-        let compat_range = match range.rsplit_once(":") {
+        let compat_range = match range.rsplit_once(':') {
             Some((prefix, version)) => Self {
                 base: version.try_into()?,
                 required: Some(CompatRule::from_str(prefix)?),
@@ -963,13 +963,12 @@ impl Ranged for VersionFilter {
     fn greater_or_equal_to(&self) -> Option<Version> {
         self.rules
             .iter()
-            .map(|r| r.greater_or_equal_to())
-            .flatten()
+            .filter_map(|r| r.greater_or_equal_to())
             .max()
     }
 
     fn less_than(&self) -> Option<Version> {
-        self.rules.iter().map(|r| r.less_than()).flatten().min()
+        self.rules.iter().filter_map(|r| r.less_than()).min()
     }
 
     /// Return true if the given version number is applicable to this range.
