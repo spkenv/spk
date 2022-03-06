@@ -109,7 +109,7 @@ impl LocalSource {
             path = path.join("")
         }
         // require a trailing '/' on destination also so that rsync doesn't
-        // add aditional levels to the resulting structure
+        // add additional levels to the resulting structure
         let dirname = dirname.join("");
         if std::env::var("SPK_DEBUG").is_ok() {
             rsync.arg("--verbose");
