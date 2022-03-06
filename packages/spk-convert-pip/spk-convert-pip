@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 import os
 import sys
 import re
@@ -11,17 +11,15 @@ import argparse
 import tempfile
 import subprocess
 import pkginfo
+import json
 import packaging.version
 import packaging.markers
 from pathlib import Path
-
-import structlog
-
-import spk
-from spk import api, storage, build, solve, io
+import logging
 
 
-_LOGGER = structlog.get_logger("spk.external.pip")
+logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
+_LOGGER = logging.getLogger()
 BAKED_PYTHON_PACKAGES = ("setuptools", "pip", "wheel")
 
 
@@ -86,8 +84,7 @@ def main() -> int:
 
     print("\nThe following packages were converted:\n")
     for spec in specs:
-        print(f"  {spk.io.format_ident(spec.pkg)} ", end="")
-        print(spk.io.format_options(spec.resolve_all_options(spk.api.OptionMap())))
+        print(f"  {spec.get('pkg')}")
     print("")
 
     if args.publish is None:
@@ -98,9 +95,11 @@ def main() -> int:
         )
 
     if args.publish:
-        publisher = spk.Publisher().with_target(args.target_repo).force(args.force)
-        for spec in specs:
-            publisher.publish(spec.pkg)
+        cmd = ["spk", "publish", "-r", args.target_repo]
+        if args.force:
+            cmd.append("--force")
+        args.extend([spec["pkg"] for spec in specs])
+        subprocess.check_call(cmd)
 
 
 class PipImporter:
@@ -129,21 +128,21 @@ class PipImporter:
         self._follow_deps = recursive
         return self
 
-    def import_package(self, name: str, version: str = "") -> List[api.Spec]:
+    def import_package(self, name: str, version: str = "") -> List[Dict[str, Any]]:
 
         if name in self._visited:
-            _LOGGER.debug("found recursive dependency", name=name)
+            _LOGGER.debug(f"found recursive dependency {name}")
             return []
         self._visited.add(name)
 
-        _LOGGER.info("fetching pip package...", name=name, version=version)
+        _LOGGER.info(f"fetching pip package... {name} {version}")
 
         converted = []
         with tempfile.TemporaryDirectory() as _tmpdir:
 
             tmpdir = Path(_tmpdir)
             env_command = ["spk", "env"]
-            if self._python_abi is not None:
+            if self._python_abi:
                 env_command += ["-o", "python.abi=" + self._python_abi]
             env_command += [f"python/{self._python_version}"]
             pip_command = [
@@ -159,7 +158,7 @@ class PipImporter:
             try:
                 subprocess.check_output([*env_command, "--", *pip_command])
             except subprocess.CalledProcessError:
-                _LOGGER.error(f"failed to download pip package")
+                _LOGGER.error("failed to download pip package")
 
             downloaded = list(tmpdir.glob(f"*"))
             assert (
@@ -170,7 +169,7 @@ class PipImporter:
 
         return converted
 
-    def process_pip_package(self, filepath: Path) -> List[api.Spec]:
+    def process_pip_package(self, filepath: Path) -> List[Dict[str, Any]]:
 
         if filepath.name.endswith(".whl"):
             info = pkginfo.Wheel(filepath)
@@ -182,34 +181,36 @@ class PipImporter:
             )
         return self._process_package(info)
 
-    def _process_package(self, info: pkginfo.Distribution) -> List[api.Spec]:
+    def _process_package(self, info: pkginfo.Distribution) -> List[Dict[str, Any]]:
 
         assert not info.requires, "No support for installation requirements"
         assert not info.requires_external, "No support for external requirements"
         assert not info.supported_platforms, "No support for supported platforms field"
 
-        spec = api.Spec()
-        spec.pkg = api.Ident(
-            _to_spk_name(info.name),
-            api.parse_version(_to_spk_version(info.version)),
-        )
-        spec.sources = []
-        build_spec = spec.build
-        options: List[api.Option] = [
-            api.VarOpt("os"),
-            api.VarOpt("arch"),
-            api.VarOpt("distro"),
-            api.PkgOpt("python", self._python_version),
-        ]
-        if self._python_abi is not None:
-            options.append(api.VarOpt("python.abi", self._python_abi))
-        build_spec.options = options
-        build_spec.script = [
+        spec = {
+            "pkg": f"{_to_spk_name(info.name)}/{_to_spk_version(info.version)}",
+            "sources": [],
+            "build": {
+                "options": [
+                    {"var": "os"},
+                    {"var": "arch"},
+                    {"var": "distro"},
+                    {"pkg": f"python/{self._python_version}"},
+                    {"pkg": f"python-pip"},
+                ]
+            },
+            "install": {
+                "requirements": [],
+            }
+        }
+        api_var = f"/{self._python_abi}" if self._python_abi else ""
+        spec["build"]["options"].append({"var": f"python.abi{api_var}"})
+
+        spec["build"]["script"] = [
             "export PYTHONNOUSERSITE=1",
             "export PYTHONDONTWRITEBYTECODE=1",
             f"/spfs/bin/python -BEs -m pip install {info.name}=={info.version} --no-deps",
         ]
-        spec.build = build_spec
 
         builds = []
         if info.requires_python:
@@ -219,13 +220,9 @@ class PipImporter:
         # python packages can support a wide range of versions, and present dynamic
         # requirements based on the version used - spk does not do this so instead
         # we restrict the package to the python version that it's being imported for
-        requirements = spec.install.requirements
-        requirements.append(
-            api.PkgRequest(api.parse_ident_range(f"python/{self._python_version}"))
+        spec["install"]["requirements"].append(
+            {"pkg": f"python/{self._python_version}"}
         )
-        install = spec.install
-        install.requirements = requirements
-        spec.install = install
         for requirement_str in info.requires_dist:
 
             if ";" not in requirement_str:
@@ -238,11 +235,11 @@ class PipImporter:
                     {"extra": "", "python_version": self._python_version}
                 ):
                     _LOGGER.debug(
-                        "Skip requirement due to markers", requirement=requirement_str
+                        f"Skip requirement due to markers {requirement_str}"
                     )
                     continue
 
-            _LOGGER.debug("converting dependency requirement", requirement=version_str)
+            _LOGGER.debug(f"converting dependency requirement {version_str}")
             match = re.match(r"([^ ]+)( \((.*)\))?", version_str.strip())
             assert match, f"Failed to parse requirement string: {version_str}"
             pypi_name = match.group(1)
@@ -254,37 +251,21 @@ class PipImporter:
                 continue
             spk_name = _to_spk_name(pypi_name)
             spk_version_range = _to_spk_version_range(match.group(3) or "*")
-            request = api.PkgRequest(
-                api.parse_ident_range(f"{spk_name}/{spk_version_range}")
-            )
-            requirements = spec.install.requirements
-            requirements.append(request)
-            install = spec.install
-            install.requirements = requirements
-            spec.install = install
+            request = {
+                "pkg": f"{spk_name}/{spk_version_range}"
+            }
+            spec["install"]["requirements"].append(request)
 
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
                 builds.extend(self.import_package(match.group(1), match.group(3) or ""))
 
-        repo = storage.local_repository()
-        host_options = api.host_options()
-        if self._python_abi is not None:
-            host_options["python.abi"] = self._python_abi
-        _LOGGER.info("building generated package spec...", pkg=spec.pkg)
-        builder = build.BinaryPackageBuilder.from_spec(spec)
-        try:
-            created = (
-                builder.with_options(host_options)
-                .with_repository(repo)
-                .with_repository(storage.remote_repository())
-                .with_source(".")
-                .build()
-            )
-        except solve.SolverError:
-            print(io.format_solve_graph(builder.get_solve_graph(), verbosity=100))
-            raise
-        builds.insert(0, created)
+        with tempfile.NamedTemporaryFile('w') as spec_file:
+            json.dump(spec, spec_file)
+            spec_file.flush()
+            _LOGGER.info(f"building generated package spec... {spec['pkg']}")
+            subprocess.check_output(["spk", "build", spec_file.name])
+            builds.insert(0, spec)
 
         return builds
 
@@ -300,35 +281,26 @@ def _to_spk_name(name: str) -> str:
 def _to_spk_version(version: str) -> str:
 
     python_version = packaging.version.parse(version)
-    spk_version = api.parse_version(python_version.base_version)
+    spk_version = python_version.base_version
+    pre = []
     if python_version.pre is not None:
-        # rust requires that we take ownership before
-        # editing and then put it back
         name, num = python_version.pre
-        pre = spk_version.pre
-        pre[name] = num
-        spk_version.pre = pre
+        pre.append(f"{name}.{num}")
     if python_version.dev is not None:
-        # rust requires that we take ownership before
-        # editing and then put it back
-        pre = spk_version.pre
-        pre["dev"] = int(python_version.dev)  # type: ignore
-        spk_version.pre = pre
+        pre.append(f"dev.{int(python_version.dev)}")
+    if pre:
+        spk_version += f"-{','.join(pre)}"
     if python_version.post is not None:
-        # rust requires that we take ownership before
-        # editing and then put it back
-        post = spk_version.post
-        post["post"] = int(python_version.post)  # type: ignore
-        spk_version.post = post
+        spk_version += f"+post.{int(python_version.post)}"
     if python_version.local:
         # irrelevant information for compatibility of versions and
         # no equal concept in spk versions specs
         pass
 
-    return spk_version.__str__().replace(spk_version.base, python_version.base_version)
+    return spk_version
 
 
-def _to_spk_version_range(version_range: str) -> api.VersionRange:
+def _to_spk_version_range(version_range: str) -> str:
 
     version_range = version_range.replace(" ", "").strip(",")
     versions = version_range.split(",")
@@ -356,7 +328,7 @@ def _to_spk_version_range(version_range: str) -> api.VersionRange:
             version = version[1:]
         versions[i] = version
 
-    return api.parse_version_range(",".join(versions))
+    return ",".join(versions)
 
 
 def _to_spk_range_prefix(prefix: str) -> str:
@@ -400,7 +372,6 @@ if "SCRIPT_TESTING" in os.environ:
         ("1.1.dev1", "1.1-dev.1"),
     ]:
         actual = _to_spk_version(version)
-        api.parse_version(actual)  # must be valid
         assert actual == expected
     sys.exit(0)
 

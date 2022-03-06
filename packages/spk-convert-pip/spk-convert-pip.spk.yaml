@@ -1,0 +1,21 @@
+pkg: spk-convert-pip/1.0.0
+
+build:
+  options:
+    - pkg: python/3.7
+    - pkg: python-pip
+  script:
+    - /spfs/bin/pip install -r requirements.txt
+    - cp spk-convert-pip /spfs/bin/
+
+tests:
+  - stage: install
+    script:
+      - test $(pip --version | cut -d ' ' -f 2) == "$SPK_PKG_VERSION_BASE"
+
+install:
+  requirements:
+    - pkg: python
+      fromBuildEnv: x.x
+    - pkg: python-pip
+      fromBuildEnv: x.x
