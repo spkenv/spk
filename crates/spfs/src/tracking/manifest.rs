@@ -55,7 +55,7 @@ impl Manifest {
         if path.is_empty() {
             return Some(entry);
         }
-        for step in path.split('/').into_iter() {
+        for step in path.split('/') {
             if let EntryKind::Tree = entry.kind {
                 let next = entry.entries.get(step);
                 entry = match next {

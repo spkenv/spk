@@ -92,7 +92,7 @@ async fn pretty_print_ref(
                     node.entry.mode,
                     node.entry.kind,
                     spfs::io::format_digest(node.entry.object.to_string(), Some(repo)).await?,
-                    node.path.to_string(),
+                    node.path,
                 );
                 count += 1;
                 if count >= max_entries {

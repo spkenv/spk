@@ -52,7 +52,7 @@ pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
             continue;
         }
 
-        let migrated_path = root.with_file_name(format!("{}-{}", repo_name, version.to_string()));
+        let migrated_path = root.with_file_name(format!("{}-{}", repo_name, version));
         if migrated_path.exists() {
             return Err(format!("found existing migration data: {:?}", migrated_path).into());
         }
