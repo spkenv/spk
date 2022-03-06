@@ -93,12 +93,12 @@ docker.%:
 	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
 	exit 1; \
 	fi
-	docker build . -t spk-package-builder
-	docker run --privileged --rm \
+	cp builder.spfs.conf ../dist
+	docker build ../dist -t spk-package-builder -f Dockerfile
+	docker run --privileged --rm -ti \
 	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
+	-e RUST_LOG \
 	-v $$PWD/../build/packages/:/spfs-storage \
-	-v $$PWD/../dist/rpm/RPMS/x86_64:/rpms \
 	-v $$PWD/..:/work spk-package-builder bash -ex -c "\
-	yum install -y /rpms/* && \
 	cd /work && \
 	make packages.$*"
