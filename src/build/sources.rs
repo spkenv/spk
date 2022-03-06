@@ -11,7 +11,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{api, storage, Error, Result};
+use crate::{api, storage, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -145,9 +145,13 @@ pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -
             Some(subdir) => subdir.to_path(source_dir),
             None => source_dir.into(),
         };
-        std::fs::create_dir_all(&target_dir)
-            .map_err(Error::from)
-            .and_then(|_| source.collect(&target_dir, &env))?;
+        std::fs::create_dir_all(&target_dir)?;
+        source.collect(&target_dir, &env).map_err(|err| {
+            CollectionError::new_error(format_args!(
+                "Failed to collect source: {}\n{:?}",
+                err, source
+            ))
+        })?;
     }
     Ok(())
 }
