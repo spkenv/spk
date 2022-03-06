@@ -9,6 +9,9 @@ default: devel
 packages:
 	$(MAKE) -C packages packages
 
+packages.docker:
+	$(MAKE) -C packages docker.packages
+
 packages.%:
 	$(MAKE) -C packages $*
 
