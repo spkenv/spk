@@ -18,6 +18,7 @@ RUN yum install -y \
     libtool \
     m4 \
     make \
+    patch \
     perl \
     sed \
     tar \
