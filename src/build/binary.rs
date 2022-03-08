@@ -338,7 +338,9 @@ impl BinaryPackageBuilder {
                     // no need to turn that into a requirement to
                     // find a var with an empty value.
                     if let Some(value) = opts.get(&opt.var) {
-                        requests.push(opt.to_request(Some(value)).into());
+                        if !value.is_empty() {
+                            requests.push(opt.to_request(Some(value)).into());
+                        }
                     }
                 }
             }
