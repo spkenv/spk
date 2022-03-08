@@ -10,6 +10,7 @@ build:
     - pkg: gcc
     - pkg: stdfs
     - pkg: bzip2
+    - pkg: zlib/1.2
     - var: abi
       default: cp37m
       choices: [cp37m, cp37dm]
@@ -41,8 +42,14 @@ build:
           echo "Unsupported debug: $SPK_OPT_debug"
           ;;
       esac
-    - ./configure -prefix=${PREFIX} CC=$CC CXX=$CXX LDFLAGS='-Wl,--rpath=/spfs/lib'
-      --enable-optimizations --enable-shared $DEBUG
+    - ./configure
+      --prefix=${PREFIX}
+      CC=$CC
+      CXX=$CXX
+      LDFLAGS='-Wl,--rpath=/spfs/lib'
+      --enable-optimizations
+      --enable-shared
+      $DEBUG
     - make -j$(nproc)
     - make install
     # remove test files that are just bloat
@@ -66,6 +73,8 @@ tests:
     script:
       # Verify bz2 support is available by importing and not getting a traceback
       - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
+      # Verify zlib support is available by importing and not getting a traceback
+      - test -z "$(/spfs/bin/python -c 'import zlib' 2>&1)"
 
 install:
   environment:

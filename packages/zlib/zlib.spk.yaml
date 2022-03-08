@@ -22,10 +22,13 @@ build:
   # Because this is a pure C library, just build with any gcc and don't
   # specify multiple gcc variants.
   script:
-    - cmake -S zlib -B build 
+    - cmake -S zlib -B build
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
     - cmake --build build --target install
+  variants:
+    - {gcc: 4.8}
+    - {gcc: 6.3}
 
 install:
   requirements:
