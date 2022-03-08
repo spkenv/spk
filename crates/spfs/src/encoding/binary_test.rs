@@ -71,7 +71,7 @@ fn random_word(length: usize) -> String {
     case(10)
 )]
 fn test_read_write_string(i: u64) {
-    println!("running generated test #{}", i);
+    println!("running generated test #{i}");
     let value = random_word(rand::thread_rng().gen_range(256, 1024));
     let postfix = random_word(rand::thread_rng().gen_range(256, 1024));
 

@@ -45,7 +45,7 @@ fn test_tag_spec_split(raw: &str, expected: (Option<&str>, &str, u64)) {
 fn test_tag_spec_class() {
     let src = "org/name~1";
     let spec = TagSpec::parse(src).expect("failed to create tag");
-    assert_eq!(format!("{}", spec), src.to_string());
+    assert_eq!(format!("{spec}"), src.to_string());
     assert_eq!(spec.org(), Some("org".to_string()));
     assert_eq!(spec.name(), "name");
     assert_eq!(spec.version(), 1);

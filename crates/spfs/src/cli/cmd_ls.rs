@@ -40,7 +40,7 @@ impl CmdLs {
         let manifest = spfs::compute_object_manifest(item, &repo).await?;
         if let Some(entries) = manifest.list_dir(path.as_str()) {
             for name in entries {
-                println!("{}", name);
+                println!("{name}");
             }
         } else {
             match manifest.get_path(path.as_str()) {

@@ -461,8 +461,7 @@ where
                             Ok(size) => self.sizes.push(size),
                             Err(err) => {
                                 return Ready(Some(Err(Error::String(format!(
-                                    "tag file contains invalid size index: {}",
-                                    err
+                                    "tag file contains invalid size index: {err}",
                                 )))))
                             }
                         }
@@ -503,8 +502,7 @@ where
                             Ok(size) => self.buf.resize(size, 0),
                             Err(err) => {
                                 return Ready(Some(Err(Error::String(format!(
-                                    "tag is too large to be loaded: {}",
-                                    err
+                                    "tag is too large to be loaded: {err}",
                                 )))))
                             }
                         }
@@ -563,7 +561,7 @@ fn tag_from_path<P: AsRef<Path>, R: AsRef<Path>>(path: P, root: R) -> Result<tra
     let filename = match path.file_stem() {
         Some(stem) => stem.to_owned(),
         None => {
-            return Err(format!("Path must end with '.{}' to be considered a tag", TAG_EXT).into())
+            return Err(format!("Path must end with '.{TAG_EXT}' to be considered a tag").into())
         }
     };
     path.set_file_name(filename);

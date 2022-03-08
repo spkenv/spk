@@ -46,7 +46,7 @@ impl CmdCommit {
             let tag_spec = match spfs::tracking::TagSpec::parse(tag) {
                 Ok(tag_spec) => tag_spec,
                 Err(err) => {
-                    tracing::warn!("cannot set invalid tag '{}': {:?}", tag, err);
+                    tracing::warn!("cannot set invalid tag '{tag}': {err:?}");
                     continue;
                 }
             };

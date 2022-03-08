@@ -21,7 +21,7 @@ pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<
         tracing::info!("removing orphaned data");
         let count = unattached.len();
         purge_objects(&unattached.iter().collect::<Vec<_>>(), repo).await?;
-        tracing::info!("cleaned {} objects", count);
+        tracing::info!("cleaned {count} objects");
     }
     Ok(())
 }
@@ -52,7 +52,7 @@ pub async fn purge_objects(
     let mut errors = Vec::new();
 
     let bars_future = tokio::task::spawn_blocking(move || multibar.join());
-    let map_err = |e| Error::String(format!("Unexpected error in clean process: {}", e));
+    let map_err = |e| Error::String(format!("Unexpected error in clean process: {e}"));
 
     // we still do each of these pieces separately, because we'd like
     // to ensure that objects are removed successfully before any
@@ -94,8 +94,8 @@ pub async fn purge_objects(
     render_bar.finish();
 
     match bars_future.await {
-        Err(err) => tracing::warn!("{}", err),
-        Ok(Err(err)) => tracing::warn!("{}", err),
+        Err(err) => tracing::warn!("{err}"),
+        Ok(Err(err)) => tracing::warn!("{err}"),
         _ => (),
     }
 

@@ -102,7 +102,7 @@ pub async fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Resul
         .filesystem
         .tmpfs_size
         .as_ref()
-        .map(|size| format!("size={}", size));
+        .map(|size| format!("size={size}"));
 
     env::enter_mount_namespace()?;
     let original = env::become_root()?;

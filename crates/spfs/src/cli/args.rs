@@ -30,12 +30,12 @@ pub fn configure_sentry() {
     // produces a panic log output
     if let Some(url) = opts.http_proxy.as_ref().map(ToString::to_string) {
         if !url.contains("://") {
-            opts.http_proxy = Some(format!("http://{}", url)).map(Cow::Owned);
+            opts.http_proxy = Some(format!("http://{url}")).map(Cow::Owned);
         }
     }
     if let Some(url) = opts.https_proxy.as_ref().map(ToString::to_string) {
         if !url.contains("://") {
-            opts.https_proxy = Some(format!("https://{}", url)).map(Cow::Owned);
+            opts.https_proxy = Some(format!("https://{url}")).map(Cow::Owned);
         }
     }
 
@@ -173,7 +173,7 @@ macro_rules! handle_result {
         match $result {
             Err(err) => {
                 args::capture_if_relevant(&err);
-                tracing::error!("{}", err);
+                tracing::error!("{err}");
                 1
             }
             Ok(code) => code,

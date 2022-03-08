@@ -227,9 +227,8 @@ async fn sync_blob(
         let (digest, _) = dest.write_data(payload).await?;
         if digest != blob.payload {
             return Err(Error::String(format!(
-                "Source repository provided blob that did not match the requested digest: wanted {}, got {}",
+                "Source repository provided blob that did not match the requested digest: wanted {}, got {digest}",
                 blob.payload,
-                digest
             )));
         }
     }

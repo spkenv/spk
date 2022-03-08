@@ -69,13 +69,13 @@ impl Diff {
         let mut details = String::new();
         if let DiffMode::Changed(a, b) = &self.mode {
             if a.mode != b.mode {
-                details = format!("{} {{{:06o} => {:06o}}}", details, a.mode, b.mode);
+                details = format!("{details} {{{:06o} => {:06o}}}", a.mode, b.mode);
             }
             if a.kind != b.kind {
-                details = format!("{} {{{} => {}}}", details, a.kind, b.kind);
+                details = format!("{details} {{{} => {}}}", a.kind, b.kind);
             }
             if a.object != b.object {
-                details = format!("{} {{!object!}}", details);
+                details = format!("{details} {{!content!}}");
             }
         }
         details

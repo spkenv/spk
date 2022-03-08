@@ -122,9 +122,7 @@ impl<'db> Stream for DatabaseIterator<'db> {
             }
             Poll::Ready(res) => Poll::Ready(match res {
                 Ok(obj) => Some(Ok((digest, obj))),
-                Err(err) => Some(Err(
-                    format!("Error reading object {}: {}", &digest, err).into()
-                )),
+                Err(err) => Some(Err(format!("Error reading object {digest}: {err}").into())),
             }),
         }
     }

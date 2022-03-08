@@ -137,7 +137,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             let local_http_addr = http_listener.local_addr().unwrap();
             let payload_service = spfs::server::PayloadService::new(
                 repo.clone(),
-                format!("http://{}", local_http_addr).parse().unwrap(),
+                format!("http://{local_http_addr}").parse().unwrap(),
             );
             let (grpc_shutdown, grpc_shutdown_recv) = std::sync::mpsc::channel::<()>();
             let (http_shutdown, http_shutdown_recv) = std::sync::mpsc::channel::<()>();
@@ -160,7 +160,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                     .await
                     .unwrap()
                 });
-            tracing::debug!("test rpc server listening: {}", local_grpc_addr);
+            tracing::debug!("test rpc server listening: {local_grpc_addr}");
             let grpc_join_handle =
                 tokio::task::spawn(async move { grpc_future.await.expect("test server failed") });
             let http_server = {
@@ -184,8 +184,8 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             });
             let http_join_handle =
                 tokio::task::spawn(async move { http_future.await.expect("http server failed") });
-            let url = format!("http2://{}", local_grpc_addr).parse().unwrap();
-            tracing::debug!("Connected to rpc test repo: {}", url);
+            let url = format!("http2://{local_grpc_addr}").parse().unwrap();
+            tracing::debug!("Connected to rpc test repo: {url}");
             let repo = spfs::storage::rpc::RpcRepository::connect(url)
                 .await
                 .unwrap()
@@ -199,7 +199,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 tmpdir,
             }
         }
-        _ => panic!("unknown repo kind '{}'", kind),
+        _ => panic!("unknown repo kind '{kind}'"),
     }
 }
 

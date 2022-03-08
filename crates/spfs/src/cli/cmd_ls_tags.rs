@@ -31,8 +31,8 @@ impl CmdLsTags {
         let mut names = repo.ls_tags(&path);
         while let Some(item) = names.next().await {
             match item {
-                Ok(name) => println!("{}", name),
-                Err(err) => tracing::error!("{}", err),
+                Ok(name) => println!("{name}"),
+                Err(err) => tracing::error!("{err}"),
             }
         }
         Ok(0)
