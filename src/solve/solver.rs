@@ -502,14 +502,12 @@ impl Iterator for SolverRuntime {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(&msg.to_string(), &n_lock.state))
-                                    .as_decision(),
+                                Change::StepBack(StepBack::new(msg, &n_lock.state)).as_decision(),
                             )
                         }
                         None => {
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
-                                    .as_decision(),
+                                Change::StepBack(StepBack::new(msg, &DEAD_STATE)).as_decision(),
                             )
                         }
                     }

@@ -407,7 +407,7 @@ impl SPFSRepository {
         // the "+" character is not a valid spfs tag character,
         // so we 'encode' it with two dots, which is not a valid sequence
         // for spk package names
-        tag.push(pkg.to_string().replace("+", ".."));
+        tag.push(pkg.to_string().replace('+', ".."));
 
         Ok(tag)
     }
@@ -418,7 +418,7 @@ impl SPFSRepository {
         tag.push("spec");
         // the "+" character is not a valid spfs tag character,
         // see above ^
-        tag.push(pkg.to_string().replace("+", ".."));
+        tag.push(pkg.to_string().replace('+', ".."));
 
         tag
     }
