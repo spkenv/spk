@@ -77,16 +77,7 @@ pub fn must_not_alter_existing_files<P: AsRef<Path>>(
         }
         match diff.mode {
             DiffMode::Added | DiffMode::Unchanged => continue,
-            DiffMode::Removed => (),
-            DiffMode::Changed => {
-                if let Some((a, b)) = &diff.entries {
-                    let mode_change = a.mode ^ b.mode;
-                    let nonperm_change = (mode_change | 0o777) ^ 0o77;
-                    if mode_change != 0 && nonperm_change == 0 {
-                        continue;
-                    }
-                }
-            }
+            DiffMode::Removed | DiffMode::Changed => (),
         }
         return Some(format!(
             "Existing file was {:?}: {:?}",

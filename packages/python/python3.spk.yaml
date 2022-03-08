@@ -82,7 +82,7 @@ install:
         - /etc/
         - /bin/
         - /lib/
-        - !/lib/pkgconfig
+        - '!/lib/pkgconfig'
     - name: build
       uses: [run]
       files:
