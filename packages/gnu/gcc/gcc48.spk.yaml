@@ -2,6 +2,7 @@ pkg: gcc/4.8.5
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-4.8.5/gcc-4.8.5.tar.gz
+  - path: patch-gcc46-texi.diff
 
 build:
   options:
@@ -24,6 +25,7 @@ build:
     - pkg: make
     - pkg: gcc/<=4.8.5
   script:
+    - patch -d gcc-4.8.5 -p0 <patch-gcc46-texi.diff
     - cd gcc-4.8.5
     - ./configure
       --prefix=/spfs
@@ -32,14 +34,18 @@ build:
       --with-mpc=/spfs
       --with-platlibdir=lib
       --disable-multilib
-      --enable-language=c,c++
+      --enable-language=c,c++1
     # library path cannot be set when building gcc - it will due to a specific check for this
     - unset LIBRARY_PATH
     - make -j$(nproc)
     - make check
     - make install
     # no need to keep extra bloat files in info dir
-    - rm -r /spfs/share/info
+    - spfs reset /spfs/share/info/**/*
+  validation:
+    disabled:
+      # we are replacing the old gcc version on purpose
+      - MustNotAlterExistingFiles
 
 tests:
   - stage: install
