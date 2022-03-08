@@ -89,13 +89,13 @@ fn copy_package(
 ) -> Result<()> {
     let spec = src_repo.read_spec(pkg)?;
     if pkg.build.is_none() {
-        tracing::info!(?pkg, "exporting");
+        tracing::info!(%pkg, "exporting");
         dst_repo.publish_spec(spec)?;
         return Ok(());
     }
 
     let components = src_repo.get_package(pkg)?;
-    tracing::info!(?pkg, "exporting");
+    tracing::info!(%pkg, "exporting");
     for (_name, digest) in components.iter() {
         crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), src_repo, dst_repo))?;
     }
