@@ -36,6 +36,11 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
         if desired_components.remove(&api::Component::All) {
             desired_components.extend(components.keys().cloned());
         }
+        desired_components = resolved
+            .spec
+            .install
+            .components
+            .resolve_uses(desired_components.iter());
 
         for name in desired_components.into_iter() {
             let digest = components.get(&name).ok_or_else(|| {
