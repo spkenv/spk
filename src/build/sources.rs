@@ -72,17 +72,7 @@ impl SourcePackageBuilder {
     #[pyo3(name = "build")]
     fn build_py(&mut self) -> Result<api::Ident> {
         let _guard = crate::HANDLE.enter();
-        // build is intended to consume the builder,
-        // but we cannot effectively do this from
-        // a python reference. So we make a partial
-        // clone/copy with the assumption that python
-        // won't reuse this builder
-        Self {
-            spec: self.spec.clone(),
-            prefix: self.prefix.clone(),
-            repo: self.repo.take(),
-        }
-        .build()
+        self.build()
     }
 }
 
@@ -108,7 +98,7 @@ impl SourcePackageBuilder {
         components.insert(api::Component::Source, layer.digest()?);
         repo.lock()
             .unwrap()
-            .publish_package(self.spec, components)?;
+            .publish_package(self.spec.clone(), components)?;
         Ok(pkg)
     }
 
@@ -123,13 +113,14 @@ impl SourcePackageBuilder {
         let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
         collect_sources(&self.spec, &source_dir)?;
 
-        tracing::info!("Validating package source files...");
+        tracing::info!("Validating source package contents...");
         let diffs = spfs::diff(None, None).await?;
         validate_source_changeset(
             diffs,
             RelativePathBuf::from(source_dir.to_string_lossy().to_string()),
         )?;
 
+        tracing::info!("Committing source package contents...");
         Ok(spfs::commit_layer(&mut runtime).await?)
     }
 }
