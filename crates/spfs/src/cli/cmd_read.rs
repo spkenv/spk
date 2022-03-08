@@ -47,12 +47,12 @@ impl CmdRead {
                 let entry = match manifest.get_path(&path) {
                     Some(e) => e,
                     None => {
-                        tracing::error!("file does not exist: {}", path);
+                        tracing::error!("file does not exist: {path}");
                         return Ok(1);
                     }
                 };
                 if !entry.kind.is_blob() {
-                    tracing::error!("path is a directory or masked file: {}", path);
+                    tracing::error!("path is a directory or masked file: {path}");
                     return Ok(1);
                 }
                 repo.read_blob(entry.object).await?

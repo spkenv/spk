@@ -98,11 +98,11 @@ pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::M
                     break;
                 }
                 Err(Error::UnknownObject(_)) => {
-                    tracing::trace!("{:?} UnknownObject {}", repo, tag_spec);
+                    tracing::trace!("{repo:?} UnknownObject {tag_spec}");
                     continue;
                 }
                 Err(Error::UnknownReference(_)) => {
-                    tracing::trace!("{:?} UnknownReference {}", repo, tag_spec);
+                    tracing::trace!("{repo:?} UnknownReference {tag_spec}");
                     continue;
                 }
                 Err(err) => return Err(err),
@@ -151,7 +151,7 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
     }
     if manifests.len() > config.filesystem.max_layers {
         let to_flatten = manifests.len() - config.filesystem.max_layers as usize;
-        tracing::debug!("flattening {} layers into one...", to_flatten);
+        tracing::debug!("flattening {to_flatten} layers into one...");
         let mut manifest = tracking::Manifest::default();
         for next in manifests.drain(0..to_flatten) {
             manifest.update(&next.unlock());
@@ -184,7 +184,7 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
         while let Some(result) = futures.next().await {
             bar.inc(1);
             result
-                .map_err(|e| Error::String(format!("Unexpected error in render process: {}", e)))
+                .map_err(|e| Error::String(format!("Unexpected error in render process: {e}")))
                 .and_then(|r| r)?;
         }
     }

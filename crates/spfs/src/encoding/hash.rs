@@ -170,7 +170,7 @@ impl PartialDigest {
         // BASE32 requires padding in mutliples of 8
         let missing = partial.len() % 8;
         if missing > 0 {
-            partial = Cow::Owned(format!("{}{}", partial, "=".repeat(missing)));
+            partial = Cow::Owned(format!("{partial}{}", "=".repeat(missing)));
         }
         let decoded = BASE32
             .decode(partial.as_bytes())
@@ -276,10 +276,8 @@ impl<'a> Digest {
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {
             Err(err) => Err(Error::new(format!(
-                "{} ({} != {})",
-                err,
+                "{err} ({} != {SHA256_OUTPUT_LEN})",
                 digest_bytes.len(),
-                SHA256_OUTPUT_LEN
             ))),
             Ok(bytes) => Ok(Self(bytes)),
         }

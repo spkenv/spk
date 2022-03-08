@@ -145,7 +145,7 @@ async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
         };
 
         // either in the PATH or next to the current binary
-        let command = format!("spfs-{}", command);
+        let command = format!("spfs-{command}");
         let cmd_path = match spfs::which(command.as_str()) {
             Some(cmd) => cmd,
             None => {
@@ -175,9 +175,9 @@ async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
         if let Err(err) = nix::unistd::execvp(command_cstr.as_c_str(), args_cstr.as_slice()) {
             match err.as_errno() {
                 Some(nix::errno::Errno::ENOENT) => {
-                    tracing::error!("{} not found in PATH, was it properly installed?", command)
+                    tracing::error!("{command} not found in PATH, was it properly installed?")
                 }
-                _ => tracing::error!("subcommand failed: {:?}", err),
+                _ => tracing::error!("subcommand failed: {err:?}"),
             }
             return Ok(1);
         }

@@ -135,8 +135,7 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semv
         Ok(v) => Ok(v),
         Err(err) => match err {
             semver::SemVerError::ParseError(err) => Err(crate::Error::String(format!(
-                "Failed to read repository version: {}",
-                err,
+                "Failed to read repository version: {err}",
             ))),
         },
     }

@@ -22,14 +22,13 @@ impl CmdRuntimes {
             let mut message = runtime.reference().to_string_lossy().to_string();
             if !self.quiet {
                 message = format!(
-                    "{}\trunning={}\tpid={:?}\teditable={}",
-                    message,
+                    "{message}\trunning={}\tpid={:?}\teditable={}",
                     runtime.is_running(),
                     runtime.get_pid(),
                     runtime.is_editable()
                 )
             }
-            println!("{}", message);
+            println!("{message}");
         }
         Ok(0)
     }

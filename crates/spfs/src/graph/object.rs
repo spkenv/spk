@@ -140,7 +140,7 @@ impl encoding::Decodable for Object {
             Some(ObjectKind::Platform) => Ok(Self::Platform(Platform::decode(&mut reader)?)),
             Some(ObjectKind::Tree) => Ok(Self::Tree(Tree::decode(&mut reader)?)),
             Some(ObjectKind::Mask) => Ok(Self::Mask),
-            None => Err(format!("Cannot read object: unknown object kind {}", type_id).into()),
+            None => Err(format!("Cannot read object: unknown object kind {type_id}").into()),
         }
     }
 }

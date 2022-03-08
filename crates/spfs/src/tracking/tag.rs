@@ -61,7 +61,7 @@ impl Tag {
     /// Return this tag with no version number.
     pub fn path(&self) -> String {
         if let Some(org) = self.org.as_ref() {
-            format!("{}/{}", org, self.name)
+            format!("{org}/{}", self.name)
         } else {
             self.name.clone()
         }
@@ -172,7 +172,7 @@ impl TagSpec {
     /// This tag with no version number.
     pub fn path(&self) -> String {
         if let Some(org) = self.0.as_ref() {
-            format!("{}/{}", org, self.1)
+            format!("{org}/{}", self.1)
         } else {
             self.1.clone()
         }
@@ -186,11 +186,11 @@ impl TagSpec {
 impl std::fmt::Display for TagSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TagSpec(None, name, 0) => f.write_fmt(format_args!("{}", name)),
-            TagSpec(None, name, version) => f.write_fmt(format_args!("{}~{}", name, version)),
-            TagSpec(Some(org), name, 0) => f.write_fmt(format_args!("{}/{}", org, name)),
+            TagSpec(None, name, 0) => f.write_fmt(format_args!("{name}")),
+            TagSpec(None, name, version) => f.write_fmt(format_args!("{name}~{version}")),
+            TagSpec(Some(org), name, 0) => f.write_fmt(format_args!("{org}/{name}")),
             TagSpec(Some(org), name, version) => {
-                f.write_fmt(format_args!("{}/{}~{}", org, name, version))
+                f.write_fmt(format_args!("{org}/{name}~{version}"))
             }
         }
     }
@@ -209,7 +209,7 @@ pub fn build_tag_spec(org: Option<String>, name: String, version: u64) -> Result
     }
     let mut spec = path;
     if version != 0 {
-        spec = format!("{}~{}", &spec, version);
+        spec = format!("{spec}~{version}");
     }
     TagSpec::parse(&spec)
 }
@@ -233,7 +233,7 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
     let name = name_version.pop().unwrap();
 
     if name.is_empty() {
-        return Err(format!("tag name cannot be empty: {}", spec).into());
+        return Err(format!("tag name cannot be empty: {spec}").into());
     }
 
     let mut index = _find_org_error(org);
@@ -244,7 +244,7 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
             org.chars().nth(index).unwrap(),
             &org[index + 1..]
         );
-        return Err(format!("invalid tag org at pos {}: {}", index, err_str).into());
+        return Err(format!("invalid tag org at pos {index}: {err_str}").into());
     }
     index = _find_name_error(name);
     if let Some(index) = index {
@@ -254,7 +254,7 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
             name.chars().nth(index).unwrap(),
             &name[index + 1..]
         );
-        return Err(format!("invalid tag name at pos {}: {}", index, err_str).into());
+        return Err(format!("invalid tag name at pos {index}: {err_str}").into());
     }
     index = _find_version_error(version);
     if let Some(index) = index {
@@ -264,7 +264,7 @@ pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
             version.chars().nth(index).unwrap(),
             &version[index + 1..]
         );
-        return Err(format!("invalid tag version at pos {}: {}", index, err_str).into());
+        return Err(format!("invalid tag version at pos {index}: {err_str}").into());
     }
 
     let org = if org.is_empty() {

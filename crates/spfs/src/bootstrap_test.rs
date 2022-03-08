@@ -28,7 +28,7 @@ fn test_shell_initialization_startup_scripts(
     let shell_path = match which(shell) {
         Some(path) => path,
         None => {
-            println!("{} not available on this system", shell);
+            println!("{shell} not available on this system");
             return;
         }
     };
@@ -54,7 +54,7 @@ fn test_shell_initialization_startup_scripts(
         ));
         cmd.arg(startup_script);
         setenv(&mut cmd);
-        println!("{:?}", cmd);
+        println!("{cmd:?}");
         println!("{:?}", cmd.output().unwrap());
     }
 
@@ -71,10 +71,10 @@ fn test_shell_initialization_startup_scripts(
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());
     setenv(&mut cmd);
-    println!("{:?}", cmd);
+    println!("{cmd:?}");
     let out = cmd.output().unwrap();
     rt.delete().unwrap();
-    println!("{:?}", out);
+    println!("{out:?}");
     assert!(out.stdout.ends_with("spfs-test-value\n".as_bytes()));
 }
 
@@ -84,7 +84,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     let shell_path = match which(shell) {
         Some(path) => path,
         None => {
-            println!("{} not available on this system", shell);
+            println!("{shell} not available on this system");
             return;
         }
     };
@@ -103,7 +103,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     for startup_script in &[&rt.sh_startup_file, &rt.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
-        cmd.arg(format!("s|/spfs/etc/spfs/startup.d|{:?}|", tmp_startup_dir));
+        cmd.arg(format!("s|/spfs/etc/spfs/startup.d|{tmp_startup_dir:?}|"));
         cmd.arg(startup_script);
         setenv(&mut cmd);
         println!("{:?}", cmd.output().unwrap());
