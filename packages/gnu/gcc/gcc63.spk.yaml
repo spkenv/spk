@@ -31,7 +31,6 @@ build:
       --with-mpc=/spfs
       --with-platlibdir=lib
       --disable-multilib
-      --enable-language=c,c++
     # library path cannot be set when building gcc - it will due to a specific check for this
     - unset LIBRARY_PATH
     - make -j$(nproc)
