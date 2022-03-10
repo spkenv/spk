@@ -1,6 +1,7 @@
 name: RPM & Packages
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
   push:
@@ -26,6 +27,9 @@ jobs:
   make_packages:
     runs-on: ubuntu-latest
     needs: build
+    # we only build all the packages on master, or when
+    # it is manually triggered by someone to run
+    if: github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v2
       - name: Download Deps
