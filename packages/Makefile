@@ -58,7 +58,7 @@ perl: gnu perl/perl.spk
 .PHONY: python python2 python3
 python: python2 python3
 python2: bootstrap bzip2/bzip2.spk zlib/zlib.spk python/python2.spk
-python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk python/python3.spk
+python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk libffi/libffi.spk openssl/openssl.spk python/python3.spk
 
 zlib/zlib.spk: cmake/cmake.spk
 
@@ -74,10 +74,8 @@ import:
 
 %.spk : %.spk.yaml
 	spk info -l $<@source > /dev/null 2>&1 || spk make-source -v $<
-	# spk test $<@sources
 	spk mkb -dr origin -lv $<
 	spk export $< $@
-	# spk test $<@install
 
 .PRECIOUS: bootstrap/*.spk.yaml
 bootstrap/%.spk.yaml : bootstrap/spk.yaml.in

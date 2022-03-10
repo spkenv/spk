@@ -29,7 +29,7 @@ RUN yum install -y \
 
 RUN yum update -y
 
-COPY rpm/RPMS/x86_64/*.rpm /tmp
+COPY rpm/RPMS/x86_64/*.rpm /tmp/
 RUN yum install -y /tmp/*.rpm
 
 RUN mkdir -p /spfs-storage /spfs-origin/{objects,payloads,tags}
