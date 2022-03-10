@@ -23,7 +23,12 @@ build:
     - make check
     - make install
     # no need to keep these extra files around
-    - rm -r /spfs/share/info
+    - spfs reset /spfs/share/info/**/*
+  validation:
+    disabled:
+      # gcc will pull in mpfr, which pulls in gmp,
+      # but we are going to replace that
+      - MustNotAlterExistingFiles
 
 tests:
   - stage: install

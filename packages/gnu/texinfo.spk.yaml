@@ -16,7 +16,7 @@ build:
     - ./configure --prefix=/spfs
     - make
     - make install
-    - rm -r /spfs/share/info
+    - spfs reset /spfs/share/info/**/*
 
 install:
   requirements:

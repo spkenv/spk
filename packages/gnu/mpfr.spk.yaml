@@ -29,7 +29,7 @@ build:
     - make check
     - make install
     # no need to keep these extra files around
-    - rm -r /spfs/share/info
+    - spfs reset /spfs/share/info/**/*
 
 tests:
   - stage: install
