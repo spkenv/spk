@@ -12,6 +12,11 @@ use crate::{graph, storage, tracking, Error, Result};
 #[path = "./sync_test.rs"]
 mod sync_test;
 
+/// Limits the concurrency in sync operations to avoid
+/// connection and open file descriptor limits
+// TODO: load this from the config
+static MAX_CONCURRENT: usize = 256;
+
 pub async fn push_ref<R: AsRef<str>>(
     reference: R,
     remote: Option<storage::RepositoryHandle>,
@@ -160,9 +165,7 @@ pub async fn sync_manifest(
     let mut futures =
         futures::stream::FuturesUnordered::<tokio::task::JoinHandle<Result<u64>>>::new();
     for entry in entries {
-        // arbitrary limit for now to avoid connection limits
-        // TODO: get this from the config instead
-        while futures.len() >= 256 {
+        while futures.len() >= MAX_CONCURRENT {
             if let Some(res) = futures.next().await {
                 let res = res
                     .map_err(|err| Error::String(format!("Sync task failed unexpectedly: {}", err)))
