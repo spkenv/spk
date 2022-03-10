@@ -10,6 +10,10 @@ build:
     - pkg: gcc
     - pkg: stdfs
     - pkg: bzip2
+    - pkg: ncurses
+    - pkg: binutils
+    - pkg: libffi
+    - pkg: openssl
     - pkg: zlib/1.2
     - var: abi
       default: cp37m
@@ -19,7 +23,6 @@ build:
       default: off
       choices: [on, off]
   variants:
-    - { gcc: 4.8, abi: cp37m, debug: off }
     - { gcc: 6.3, abi: cp37m, debug: off }
   script:
     - |
@@ -46,9 +49,12 @@ build:
       --prefix=${PREFIX}
       CC=$CC
       CXX=$CXX
-      LDFLAGS='-Wl,--rpath=/spfs/lib'
-      --enable-optimizations
+      LDFLAGS='-Wl,--rpath=/spfs/lib,-L/spfs/lib'
+      PKG_CONFIG_PATH=/spfs/share/pkgconfig:/spfs/lib/pkgconfig
+      CPPFLAGS='-I/spfs/include/ncurses'
       --enable-shared
+      --with-ensurepip=no
+      --enable-optimizations
       $DEBUG
     - make -j$(nproc)
     - make install
@@ -85,6 +91,13 @@ install:
       fromBuildEnv: x.x
       include: IfAlreadyPresent
     - pkg: stdfs
+    - pkg: libffi
+    - pkg: ncurses
+    - pkg: bzip2
+    - pkg: zlib
+    - pkg: openssl
+    - pkg: binutils
+      fromBuildEnv: x.x
   components:
     - name: run
       files:

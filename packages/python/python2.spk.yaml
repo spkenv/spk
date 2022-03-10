@@ -60,8 +60,17 @@ build:
     - echo "#!/bin/bash" > /spfs/bin/python
     - echo 'exec python2 "$@"' >> /spfs/bin/python
     - chmod +x /spfs/bin/python
-    - ./configure -prefix=${PREFIX} CC=$CC CXX=$CXX LDFLAGS='-Wl,--rpath=/spfs/lib'
-      --enable-shared "$UNICODE" $DEBUG
+    - ./configure
+      --prefix=${PREFIX}
+      CC=$CC
+      CXX=$CXX
+      LDFLAGS='-Wl,--rpath=/spfs/lib,-L/spfs/lib'
+      PKG_CONFIG_PATH=/spfs/share/pkgconfig:/spfs/lib/pkgconfig
+      CPPFLAGS='-I/spfs/include/ncurses'
+      --with-ensurepip=no
+      --enable-shared
+      "$UNICODE"
+      $DEBUG
     - make -j$(nproc)
     - make install
     # remove test files that are just bloat
