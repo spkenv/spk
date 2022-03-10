@@ -1,4 +1,4 @@
-name: RPM Build
+name: RPM & Packages
 
 on:
   pull_request:
@@ -23,3 +23,23 @@ jobs:
         with:
           name: Binary RPM
           path: dist/rpm/RPMS/x86_64/${{ env.RPM_NAME }}.rpm
+  make_packages:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download Deps
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          github_token: ${{secrets.SPFS_PULL_PASSWORD}}
+          workflow: rpm.yml
+          workflow_conclusion: success
+          branch: master
+          name: Binary RPM
+          repo: imageworks/spfs
+      - uses: actions/download-artifact@v2
+        with:
+          name: Binary RPM
+      - run: mkdir -p dist/rpm/RPMS/x86_64/
+      - run: cp *.rpm dist/rpm/RPMS/x86_64/
+      - run: make packages.docker

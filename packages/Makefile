@@ -97,7 +97,7 @@ docker.%:
 	fi
 	cp builder.spfs.conf ../dist
 	docker build ../dist -t spk-package-builder -f Dockerfile
-	docker run --privileged --rm -ti \
+	docker run --privileged --rm -i \
 	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
 	-e RUST_LOG \
 	-v $$PWD/../build/packages/:/spfs-storage \
