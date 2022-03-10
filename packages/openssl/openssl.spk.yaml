@@ -1,0 +1,44 @@
+pkg: openssl/1.1.1+r.13 # m=13
+
+sources:
+  - tar: https://www.openssl.org/source/openssl-1.1.1m.tar.gz
+
+build:
+  options:
+    - pkg: stdfs
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: gcc/6.3
+  script:
+    - cd openssl-1.1.1m
+    - ./config
+      --prefix=${PREFIX}
+      --openssldir=${PREFIX}/etc/pki/tls
+      '-Wl,--rpath,/spfs/lib'
+    - make -j$(nproc) CC=$CC CXX=$CXX
+    - make install
+
+install:
+  requirements:
+    - pkg: stdfs
+    - pkg: gcc
+      fromBuildEnv: x.x
+  environment:
+    - set: OPENSSLDIR
+      value: /etc/pki/tls
+  components:
+    - name: run
+      files:
+        - bin/
+        - lib/
+    - name: build
+      uses: [run]
+      files:
+        - include/
+    - name: man
+      files:
+        - /share/man/
+    - name: doc
+      files:
+        - /share/doc/
