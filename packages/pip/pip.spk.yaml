@@ -1,4 +1,4 @@
-pkg: pip/22.0.4
+pkg: python-pip/22.0.4
 
 build:
   options:
