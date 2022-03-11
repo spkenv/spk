@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/spfs/bin/python3
 # Copyright (c) 2021 Sony Pictures Imageworks, et al.
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
@@ -68,12 +68,12 @@ def main() -> int:
     args = pip_cmd.parse_args()
 
     specs = []
-    importer = (
-        PipImporter()
-        .with_python_version(args.python_version)
-        .with_python_abi(args.python_abi)
-        .recursive(args.deps)
-    )
+    importer = PipImporter().recursive(args.deps)
+    if args.python_version:
+        importer.with_python_version(args.python_version)
+    if args.python_abi:
+        importer.with_python_abi(args.python_abi)
+
     for name in args.packages:
         version = ""
         match = re.match(r"^(.*?)([<>=~]+.*)?$", name)
@@ -106,7 +106,7 @@ class PipImporter:
     def __init__(self) -> None:
 
         self._python_version = "3.7"
-        self._python_abi: Optional[str] = None
+        self._python_abi: Optional[str] = "cp37m"
         self._follow_deps = True
         self._visited: Set[str] = set()
 
@@ -141,24 +141,24 @@ class PipImporter:
         with tempfile.TemporaryDirectory() as _tmpdir:
 
             tmpdir = Path(_tmpdir)
-            env_command = ["spk", "env"]
-            if self._python_abi:
-                env_command += ["-o", "python.abi=" + self._python_abi]
-            env_command += [f"python/{self._python_version}"]
             pip_command = [
                 "pip",
                 "download",
                 f"{name}{version}",
+                "--abi",
+                self._python_abi,
                 "--no-deps",
                 "--dest",
                 _tmpdir,
             ]
 
-            _LOGGER.debug(" ".join([*env_command, "--", *pip_command]))
+            _LOGGER.debug(" ".join(pip_command))
             try:
-                subprocess.check_output([*env_command, "--", *pip_command])
-            except subprocess.CalledProcessError:
-                _LOGGER.error("failed to download pip package")
+                subprocess.check_output(pip_command, stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as e:
+                print(e.stdout.decode())
+                raise RuntimeError("failed to download pip package")
+                return []
 
             downloaded = list(tmpdir.glob(f"*"))
             assert (
@@ -264,7 +264,13 @@ class PipImporter:
             json.dump(spec, spec_file)
             spec_file.flush()
             _LOGGER.info(f"building generated package spec... {spec['pkg']}")
-            subprocess.check_output(["spk", "build", spec_file.name])
+            try:
+                subprocess.check_output(["spk", "build", "-vv", spec_file.name], stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as e:
+                print(e.stdout.decode())
+                raise RuntimeError("failed to build generated package")
+                return []
+
             builds.insert(0, spec)
 
         return builds
@@ -377,4 +383,8 @@ if "SCRIPT_TESTING" in os.environ:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as e:
+        _LOGGER.error(str(e))
+        sys.exit(1)
