@@ -53,12 +53,9 @@ python -m nuitka \
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/opt/spk.dist
 rsync -rvapog --chmod 755 %{_builddir}/%{name}-%{version}/build/spk.dist/* %{buildroot}/opt/spk.dist/
-rsync -rvapog --chmod 755 %{_builddir}/%{name}-%{version}/scripts/spk-convert-pip %{buildroot}/usr/local/bin/spk-convert-pip
-
 
 %files
 /opt/spk.dist/
-/usr/local/bin/spk-convert-pip
 
 %preun
 [ -e /usr/local/bin/spk ] && unlink /usr/local/bin/spk

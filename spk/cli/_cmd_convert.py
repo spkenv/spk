@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from lib2to3.pytree import convert
 from typing import Any
 import subprocess
 import re
