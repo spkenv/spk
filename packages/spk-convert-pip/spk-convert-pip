@@ -201,7 +201,7 @@ class PipImporter:
             },
             "install": {
                 "requirements": [],
-            }
+            },
         }
         api_var = f"/{self._python_abi}" if self._python_abi else ""
         spec["build"]["options"].append({"var": f"python.abi{api_var}"})
@@ -234,9 +234,7 @@ class PipImporter:
                 if not marker.evaluate(
                     {"extra": "", "python_version": self._python_version}
                 ):
-                    _LOGGER.debug(
-                        f"Skip requirement due to markers {requirement_str}"
-                    )
+                    _LOGGER.debug(f"Skip requirement due to markers {requirement_str}")
                     continue
 
             _LOGGER.debug(f"converting dependency requirement {version_str}")
@@ -251,21 +249,21 @@ class PipImporter:
                 continue
             spk_name = _to_spk_name(pypi_name)
             spk_version_range = _to_spk_version_range(match.group(3) or "*")
-            request = {
-                "pkg": f"{spk_name}/{spk_version_range}"
-            }
+            request = {"pkg": f"{spk_name}/{spk_version_range}"}
             spec["install"]["requirements"].append(request)
 
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
                 builds.extend(self.import_package(match.group(1), match.group(3) or ""))
 
-        with tempfile.NamedTemporaryFile('w') as spec_file:
+        with tempfile.NamedTemporaryFile("w") as spec_file:
             json.dump(spec, spec_file)
             spec_file.flush()
             _LOGGER.info(f"building generated package spec... {spec['pkg']}")
             try:
-                subprocess.check_output(["spk", "build", "-vv", spec_file.name], stderr=subprocess.STDOUT)
+                subprocess.check_output(
+                    ["spk", "build", "-vv", spec_file.name], stderr=subprocess.STDOUT
+                )
             except subprocess.CalledProcessError as e:
                 print(e.stdout.decode())
                 raise RuntimeError("failed to build generated package")

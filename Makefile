@@ -26,11 +26,11 @@ lint-rust:
 	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
 lint-python:
 	pipenv run -- mypy spk spkrs
-	pipenv run -- black --check spk setup.py spkrs scripts/spk-convert-pip
+	pipenv run -- black --check spk setup.py spkrs packages/spk-convert-pip/spk-convert-pip
 
 .PHONY: format
 format:
-	pipenv run -- black spk setup.py spkrs scripts/spk-convert-pip
+	pipenv run -- black spk setup.py spkrs packages/spk-convert-pip/spk-convert-pip
 
 .PHONY: devel
 devel:
