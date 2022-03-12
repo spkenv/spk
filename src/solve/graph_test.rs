@@ -20,8 +20,7 @@ fn test_resolve_build_same_result() {
 
     let base = graph::State::default();
 
-    let spec = spec!({"pkg": "test/1.0.0"});
-    let mut build_spec = spec.clone();
+    let mut build_spec = spec!({"pkg": "test/1.0.0"});
     build_spec
         .update_for_build(&option_map! {}, [].iter())
         .unwrap();
@@ -55,35 +54,39 @@ fn test_resolve_build_same_result() {
 
 #[rstest]
 fn test_empty_options_do_not_unset() {
-    // state = graph.State.default()
+    let state = graph::State::default();
 
-    // assign_empty = graph.SetOptions(api.OptionMap({"something": ""}))
-    // assign_value = graph.SetOptions(api.OptionMap({"something": "value"}))
+    let assign_empty = graph::SetOptions::new(option_map! {"something" => ""});
+    let assign_value = graph::SetOptions::new(option_map! {"something" => "value"});
 
-    // new_state = assign_empty.apply(state)
-    // opts = new_state.get_option_map()
-    // assert opts["something"] == "", "should assign empty option of no current value"
+    let new_state = assign_empty.apply(&state);
+    let opts = new_state.get_option_map();
+    assert_eq!(
+        opts.get("something"),
+        Some(String::new()).as_ref(),
+        "should assign empty option of no current value"
+    );
 
-    // new_state = assign_value.apply(new_state)
-    // new_state = assign_empty.apply(new_state)
-    // opts = new_state.get_option_map()
-    // assert opts["something"] == "value", "should not unset value when one exists"
-    todo!()
+    let new_state = assign_value.apply(&new_state);
+    let new_state = assign_empty.apply(&new_state);
+    let opts = new_state.get_option_map();
+    assert_eq!(
+        opts.get("something"),
+        Some(String::from("value")).as_ref(),
+        "should not unset value when one exists"
+    );
 }
 
 #[rstest]
 fn test_request_default_component() {
-    let spec: api::Spec = serde_yaml::from_str(
-        r#"{
-        pkg: parent,
-        install: {
-          requirements: [
-            {pkg: dependency/1.0.0}
+    let spec = spec!({
+        "pkg": "parent",
+        "install": {
+          "requirements": [
+            {"pkg": "dependency/1.0.0"}
           ]
         }
-    }"#,
-    )
-    .unwrap();
+    });
     let spec = std::sync::Arc::new(spec);
     let base = super::State::default();
 
