@@ -13,6 +13,21 @@ use super::{parse_build, parse_version, validate_name, Build, InvalidNameError, 
 #[path = "./ident_test.rs"]
 mod ident_test;
 
+/// Parse an identifier from a string.
+///
+/// This will panic if the identifier is wrong,
+/// and should only be used for testing.
+///
+/// ```
+/// ident!("my-pkg/1.0.0")
+/// ```
+#[macro_export]
+macro_rules! ident {
+    ($ident:literal) => {
+        crate::api::parse_ident($ident).unwrap()
+    };
+}
+
 /// Ident represents a package identifier.
 ///
 /// The identifier is either a specific package or
