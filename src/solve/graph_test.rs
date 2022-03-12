@@ -1,10 +1,16 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::sync::Arc;
+
 use rstest::rstest;
 
 use super::DecisionBuilder;
-use crate::{api, solve};
+use crate::{
+    api, io, option_map,
+    solve::{self, graph},
+    spec,
+};
 
 #[rstest]
 fn test_resolve_build_same_result() {
@@ -12,29 +18,39 @@ fn test_resolve_build_same_result() {
     // should both result in the same final state... this
     // ensures that builds are not attempted when one already exists
 
-    // base = graph.State.default()
+    let base = graph::State::default();
 
-    // spec = api.Spec.from_dict({"pkg": "test/1.0.0"})
-    // build_spec = spec.copy()
-    // build_spec.update_spec_for_build(api.OptionMap(), [])
+    let spec = spec!({"pkg": "test/1.0.0"});
+    let mut build_spec = spec.clone();
+    build_spec
+        .update_for_build(&option_map! {}, [].iter())
+        .unwrap();
+    let build_spec = Arc::new(build_spec);
+    let source = solve::PackageSource::Spec(build_spec.clone());
 
-    // resolve = graph.ResolvePackage(build_spec, base, set(), build_spec)
-    // build = graph.BuildPackage(spec, base, set(), Solution())
+    let resolve =
+        solve::graph::Decision::builder(build_spec.clone(), &base).resolve_package(source);
+    let build = solve::graph::Decision::builder(build_spec, &base)
+        .build_package(&solve::Solution::new(None))
+        .unwrap();
 
-    // with_binary = resolve.apply(base)
-    // with_build = build.apply(base)
+    let with_binary = resolve.apply(base.clone());
+    let with_build = build.apply(base);
 
-    // print("resolve")
-    // for change in resolve.iter_changes():
-    //     print(io.format_change(change, 100))
-    // print("build")
-    // for change in build.iter_changes():
-    //     print(io.format_change(change, 100))
+    println!("resolve");
+    for change in resolve.changes.iter() {
+        println!("{}", io::format_change(change, 100));
+    }
+    println!("build");
+    for change in build.changes.iter() {
+        println!("{}", io::format_change(change, 100));
+    }
 
-    // assert (
-    //     with_binary.id == with_build.id
-    // ), "Build and resolve package should create the same final state"
-    todo!()
+    assert_eq!(
+        with_binary.id(),
+        with_build.id(),
+        "Build and resolve package should create the same final state"
+    );
 }
 
 #[rstest]

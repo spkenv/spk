@@ -27,6 +27,7 @@ type Digest = [char; DIGEST_SIZE];
 macro_rules! option_map {
     ($($k:expr => $v:expr),* $(,)?) => {{
         use crate::api::OptionMap;
+        #[allow(unused_mut)]
         let mut opts = OptionMap::default();
         $(opts.insert($k.into(), $v.into());)*
         opts

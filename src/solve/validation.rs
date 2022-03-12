@@ -8,6 +8,10 @@ use crate::api::{self, Build, Compatibility};
 
 use super::{errors, graph, solution::PackageSource};
 
+#[cfg(test)]
+#[path = "./validation_test.rs"]
+mod validation_test;
+
 #[derive(Clone, Copy)]
 pub enum Validators {
     Deprecation(DeprecationValidator),

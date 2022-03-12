@@ -4,7 +4,7 @@
 use rstest::rstest;
 
 use super::graph::State;
-use super::validation::{default_validators, VarRequirementsValidator};
+use super::{default_validators, VarRequirementsValidator};
 use crate::api;
 
 #[rstest]
