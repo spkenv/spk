@@ -4,6 +4,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use nix::unistd::execv;
+use spfs::prelude::*;
 use std::env::{args_os, var_os};
 use std::ffi::{CString, OsString};
 use std::os::unix::{
@@ -219,7 +220,7 @@ where
 
             let bin_path = check_or_install::<S>(
                 &spfs_tag,
-                platform.stack.get(0).unwrap(),
+                &platform.digest().context("get platform context")?,
                 &mut local_repo,
                 &remote_repo,
             )
