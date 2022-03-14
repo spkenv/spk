@@ -19,6 +19,9 @@ use spfs::tracking::EnvSpec;
 
 const ORIGIN: &str = "origin";
 const RPM_TAG: &str = "rpm";
+/// spfs tags are placed into a subdirectory
+/// called this, below `SpfsTag::spfs_tag_prefix`.
+const SPFS_TAG_SUBDIR: &str = "spk-launcher";
 
 trait SpfsTag {
     /// SPFS tag prefix where to find runnable platforms.
@@ -194,7 +197,12 @@ where
         .await
         .context("opened remote spfs repo")?;
 
-    let spfs_tag = format!("{}/{}", S::spfs_tag_prefix(), bin_tag.to_string_lossy());
+    let spfs_tag = format!(
+        "{}/{}/{}",
+        S::spfs_tag_prefix(),
+        SPFS_TAG_SUBDIR,
+        bin_tag.to_string_lossy(),
+    );
     match remote_repo.read_ref(&spfs_tag).await {
         Err(spfs::Error::UnknownReference(_)) => {
             bail!(

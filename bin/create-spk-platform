@@ -16,4 +16,4 @@ dev env -- cargo build --release --features sentry
 # 2. create a new spfs layer
 spfs run - -- sh -c "mkdir /spfs/opt \
   && cp target/release/spk /spfs/opt/spk.dist/ \
-  && spfs commit platform --tag spk/\"$tag_name\""
+  && spfs commit platform --tag spk/spk-launcher/\"$tag_name\""
