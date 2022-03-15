@@ -18,8 +18,7 @@ fn test_validate_build_changeset_modified() {
         &spec,
         &vec![spfs::tracking::Diff {
             path: "/spfs/file.txt".into(),
-            mode: spfs::tracking::DiffMode::Changed,
-            entries: None,
+            mode: spfs::tracking::DiffMode::Changed(Default::default(), Default::default()),
         }],
         "/spfs",
     );
@@ -36,8 +35,7 @@ fn test_validate_build_changeset_collected() {
         &spec,
         &vec![spfs::tracking::Diff {
             path: "/spfs/file.txt".into(),
-            mode: spfs::tracking::DiffMode::Changed,
-            entries: None,
+            mode: spfs::tracking::DiffMode::Changed(Default::default(), Default::default()),
         }],
         "/spfs",
     );

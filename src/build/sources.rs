@@ -169,7 +169,7 @@ pub fn validate_source_changeset<P: AsRef<RelativePath>>(
     let mut source_dir = source_dir.as_ref();
     source_dir = source_dir.strip_prefix("/spfs").unwrap_or(source_dir);
     for diff in diffs.into_iter() {
-        if diff.mode == spfs::tracking::DiffMode::Unchanged {
+        if diff.mode.is_unchanged() {
             continue;
         }
         if diff.path.starts_with(&source_dir) {

@@ -22,13 +22,16 @@ pub fn must_collect_all_files<P: AsRef<Path>>(
     for component in spec.install.components.iter() {
         diffs = diffs
             .into_iter()
-            .filter(|d| match &d.entries {
-                Some((_, b)) => component.files.matches(&d.path.to_path("/"), b.is_dir()),
-                None if d.mode.is_unchanged() => false,
-                None => {
-                    tracing::warn!("spfs provided a diff with no entries: {}", d);
-                    false
-                }
+            .filter(|d| {
+                let entry = match &d.mode {
+                    spfs::tracking::DiffMode::Unchanged(e) => e,
+                    spfs::tracking::DiffMode::Changed(_, e) => e,
+                    spfs::tracking::DiffMode::Added(e) => e,
+                    spfs::tracking::DiffMode::Removed(_) => return false,
+                };
+                component
+                    .files
+                    .matches(&d.path.to_path("/"), entry.is_dir())
             })
             .collect();
         if diffs.is_empty() {
@@ -49,7 +52,7 @@ pub fn must_install_something<P: AsRef<Path>>(
 ) -> Option<String> {
     let changes = diffs
         .iter()
-        .filter(|diff| diff.mode != DiffMode::Unchanged)
+        .filter(|diff| !diff.mode.is_unchanged())
         .count();
 
     if changes == 0 {
@@ -70,14 +73,18 @@ pub fn must_not_alter_existing_files<P: AsRef<Path>>(
     _prefix: P,
 ) -> Option<String> {
     for diff in diffs.iter() {
-        if let Some((a, b)) = &diff.entries {
-            if a.is_dir() && b.is_dir() {
-                continue;
+        match &diff.mode {
+            DiffMode::Added(_) | DiffMode::Unchanged(_) => continue,
+            DiffMode::Removed(e) => {
+                if e.is_dir() {
+                    continue;
+                }
             }
-        }
-        match diff.mode {
-            DiffMode::Added | DiffMode::Unchanged => continue,
-            DiffMode::Removed | DiffMode::Changed => (),
+            DiffMode::Changed(a, b) => {
+                if a.is_dir() && b.is_dir() {
+                    continue;
+                }
+            }
         }
         return Some(format!(
             "Existing file was {:?}: {:?}",

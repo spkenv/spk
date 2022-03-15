@@ -2413,8 +2413,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.31.0"
-source = "git+https://github.com/imageworks/spfs?tag=v0.31.0#20d4cf3b178775d3420aca37deb4e34bbbe8bfb0"
+version = "0.31.1"
+source = "git+https://github.com/imageworks/spfs?tag=v0.31.1#1fc01deda4fc79bbeee2a95712020dbe60d58325"
 dependencies = [
  "async-recursion",
  "async-trait",
