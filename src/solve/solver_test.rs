@@ -1,13 +1,17 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    sync::{Arc, Mutex},
+};
 
 use rstest::{fixture, rstest};
 use spfs::encoding::Digest;
 
 use super::{RequestEnum, Solver};
-use crate::{api, option_map, solve, spec, storage};
+use crate::{api, io, option_map, solve, spec, storage};
 
 #[fixture]
 fn solver() -> Solver {
@@ -25,7 +29,7 @@ macro_rules! make_repo {
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
         let mut repo = crate::storage::RepositoryHandle::new_mem();
         $(
-            let (s, cmpts) = make_package!($spec, &$options);
+            let (s, cmpts) = make_package!(repo, $spec, &$options);
             repo.publish_package(s, cmpts).unwrap();
         )*
         repo
@@ -34,10 +38,10 @@ macro_rules! make_repo {
 
 #[macro_export(local_inner_macros)]
 macro_rules! make_package {
-    (($build_spec:expr, $components:expr), $opts:expr) => {{
+    ($repo:ident, ($build_spec:expr, $components:expr), $opts:expr) => {{
         ($build_spec, $components)
     }};
-    ($build_spec:ident, $opts:expr) => {{
+    ($repo:ident, $build_spec:ident, $opts:expr) => {{
         let s = $build_spec;
         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
             .install
@@ -47,12 +51,12 @@ macro_rules! make_package {
             .collect();
         (s, cmpts)
     }};
-    ($spec:tt, $opts:expr) => {{
+    ($repo:ident, $spec:tt, $opts:expr) => {{
         let json = serde_json::json!($spec);
         let mut spec: crate::api::Spec = serde_json::from_value(json).expect("Invalid spec json");
         let build = spec.clone();
         spec.pkg.set_build(None);
-        //TODO: repo.force_publish_spec(spec)
+        $repo.force_publish_spec(spec).unwrap();
         make_build_and_components!(build, [], $opts, [])
     }};
 }
@@ -82,6 +86,7 @@ macro_rules! make_build_and_components {
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let mut spec = crate::spec!($spec);
         let mut components = std::collections::HashMap::new();
+        let deps: Vec<api::Spec> = std::vec![$($dep),*];
         if spec.pkg.is_source() {
             components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
             (spec, components)
@@ -89,7 +94,7 @@ macro_rules! make_build_and_components {
             let mut build_opts = $opts.clone();
             let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
             build_opts.extend(&mut resolved_opts);
-            spec.update_for_build(&build_opts, std::vec![$($dep),*].iter())
+            spec.update_for_build(&build_opts, deps)
                 .expect("Failed to render build spec");
             let mut names = std::vec![$($component),*];
             if names.is_empty() {
@@ -101,6 +106,19 @@ macro_rules! make_build_and_components {
             (spec, components)
         }
     }}
+}
+
+macro_rules! request {
+    ($req:literal) => {
+        crate::api::Request::Pkg(crate::api::PkgRequest::new(
+            crate::api::parse_ident_range($req).unwrap(),
+        ))
+    };
+    ($req:tt) => {{
+        let value = json!($req);
+        let req: crate::api::Request = serde_json::from_value(value).unwrap();
+        req
+    }};
 }
 
 #[rstest]
@@ -132,20 +150,20 @@ fn test_solver_package_with_no_spec(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_single_package_no_deps(solver: Solver) {
+fn test_solver_single_package_no_deps(mut solver: Solver) {
     let options = option_map! {};
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options);
 
-    // solver.update_options(options)
-    // solver.add_repository(repo)
-    // solver.add_request("my-pkg")
+    solver.update_options(options);
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-pkg"));
 
-    // packages = io.run_and_print_resolve(solver, verbosity=100)
-    // assert len(packages) == 1, "expected one resolved package"
-    // assert packages.get("my-pkg").spec.pkg.version == "1.0.0"
-    // assert packages.get("my-pkg").spec.pkg.build is not None
-    // assert packages.get("my-pkg").spec.pkg.build != api.SRC  # type: ignore
-    todo!()
+    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_eq!(packages.len(), 1, "expected one resolved package");
+    let resolved = packages.get("my-pkg").unwrap();
+    assert_eq!(resolved.spec.pkg.version.to_string(), "1.0.0".to_string());
+    assert!(resolved.spec.pkg.build.is_some());
+    assert_ne!(resolved.spec.pkg.build, Some(api::Build::Source));
 }
 
 #[rstest]
