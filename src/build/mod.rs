@@ -11,4 +11,5 @@ pub use binary::{
     component_marker_path, get_package_build_env, reset_permissions, source_package_path,
     BinaryPackageBuilder, BuildError,
 };
+pub use env::data_path;
 pub use sources::{validate_source_changeset, CollectionError, SourcePackageBuilder};
