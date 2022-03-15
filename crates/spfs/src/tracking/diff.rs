@@ -12,38 +12,38 @@ use super::{Entry, EntryKind, Manifest};
 #[path = "./diff_test.rs"]
 mod diff_test;
 
-/// Identifies the style of difference between two file system entries
+/// Identifies a difference between two file system entries
 #[derive(Debug, Eq, PartialEq)]
 pub enum DiffMode {
-    Unchanged,
-    Changed,
-    Added,
-    Removed,
+    Unchanged(Entry),
+    Changed(Entry, Entry),
+    Added(Entry),
+    Removed(Entry),
 }
 
 impl std::fmt::Display for DiffMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unchanged => f.write_str("="),
-            Self::Changed => f.write_str("~"),
-            Self::Added => f.write_str("+"),
-            Self::Removed => f.write_str("-"),
+            Self::Unchanged(..) => f.write_str("="),
+            Self::Changed(..) => f.write_str("~"),
+            Self::Added(..) => f.write_str("+"),
+            Self::Removed(..) => f.write_str("-"),
         }
     }
 }
 
 impl DiffMode {
     pub fn is_unchanged(&self) -> bool {
-        matches!(self, Self::Unchanged)
+        matches!(self, Self::Unchanged(..))
     }
     pub fn is_changed(&self) -> bool {
-        matches!(self, Self::Changed)
+        matches!(self, Self::Changed(..))
     }
     pub fn is_added(&self) -> bool {
-        matches!(self, Self::Added)
+        matches!(self, Self::Added(..))
     }
     pub fn is_removed(&self) -> bool {
-        matches!(self, Self::Removed)
+        matches!(self, Self::Removed(..))
     }
 }
 
@@ -51,7 +51,6 @@ impl DiffMode {
 pub struct Diff {
     pub mode: DiffMode,
     pub path: RelativePathBuf,
-    pub entries: Option<(Entry, Entry)>,
 }
 
 impl std::fmt::Display for Diff {
@@ -68,18 +67,15 @@ impl std::fmt::Display for Diff {
 impl Diff {
     fn details(&self) -> String {
         let mut details = String::new();
-        match self.entries.as_ref() {
-            None => (),
-            Some((a, b)) => {
-                if a.mode != b.mode {
-                    details = format!("{details} {{{:06o} => {:06o}}}", a.mode, b.mode);
-                }
-                if a.kind != b.kind {
-                    details = format!("{details} {{{} => {}}}", a.kind, b.kind);
-                }
-                if a.object != b.object {
-                    details = format!("{details} {{!object!}}");
-                }
+        if let DiffMode::Changed(a, b) = &self.mode {
+            if a.mode != b.mode {
+                details = format!("{details} {{{:06o} => {:06o}}}", a.mode, b.mode);
+            }
+            if a.kind != b.kind {
+                details = format!("{details} {{{} => {}}}", a.kind, b.kind);
+            }
+            if a.object != b.object {
+                details = format!("{details} {{!content!}}");
             }
         }
         details
@@ -97,53 +93,49 @@ pub fn compute_diff(a: &Manifest, b: &Manifest) -> Vec<Diff> {
             continue;
         } else {
             visited.insert(&entry.path);
-            changes.push(diff_path(a, b, &entry.path));
+            match diff_path(a, b, &entry.path) {
+                Some(d) => changes.push(d),
+                None => tracing::debug!(
+                    "path was missing from both manifests during diff, this should be imporssible"
+                ),
+            }
         }
     }
 
     changes
 }
 
-fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Diff {
+fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Option<Diff> {
     match (a.get_path(&path), b.get_path(&path)) {
-        (None, None) => Diff {
-            mode: DiffMode::Unchanged,
-            path: path.clone(),
-            entries: None,
-        },
+        (None, None) => None,
 
-        (_, Some(b_entry)) if b_entry.kind == EntryKind::Mask => Diff {
-            mode: DiffMode::Removed,
+        (_, Some(b_entry)) if b_entry.kind == EntryKind::Mask => Some(Diff {
+            mode: DiffMode::Removed(b_entry.clone()),
             path: path.clone(),
-            entries: None,
-        },
+        }),
 
-        (None, Some(_)) => Diff {
-            mode: DiffMode::Added,
+        (None, Some(e)) => Some(Diff {
+            mode: DiffMode::Added(e.clone()),
             path: path.clone(),
-            entries: None,
-        },
+        }),
 
-        (Some(_), None) => Diff {
-            mode: DiffMode::Removed,
+        (Some(e), None) => Some(Diff {
+            mode: DiffMode::Removed(e.clone()),
             path: path.clone(),
-            entries: None,
-        },
+        }),
 
-        (Some(a_entry), Some(b_entry)) => {
+        (Some(a_entry), Some(b_entry)) => Some({
             if a_entry == b_entry {
                 Diff {
-                    mode: DiffMode::Unchanged,
+                    mode: DiffMode::Unchanged(b_entry.clone()),
                     path: path.clone(),
-                    entries: None,
                 }
             } else {
                 Diff {
-                    mode: DiffMode::Changed,
+                    mode: DiffMode::Changed(a_entry.clone(), b_entry.clone()),
                     path: path.clone(),
-                    entries: Some((a_entry.clone(), b_entry.clone())),
                 }
             }
-        }
+        }),
     }
 }

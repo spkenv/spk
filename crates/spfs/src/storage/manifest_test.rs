@@ -69,7 +69,7 @@ async fn test_manifest_parity(#[future] repo: TempRepo, tmpdir: tempdir::TempDir
         .collect();
 
     for diff in diffs.iter() {
-        println!("{diff}, {:?}", diff.entries);
+        println!("{diff}, {:?}", diff.mode);
     }
     assert!(diffs.is_empty(), "Should read out the way it went in");
 }

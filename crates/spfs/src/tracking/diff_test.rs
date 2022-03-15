@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use relative_path::RelativePath;
 use rstest::rstest;
 
 use super::{compute_diff, Diff, DiffMode};
@@ -14,9 +15,8 @@ fn test_diff_str() {
     let display = format!(
         "{}",
         Diff {
-            mode: DiffMode::Added,
+            mode: DiffMode::Added(Default::default()),
             path: "some_path".into(),
-            entries: None
         }
     );
     assert_eq!(&display, "+ some_path");
@@ -42,7 +42,7 @@ async fn test_compute_diff_same(tmpdir: tempdir::TempDir) {
     let manifest = compute_manifest(&dir).await.unwrap();
     let diffs = compute_diff(&manifest, &manifest);
     for diff in diffs {
-        assert_eq!(diff.mode, DiffMode::Unchanged);
+        assert!(diff.mode.is_unchanged());
     }
 }
 
@@ -59,25 +59,19 @@ async fn test_compute_diff_added(tmpdir: tempdir::TempDir) {
 
     let a = compute_manifest(a_dir).await.unwrap();
     let b = compute_manifest(b_dir).await.unwrap();
-    let actual = compute_diff(&a, &b);
-    let expected = vec![
-        Diff {
-            mode: DiffMode::Added,
-            path: "/dir".into(),
-            entries: None,
-        },
-        Diff {
-            mode: DiffMode::Added,
-            path: "/dir/dir".into(),
-            entries: None,
-        },
-        Diff {
-            mode: DiffMode::Added,
-            path: "/dir/dir/file".into(),
-            entries: None,
-        },
-    ];
-    assert_eq!(actual, expected);
+    let mut actual = compute_diff(&a, &b).into_iter();
+
+    let first = actual.next().unwrap();
+    let second = actual.next().unwrap();
+    let third = actual.next().unwrap();
+    assert!(actual.next().is_none());
+
+    assert!(matches!(first.mode, DiffMode::Added(..)));
+    assert_eq!(&first.path, &RelativePath::new("/dir"));
+    assert!(matches!(second.mode, DiffMode::Added(..)));
+    assert_eq!(&second.path, &RelativePath::new("/dir/dir"));
+    assert!(matches!(third.mode, DiffMode::Added(..)));
+    assert_eq!(&third.path, &RelativePath::new("/dir/dir/file"));
 }
 
 #[rstest]
@@ -93,23 +87,16 @@ async fn test_compute_diff_removed(tmpdir: tempdir::TempDir) {
 
     let a = compute_manifest(a_dir).await.unwrap();
     let b = compute_manifest(b_dir).await.unwrap();
-    let actual = compute_diff(&a, &b);
-    let expected = vec![
-        Diff {
-            mode: DiffMode::Removed,
-            path: "/dir".into(),
-            entries: None,
-        },
-        Diff {
-            mode: DiffMode::Removed,
-            path: "/dir/dir".into(),
-            entries: None,
-        },
-        Diff {
-            mode: DiffMode::Removed,
-            path: "/dir/dir/file".into(),
-            entries: None,
-        },
-    ];
-    assert_eq!(actual, expected);
+    let mut actual = compute_diff(&a, &b).into_iter();
+    let first = actual.next().unwrap();
+    let second = actual.next().unwrap();
+    let third = actual.next().unwrap();
+    assert!(actual.next().is_none());
+
+    assert!(matches!(first.mode, DiffMode::Removed(..)));
+    assert_eq!(&first.path, &RelativePath::new("/dir"));
+    assert!(matches!(second.mode, DiffMode::Removed(..)));
+    assert_eq!(&second.path, &RelativePath::new("/dir/dir"));
+    assert!(matches!(third.mode, DiffMode::Removed(..)));
+    assert_eq!(&third.path, &RelativePath::new("/dir/dir/file"));
 }

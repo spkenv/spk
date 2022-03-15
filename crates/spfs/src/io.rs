@@ -52,19 +52,16 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
     let mut outputs = Vec::new();
     for diff in diffs {
         let mut abouts = Vec::new();
-        match &diff.entries {
-            Some((a, b)) => {
-                if a.mode != b.mode {
-                    abouts.push(format!("mode {{{:06o}=>{:06o}}}", a.mode, b.mode));
-                }
-                if a.object != b.object {
-                    abouts.push("content".to_string());
-                }
-                if a.size != b.size {
-                    abouts.push(format!("size {{{}=>{}}}", a.size, b.size));
-                }
+        if let tracking::DiffMode::Changed(a, b) = &diff.mode {
+            if a.mode != b.mode {
+                abouts.push(format!("mode {{{:06o}=>{:06o}}}", a.mode, b.mode));
             }
-            None => (),
+            if a.object != b.object {
+                abouts.push("content".to_string());
+            }
+            if a.size != b.size {
+                abouts.push(format!("size {{{}=>{}}}", a.size, b.size));
+            }
         }
         let about = if !abouts.is_empty() {
             format!(" [{}]", abouts.join(", ")).dimmed().to_string()
@@ -75,9 +72,9 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
         out += format!("{:>8}", diff.mode).bold().as_ref();
         out += format!("/spfs{}{about}", diff.path).as_ref();
         let out = match diff.mode {
-            tracking::DiffMode::Added => out.green(),
-            tracking::DiffMode::Removed => out.red(),
-            tracking::DiffMode::Changed => out.bright_blue(),
+            tracking::DiffMode::Added(..) => out.green(),
+            tracking::DiffMode::Removed(..) => out.red(),
+            tracking::DiffMode::Changed(..) => out.bright_blue(),
             _ => out.dimmed(),
         };
         outputs.push(out.to_string())
