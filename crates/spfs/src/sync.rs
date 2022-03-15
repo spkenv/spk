@@ -12,6 +12,11 @@ use crate::{graph, storage, tracking, Error, Result};
 #[path = "./sync_test.rs"]
 mod sync_test;
 
+/// Limits the concurrency in sync operations to avoid
+/// connection and open file descriptor limits
+// TODO: load this from the config
+static MAX_CONCURRENT: usize = 256;
+
 pub async fn push_ref<R: AsRef<str>>(
     reference: R,
     remote: Option<storage::RepositoryHandle>,
@@ -156,8 +161,21 @@ pub async fn sync_manifest(
     let total_bytes = entries.iter().fold(0, |c, e| c + e.size);
     let bar = indicatif::ProgressBar::new(total_bytes).with_style(style);
     bar.set_message("syncing manifest");
-    let mut futures = futures::stream::FuturesUnordered::new();
+    let mut results = Vec::with_capacity(entries.len());
+    let mut futures =
+        futures::stream::FuturesUnordered::<tokio::task::JoinHandle<Result<u64>>>::new();
     for entry in entries {
+        while futures.len() >= MAX_CONCURRENT {
+            if let Some(res) = futures.next().await {
+                let res = res
+                    .map_err(|err| Error::String(format!("Sync task failed unexpectedly: {}", err)))
+                    .and_then(|e| e);
+                if let Ok(size) = res {
+                    bar.inc(size);
+                }
+                results.push(res);
+            }
+        }
         let dest_address = dest.address();
         let src_address = src.address();
         let future = tokio::spawn(async move {
@@ -168,7 +186,6 @@ pub async fn sync_manifest(
         });
         futures.push(future);
     }
-    let mut results = Vec::with_capacity(futures.len());
     while let Some(res) = futures.next().await {
         let res = res
             .map_err(|err| Error::String(format!("Sync task failed unexpectedly: {}", err)))
