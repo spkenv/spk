@@ -14,52 +14,93 @@ fn solver() -> Solver {
     Solver::new()
 }
 
-fn make_repo(specs: Vec<api::Spec>, opts: api::OptionMap) -> storage::RepositoryHandle {
-    // repo = storage.mem_repository()
-
-    // def add_pkg(
-    //     s: Union[Dict, api.Spec, Tuple[api.Spec, Dict[str, spkrs.Digest]]]
-    // ) {
-    //     if isinstance(s, dict):
-    //         spec = api.Spec.from_dict(s)
-    //         s = spec.copy()
-    //         spec.pkg = spec.pkg.with_build(None)
-    //         repo.force_publish_spec(spec)
-    //         s, cmpts = make_build_and_components(s.to_dict(), [], opts)
-    //     elif isinstance(s, tuple):
-    //         s, cmpts = s
-    //     else:
-    //         cmpts = dict((c.name, spkrs.EMPTY_DIGEST) for c in s.install.components)
-    //     repo.publish_package(s, cmpts)
-
-    // for s in specs:
-    //     add_pkg(s)
-
-    // return repo
-    todo!()
+macro_rules! make_repo {
+    ( [ $( $spec:tt ),+ $(,)? ] ) => {{
+        make_repo!([ $( $spec ),* ], options={})
+    }};
+    ( [ $( $spec:tt ),+ $(,)? ], options={ $($k:expr => $v:expr),* } ) => {{
+        let options = crate::option_map!{$($k:expr => $v:expr),*};
+        make_repo!([ $( $spec ),* ], options=options)
+    }};
+    ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
+        let mut repo = crate::storage::RepositoryHandle::new_mem();
+        $(
+            let (s, cmpts) = make_package!($spec, &$options);
+            repo.publish_package(s, cmpts).unwrap();
+        )*
+        repo
+    }};
 }
 
-fn make_build(spec_dict: api::Spec, deps: Vec<api::Spec>, opts: api::OptionMap) -> api::Spec {
-    make_build_and_components(spec_dict, deps, opts, vec![]).0
+#[macro_export(local_inner_macros)]
+macro_rules! make_package {
+    (($build_spec:expr, $components:expr), $opts:expr) => {{
+        ($build_spec, $components)
+    }};
+    ($build_spec:ident, $opts:expr) => {{
+        let s = $build_spec;
+        let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
+            .install
+            .components
+            .iter()
+            .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
+            .collect();
+        (s, cmpts)
+    }};
+    ($spec:tt, $opts:expr) => {{
+        let json = serde_json::json!($spec);
+        let mut spec: crate::api::Spec = serde_json::from_value(json).expect("Invalid spec json");
+        let build = spec.clone();
+        spec.pkg.set_build(None);
+        //TODO: repo.force_publish_spec(spec)
+        make_build_and_components!(build, [], $opts, [])
+    }};
 }
 
-fn make_build_and_components(
-    spec_dict: api::Spec,
-    deps: Vec<api::Spec>,
-    opts: api::OptionMap,
-    components: Vec<api::Component>,
-) -> (api::Spec, HashMap<String, Digest>) {
-    // spec = api.Spec.from_dict(spec_dict)
-    // if spec.pkg.build == api.SRC:
-    //     return spec, {"src": spkrs.EMPTY_DIGEST}
-    // build_opts = opts.copy()
-    // build_opts.update(spec.resolve_all_options(build_opts))
-    // spec.update_spec_for_build(build_opts, deps)
-    // if components is None:
-    //     components = [c.name for c in spec.install.components]
-    // cmpts = dict((c, spkrs.EMPTY_DIGEST) for c in components)
-    // return spec, cmpts
-    todo!()
+#[macro_export(local_inner_macros)]
+macro_rules! make_build {
+    ($spec:tt) => {
+        make_build!($spec, [], {})
+    };
+    ($spec:tt, $deps:tt, $opts:tt) => {{
+        let (spec, _) = make_build_and_components!($spec, deps, opts);
+        spec
+    }};
+}
+
+#[macro_export(local_inner_macros)]
+macro_rules! make_build_and_components {
+    ($spec:tt) => {
+        make_build_and_components!($spec, [])
+    };
+    ($spec:tt, [$($dep:expr),*]) => {
+        make_build_and_components!($spec, [$($dep),*], {})
+    };
+    ($spec:tt, [$($dep:expr),*], $opts:expr) => {
+        make_build_and_components!($spec, [$($dep),*], $opts, [])
+    };
+    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
+        let mut spec = crate::spec!($spec);
+        let mut components = std::collections::HashMap::new();
+        if spec.pkg.is_source() {
+            components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
+            (spec, components)
+        } else {
+            let mut build_opts = $opts.clone();
+            let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
+            build_opts.extend(&mut resolved_opts);
+            spec.update_for_build(&build_opts, std::vec![$($dep),*].iter())
+                .expect("Failed to render build spec");
+            let mut names = std::vec![$($component),*];
+            if names.is_empty() {
+                names = spec.install.components.iter().map(|c| c.name.clone()).collect();
+            }
+            for name in names {
+                components.insert(name, spfs::encoding::EMPTY_DIGEST.into());
+            }
+            (spec, components)
+        }
+    }}
 }
 
 #[rstest]
@@ -92,8 +133,8 @@ fn test_solver_package_with_no_spec(solver: Solver) {
 
 #[rstest]
 fn test_solver_single_package_no_deps(solver: Solver) {
-    // options = api.OptionMap()
-    // repo = make_repo([{"pkg": "my-pkg/1.0.0"}], options)
+    let options = option_map! {};
+    let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options);
 
     // solver.update_options(options)
     // solver.add_repository(repo)
