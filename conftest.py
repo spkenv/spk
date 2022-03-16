@@ -24,7 +24,7 @@ structlog.configure(
     logger_factory=structlog.stdlib.LoggerFactory(),
     wrapper_class=structlog.stdlib.BoundLogger,
 )
-spkrs.configure_logging(0)
+spkrs.configure_logging(2)
 
 
 @pytest.fixture

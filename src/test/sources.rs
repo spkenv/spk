@@ -142,6 +142,7 @@ impl PackageSourceTester {
     }
 
     pub fn test(&mut self) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         let mut rt = spfs::active_runtime()?;
         rt.set_editable(true)?;
         rt.reset_all()?;
@@ -161,7 +162,7 @@ impl PackageSourceTester {
             // we only require the source package to actually exist
             // if a local directory has not been specified for the test
             let source_pkg = self.spec.pkg.with_build(Some(api::Build::Source));
-            let mut ident_range = api::RangeIdent::exact(&source_pkg);
+            let mut ident_range = api::RangeIdent::exact(&source_pkg, [api::Component::Source]);
             ident_range.components.insert(api::Component::Source);
             let request = api::PkgRequest {
                 pkg: ident_range,
@@ -181,7 +182,7 @@ impl PackageSourceTester {
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(&layer)?;
         }
-        spfs::remount_runtime(&rt)?;
+        crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(

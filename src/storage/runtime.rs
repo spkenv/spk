@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use spfs::prelude::*;
+use tokio::runtime::Handle;
 
 use super::Repository;
 use crate::{api, Error, Result};
@@ -145,30 +146,30 @@ impl Repository for RuntimeRepository {
         &self,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        let handle = Handle::current();
         let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
-        let components: Result<Vec<api::Component>> = entries
+        let components: Vec<api::Component> = entries
             .into_iter()
             .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
             .map(api::Component::parse)
-            .collect();
+            .collect::<Result<_>>()?;
 
         let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
         path.push(pkg.to_string());
-        let mapped: Result<_> = components?
-            .into_iter()
-            .map(|name| {
-                find_layer_by_filename(path.join(format!("{}.cmpt", name)))
-                    .map(|digest| (name, digest))
-                    .map_err(|err| {
-                        if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                            Error::PackageNotFoundError(pkg.clone())
-                        } else {
-                            err
-                        }
-                    })
-            })
-            .collect();
-        mapped
+        let mut mapped = HashMap::with_capacity(components.len());
+        for name in components.into_iter() {
+            let digest = handle
+                .block_on(find_layer_by_filename(path.join(format!("{}.cmpt", &name))))
+                .map_err(|err| {
+                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                        Error::PackageNotFoundError(pkg.clone())
+                    } else {
+                        err
+                    }
+                })?;
+            mapped.insert(name, digest);
+        }
+        Ok(mapped)
     }
 
     fn force_publish_spec(&mut self, _spec: api::Spec) -> Result<()> {
@@ -225,17 +226,17 @@ fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> 
         .collect())
 }
 
-fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
+async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
     let runtime = spfs::active_runtime()?;
-    let repo = spfs::load_config()?.get_repository()?.into();
+    let repo = spfs::load_config()?.get_repository().await?.into();
 
     let stack = runtime.get_stack();
-    let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
+    let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo)).await?;
     for layer in layers.iter().rev() {
-        let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+        let manifest = repo.read_manifest(layer.manifest).await?.unlock();
         if manifest.get_path(&path).is_some() {
             return Ok(layer.digest()?);
         }
     }
-    Err(spfs::graph::UnknownReferenceError::new(path).into())
+    Err(spfs::Error::UnknownReference(path.as_ref().into()).into())
 }

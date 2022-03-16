@@ -3,6 +3,8 @@
 // https://github.com/imageworks/spk
 use std::path::Path;
 
+use futures::TryStreamExt;
+
 use super::{Repository, SPFSRepository};
 use crate::{api, Error, Result};
 
@@ -23,10 +25,10 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
         .map(std::fs::create_dir_all)
         .unwrap_or_else(|| Ok(()))?;
 
-    let local_repo = super::local_repository()?;
-    let remote_repo = super::remote_repository("origin")?;
+    let local_repo = crate::HANDLE.block_on(super::local_repository())?;
+    let remote_repo = crate::HANDLE.block_on(super::remote_repository("origin"))?;
     let mut target_repo = super::SPFSRepository::from(spfs::storage::RepositoryHandle::from(
-        spfs::storage::tar::TarRepository::create(&filename)?,
+        crate::HANDLE.block_on(spfs::storage::tar::TarRepository::create(&filename))?,
     ));
 
     let mut to_transfer = std::collections::HashSet::new();
@@ -65,15 +67,17 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
     Ok(())
 }
 
-pub fn import_package<P: AsRef<Path>>(filename: P) -> Result<()> {
-    let mut tar_repo: spfs::storage::RepositoryHandle =
-        spfs::storage::tar::TarRepository::open(filename)?.into();
-    let local_repo = super::local_repository()?;
+pub async fn import_package<P: AsRef<Path>>(filename: P) -> Result<()> {
+    let tar_repo: spfs::storage::RepositoryHandle =
+        spfs::storage::tar::TarRepository::open(filename)
+            .await?
+            .into();
+    let local_repo = super::local_repository().await?;
 
-    for entry in tar_repo.iter_tags() {
-        let (tag, _) = entry?;
+    let mut stream = tar_repo.iter_tags();
+    while let Some((tag, _)) = stream.try_next().await? {
         tracing::info!(?tag, "importing");
-        spfs::sync_ref(tag.to_string(), &local_repo, &mut tar_repo)?;
+        spfs::sync_ref(tag.to_string(), &local_repo, &tar_repo).await?;
     }
     Ok(())
 }
@@ -93,7 +97,7 @@ fn copy_package(
     let components = src_repo.get_package(pkg)?;
     tracing::info!(?pkg, "exporting");
     for (_name, digest) in components.iter() {
-        spfs::sync_ref(digest.to_string(), src_repo, dst_repo)?;
+        crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), src_repo, dst_repo))?;
     }
     dst_repo.publish_package(spec, components)?;
     Ok(())

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import Union
+from typing import List, Union
 
 import structlog
 
@@ -43,7 +43,7 @@ class Publisher:
         self._force = force
         return self
 
-    def publish(self, pkg: Union[str, api.Ident]) -> None:
+    def publish(self, pkg: Union[str, api.Ident]) -> List[api.Ident]:
 
         if not isinstance(pkg, api.Ident):
             pkg = api.parse_ident(pkg)
@@ -83,3 +83,5 @@ class Publisher:
                 else:
                     self._from.push_digest(digest, self._to)
             self._to.publish_package(spec, components)
+
+        return list(builds)

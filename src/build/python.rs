@@ -12,7 +12,7 @@ pyo3::create_exception!(build, CollectionError, BuildError);
 
 #[pyfunction]
 fn validate_source_changeset() -> Result<()> {
-    let diffs = spfs::diff(None, None)?;
+    let diffs = crate::HANDLE.block_on(spfs::diff(None, None))?;
     super::validate_source_changeset(diffs, "/spfs")?;
     Ok(())
 }

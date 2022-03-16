@@ -276,9 +276,7 @@ def test_build_package_requirement_propagation(tmprepo: storage.Repository) -> N
     opt = top_pkg.build.options[1]
     assert isinstance(opt, api.VarOpt), "should be given inherited option"
     assert opt.var == "base.inherited", "should be inherited as package option"
-    assert (
-        opt.inheritance == "Weak"
-    ), "inherited option should have weak inheritance"
+    assert opt.inheritance == "Weak", "inherited option should have weak inheritance"
 
     assert len(top_pkg.install.requirements) == 1, "should get install requirement"
     req = top_pkg.install.requirements[0]
@@ -335,3 +333,36 @@ def test_build_components_metadata(tmpspfs: spkrs.storage.Repository) -> None:
         # component is installed
         installed = runtime_repo.get_package(spec.pkg)
         assert installed == {component.name: digest}, "runtime repo should only show installed components"
+
+
+def test_build_add_startup_files(tmpdir: py.path.local) -> None:
+
+    spec = api.Spec.from_dict(
+        {
+            "pkg": "testpkg",
+            "install": {
+                "environment": [
+                    {"set": "TESTPKG", "value": True},
+                    {"append": "TESTPKG", "value": "append"},
+                    {"prepend": "TESTPKG", "value": 1.7},
+                ]
+            },
+        }
+    )
+
+    BinaryPackageBuilder.from_spec(spec).with_prefix(tmpdir.strpath).generate_startup_scripts()
+
+    bash_file = tmpdir.join("etc/spfs/startup.d/spk_testpkg.sh")
+    assert bash_file.exists()
+    tcsh_file = tmpdir.join("etc/spfs/startup.d/spk_testpkg.csh")
+    assert tcsh_file.exists()
+
+    bash_value = subprocess.check_output(
+        ["bash", "--norc", "-c", f"source {bash_file}; printenv TESTPKG"]
+    )
+    assert bash_value.strip() == b"1.7:true:append"
+
+    tcsh_value = subprocess.check_output(
+        ["tcsh", "-fc", f"source {tcsh_file}; printenv TESTPKG"]
+    )
+    assert tcsh_value.strip() == b"1.7:true:append"

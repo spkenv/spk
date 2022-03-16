@@ -117,6 +117,7 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add("Option", py.None())?;
     m.add("VersionRange", py.None())?;
     m.add("SourceSpec", py.None())?;
+    m.add("EnvOp", py.None())?;
 
     m.add_function(wrap_pyfunction!(parse_version, m)?)?;
     m.add_function(wrap_pyfunction!(parse_compat, m)?)?;
@@ -161,6 +162,9 @@ pub fn init_module(py: &Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<super::GitSource>()?;
     m.add_class::<super::TarSource>()?;
     m.add_class::<super::ScriptSource>()?;
+    m.add_class::<super::AppendEnv>()?;
+    m.add_class::<super::PrependEnv>()?;
+    m.add_class::<super::SetEnv>()?;
     m.add_class::<Compatibility>()?;
     Ok(())
 }
@@ -325,6 +329,16 @@ impl IntoPy<Py<PyAny>> for super::SourceSpec {
             super::SourceSpec::Tar(src) => src.into_py(py),
             super::SourceSpec::Local(src) => src.into_py(py),
             super::SourceSpec::Script(src) => src.into_py(py),
+        }
+    }
+}
+
+impl IntoPy<Py<PyAny>> for super::EnvOp {
+    fn into_py(self, py: Python) -> Py<PyAny> {
+        match self {
+            super::EnvOp::Append(op) => op.into_py(py),
+            super::EnvOp::Prepend(op) => op.into_py(py),
+            super::EnvOp::Set(op) => op.into_py(py),
         }
     }
 }

@@ -22,7 +22,7 @@ weight: 110
 | ----------- | -------------- | ---------------------------------------------------------------------- |
 | description | _str_          | (Optional) A concise, one sentence description of the package          |
 | homepage    | _str_          | (Optional) URL where the package lives                                 |
-| license     | _str_          | (Optional) Package license. If not specified, defaults to *Unlicensed* |
+| license     | _str_          | (Optional) Package license. If not specified, defaults to _Unlicensed_ |
 | labels      | _Map[str,str]_ | (Optional) A storage for arbitrary key-value data                      |
 
 ## SourceSpec
@@ -33,12 +33,12 @@ A source spec can be one of [LocalSource](#localsource), [GitSource](#gitsource)
 
 Defines a local directory to collect sources from. This process will also automatically detect a git repository and not transfer ignored files.
 
-| Field   | Type        | Description                                                                                      |
-| ------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| path    | _str_       | The relative or absolute path to a local directory                                               |
-| exclude | _List[str]_ | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/")     |
-| filter  | _List[str]_ | A list of filter rules for rsync (defaults to reading from the gitignore file:`":- .gitignore"`) |
-| subdir  | _str_       | An alternative path to place these files in the source package                                   |
+| Field   | Type        | Description                                                                                       |
+| ------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| path    | _str_       | The relative or absolute path to a local directory                                                |
+| exclude | _List[str]_ | A list of glob patterns for files and directories to exclude (defaults to `".git/", ".svn/")      |
+| filter  | _List[str]_ | A list of filter rules for rsync (defaults to reading from the gitignore file: `":- .gitignore"`) |
+| subdir  | _str_       | An alternative path to place these files in the source package                                    |
 
 ### GitSource
 
@@ -53,7 +53,6 @@ Clones a git repository as package source files.
 ### TarSource
 
 Fetches and extracts a tar archive as package source files.
-
 
 | Field  | Type  | Description                                                    |
 | ------ | ----- | -------------------------------------------------------------- |
@@ -77,12 +76,12 @@ A build option can be one of [VariableOption](#variableoption), or [PackageOptio
 
 Variable options represents some arbitrary configuration parameter to the build. When the value of this string changes, a new build of the package is required. Some common examples of these options are: `arch`, `os`, `debug`.
 
-| Field       | Type        | Description                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| var         | _str_       | The name of the option, with optional default value (eg`my_option` or `my_option/default_value`)                                                                                                                                                                                                                                                                                                                                 |
-| choices     | _List[str]_ | An optional set of possible values for this variable                                                                                                                                                                                                                                                                                                                                                                             |
-| inheritance | _str_       | Defines how this option is inherited by downstream packages.`Weak` is the default behaviour and does not influence downstream packages directly. `Strong` propagates this build option into every package that has this one in it's build environment while also adding an install requirement for this option. `StrongForBuildOnly` can be used to propagate this requirement as a build option but not an install requirement. |
-| static      | _str_       | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the value of the variable at build time                                                                                                                                                                                                                                    |
+| Field       | Type        | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| var         | _str_       | The name of the option, with optional default value (eg `my_option` or `my_option/default_value`)                                                                                                                                                                                                                                                                                                                                 |
+| choices     | _List[str]_ | An optional set of possible values for this variable                                                                                                                                                                                                                                                                                                                                                                              |
+| inheritance | _str_       | Defines how this option is inherited by downstream packages. `Weak` is the default behaviour and does not influence downstream packages directly. `Strong` propagates this build option into every package that has this one in it's build environment while also adding an install requirement for this option. `StrongForBuildOnly` can be used to propagate this requirement as a build option but not an install requirement. |
+| static      | _str_       | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the value of the variable at build time                                                                                                                                                                                                                                     |
 
 #### PackageOption
 
@@ -131,6 +130,7 @@ A test spec defines one test script that should be run against the package to va
 | requirements | _List[[Request](#request)]_             | The set of packages required at runtime, this list applies universally to all components.                                                                            |
 | embedded     | _List[[Spec](#spec)]_                   | A list of packages that come bundled in this one                                                                                                                     |
 | components   | _List[[ComponentSpec](#componentspec)]_ | The set of components that this package provides. If not otherwise specified, a `build` and `run` component are automatically generated and inserted into this list. |
+| environment  | _List[[EnvOp](#envop)]_                 | Environment variable manipulations to make at runtime                                                                                                                |
 
 #### ComponentSpec
 
@@ -140,9 +140,36 @@ The component spec defines a single component of a package. Components can be in
 | ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | name         | _string_                    | The name of this component                                                                                                                              |
 | files        | _List[string]_              | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
-| uses         | _List[string]_              | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.                              |
+| uses         | _List[string]_              | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
 | requirements | _List[[Request](#request)]_ | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
-| embedded     | _List[[Spec](#spec)]_       | A list of packages that are embedded in this component                                                                            |
+| embedded     | _List[[Spec](#spec)]_       | A list of packages that are embedded in this component                                                                                                  |
+
+### EnvOp
+
+An operation made to the environment at runtime. Can be one of [AppendEnv](#appendenv), [PrependEnv](#prependenv) or [SetEnv](#setenv).
+
+#### AppendEnv
+
+| Field     | Type  | Description                                                                  |
+| --------- | ----- | ---------------------------------------------------------------------------- |
+| append    | _str_ | The environment variable to append to                                        |
+| value     | _str_ | The value to append                                                          |
+| separator | _str_ | Optional separator to join with (defaults to `:` on unix and `;` on windows) |
+
+#### PrependEnv
+
+| Field     | Type  | Description                                                                  |
+| --------- | ----- | ---------------------------------------------------------------------------- |
+| prepend   | _str_ | The environment variable to prepend to                                       |
+| value     | _str_ | The value to prepend                                                         |
+| separator | _str_ | Optional separator to join with (defaults to `:` on unix and `;` on windows) |
+
+#### SetEnv
+
+| Field | Type  | Description                     |
+| ----- | ----- | ------------------------------- |
+| set   | _str_ | The environment variable to set |
+| value | _str_ | The value to set                |
 
 ### Request
 

@@ -15,6 +15,18 @@ pub mod test;
 
 pub use error::{Error, Result};
 
+lazy_static::lazy_static! {
+    pub(crate) static ref HANDLE: tokio::runtime::Handle = {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let handle = rt.handle().clone();
+        std::thread::spawn(move || rt.block_on(futures::future::pending::<()>()));
+        handle
+    };
+}
+
 // -- begin python wrappers --
 
 use pyo3::prelude::*;
@@ -135,29 +147,24 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m)]
     #[pyo3(name = "configure_logging")]
-    fn configure_logging(_py: Python, mut verbosity: usize) -> Result<()> {
-        if verbosity == 0 {
-            let parse_result = std::env::var("SPFS_VERBOSITY")
-                .unwrap_or_else(|_| "0".to_string())
-                .parse::<usize>();
-            if let Ok(parsed) = parse_result {
-                verbosity = usize::max(parsed, verbosity);
+    fn configure_logging(_py: Python, verbosity: usize) -> Result<()> {
+        use tracing_subscriber::layer::SubscriberExt;
+        let mut directives = match verbosity {
+            0 => "spk=info,spfs=warn",
+            1 => "spk=debug,spfs=info",
+            2 => "spk=trace,spfs=debug",
+            _ => "spk=trace,spfs=trace",
+        }
+        .to_string();
+        if let Ok(overrides) = std::env::var("RUST_LOG") {
+            // this is a common scenario because spk often calls itself
+            if directives != overrides {
+                directives = format!("{},{}", directives, overrides);
             }
         }
-        std::env::set_var("SPFS_VERBOSITY", verbosity.to_string());
-        use tracing_subscriber::layer::SubscriberExt;
-        if std::env::var("RUST_LOG").is_err() {
-            std::env::set_var("RUST_LOG", "spfs=trace");
-        }
-        let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
-        let level_filter = match verbosity {
-            0 => tracing_subscriber::filter::LevelFilter::INFO,
-            1 => tracing_subscriber::filter::LevelFilter::DEBUG,
-            _ => tracing_subscriber::filter::LevelFilter::TRACE,
-        };
-        let registry = tracing_subscriber::Registry::default()
-            .with(env_filter)
-            .with(level_filter);
+        std::env::set_var("RUST_LOG", &directives);
+        let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
+        let registry = tracing_subscriber::Registry::default().with(env_filter);
         let mut fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stderr)
             .without_time();
@@ -186,7 +193,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
 
         // make editable first before trying to make any changes
         runtime.set_editable(true)?;
-        spfs::remount_runtime(&runtime)?;
+        HANDLE.block_on(spfs::remount_runtime(&runtime))?;
 
         if let Some(editable) = editable {
             runtime.set_editable(editable)?;
@@ -201,7 +208,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
                 runtime.push_digest(&digest.inner)?;
             }
         }
-        spfs::remount_runtime(&runtime)?;
+        HANDLE.block_on(spfs::remount_runtime(&runtime))?;
         Ok(())
     }
 
@@ -231,24 +238,8 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
     #[pyo3(name = "commit_layer")]
     fn commit_layer(runtime: &mut Runtime) -> Result<Digest> {
-        let layer = spfs::commit_layer(&mut runtime.inner)?;
+        let layer = crate::HANDLE.block_on(spfs::commit_layer(&mut runtime.inner))?;
         Ok(Digest::from(layer.digest()?))
-    }
-    #[pyfn(m)]
-    #[pyo3(name = "find_layer_by_filename")]
-    fn find_layer_by_filename(path: &str) -> Result<Digest> {
-        let runtime = spfs::active_runtime()?;
-        let repo = spfs::load_config()?.get_repository()?.into();
-
-        let stack = runtime.get_stack();
-        let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo))?;
-        for layer in layers.iter().rev() {
-            let manifest = repo.read_manifest(&layer.manifest)?.unlock();
-            if manifest.get_path(&path).is_some() {
-                return Ok(layer.digest()?.into());
-            }
-        }
-        Err(spfs::graph::UnknownReferenceError::new(path).into())
     }
 
     #[pyfn(m)]
@@ -256,7 +247,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     fn render_into_dir(stack: Vec<Digest>, path: &str) -> Result<()> {
         let items: Vec<String> = stack.into_iter().map(|d| d.inner.to_string()).collect();
         let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;
-        spfs::render_into_directory(&env_spec, path)?;
+        crate::HANDLE.block_on(spfs::render_into_directory(&env_spec, path))?;
         Ok(())
     }
 

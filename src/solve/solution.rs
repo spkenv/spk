@@ -20,6 +20,10 @@ pub enum PackageSource {
         /// the components that can be used for this package from the repository
         components: HashMap<api::Component, spfs::encoding::Digest>,
     },
+    // A package comes from another spec if it is either an embedded
+    // package or represents a package to be built from source. In the
+    // latter case, this spec is the original source spec that should
+    // be used as the basis for the package build.
     Spec(Arc<api::Spec>),
 }
 
@@ -149,7 +153,8 @@ impl Solution {
         }
     }
 
-    pub fn add(&mut self, request: &api::PkgRequest, package: api::Spec, source: PackageSource) {
+    #[pyo3(name = "add")]
+    pub fn add_py(&mut self, request: &api::PkgRequest, package: api::Spec, source: PackageSource) {
         let package = Arc::new(package);
         if self
             .resolved
@@ -195,23 +200,13 @@ impl Solution {
         self.options.clone()
     }
 
-    /// Return the set of repositories in this solution.
-    pub fn repositories(&self) -> Result<Vec<storage::python::Repository>> {
-        let mut seen = HashSet::new();
-        let mut repos = Vec::new();
-        for (_, source) in self.resolved.values() {
-            if let PackageSource::Repository { repo, .. } = source {
-                let addr = repo.lock().unwrap().address();
-                if seen.contains(&addr) {
-                    continue;
-                }
-                repos.push(storage::python::Repository {
-                    handle: repo.clone(),
-                });
-                seen.insert(addr);
-            }
-        }
-        Ok(repos)
+    #[pyo3(name = "repositories")]
+    pub fn repositories_py(&self) -> Result<Vec<storage::python::Repository>> {
+        Ok(self
+            .repositories()
+            .into_iter()
+            .map(|handle| storage::python::Repository { handle })
+            .collect())
     }
 
     /// Return the data of this solution as environment variables.
@@ -240,6 +235,41 @@ impl Solution {
 }
 
 impl Solution {
+    /// Add a resolved request to this solution
+    pub fn add(
+        &mut self,
+        request: &api::PkgRequest,
+        package: Arc<api::Spec>,
+        source: PackageSource,
+    ) {
+        if self
+            .resolved
+            .insert(request.clone(), (package.clone(), source))
+            .is_none()
+        {
+            self.insertion_order
+                .insert(request.clone(), self.insertion_order.len());
+        }
+        self.by_name.insert(request.pkg.name().to_owned(), package);
+    }
+
+    /// Return the set of repositories in this solution.
+    pub fn repositories(&self) -> Vec<Arc<Mutex<storage::RepositoryHandle>>> {
+        let mut seen = HashSet::new();
+        let mut repos = Vec::new();
+        for (_, source) in self.resolved.values() {
+            if let PackageSource::Repository { repo, .. } = source {
+                let addr = repo.lock().unwrap().address();
+                if seen.contains(&addr) {
+                    continue;
+                }
+                repos.push(repo.clone());
+                seen.insert(addr);
+            }
+        }
+        repos
+    }
+
     /// Return the data of this solution as environment variables.
     ///
     /// If base is given, also clean any existing, conflicting values.

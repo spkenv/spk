@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-#[macro_export]
-macro_rules! fixtures {
-    () => {
-        #[allow(dead_code)]
-        fn init_logging() -> tracing::dispatcher::DefaultGuard {
-            let sub = tracing_subscriber::FmtSubscriber::builder()
-                .with_max_level(tracing::Level::TRACE)
-                .without_time()
-                .with_test_writer()
-                .finish();
-            tracing::subscriber::set_default(sub)
-        }
-    };
+use rstest::fixture;
+
+pub fn init_logging() {
+    let sub = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .without_time()
+        .with_test_writer()
+        .finish();
+    let _ = tracing::subscriber::set_global_default(sub);
+}
+
+#[fixture]
+pub fn tmpdir() -> tempdir::TempDir {
+    tempdir::TempDir::new("spk-test-").expect("Failed to establish temporary directory for testing")
 }

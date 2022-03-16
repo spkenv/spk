@@ -144,6 +144,7 @@ impl PackageInstallTester {
     }
 
     pub fn test(&mut self) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         let mut rt = spfs::active_runtime()?;
         rt.set_editable(true)?;
         rt.reset_all()?;
@@ -159,7 +160,7 @@ impl PackageInstallTester {
             solver.add_repository(repo);
         }
 
-        let pkg = api::RangeIdent::exact(&self.spec.pkg);
+        let pkg = api::RangeIdent::exact(&self.spec.pkg, [api::Component::All]);
         let request = api::PkgRequest {
             pkg,
             prerelease_policy: api::PreReleasePolicy::IncludeAll,
@@ -177,7 +178,7 @@ impl PackageInstallTester {
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(&layer)?;
         }
-        spfs::remount_runtime(&rt)?;
+        crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(

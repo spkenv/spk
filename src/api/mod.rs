@@ -8,6 +8,7 @@ mod compat;
 mod component_spec;
 mod component_spec_list;
 mod embedded_packages_list;
+mod environ;
 mod ident;
 mod install_spec;
 mod meta;
@@ -31,6 +32,7 @@ pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility}
 pub use component_spec::{Component, ComponentSpec, FileMatcher};
 pub use component_spec_list::ComponentSpecList;
 pub use embedded_packages_list::EmbeddedPackagesList;
+pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;

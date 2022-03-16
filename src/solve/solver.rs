@@ -302,11 +302,6 @@ impl Solver {
         state
     }
 
-    pub fn get_last_solve_graph(&self) -> Graph {
-        //self.last_graph.read().unwrap().clone()
-        todo!()
-    }
-
     pub fn reset(&mut self) {
         self.repos.clear();
         self.initial_state_builders.clear();
@@ -433,6 +428,7 @@ impl SolverRuntime {
     /// If needed, this function will iterate any remaining
     /// steps for the current state.
     pub fn solution(&mut self) -> PyResult<Solution> {
+        let _guard = crate::HANDLE.enter();
         for item in self.iter() {
             item?;
         }
@@ -507,14 +503,12 @@ impl Iterator for SolverRuntime {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(&msg.to_string(), &n_lock.state))
-                                    .as_decision(),
+                                Change::StepBack(StepBack::new(msg, &n_lock.state)).as_decision(),
                             )
                         }
                         None => {
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(&msg.to_string(), &DEAD_STATE))
-                                    .as_decision(),
+                                Change::StepBack(StepBack::new(msg, &DEAD_STATE)).as_decision(),
                             )
                         }
                     }
@@ -570,6 +564,7 @@ impl PyIterProtocol for SolverRuntime {
     }
 
     fn __next__(mut slf: PyRefMut<Self>) -> Result<Option<(Node, Decision)>> {
+        let _guard = crate::HANDLE.enter();
         match slf.next() {
             Some(Ok(i)) => Ok(Some(i)),
             Some(Err(err)) => Err(err),

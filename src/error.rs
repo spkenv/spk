@@ -92,7 +92,7 @@ impl From<Error> for PyErr {
         match err {
             Error::IO(err) => err.into(),
             Error::SPFS(spfs::Error::IO(err)) => err.into(),
-            Error::SPFS(err) => exceptions::PyRuntimeError::new_err(spfs::io::format_error(&err)),
+            Error::SPFS(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
             Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
             Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
             Error::Solve(err) => err.into(),

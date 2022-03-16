@@ -161,16 +161,17 @@ impl Spec {
         super::python::to_dict(self, py)
     }
 
-    pub fn validate_build_changeset(&self) -> Result<()> {
-        self.build.validation.validate_build_changeset(self)
-    }
-
     fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {
         self.update_for_build(options, resolved.iter())
     }
 }
 
 impl Spec {
+    /// Validate the current spfs change as a build of this spec
+    pub async fn validate_build_changeset(&self) -> Result<()> {
+        self.build.validation.validate_build_changeset(self).await
+    }
+
     /// Update this spec to represent a specific binary package build.
     pub fn update_for_build<I, S>(&mut self, options: &OptionMap, resolved: I) -> Result<()>
     where

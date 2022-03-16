@@ -1,9 +1,7 @@
 from typing import (
     Any,
     Dict,
-    Iterator,
     List,
-    MutableMapping,
     Optional,
     Set,
     Tuple,
@@ -71,7 +69,6 @@ class Spec:
     def update_spec_for_build(
         self, options: OptionMap, resolved: List[Spec]
     ) -> None: ...
-    def validate_build_changeset(self) -> None: ...
 
 class BuildSpec:
     script: List[str]
@@ -99,6 +96,7 @@ class InstallSpec:
     requirements: List[Request]
     embedded: List[Spec]
     components: List[ComponentSpec]
+    environment: List[EnvOp]
     def upsert_requirement(self, request: Request) -> None: ...
 
 class RangeIdent:
@@ -280,3 +278,27 @@ VersionRange = Union[
     CompatRange,
     VersionFilter,
 ]
+
+class AppendEnv:
+    append: str
+    value: str
+    separator: Optional[str]
+    def sep(self) -> str: ...
+    def bash_source(self) -> str: ...
+    def tcsh_source(self) -> str: ...
+
+class PrependEnv:
+    prepend: str
+    value: str
+    separator: Optional[str]
+    def sep(self) -> str: ...
+    def bash_source(self) -> str: ...
+    def tcsh_source(self) -> str: ...
+
+class SetEnv:
+    set: str
+    value: str
+    def bash_source(self) -> str: ...
+    def tcsh_source(self) -> str: ...
+
+EnvOp = Union[AppendEnv, PrependEnv, SetEnv]

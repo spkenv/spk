@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::{api, io, solve, storage, Error, Result};
+use std::sync::{Arc, Mutex};
+
+use crate::{api, build, io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
 pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>> {
-    let mut local_repo = storage::local_repository()?;
+    let local_repo = crate::HANDLE.block_on(storage::local_repository())?;
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
@@ -25,6 +27,13 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
             solve::PackageSource::Spec(_) => continue,
         };
 
+        if resolved.request.pkg.components.is_empty() {
+            tracing::warn!(
+                "Package request for '{}' identified no components, nothing will be included",
+                resolved.request.pkg.name()
+            );
+            continue;
+        }
         let mut desired_components = resolved.request.pkg.components;
         if desired_components.is_empty() {
             desired_components.insert(api::Component::All);
@@ -32,6 +41,11 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
         if desired_components.remove(&api::Component::All) {
             desired_components.extend(components.keys().cloned());
         }
+        desired_components = resolved
+            .spec
+            .install
+            .components
+            .resolve_uses(desired_components.iter());
 
         for name in desired_components.into_iter() {
             let digest = components.get(&name).ok_or_else(|| {
@@ -45,7 +59,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 continue;
             }
 
-            if !local_repo.has_object(digest) {
+            if !crate::HANDLE.block_on(local_repo.has_object(*digest)) {
                 to_sync.push((resolved.spec.clone(), repo.clone(), *digest))
             }
 
@@ -62,11 +76,61 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 to_sync_count,
                 io::format_ident(&spec.pkg),
             );
-            spfs::sync_ref(digest.to_string(), repo, &mut local_repo)?;
+            crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), repo, &local_repo))?;
         }
     }
 
     Ok(stack)
+}
+
+/// Modify the active spfs runtime to include exactly the packages in the given solution.
+pub async fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+    let mut rt = spfs::active_runtime()?;
+    let stack = resolve_runtime_layers(solution)?;
+    rt.reset_stack()?;
+    for digest in stack {
+        rt.push_digest(&digest)?;
+    }
+    spfs::remount_runtime(&rt).await?;
+    Ok(())
+}
+
+/// Build any packages in the given solution that need building.
+///
+/// Returns a new solution of only binary packages.
+pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
+    let handle: storage::RepositoryHandle =
+        crate::HANDLE.block_on(storage::local_repository())?.into();
+    let local_repo = Arc::new(Mutex::new(handle));
+    let repos = solution.repositories();
+    let options = solution.options();
+    let mut compiled_solution = solve::Solution::new(Some(options.clone()));
+    for item in solution.items() {
+        let source_spec = match item.source {
+            solve::PackageSource::Spec(spec) if item.is_source_build() => spec,
+            source => {
+                compiled_solution.add(&item.request, item.spec, source);
+                continue;
+            }
+        };
+
+        tracing::info!(
+            "Building: {} for {}",
+            io::format_ident(&item.spec.pkg),
+            io::format_options(&options)
+        );
+        let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
+            .with_repositories(repos.clone())
+            .with_options(options.clone())
+            .build()?;
+        let components = local_repo.lock().unwrap().get_package(&spec.pkg)?;
+        let source = solve::PackageSource::Repository {
+            repo: local_repo.clone(),
+            components,
+        };
+        compiled_solution.add(&item.request, Arc::new(spec), source);
+    }
+    Ok(compiled_solution)
 }
 
 pub mod python {
@@ -81,8 +145,20 @@ pub mod python {
             .collect())
     }
 
+    #[pyfunction]
+    pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+        crate::HANDLE.block_on(super::setup_current_runtime(solution))
+    }
+
+    #[pyfunction]
+    pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
+        super::build_required_packages(solution)
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(resolve_runtime_layers, m)?)?;
+        m.add_function(wrap_pyfunction!(setup_current_runtime, m)?)?;
+        m.add_function(wrap_pyfunction!(build_required_packages, m)?)?;
         Ok(())
     }
 }

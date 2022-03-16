@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
@@ -73,7 +73,7 @@ pub struct BinaryPackageBuilder {
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
-    last_solve_graph: solve::Graph,
+    last_solve_graph: Arc<RwLock<solve::Graph>>,
     repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
     interactive: bool,
 }
@@ -89,23 +89,26 @@ impl BinaryPackageBuilder {
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
             solver: solve::Solver::default(),
-            last_solve_graph: Default::default(),
+            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
             repos: Default::default(),
             interactive: false,
         }
     }
-    /// Return the resolve graph from the build environment.
-    ///
-    /// This is most useful for debugging build environments that failed to resolve,
-    /// and builds that failed with a SolverError.
-    ///
-    /// If the builder has not run, return an incomplete graph.
-    pub fn get_solve_graph(&self) -> solve::Graph {
-        self.solver.get_last_solve_graph()
+
+    #[pyo3(name = "get_solve_graph")]
+    fn get_solve_graph_py(&self) -> solve::Graph {
+        self.last_solve_graph.read().unwrap().clone()
+    }
+
+    #[pyo3(name = "with_prefix")]
+    pub fn with_prefix_py(mut slf: PyRefMut<Self>, prefix: PathBuf) -> PyRefMut<Self> {
+        slf.with_prefix(prefix);
+        slf
     }
 
     #[pyo3(name = "build")]
     fn build_py(&self) -> Result<api::Spec> {
+        let _guard = crate::HANDLE.enter();
         // the build function consumes the builder
         // but we cannot represent that in python
         self.clone().build()
@@ -163,9 +166,18 @@ impl BinaryPackageBuilder {
     pub fn get_build_requirements_py(&self) -> Result<Vec<api::Request>> {
         self.get_build_requirements()
     }
+
+    #[pyo3(name = "generate_startup_scripts")]
+    pub fn generate_startup_scripts_py(&self) -> Result<()> {
+        self.generate_startup_scripts()
+    }
 }
 
 impl BinaryPackageBuilder {
+    pub fn with_prefix(&mut self, prefix: PathBuf) {
+        self.prefix = prefix
+    }
+
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
     where
         N: Into<String>,
@@ -185,17 +197,16 @@ impl BinaryPackageBuilder {
         self
     }
 
-    pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repos.push(Arc::new(Mutex::new(repo)));
+    pub fn with_repository(&mut self, repo: Arc<Mutex<storage::RepositoryHandle>>) -> &mut Self {
+        self.repos.push(repo);
         self
     }
 
     pub fn with_repositories(
         &mut self,
-        repos: impl IntoIterator<Item = storage::RepositoryHandle>,
+        repos: impl IntoIterator<Item = Arc<Mutex<storage::RepositoryHandle>>>,
     ) -> &mut Self {
-        self.repos
-            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
+        self.repos.extend(repos);
         self
     }
 
@@ -204,8 +215,18 @@ impl BinaryPackageBuilder {
         self
     }
 
+    /// Return the resolve graph from the build environment.
+    ///
+    /// This is most useful for debugging build environments that failed to resolve,
+    /// and builds that failed with a SolverError.
+    ///
+    /// If the builder has not run, return an incomplete graph.
+    pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
+        self.last_solve_graph.clone()
+    }
+
     /// Build the requested binary package.
-    pub fn build(mut self) -> Result<api::Spec> {
+    pub fn build(&mut self) -> Result<api::Spec> {
         let mut runtime = spfs::active_runtime()?;
         runtime.set_editable(true)?;
         runtime.reset_all()?;
@@ -225,7 +246,7 @@ impl BinaryPackageBuilder {
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             let solution = self.resolve_source_package(&ident)?;
-            stack.extend(exec::resolve_runtime_layers(&solution)?);
+            stack.extend(exec::resolve_runtime_layers(&solution)?)
         };
         let solution = self.resolve_build_environment()?;
         let mut opts = solution.options();
@@ -235,21 +256,25 @@ impl BinaryPackageBuilder {
         for digest in stack.into_iter() {
             runtime.push_digest(&digest)?;
         }
-        spfs::remount_runtime(&runtime)?;
+        crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
         let specs = solution.items().into_iter().map(|solved| solved.spec);
         self.spec.update_for_build(&self.all_options, specs)?;
         let env = std::env::vars();
         let mut env = solution.to_environment(Some(env));
         env.extend(self.all_options.to_environment());
-        let components = self.build_and_commit_artifacts(env)?;
-        storage::local_repository()?.publish_package(self.spec.clone(), components)?;
-        Ok(self.spec)
+        let components = crate::HANDLE.block_on(self.build_and_commit_artifacts(env))?;
+        crate::HANDLE
+            .block_on(storage::local_repository())?
+            .publish_package(self.spec.clone(), components)?;
+        Ok(self.spec.clone())
     }
 
     fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
-        let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
+        let local_repo = Arc::new(Mutex::new(
+            crate::HANDLE.block_on(storage::local_repository())?.into(),
+        ));
         self.solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
             if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
@@ -259,8 +284,7 @@ impl BinaryPackageBuilder {
             self.solver.add_repository(repo.clone());
         }
 
-        let mut ident_range = api::RangeIdent::exact(package);
-        ident_range.components.insert(api::Component::Source);
+        let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
         let request = api::PkgRequest {
             pkg: ident_range,
             prerelease_policy: api::PreReleasePolicy::IncludeAll,
@@ -272,7 +296,7 @@ impl BinaryPackageBuilder {
 
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
-        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        self.last_solve_graph = runtime.graph();
         Ok(solution?)
     }
 
@@ -290,7 +314,7 @@ impl BinaryPackageBuilder {
 
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
-        self.last_solve_graph = runtime.graph().read().unwrap().clone();
+        self.last_solve_graph = runtime.graph();
         Ok(solution?)
     }
 
@@ -314,7 +338,9 @@ impl BinaryPackageBuilder {
                     // no need to turn that into a requirement to
                     // find a var with an empty value.
                     if let Some(value) = opts.get(&opt.var) {
-                        requests.push(opt.to_request(Some(value)).into());
+                        if !value.is_empty() {
+                            requests.push(opt.to_request(Some(value)).into());
+                        }
                     }
                 }
             }
@@ -322,7 +348,7 @@ impl BinaryPackageBuilder {
         Ok(requests)
     }
 
-    fn build_and_commit_artifacts<I, K, V>(
+    async fn build_and_commit_artifacts<I, K, V>(
         &mut self,
         env: I,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>
@@ -342,14 +368,15 @@ impl BinaryPackageBuilder {
             sources_dir.to_path(&self.prefix).display()
         );
         runtime.reset(&[pattern])?;
-        spfs::remount_runtime(&runtime)?;
+        spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package fileset...");
         self.spec
             .validate_build_changeset()
+            .await
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
-        commit_component_layers(&self.spec, &mut runtime)
+        commit_component_layers(&self.spec, &mut runtime).await
     }
 
     fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
@@ -423,19 +450,46 @@ impl BinaryPackageBuilder {
         cmd.env("PREFIX", &self.prefix);
         cmd.current_dir(&source_dir);
 
-        match cmd.status() {
-            Err(err) => Err(err.into()),
-            Ok(status) => match status.code() {
-                Some(0) => Ok(()),
-                Some(code) => Err(BuildError::new_error(format_args!(
+        match cmd.status()?.code() {
+            Some(0) => (),
+            Some(code) => {
+                return Err(BuildError::new_error(format_args!(
                     "Build script returned non-zero exit status: {}",
                     code
-                ))),
-                None => Err(BuildError::new_error(format_args!(
+                )))
+            }
+            None => {
+                return Err(BuildError::new_error(format_args!(
                     "Build script failed unexpectedly"
-                ))),
-            },
+                )))
+            }
         }
+        self.generate_startup_scripts()
+    }
+
+    fn generate_startup_scripts(&self) -> Result<()> {
+        let ops = &self.spec.install.environment;
+        if ops.is_empty() {
+            return Ok(());
+        }
+
+        let startup_dir = self.prefix.join("etc").join("spfs").join("startup.d");
+        if let Err(err) = std::fs::create_dir_all(&startup_dir) {
+            match err.kind() {
+                std::io::ErrorKind::AlreadyExists => (),
+                _ => return Err(err.into()),
+            }
+        }
+
+        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.pkg.name()));
+        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.pkg.name()));
+        let mut csh_file = std::fs::File::create(startup_file_csh)?;
+        let mut sh_file = std::fs::File::create(startup_file_sh)?;
+        for op in ops {
+            csh_file.write_fmt(format_args!("{}\n", op.tcsh_source()))?;
+            sh_file.write_fmt(format_args!("{}\n", op.bash_source()))?;
+        }
+        Ok(())
     }
 }
 
@@ -478,29 +532,27 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
     env
 }
 
-pub fn commit_component_layers(
+pub async fn commit_component_layers(
     spec: &api::Spec,
     runtime: &mut spfs::runtime::Runtime,
 ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-    let layer = spfs::commit_layer(runtime)?;
+    let layer = spfs::commit_layer(runtime).await?;
     let config = spfs::load_config()?;
-    let mut repo = config.get_repository()?;
-    let manifest = repo.read_manifest(&layer.manifest)?.unlock();
+    let repo = config.get_repository().await?;
+    let manifest = repo.read_manifest(layer.manifest).await?.unlock();
     let manifests = split_manifest_by_component(&spec.pkg, &manifest, &spec.install.components)?;
-    manifests
-        .into_iter()
-        .map(|(name, m)| (name, spfs::graph::Manifest::from(&m)))
-        .map(|(name, m)| {
-            let layer = spfs::graph::Layer {
-                manifest: m.digest().unwrap(),
-            };
-            let layer_digest = layer.digest().unwrap();
-            repo.write_object(&m.into())
-                .and_then(|_| repo.write_object(&layer.into()))
-                .map_err(crate::Error::from)
-                .map(|_| (name, layer_digest))
-        })
-        .collect()
+    let mut committed = HashMap::with_capacity(manifests.len());
+    for (component, manifest) in manifests {
+        let manifest = spfs::graph::Manifest::from(&manifest);
+        let layer = spfs::graph::Layer {
+            manifest: manifest.digest().unwrap(),
+        };
+        let layer_digest = layer.digest().unwrap();
+        repo.write_object(&manifest.into()).await?;
+        repo.write_object(&layer.into()).await?;
+        committed.insert(component, layer_digest);
+    }
+    Ok(committed)
 }
 
 fn split_manifest_by_component(
@@ -568,30 +620,34 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
     diffs: &mut Vec<spfs::tracking::Diff>,
     prefix: P,
 ) -> Result<()> {
+    use spfs::tracking::DiffMode;
     for diff in diffs.iter_mut() {
-        if diff.mode != spfs::tracking::DiffMode::Changed {
-            continue;
-        }
-        if let Some((a, b)) = &diff.entries {
-            if a.size != b.size {
-                continue;
-            }
-            if a.object != b.object {
-                continue;
-            }
-            if a.kind != b.kind {
-                continue;
-            }
-            let mode_change = a.mode ^ b.mode;
-            let nonperm_change = (mode_change | 0o777) ^ 0o77;
-            if mode_change != 0 && nonperm_change == 0 {
-                let perms = std::fs::Permissions::from_mode(a.mode);
-                std::fs::set_permissions(
-                    diff.path
-                        .to_path(PathBuf::from(prefix.as_ref().to_string())),
-                    perms,
-                )?;
-                diff.mode = spfs::tracking::DiffMode::Unchanged;
+        match &diff.mode {
+            DiffMode::Unchanged(_) | DiffMode::Removed(_) | DiffMode::Added(_) => continue,
+            DiffMode::Changed(a, b) => {
+                if a.size != b.size {
+                    continue;
+                }
+                if a.object != b.object {
+                    continue;
+                }
+                if a.kind != b.kind {
+                    continue;
+                }
+                let mode_change = a.mode ^ b.mode;
+                let nonperm_change = (mode_change | 0o777) ^ 0o777;
+                if nonperm_change != 0 {
+                    continue;
+                }
+                if mode_change != 0 {
+                    let perms = std::fs::Permissions::from_mode(a.mode);
+                    std::fs::set_permissions(
+                        diff.path
+                            .to_path(PathBuf::from(prefix.as_ref().to_string())),
+                        perms,
+                    )?;
+                }
+                diff.mode = DiffMode::Unchanged(a.clone());
             }
         }
     }

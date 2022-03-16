@@ -119,7 +119,7 @@ impl BuildSpec {
     /// Add or update an option in this build spec.
     ///
     /// An option is replaced if it shares a name with the given option,
-    /// otherwise the option is appended to the buid options
+    /// otherwise the option is appended to the build options
     pub fn upsert_opt(&mut self, opt: Opt) {
         for other in self.options.iter_mut() {
             if other.name() == opt.name() {

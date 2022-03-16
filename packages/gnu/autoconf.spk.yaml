@@ -22,11 +22,11 @@ build:
       --with-local-prefix=/spfs
     - make
     - make install
-    - mkdir -p /spfs/etc/spfs/startup.d
-    - echo "export ACLOCAL_PATH=/spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.sh
-    - echo "setenv ACLOCAL_PATH /spfs/share/aclocal" > /spfs/etc/spfs/startup.d/activate-autoconf.csh
 
 install:
+  environment:
+    - set: ACLOCAL_PATH
+      value: /spfs/share/aclocal
   requirements:
    - pkg: bash
    - pkg: perl

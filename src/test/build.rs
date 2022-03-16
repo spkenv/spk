@@ -164,6 +164,7 @@ impl PackageBuildTester {
     }
 
     pub fn test(&mut self) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
         let mut rt = spfs::active_runtime()?;
         rt.set_editable(true)?;
         rt.reset_all()?;
@@ -193,7 +194,7 @@ impl PackageBuildTester {
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(&layer)?;
         }
-        spfs::remount_runtime(&rt)?;
+        crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
 
         self.options.extend(solution.options());
         let resolved = solution.items().into_iter().map(|r| r.spec);
@@ -248,7 +249,8 @@ impl PackageBuildTester {
         let mut solver = solve::Solver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
-        let local_repo = Arc::new(Mutex::new(storage::local_repository()?.into()));
+        let local_repo = crate::HANDLE.block_on(storage::local_repository())?;
+        let local_repo = Arc::new(Mutex::new(local_repo.into()));
         solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
             if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
@@ -258,7 +260,7 @@ impl PackageBuildTester {
             solver.add_repository(repo.clone());
         }
 
-        let mut ident_range = api::RangeIdent::exact(package);
+        let mut ident_range = api::RangeIdent::exact(package, [api::Component::All]);
         ident_range.components.insert(api::Component::Source);
         let request = api::PkgRequest {
             pkg: ident_range,

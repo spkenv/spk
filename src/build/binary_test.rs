@@ -29,3 +29,24 @@ fn test_split_manifest_permissions() {
     assert_eq!(run.get_path("bin").unwrap().mode, 0o754);
     assert_eq!(run.get_path("bin/runme").unwrap().mode, 0o555);
 }
+
+#[rstest]
+fn test_empty_var_option_is_not_a_request() {
+    let spec: crate::api::Spec = serde_yaml::from_str(
+        r#"{
+        pkg: mypackage/1.0.0,
+        build: {
+            options: [
+                {var: something}
+            ]
+        }
+    }"#,
+    )
+    .unwrap();
+    let builder = super::BinaryPackageBuilder::from_spec(spec);
+    let requirements = builder.get_build_requirements().unwrap();
+    assert!(
+        requirements.is_empty(),
+        "a var option with empty value should not create a solver request"
+    )
+}

@@ -5,9 +5,9 @@
 
 import spkrs
 
-from spkrs import api, solve, io, test
+from spkrs import api, solve, io, test, exec
 
-from . import storage, build, exec, test
+from . import storage, build, test
 from ._global import load_spec, save_spec
 from ._env import current_env, NoEnvironmentError
 from ._publish import Publisher
@@ -25,6 +25,6 @@ from .build import (
     CollectionError,
 )
 from .storage import export_package, import_package
-from .exec import build_required_packages, setup_current_runtime
+from spkrs.exec import build_required_packages, setup_current_runtime
 
 __all__ = list(locals().keys())
