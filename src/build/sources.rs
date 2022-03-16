@@ -84,7 +84,7 @@ impl SourcePackageBuilder {
     }
 
     /// Build the requested source package.
-    pub fn build(mut self) -> Result<api::Ident> {
+    pub fn build(&mut self) -> Result<api::Ident> {
         let layer = crate::HANDLE.block_on(self.collect_and_commit_sources())?;
         let repo = match &mut self.repo {
             Some(r) => r,
