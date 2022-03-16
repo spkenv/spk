@@ -94,7 +94,7 @@ impl SpfsTag for Spk {
 }
 
 /// Ensure requested version of spk is installed.
-fn check_or_install<S>(
+async fn check_or_install<S>(
     tag: &str,
     platform_digest: &Digest,
     local: &mut RepositoryHandle,
@@ -115,10 +115,14 @@ where
 
         // Ensure tag is sync'd local because `render_into_directory` operates
         // out of the local repo.
-        spfs::sync_ref(tag, remote, local).context("sync reference")?;
+        spfs::sync_ref(tag, remote, local)
+            .await
+            .context("sync reference")?;
 
         let env_spec = EnvSpec::new(tag).context("create env spec")?;
-        spfs::render_into_directory(&env_spec, temp_dir.path()).context("render spfs platform")?;
+        spfs::render_into_directory(&env_spec, temp_dir.path())
+            .await
+            .context("render spfs platform")?;
 
         let should_create_symlink = match std::fs::rename(temp_dir.path(), &install_location)
             .context("rename into place")
@@ -161,7 +165,7 @@ where
     Ok(install_location.join(S::rel_bin_path()).into_os_string())
 }
 
-fn execute<S>() -> Result<()>
+async fn execute<S>() -> Result<()>
 where
     S: SpfsTag,
 {
@@ -182,14 +186,16 @@ where
     let config = spfs::load_config().expect("loaded spfs config");
     let mut local_repo: RepositoryHandle = config
         .get_repository()
+        .await
         .context("opened local spfs repo")?
         .into();
     let remote_repo = config
         .get_remote(ORIGIN)
+        .await
         .context("opened remote spfs repo")?;
 
     let spfs_tag = format!("{}/{}", S::spfs_tag_prefix(), bin_tag.to_string_lossy());
-    match remote_repo.read_ref(&spfs_tag) {
+    match remote_repo.read_ref(&spfs_tag).await {
         Err(spfs::Error::UnknownReference(_)) => {
             bail!(
                 "Unable to resolve ${} == \"{}\"",
@@ -209,6 +215,7 @@ where
                 &mut local_repo,
                 &remote_repo,
             )
+            .await
             .with_context(|| format!("install requested version of {}", S::spfs_tag_prefix()))?;
 
             std::env::set_var(S::bin_var(), &bin_path);
@@ -226,7 +233,8 @@ where
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let application_name = Path::new(
         &args_os()
             .next()
@@ -240,8 +248,8 @@ fn main() -> Result<()> {
     .to_owned();
 
     match application_name {
-        x if x == "spk" || x == "spk-launcher" => execute::<Spk>().context("execute as spk"),
-        x if x == "spawn" => execute::<Spawn>().context("execute as spawn"),
+        x if x == "spk" || x == "spk-launcher" => execute::<Spk>().await.context("execute as spk"),
+        x if x == "spawn" => execute::<Spawn>().await.context("execute as spawn"),
         x => bail!("Unhandled application name: {}", x.to_string_lossy()),
     }
 }

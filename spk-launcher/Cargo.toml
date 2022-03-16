@@ -9,6 +9,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 nix = "0.23"
-# Most recent release before async API
-spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.30.0' }
+spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.31.1' }
 tempdir = "0.3"
+tokio = { version = "1.15", features = ["rt"] }
