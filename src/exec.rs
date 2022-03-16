@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::{api, io, solve, storage, Error, Result};
+use std::sync::{Arc, Mutex};
+
+use crate::{api, build, io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
@@ -78,6 +80,56 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
     Ok(stack)
 }
 
+/// Modify the active spfs runtime to include exactly the packages in the given solution.
+pub async fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+    let mut rt = spfs::active_runtime()?;
+    let stack = resolve_runtime_layers(solution)?;
+    rt.reset_stack()?;
+    for digest in stack {
+        rt.push_digest(&digest)?;
+    }
+    spfs::remount_runtime(&rt).await?;
+    Ok(())
+}
+
+/// Build any packages in the given solution that need building.
+///
+/// Returns a new solution of only binary packages.
+pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
+    let handle: storage::RepositoryHandle =
+        crate::HANDLE.block_on(storage::local_repository())?.into();
+    let local_repo = Arc::new(Mutex::new(handle));
+    let repos = solution.repositories();
+    let options = solution.options();
+    let mut compiled_solution = solve::Solution::new(Some(options.clone()));
+    for item in solution.items() {
+        let source_spec = match item.source {
+            solve::PackageSource::Spec(spec) if item.is_source_build() => spec,
+            source => {
+                compiled_solution.add(&item.request, item.spec, source);
+                continue;
+            }
+        };
+
+        tracing::info!(
+            "Building: {} for {}",
+            io::format_ident(&item.spec.pkg),
+            io::format_options(&options)
+        );
+        let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
+            .with_repositories(repos.clone())
+            .with_options(options.clone())
+            .build()?;
+        let components = local_repo.lock().unwrap().get_package(&spec.pkg)?;
+        let source = solve::PackageSource::Repository {
+            repo: local_repo.clone(),
+            components,
+        };
+        compiled_solution.add(&item.request, Arc::new(spec), source);
+    }
+    Ok(compiled_solution)
+}
+
 pub mod python {
     use crate::{solve, Digest, Result};
     use pyo3::prelude::*;
@@ -90,8 +142,20 @@ pub mod python {
             .collect())
     }
 
+    #[pyfunction]
+    pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+        crate::HANDLE.block_on(super::setup_current_runtime(solution))
+    }
+
+    #[pyfunction]
+    pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
+        super::build_required_packages(solution)
+    }
+
     pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(resolve_runtime_layers, m)?)?;
+        m.add_function(wrap_pyfunction!(setup_current_runtime, m)?)?;
+        m.add_function(wrap_pyfunction!(build_required_packages, m)?)?;
         Ok(())
     }
 }

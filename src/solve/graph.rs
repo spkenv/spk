@@ -1012,7 +1012,7 @@ impl State {
         let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
         for (spec, source) in self.packages.iter() {
             let req = self.get_merged_request(spec.pkg.name())?;
-            solution.add(&req, (**spec).clone(), source.clone());
+            solution.add(&req, spec.clone(), source.clone());
         }
         Ok(solution)
     }
