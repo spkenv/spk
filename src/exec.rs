@@ -84,14 +84,14 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 }
 
 /// Modify the active spfs runtime to include exactly the packages in the given solution.
-pub async fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
     let mut rt = spfs::active_runtime()?;
     let stack = resolve_runtime_layers(solution)?;
     rt.reset_stack()?;
     for digest in stack {
         rt.push_digest(&digest)?;
     }
-    spfs::remount_runtime(&rt).await?;
+    crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
     Ok(())
 }
 
@@ -147,7 +147,8 @@ pub mod python {
 
     #[pyfunction]
     pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
-        crate::HANDLE.block_on(super::setup_current_runtime(solution))
+        let _guard = crate::HANDLE.enter();
+        super::setup_current_runtime(solution)
     }
 
     #[pyfunction]
