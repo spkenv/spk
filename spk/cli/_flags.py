@@ -174,6 +174,10 @@ def parse_requests_using_flags(
     options = get_options_from_flags(args)
 
     out: List[spk.api.Request] = []
+    for name, value in spk.api.host_options().items():
+        if value:
+            out.append(spk.api.VarRequest(name, value))
+
     for r in requests:
 
         if "@" in r:
