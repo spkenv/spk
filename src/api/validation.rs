@@ -76,10 +76,10 @@ impl ValidationSpec {
     }
 
     /// Validate the current set of spfs changes as a build of this package
-    pub fn validate_build_changeset(&self, spec: &Spec) -> Result<()> {
+    pub async fn validate_build_changeset(&self, spec: &Spec) -> Result<()> {
         static SPFS: &str = "/spfs";
 
-        let mut diffs = spfs::diff(None, None)?;
+        let mut diffs = spfs::diff(None, None).await?;
 
         // FIXME: this is only required because of a bug in spfs reset which
         // fails to handle permission-only changes on files...

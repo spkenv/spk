@@ -71,6 +71,7 @@ impl SourcePackageBuilder {
 
     #[pyo3(name = "build")]
     fn build_py(&mut self) -> Result<api::Ident> {
+        let _guard = crate::HANDLE.enter();
         // build is intended to consume the builder,
         // but we cannot effectively do this from
         // a python reference. So we make a partial
@@ -94,11 +95,11 @@ impl SourcePackageBuilder {
 
     /// Build the requested source package.
     pub fn build(mut self) -> Result<api::Ident> {
-        let layer = self.collect_and_commit_sources()?;
+        let layer = crate::HANDLE.block_on(self.collect_and_commit_sources())?;
         let repo = match &mut self.repo {
             Some(r) => r,
             None => {
-                let repo = storage::local_repository()?;
+                let repo = crate::HANDLE.block_on(storage::local_repository())?;
                 self.repo.insert(Arc::new(Mutex::new(repo.into())))
             }
         };
@@ -112,24 +113,24 @@ impl SourcePackageBuilder {
     }
 
     /// Collect sources for the given spec and commit them into an spfs layer.
-    fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
+    async fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
         let mut runtime = spfs::active_runtime()?;
         runtime.set_editable(true)?;
         runtime.reset_all()?;
         runtime.reset_stack()?;
-        spfs::remount_runtime(&runtime)?;
+        spfs::remount_runtime(&runtime).await?;
 
         let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
         collect_sources(&self.spec, &source_dir)?;
 
         tracing::info!("Validating package source files...");
-        let diffs = spfs::diff(None, None)?;
+        let diffs = spfs::diff(None, None).await?;
         validate_source_changeset(
             diffs,
             RelativePathBuf::from(source_dir.to_string_lossy().to_string()),
         )?;
 
-        Ok(spfs::commit_layer(&mut runtime)?)
+        Ok(spfs::commit_layer(&mut runtime).await?)
     }
 }
 
@@ -168,7 +169,7 @@ pub fn validate_source_changeset<P: AsRef<RelativePath>>(
     let mut source_dir = source_dir.as_ref();
     source_dir = source_dir.strip_prefix("/spfs").unwrap_or(source_dir);
     for diff in diffs.into_iter() {
-        if diff.mode == spfs::tracking::DiffMode::Unchanged {
+        if diff.mode.is_unchanged() {
             continue;
         }
         if diff.path.starts_with(&source_dir) {

@@ -4,6 +4,7 @@
 use super::Repository;
 
 #[derive(Debug, Hash, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SPFSRepository),
     Mem(super::MemRepository),

@@ -69,7 +69,6 @@ class Spec:
     def update_spec_for_build(
         self, options: OptionMap, resolved: List[Spec]
     ) -> None: ...
-    def validate_build_changeset(self) -> None: ...
 
 class BuildSpec:
     script: List[str]
