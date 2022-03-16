@@ -32,6 +32,7 @@ install:
       files:
         - bin/
         - lib/
+        - etc/
     - name: build
       uses: [run]
       files:
