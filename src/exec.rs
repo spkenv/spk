@@ -81,14 +81,14 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 }
 
 /// Modify the active spfs runtime to include exactly the packages in the given solution.
-pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+pub async fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
     let mut rt = spfs::active_runtime()?;
     let stack = resolve_runtime_layers(solution)?;
     rt.reset_stack()?;
     for digest in stack {
         rt.push_digest(&digest)?;
     }
-    spfs::remount_runtime(&rt)?;
+    spfs::remount_runtime(&rt).await?;
     Ok(())
 }
 
@@ -96,7 +96,8 @@ pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
 ///
 /// Returns a new solution of only binary packages.
 pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
-    let handle: storage::RepositoryHandle = storage::local_repository()?.into();
+    let handle: storage::RepositoryHandle =
+        crate::HANDLE.block_on(storage::local_repository())?.into();
     let local_repo = Arc::new(Mutex::new(handle));
     let repos = solution.repositories();
     let options = solution.options();
@@ -143,7 +144,7 @@ pub mod python {
 
     #[pyfunction]
     pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
-        super::setup_current_runtime(solution)
+        crate::HANDLE.block_on(super::setup_current_runtime(solution))
     }
 
     #[pyfunction]
