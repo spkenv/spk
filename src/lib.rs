@@ -11,6 +11,7 @@ pub mod storage;
 
 #[cfg(test)]
 mod fixtures;
+pub mod test;
 
 pub use error::{Error, Result};
 
@@ -117,6 +118,10 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     io::python::init_module(&py, io_mod)?;
     m.add_submodule(io_mod)?;
 
+    let test_mod = PyModule::new(py, "test")?;
+    test::python::init_module(&py, test_mod)?;
+    m.add_submodule(test_mod)?;
+
     // ensure that from spkrs.submodule import xx works
     // as expected on the python side by injecting them
     py.run(
@@ -128,6 +133,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     sys.modules['spkrs.solve'] = solve;\
     sys.modules['spkrs.exec'] = exec;\
     sys.modules['spkrs.io'] = io;\
+    sys.modules['spkrs.test'] = test;\
     ",
         None,
         Some(m.dict()),

@@ -257,11 +257,7 @@ impl BinaryPackageBuilder {
             runtime.push_digest(&digest)?;
         }
         crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
-        let specs = solution.items();
-        let specs = specs
-            .iter()
-            .map(|solved| &solved.spec)
-            .map(std::sync::Arc::as_ref);
+        let specs = solution.items().into_iter().map(|solved| solved.spec);
         self.spec.update_for_build(&self.all_options, specs)?;
         let env = std::env::vars();
         let mut env = solution.to_environment(Some(env));

@@ -90,15 +90,6 @@ def _test(args: argparse.Namespace) -> None:
                     continue
                 tested.add(digest)
 
-                variant_requirements = []
-                for opt in spec.build.options:
-                    opt = opt.copy()
-                    value = opts.get(opt.name())
-                    if value:
-                        opt.set_value(value)
-                    request = opt.to_request()
-                    variant_requirements.append(request)
-
                 for index, test in enumerate(spec.tests):
                     if test.stage != stage:
                         continue
@@ -140,8 +131,7 @@ def _test(args: argparse.Namespace) -> None:
 
                     tester = (
                         tester.with_options(opts)
-                        .with_repositories(repos.values())
-                        .with_requirements(variant_requirements)
+                        .with_repositories(list(repos.values()))
                         .with_requirements(test.requirements)
                     )
                     if args.here:

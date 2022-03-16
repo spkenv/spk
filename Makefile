@@ -22,7 +22,7 @@ lint-rust:
 	# release of py03 which solves for it
 	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
 lint-python:
-	pipenv run -- mypy spk
+	pipenv run -- mypy spk spkrs
 	pipenv run -- black --check spk setup.py spkrs
 
 .PHONY: format

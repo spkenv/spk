@@ -4,7 +4,7 @@
 
 use pyo3::{exceptions, prelude::*};
 
-use super::{api, build};
+use super::{api, build, test};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -29,6 +29,9 @@ pub enum Error {
     // Build Errors
     Collection(crate::build::CollectionError),
     Build(crate::build::BuildError),
+
+    // Test Errors
+    Test(test::TestError),
 }
 
 impl Error {
@@ -104,6 +107,7 @@ impl From<Error> for PyErr {
             }
             Error::Build(err) => build::python::BuildError::new_err(err.message),
             Error::Collection(err) => build::python::CollectionError::new_err(err.message),
+            Error::Test(err) => test::python::TestError::new_err(err.message),
             Error::PyErr(err) => err,
         }
     }

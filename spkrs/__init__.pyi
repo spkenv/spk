@@ -1,6 +1,6 @@
 from typing import List
 
-from . import api, build, storage, solve, exec, io
+from . import api, build, storage, solve, exec, io, test
 
 EMPTY_DIGEST: Digest
 
