@@ -107,11 +107,9 @@ impl BinaryPackageBuilder {
     }
 
     #[pyo3(name = "build")]
-    fn build_py(&self) -> Result<api::Spec> {
+    fn build_py(&mut self) -> Result<api::Spec> {
         let _guard = crate::HANDLE.enter();
-        // the build function consumes the builder
-        // but we cannot represent that in python
-        self.clone().build()
+        self.build()
     }
 
     #[pyo3(name = "with_source")]
@@ -370,12 +368,13 @@ impl BinaryPackageBuilder {
         runtime.reset(&[pattern])?;
         spfs::remount_runtime(&runtime).await?;
 
-        tracing::info!("Validating package fileset...");
+        tracing::info!("Validating package contents...");
         self.spec
             .validate_build_changeset()
             .await
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
+        tracing::info!("Committing package contents...");
         commit_component_layers(&self.spec, &mut runtime).await
     }
 

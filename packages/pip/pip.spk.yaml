@@ -1,11 +1,11 @@
-pkg: pip
+pkg: python-pip/22.0.4
 
 build:
   options:
     - pkg: python
   script:
     - /spfs/bin/python -m ensurepip --upgrade --default-pip
-    - /spfs/bin/pip install --upgrade pip==$SPK_PACKAGE_VERSION_BASE
+    - /spfs/bin/pip install --upgrade pip==$SPK_PKG_VERSION_BASE
 
 tests:
   - stage: install

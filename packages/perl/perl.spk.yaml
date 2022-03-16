@@ -26,4 +26,4 @@ build:
      - make
      - make install
      # do not keep man pages in the spk package
-     - rm -rf /spfs/share/man
+     - spfs reset /spfs/share/man/**/*

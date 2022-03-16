@@ -17,6 +17,7 @@ build:
       --prefix=/spfs
       --with-sysroot=/spfs
       --with-local-prefix=/spfs
+      CFLAGS='-I/spfs/include'
     - make
     - make install
 

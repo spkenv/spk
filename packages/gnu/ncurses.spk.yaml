@@ -17,6 +17,12 @@ build:
       --prefix=/spfs
       --with-sysroot=/spfs
       --with-local-prefix=/spfs
+      --with-shared
+      --without-debug
+      --without-ada
+      --without-normal
+      --disable-stripping
+      --enable-widec
     - make
     - make install
 

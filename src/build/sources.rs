@@ -11,7 +11,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{api, storage, Error, Result};
+use crate::{api, storage, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -72,17 +72,7 @@ impl SourcePackageBuilder {
     #[pyo3(name = "build")]
     fn build_py(&mut self) -> Result<api::Ident> {
         let _guard = crate::HANDLE.enter();
-        // build is intended to consume the builder,
-        // but we cannot effectively do this from
-        // a python reference. So we make a partial
-        // clone/copy with the assumption that python
-        // won't reuse this builder
-        Self {
-            spec: self.spec.clone(),
-            prefix: self.prefix.clone(),
-            repo: self.repo.take(),
-        }
-        .build()
+        self.build()
     }
 }
 
@@ -94,7 +84,7 @@ impl SourcePackageBuilder {
     }
 
     /// Build the requested source package.
-    pub fn build(mut self) -> Result<api::Ident> {
+    pub fn build(&mut self) -> Result<api::Ident> {
         let layer = crate::HANDLE.block_on(self.collect_and_commit_sources())?;
         let repo = match &mut self.repo {
             Some(r) => r,
@@ -108,7 +98,7 @@ impl SourcePackageBuilder {
         components.insert(api::Component::Source, layer.digest()?);
         repo.lock()
             .unwrap()
-            .publish_package(self.spec, components)?;
+            .publish_package(self.spec.clone(), components)?;
         Ok(pkg)
     }
 
@@ -123,13 +113,14 @@ impl SourcePackageBuilder {
         let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
         collect_sources(&self.spec, &source_dir)?;
 
-        tracing::info!("Validating package source files...");
+        tracing::info!("Validating source package contents...");
         let diffs = spfs::diff(None, None).await?;
         validate_source_changeset(
             diffs,
             RelativePathBuf::from(source_dir.to_string_lossy().to_string()),
         )?;
 
+        tracing::info!("Committing source package contents...");
         Ok(spfs::commit_layer(&mut runtime).await?)
     }
 }
@@ -145,9 +136,13 @@ pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -
             Some(subdir) => subdir.to_path(source_dir),
             None => source_dir.into(),
         };
-        std::fs::create_dir_all(&target_dir)
-            .map_err(Error::from)
-            .and_then(|_| source.collect(&target_dir, &env))?;
+        std::fs::create_dir_all(&target_dir)?;
+        source.collect(&target_dir, &env).map_err(|err| {
+            CollectionError::new_error(format_args!(
+                "Failed to collect source: {}\n{:?}",
+                err, source
+            ))
+        })?;
     }
     Ok(())
 }

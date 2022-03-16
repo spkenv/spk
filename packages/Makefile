@@ -57,8 +57,10 @@ perl: gnu perl/perl.spk
 
 .PHONY: python python2 python3
 python: python2 python3
-python2: bootstrap bzip2/bzip2.spk python/python2.spk
-python3: bootstrap bzip2/bzip2.spk python/python3.spk
+python2: bootstrap bzip2/bzip2.spk zlib/zlib.spk python/python2.spk
+python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk libffi/libffi.spk openssl/openssl.spk python/python3.spk
+
+zlib/zlib.spk: cmake/cmake.spk
 
 .PHONY: clean
 clean:
@@ -71,8 +73,8 @@ import:
 %: $</$<.spk
 
 %.spk : %.spk.yaml
-	spk info -l $<@source > /dev/null 2>&1 || spk make-source $<
-	spk mkb -dr origin -l $<
+	spk info -l $<@source > /dev/null 2>&1 || spk make-source -v $<
+	spk mkb -dr origin -lv $<
 	spk export $< $@
 
 .PRECIOUS: bootstrap/*.spk.yaml
@@ -93,12 +95,12 @@ docker.%:
 	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
 	exit 1; \
 	fi
-	docker build . -t spk-package-builder
-	docker run --privileged --rm \
+	cp builder.spfs.conf ../dist
+	docker build ../dist -t spk-package-builder -f Dockerfile
+	docker run --privileged --rm -i \
 	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
+	-e RUST_LOG \
 	-v $$PWD/../build/packages/:/spfs-storage \
-	-v $$PWD/../dist/rpm/RPMS/x86_64:/rpms \
 	-v $$PWD/..:/work spk-package-builder bash -ex -c "\
-	yum install -y /rpms/* && \
 	cd /work && \
 	make packages.$*"

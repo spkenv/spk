@@ -2,8 +2,6 @@ pkg: gcc/6.3.0
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-6.3.0/gcc-6.3.0.tar.gz
-  - path: activate-gcc.csh
-  - path: activate-gcc.sh
 
 build:
   options:
@@ -33,14 +31,17 @@ build:
       --with-mpc=/spfs
       --with-platlibdir=lib
       --disable-multilib
-      --enable-language=c,c++
     # library path cannot be set when building gcc - it will due to a specific check for this
     - unset LIBRARY_PATH
     - make -j$(nproc)
     - make check
     - make install
     # no need to keep extra bloat files in info dir
-    - rm -r /spfs/share/info
+    - spfs reset /spfs/share/info/**/*
+  validation:
+    disabled:
+      # we are replacing the old gcc version on purpose
+      - MustNotAlterExistingFiles
 
 tests:
   - stage: install

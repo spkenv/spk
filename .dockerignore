@@ -1,10 +1,12 @@
 .git/
+build/
+dist/
 target/
 .vscode/
 docs/
 examples/
 packages/
 .github/
-__pycache__/
+**/__pycache__/
 *.so
 *.egg-info/
