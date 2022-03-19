@@ -8,10 +8,10 @@ use std::{
 };
 
 use rstest::{fixture, rstest};
-use spfs::encoding::Digest;
+use spfs::encoding::{Digest, EMPTY_DIGEST};
 
 use super::{RequestEnum, Solver};
-use crate::{api, io, option_map, solve, spec, storage};
+use crate::{api, io, option_map, solve, spec, storage, Error};
 
 #[fixture]
 fn solver() -> Solver {
@@ -127,26 +127,26 @@ fn test_solver_no_requests(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_package_with_no_spec(solver: Solver) {
-    // repo = storage.mem_repository()
+fn test_solver_package_with_no_spec(mut solver: Solver) {
+    let mut repo = crate::storage::RepositoryHandle::new_mem();
 
-    // options = api.OptionMap()
-    // spec = api.Spec.from_dict({"pkg": f"my-pkg/1.0.0/{options.digest}"})
+    let options = option_map! {};
+    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
+    spec.pkg
+        .set_build(Some(api::Build::Digest(options.digest())));
 
-    // # publish package without publishing spec
-    // repo.publish_package(spec, {"run": spkrs.EMPTY_DIGEST})
+    // publish package without publishing spec
+    let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
+        .into_iter()
+        .collect();
+    repo.publish_package(spec, components).unwrap();
 
-    // solver.update_options(options)
-    // solver.add_repository(repo)
-    // solver.add_request("my-pkg")
+    solver.update_options(options);
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-pkg"));
 
-    // with pytest.raises(FileNotFoundError):
-    //     try:
-    //         io.run_and_print_resolve(solver, verbosity=100)
-    //     except Exception as e:
-    //         print(type(e), repr(e))
-    //         raise
-    todo!()
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PackageNotFoundError(_))));
 }
 
 #[rstest]
