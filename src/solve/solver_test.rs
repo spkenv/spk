@@ -116,7 +116,7 @@ macro_rules! request {
         ))
     };
     ($req:tt) => {{
-        let value = json!($req);
+        let value = serde_json::json!($req);
         let req: crate::api::Request = serde_json::from_value(value).unwrap();
         req
     }};
@@ -125,12 +125,15 @@ macro_rules! request {
 /// Asserts that a package exists in the solution at a specific version,
 /// or that the solution contains a specific set of packages by name.
 macro_rules! assert_resolved {
-    ($solution:ident, $pkg:literal, $version:literal) => {{
+    ($solution:ident, $pkg:literal, $version:literal) => {
+        assert_resolved!($solution, $pkg, $version, "wrong package version was resolved")
+    };
+    ($solution:ident, $pkg:literal, $version:literal, $message:literal) => {{
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
         let version = pkg.spec.pkg.version.to_string();
-        assert_eq!(&version, $version, "wrong package version was resolved");
+        assert_eq!(&version, $version, $message);
     }};
     ($solution:ident, [$($pkg:literal),+ $(,)?]) => {{
         let names: std::collections::HashSet<_> = $solution
@@ -394,64 +397,63 @@ fn test_solver_dependency_reiterate(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
-    // // test what happens when a dependency is added which represents
-    // // a package which has already been resolved
-    // // - and the resolved version does not satisfy the request
-    // //   - and a version does not exist for both (unsolvable)
+    // test what happens when a dependency is added which represents
+    // a package which has already been resolved
+    // - and the resolved version does not satisfy the request
+    //   - and a version does not exist for both (unsolvable)
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "pkg-top/1.0.0",
-    //             # must resolve dep_1 as 1.1.0 (favoring latest)
-    //             "install": {"requirements": [{"pkg": "dep-1/1.1"}, {"pkg": "dep-2/1"}]},
-    //         },
-    //         {"pkg": "dep-1/1.1.0"},
-    //         {"pkg": "dep-1/1.0.0"},
-    //         # when dep_2 gets resolved, it will enforce an older version
-    //         # of the existing resolve, which is in conflict with the original
-    //         {
-    //             "pkg": "dep-2/1.0.0",
-    //             "install": {"requirements": [{"pkg": "dep-1/~1.0.0"}]},
-    //         },
-    //     ]
-    // )
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("pkg-top"));
-    // with pytest.raises(solve.SolverError):
-    //     packages = solver.solve()
-    //     print(packages)
-    todo!()
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "pkg-top/1.0.0",
+                // must resolve dep_1 as 1.1.0 (favoring latest)
+                "install": {"requirements": [{"pkg": "dep-1/1.1"}, {"pkg": "dep-2/1"}]},
+            },
+            {"pkg": "dep-1/1.1.0"},
+            {"pkg": "dep-1/1.0.0"},
+            // when dep_2 gets resolved, it will enforce an older version
+            // of the existing resolve, which is in conflict with the original
+            {
+                "pkg": "dep-2/1.0.0",
+                "install": {"requirements": [{"pkg": "dep-1/~1.0.0"}]},
+            },
+        ]
+    );
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("pkg-top"));
+    let result = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(result, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
 fn test_solver_pre_release_config(mut solver: Solver) {
-    // let repo = make_repo!(
-    //     [
-    //         {"pkg": "my-pkg/0.9.0"},
-    //         {"pkg": "my-pkg/1.0.0-pre.0"},
-    //         {"pkg": "my-pkg/1.0.0-pre.1"},
-    //         {"pkg": "my-pkg/1.0.0-pre.2"},
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {"pkg": "my-pkg/0.9.0"},
+            {"pkg": "my-pkg/1.0.0-pre.0"},
+            {"pkg": "my-pkg/1.0.0-pre.1"},
+            {"pkg": "my-pkg/1.0.0-pre.2"},
+        ]
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-pkg"));
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("my-pkg"));
 
-    // solution = solver.solve()
-    // assert (
-    //     solution.get("my-pkg").spec.pkg.version == "0.9.0"
-    // ), "should not resolve pre-release by default"
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_resolved!(
+        solution,
+        "my-pkg",
+        "0.9.0",
+        "should not resolve pre-release by default"
+    );
 
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(
-    //     api.request_from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
-    // )
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(request!({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"}));
 
-    // solution = solver.solve()
-    // assert solution.get("my-pkg").spec.pkg.version == "1.0.0-pre.2"
-    todo!()
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
 }
 
 #[rstest]
