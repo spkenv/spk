@@ -108,6 +108,7 @@ macro_rules! make_build_and_components {
     }}
 }
 
+/// Creates a request from a literal range identifier, or json structure
 macro_rules! request {
     ($req:literal) => {
         crate::api::Request::Pkg(crate::api::PkgRequest::new(
@@ -121,6 +122,8 @@ macro_rules! request {
     }};
 }
 
+/// Asserts that a package exists in the solution at a specific version,
+/// or that the solution contains a specific set of packages by name.
 macro_rules! assert_resolved {
     ($solution:ident, $pkg:literal, $version:literal) => {{
         let pkg = $solution
@@ -128,6 +131,17 @@ macro_rules! assert_resolved {
             .expect("expected package to be in solution");
         let version = pkg.spec.pkg.version.to_string();
         assert_eq!(&version, $version, "wrong package version was resolved");
+    }};
+    ($solution:ident, [$($pkg:literal),+ $(,)?]) => {{
+        let names: std::collections::HashSet<_> = $solution
+            .items()
+            .into_iter()
+            .map(|s| s.spec.pkg.name().to_owned())
+            .collect();
+        let expected: std::collections::HashSet<_> = vec![
+            $( $pkg.to_string() ),*
+        ].into_iter().collect();
+        assert_eq!(names, expected, "wrong set of packages was resolved");
     }};
 }
 
@@ -309,20 +323,7 @@ fn test_solver_dependency_already_satisfied(mut solver: Solver) {
     solver.add_request(request!("pkg-top"));
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    let mut names: Vec<_> = packages
-        .items()
-        .into_iter()
-        .map(|s| s.spec.pkg.name().to_owned())
-        .collect();
-    names.sort();
-    assert_eq!(
-        names,
-        vec![
-            "pkg-top".to_string(),
-            "dep-1".to_string(),
-            "dep-2".to_string(),
-        ]
-    );
+    assert_resolved!(packages, ["pkg-top", "dep-1", "dep-2"]);
     assert_resolved!(packages, "dep-1", "1.0.0");
 }
 
@@ -355,20 +356,7 @@ fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
     solver.add_repository(Arc::new(Mutex::new(repo)));
     solver.add_request(request!("my-plugin"));
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
-    let mut names: Vec<_> = packages
-        .items()
-        .into_iter()
-        .map(|s| s.spec.pkg.name().to_owned())
-        .collect();
-    names.sort();
-    assert_eq!(
-        names,
-        vec![
-            "my-plugin".to_string(),
-            "some-library".to_string(),
-            "maya".to_string(),
-        ]
-    );
+    assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
     assert_resolved!(packages, "maya", "2019.0.0");
 }
 
@@ -400,19 +388,7 @@ fn test_solver_dependency_reiterate(mut solver: Solver) {
     solver.add_repository(Arc::new(Mutex::new(repo)));
     solver.add_request(request!("my-plugin"));
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
-    let mut names: Vec<_> = packages
-        .items()
-        .into_iter()
-        .map(|s| s.spec.pkg.name().to_owned())
-        .collect();
-    assert_eq!(
-        names,
-        vec![
-            "my-plugin".to_string(),
-            "some-library".to_string(),
-            "maya".to_string(),
-        ]
-    );
+    assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
     assert_resolved!(packages, "maya", "2019.0.0");
 }
 
