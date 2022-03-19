@@ -758,27 +758,37 @@ fn test_solver_build_from_source_dependency() {
 
 #[rstest]
 fn test_solver_deprecated_build(mut solver: Solver) {
-    // specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0"}]
-    // deprecated = make_build({"pkg": "my-pkg/1.0.0", "deprecated": True})
-    // let repo = make_repo!([*specs, deprecated])
+    let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
+    let deprecated_build = deprecated.pkg.clone();
+    let repo = make_repo!([
+        {"pkg": "my-pkg/0.9.0"},
+        {"pkg": "my-pkg/1.0.0"},
+        deprecated,
+    ]);
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-pkg"));
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("my-pkg"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
-    // assert (
-    //     solution.get("my-pkg").spec.pkg.version == "0.9.0"
-    // ), "should not resolve deprecated build by default"
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_resolved!(
+        solution,
+        "my-pkg",
+        "0.9.0",
+        "should not resolve deprecated build by default"
+    );
 
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(api::PkgRequest::from_ident(&deprecated_build).into());
 
-    // solution = io::run_and_print_resolve(&solver, 100);
-    // assert (
-    //     solution.get("my-pkg").spec.pkg.version == "1.0.0"
-    // ), "should be able to resolve exact deprecated build"
-    todo!()
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_resolved!(
+        solution,
+        "my-pkg",
+        "1.0.0",
+        "should be able to resolve exact deprecated build"
+    );
 }
 
 #[rstest]
@@ -840,291 +850,284 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_embedded_package_adds_request(mut solver: Solver) {
-    // // test when there is an embedded package
-    // // - the embedded package is added to the solution
-    // // - the embedded package is also added as a request in the resolve
+    // test when there is an embedded package
+    // - the embedded package is added to the solution
+    // - the embedded package is also added as a request in the resolve
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "maya/2019.2",
-    //             "build": {"script": "echo BUILD"},
-    //             "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
-    //         },
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("maya"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("maya"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert solution.get("qt").request.pkg.build == api.EMBEDDED
-    // assert_resolved!(solution, "qt", "5.12.6");
-    // assert solution.get("qt").spec.pkg.build == api.EMBEDDED
-    todo!()
+    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(solution, "qt", "5.12.6");
+    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
 }
 
 #[rstest]
 fn test_solver_embedded_package_solvable(mut solver: Solver) {
-    // // test when there is an embedded package
-    // // - the embedded package is added to the solution
-    // // - the embedded package resolves existing requests
-    // // - the solution includes the embedded packages
+    // test when there is an embedded package
+    // - the embedded package is added to the solution
+    // - the embedded package resolves existing requests
+    // - the solution includes the embedded packages
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "maya/2019.2",
-    //             "build": {"script": "echo BUILD"},
-    //             "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
-    //         },
-    //         {
-    //             "pkg": "qt/5.13.0",
-    //             "build": {"script": "echo BUILD"},
-    //         },
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {
+                "pkg": "qt/5.13.0",
+                "build": {"script": "echo BUILD"},
+            },
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("qt"));
-    // solver.add_request(request!("maya"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("qt"));
+    solver.add_request(request!("maya"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "qt", "5.12.6");
-    // assert solution.get("qt").spec.pkg.build == api.EMBEDDED
-    todo!()
+    assert_resolved!(solution, "qt", "5.12.6");
+    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
 }
 
 #[rstest]
 fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
-    // // test when there is an embedded package
-    // // - the embedded package is added to the solution
-    // // - the embedded package conflicts with existing requests
+    // test when there is an embedded package
+    // - the embedded package is added to the solution
+    // - the embedded package conflicts with existing requests
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-plugin",
-    //             # the qt/5.13 requirement is available but conflits with maya embedded
-    //             "install": {"requirements": [{"pkg": "maya/2019"}, {"pkg": "qt/5.13"}]},
-    //         },
-    //         {
-    //             "pkg": "maya/2019.2",
-    //             "build": {"script": "echo BUILD"},
-    //             "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
-    //         },
-    //         {
-    //             "pkg": "qt/5.13.0",
-    //             "build": {"script": "echo BUILD"},
-    //         },
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-plugin",
+                // the qt/5.13 requirement is available but conflits with maya embedded
+                "install": {"requirements": [{"pkg": "maya/2019"}, {"pkg": "qt/5.13"}]},
+            },
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {
+                "pkg": "qt/5.13.0",
+                "build": {"script": "echo BUILD"},
+            },
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-plugin"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-plugin"));
 
-    // with pytest.raises(solve.SolverError):
-    //     io::run_and_print_resolve(&solver, 100);
-    todo!()
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
 fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
-    // // test when there is a package with some version that have a conflicting dependency
-    // // - the solver passes over the one with conflicting
-    // // - the solver logs compat info for versions with conflicts
+    // test when there is a package with some version that have a conflicting dependency
+    // - the solver passes over the one with conflicting
+    // - the solver logs compat info for versions with conflicts
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-lib",
-    //             "install": {
-    //                 # python 2.7 requirement will conflict with the first (2.1) build of dep
-    //                 "requirements": [{"pkg": "python/=2.7.5"}, {"pkg": "dep/2"}]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "dep/2.1.0",
-    //             "install": {"requirements": [{"pkg": "python/=3.7.3"}]},
-    //         },
-    //         {
-    //             "pkg": "dep/2.0.0",
-    //             "install": {"requirements": [{"pkg": "python/=2.7.5"}]},
-    //         },
-    //         {"pkg": "python/2.7.5"},
-    //         {"pkg": "python/3.7.3"},
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-lib",
+                "install": {
+                    // python 2.7 requirement will conflict with the first (2.1) build of dep
+                    "requirements": [{"pkg": "python/=2.7.5"}, {"pkg": "dep/2"}]
+                },
+            },
+            {
+                "pkg": "dep/2.1.0",
+                "install": {"requirements": [{"pkg": "python/=3.7.3"}]},
+            },
+            {
+                "pkg": "dep/2.0.0",
+                "install": {"requirements": [{"pkg": "python/=2.7.5"}]},
+            },
+            {"pkg": "python/2.7.5"},
+            {"pkg": "python/3.7.3"},
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-lib"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-lib"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "dep", "2.0.0");
-    todo!()
+    assert_resolved!(solution, "dep", "2.0.0");
 }
 
 #[rstest]
 fn test_solver_embedded_request_invalidates(mut solver: Solver) {
-    // // test when a package is resolved with an incompatible embedded pkg
-    // // - the solver tries to resolve the package
-    // // - there is a conflict in the embedded request
+    // test when a package is resolved with an incompatible embedded pkg
+    // - the solver tries to resolve the package
+    // - there is a conflict in the embedded request
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-lib",
-    //             "install": {
-    //                 # python 2.7 requirement will conflict with the maya embedded one
-    //                 "requirements": [{"pkg": "python/3.7"}, {"pkg": "maya/2020"}]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "maya/2020",
-    //             "install": {"embedded": [{"pkg": "python/2.7.5"}]},
-    //         },
-    //         {"pkg": "python/2.7.5"},
-    //         {"pkg": "python/3.7.3"},
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-lib",
+                "install": {
+                    // python 2.7 requirement will conflict with the maya embedded one
+                    "requirements": [{"pkg": "python/3.7"}, {"pkg": "maya/2020"}]
+                },
+            },
+            {
+                "pkg": "maya/2020",
+                "install": {"embedded": [{"pkg": "python/2.7.5"}]},
+            },
+            {"pkg": "python/2.7.5"},
+            {"pkg": "python/3.7.3"},
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("python"));
-    // solver.add_request(request!("my-lib"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("python"));
+    solver.add_request(request!("my-lib"));
 
-    // with pytest.raises(solve.SolverError):
-    //     io::run_and_print_resolve(&solver, 100);
-    todo!()
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
 fn test_solver_unknown_package_options(mut solver: Solver) {
-    // // test when a package is requested with specific options (eg: pkg.opt)
-    // // - the solver ignores versions that don't define the option
-    // // - the solver resolves versions that do define the option
+    // test when a package is requested with specific options (eg: pkg.opt)
+    // - the solver ignores versions that don't define the option
+    // - the solver resolves versions that do define the option
 
-    // let repo = make_repo!([{"pkg": "my-lib/2.0.0"}])
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
+    let repo = make_repo!([{"pkg": "my-lib/2.0.0"}]);
+    let repo = Arc::new(Mutex::new(repo));
+    solver.add_repository(repo.clone());
 
-    // // this option is specific to the my-lib package and is not known by the package
-    // solver.add_request(api.VarRequest("my-lib.something", "value"))
-    // solver.add_request(request!("my-lib"));
+    // this option is specific to the my-lib package and is not known by the package
+    solver.add_request(request!({"var": "my-lib.something/value"}));
+    solver.add_request(request!("my-lib"));
 
-    // with pytest.raises(solve.SolverError):
-    //     io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 
-    // // this time we don't request that option, and it should be ok
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-lib"));
-    // io::run_and_print_resolve(&solver, 100);
-    todo!()
+    // this time we don't request that option, and it should be ok
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(request!("my-lib"));
+    io::run_and_print_resolve(&solver, 100).unwrap();
 }
 
 #[rstest]
 fn test_solver_var_requirements(mut solver: Solver) {
-    // // test what happens when a dependency is added which is incompatible
-    // // with an existing request in the stack
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "python/2.7.5",
-    //             "build": {"options": [{"var": "abi", "static": "cp27mu"}]},
-    //         },
-    //         {
-    //             "pkg": "python/3.7.3",
-    //             "build": {"options": [{"var": "abi", "static": "cp37m"}]},
-    //         },
-    //         {
-    //             "pkg": "my-app/1.0.0",
-    //             "install": {
-    //                 "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27mu"}]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "my-app/2.0.0",
-    //             "install": {
-    //                 "requirements": [{"pkg": "python"}, {"var": "python.abi/cp37m"}]
-    //             },
-    //         },
-    //     ]
-    // )
+    // test what happens when a dependency is added which is incompatible
+    // with an existing request in the stack
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "python/2.7.5",
+                "build": {"options": [{"var": "abi", "static": "cp27mu"}]},
+            },
+            {
+                "pkg": "python/3.7.3",
+                "build": {"options": [{"var": "abi", "static": "cp37m"}]},
+            },
+            {
+                "pkg": "my-app/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27mu"}]
+                },
+            },
+            {
+                "pkg": "my-app/2.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp37m"}]
+                },
+            },
+        ]
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-app/2"));
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("my-app/2"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "my-app", "2.0.0");
-    // assert_resolved!(solution, "python", "3.7.3");
+    assert_resolved!(solution, "my-app", "2.0.0");
+    assert_resolved!(solution, "python", "3.7.3");
 
-    // // requesting the older version of my-app should force old python abi
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-app/1"));
+    // requesting the older version of my-app should force old python abi
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(request!("my-app/1"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "python", "2.7.5");
-    todo!()
+    assert_resolved!(solution, "python", "2.7.5");
 }
 
 #[rstest]
 fn test_solver_var_requirements_unresolve(mut solver: Solver) {
-    // // test when a package is resolved that conflicts in var requirements
-    // //  - the solver should unresolve the solved package
-    // //  - the solver should resolve a new version of the package with the right version
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "python/2.7.5",
-    //             "build": {"options": [{"var": "abi", "static": "cp27"}]},
-    //         },
-    //         {
-    //             "pkg": "python/3.7.3",
-    //             "build": {"options": [{"var": "abi", "static": "cp37"}]},
-    //         },
-    //         {
-    //             "pkg": "my-app/1.0.0",
-    //             "install": {
-    //                 "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "my-app/2.0.0",
-    //             "install": {"requirements": [{"pkg": "python"}, {"var": "abi/cp27"}]},
-    //         },
-    //     ]
-    // )
+    // test when a package is resolved that conflicts in var requirements
+    //  - the solver should unresolve the solved package
+    //  - the solver should resolve a new version of the package with the right version
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "python/2.7.5",
+                "build": {"options": [{"var": "abi", "static": "cp27"}]},
+            },
+            {
+                "pkg": "python/3.7.3",
+                "build": {"options": [{"var": "abi", "static": "cp37"}]},
+            },
+            {
+                "pkg": "my-app/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "python"}, {"var": "python.abi/cp27"}]
+                },
+            },
+            {
+                "pkg": "my-app/2.0.0",
+                "install": {"requirements": [{"pkg": "python"}, {"var": "abi/cp27"}]},
+            },
+        ]
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // // python is resolved first to get 3.7
-    // solver.add_request(request!("python"));
-    // // the addition of this app constrains the python.abi to 2.7
-    // solver.add_request(request!("my-app/1"));
+    solver.add_repository(repo.clone());
+    // python is resolved first to get 3.7
+    solver.add_request(request!("python"));
+    // the addition of this app constrains the python.abi to 2.7
+    solver.add_request(request!("my-app/1"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "my-app", "1.0.0");
-    // assert (
-    //     solution.get("python").spec.pkg.version == "2.7.5"
-    // ), "should re-resolve python"
+    assert_resolved!(solution, "my-app", "1.0.0");
+    assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
 
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // // python is resolved first to get 3.7
-    // solver.add_request(request!("python"));
-    // // the addition of this app constrains the global abi to 2.7
-    // solver.add_request(request!("my-app/2"));
+    solver.reset();
+    solver.add_repository(repo);
+    // python is resolved first to get 3.7
+    solver.add_request(request!("python"));
+    // the addition of this app constrains the global abi to 2.7
+    solver.add_request(request!("my-app/2"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "my-app", "2.0.0");
-    // assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
-    todo!()
+    assert_resolved!(solution, "my-app", "2.0.0");
+    assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
 }
 
 #[rstest]
