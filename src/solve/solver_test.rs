@@ -513,7 +513,7 @@ fn test_solver_constraint_and_request(mut solver: Solver) {
     // solver.add_request(request!("my-tool"));
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("python").spec.pkg.version == "3.7.3"
+    // assert_resolved!(solution, "python", "3.7.3");
     todo!()
 }
 
@@ -840,7 +840,7 @@ fn test_solver_embedded_package_adds_request(mut solver: Solver) {
     // solution = io::run_and_print_resolve(&solver, 100);
 
     // assert solution.get("qt").request.pkg.build == api.EMBEDDED
-    // assert solution.get("qt").spec.pkg.version == "5.12.6"
+    // assert_resolved!(solution, "qt", "5.12.6");
     // assert solution.get("qt").spec.pkg.build == api.EMBEDDED
     todo!()
 }
@@ -872,7 +872,7 @@ fn test_solver_embedded_package_solvable(mut solver: Solver) {
 
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("qt").spec.pkg.version == "5.12.6"
+    // assert_resolved!(solution, "qt", "5.12.6");
     // assert solution.get("qt").spec.pkg.build == api.EMBEDDED
     todo!()
 }
@@ -943,7 +943,7 @@ fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
 
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("dep").spec.pkg.version == "2.0.0"
+    // assert_resolved!(solution, "dep", "2.0.0");
     todo!()
 }
 
@@ -1038,8 +1038,8 @@ fn test_solver_var_requirements(mut solver: Solver) {
 
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("my-app").spec.pkg.version == "2.0.0"
-    // assert solution.get("python").spec.pkg.version == "3.7.3"
+    // assert_resolved!(solution, "my-app", "2.0.0");
+    // assert_resolved!(solution, "python", "3.7.3");
 
     // // requesting the older version of my-app should force old python abi
     // solver.reset()
@@ -1048,7 +1048,7 @@ fn test_solver_var_requirements(mut solver: Solver) {
 
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("python").spec.pkg.version == "2.7.5"
+    // assert_resolved!(solution, "python", "2.7.5");
     todo!()
 }
 
@@ -1088,7 +1088,7 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
 
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("my-app").spec.pkg.version == "1.0.0"
+    // assert_resolved!(solution, "my-app", "1.0.0");
     // assert (
     //     solution.get("python").spec.pkg.version == "2.7.5"
     // ), "should re-resolve python"
@@ -1102,10 +1102,8 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
 
     // solution = io::run_and_print_resolve(&solver, 100);
 
-    // assert solution.get("my-app").spec.pkg.version == "2.0.0"
-    // assert (
-    //     solution.get("python").spec.pkg.version == "2.7.5"
-    // ), "should re-resolve python"
+    // assert_resolved!(solution, "my-app", "2.0.0");
+    // assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
     todo!()
 }
 
