@@ -10,11 +10,13 @@ mod platform;
 mod repository;
 mod tag;
 
+mod config;
 pub mod fs;
 pub mod prelude;
 pub mod rpc;
 pub mod tar;
 
+pub use self::config::{FromConfig, FromUrl};
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;
 pub use manifest::{ManifestStorage, ManifestViewer};
@@ -88,15 +90,10 @@ pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<Reposit
         Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
     };
 
-    match url.scheme() {
-        "file" | "" => {
-            if url.path().ends_with(".tar") {
-                Ok(tar::TarRepository::open(url.path()).await?.into())
-            } else {
-                Ok(fs::FSRepository::open(url.path()).await?.into())
-            }
-        }
-        "http2" => Ok(rpc::RpcRepository::connect(url).await?.into()),
-        scheme => Err(format!("Unsupported repository scheme: '{scheme}'").into()),
-    }
+    Ok(match url.scheme() {
+        "tar" => tar::TarRepository::from_url(&url).await?.into(),
+        "file" | "" => fs::FSRepository::from_url(&url).await?.into(),
+        "http2" | "grpc" => rpc::RpcRepository::from_url(&url).await?.into(),
+        scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
+    })
 }
