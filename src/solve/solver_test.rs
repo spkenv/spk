@@ -199,31 +199,36 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_dependency_abi_compat(mut solver: Solver) {
-    // options = api.OptionMap()
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "pkg-b/1.1.0",
-    //             "install": {"requirements": [{"pkg": "pkg-a/1.1.0"}]},
-    //         },
-    //         {"pkg": "pkg-a/2.1.1", "compat": "x.a.b"},
-    //         {"pkg": "pkg-a/1.2.1", "compat": "x.a.b"},
-    //         {"pkg": "pkg-a/1.1.1", "compat": "x.a.b"},
-    //         {"pkg": "pkg-a/1.1.0", "compat": "x.a.b"},
-    //         {"pkg": "pkg-a/1.0.0", "compat": "x.a.b"},
-    //         {"pkg": "pkg-a/0.9.0", "compat": "x.a.b"},
-    //     ]
-    // )
+    let options = option_map! {};
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "pkg-b/1.1.0",
+                "install": {"requirements": [{"pkg": "pkg-a/1.1.0"}]},
+            },
+            {"pkg": "pkg-a/2.1.1", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.2.1", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.1.1", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.1.0", "compat": "x.a.b"},
+            {"pkg": "pkg-a/1.0.0", "compat": "x.a.b"},
+            {"pkg": "pkg-a/0.9.0", "compat": "x.a.b"},
+        ]
+    );
 
-    // solver.update_options(options);
-    // solver.add_repository(Arc::new(Mutex::new(repo));
-    // solver.add_request(request!("pkg-b/1.1"));
+    solver.update_options(options);
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("pkg-b/1.1"));
 
-    // let packages = io::run_and_print_resolve(&solver, 100);
-    // assert len(packages) == 2, "expected two resolved packages"
-    // assert packages.get("pkg-a").spec.pkg.version == "1.1.1"
-    // assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
-    todo!()
+    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_eq!(packages.len(), 2, "expected two resolved packages");
+    assert_eq!(
+        packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
+        "1.1.1".to_string()
+    );
+    assert_eq!(
+        packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
+        "1.1.0".to_string()
+    );
 }
 
 #[rstest]
