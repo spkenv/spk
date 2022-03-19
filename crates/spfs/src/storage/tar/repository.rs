@@ -13,7 +13,22 @@ use tar::{Archive, Builder};
 use crate::graph;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::Result;
-use crate::{encoding, prelude::*, tracking};
+use crate::{encoding, prelude::*, storage, tracking};
+
+/// Configuration for a tar repository
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct Config {
+    pub path: std::path::PathBuf,
+}
+
+#[async_trait::async_trait]
+impl storage::FromUrl for Config {
+    async fn from_url(url: &url::Url) -> Result<Self> {
+        Ok(Self {
+            path: std::path::PathBuf::from(url.path()),
+        })
+    }
+}
 
 /// An spfs repository in a tarball.
 ///
@@ -25,6 +40,15 @@ pub struct TarRepository {
     archive: std::path::PathBuf,
     repo_dir: tempdir::TempDir,
     repo: crate::storage::fs::FSRepository,
+}
+
+#[async_trait::async_trait]
+impl storage::FromConfig for TarRepository {
+    type Config = Config;
+
+    async fn from_config(config: Self::Config) -> Result<Self> {
+        Self::create(&config.path).await
+    }
 }
 
 impl std::fmt::Debug for TarRepository {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+pub use super::config::{FromConfig, FromUrl};
 pub use super::{
     BlobStorage, LayerStorage, ManifestStorage, ManifestViewer, PayloadStorage, PlatformStorage,
     Repository, RepositoryHandle, TagStorage,
