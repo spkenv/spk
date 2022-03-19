@@ -161,7 +161,7 @@ fn test_solver_single_package_no_deps(mut solver: Solver) {
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
-    assert_eq!(resolved.spec.pkg.version.to_string(), "1.0.0".to_string());
+    assert_eq!(&resolved.spec.pkg.version.to_string(), "1.0.0");
     assert!(resolved.spec.pkg.build.is_some());
     assert_ne!(resolved.spec.pkg.build, Some(api::Build::Source));
 }
@@ -188,12 +188,12 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
     assert_eq!(
-        packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
-        "1.2.1".to_string()
+        &packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
+        "1.2.1"
     );
     assert_eq!(
-        packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
-        "1.1.0".to_string()
+        &packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
+        "1.1.0"
     );
 }
 
@@ -222,179 +222,221 @@ fn test_solver_dependency_abi_compat(mut solver: Solver) {
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
     assert_eq!(
-        packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
-        "1.1.1".to_string()
+        &packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
+        "1.1.1"
     );
     assert_eq!(
-        packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
-        "1.1.0".to_string()
+        &packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
+        "1.1.0"
     );
 }
 
 #[rstest]
 fn test_solver_dependency_incompatible(mut solver: Solver) {
-    // // test what happens when a dependency is added which is incompatible
-    // // with an existing request in the stack
-    // let repo = make_repo!(
-    //     [
-    //         {"pkg": "maya/2019.0.0"},
-    //         {"pkg": "maya/2020.0.0"},
-    //         {
-    //             "pkg": "my-plugin/1.0.0",
-    //             "install": {"requirements": [{"pkg": "maya/2020"}]},
-    //         },
-    //     ]
-    // )
+    // test what happens when a dependency is added which is incompatible
+    // with an existing request in the stack
+    let repo = make_repo!(
+        [
+            {"pkg": "maya/2019.0.0"},
+            {"pkg": "maya/2020.0.0"},
+            {
+                "pkg": "my-plugin/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/2020"}]},
+            },
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-plugin/1"));
-    // // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
-    // solver.add_request(request!("maya/2019"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-plugin/1"));
+    // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
+    solver.add_request(request!("maya/2019"));
 
-    // with pytest.raises(solve.SolverError):
-    //     io::run_and_print_resolve(&solver, 100);
-    todo!()
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
 fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
-    // // test what happens when a dependency is added which is incompatible
-    // // with an existing request in the stack - in this case we want the solver
-    // // to successfully step back into an older package version with
-    // // better dependencies
-    // let repo = make_repo!(
-    //     [
-    //         {"pkg": "maya/2019"},
-    //         {"pkg": "maya/2020"},
-    //         {
-    //             "pkg": "my-plugin/1.1.0",
-    //             "install": {"requirements": [{"pkg": "maya/2020"}]},
-    //         },
-    //         {
-    //             "pkg": "my-plugin/1.0.0",
-    //             "install": {"requirements": [{"pkg": "maya/2019"}]},
-    //         },
-    //     ]
-    // )
+    // test what happens when a dependency is added which is incompatible
+    // with an existing request in the stack - in this case we want the solver
+    // to successfully step back into an older package version with
+    // better dependencies
+    let repo = make_repo!(
+        [
+            {"pkg": "maya/2019"},
+            {"pkg": "maya/2020"},
+            {
+                "pkg": "my-plugin/1.1.0",
+                "install": {"requirements": [{"pkg": "maya/2020"}]},
+            },
+            {
+                "pkg": "my-plugin/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/2019"}]},
+            },
+        ]
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-plugin/1"));
-    // // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
-    // solver.add_request(request!("maya/2019"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-plugin/1"));
+    // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
+    solver.add_request(request!("maya/2019"));
 
-    // let packages = io::run_and_print_resolve(&solver, 100).unwrap();
-    // assert packages.get("my-plugin").spec.pkg.version == "1.0.0"
-    // assert packages.get("maya").spec.pkg.version == "2019.0.0"
-    todo!()
+    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_eq!(
+        &packages
+            .get("my-plugin")
+            .unwrap()
+            .spec
+            .pkg
+            .version
+            .to_string(),
+        "1.0.0"
+    );
+    assert_eq!(
+        &packages.get("maya").unwrap().spec.pkg.version.to_string(),
+        "2019.0.0"
+    );
 }
 
 #[rstest]
 fn test_solver_dependency_already_satisfied(mut solver: Solver) {
-    // // test what happens when a dependency is added which represents
-    // // a package which has already been resolved
-    // // - and the resolved version satisfies the request
+    // test what happens when a dependency is added which represents
+    // a package which has already been resolved
+    // - and the resolved version satisfies the request
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "pkg-top/1.0.0",
-    //             # should resolve dep_1 as 1.0.0
-    //             "install": {
-    //                 "requirements": [{"pkg": "dep-1/~1.0.0"}, {"pkg": "dep-2/1"}]
-    //             },
-    //         },
-    //         {"pkg": "dep-1/1.1.0"},
-    //         {"pkg": "dep-1/1.0.0"},
-    //         # when dep_2 gets resolved, it will re-request this but it has already resolved
-    //         {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1/1"}]}},
-    //     ]
-    // )
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("pkg-top"));
-    // let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "pkg-top/1.0.0",
+                // should resolve dep_1 as 1.0.0
+                "install": {
+                    "requirements": [{"pkg": "dep-1/~1.0.0"}, {"pkg": "dep-2/1"}]
+                },
+            },
+            {"pkg": "dep-1/1.1.0"},
+            {"pkg": "dep-1/1.0.0"},
+            // when dep_2 gets resolved, it will re-request this but it has already resolved
+            {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1/1"}]}},
+        ]
+    );
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("pkg-top"));
+    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert list(s.spec.pkg.name for s in packages.items()) == [
-    //     "pkg-top",
-    //     "dep-1",
-    //     "dep-2",
-    // ]
-    // assert packages.get("dep-1").spec.pkg.version == "1.0.0"
-    todo!()
+    let mut names: Vec<_> = packages
+        .items()
+        .into_iter()
+        .map(|s| s.spec.pkg.name().to_owned())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            "pkg-top".to_string(),
+            "dep-1".to_string(),
+            "dep-2".to_string(),
+        ]
+    );
+    assert_eq!(
+        &packages.get("dep-1").unwrap().spec.pkg.version.to_string(),
+        "1.0.0"
+    );
 }
 
 #[rstest]
 fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
-    // // test what happens when a dependency is added which represents
-    // // a package which has already been resolved
-    // // - and the resolved version does not satisfy the request
-    // //   - and a version exists for both (solvable)
+    // test what happens when a dependency is added which represents
+    // a package which has already been resolved
+    // - and the resolved version does not satisfy the request
+    //   - and a version exists for both (solvable)
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-plugin/1.0.0",
-    //             # should resolve maya as 2019.2 (favoring latest)
-    //             "install": {
-    //                 "requirements": [{"pkg": "maya/2019"}, {"pkg": "some-library/1"}]
-    //             },
-    //         },
-    //         {"pkg": "maya/2019.2.0"},
-    //         {"pkg": "maya/2019.0.0"},
-    //         # when some-library gets resolved, it will enforce an older version
-    //         # of the existing resolve, which is still valid for all requests
-    //         {
-    //             "pkg": "some-library/1.0.0",
-    //             "install": {"requirements": [{"pkg": "maya/~2019.0.0"}]},
-    //         },
-    //     ]
-    // )
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-plugin"));
-    // let packages = io::run_and_print_resolve(&solver, 100).unwrap();
-    // assert set(s.spec.pkg.name for s in packages.items()) == {
-    //     "my-plugin",
-    //     "some-library",
-    //     "maya",
-    // }
-    // assert packages.get("maya").spec.pkg.version == "2019.0.0"
-    todo!()
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-plugin/1.0.0",
+                // should resolve maya as 2019.2 (favoring latest)
+                "install": {
+                    "requirements": [{"pkg": "maya/2019"}, {"pkg": "some-library/1"}]
+                },
+            },
+            {"pkg": "maya/2019.2.0"},
+            {"pkg": "maya/2019.0.0"},
+            // when some-library gets resolved, it will enforce an older version
+            // of the existing resolve, which is still valid for all requests
+            {
+                "pkg": "some-library/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/~2019.0.0"}]},
+            },
+        ]
+    );
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-plugin"));
+    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let mut names: Vec<_> = packages
+        .items()
+        .into_iter()
+        .map(|s| s.spec.pkg.name().to_owned())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            "my-plugin".to_string(),
+            "some-library".to_string(),
+            "maya".to_string(),
+        ]
+    );
+    assert_eq!(
+        &packages.get("maya").unwrap().spec.pkg.version.to_string(),
+        "2019.0.0"
+    );
 }
 
 #[rstest]
 fn test_solver_dependency_reiterate(mut solver: Solver) {
-    // // test what happens when a package iterator must be run through twice
-    // // - walking back up the solve graph should reset the iterator to where it was
+    // test what happens when a package iterator must be run through twice
+    // - walking back up the solve graph should reset the iterator to where it was
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-plugin/1.0.0",
-    //             "install": {"requirements": [{"pkg": "some-library/1"}]},
-    //         },
-    //         {"pkg": "maya/2019.2.0"},
-    //         {"pkg": "maya/2019.0.0"},
-    //         # asking for a maya version that doesn't exist will run out the iterator
-    //         {
-    //             "pkg": "some-library/1.0.0",
-    //             "install": {"requirements": [{"pkg": "maya/~2018.0.0"}]},
-    //         },
-    //         # the second attempt at some-library will find maya 2019 properly
-    //         {
-    //             "pkg": "some-library/1.0.0",
-    //             "install": {"requirements": [{"pkg": "maya/~2019.0.0"}]},
-    //         },
-    //     ]
-    // )
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-plugin"));
-    // let packages = io::run_and_print_resolve(&solver, 100).unwrap();
-    // assert set(s.spec.pkg.name for s in packages.items()) == {
-    //     "my-plugin",
-    //     "some-library",
-    //     "maya",
-    // }
-    // assert packages.get("maya").spec.pkg.version == "2019.0.0"
-    todo!()
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-plugin/1.0.0",
+                "install": {"requirements": [{"pkg": "some-library/1"}]},
+            },
+            {"pkg": "maya/2019.2.0"},
+            {"pkg": "maya/2019.0.0"},
+            // asking for a maya version that doesn't exist will run out the iterator
+            {
+                "pkg": "some-library/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/~2018.0.0"}]},
+            },
+            // the second attempt at some-library will find maya 2019 properly
+            {
+                "pkg": "some-library/1.0.0",
+                "install": {"requirements": [{"pkg": "maya/~2019.0.0"}]},
+            },
+        ]
+    );
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-plugin"));
+    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let mut names: Vec<_> = packages
+        .items()
+        .into_iter()
+        .map(|s| s.spec.pkg.name().to_owned())
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            "my-plugin".to_string(),
+            "some-library".to_string(),
+            "maya".to_string(),
+        ]
+    );
+    assert_eq!(
+        &packages.get("maya").unwrap().spec.pkg.version.to_string(),
+        "2019.0.0"
+    );
 }
 
 #[rstest]
