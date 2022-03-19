@@ -26,11 +26,11 @@ lint-rust:
 	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
 lint-python:
 	pipenv run -- mypy spk spkrs
-	pipenv run -- black --check spk setup.py spkrs
+	pipenv run -- black --check spk setup.py spkrs packages/spk-convert-pip/spk-convert-pip
 
 .PHONY: format
 format:
-	pipenv run -- black spk setup.py spkrs
+	pipenv run -- black spk setup.py spkrs packages/spk-convert-pip/spk-convert-pip
 
 .PHONY: devel
 devel:
@@ -51,6 +51,9 @@ test-python:
 .PHONY: cargo-test
 cargo-test:
 	cargo test --no-default-features
+
+converters:
+	$(MAKE) -C packages spk-convert-pip/spk-convert-pip.spk
 
 .PHONY: rpm
 rpm: SPFS_PULL_USERNAME ?= $(shell read -p "Github Username: " user; echo $$user)

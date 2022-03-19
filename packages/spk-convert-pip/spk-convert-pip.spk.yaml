@@ -1,0 +1,15 @@
+pkg: spk-convert-pip/1.0.0
+
+build:
+  script:
+    - PYTHON=python3
+    - if ! $($PYTHON -m spk); then PYTHON=/usr/bin/python3; fi
+    - $PYTHON -m venv /spfs
+    - source /spfs/bin/activate
+    - /spfs/bin/pip install -U pip -r requirements.txt --force
+    - cp spk-convert-pip /spfs/bin/
+
+install:
+  environment:
+    - prepend: PATH
+      value: /spfs/bin

@@ -72,7 +72,7 @@ which spk # now points to local dev version
 spk --help
 ```
 
-**NOTE** In order to run spk you will need [spfs](https://github.com/imageworks/spfs) to already be installed on the local system.
+**NOTE** In order to run spk you will need [spfs](https://github.com/imageworks/spfs) to already be installed on the local system. The easiest way to do this is to download the rpm file attached to the latest release in the spfs repo.
 
 ### RPM Package
 
@@ -119,20 +119,42 @@ make packages.bootstrap
 make packages.python2
 ```
 
+Some of these package specs have not yet been used or tested fully or ironed out all the way so please communicate any issues as you run into them!
+
+#### Using Docker
+
 Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process. If you are not running on an rpm-based system, you can run the process in a container instead:
 
 ```sh
 # build boostrap packages in a docker image
 # (can also build any other packages.* rule, though the container startup is heavy)
 make packages.docker.python2
+# build all core packages
+make packages.docker
 # import the created packages to the local spk environment
 make packages.import
 ```
 
-Some of these package specs have not yet been used or tested fully or ironed out all the way so please communicate any issues as you run into them!
+#### Conversion Packages
+
+Spk has logic to automatically convert pip packages to spk packages for easy python environment creation. This logic lives and runs inside of it's own spk package/environment. If you have python3 already installed, you can generate this package locally like so:
+
+```sh
+make converters
+```
+
+Once built, these packages will need to be published in order to use them from the `spk convert` command.
+
+```sh
+make converters
+spk publish spk-convert-pip/1.0.0
+spk convert pip --help
+```
+
+#### Other Notes
 
 - The make `packages.python2` and `packages.python3` targets can be used to boostrap just enough to be able to build python for spk. The python recipes will build multiple python versions for each gcc48 and 63 as well as for the different python abi's
-- The make `packages.gnu` target can be used to bootstrap just enought to get "native" spk packages for gcc48 and gcc63
+- The make `packages.gnu` target can be used to bootstrap just enough to get "native" spk packages for gcc48 and gcc63
 
 Of course, the packages themselves can also be build with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.
 
