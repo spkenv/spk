@@ -23,7 +23,7 @@ macro_rules! make_repo {
         make_repo!([ $( $spec ),* ], options={})
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options={ $($k:expr => $v:expr),* } ) => {{
-        let options = crate::option_map!{$($k:expr => $v:expr),*};
+        let options = crate::option_map!{$($k => $v),*};
         make_repo!([ $( $spec ),* ], options=options)
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
@@ -267,7 +267,7 @@ fn test_solver_dependency_incompatible(mut solver: Solver) {
     solver.add_request(request!("maya/2019"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::Solve(_))));
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
@@ -458,63 +458,60 @@ fn test_solver_pre_release_config(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_constraint_only(mut solver: Solver) {
-    // // test what happens when a dependency is marked as a constraint/optional
-    // // and no other request is added
-    // // - the constraint is noted
-    // // - the package does not get resolved into the final env
+    // test what happens when a dependency is marked as a constraint/optional
+    // and no other request is added
+    // - the constraint is noted
+    // - the package does not get resolved into the final env
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "vnp3/2.0.0",
-    //             "install": {
-    //                 "requirements": [
-    //                     {"pkg": "python/3.7", "include": "IfAlreadyPresent"}
-    //                 ]
-    //             },
-    //         }
-    //     ]
-    // )
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("vnp3"));
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "vnp3/2.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "python/3.7", "include": "IfAlreadyPresent"}
+                    ]
+                },
+            }
+        ]
+    );
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("vnp3"));
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // with pytest.raises(KeyError):
-    //     solution.get("python")
-    todo!()
+    assert!(solution.get("python").is_err());
 }
 
 #[rstest]
 fn test_solver_constraint_and_request(mut solver: Solver) {
-    // // test what happens when a dependency is marked as a constraint/optional
-    // // and also requested by another package
-    // // - the constraint is noted
-    // // - the constraint is merged with the request
+    // test what happens when a dependency is marked as a constraint/optional
+    // and also requested by another package
+    // - the constraint is noted
+    // - the constraint is merged with the request
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "vnp3/2.0.0",
-    //             "install": {
-    //                 "requirements": [
-    //                     {"pkg": "python/=3.7.3", "include": "IfAlreadyPresent"}
-    //                 ]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "my-tool/1.2.0",
-    //             "install": {"requirements": [{"pkg": "vnp3"}, {"pkg": "python/3.7"}]},
-    //         },
-    //         {"pkg": "python/3.7.3"},
-    //         {"pkg": "python/3.8.1"},
-    //     ]
-    // )
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-tool"));
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "vnp3/2.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "python/=3.7.3", "include": "IfAlreadyPresent"}
+                    ]
+                },
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "install": {"requirements": [{"pkg": "vnp3"}, {"pkg": "python/3.7"}]},
+            },
+            {"pkg": "python/3.7.3"},
+            {"pkg": "python/3.8.1"},
+        ]
+    );
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-tool"));
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert_resolved!(solution, "python", "3.7.3");
-    todo!()
+    assert_resolved!(solution, "python", "3.7.3");
 }
 
 #[rstest]
@@ -606,50 +603,51 @@ fn test_solver_option_injection() {
 }
 
 #[rstest]
-fn test_solver_build_from_source() {
-    // // test when no appropriate build exists but the source is available
-    // // - the build is skipped
-    // // - the source package is checked for current options
-    // // - a new build is created
-    // // - the local package is used in the resolve
+fn test_solver_build_from_source(mut solver: Solver) {
+    // test when no appropriate build exists but the source is available
+    // - the build is skipped
+    // - the source package is checked for current options
+    // - a new build is created
+    // - the local package is used in the resolve
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-tool/1.2.0/src",
-    //             "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
-    //         },
-    //         {
-    //             "pkg": "my-tool/1.2.0",
-    //             "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
-    //         },
-    //     ],
-    //     api.OptionMap(debug="off"),
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+        ],
+        options={"debug" => "off"}
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // // the new option value should disqulify the existing build
-    // // but a new one should be generated for this set of options
-    // solver.add_request(api.VarRequest("debug", "on"))
-    // solver.add_request(request!("my-tool"));
+    solver.add_repository(repo.clone());
+    // the new option value should disqulify the existing build
+    // but a new one should be generated for this set of options
+    solver.add_request(request!({"var": "debug=on"}));
+    solver.add_request(request!("my-tool"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // resolved = solution.get("my-tool")
-    // assert (
-    //     resolved.is_source_build()
-    // ), f"Should set unbuilt spec as source: {resolved.spec.pkg}"
+    let resolved = solution.get("my-tool").unwrap();
+    assert!(
+        resolved.is_source_build(),
+        "Should set unbuilt spec as source: {}",
+        resolved.spec.pkg
+    );
 
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(api.VarRequest("debug", "on"))
-    // solver.add_request(request!("my-tool"));
-    // solver.set_binary_only(True)
-    // with pytest.raises(solve.SolverError):
-    //     # Should fail when binary-only is specified
-    //     io::run_and_print_resolve(&solver, 100);
-    todo!()
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(request!({"var": "debug=on"}));
+    solver.add_request(request!("my-tool"));
+    solver.set_binary_only(true);
+    // Should fail when binary-only is specified
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
