@@ -198,9 +198,9 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_dependency_abi_compat(solver: Solver) {
+fn test_solver_dependency_abi_compat(mut solver: Solver) {
     // options = api.OptionMap()
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "pkg-b/1.1.0",
@@ -215,11 +215,11 @@ fn test_solver_dependency_abi_compat(solver: Solver) {
     //     ]
     // )
 
-    // solver.update_options(options)
-    // solver.add_repository(repo)
-    // solver.add_request("pkg-b/1.1")
+    // solver.update_options(options);
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("pkg-b/1.1"));
 
-    // packages = io.run_and_print_resolve(solver, verbosity=100)
+    // let packages = io::run_and_print_resolve(&solver, 100);
     // assert len(packages) == 2, "expected two resolved packages"
     // assert packages.get("pkg-a").spec.pkg.version == "1.1.1"
     // assert packages.get("pkg-b").spec.pkg.version == "1.1.0"
@@ -227,10 +227,10 @@ fn test_solver_dependency_abi_compat(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_dependency_incompatible(solver: Solver) {
+fn test_solver_dependency_incompatible(mut solver: Solver) {
     // # test what happens when a dependency is added which is incompatible
     // # with an existing request in the stack
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {"pkg": "maya/2019.0.0"},
     //         {"pkg": "maya/2020.0.0"},
@@ -241,10 +241,10 @@ fn test_solver_dependency_incompatible(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-plugin/1")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-plugin/1"));
     // # this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
-    // solver.add_request("maya/2019")
+    // solver.add_request(request!("maya/2019"));
 
     // with pytest.raises(solve.SolverError):
     //     io.run_and_print_resolve(solver, verbosity=100)
@@ -252,12 +252,12 @@ fn test_solver_dependency_incompatible(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_dependency_incompatible_stepback(solver: Solver) {
+fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
     // # test what happens when a dependency is added which is incompatible
     // # with an existing request in the stack - in this case we want the solver
     // # to successfully step back into an older package version with
     // # better dependencies
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {"pkg": "maya/2019"},
     //         {"pkg": "maya/2020"},
@@ -272,24 +272,24 @@ fn test_solver_dependency_incompatible_stepback(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-plugin/1")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-plugin/1"));
     // # this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
-    // solver.add_request("maya/2019")
+    // solver.add_request(request!("maya/2019"));
 
-    // packages = io.run_and_print_resolve(solver, verbosity=100)
+    // let packages = io::run_and_print_resolve(&solver, 100);
     // assert packages.get("my-plugin").spec.pkg.version == "1.0.0"
     // assert packages.get("maya").spec.pkg.version == "2019.0.0"
     todo!()
 }
 
 #[rstest]
-fn test_solver_dependency_already_satisfied(solver: Solver) {
+fn test_solver_dependency_already_satisfied(mut solver: Solver) {
     // # test what happens when a dependency is added which represents
     // # a package which has already been resolved
     // # - and the resolved version satisfies the request
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "pkg-top/1.0.0",
@@ -304,9 +304,9 @@ fn test_solver_dependency_already_satisfied(solver: Solver) {
     //         {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1/1"}]}},
     //     ]
     // )
-    // solver.add_repository(repo)
-    // solver.add_request("pkg-top")
-    // packages = io.run_and_print_resolve(solver, verbosity=100)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("pkg-top"));
+    // let packages = io::run_and_print_resolve(&solver, 100);
 
     // assert list(s.spec.pkg.name for s in packages.items()) == [
     //     "pkg-top",
@@ -318,13 +318,13 @@ fn test_solver_dependency_already_satisfied(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_dependency_reopen_solvable(solver: Solver) {
+fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
     // # test what happens when a dependency is added which represents
     // # a package which has already been resolved
     // # - and the resolved version does not satisfy the request
     // #   - and a version exists for both (solvable)
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-plugin/1.0.0",
@@ -343,9 +343,9 @@ fn test_solver_dependency_reopen_solvable(solver: Solver) {
     //         },
     //     ]
     // )
-    // solver.add_repository(repo)
-    // solver.add_request("my-plugin")
-    // packages = io.run_and_print_resolve(solver, verbosity=100)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-plugin"));
+    // let packages = io::run_and_print_resolve(&solver, 100);
     // assert set(s.spec.pkg.name for s in packages.items()) == {
     //     "my-plugin",
     //     "some-library",
@@ -356,11 +356,11 @@ fn test_solver_dependency_reopen_solvable(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_dependency_reiterate(solver: Solver) {
+fn test_solver_dependency_reiterate(mut solver: Solver) {
     // # test what happens when a package iterator must be run through twice
     // # - walking back up the solve graph should reset the iterator to where it was
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-plugin/1.0.0",
@@ -380,9 +380,9 @@ fn test_solver_dependency_reiterate(solver: Solver) {
     //         },
     //     ]
     // )
-    // solver.add_repository(repo)
-    // solver.add_request("my-plugin")
-    // packages = io.run_and_print_resolve(solver, verbosity=100)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-plugin"));
+    // let packages = io::run_and_print_resolve(&solver, 100);
     // assert set(s.spec.pkg.name for s in packages.items()) == {
     //     "my-plugin",
     //     "some-library",
@@ -393,13 +393,13 @@ fn test_solver_dependency_reiterate(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_dependency_reopen_unsolvable(solver: Solver) {
+fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
     // # test what happens when a dependency is added which represents
     // # a package which has already been resolved
     // # - and the resolved version does not satisfy the request
     // #   - and a version does not exist for both (unsolvable)
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "pkg-top/1.0.0",
@@ -416,8 +416,8 @@ fn test_solver_dependency_reopen_unsolvable(solver: Solver) {
     //         },
     //     ]
     // )
-    // solver.add_repository(repo)
-    // solver.add_request("pkg-top")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("pkg-top"));
     // with pytest.raises(solve.SolverError):
     //     packages = solver.solve()
     //     print(packages)
@@ -425,8 +425,8 @@ fn test_solver_dependency_reopen_unsolvable(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_pre_release_config(solver: Solver) {
-    // repo = make_repo(
+fn test_solver_pre_release_config(mut solver: Solver) {
+    // let repo = make_repo!(
     //     [
     //         {"pkg": "my-pkg/0.9.0"},
     //         {"pkg": "my-pkg/1.0.0-pre.0"},
@@ -435,8 +435,8 @@ fn test_solver_pre_release_config(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-pkg")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-pkg"));
 
     // solution = solver.solve()
     // assert (
@@ -444,7 +444,7 @@ fn test_solver_pre_release_config(solver: Solver) {
     // ), "should not resolve pre-release by default"
 
     // solver.reset()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // solver.add_request(
     //     api.request_from_dict({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"})
     // )
@@ -455,13 +455,13 @@ fn test_solver_pre_release_config(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_constraint_only(solver: Solver) {
+fn test_solver_constraint_only(mut solver: Solver) {
     // # test what happens when a dependency is marked as a constraint/optional
     // # and no other request is added
     // # - the constraint is noted
     // # - the package does not get resolved into the final env
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "vnp3/2.0.0",
@@ -473,8 +473,8 @@ fn test_solver_constraint_only(solver: Solver) {
     //         }
     //     ]
     // )
-    // solver.add_repository(repo)
-    // solver.add_request("vnp3")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("vnp3"));
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
     // with pytest.raises(KeyError):
@@ -483,13 +483,13 @@ fn test_solver_constraint_only(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_constraint_and_request(solver: Solver) {
+fn test_solver_constraint_and_request(mut solver: Solver) {
     // # test what happens when a dependency is marked as a constraint/optional
     // # and also requested by another package
     // # - the constraint is noted
     // # - the constraint is merged with the request
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "vnp3/2.0.0",
@@ -507,8 +507,8 @@ fn test_solver_constraint_and_request(solver: Solver) {
     //         {"pkg": "python/3.8.1"},
     //     ]
     // )
-    // solver.add_repository(repo)
-    // solver.add_request("my-tool")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-tool"));
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
     // assert solution.get("python").spec.pkg.version == "3.7.3"
@@ -538,7 +538,7 @@ fn test_solver_option_compatibility() {
     //     .build.options[0]
     //     .get_value()
     // )
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]),
     //         make_build(spec.to_dict(), [make_build({"pkg": "python/3.7.3"})]),
@@ -585,12 +585,12 @@ fn test_solver_option_injection() {
     //         "build": {"options": [{"var": "abi/cp27mu"}]},
     //     }
     // )
-    // repo = make_repo([make_build(spec.to_dict(), [pybuild])])
+    // let repo = make_repo!([make_build(spec.to_dict(), [pybuild])])
     // repo.publish_spec(spec)
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("vnp3")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("vnp3"));
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
     // opts = solution.options()
@@ -611,7 +611,7 @@ fn test_solver_build_from_source() {
     // # - a new build is created
     // # - the local package is used in the resolve
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-tool/1.2.0/src",
@@ -626,11 +626,11 @@ fn test_solver_build_from_source() {
     // )
 
     // solver = Solver()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // # the new option value should disqulify the existing build
     // # but a new one should be generated for this set of options
     // solver.add_request(api.VarRequest("debug", "on"))
-    // solver.add_request("my-tool")
+    // solver.add_request(request!("my-tool"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -640,9 +640,9 @@ fn test_solver_build_from_source() {
     // ), f"Should set unbuilt spec as source: {resolved.spec.pkg}"
 
     // solver.reset()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // solver.add_request(api.VarRequest("debug", "on"))
-    // solver.add_request("my-tool")
+    // solver.add_request(request!("my-tool"));
     // solver.set_binary_only(True)
     // with pytest.raises(solve.SolverError):
     //     # Should fail when binary-only is specified
@@ -651,13 +651,13 @@ fn test_solver_build_from_source() {
 }
 
 #[rstest]
-fn test_solver_build_from_source_unsolvable(solver: Solver) {
+fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
     // # test when no appropriate build exists but the source is available
     // # - if the requested pkg cannot resolve a build environment
     // # - this is flagged by the solver as impossible
 
     // gcc48 = make_build({"pkg": "gcc/4.8"})
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         gcc48,
     //         make_build(
@@ -675,11 +675,11 @@ fn test_solver_build_from_source_unsolvable(solver: Solver) {
     //     api.OptionMap(gcc="4.8"),
     // )
 
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // # the new option value should disqualify the existing build
     // # and there is no 6.3 that can be resolved for this request
     // solver.add_request(api.VarRequest("gcc", "6.3"))
-    // solver.add_request("my-tool")
+    // solver.add_request(request!("my-tool"));
 
     // with pytest.raises(solve.SolverError):
     //     io.run_and_print_resolve(solver, verbosity=100)
@@ -704,7 +704,7 @@ fn test_solver_build_from_source_dependency() {
     //     [python36],
     // )
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         # the source package pins the build environment package
     //         {
@@ -724,9 +724,9 @@ fn test_solver_build_from_source_dependency() {
     // solver = Solver()
     // # the new option value should disqulify the existing build
     // # but a new one should be generated for this set of options
-    // solver.update_options(api.OptionMap(debug="on"))
-    // solver.add_repository(repo)
-    // solver.add_request("my-tool")
+    // solver.update_options(api.OptionMap(debug="on"));
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-tool"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -735,13 +735,13 @@ fn test_solver_build_from_source_dependency() {
 }
 
 #[rstest]
-fn test_solver_deprecated_build(solver: Solver) {
+fn test_solver_deprecated_build(mut solver: Solver) {
     // specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0"}]
     // deprecated = make_build({"pkg": "my-pkg/1.0.0", "deprecated": True})
-    // repo = make_repo([*specs, deprecated])
+    // let repo = make_repo!([*specs, deprecated])
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-pkg")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-pkg"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
     // assert (
@@ -749,7 +749,7 @@ fn test_solver_deprecated_build(solver: Solver) {
     // ), "should not resolve deprecated build by default"
 
     // solver.reset()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
@@ -760,14 +760,14 @@ fn test_solver_deprecated_build(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_deprecated_version(solver: Solver) {
+fn test_solver_deprecated_version(mut solver: Solver) {
     // specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
     // deprecated = make_build({"pkg": "my-pkg/1.0.0"})
     // deprecated.deprecated = True
-    // repo = make_repo(specs + [deprecated])  # type: ignore
+    // let repo = make_repo!(specs + [deprecated])  # type: ignore
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-pkg")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-pkg"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
     // assert (
@@ -775,7 +775,7 @@ fn test_solver_deprecated_version(solver: Solver) {
     // ), "should not resolve build when version is deprecated by default"
 
     // solver.reset()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
@@ -786,11 +786,11 @@ fn test_solver_deprecated_version(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_build_from_source_deprecated(solver: Solver) {
+fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     // # test when no appropriate build exists and the main package
     // # has been deprecated, no source build should be allowed
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-tool/1.2.0/src",
@@ -807,9 +807,9 @@ fn test_solver_build_from_source_deprecated(solver: Solver) {
     // spec.deprecated = True
     // repo.force_publish_spec(spec)
 
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // solver.add_request(api.VarRequest("debug", "on"))
-    // solver.add_request("my-tool")
+    // solver.add_request(request!("my-tool"));
 
     // with pytest.raises(solve.SolverError):
     //     io.run_and_print_resolve(solver, verbosity=100)
@@ -817,12 +817,12 @@ fn test_solver_build_from_source_deprecated(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_embedded_package_adds_request(solver: Solver) {
+fn test_solver_embedded_package_adds_request(mut solver: Solver) {
     // # test when there is an embedded package
     // # - the embedded package is added to the solution
     // # - the embedded package is also added as a request in the resolve
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "maya/2019.2",
@@ -832,8 +832,8 @@ fn test_solver_embedded_package_adds_request(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("maya")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("maya"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -844,13 +844,13 @@ fn test_solver_embedded_package_adds_request(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_embedded_package_solvable(solver: Solver) {
+fn test_solver_embedded_package_solvable(mut solver: Solver) {
     // # test when there is an embedded package
     // # - the embedded package is added to the solution
     // # - the embedded package resolves existing requests
     // # - the solution includes the embedded packages
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "maya/2019.2",
@@ -864,9 +864,9 @@ fn test_solver_embedded_package_solvable(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("qt")
-    // solver.add_request("maya")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("qt"));
+    // solver.add_request(request!("maya"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -876,12 +876,12 @@ fn test_solver_embedded_package_solvable(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_embedded_package_unsolvable(solver: Solver) {
+fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
     // # test when there is an embedded package
     // # - the embedded package is added to the solution
     // # - the embedded package conflicts with existing requests
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-plugin",
@@ -900,8 +900,8 @@ fn test_solver_embedded_package_unsolvable(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-plugin")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-plugin"));
 
     // with pytest.raises(solve.SolverError):
     //     io.run_and_print_resolve(solver, verbosity=100)
@@ -909,12 +909,12 @@ fn test_solver_embedded_package_unsolvable(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_some_versions_conflicting_requests(solver: Solver) {
+fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
     // # test when there is a package with some version that have a conflicting dependency
     // # - the solver passes over the one with conflicting
     // # - the solver logs compat info for versions with conflicts
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-lib",
@@ -936,8 +936,8 @@ fn test_solver_some_versions_conflicting_requests(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-lib")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-lib"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -946,12 +946,12 @@ fn test_solver_some_versions_conflicting_requests(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_embedded_request_invalidates(solver: Solver) {
+fn test_solver_embedded_request_invalidates(mut solver: Solver) {
     // # test when a package is resolved with an incompatible embedded pkg
     // # - the solver tries to resolve the package
     // # - there is a conflict in the embedded request
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "my-lib",
@@ -969,9 +969,9 @@ fn test_solver_embedded_request_invalidates(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("python")
-    // solver.add_request("my-lib")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("python"));
+    // solver.add_request(request!("my-lib"));
 
     // with pytest.raises(solve.SolverError):
     //     io.run_and_print_resolve(solver, verbosity=100)
@@ -979,34 +979,34 @@ fn test_solver_embedded_request_invalidates(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_unknown_package_options(solver: Solver) {
+fn test_solver_unknown_package_options(mut solver: Solver) {
     // # test when a package is requested with specific options (eg: pkg.opt)
     // # - the solver ignores versions that don't define the option
     // # - the solver resolves versions that do define the option
 
-    // repo = make_repo([{"pkg": "my-lib/2.0.0"}])
-    // solver.add_repository(repo)
+    // let repo = make_repo!([{"pkg": "my-lib/2.0.0"}])
+    // solver.add_repository(Arc::new(Mutex::new(repo));
 
     // # this option is specific to the my-lib package and is not known by the package
     // solver.add_request(api.VarRequest("my-lib.something", "value"))
-    // solver.add_request("my-lib")
+    // solver.add_request(request!("my-lib"));
 
     // with pytest.raises(solve.SolverError):
     //     io.run_and_print_resolve(solver, verbosity=100)
 
     // # this time we don't request that option, and it should be ok
     // solver.reset()
-    // solver.add_repository(repo)
-    // solver.add_request("my-lib")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-lib"));
     // io.run_and_print_resolve(solver, verbosity=100)
     todo!()
 }
 
 #[rstest]
-fn test_solver_var_requirements(solver: Solver) {
+fn test_solver_var_requirements(mut solver: Solver) {
     // # test what happens when a dependency is added which is incompatible
     // # with an existing request in the stack
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "python/2.7.5",
@@ -1031,8 +1031,8 @@ fn test_solver_var_requirements(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
-    // solver.add_request("my-app/2")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-app/2"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1041,8 +1041,8 @@ fn test_solver_var_requirements(solver: Solver) {
 
     // # requesting the older version of my-app should force old python abi
     // solver.reset()
-    // solver.add_repository(repo)
-    // solver.add_request("my-app/1")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("my-app/1"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1051,11 +1051,11 @@ fn test_solver_var_requirements(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_var_requirements_unresolve(solver: Solver) {
+fn test_solver_var_requirements_unresolve(mut solver: Solver) {
     // # test when a package is resolved that conflicts in var requirements
     // #  - the solver should unresolve the solved package
     // #  - the solver should resolve a new version of the package with the right version
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "python/2.7.5",
@@ -1078,11 +1078,11 @@ fn test_solver_var_requirements_unresolve(solver: Solver) {
     //     ]
     // )
 
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // # python is resolved first to get 3.7
-    // solver.add_request("python")
+    // solver.add_request(request!("python"));
     // # the addition of this app constrains the python.abi to 2.7
-    // solver.add_request("my-app/1")
+    // solver.add_request(request!("my-app/1"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1092,11 +1092,11 @@ fn test_solver_var_requirements_unresolve(solver: Solver) {
     // ), "should re-resolve python"
 
     // solver.reset()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // # python is resolved first to get 3.7
-    // solver.add_request("python")
+    // solver.add_request(request!("python"));
     // # the addition of this app constrains the global abi to 2.7
-    // solver.add_request("my-app/2")
+    // solver.add_request(request!("my-app/2"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1108,7 +1108,7 @@ fn test_solver_var_requirements_unresolve(solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_build_options_dont_affect_compat(solver: Solver) {
+fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     // # test when a package is resolved with some build option
     // #  - that option can conflict with another packages build options
     // #  - as long as there is no explicit requirement on that option's value
@@ -1126,7 +1126,7 @@ fn test_solver_build_options_dont_affect_compat(solver: Solver) {
     //     "build": {"options": [{"pkg": "build-dep/=2.0.0"}, {"var": "debug/off"}]},
     // }
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         make_build(a_spec.copy(), [dep_v1]),
     //         make_build(b_spec.copy(), [dep_v2]),
@@ -1135,20 +1135,20 @@ fn test_solver_build_options_dont_affect_compat(solver: Solver) {
     // repo.publish_spec(api.Spec.from_dict(a_spec))
     // repo.publish_spec(api.Spec.from_dict(b_spec))
 
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // # a gets resolved and adds options for debug/on and build-dep/1
     // # to the set of options in the solver
-    // solver.add_request("pkga")
+    // solver.add_request(request!("pkga"));
     // # b is not affected and can still be resolved
-    // solver.add_request("pkgb")
+    // solver.add_request(request!("pkgb"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
     // solver.reset()
-    // solver.add_repository(repo)
-    // solver.add_repository(repo)
-    // solver.add_request("pkga")
-    // solver.add_request("pkgb")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("pkga"));
+    // solver.add_request(request!("pkgb"));
     // # this time the explicit request will cause a failure
     // solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
     // with pytest.raises(solve.SolverError):
@@ -1162,7 +1162,7 @@ fn test_solver_components() {
     // # - all the aggregated components are selected in the resolve
     // # - the final build has published layers for each component
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "python/3.7.3",
@@ -1188,9 +1188,9 @@ fn test_solver_components() {
     // )
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("pkga")
-    // solver.add_request("pkgb")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("pkga"));
+    // solver.add_request(request!("pkgb"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1209,7 +1209,7 @@ fn test_solver_all_component() {
     // # - all the specs components are selected in the resolve
     // # - the final build has published layers for each component
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "python/3.7.3",
@@ -1226,8 +1226,8 @@ fn test_solver_all_component() {
     // )
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("python:all")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("python:all"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1260,7 +1260,7 @@ fn test_solver_component_availability() {
     // spec371 = spec373.copy()
     // spec371["pkg"] = "python/3.7.1"
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         # the first pkg has what we want on paper, but didn't actually publish
     //         # the components that we need (missing bin)
@@ -1277,8 +1277,8 @@ fn test_solver_component_availability() {
     // repo.publish_spec(api.Spec.from_dict(spec371))
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("python:bin")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("python:bin"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1300,7 +1300,7 @@ fn test_solver_component_requirements() {
     // # - the additional requirements are resolved
     // # - even if it's a component that's only used by the one that was requested
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "mypkg/1.0.0",
@@ -1320,8 +1320,8 @@ fn test_solver_component_requirements() {
     // )
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("mypkg:build")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("mypkg:build"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1331,8 +1331,8 @@ fn test_solver_component_requirements() {
     //     solution.get("depr")
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("mypkg:run")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("mypkg:run"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1348,7 +1348,7 @@ fn test_solver_component_requirements_extending() {
     // # test when an additional component is requested after a package is resolved
     // # - the new components requirements are still added and resolved
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "depa",
@@ -1364,12 +1364,12 @@ fn test_solver_component_requirements_extending() {
     // )
 
     // solver = Solver()
-    // solver.add_repository(repo)
+    // solver.add_repository(Arc::new(Mutex::new(repo));
     // # the initial resolve of this component will add no new requirements
-    // solver.add_request("depa:build")
+    // solver.add_request(request!("depa:build"));
     // # depb has its own requirement on depa:run, which, also
     // # has a new requirement on depc
-    // solver.add_request("depb")
+    // solver.add_request(request!("depb"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
@@ -1383,7 +1383,7 @@ fn test_solver_component_embedded() {
     // # - the embedded package is immediately selected
     // # - it must be compatible with any previous requirements
 
-    // repo = make_repo(
+    // let repo = make_repo!(
     //     [
     //         {
     //             "pkg": "mypkg/1.0.0",
@@ -1414,16 +1414,16 @@ fn test_solver_component_embedded() {
     // )
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("downstream1")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("downstream1"));
 
     // solution = io.run_and_print_resolve(solver, verbosity=100)
 
     // assert solution.get("dep-e1").spec.pkg.build == "embedded"
 
     // solver = Solver()
-    // solver.add_repository(repo)
-    // solver.add_request("downstream2")
+    // solver.add_repository(Arc::new(Mutex::new(repo));
+    // solver.add_request(request!("downstream2"));
 
     // with pytest.raises(SolverError):
     //     # should fail because the one embedded package
