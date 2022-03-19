@@ -121,6 +121,16 @@ macro_rules! request {
     }};
 }
 
+macro_rules! assert_resolved {
+    ($solution:ident, $pkg:literal, $version:literal) => {{
+        let pkg = $solution
+            .get($pkg)
+            .expect("expected package to be in solution");
+        let version = pkg.spec.pkg.version.to_string();
+        assert_eq!(&version, $version, "wrong package version was resolved");
+    }};
+}
+
 #[rstest]
 fn test_solver_no_requests(mut solver: Solver) {
     solver.solve().unwrap();
@@ -187,14 +197,8 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
 
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
-    assert_eq!(
-        &packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
-        "1.2.1"
-    );
-    assert_eq!(
-        &packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
-        "1.1.0"
-    );
+    assert_resolved!(packages, "pkg-a", "1.2.1");
+    assert_resolved!(packages, "pkg-b", "1.1.0");
 }
 
 #[rstest]
@@ -221,14 +225,8 @@ fn test_solver_dependency_abi_compat(mut solver: Solver) {
 
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
-    assert_eq!(
-        &packages.get("pkg-a").unwrap().spec.pkg.version.to_string(),
-        "1.1.1"
-    );
-    assert_eq!(
-        &packages.get("pkg-b").unwrap().spec.pkg.version.to_string(),
-        "1.1.0"
-    );
+    assert_resolved!(packages, "pkg-a", "1.1.1");
+    assert_resolved!(packages, "pkg-b", "1.1.0");
 }
 
 #[rstest]
@@ -282,20 +280,8 @@ fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
     solver.add_request(request!("maya/2019"));
 
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
-    assert_eq!(
-        &packages
-            .get("my-plugin")
-            .unwrap()
-            .spec
-            .pkg
-            .version
-            .to_string(),
-        "1.0.0"
-    );
-    assert_eq!(
-        &packages.get("maya").unwrap().spec.pkg.version.to_string(),
-        "2019.0.0"
-    );
+    assert_resolved!(packages, "my-plugin", "1.0.0");
+    assert_resolved!(packages, "maya", "2019.0.0");
 }
 
 #[rstest]
@@ -337,10 +323,7 @@ fn test_solver_dependency_already_satisfied(mut solver: Solver) {
             "dep-2".to_string(),
         ]
     );
-    assert_eq!(
-        &packages.get("dep-1").unwrap().spec.pkg.version.to_string(),
-        "1.0.0"
-    );
+    assert_resolved!(packages, "dep-1", "1.0.0");
 }
 
 #[rstest]
@@ -386,10 +369,7 @@ fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
             "maya".to_string(),
         ]
     );
-    assert_eq!(
-        &packages.get("maya").unwrap().spec.pkg.version.to_string(),
-        "2019.0.0"
-    );
+    assert_resolved!(packages, "maya", "2019.0.0");
 }
 
 #[rstest]
@@ -433,10 +413,7 @@ fn test_solver_dependency_reiterate(mut solver: Solver) {
             "maya".to_string(),
         ]
     );
-    assert_eq!(
-        &packages.get("maya").unwrap().spec.pkg.version.to_string(),
-        "2019.0.0"
-    );
+    assert_resolved!(packages, "maya", "2019.0.0");
 }
 
 #[rstest]
