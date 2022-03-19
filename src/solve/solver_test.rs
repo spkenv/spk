@@ -136,13 +136,27 @@ macro_rules! assert_resolved {
     ($solution:ident, $pkg:literal, $version:literal) => {
         assert_resolved!($solution, $pkg, $version, "wrong package version was resolved")
     };
-    ($solution:ident, $pkg:literal, $version:literal, $message:literal) => {{
+    ($solution:ident, $pkg:literal, $version:literal, $message:literal) => {
+        assert_resolved!($solution, $pkg, version = $version, $message)
+    };
+    ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
         let version = pkg.spec.pkg.version.to_string();
         assert_eq!(&version, $version, $message);
     }};
+
+    ($solution:ident, $pkg:literal, build = $build:expr) => {
+        assert_resolved!($solution, $pkg, build = $build, "wrong package build was resolved")
+    };
+    ($solution:ident, $pkg:literal, build = $build:expr, $message:literal) => {{
+        let pkg = $solution
+            .get($pkg)
+            .expect("expected package to be in solution");
+        assert_eq!(pkg.spec.pkg.build, $build, $message);
+    }};
+
     ($solution:ident, [$($pkg:literal),+ $(,)?]) => {{
         let names: std::collections::HashSet<_> = $solution
             .items()
