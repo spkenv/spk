@@ -28,8 +28,9 @@ macro_rules! make_repo {
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
         let mut repo = crate::storage::RepositoryHandle::new_mem();
+        let opts = $options;
         $(
-            let (s, cmpts) = make_package!(repo, $spec, &$options);
+            let (s, cmpts) = make_package!(repo, $spec, &opts);
             repo.publish_package(s, cmpts).unwrap();
         )*
         repo
@@ -42,7 +43,7 @@ macro_rules! make_package {
         ($build_spec, $components)
     }};
     ($repo:ident, $build_spec:ident, $opts:expr) => {{
-        let s = $build_spec;
+        let s = $build_spec.clone();
         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
             .install
             .components
@@ -64,10 +65,13 @@ macro_rules! make_package {
 #[macro_export(local_inner_macros)]
 macro_rules! make_build {
     ($spec:tt) => {
-        make_build!($spec, [], {})
+        make_build!($spec, [])
+    };
+    ($spec:tt, $deps:tt) => {
+        make_build!($spec, $deps, {})
     };
     ($spec:tt, $deps:tt, $opts:tt) => {{
-        let (spec, _) = make_build_and_components!($spec, deps, opts);
+        let (spec, _) = make_build_and_components!($spec, $deps, $opts);
         spec
     }};
 }
@@ -80,13 +84,17 @@ macro_rules! make_build_and_components {
     ($spec:tt, [$($dep:expr),*]) => {
         make_build_and_components!($spec, [$($dep),*], {})
     };
-    ($spec:tt, [$($dep:expr),*], $opts:expr) => {
+    ($spec:tt, [$($dep:expr),*], $opts:tt) => {
         make_build_and_components!($spec, [$($dep),*], $opts, [])
     };
+    ($spec:tt, [$($dep:expr),*], { $($k:expr => $v:expr),* }, [$($component:expr),*]) => {{
+        let opts = crate::option_map!{$($k => $v),*};
+        make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
+    }};
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let mut spec = crate::spec!($spec);
-        let mut components = std::collections::HashMap::new();
-        let deps: Vec<api::Spec> = std::vec![$($dep),*];
+        let mut components = std::collections::HashMap::<crate::api::Component, spfs::encoding::Digest>::new();
+        let deps: Vec<&api::Spec> = std::vec![$(&$dep),*];
         if spec.pkg.is_source() {
             components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
             (spec, components)
@@ -179,7 +187,7 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
 #[rstest]
 fn test_solver_single_package_no_deps(mut solver: Solver) {
     let options = option_map! {};
-    let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options);
+    let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
 
     solver.update_options(options);
     solver.add_repository(Arc::new(Mutex::new(repo)));
@@ -628,7 +636,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
     solver.add_repository(repo.clone());
     // the new option value should disqulify the existing build
     // but a new one should be generated for this set of options
-    solver.add_request(request!({"var": "debug=on"}));
+    solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -642,7 +650,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!({"var": "debug=on"}));
+    solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
     solver.set_binary_only(true);
     // Should fail when binary-only is specified
@@ -652,38 +660,38 @@ fn test_solver_build_from_source(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
-    // // test when no appropriate build exists but the source is available
-    // // - if the requested pkg cannot resolve a build environment
-    // // - this is flagged by the solver as impossible
+    // test when no appropriate build exists but the source is available
+    // - if the requested pkg cannot resolve a build environment
+    // - this is flagged by the solver as impossible
 
-    // gcc48 = make_build({"pkg": "gcc/4.8"})
-    // let repo = make_repo!(
-    //     [
-    //         gcc48,
-    //         make_build(
-    //             {
-    //                 "pkg": "my-tool/1.2.0",
-    //                 "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
-    //             },
-    //             [gcc48],
-    //         ),
-    //         {
-    //             "pkg": "my-tool/1.2.0/src",
-    //             "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
-    //         },
-    //     ],
-    //     api.OptionMap(gcc="4.8"),
-    // )
+    let gcc48 = make_build!({"pkg": "gcc/4.8"});
+    let build_with_48 = make_build!(
+        {
+            "pkg": "my-tool/1.2.0",
+            "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+        },
+        [gcc48]
+    );
+    let repo = make_repo!(
+        [
+            gcc48,
+            build_with_48,
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+            },
+        ],
+        options={"gcc"=>"4.8"}
+    );
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // // the new option value should disqualify the existing build
-    // // and there is no 6.3 that can be resolved for this request
-    // solver.add_request(api.VarRequest("gcc", "6.3"))
-    // solver.add_request(request!("my-tool"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    // the new option value should disqualify the existing build
+    // and there is no 6.3 that can be resolved for this request
+    solver.add_request(request!({"var": "gcc/6.3"}));
+    solver.add_request(request!("my-tool"));
 
-    // with pytest.raises(solve.SolverError):
-    //     io::run_and_print_resolve(&solver, 100);
-    todo!()
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
