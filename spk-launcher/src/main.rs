@@ -145,6 +145,14 @@ where
                     // is dropped.
                     false
                 }
+                Some(io_err) if matches!(io_err.kind(), std::io::ErrorKind::AlreadyExists) => {
+                    // Somebody put a file in the place where we wanted to
+                    // put our new directory. This is an error situation.
+                    bail!(
+                        "a file unexpectedly appeared in the way: {}",
+                        install_location.display()
+                    )
+                }
                 _ => return Err(err),
             },
         };
