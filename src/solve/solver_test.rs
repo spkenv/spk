@@ -1,23 +1,25 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    collections::HashMap,
-    convert::TryFrom,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use rstest::{fixture, rstest};
-use spfs::encoding::{Digest, EMPTY_DIGEST};
+use spfs::encoding::EMPTY_DIGEST;
 
 use super::{RequestEnum, Solver};
-use crate::{api, io, option_map, solve, spec, storage, Error};
+use crate::{api, io, option_map, spec, Error};
 
 #[fixture]
 fn solver() -> Solver {
     Solver::new()
 }
 
+/// Creates a repository containing a set of provided package specs.
+/// It will take care of publishing the spec, and creating a build for
+/// each provided package so that it can be resolved.
+///
+/// make_repo!({"pkg": "mypkg/1.0.0"});
+/// make_repo!({"pkg": "mypkg/1.0.0"}, options = {"debug" => "off"});
 macro_rules! make_repo {
     ( [ $( $spec:tt ),+ $(,)? ] ) => {{
         make_repo!([ $( $spec ),* ], options={})
@@ -62,6 +64,12 @@ macro_rules! make_package {
     }};
 }
 
+/// Make a build of a package spec
+///
+/// This macro at least takes a spec json or identifier, but can optionally
+/// take two additional parameters:
+///     a list of dependencies used to make the build (eg [depa, depb])
+///     the options used to make the build (eg: {"debug" => "on"})
 #[macro_export(local_inner_macros)]
 macro_rules! make_build {
     ($spec:tt) => {
@@ -76,6 +84,13 @@ macro_rules! make_build {
     }};
 }
 
+/// Given a spec and optional params, creates a publishable build and component map.
+///
+/// This macro at least takes a spec json or identifier, but can optionally
+/// take three additional parameters:
+///     a list of dependencies used to make the build (eg [depa, depb])
+///     the options used to make the build (eg: {"debug" => "on"})
+///     the list of component names to generate (eg: ["bin", "run"])
 #[macro_export(local_inner_macros)]
 macro_rules! make_build_and_components {
     ($spec:tt) => {
@@ -117,6 +132,8 @@ macro_rules! make_build_and_components {
     }}
 }
 
+/// Makes a package spec either from a raw json definition
+/// or by cloning a given identifier
 #[macro_export(local_inner_macros)]
 macro_rules! make_spec {
     ($spec:ident) => {
@@ -143,6 +160,9 @@ macro_rules! request {
 
 /// Asserts that a package exists in the solution at a specific version,
 /// or that the solution contains a specific set of packages by name.
+///
+/// Instead of a packages, version, this macro can also check the set
+/// of resolved components, or the specific build of the package.
 macro_rules! assert_resolved {
     ($solution:ident, $pkg:literal, $version:literal) => {
         assert_resolved!($solution, $pkg, $version, "wrong package version was resolved")
