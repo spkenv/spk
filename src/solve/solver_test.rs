@@ -567,91 +567,111 @@ fn test_solver_constraint_and_request(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_option_compatibility() {
-    // // test what happens when an option is given in the solver
-    // // - the options for each build are checked
-    // // - the resolved build must have used the option
+fn test_solver_option_compatibility(mut solver: Solver) {
+    // test what happens when an option is given in the solver
+    // - the options for each build are checked
+    // - the resolved build must have used the option
 
-    // solver = Solver()
-    // spec = api.Spec.from_dict(
-    //     {
-    //         "pkg": "vnp3/2.0.0",
-    //         "build": {
-    //             # favoritize 2.7, otherwise an option of python=2 doesn't actually
-    //             # exclude python 3 from being resolved
-    //             "options": [{"pkg": "python/~2.7"}],
-    //             "variants": [{"python": "3.7"}, {"python": "2.7"}],
-    //         },
-    //     }
-    // )
-    // print(
-    //     make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})])
-    //     .build.options[0]
-    //     .get_value()
-    // )
-    // let repo = make_repo!(
-    //     [
-    //         make_build(spec.to_dict(), [make_build({"pkg": "python/2.7.5"})]),
-    //         make_build(spec.to_dict(), [make_build({"pkg": "python/3.7.3"})]),
-    //     ]
-    // )
-    // repo.publish_spec(spec)
+    let spec = spec!(
+        {
+            "pkg": "vnp3/2.0.0",
+            "build": {
+                // favoritize 2.7, otherwise an option of python=2 doesn't actually
+                // exclude python 3 from being resolved
+                "options": [{"pkg": "python/~2.7"}],
+                "variants": [{"python": "3.7"}, {"python": "2.7"}],
+            },
+        }
+    );
+    let py27 = make_build!({"pkg": "python/2.7.5"});
+    let py37 = make_build!({"pkg": "python/3.7.3"});
+    let for_py27 = make_build!(spec, [py27]);
+    let for_py37 = make_build!(spec, [py37]);
+    let mut repo = make_repo!([for_py27, for_py37]);
+    repo.publish_spec(spec).unwrap();
+    let repo = Arc::new(Mutex::new(repo));
 
-    // for pyver in ("2", "2.7", "2.7.5", "3", "3.7", "3.7.3"):
-    //     solver.reset()
-    //     solver.add_request(api.VarRequest("python", pyver))
-    //     solver.add_repository(repo)
-    //     solver.add_request("vnp3")
-    //     solution = io::run_and_print_resolve(&solver, 100);
+    for pyver in ["2", "2.7", "2.7.5", "3", "3.7", "3.7.3"] {
+        solver.reset();
+        solver.add_repository(repo.clone());
+        solver.add_request(request!("vnp3"));
+        solver.add_request(
+            api::VarRequest {
+                var: "python".to_string(),
+                pin: false,
+                value: pyver.to_string(),
+            }
+            .into(),
+        );
+        let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    //     resolved = solution.get("vnp3")
-    //     opt = resolved.spec.build.options[0]
-    //     value = opt.get_value()
-    //     assert value is not None
-    //     assert value.startswith(f"~{pyver}"), f"{value} should start with ~{pyver}"
-    todo!()
+        let resolved = solution.get("vnp3").unwrap();
+        let opt = resolved.spec.build.options.get(0).unwrap();
+        let value = opt.get_value(None);
+        let expected = format!("~{}", pyver);
+        assert!(
+            value.starts_with(&expected),
+            "{} should start with ~{}",
+            value,
+            pyver
+        );
+    }
 }
 
 #[rstest]
-fn test_solver_option_injection() {
-    // // test the options that are defined when a package is resolved
-    // // - options are namespaced and added to the environment
+fn test_solver_option_injection(mut solver: Solver) {
+    // test the options that are defined when a package is resolved
+    // - options are namespaced and added to the environment
 
-    // spec = api.Spec.from_dict(
-    //     {
-    //         "pkg": "vnp3/2.0.0",
-    //         "build": {
-    //             "options": [
-    //                 {"pkg": "python"},
-    //                 {"var": "python.abi/cp27mu"},
-    //                 {"var": "debug/on"},
-    //                 {"var": "special"},
-    //             ],
-    //         },
-    //     }
-    // )
-    // pybuild = make_build(
-    //     {
-    //         "pkg": "python/2.7.5",
-    //         "build": {"options": [{"var": "abi/cp27mu"}]},
-    //     }
-    // )
-    // let repo = make_repo!([make_build(spec.to_dict(), [pybuild])])
-    // repo.publish_spec(spec)
+    let spec = spec!(
+        {
+            "pkg": "vnp3/2.0.0",
+            "build": {
+                "options": [
+                    {"pkg": "python"},
+                    {"var": "python.abi/cp27mu"},
+                    {"var": "debug/on"},
+                    {"var": "special"},
+                ],
+            },
+        }
+    );
+    let pybuild = make_build!(
+        {
+            "pkg": "python/2.7.5",
+            "build": {"options": [{"var": "abi/cp27mu"}]},
+        }
+    );
+    let build = make_build!(spec, [pybuild]);
+    let mut repo = make_repo!([build]);
+    repo.publish_spec(spec).unwrap();
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("vnp3"));
-    // solution = io::run_and_print_resolve(&solver, 100);
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("vnp3"));
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // opts = solution.options()
-    // assert opts["vnp3"] == "~2.0.0"
-    // assert opts["vnp3.python"] == "~2.7.5"
-    // assert opts["vnp3.debug"] == "on"
-    // assert opts["python.abi"] == "cp27mu"
-    // assert "vnp3.special" not in opts, "should not define empty values"
-    // assert len(opts) == 4, "expected no more options"
-    todo!()
+    let mut opts = solution.options();
+    assert_eq!(
+        opts.remove(&String::from("vnp3")),
+        Some("~2.0.0".to_string())
+    );
+    assert_eq!(
+        opts.remove(&String::from("vnp3.python")),
+        Some("~2.7.5".to_string())
+    );
+    assert_eq!(
+        opts.remove(&String::from("vnp3.debug")),
+        Some("on".to_string())
+    );
+    assert_eq!(
+        opts.remove(&String::from("python.abi")),
+        Some("cp27mu".to_string())
+    );
+    assert!(
+        !opts.contains_key("vnp3.special"),
+        "should not define empty values"
+    );
+    assert_eq!(opts.len(), 0, "expected no more options");
 }
 
 #[rstest]
@@ -739,51 +759,52 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_build_from_source_dependency() {
-    // // test when no appropriate build exists but the source is available
-    // // - the existing build is skipped
-    // // - the source package is checked for current options
-    // // - a new build is created of the dependent
-    // // - the local package is used in the resolve
+fn test_solver_build_from_source_dependency(mut solver: Solver) {
+    // test when no appropriate build exists but the source is available
+    // - the existing build is skipped
+    // - the source package is checked for current options
+    // - a new build is created of the dependent
+    // - the local package is used in the resolve
 
-    // python36 = make_build({"pkg": "python/3.6.3", "compat": "x.a.b"})
-    // build_with_py36 = make_build(
-    //     {
-    //         "pkg": "my-tool/1.2.0",
-    //         "build": {"options": [{"pkg": "python"}]},
-    //         "install": {"requirements": [{"pkg": "python/3.6.3"}]},
-    //     },
-    //     [python36],
-    // )
+    let python36 = make_build!({"pkg": "python/3.6.3", "compat": "x.a.b"});
+    let build_with_py36 = make_build!(
+        {
+            "pkg": "my-tool/1.2.0",
+            "build": {"options": [{"pkg": "python"}]},
+            "install": {"requirements": [{"pkg": "python/3.6.3"}]},
+        },
+        [python36]
+    );
 
-    // let repo = make_repo!(
-    //     [
-    //         # the source package pins the build environment package
-    //         {
-    //             "pkg": "my-tool/1.2.0/src",
-    //             "build": {"options": [{"pkg": "python"}]},
-    //             "install": {
-    //                 "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
-    //             },
-    //         },
-    //         # one existing build exists that used python 3.6.3
-    //         build_with_py36,
-    //         # only python 3.7 exists, which is api compatible, but not abi
-    //         {"pkg": "python/3.7.3", "compat": "x.a.b"},
-    //     ],
-    // )
+    let repo = make_repo!(
+        [
+            // the source package pins the build environment package
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"pkg": "python"}]},
+                "install": {
+                    "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
+                },
+            },
+            // one existing build exists that used python 3.6.3
+            build_with_py36,
+            // only python 3.7 exists, which is api compatible, but not abi
+            {"pkg": "python/3.7.3", "compat": "x.a.b"},
+        ]
+    );
 
-    // solver = Solver()
-    // // the new option value should disqulify the existing build
-    // // but a new one should be generated for this set of options
-    // solver.update_options(api.OptionMap(debug="on"));
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-tool"));
+    // the new option value should disqualify the existing build
+    // but a new one should be generated for this set of options
+    solver.update_options(option_map! {"debug" => "on"});
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("my-tool"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert solution.get("my-tool").is_source_build(), "should want to build"
-    todo!()
+    assert!(
+        solution.get("my-tool").unwrap().is_source_build(),
+        "should want to build"
+    );
 }
 
 #[rstest]
@@ -823,59 +844,67 @@ fn test_solver_deprecated_build(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_deprecated_version(mut solver: Solver) {
-    // specs = [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": True}]
-    // deprecated = make_build({"pkg": "my-pkg/1.0.0"})
-    // deprecated.deprecated = True
-    // let repo = make_repo!(specs + [deprecated])  # type: ignore
+    let mut deprecated = make_build!({"pkg": "my-pkg/1.0.0"});
+    deprecated.deprecated = true;
+    let repo = make_repo!(
+        [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": true}, deprecated]
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("my-pkg"));
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("my-pkg"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
-    // assert (
-    //     solution.get("my-pkg").spec.pkg.version == "0.9.0"
-    // ), "should not resolve build when version is deprecated by default"
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_resolved!(
+        solution,
+        "my-pkg",
+        "0.9.0",
+        "should not resolve build when version is deprecated by default"
+    );
 
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(api.request_from_dict({"pkg": str(deprecated.pkg)}))
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(api::PkgRequest::new(api::RangeIdent::exact(&deprecated.pkg, [])).into());
 
-    // solution = io::run_and_print_resolve(&solver, 100);
-    // assert (
-    //     solution.get("my-pkg").spec.pkg.version == "1.0.0"
-    // ), "should be able to resolve exact build when version is deprecated"
-    todo!()
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    assert_resolved!(
+        solution,
+        "my-pkg",
+        "1.0.0",
+        "should be able to resolve exact build when version is deprecated"
+    );
 }
 
 #[rstest]
 fn test_solver_build_from_source_deprecated(mut solver: Solver) {
-    // // test when no appropriate build exists and the main package
-    // // has been deprecated, no source build should be allowed
+    // test when no appropriate build exists and the main package
+    // has been deprecated, no source build should be allowed
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "my-tool/1.2.0/src",
-    //             "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
-    //         },
-    //         {
-    //             "pkg": "my-tool/1.2.0",
-    //             "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
-    //         },
-    //     ],
-    //     api.OptionMap(debug="off"),
-    // )
-    // spec = repo.read_spec(api.parse_ident("my-tool/1.2.0"))
-    // spec.deprecated = True
-    // repo.force_publish_spec(spec)
+    let mut repo = make_repo!(
+        [
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+        ],
+       options = {"debug" => "off"}
+    );
+    let mut spec = repo
+        .read_spec(&api::parse_ident("my-tool/1.2.0").unwrap())
+        .unwrap();
+    spec.deprecated = true;
+    repo.force_publish_spec(spec).unwrap();
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(api.VarRequest("debug", "on"))
-    // solver.add_request(request!("my-tool"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!({"var": "debug/on"}));
+    solver.add_request(request!("my-tool"));
 
-    // with pytest.raises(solve.SolverError):
-    //     io::run_and_print_resolve(&solver, 100);
-    todo!()
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
