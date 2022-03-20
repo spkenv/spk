@@ -28,9 +28,9 @@ macro_rules! make_repo {
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
         let mut repo = crate::storage::RepositoryHandle::new_mem();
-        let opts = $options;
+        let _opts = $options;
         $(
-            let (s, cmpts) = make_package!(repo, $spec, &opts);
+            let (s, cmpts) = make_package!(repo, $spec, &_opts);
             repo.publish_package(s, cmpts).unwrap();
         )*
         repo
@@ -1191,135 +1191,134 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
-    // // test when a package is resolved with some build option
-    // //  - that option can conflict with another packages build options
-    // //  - as long as there is no explicit requirement on that option's value
+    // test when a package is resolved with some build option
+    //  - that option can conflict with another packages build options
+    //  - as long as there is no explicit requirement on that option's value
 
-    // dep_v1 = api.Spec.from_dict({"pkg": "build-dep/1.0.0"})
-    // dep_v2 = api.Spec.from_dict({"pkg": "build-dep/2.0.0"})
+    let dep_v1 = spec!({"pkg": "build-dep/1.0.0"});
+    let dep_v2 = spec!({"pkg": "build-dep/2.0.0"});
 
-    // a_spec = {
-    //     "pkg": "pkga/1.0.0",
-    //     "build": {"options": [{"pkg": "build-dep/=1.0.0"}, {"var": "debug/on"}]},
-    // }
+    let a_spec = spec!({
+        "pkg": "pkga/1.0.0",
+        "build": {"options": [{"pkg": "build-dep/=1.0.0"}, {"var": "debug/on"}]},
+    });
 
-    // b_spec = {
-    //     "pkg": "pkgb/1.0.0",
-    //     "build": {"options": [{"pkg": "build-dep/=2.0.0"}, {"var": "debug/off"}]},
-    // }
+    let b_spec = spec!({
+        "pkg": "pkgb/1.0.0",
+        "build": {"options": [{"pkg": "build-dep/=2.0.0"}, {"var": "debug/off"}]},
+    });
 
-    // let repo = make_repo!(
-    //     [
-    //         make_build(a_spec.copy(), [dep_v1]),
-    //         make_build(b_spec.copy(), [dep_v2]),
-    //     ]
-    // )
-    // repo.publish_spec(api.Spec.from_dict(a_spec))
-    // repo.publish_spec(api.Spec.from_dict(b_spec))
+    let a_build = make_build!(a_spec, [dep_v1]);
+    let b_build = make_build!(b_spec, [dep_v2]);
+    let mut repo = make_repo!([a_build, b_build,]);
+    repo.publish_spec(a_spec).unwrap();
+    repo.publish_spec(b_spec).unwrap();
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // // a gets resolved and adds options for debug/on and build-dep/1
-    // // to the set of options in the solver
-    // solver.add_request(request!("pkga"));
-    // // b is not affected and can still be resolved
-    // solver.add_request(request!("pkgb"));
+    solver.add_repository(repo.clone());
+    // a gets resolved and adds options for debug/on and build-dep/1
+    // to the set of options in the solver
+    solver.add_request(request!("pkga"));
+    // b is not affected and can still be resolved
+    solver.add_request(request!("pkgb"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // solver.reset()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("pkga"));
-    // solver.add_request(request!("pkgb"));
-    // // this time the explicit request will cause a failure
-    // solver.add_request(api.VarRequest("build-dep", "=1.0.0"))
-    // with pytest.raises(solve.SolverError):
-    //     solution = io::run_and_print_resolve(&solver, 100);
-    todo!()
+    solver.reset();
+    solver.add_repository(repo.clone());
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("pkga"));
+    solver.add_request(request!("pkgb"));
+    // this time the explicit request will cause a failure
+    solver.add_request(request!({"var": "build-dep/=1.0.0"}));
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
-fn test_solver_components() {
-    // // test when a package is requested with specific components
-    // // - all the aggregated components are selected in the resolve
-    // // - the final build has published layers for each component
+fn test_solver_components(mut solver: Solver) {
+    // test when a package is requested with specific components
+    // - all the aggregated components are selected in the resolve
+    // - the final build has published layers for each component
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "python/3.7.3",
-    //             "install": {
-    //                 "components": [
-    //                     {"name": "interpreter"},
-    //                     {"name": "lib"},
-    //                     {"name": "doc"},
-    //                 ]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "pkga",
-    //             "install": {
-    //                 "requirements": [{"pkg": "python:lib/3.7.3"}, {"pkg": "pkgb"}]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "pkgb",
-    //             "install": {"requirements": [{"pkg": "python:{doc,interpreter,run}"}]},
-    //         },
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "interpreter"},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                    ]
+                },
+            },
+            {
+                "pkg": "pkga",
+                "install": {
+                    "requirements": [{"pkg": "python:lib/3.7.3"}, {"pkg": "pkgb"}]
+                },
+            },
+            {
+                "pkg": "pkgb",
+                "install": {"requirements": [{"pkg": "python:{doc,interpreter,run}"}]},
+            },
+        ]
+    );
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("pkga"));
-    // solver.add_request(request!("pkgb"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("pkga"));
+    solver.add_request(request!("pkgb"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert solution.get("python").request.pkg.components == {
-    //     "interpreter",
-    //     "doc",
-    //     "lib",
-    //     "run",
-    // }
-    todo!()
+    let resolved = solution.get("python").unwrap().request.pkg.components;
+    let expected = ["interpreter", "doc", "lib", "run"]
+        .iter()
+        .map(api::Component::parse)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(resolved, expected);
 }
 
 #[rstest]
-fn test_solver_all_component() {
-    // // test when a package is requested with the 'all' component
-    // // - all the specs components are selected in the resolve
-    // // - the final build has published layers for each component
+fn test_solver_all_component(mut solver: Solver) {
+    // test when a package is requested with the 'all' component
+    // - all the specs components are selected in the resolve
+    // - the final build has published layers for each component
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "python/3.7.3",
-    //             "install": {
-    //                 "components": [
-    //                     {"name": "bin", "uses": ["lib"]},
-    //                     {"name": "lib"},
-    //                     {"name": "doc"},
-    //                     {"name": "dev", "uses": ["doc"]},
-    //                 ]
-    //             },
-    //         },
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "bin", "uses": ["lib"]},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                        {"name": "dev", "uses": ["doc"]},
+                    ]
+                },
+            },
+        ]
+    );
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("python:all"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("python:all"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // resolved = solution.get("python")
-    // assert resolved.request.pkg.components == set(["all"])
-    // expected = ["bin", "build", "dev", "doc", "lib", "run"]
-    // source = resolved.source
-    // assert isinstance(source, tuple)
-    // assert sorted(source[1].keys()) == expected
-    todo!()
+    let resolved = solution.get("python").unwrap();
+    assert_eq!(resolved.request.pkg.components.len(), 1);
+    assert_eq!(
+        resolved.request.pkg.components.iter().next(),
+        Some(&api::Component::All)
+    );
+    assert_resolved!(
+        solution,
+        "python",
+        components = ["bin", "build", "dev", "doc", "lib", "run"]
+    );
 }
 
 #[rstest]
@@ -1374,142 +1373,136 @@ fn test_solver_component_availability(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_component_requirements() {
-    // // test when a component has it's own list of requirements
-    // // - the requirements are added to the existing set of requirements
-    // // - the additional requirements are resolved
-    // // - even if it's a component that's only used by the one that was requested
+fn test_solver_component_requirements(mut solver: Solver) {
+    // test when a component has it's own list of requirements
+    // - the requirements are added to the existing set of requirements
+    // - the additional requirements are resolved
+    // - even if it's a component that's only used by the one that was requested
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "mypkg/1.0.0",
-    //             "install": {
-    //                 "requirements": [{"pkg": "dep"}],
-    //                 "components": [
-    //                     {"name": "build", "uses": ["build2"]},
-    //                     {"name": "build2", "requirements": [{"pkg": "depb"}]},
-    //                     {"name": "run", "requirements": [{"pkg": "depr"}]},
-    //                 ],
-    //             },
-    //         },
-    //         {"pkg": "dep"},
-    //         {"pkg": "depb"},
-    //         {"pkg": "depr"},
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "dep"}],
+                    "components": [
+                        {"name": "build", "uses": ["build2"]},
+                        {"name": "build2", "requirements": [{"pkg": "depb"}]},
+                        {"name": "run", "requirements": [{"pkg": "depr"}]},
+                    ],
+                },
+            },
+            {"pkg": "dep"},
+            {"pkg": "depb"},
+            {"pkg": "depr"},
+        ]
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("mypkg:build"));
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("mypkg:build"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // solution.get("dep")  # should exist
-    // solution.get("depb")  # should exist
-    // with pytest.raises(KeyError):
-    //     solution.get("depr")
+    solution.get("dep").expect("should exist");
+    solution.get("depb").expect("should exist");
+    assert!(solution.get("depr").is_err());
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("mypkg:run"));
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(request!("mypkg:run"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // solution.get("dep")  # should exist
-    // solution.get("depr")  # should exist
-    // with pytest.raises(KeyError):
-    //     solution.get("depb")
-    todo!()
+    solution.get("dep").expect("should exist");
+    solution.get("depr").expect("should exist");
+    assert!(solution.get("depb").is_err());
 }
 
 #[rstest]
-fn test_solver_component_requirements_extending() {
-    // // test when an additional component is requested after a package is resolved
-    // // - the new components requirements are still added and resolved
+fn test_solver_component_requirements_extending(mut solver: Solver) {
+    // test when an additional component is requested after a package is resolved
+    // - the new components requirements are still added and resolved
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "depa",
-    //             "install": {
-    //                 "components": [
-    //                     {"name": "run", "requirements": [{"pkg": "depc"}]},
-    //                 ],
-    //             },
-    //         },
-    //         {"pkg": "depb", "install": {"requirements": [{"pkg": "depa:run"}]}},
-    //         {"pkg": "depc"},
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "depa",
+                "install": {
+                    "components": [
+                        {"name": "run", "requirements": [{"pkg": "depc"}]},
+                    ],
+                },
+            },
+            {"pkg": "depb", "install": {"requirements": [{"pkg": "depa:run"}]}},
+            {"pkg": "depc"},
+        ]
+    );
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // // the initial resolve of this component will add no new requirements
-    // solver.add_request(request!("depa:build"));
-    // // depb has its own requirement on depa:run, which, also
-    // // has a new requirement on depc
-    // solver.add_request(request!("depb"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    // the initial resolve of this component will add no new requirements
+    solver.add_request(request!("depa:build"));
+    // depb has its own requirement on depa:run, which, also
+    // has a new requirement on depc
+    solver.add_request(request!("depb"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // solution.get("depc")  # should exist
-    todo!()
+    solution.get("depc").expect("should exist");
 }
 
 #[rstest]
-fn test_solver_component_embedded() {
-    // // test when a component has it's own list of embedded packages
-    // // - the embedded package is immediately selected
-    // // - it must be compatible with any previous requirements
+fn test_solver_component_embedded(mut solver: Solver) {
+    // test when a component has it's own list of embedded packages
+    // - the embedded package is immediately selected
+    // - it must be compatible with any previous requirements
 
-    // let repo = make_repo!(
-    //     [
-    //         {
-    //             "pkg": "mypkg/1.0.0",
-    //             "install": {
-    //                 "components": [
-    //                     {"name": "build", "embedded": [{"pkg": "dep-e1/1.0.0"}]},
-    //                     {"name": "run", "embedded": [{"pkg": "dep-e2/1.0.0"}]},
-    //                 ],
-    //             },
-    //         },
-    //         {"pkg": "dep-e1/1.0.0"},
-    //         {"pkg": "dep-e1/2.0.0"},
-    //         {"pkg": "dep-e2/1.0.0"},
-    //         {"pkg": "dep-e2/2.0.0"},
-    //         {
-    //             "pkg": "downstream1",
-    //             "install": {
-    //                 "requirements": [{"pkg": "dep-e1"}, {"pkg": "mypkg:build"}]
-    //             },
-    //         },
-    //         {
-    //             "pkg": "downstream2",
-    //             "install": {
-    //                 "requirements": [{"pkg": "dep-e2/2.0.0"}, {"pkg": "mypkg:run"}]
-    //             },
-    //         },
-    //     ]
-    // )
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "build", "embedded": [{"pkg": "dep-e1/1.0.0"}]},
+                        {"name": "run", "embedded": [{"pkg": "dep-e2/1.0.0"}]},
+                    ],
+                },
+            },
+            {"pkg": "dep-e1/1.0.0"},
+            {"pkg": "dep-e1/2.0.0"},
+            {"pkg": "dep-e2/1.0.0"},
+            {"pkg": "dep-e2/2.0.0"},
+            {
+                "pkg": "downstream1",
+                "install": {
+                    "requirements": [{"pkg": "dep-e1"}, {"pkg": "mypkg:build"}]
+                },
+            },
+            {
+                "pkg": "downstream2",
+                "install": {
+                    "requirements": [{"pkg": "dep-e2/2.0.0"}, {"pkg": "mypkg:run"}]
+                },
+            },
+        ]
+    );
+    let repo = Arc::new(Mutex::new(repo));
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("downstream1"));
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("downstream1"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // assert solution.get("dep-e1").spec.pkg.build == "embedded"
+    assert_resolved!(solution, "dep-e1", build = Some(api::Build::Embedded));
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("downstream2"));
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(request!("downstream2"));
 
-    // with pytest.raises(SolverError):
-    //     # should fail because the one embedded package
-    //     # does not meet the requirements in downstream spec
-    //     solution = io::run_and_print_resolve(&solver, 100);
-    todo!()
+    // should fail because the one embedded package
+    // does not meet the requirements in downstream spec
+    let res = io::run_and_print_resolve(&solver, 100);
+    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
 }
 
 #[rstest]
