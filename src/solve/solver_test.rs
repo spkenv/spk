@@ -92,7 +92,7 @@ macro_rules! make_build_and_components {
         make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
     }};
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
-        let mut spec = crate::spec!($spec);
+        let mut spec = make_spec!($spec);
         let mut components = std::collections::HashMap::<crate::api::Component, spfs::encoding::Digest>::new();
         let deps: Vec<&api::Spec> = std::vec![$(&$dep),*];
         if spec.pkg.is_source() {
@@ -104,16 +104,27 @@ macro_rules! make_build_and_components {
             build_opts.extend(&mut resolved_opts);
             spec.update_for_build(&build_opts, deps)
                 .expect("Failed to render build spec");
-            let mut names = std::vec![$($component),*];
+            let mut names = std::vec![$($component.to_string()),*];
             if names.is_empty() {
-                names = spec.install.components.iter().map(|c| c.name.clone()).collect();
+                names = spec.install.components.iter().map(|c| c.name.to_string()).collect();
             }
             for name in names {
+                let name = crate::api::Component::parse(name).expect("invalid component name");
                 components.insert(name, spfs::encoding::EMPTY_DIGEST.into());
             }
             (spec, components)
         }
     }}
+}
+
+#[macro_export(local_inner_macros)]
+macro_rules! make_spec {
+    ($spec:ident) => {
+        $spec.clone()
+    };
+    ($spec:tt) => {
+        crate::spec!($spec)
+    };
 }
 
 /// Creates a request from a literal range identifier, or json structure
@@ -157,6 +168,23 @@ macro_rules! assert_resolved {
         assert_eq!(pkg.spec.pkg.build, $build, $message);
     }};
 
+    ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
+        let mut resolved = std::collections::HashSet::<String>::new();
+        let pkg = $solution
+            .get($pkg)
+            .expect("expected package to be in solution");
+        match pkg.source {
+            crate::solve::PackageSource::Repository{components, ..} => {
+                resolved.extend(components.keys().map(ToString::to_string));
+            }
+            _ => panic!("expected pkg to have a repo source"),
+        }
+        let expected: std::collections::HashSet<_> = vec![
+            $( $component.to_string() ),*
+        ].into_iter().collect();
+        assert_eq!(resolved, expected, "wrong set of components were resolved");
+    }};
+
     ($solution:ident, [$($pkg:literal),+ $(,)?]) => {{
         let names: std::collections::HashSet<_> = $solution
             .items()
@@ -168,6 +196,8 @@ macro_rules! assert_resolved {
         ].into_iter().collect();
         assert_eq!(names, expected, "wrong set of packages was resolved");
     }};
+
+
 }
 
 #[rstest]
@@ -1264,56 +1294,54 @@ fn test_solver_all_component() {
 }
 
 #[rstest]
-fn test_solver_component_availability() {
-    // // test when a package is requested with some component
-    // // - all the specs components are selected in the resolve
-    // // - the final build has published layers for each component
+fn test_solver_component_availability(mut solver: Solver) {
+    // test when a package is requested with some component
+    // - all the specs components are selected in the resolve
+    // - the final build has published layers for each component
 
-    // spec373 = {
-    //     "pkg": "python/3.7.3",
-    //     "install": {
-    //         "components": [
-    //             {"name": "bin", "uses": ["lib"]},
-    //             {"name": "lib"},
-    //         ]
-    //     },
-    // }
-    // spec372 = spec373.copy()
-    // spec372["pkg"] = "python/3.7.2"
-    // spec371 = spec373.copy()
-    // spec371["pkg"] = "python/3.7.1"
+    let spec373 = spec!({
+        "pkg": "python/3.7.3",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
+    });
+    let mut spec372 = spec373.clone();
+    spec372.pkg = api::parse_ident("python/3.7.2").unwrap();
+    let mut spec371 = spec373.clone();
+    spec371.pkg = api::parse_ident("python/3.7.1").unwrap();
 
-    // let repo = make_repo!(
-    //     [
-    //         # the first pkg has what we want on paper, but didn't actually publish
-    //         # the components that we need (missing bin)
-    //         make_build_and_components(spec373, components=["lib"]),
-    //         # the second pkg has what we request, but is missing a dependant component (lib)
-    //         make_build_and_components(spec372, components=["bin"]),
-    //         # but the last/lowest version number has a publish for all components
-    //         # and should be the one that is selected because of this
-    //         make_build_and_components(spec371, components=["bin", "lib"]),
-    //     ]
-    // )
-    // repo.publish_spec(api.Spec.from_dict(spec373))
-    // repo.publish_spec(api.Spec.from_dict(spec372))
-    // repo.publish_spec(api.Spec.from_dict(spec371))
+    // the first pkg has what we want on paper, but didn't actually publish
+    // the components that we need (missing bin)
+    let (build373, cmpt373) = make_build_and_components!(spec373, [], {}, ["lib"]);
+    // the second pkg has what we request, but is missing a dependant component (lib)
+    let (build372, cmpt372) = make_build_and_components!(spec372, [], {}, ["bin"]);
+    // but the last/lowest version number has a publish for all components
+    // and should be the one that is selected because of this
+    let (build371, cmpt371) = make_build_and_components!(spec371, [], {}, ["bin", "lib"]);
+    let mut repo = make_repo!([
+        (build373, cmpt373),
+        (build372, cmpt372),
+        (build371, cmpt371),
+    ]);
+    repo.publish_spec(spec373).unwrap();
+    repo.publish_spec(spec372).unwrap();
+    repo.publish_spec(spec371).unwrap();
 
-    // solver = Solver()
-    // solver.add_repository(Arc::new(Mutex::new(repo)));
-    // solver.add_request(request!("python:bin"));
+    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_request(request!("python:bin"));
 
-    // solution = io::run_and_print_resolve(&solver, 100);
+    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    // resolved = solution.get("python")
-    // assert resolved.spec.pkg.version == "3.7.1", (
-    //     "should resolve the only version with all "
-    //     "the components we need actually published"
-    // )
-    // source = resolved.source
-    // assert isinstance(source, tuple)
-    // assert sorted(source[1].keys()) == ["bin", "lib"]
-    todo!()
+    assert_resolved!(
+        solution,
+        "python",
+        "3.7.1",
+        "should resolve the only version with all the components we need actually published"
+    );
+    assert_resolved!(solution, "python", components = ["bin", "lib"]);
 }
 
 #[rstest]
