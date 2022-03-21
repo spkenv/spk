@@ -17,3 +17,8 @@ pub fn init_logging() {
 pub fn tmpdir() -> tempdir::TempDir {
     tempdir::TempDir::new("spk-test-").expect("Failed to establish temporary directory for testing")
 }
+
+#[fixture]
+pub fn tmprepo() -> crate::storage::RepositoryHandle {
+    crate::storage::RepositoryHandle::Mem(Default::default())
+}
