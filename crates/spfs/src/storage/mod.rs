@@ -84,7 +84,7 @@ impl From<rpc::RpcRepository> for RepositoryHandle {
 /// Open the repository at the given url address
 #[deprecated(
     since = "0.32.0",
-    note = "instead, parse the address into a config and then open it: spfs::config::RemoteConfig::from_str(address).await?.open().await?"
+    note = "instead, use the top-level one: spfs::open_repository(address)"
 )]
 pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
     crate::config::RemoteConfig::from_str(address)

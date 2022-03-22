@@ -82,7 +82,6 @@ pub enum Remote {
     Config(RemoteConfig),
 }
 
-
 impl<'de> serde::de::Deserialize<'de> for Remote {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -253,4 +252,14 @@ pub fn load_config() -> Result<Config> {
         let _ = s.set("filesystem.tmpfs_size", v);
     }
     Ok(s.try_into()?)
+}
+
+/// Open the repository at the given url address
+pub async fn open_repository<S: AsRef<str>>(
+    address: S,
+) -> crate::Result<storage::RepositoryHandle> {
+    crate::config::RemoteConfig::from_str(address)
+        .await?
+        .open()
+        .await
 }

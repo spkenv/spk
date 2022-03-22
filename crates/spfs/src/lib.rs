@@ -27,8 +27,8 @@ pub mod tracking;
 mod error;
 pub use error::{Error, Result};
 
-mod config;
-pub use self::config::{load_config, Config};
+pub mod config;
+pub use self::config::{load_config, open_repository, Config, RemoteAddress, RemoteConfig};
 mod resolve;
 pub use resolve::{
     compute_manifest, compute_object_manifest, render, render_into_directory,
