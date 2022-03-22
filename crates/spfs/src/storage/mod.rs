@@ -14,6 +14,7 @@ mod config;
 pub mod fs;
 pub mod prelude;
 pub mod rpc;
+pub mod proxy;
 pub mod tar;
 
 pub use self::config::{FromConfig, FromUrl};
@@ -23,6 +24,7 @@ pub use manifest::{ManifestStorage, ManifestViewer};
 pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use repository::Repository;
+pub use proxy::{Config, ProxyRepository};
 pub use tag::TagStorage;
 
 #[derive(Debug)]
@@ -31,6 +33,7 @@ pub enum RepositoryHandle {
     FS(fs::FSRepository),
     Tar(tar::TarRepository),
     Rpc(rpc::RpcRepository),
+    Proxy(Box<proxy::ProxyRepository>),
 }
 
 impl RepositoryHandle {
@@ -39,6 +42,7 @@ impl RepositoryHandle {
             Self::FS(repo) => Box::new(repo),
             Self::Tar(repo) => Box::new(repo),
             Self::Rpc(repo) => Box::new(repo),
+            Self::Proxy(repo) => repo,
         }
     }
 }
@@ -51,6 +55,7 @@ impl std::ops::Deref for RepositoryHandle {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
+            RepositoryHandle::Proxy(repo) => &**repo,
         }
     }
 }
@@ -61,6 +66,7 @@ impl std::ops::DerefMut for RepositoryHandle {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
+            RepositoryHandle::Proxy(repo) => &mut **repo,
         }
     }
 }
@@ -78,6 +84,11 @@ impl From<tar::TarRepository> for RepositoryHandle {
 impl From<rpc::RpcRepository> for RepositoryHandle {
     fn from(repo: rpc::RpcRepository) -> Self {
         RepositoryHandle::Rpc(repo)
+    }
+}
+impl From<proxy::ProxyRepository> for RepositoryHandle {
+    fn from(repo: proxy::ProxyRepository) -> Self {
+        RepositoryHandle::Proxy(Box::new(repo))
     }
 }
 
