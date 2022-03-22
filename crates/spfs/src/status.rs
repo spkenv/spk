@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::config::{load_config, Config};
+use super::config::{get_config, Config};
 use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers};
 use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};
 
@@ -50,7 +50,7 @@ pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
 ///
 /// The returned manifest DOES NOT include any active changes to the runtime.
 pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
-    let config = load_config()?;
+    let config = get_config()?;
     let repo = config.get_repository().await?;
 
     let stack = rt.get_stack();
@@ -71,7 +71,7 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
 /// - other issues loading the config or accessing the runtime data
 pub fn active_runtime() -> Result<runtime::Runtime> {
     let name = std::env::var(SPFS_RUNTIME).map_err(|_| Error::NoActiveRuntime)?;
-    let config = load_config()?;
+    let config = get_config()?;
     let storage = config.get_runtime_storage()?;
     storage.read_runtime(name)
 }

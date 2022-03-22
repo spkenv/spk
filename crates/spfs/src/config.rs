@@ -1,9 +1,12 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::sync::{Arc, RwLock};
 
 use config::{Config as ConfigBase, Environment, File};
+use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
+use structopt::lazy_static;
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
@@ -15,6 +18,10 @@ mod config_test;
 
 static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
 static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
+
+lazy_static::lazy_static! {
+    static ref CONFIG: RwLock<Option<Arc<Config>>> = RwLock::new(None);
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -160,8 +167,31 @@ pub struct Config {
 }
 
 impl Config {
+    /// Get the current loaded config, loading it if needed
+    pub fn current() -> Result<Arc<Self>> {
+        get_config()
+    }
+
+    /// Load the config from disk, even if it's already been loaded before
+    pub fn load() -> Result<Self> {
+        load_config()
+    }
+
+    /// Make this config the current global one
+    pub fn make_current(self) -> Result<Arc<Self>> {
+        let mut lock = CONFIG.write().map_err(|err| {
+            crate::Error::String(format!(
+                "Cannot load config, lock has been poisoned: {:?}",
+                err
+            ))
+        })?;
+        Ok(lock.insert(Arc::new(self)).clone())
+    }
+
+    /// Load the given string as a config
     pub fn load_string<S: AsRef<str>>(conf: S) -> Result<Self> {
-        let mut s = ConfigBase::new();
+        let mut s = config::Config::default();
+        #[allow(deprecated)]
         s.merge(config::File::from_str(
             conf.as_ref(),
             config::FileFormat::Ini,
@@ -221,7 +251,28 @@ impl Config {
     }
 }
 
-/// Load the spfs configuration from disk.
+/// Get the current spfs config, fetching it from disk if needed.
+pub fn get_config() -> Result<Arc<Config>> {
+    let lock = CONFIG.read().map_err(|err| {
+        crate::Error::String(format!(
+            "Cannot load config, lock has been poisoned: {:?}",
+            err
+        ))
+    })?;
+    if let Some(config) = &*lock {
+        return Ok(config.clone());
+    }
+    drop(lock);
+
+    // there is still a possible race condition here
+    // where someone loads the config between the first check and
+    // aquiring this lock, but the redundant work is still
+    // less than not having a cache at all
+    let config = load_config()?;
+    config.make_current()
+}
+
+/// Load the spfs configuration from disk, even if it's already been loaded.
 ///
 /// This includes the default, user and system configurations, if they exist.
 pub fn load_config() -> Result<Config> {

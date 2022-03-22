@@ -158,7 +158,7 @@ macro_rules! configure {
         args::configure_logging($opt.verbose);
         args::configure_spops($opt.verbose);
 
-        match spfs::load_config() {
+        match spfs::get_config() {
             Err(err) => {
                 tracing::error!(err = ?err, "failed to load config");
                 return 1;

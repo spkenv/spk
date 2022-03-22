@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::config::load_config;
+use super::config::get_config;
 use super::status::remount_runtime;
 use crate::prelude::*;
 use crate::{graph, runtime, Error, Result};
@@ -13,7 +13,7 @@ mod commit_test;
 
 /// Commit the working file changes of a runtime to a new layer.
 pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
-    let config = load_config()?;
+    let config = get_config()?;
     let repo = config.get_repository().await?;
     let manifest = repo.commit_dir(runtime.upper_dir.as_path()).await?;
     if manifest.is_empty() {
@@ -28,7 +28,7 @@ pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer
 
 /// Commit the full layer stack and working files to a new platform.
 pub async fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
-    let config = load_config()?;
+    let config = get_config()?;
     let repo = config.get_repository().await?;
 
     match commit_layer(runtime).await {

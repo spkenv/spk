@@ -17,7 +17,7 @@ fn test_tag_encoding(org: &str, name: &str) {
         name.to_string(),
         encoding::NULL_DIGEST.into(),
     )
-    .expect("invlid case");
+    .expect("invalid case");
     let mut writer = Vec::new();
     tag.encode(&mut writer).expect("failed to encode tag");
     let mut reader = std::io::BufReader::new(writer.as_slice());

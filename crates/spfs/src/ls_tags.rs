@@ -6,7 +6,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 
-use super::config::load_config;
+use super::config::get_config;
 use super::storage::prelude::*;
 use crate::Result;
 
@@ -22,7 +22,7 @@ use crate::Result;
 pub async fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
 ) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
-    let repo = match load_config() {
+    let repo = match get_config() {
         Ok(c) => match c.get_repository().await {
             Ok(repo) => repo,
             Err(err) => return Box::pin(futures::stream::once(async { Err(err) })),
