@@ -192,9 +192,9 @@ async fn config(tmpdir: tempdir::TempDir) -> (tempdir::TempDir, Config) {
     let mut conf = Config::default();
     conf.remote.insert(
         "origin".to_string(),
-        crate::config::Remote {
+        crate::config::Remote::Address(crate::config::RemoteAddress {
             address: url::Url::from_file_path(&origin_path).unwrap(),
-        },
+        }),
     );
     conf.storage.root = repo_path;
     (tmpdir, conf)

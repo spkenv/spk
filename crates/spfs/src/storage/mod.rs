@@ -82,18 +82,13 @@ impl From<rpc::RpcRepository> for RepositoryHandle {
 }
 
 /// Open the repository at the given url address
+#[deprecated(
+    since = "0.32.0",
+    note = "instead, parse the address into a config and then open it: spfs::config::RemoteConfig::from_str(address).await?.open().await?"
+)]
 pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
-    use url::Url;
-
-    let url = match Url::parse(address.as_ref()) {
-        Ok(url) => url,
-        Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
-    };
-
-    Ok(match url.scheme() {
-        "tar" => tar::TarRepository::from_url(&url).await?.into(),
-        "file" | "" => fs::FSRepository::from_url(&url).await?.into(),
-        "http2" | "grpc" => rpc::RpcRepository::from_url(&url).await?.into(),
-        scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
-    })
+    crate::config::RemoteConfig::from_str(address)
+        .await?
+        .open()
+        .await
 }

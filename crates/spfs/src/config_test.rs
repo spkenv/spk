@@ -45,3 +45,18 @@ async fn test_config_get_remote() {
     let repo = config.get_remote("origin").await;
     assert!(repo.is_ok());
 }
+
+#[rstest]
+#[case(
+    r#"
+[remote.addressed]
+address = file:/some/path
+
+[remote.configured]
+scheme = fs
+path = /some/path
+"#
+)]
+fn test_remote_config_or_address(#[case] source: &str) {
+    Config::load_string(source).expect("config should have loaded properly");
+}

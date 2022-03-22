@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use config::{Config as ConfigBase, Environment, File};
+use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
@@ -74,9 +75,80 @@ impl Storage {
     }
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+pub enum Remote {
+    Address(RemoteAddress),
+    Config(RemoteConfig),
+}
+
+
+impl<'de> serde::de::Deserialize<'de> for Remote {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde_json::{Map, Value};
+        let data = Map::deserialize(deserializer)?;
+        if data.contains_key(&String::from("scheme")) {
+            Ok(Self::Config(
+                RemoteConfig::deserialize(Value::Object(data)).map_err(serde::de::Error::custom)?,
+            ))
+        } else {
+            Ok(Self::Address(
+                RemoteAddress::deserialize(Value::Object(data))
+                    .map_err(serde::de::Error::custom)?,
+            ))
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Remote {
+pub struct RemoteAddress {
     pub address: url::Url,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "scheme", rename_all = "lowercase")]
+pub enum RemoteConfig {
+    Fs(storage::fs::Config),
+    Grpc(storage::rpc::Config),
+    Tar(storage::tar::Config),
+}
+
+impl RemoteConfig {
+    /// Parse a complete repository connection config from a url
+    pub async fn from_address(url: url::Url) -> Result<Self> {
+        Ok(match url.scheme() {
+            "tar" => Self::Tar(storage::tar::Config::from_url(&url).await?),
+            "file" | "" => Self::Fs(storage::fs::Config::from_url(&url).await?),
+            "http2" | "grpc" => Self::Grpc(storage::rpc::Config::from_url(&url).await?),
+            scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
+        })
+    }
+
+    /// Parse a complete repository connection from an address string
+    pub async fn from_str<S: AsRef<str>>(address: S) -> Result<Self> {
+        let url = match url::Url::parse(address.as_ref()) {
+            Ok(url) => url,
+            Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
+        };
+
+        Self::from_address(url).await
+    }
+
+    /// Open a handle to a repository using this configuration
+    pub async fn open(&self) -> Result<storage::RepositoryHandle> {
+        Ok(match self.clone() {
+            Self::Fs(config) => storage::fs::FSRepository::from_config(config).await?.into(),
+            Self::Tar(config) => storage::tar::TarRepository::from_config(config)
+                .await?
+                .into(),
+            Self::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
+                .await?
+                .into(),
+        })
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -125,18 +197,28 @@ impl Config {
         &self,
         name_or_address: S,
     ) -> Result<storage::RepositoryHandle> {
-        let addr = match self.remote.get(name_or_address.as_ref()) {
-            Some(remote) => remote.address.clone(),
-            None => {
-                if let Ok(addr) = url::Url::parse(name_or_address.as_ref()) {
-                    addr
-                } else {
-                    url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())?
-                }
+        match self.remote.get(name_or_address.as_ref()) {
+            Some(Remote::Address(remote)) => {
+                let config = RemoteConfig::from_address(remote.address.clone()).await?;
+                tracing::debug!(?config, "opening repository");
+                config.open().await
             }
-        };
-        tracing::debug!(addr = addr.as_str(), "opening repository");
-        storage::open_repository(addr).await
+            Some(Remote::Config(config)) => {
+                tracing::debug!(?config, "opening repository");
+                config.open().await
+            }
+            None => {
+                let addr = match url::Url::parse(name_or_address.as_ref()) {
+                    Ok(addr) => addr,
+                    Err(_) => {
+                        url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())?
+                    }
+                };
+                let config = RemoteConfig::from_address(addr).await?;
+                tracing::debug!(?config, "opening repository");
+                config.open().await
+            }
+        }
     }
 }
 
