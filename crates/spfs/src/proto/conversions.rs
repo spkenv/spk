@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::convert::{TryFrom, TryInto};
 
-use crate::{encoding, graph, tracking, Error, Result};
+use crate::{encoding, graph, storage, tracking, Error, Result};
 
 fn convert_to_datetime(source: Option<super::DateTime>) -> Result<chrono::DateTime<chrono::Utc>> {
     use std::str::FromStr;
@@ -319,5 +319,35 @@ impl TryFrom<super::Blob> for graph::Blob {
             payload: source.payload.try_into()?,
             size: source.size,
         })
+    }
+}
+
+impl From<&storage::EntryType> for super::ls_tags_response::Entry {
+    fn from(e: &storage::EntryType) -> Self {
+        Self {
+            kind: Some(match e {
+                storage::EntryType::Folder(e) => {
+                    super::ls_tags_response::entry::Kind::Folder(e.to_owned())
+                }
+                storage::EntryType::Tag(e) => {
+                    super::ls_tags_response::entry::Kind::Tag(e.to_owned())
+                }
+            }),
+        }
+    }
+}
+
+impl TryFrom<super::ls_tags_response::Entry> for storage::EntryType {
+    type Error = Error;
+    fn try_from(entry: super::ls_tags_response::Entry) -> Result<Self> {
+        match entry.kind {
+            Some(e) => match e {
+                super::ls_tags_response::entry::Kind::Folder(e) => {
+                    Ok(storage::EntryType::Folder(e))
+                }
+                super::ls_tags_response::entry::Kind::Tag(e) => Ok(storage::EntryType::Tag(e)),
+            },
+            None => Err("Unknown entry kind".into()),
+        }
     }
 }

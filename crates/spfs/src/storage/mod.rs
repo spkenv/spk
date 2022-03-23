@@ -21,7 +21,7 @@ pub use manifest::{ManifestStorage, ManifestViewer};
 pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use repository::Repository;
-pub use tag::TagStorage;
+pub use tag::{EntryType, TagStorage};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]

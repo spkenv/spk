@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::fmt::Display;
 use std::pin::Pin;
 
 use crate::{encoding, tracking, Error, Result};
@@ -17,6 +18,21 @@ pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 #[cfg(test)]
 #[path = "./tag_test.rs"]
 mod tag_test;
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum EntryType {
+    Folder(String),
+    Tag(String),
+}
+
+impl Display for EntryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            EntryType::Folder(e) => f.pad(format!("{e}/").as_str()),
+            EntryType::Tag(e) => f.pad(e),
+        }
+    }
+}
 
 /// A location where tags are tracked and persisted.
 #[async_trait::async_trait]
@@ -50,7 +66,8 @@ pub trait TagStorage: Send + Sync {
     /// Then ls_tags("spi") would return
     ///   stable
     ///   latest
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>>;
+    fn ls_tags(&self, path: &RelativePath)
+        -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>>;
 
     /// Find tags that point to the given digest.
     fn find_tags(
@@ -129,7 +146,10 @@ impl<T: TagStorage> TagStorage for &T {
         TagStorage::resolve_tag(&**self, tag_spec).await
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         TagStorage::ls_tags(&**self, path)
     }
 

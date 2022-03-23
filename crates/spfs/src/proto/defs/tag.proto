@@ -21,8 +21,15 @@ message LsTagsRequest {
     string path = 1;
 }
 message LsTagsResponse {
+    message Entry {
+        oneof kind {
+            string folder = 1;
+            string tag = 2;
+        }
+    }
     message EntryList {
-        repeated string entries = 1;
+        reserved 1;
+        repeated Entry entries = 2;
     }
     oneof result {
         Error error = 1;

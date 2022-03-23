@@ -21,7 +21,7 @@ use super::FSRepository;
 use crate::{
     encoding,
     storage::{
-        tag::{TagSpecAndTagStream, TagStream},
+        tag::{EntryType, TagSpecAndTagStream, TagStream},
         TagStorage,
     },
     tracking, Error, Result,
@@ -67,7 +67,10 @@ impl FSRepository {
 
 #[async_trait::async_trait]
 impl TagStorage for FSRepository {
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
@@ -88,23 +91,21 @@ impl TagStorage for FSRepository {
                 match path.file_stem().map(|s| s.to_string_lossy().to_string()) {
                     None => None,
                     Some(tag_name) => {
-                        if entries.insert(tag_name.clone()) {
-                            Some(Ok(tag_name))
+                        let e = EntryType::Tag(tag_name);
+                        if entries.insert(e.clone()) {
+                            Some(Ok(e))
                         } else {
                             None
                         }
                     }
                 }
             } else {
-                match path
-                    .file_name()
-                    .map(|s| s.to_string_lossy() + "/")
-                    .map(|s| s.to_string())
-                {
+                match path.file_name().map(|s| s.to_string_lossy().to_string()) {
                     None => None,
                     Some(tag_dir) => {
-                        if entries.insert(tag_dir.clone()) {
-                            Some(Ok(tag_dir))
+                        let e = EntryType::Folder(tag_dir);
+                        if entries.insert(e.clone()) {
+                            Some(Ok(e))
                         } else {
                             None
                         }
