@@ -78,8 +78,11 @@ impl SourcePackageBuilder {
 
 impl SourcePackageBuilder {
     /// Set the repository that the created package should be published to.
-    pub fn with_target_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repo = Some(Arc::new(repo));
+    pub fn with_target_repository(
+        &mut self,
+        repo: impl Into<Arc<storage::RepositoryHandle>>,
+    ) -> &mut Self {
+        self.repo = Some(repo.into());
         self
     }
 

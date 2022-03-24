@@ -17,6 +17,14 @@ impl RepositoryHandle {
         Self::Mem(Default::default())
     }
 
+    /// Create a repository handle to the active runtime repository
+    ///
+    /// This is the repository that holds packages which have been
+    /// installed into the current spfs runtime.
+    pub fn new_runtime() -> Self {
+        Self::Runtime(Default::default())
+    }
+
     pub fn is_spfs(&self) -> bool {
         matches!(self, Self::SPFS(_))
     }

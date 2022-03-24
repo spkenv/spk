@@ -38,12 +38,14 @@ fn test_validate_sources_changeset_ok() {
 
 #[rstest]
 fn test_sources_subdir(tmpdir: tempdir::TempDir) {
+    let _guard = crate::HANDLE.enter();
+    let _rt = crate::HANDLE.block_on(spfs_runtime());
     // tar_file = tmpdir.join("archive.tar.gz").strpath
     // with tarfile.open(tar_file, "w") as tar:
     //     tar.add("spk/__init__.py")
 
     // tar_source = api.TarSource.from_dict(
-    //     # purposfully add leading slash to make sure it doesn't fail
+    //     # purposefully add leading slash to make sure it doesn't fail
     //     {"tar": tar_file, "subdir": "/archive/src"}
     // )
     // git_source = api.GitSource.from_dict({"git": os.getcwd(), "subdir": "git_repo"})
@@ -75,6 +77,8 @@ fn test_sources_subdir(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 fn test_sources_environment(tmpdir: tempdir::TempDir) {
+    let _guard = crate::HANDLE.enter();
+    let _rt = crate::HANDLE.block_on(spfs_runtime());
     // spec = api.Spec.from_dict({"pkg": "sources-test/0.1.0/src"})
     // expected = "\n".join(
     //     [
