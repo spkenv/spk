@@ -1,39 +1,35 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use structopt::StructOpt;
+use clap::Parser;
 
 #[macro_use]
 mod args;
 
 main!(CmdServer);
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct CmdServer {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Serve a configured remote repository instead of the local one"
-    )]
+
+    /// Serve a configured remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        long = "payloads-root",
-        default_value = "http://localhost",
-        about = "The external root url that clients can use to connect to this server"
-    )]
+
+    /// The external root url that clients can use to connect to this server
+    #[clap(long = "payloads-root", default_value = "http://localhost")]
     payloads_root: url::Url,
-    // 7737 = spfs on a dial pad
-    #[structopt(
+
+    /// The address to listen on for grpc requests
+    #[clap(
+        // 7737 = spfs on a dial pad
         default_value = "0.0.0.0:7737",
-        about = "The address to listen on for grpc requests"
     )]
     grpc_address: std::net::SocketAddr,
-    #[structopt(
-        default_value = "0.0.0.0:7787",
-        about = "The address to listen on for http requests"
-    )]
+
+    /// The address to listen on for http requests
+    #[clap(default_value = "0.0.0.0:7787")]
     http_address: std::net::SocketAddr,
 }
 

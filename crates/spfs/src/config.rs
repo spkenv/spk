@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
-use structopt::lazy_static;
+use lazy_static::lazy_static;
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
@@ -18,7 +18,7 @@ mod config_test;
 static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
 static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
-lazy_static::lazy_static! {
+lazy_static! {
     static ref CONFIG: RwLock<Option<Arc<Config>>> = RwLock::new(None);
 }
 

@@ -2,29 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use clap::Args;
 use colored::*;
-use structopt::StructOpt;
 
 use spfs::io::{self, DigestFormat};
 use spfs::{self, prelude::*};
 
-#[derive(Debug, StructOpt)]
+/// Display information about the current environment, or specific items
+#[derive(Debug, Args)]
 pub struct CmdInfo {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Operate on a remote repository instead of the local one"
-    )]
+    /// Operate on a remote repository instead of the local one
+    ///
+    /// This is really only helpful if you are providing a specific ref to look up.
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        value_name = "REF",
-        about = "Tag or reference to show information about"
-    )]
+
+    /// Tag or id to show information about
+    #[clap(value_name = "REF")]
     refs: Vec<String>,
-    #[structopt(
-        long,
-        about = "Also find and report any tags that point to this object"
-    )]
+
+    /// Also find and report any tags that point to any identified digest
+    #[clap(long)]
     tags: bool,
 }
 

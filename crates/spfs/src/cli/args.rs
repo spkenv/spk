@@ -114,7 +114,7 @@ macro_rules! main {
             std::process::exit(main2())
         }
         fn main2() -> i32 {
-            let mut opt = $cmd::from_args();
+            let mut opt = $cmd::parse();
             let config = configure!(opt, $sentry);
 
             let result = opt.run(&config);
@@ -130,7 +130,7 @@ macro_rules! main {
             std::process::exit(main2())
         }
         fn main2() -> i32 {
-            let mut opt = $cmd::from_args();
+            let mut opt = $cmd::parse();
             let config = configure!(opt, $sentry);
 
             let rt = match tokio::runtime::Builder::new_multi_thread()

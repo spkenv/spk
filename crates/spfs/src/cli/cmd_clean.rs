@@ -3,45 +3,43 @@
 // https://github.com/imageworks/spk
 
 use chrono::prelude::*;
+use clap::Args;
 use colored::*;
-use structopt::StructOpt;
 
 use spfs::prelude::*;
 use std::io::Write;
 
-#[derive(Debug, StructOpt)]
+/// Clean the repository storage of any untracked data
+///
+/// Untracked data is any data that is not tagged or is not
+/// attached to/used by a tagged object. This command also
+/// provides semantics for pruning a repository from older
+/// tag data to help detach data in the case of needing to
+/// reduce repository size.
+#[derive(Debug, Args)]
 pub struct CmdClean {
-    #[structopt(
-        short = "r",
-        long = "remote",
-        about = "Trigger the clean operation on a remote repository"
-    )]
+    /// Trigger the clean operation on a remote repository
+    #[clap(short, long)]
     remote: Option<String>,
-    #[structopt(
-        long = "yes",
-        short = "y",
-        about = "Don't prompt/ask before cleaning the data"
-    )]
+
+    /// Don't prompt/ask before cleaning the data
+    #[clap(long, short)]
     yes: bool,
-    #[structopt(
-        long = "prune-if-older-than",
-        about = "Prune tags older that the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s) (default: 9w)"
-    )]
+
+    /// Prune tags older that the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s) (default: 9w)
+    #[clap(long = "prune-if-older-than")]
     prune_if_older_than: Option<String>,
-    #[structopt(
-        long = "keep-if-newer-than",
-        about = "Always keep tags newer than the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s) (default: 1w)"
-    )]
+
+    /// Always keep tags newer than the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s) (default: 1w)
+    #[clap(long = "keep-if-newer-than")]
     keep_if_newer_than: Option<String>,
-    #[structopt(
-        long = "prune-if-more-than",
-        about = "Prune tags if there are more than this number in a stream (default: 50)"
-    )]
+
+    /// Prune tags if there are more than this number in a stream (default: 50)
+    #[clap(long = "prune-if-more-than")]
     prune_if_more_than: Option<u64>,
-    #[structopt(
-        long = "keep-if-less-than",
-        about = "Always keep at least this number of tags in a stream (default: 10)"
-    )]
+
+    /// Always keep at least this number of tags in a stream (default: 10)
+    #[clap(long = "keep-if-less-than")]
     keep_if_less_than: Option<u64>,
 }
 

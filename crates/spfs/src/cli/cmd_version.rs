@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// Print the version of spfs
+#[derive(Debug, Args)]
 pub struct CmdVersion {}
 
 impl CmdVersion {

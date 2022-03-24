@@ -2,23 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use clap::Parser;
 use spfs::Result;
 use std::ffi::OsString;
-use structopt::StructOpt;
 
 #[macro_use]
 mod args;
 
 main!(CmdInit);
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct CmdInit {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
 
-    #[structopt(long = "runtime-dir")]
+    /// The root directory of the runtime being initialized
+    #[clap(long = "runtime-dir")]
     runtime_root_dir: Option<String>,
-    #[structopt(required = true)]
+
+    /// The command to run after initialization
+    #[clap(required = true)]
     cmd: Vec<OsString>,
 }
 

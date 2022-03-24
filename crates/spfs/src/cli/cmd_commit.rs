@@ -4,35 +4,35 @@
 
 use std::path::PathBuf;
 
-use spfs::prelude::*;
-use structopt::StructOpt;
+use clap::Args;
 
-use spfs::{encoding::Encodable, storage::TagStorage};
+use spfs::encoding::Encodable;
 
-#[derive(Debug, StructOpt)]
+/// Commit the current runtime state or a directory to storage
+#[derive(Debug, Args)]
 pub struct CmdCommit {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "commit files directly into a remote repository instead of the local one, works only with the --path arg"
-    )]
+    /// Commit files directly into a remote repository
+    ///
+    /// The default is to commit to the local repository. This flag
+    /// only with the --path argument
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        long = "tag",
-        short = "t",
-        about = "Can be given many times: human-readable tags to update with the resulting object"
-    )]
+
+    /// A human-readable tag for the generated object
+    ///
+    /// Can be provided more than once.
+    #[clap(long = "tag", short)]
     tags: Vec<String>,
-    #[structopt(
-        long,
-        about = "Commit this directory as a layer rather than the current spfs changes"
-    )]
+
+    /// Commit this directory instead of the current spfs changes
+    #[clap(long)]
     path: Option<PathBuf>,
-    #[structopt(
+
+    /// The desired object type to create, skip this when giving --path
+    #[clap(
         possible_values = &["layer", "platform"],
         conflicts_with_all = &["path", "remote"],
-        required_unless = "path",
-        about = "The desired object type to create, skip this when giving --path"
+        required_unless_present = "path",
     )]
     kind: Option<String>,
 }

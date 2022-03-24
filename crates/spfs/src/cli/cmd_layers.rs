@@ -2,25 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 use tokio_stream::StreamExt;
 
 use spfs::io::{self, DigestFormat};
 
-#[derive(Debug, StructOpt)]
+/// List all layers in an spfs repository
+#[derive(Debug, Args)]
 pub struct CmdLayers {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Show layers from remote repository instead of the local one"
-    )]
+    /// Show layers from remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(long, about = "Show the shortened form of each reported layer digest")]
+
+    /// Show the shortened form of each reported layer digest
+    #[clap(long)]
     short: bool,
-    #[structopt(
-        long,
-        about = "Also find and report any tags that point to this object, implies --short"
-    )]
+
+    /// Also find and report any tags that point to each layer, implies --short
+    #[clap(long)]
     tags: bool,
 }
 

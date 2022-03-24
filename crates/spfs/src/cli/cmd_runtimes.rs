@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// List the current set of spfs runtimes
+#[derive(Debug, Args)]
 pub struct CmdRuntimes {
-    #[structopt(
-        short = "q",
-        long = "quiet",
-        about = "Only print the name of each runtime, no additional data"
-    )]
+    /// Only print the name of each runtime, no additional data
+    #[clap(short, long)]
     quiet: bool,
 }
 

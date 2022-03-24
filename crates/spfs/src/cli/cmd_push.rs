@@ -2,30 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Parser;
 
 #[macro_use]
 mod args;
 
 main!(CmdPush);
 
-#[derive(Debug, StructOpt)]
-#[structopt(about = "push one or more objects to a remote repository")]
+/// Push one or more objects to a remote repository
+#[derive(Debug, Parser)]
 pub struct CmdPush {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(
-        long = "remote",
-        short = "r",
-        default_value = "origin",
-        about = "the name or address of the remote server to push to"
-    )]
+
+    /// The name or address of the remote server to push to
+    #[clap(long, short, default_value = "origin")]
     remote: String,
-    #[structopt(
-        value_name = "REF",
-        required = true,
-        about = "the reference(s) to push"
-    )]
+
+    /// The reference(s) to push
+    #[clap(value_name = "REF", required = true)]
     refs: Vec<String>,
 }
 

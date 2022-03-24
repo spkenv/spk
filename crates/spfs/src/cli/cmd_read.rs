@@ -2,25 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// Output the contents of a blob to stdout
+#[derive(Debug, Args)]
+#[clap(visible_aliases = &["read-file", "cat", "cat-file"])]
 pub struct CmdRead {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Read from a remote repository instead of the local one"
-    )]
+    /// Read from a remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        value_name = "REF",
-        about = "The tag or digest of the blob/payload to output"
-    )]
+
+    /// The tag or digest of the blob/payload to output
+    #[clap(value_name = "REF")]
     reference: String,
-    #[structopt(
-        value_name = "PATH",
-        about = "If the given ref is not a blob, read the blob found at this path"
-    )]
+
+    /// If the given ref is not a blob, read the blob found at this path
+    #[clap(value_name = "PATH")]
     path: Option<String>,
 }
 
