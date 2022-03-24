@@ -119,6 +119,7 @@ pub enum RemoteConfig {
     Fs(storage::fs::Config),
     Grpc(storage::rpc::Config),
     Tar(storage::tar::Config),
+    Proxy(storage::proxy::Config),
 }
 
 impl RemoteConfig {
@@ -128,6 +129,7 @@ impl RemoteConfig {
             "tar" => Self::Tar(storage::tar::Config::from_url(&url).await?),
             "file" | "" => Self::Fs(storage::fs::Config::from_url(&url).await?),
             "http2" | "grpc" => Self::Grpc(storage::rpc::Config::from_url(&url).await?),
+            "proxy" => Self::Proxy(storage::proxy::Config::from_url(&url).await?),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
         })
     }
@@ -150,6 +152,9 @@ impl RemoteConfig {
                 .await?
                 .into(),
             Self::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
+                .await?
+                .into(),
+            Self::Proxy(config) => storage::proxy::ProxyRepository::from_config(config)
                 .await?
                 .into(),
         })
