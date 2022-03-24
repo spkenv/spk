@@ -105,8 +105,8 @@ pub fn build_shell_initialized_command(
     args: &mut Vec<OsString>,
 ) -> Result<Vec<OsString>> {
     let runtime = active_runtime()?;
-    let default_shell = which("bash").unwrap_or_default();
-    let desired_shell = std::env::var_os("SHELL").unwrap_or_else(|| default_shell.into());
+    let desired_shell =
+        std::env::var_os("SHELL").unwrap_or_else(|| which("bash").unwrap_or_default().into());
     let shell_name = std::path::Path::new(&desired_shell)
         .file_name()
         .unwrap_or_else(|| OsStr::new("bash"))
