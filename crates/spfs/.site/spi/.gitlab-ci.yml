@@ -1,24 +1,3 @@
 include:
   - project: spi/dev/dev-ops/spdev
-    file: pipelines/default.yaml
-
-lint-python3k:
-  script:
-    - echo "No python code"
-
-test integration tests:
-  tags: [docker]
-  stage: test
-  variables:
-    CENTOS_IMAGE: docker.artifactory.spimageworks.com/gitlab/spi/dev/infrastructure/api/docker/spi-centos/centos-7.9.2009
-  except:
-    - tags
-  dependencies:
-    - "build and package" # for artifacts
-  script:
-    - docker pull $CENTOS_IMAGE
-    - docker run --privileged --rm
-      -v $PWD/dist/rpm/RPMS/x86_64:/tmp/rpms
-      -v $PWD/tests/integration:/tests
-      $CENTOS_IMAGE
-      bash -xc "yum install -y /tmp/rpms/*.rpm  && bash /tests/run_tests.sh"
+    file: pipelines/generate-config.yaml
