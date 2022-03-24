@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use colored::Colorize;
 use structopt::StructOpt;
 use tokio_stream::StreamExt;
+
+use spfs::io::{self, DigestFormat};
 
 #[derive(Debug, StructOpt)]
 pub struct CmdTags {
@@ -13,6 +16,13 @@ pub struct CmdTags {
         about = "Show layers from remote repository instead of the local one"
     )]
     remote: Option<String>,
+    #[structopt(long, about = "Also show the target digest of each tag")]
+    target: bool,
+    #[structopt(
+        long,
+        about = "Show the shortened form of each reported digest, implies --target"
+    )]
+    short: bool,
 }
 
 impl CmdTags {
@@ -22,12 +32,27 @@ impl CmdTags {
             None => config.get_repository().await?.into(),
         };
         let mut tag_streams = repo.iter_tags();
-        while let Some(tag) = tag_streams.next().await {
-            let (_, tag) = tag?;
-            println!(
-                "{}",
-                spfs::io::format_digest(&tag.target.to_string(), Some(&repo)).await?
-            );
+        while let Some((tag_spec, tag)) = tag_streams.try_next().await? {
+            let suffix = if self.short {
+                format!(
+                    " {} {}",
+                    "->".cyan(),
+                    io::format_digest(tag.target, DigestFormat::Shortened(&repo))
+                        .await?
+                        .dimmed()
+                )
+            } else if self.target {
+                format!(
+                    " {} {}",
+                    "->".cyan(),
+                    io::format_digest(tag.target, DigestFormat::Full)
+                        .await?
+                        .dimmed()
+                )
+            } else {
+                String::new()
+            };
+            println!("{}{}", tag_spec, suffix);
         }
         Ok(0)
     }
