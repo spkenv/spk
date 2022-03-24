@@ -50,7 +50,8 @@ test-python:
 
 .PHONY: cargo-test
 cargo-test:
-	cargo test --no-default-features
+	# some tests must be run in an spfs environment
+	spfs run - -- cargo test --no-default-features
 
 converters:
 	$(MAKE) -C packages spk-convert-pip/spk-convert-pip.spk
