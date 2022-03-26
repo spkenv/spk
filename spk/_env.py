@@ -8,17 +8,11 @@ import spkrs
 import structlog
 
 from . import api, solve, storage
+from spkrs import NoEnvironmentError
 
 _LOGGER = structlog.get_logger("spk")
 ACTIVE_PREFIX = os.getenv("SPK_ACTIVE_PREFIX", "/spfs")
 ENV_FILENAME = ".spk-env.yaml"
-
-
-class NoEnvironmentError(RuntimeError):
-    """Denotes that an active environment was required, but does not exist."""
-
-    def __init__(self) -> None:
-        super(NoEnvironmentError, self).__init__("Not running in an spk environment")
 
 
 def current_env() -> solve.Solution:

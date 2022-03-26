@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 pub mod api;
 pub mod build;
+mod env;
 mod error;
 pub mod exec;
 pub mod io;
@@ -265,6 +266,11 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     let empty_spfs: spfs::encoding::Digest = spfs::encoding::EMPTY_DIGEST.into();
     let empty_spk = Digest::from(empty_spfs);
     m.setattr::<&str, PyObject>("EMPTY_DIGEST", empty_spk.into_py(py))?;
+
+    m.add(
+        "NoEnvironmentError",
+        py.get_type::<env::NoEnvironmentError>(),
+    )?;
 
     Ok(())
 }
