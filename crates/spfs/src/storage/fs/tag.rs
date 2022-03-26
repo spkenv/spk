@@ -80,7 +80,6 @@ impl TagStorage for FSRepository {
             },
         };
 
-        let mut entries = std::collections::HashSet::new();
         let iter = read_dir.filter_map(move |entry| {
             let entry = match entry {
                 Err(err) => return Some(Err(err.into())),
@@ -88,29 +87,11 @@ impl TagStorage for FSRepository {
             };
             let path = entry.path();
             if path.extension() == Some(std::ffi::OsStr::new(TAG_EXT)) {
-                match path.file_stem().map(|s| s.to_string_lossy().to_string()) {
-                    None => None,
-                    Some(tag_name) => {
-                        let e = EntryType::Tag(tag_name);
-                        if entries.insert(e.clone()) {
-                            Some(Ok(e))
-                        } else {
-                            None
-                        }
-                    }
-                }
+                path.file_stem()
+                    .map(|s| Ok(EntryType::Tag(s.to_string_lossy().to_string())))
             } else {
-                match path.file_name().map(|s| s.to_string_lossy().to_string()) {
-                    None => None,
-                    Some(tag_dir) => {
-                        let e = EntryType::Folder(tag_dir);
-                        if entries.insert(e.clone()) {
-                            Some(Ok(e))
-                        } else {
-                            None
-                        }
-                    }
-                }
+                path.file_name()
+                    .map(|s| Ok(EntryType::Folder(s.to_string_lossy().to_string())))
             }
         });
         Box::pin(futures::stream::iter(iter))
