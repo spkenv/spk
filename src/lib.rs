@@ -14,6 +14,7 @@ pub mod storage;
 mod fixtures;
 pub mod test;
 
+pub use env::current_env;
 pub use error::{Error, Result};
 
 lazy_static::lazy_static! {
@@ -258,6 +259,12 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let config = spfs::load_config()?;
         config.make_current()?;
         Ok(())
+    }
+
+    #[pyfn(m)]
+    fn current_env() -> Result<solve::Solution> {
+        let _guard = crate::HANDLE.enter();
+        env::current_env()
     }
 
     m.add_class::<Digest>()?;
