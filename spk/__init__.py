@@ -9,7 +9,7 @@ from spkrs import api, solve, io, test, exec
 
 from . import storage, build, test
 from ._global import load_spec, save_spec
-from ._env import current_env, NoEnvironmentError
+from spkrs import current_env, NoEnvironmentError
 from ._publish import Publisher
 
 __version__ = spkrs.version()
