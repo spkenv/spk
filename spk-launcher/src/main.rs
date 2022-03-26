@@ -18,7 +18,11 @@ use spfs::encoding::Digest;
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
 
+const DEV_SHM: &str = "/dev/shm";
 const ORIGIN: &str = "origin";
+/// Variable to customize where applications are installed into,
+/// defaults to `DEV_SHM`.
+const ROOT_ENV_VAR: &str = "SPK_LAUNCHER_INSTALL_ROOT";
 const RPM_TAG: &str = "rpm";
 /// spfs tags are placed into a subdirectory
 /// called this, below `SpfsTag::spfs_tag_prefix`.
@@ -77,7 +81,7 @@ impl<'a> SpfsTag for Dynamic<'a> {
     }
 
     fn install_path(&self) -> PathBuf {
-        let mut buf = PathBuf::from("/dev/shm");
+        let mut buf = PathBuf::from(var_os(ROOT_ENV_VAR).unwrap_or_else(|| DEV_SHM.into()));
         buf.push(self.exe_name);
         buf
     }
