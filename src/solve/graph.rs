@@ -679,7 +679,7 @@ impl RequestPackage {
     fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
-        let mut new_requests = base.pkg_requests.clone();
+        let mut new_requests = (*base.pkg_requests).clone();
         new_requests.push(self.request.clone());
         Arc::new(base.with_pkg_requests(new_requests))
     }
@@ -700,7 +700,7 @@ impl RequestVar {
     fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
-        let mut new_requests = base.var_requests.clone();
+        let mut new_requests = (*base.var_requests).clone();
         new_requests.push(self.request.clone());
         let mut options = base
             .options
@@ -940,10 +940,10 @@ impl StateId {
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pub pkg_requests: Vec<api::PkgRequest>,
-    var_requests: Vec<api::VarRequest>,
-    packages: Vec<(Arc<api::Spec>, PackageSource)>,
-    options: Vec<(String, String)>,
+    pub pkg_requests: Arc<Vec<api::PkgRequest>>,
+    var_requests: Arc<Vec<api::VarRequest>>,
+    packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
+    options: Arc<Vec<(String, String)>>,
     state_id: StateId,
 }
 
@@ -965,10 +965,10 @@ impl State {
             StateId::options_hash(&options),
         );
         State {
-            pkg_requests,
-            var_requests,
-            packages,
-            options,
+            pkg_requests: Arc::new(pkg_requests),
+            var_requests: Arc::new(var_requests),
+            packages: Arc::new(packages),
+            options: Arc::new(options),
             state_id,
         }
     }
@@ -996,7 +996,7 @@ impl State {
         name: &str,
     ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
         // TODO: cache this
-        for (spec, source) in &self.packages {
+        for (spec, source) in &*self.packages {
             if spec.pkg.name() == name {
                 return Ok((spec, source));
             }
@@ -1069,10 +1069,10 @@ impl State {
     fn with_options(&self, options: Vec<(String, String)>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
-            pkg_requests: self.pkg_requests.clone(),
-            var_requests: self.var_requests.clone(),
-            packages: self.packages.clone(),
-            options,
+            pkg_requests: Arc::clone(&self.pkg_requests),
+            var_requests: Arc::clone(&self.var_requests),
+            packages: Arc::clone(&self.packages),
+            options: Arc::new(options),
             state_id,
         }
     }
@@ -1083,10 +1083,10 @@ impl State {
         packages.push((spec, source));
         let state_id = self.state_id.with_packages(&packages);
         Self {
-            pkg_requests: self.pkg_requests.clone(),
-            var_requests: self.var_requests.clone(),
-            packages,
-            options: self.options.clone(),
+            pkg_requests: Arc::clone(&self.pkg_requests),
+            var_requests: Arc::clone(&self.var_requests),
+            packages: Arc::new(packages),
+            options: Arc::clone(&self.options),
             state_id,
         }
     }
@@ -1094,10 +1094,10 @@ impl State {
     fn with_pkg_requests(&self, pkg_requests: Vec<api::PkgRequest>) -> Self {
         let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
-            pkg_requests,
-            var_requests: self.var_requests.clone(),
-            packages: self.packages.clone(),
-            options: self.options.clone(),
+            pkg_requests: Arc::new(pkg_requests),
+            var_requests: Arc::clone(&self.var_requests),
+            packages: Arc::clone(&self.packages),
+            options: Arc::clone(&self.options),
             state_id,
         }
     }
@@ -1111,10 +1111,10 @@ impl State {
             .state_id
             .with_var_requests_and_options(&var_requests, &options);
         Self {
-            pkg_requests: self.pkg_requests.clone(),
-            var_requests,
-            packages: self.packages.clone(),
-            options,
+            pkg_requests: Arc::clone(&self.pkg_requests),
+            var_requests: Arc::new(var_requests),
+            packages: Arc::clone(&self.packages),
+            options: Arc::new(options),
             state_id,
         }
     }

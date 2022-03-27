@@ -120,7 +120,7 @@ impl State {
 
     #[getter]
     pub fn pkg_requests(&self) -> Vec<api::PkgRequest> {
-        self.state.pkg_requests.clone()
+        (*self.state.pkg_requests).clone()
     }
 }
 
