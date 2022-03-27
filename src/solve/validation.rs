@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 
 use crate::api::{self, Build, Compatibility};
 
-use super::{errors, graph, solution::PackageSource};
+use super::{errors, graph, python::State as PyState, solution::PackageSource};
 
 #[derive(Clone, Copy)]
 pub enum Validators {
@@ -75,11 +75,11 @@ impl DeprecationValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 
@@ -146,11 +146,11 @@ impl EmbeddedPackageValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 
@@ -210,11 +210,11 @@ impl OptionsValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 
@@ -248,11 +248,11 @@ impl PkgRequestValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 
@@ -293,11 +293,11 @@ impl ComponentsValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 
@@ -373,11 +373,11 @@ impl PkgRequirementsValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 
@@ -536,11 +536,11 @@ impl VarRequirementsValidator {
     #[pyo3(name = "validate")]
     fn validatepy(
         &self,
-        state: &graph::State,
+        state: &PyState,
         spec: &api::Spec,
         source: PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        self.validate(state, spec, &source)
+        self.validate(state.into(), spec, &source)
     }
 }
 

@@ -15,6 +15,7 @@ use crate::api::{self, Ident, InclusionPolicy};
 use super::errors;
 use super::{
     package_iterator::PackageIterator,
+    python::State as PyState,
     solution::{PackageSource, Solution},
 };
 
@@ -44,7 +45,7 @@ pub enum Change {
 }
 
 impl Change {
-    pub fn apply(&self, base: &State) -> State {
+    pub fn apply(&self, base: &State) -> Arc<State> {
         match self {
             Change::RequestPackage(rp) => rp.apply(base),
             Change::RequestVar(rv) => rv.apply(base),
@@ -128,12 +129,9 @@ pub struct Decision {
 
 #[pymethods]
 impl Decision {
-    pub fn apply(&self, base: State) -> State {
-        let mut state = base;
-        for change in self.changes.iter() {
-            state = change.apply(&state);
-        }
-        state
+    #[pyo3(name = "apply")]
+    pub fn py_apply(&self, base: &PyState) -> PyState {
+        self.apply(base.into()).into()
     }
 
     pub fn iter_changes(&self) -> ChangesIter {
@@ -150,6 +148,15 @@ impl Decision {
 }
 
 impl Decision {
+    pub fn apply(&self, base: &Arc<State>) -> Arc<State> {
+        let mut state = None;
+        let else_closure = || Arc::clone(base);
+        for change in self.changes.iter() {
+            state = Some(change.apply(&state.unwrap_or_else(else_closure)));
+        }
+        state.unwrap_or_else(else_closure)
+    }
+
     pub fn new(changes: Vec<Change>) -> Self {
         Self {
             changes,
@@ -397,8 +404,8 @@ impl Graph {
             .get(&source_id)
             .expect("source_id exists in nodes")
             .clone();
-        let new_state = decision.apply((*old_node.read().unwrap().state).clone());
-        let mut new_node = Arc::new(RwLock::new(Node::new(Arc::new(new_state))));
+        let new_state = decision.apply(&(old_node.read().unwrap().state));
+        let mut new_node = Arc::new(RwLock::new(Node::new(new_state)));
         {
             let mut new_node_lock = new_node.write().unwrap();
 
@@ -490,7 +497,7 @@ impl Iterator for GraphIter {
                         e.insert(node_lock.outputs_decisions.iter().cloned().collect());
 
                         for decision in node_lock.outputs_decisions.iter().rev() {
-                            let destination = decision.apply((*node_lock.state).clone());
+                            let destination = decision.apply(&node_lock.state);
                             self.to_process.push_front(
                                 self.graph.nodes.get(&destination.id()).unwrap().clone(),
                             );
@@ -523,7 +530,7 @@ impl Iterator for GraphIter {
                     let next_state_id = {
                         let node_lock = self.iter_node.read().unwrap();
 
-                        let next_state = decision.apply((*node_lock.state).clone());
+                        let next_state = decision.apply(&node_lock.state);
                         next_state.id()
                     };
                     self.iter_node = self.graph.nodes.get(&next_state_id).unwrap().clone();
@@ -669,12 +676,12 @@ impl RequestPackage {
         RequestPackage { request }
     }
 
-    fn apply(&self, base: &State) -> State {
+    fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
         let mut new_requests = base.pkg_requests.clone();
         new_requests.push(self.request.clone());
-        base.with_pkg_requests(new_requests)
+        Arc::new(base.with_pkg_requests(new_requests))
     }
 }
 
@@ -690,7 +697,7 @@ impl RequestVar {
         RequestVar { request }
     }
 
-    fn apply(&self, base: &State) -> State {
+    fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
         let mut new_requests = base.var_requests.clone();
@@ -702,7 +709,7 @@ impl RequestVar {
             .filter(|(var, _)| *var != self.request.var)
             .collect::<Vec<_>>();
         options.push((self.request.var.to_owned(), self.request.value.to_owned()));
-        base.with_var_requests_and_options(new_requests, options)
+        Arc::new(base.with_var_requests_and_options(new_requests, options))
     }
 }
 
@@ -721,13 +728,13 @@ impl SetOptions {
     }
 
     #[pyo3(name = "apply")]
-    pub fn py_apply(&self, base: &State) -> State {
-        self.apply(base)
+    pub fn py_apply(&self, base: &PyState) -> PyState {
+        self.apply(base.into()).into()
     }
 }
 
 impl SetOptions {
-    fn apply(&self, base: &State) -> State {
+    fn apply(&self, base: &State) -> Arc<State> {
         // Update options while preserving order to match
         // python dictionary behaviour. "Updating a key
         // does not affect the order."
@@ -760,11 +767,13 @@ impl SetOptions {
         }
         let mut options = options.into_iter().collect::<Vec<_>>();
         options.sort_by_key(|(_, (i, _))| *i);
-        base.with_options(
-            options
-                .into_iter()
-                .map(|(var, (_, value))| (var, value))
-                .collect::<Vec<_>>(),
+        Arc::new(
+            base.with_options(
+                options
+                    .into_iter()
+                    .map(|(var, (_, value))| (var, value))
+                    .collect::<Vec<_>>(),
+            ),
         )
     }
 }
@@ -781,8 +790,8 @@ impl SetPackage {
         SetPackage { spec, source }
     }
 
-    fn apply(&self, base: &State) -> State {
-        base.with_package(self.spec.clone(), self.source.clone())
+    fn apply(&self, base: &State) -> Arc<State> {
+        Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -810,8 +819,8 @@ impl SetPackageBuild {
         }
     }
 
-    fn apply(&self, base: &State) -> State {
-        base.with_package(self.spec.clone(), self.source.clone())
+    fn apply(&self, base: &State) -> Arc<State> {
+        Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -928,57 +937,14 @@ impl StateId {
     }
 }
 
-#[pyclass]
-#[derive(Clone, Debug)]
+// `State` is immutable. It should not derive Clone.
+#[derive(Debug)]
 pub struct State {
-    #[pyo3(get)]
     pub pkg_requests: Vec<api::PkgRequest>,
     var_requests: Vec<api::VarRequest>,
     packages: Vec<(Arc<api::Spec>, PackageSource)>,
     options: Vec<(String, String)>,
     state_id: StateId,
-}
-
-#[pymethods]
-impl State {
-    #[new]
-    pub fn newpy(
-        pkg_requests: Vec<api::PkgRequest>,
-        var_requests: Vec<api::VarRequest>,
-        options: Vec<(String, String)>,
-        packages: Vec<(api::Spec, PackageSource)>,
-        #[allow(unused_variables)] hash_cache: Vec<u64>,
-    ) -> Self {
-        State::new(
-            pkg_requests,
-            var_requests,
-            packages
-                .into_iter()
-                .map(|(s, ps)| (Arc::new(s), ps))
-                .collect(),
-            options,
-        )
-    }
-
-    #[staticmethod]
-    pub fn default() -> Self {
-        State::new(
-            Vec::default(),
-            Vec::default(),
-            Vec::default(),
-            Vec::default(),
-        )
-    }
-
-    pub fn get_option_map(&self) -> api::OptionMap {
-        // TODO: cache this
-        self.options.iter().cloned().collect()
-    }
-
-    #[getter]
-    pub fn id(&self) -> u64 {
-        self.state_id.id()
-    }
 }
 
 impl State {
@@ -1014,6 +980,15 @@ impl State {
             solution.add(&req, spec.clone(), source.clone());
         }
         Ok(solution)
+    }
+
+    pub fn default() -> Self {
+        State::new(
+            Vec::default(),
+            Vec::default(),
+            Vec::default(),
+            Vec::default(),
+        )
     }
 
     pub fn get_current_resolve(
@@ -1143,6 +1118,15 @@ impl State {
             state_id,
         }
     }
+
+    pub fn get_option_map(&self) -> api::OptionMap {
+        // TODO: cache this
+        self.options.iter().cloned().collect()
+    }
+
+    pub fn id(&self) -> u64 {
+        self.state_id.id()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1199,18 +1183,18 @@ impl SkipPackageNote {
 pub struct StepBack {
     #[pyo3(get)]
     pub cause: String,
-    pub destination: State,
+    pub destination: Arc<State>,
 }
 
 impl StepBack {
-    pub fn new(cause: &str, to: &State) -> Self {
+    pub fn new(cause: &str, to: &Arc<State>) -> Self {
         StepBack {
             cause: cause.to_owned(),
-            destination: to.clone(),
+            destination: Arc::clone(to),
         }
     }
 
-    fn apply(&self, _base: &State) -> State {
+    fn apply(&self, _base: &State) -> Arc<State> {
         self.destination.clone()
     }
 }
