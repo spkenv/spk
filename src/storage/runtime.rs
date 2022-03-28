@@ -172,22 +172,22 @@ impl Repository for RuntimeRepository {
         Ok(mapped)
     }
 
-    fn force_publish_spec(&mut self, _spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, _spec: api::Spec) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_spec(&mut self, _spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, _spec: api::Spec) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
     }
 
-    fn remove_spec(&mut self, _pkg: &api::Ident) -> Result<()> {
+    fn remove_spec(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
     fn publish_package(
-        &mut self,
+        &self,
         _spec: api::Spec,
         _components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
@@ -196,7 +196,7 @@ impl Repository for RuntimeRepository {
         ))
     }
 
-    fn remove_package(&mut self, _pkg: &api::Ident) -> Result<()> {
+    fn remove_package(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }
