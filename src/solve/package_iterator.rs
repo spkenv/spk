@@ -59,9 +59,9 @@ impl VersionIterator {
 #[derive(Debug)]
 pub struct RepositoryPackageIterator {
     pub package_name: String,
-    pub repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
+    pub repos: Vec<Arc<storage::RepositoryHandle>>,
     versions: Option<VersionIterator>,
-    version_map: HashMap<api::Version, Arc<Mutex<storage::RepositoryHandle>>>,
+    version_map: HashMap<api::Version, Arc<storage::RepositoryHandle>>,
     builds_map: HashMap<api::Version, Arc<Mutex<dyn BuildIterator>>>,
     active_version: Option<api::Version>,
 }
@@ -149,7 +149,7 @@ impl PackageIterator for RepositoryPackageIterator {
 }
 
 impl RepositoryPackageIterator {
-    pub fn new(package_name: String, repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>) -> Self {
+    pub fn new(package_name: String, repos: Vec<Arc<storage::RepositoryHandle>>) -> Self {
         RepositoryPackageIterator {
             package_name,
             repos,
@@ -160,16 +160,10 @@ impl RepositoryPackageIterator {
         }
     }
 
-    fn build_version_map(
-        &self,
-    ) -> Result<HashMap<api::Version, Arc<Mutex<storage::RepositoryHandle>>>> {
+    fn build_version_map(&self) -> Result<HashMap<api::Version, Arc<storage::RepositoryHandle>>> {
         let mut version_map = HashMap::default();
         for repo in self.repos.iter().rev() {
-            for version in repo
-                .lock()
-                .unwrap()
-                .list_package_versions(&self.package_name)?
-            {
+            for version in repo.list_package_versions(&self.package_name)? {
                 version_map.insert(version, repo.clone());
             }
         }
@@ -196,7 +190,7 @@ impl RepositoryPackageIterator {
 
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
-    repo: Arc<Mutex<storage::RepositoryHandle>>,
+    repo: Arc<storage::RepositoryHandle>,
     builds: VecDeque<api::Ident>,
     spec: Option<Arc<api::Spec>>,
 }
@@ -213,11 +207,9 @@ impl BuildIterator for RepositoryBuildIterator {
             return Ok(None);
         };
 
-        let guard = self.repo.lock().unwrap();
-        let mut spec = match guard.read_spec(&build) {
+        let mut spec = match self.repo.read_spec(&build) {
             Ok(spec) => spec,
             Err(Error::PackageNotFoundError(..)) => {
-                drop(guard);
                 tracing::warn!(
                     "Repository listed build with no spec: {} from {:?}",
                     build,
@@ -228,12 +220,11 @@ impl BuildIterator for RepositoryBuildIterator {
             Err(err) => return Err(err),
         };
 
-        let components = match guard.get_package(&build) {
+        let components = match self.repo.get_package(&build) {
             Ok(c) => c,
             Err(Error::PackageNotFoundError(..)) => Default::default(),
             Err(err) => return Err(err),
         };
-        drop(guard);
 
         if spec.pkg.build.is_none() {
             tracing::warn!(
@@ -258,9 +249,9 @@ impl BuildIterator for RepositoryBuildIterator {
 }
 
 impl RepositoryBuildIterator {
-    fn new(pkg: api::Ident, repo: Arc<Mutex<storage::RepositoryHandle>>) -> Result<Self> {
-        let mut builds = repo.lock().unwrap().list_package_builds(&pkg)?;
-        let spec = match repo.lock().unwrap().read_spec(&pkg) {
+    fn new(pkg: api::Ident, repo: Arc<storage::RepositoryHandle>) -> Result<Self> {
+        let mut builds = repo.list_package_builds(&pkg)?;
+        let spec = match repo.read_spec(&pkg) {
             Ok(spec) => Some(Arc::new(spec)),
             Err(Error::PackageNotFoundError(..)) => None,
             Err(err) => return Err(err),

@@ -36,7 +36,7 @@ create_exception!(errors, SolverFailedError, SolverError);
 #[pyclass]
 #[derive(Clone)]
 pub struct Solver {
-    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
+    repos: Vec<Arc<storage::RepositoryHandle>>,
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
 }
@@ -63,7 +63,7 @@ impl Solver {
     }
 
     /// Add a repository where the solver can get packages.
-    pub fn add_repository(&mut self, repo: Arc<Mutex<storage::RepositoryHandle>>) {
+    pub fn add_repository(&mut self, repo: Arc<storage::RepositoryHandle>) {
         self.repos.push(repo);
     }
 

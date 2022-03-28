@@ -4,7 +4,7 @@
 use pyo3::{prelude::*, types::PyDict};
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 pub enum PackageSource {
     Repository {
         /// the actual repository that this package was loaded from
-        repo: Arc<Mutex<storage::RepositoryHandle>>,
+        repo: Arc<storage::RepositoryHandle>,
         /// the components that can be used for this package from the repository
         components: HashMap<api::Component, spfs::encoding::Digest>,
     },
@@ -62,7 +62,7 @@ impl PackageSource {
     pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
         match self {
             PackageSource::Spec(s) => Ok((**s).clone()),
-            PackageSource::Repository { repo, .. } => repo.lock().unwrap().read_spec(ident),
+            PackageSource::Repository { repo, .. } => repo.read_spec(ident),
         }
     }
 }
@@ -254,12 +254,12 @@ impl Solution {
     }
 
     /// Return the set of repositories in this solution.
-    pub fn repositories(&self) -> Vec<Arc<Mutex<storage::RepositoryHandle>>> {
+    pub fn repositories(&self) -> Vec<Arc<storage::RepositoryHandle>> {
         let mut seen = HashSet::new();
         let mut repos = Vec::new();
         for (_, source) in self.resolved.values() {
             if let PackageSource::Repository { repo, .. } = source {
-                let addr = repo.lock().unwrap().address();
+                let addr = repo.address();
                 if seen.contains(&addr) {
                     continue;
                 }

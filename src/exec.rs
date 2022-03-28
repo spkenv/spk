@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 
 use crate::{api, build, io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
@@ -69,7 +69,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 
     let to_sync_count = to_sync.len();
     for (i, (spec, repo, digest)) in to_sync.into_iter().enumerate() {
-        if let storage::RepositoryHandle::SPFS(repo) = &*repo.lock().unwrap() {
+        if let storage::RepositoryHandle::SPFS(repo) = &*repo {
             tracing::info!(
                 "collecting {} of {} {}",
                 i + 1,
@@ -101,7 +101,7 @@ pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
 pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
     let handle: storage::RepositoryHandle =
         crate::HANDLE.block_on(storage::local_repository())?.into();
-    let local_repo = Arc::new(Mutex::new(handle));
+    let local_repo = Arc::new(handle);
     let repos = solution.repositories();
     let options = solution.options();
     let mut compiled_solution = solve::Solution::new(Some(options.clone()));
@@ -123,7 +123,7 @@ pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solu
             .with_repositories(repos.clone())
             .with_options(options.clone())
             .build()?;
-        let components = local_repo.lock().unwrap().get_package(&spec.pkg)?;
+        let components = local_repo.get_package(&spec.pkg)?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,

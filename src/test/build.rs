@@ -5,7 +5,7 @@
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use pyo3::prelude::*;
 
@@ -32,7 +32,7 @@ pub struct PackageBuildTester {
     prefix: PathBuf,
     spec: api::Spec,
     script: String,
-    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
+    repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: BuildSource,
@@ -51,7 +51,7 @@ impl PackageBuildTester {
     }
 
     pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repos.push(Arc::new(Mutex::new(repo)));
+        self.repos.push(Arc::new(repo));
         self
     }
 
@@ -59,8 +59,7 @@ impl PackageBuildTester {
         &mut self,
         repos: impl IntoIterator<Item = storage::RepositoryHandle>,
     ) -> &mut Self {
-        self.repos
-            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
+        self.repos.extend(repos.into_iter().map(Arc::new));
         self
     }
 
@@ -249,11 +248,11 @@ impl PackageBuildTester {
         let mut solver = solve::Solver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
-        let local_repo = crate::HANDLE.block_on(storage::local_repository())?;
-        let local_repo = Arc::new(Mutex::new(local_repo.into()));
+        let local_repo: Arc<storage::RepositoryHandle> =
+            Arc::new(crate::HANDLE.block_on(storage::local_repository())?.into());
         solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
-            if *repo.lock().unwrap() == *local_repo.lock().unwrap() {
+            if **repo == *local_repo {
                 // local repo is always injected first, and duplicates are redundant
                 continue;
             }

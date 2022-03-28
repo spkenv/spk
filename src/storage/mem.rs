@@ -147,7 +147,7 @@ impl Repository for MemRepository {
         let mut specs = self.specs.write().unwrap();
         let versions = specs.entry(spec.pkg.name().to_string()).or_default();
         if versions.contains_key(&spec.pkg.version) {
-            Err(Error::VersionExistsError(spec.pkg.clone()))
+            Err(Error::VersionExistsError(spec.pkg))
         } else {
             versions.insert(spec.pkg.version.clone(), spec);
             Ok(())
