@@ -17,13 +17,26 @@ use crate::{Error, Result};
 #[path = "./spec_test.rs"]
 mod spec_test;
 
+/// Create a spec from a json structure.
+///
+/// This will panic if the given struct
+/// cannot be deserialized into a spec.
+///
+/// ```
+/// let spec = spec!({
+///   "pkg": "my-pkg/1.0.0",
+///   "build": {
+///     "options": [
+///       {"pkg": "dependency"}
+///     ]
+///   }
+/// });
+/// ```
 #[macro_export]
-#[allow(clippy::field_reassign_with_default)]
 macro_rules! spec {
-    ($($k:ident => $v:expr),* $(,)?) => {{
-        use std::convert::TryInto;
-        let mut spec = crate::api::Spec::default();
-        $(spec.$k = $v.try_into().unwrap();)*
+    ($($spec:tt)+) => {{
+        let value = serde_json::json!($($spec)+);
+        let spec: crate::api::Spec = serde_json::from_value(value).unwrap();
         spec
     }};
 }

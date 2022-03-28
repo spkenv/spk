@@ -235,6 +235,18 @@ impl Solution {
 }
 
 impl Solution {
+    /// The number of packages in this solution
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.resolved.len()
+    }
+
+    /// The number of packages in this solution
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.resolved.is_empty()
+    }
+
     /// Add a resolved request to this solution
     pub fn add(
         &mut self,

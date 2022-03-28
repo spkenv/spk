@@ -12,6 +12,11 @@ pub enum RepositoryHandle {
 }
 
 impl RepositoryHandle {
+    /// Create a repository handle to an empty, in-memory repository
+    pub fn new_mem() -> Self {
+        Self::Mem(Default::default())
+    }
+
     pub fn is_spfs(&self) -> bool {
         matches!(self, Self::SPFS(_))
     }
