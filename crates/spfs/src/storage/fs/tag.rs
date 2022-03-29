@@ -36,33 +36,29 @@ impl FSRepository {
         self.root().join("tags")
     }
 
-    async fn push_raw_tag_without_lock(&self, tag: &tracking::Tag) -> Result<()> {
-        let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
-        let filepath = tag_spec.to_path(self.tags_root());
-
-        let mut buf = Vec::new();
-        tag.encode(&mut buf)?;
-        let size = buf.len();
-
+    async fn write_tags_to_path(
+        &self,
+        filepath: &PathBuf,
+        tags: &Vec<tracking::Tag>,
+    ) -> Result<()> {
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
+        let mut file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(&filepath)
+            .await?;
 
-        let mut file = tokio::io::BufWriter::new(
-            tokio::fs::OpenOptions::new()
-                .write(true)
-                .append(true)
-                .create(true)
-                .open(&filepath)
-                .await?,
-        );
-        file.write_i64(size as i64).await?;
-        tokio::io::copy(&mut buf.as_slice(), &mut file).await?;
-        if let Err(err) = file.flush().await {
-            return Err(Error::wrap_io(err, "Failed to flush tag data file"));
+        for tag in tags.iter() {
+            let buf = tag.encode_to_bytes()?;
+            let size = buf.len();
+            file.write_i64(size as i64).await?;
+            file.write_all_buf(&mut buf.as_slice()).await?;
         }
-        if let Err(err) = file.into_inner().into_std().await.close() {
-            return Err(Error::wrap_io(err, "Failed to close tag data file"));
+        if let Err(err) = file.sync_all().await {
+            return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
         }
-
+        println!("written.");
         let perms = std::fs::Permissions::from_mode(0o777);
         if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
             tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
@@ -157,7 +153,61 @@ impl TagStorage for FSRepository {
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
         let _lock = TagLock::new(&filepath).await?;
-        self.push_raw_tag_without_lock(tag).await
+
+        let mut tags: Vec<tracking::Tag> = vec![];
+        match self.read_tag(&tag_spec).await {
+            Ok(mut stream) => {
+                let mut inserted = false;
+                while let Some(next) = stream.next().await {
+                    let next = next?;
+                    if inserted {
+                        tags.insert(0, next);
+                        continue;
+                    }
+                    use std::cmp::Ordering::*;
+                    match next.time.cmp(&tag.time) {
+                        Less => {
+                            tags.insert(0, tag.clone());
+                            tags.insert(0, next);
+                            inserted = true;
+                        }
+                        Greater => {
+                            tags.insert(0, next);
+                        }
+                        Equal => {
+                            if tag.target > next.target {
+                                tags.insert(0, tag.clone());
+                                tags.insert(0, next);
+                            } else {
+                                tags.insert(0, next);
+                                tags.insert(0, tag.clone());
+                            }
+                            inserted = true;
+                        }
+                    };
+                }
+                if !inserted {
+                    // The target tag was not inserted so it needs to be appended to the end
+                    tags.insert(0, tag.clone());
+                }
+                Ok(())
+            }
+            Err(Error::UnknownReference(_)) => {
+                tracing::warn!("Tag filepath does not exist create new one!");
+                tags.push(tag.clone());
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }?;
+
+        let backup = TagBackup::new(&filepath).await?;
+        if let Err(err) = self.write_tags_to_path(&filepath, &tags).await {
+            backup.restore().await?;
+            Err(err)
+        } else {
+            backup.remove().await?;
+            Ok(())
+        }
     }
 
     async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
@@ -206,32 +256,35 @@ impl TagStorage for FSRepository {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         let _lock = TagLock::new(&filepath).await?;
-        let mut filtered = Vec::new();
-        let mut stream = self.read_tag(&tag_spec).await?;
-        while let Some(version) = stream.next().await {
-            let version = version?;
-            if &version != tag {
-                filtered.push(version);
+
+        let mut tags: Vec<tracking::Tag> = vec![];
+        match self.read_tag(&tag_spec).await {
+            Ok(mut stream) => {
+                while let Some(next) = stream.next().await {
+                    let next = next?;
+                    if &next != tag {
+                        tags.insert(0, next);
+                    }
+                }
+                Ok(())
             }
-        }
-        let backup_path = &filepath.with_extension("tag.backup");
-        tokio::fs::rename(&filepath, &backup_path).await?;
+            Err(err) => Err(err),
+        }?;
+
         let mut res = Ok(());
-        for version in filtered.iter().rev() {
-            // we are already holding the lock for this operation
-            if let Err(err) = self.push_raw_tag_without_lock(version).await {
+        let backup = TagBackup::new(&filepath).await?;
+        if tags.len() > 0 {
+            if let Err(err) = self.write_tags_to_path(&filepath, &tags).await {
                 res = Err(err);
-                break;
             }
         }
+
         if let Err(err) = res {
-            tokio::fs::rename(&backup_path, &filepath).await?;
-            Err(err)
-        } else if let Err(err) = tokio::fs::remove_file(&backup_path).await {
-            tracing::warn!(?err, "failed to cleanup tag backup file");
-            Ok(())
+            backup.restore().await?;
+            return Err(err);
         } else {
-            Ok(())
+            backup.remove().await?;
+            return Ok(());
         }
     }
 }
@@ -609,5 +662,51 @@ impl Drop for TagLock {
                 tracing::warn!(?err, path = ?self.0, "Failed to remove tag lock file");
             }
         }
+    }
+}
+
+/// Helper for managing backup versions of tag files
+struct TagBackup {
+    original: PathBuf,
+    backup: Option<PathBuf>,
+}
+
+impl TagBackup {
+    /// Generate a new backup file, if the given filepath does not exist
+    /// then the backup instance is essentially a NoOp.
+    pub async fn new(filepath: &PathBuf) -> Result<Self> {
+        let backup_path = &filepath.with_extension("tag.backup");
+        match tokio::fs::rename(&filepath, &backup_path).await {
+            Ok(_) => Ok(TagBackup {
+                original: filepath.clone(),
+                backup: backup_path.clone().into(),
+            }),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(TagBackup {
+                    original: filepath.clone(),
+                    backup: None,
+                }),
+                _ => Err(err.into()),
+            },
+        }
+    }
+
+    /// Restore the original file from backup, if the original file
+    /// did not exist, the do nothing.
+    pub async fn restore(&self) -> Result<()> {
+        if let Some(backup_path) = &self.backup {
+            tokio::fs::rename(&backup_path, &self.original).await?;
+        }
+        Ok(())
+    }
+    /// Remove/Clean the existing backup file. The will end the management of the
+    /// original backup file.
+    pub async fn remove(&self) -> Result<()> {
+        if let Some(backup_path) = &self.backup {
+            if let Err(err) = tokio::fs::remove_file(&backup_path).await {
+                tracing::warn!(?err, "failed to cleanup tag backup file");
+            }
+        }
+        Ok(())
     }
 }
