@@ -2,21 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
 use spfs::{self, prelude::*};
 
-#[derive(Debug, StructOpt)]
+/// Tag an object
+#[derive(Debug, Args)]
 pub struct CmdTag {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Create tags in a remote repository instead of the local one"
-    )]
+    /// Create tags in a remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(value_name = "TARGET_REF")]
+
+    /// The reference or id of the item to tag
+    #[clap(value_name = "TARGET_REF")]
     reference: String,
-    #[structopt(value_name = "TAG", required = true)]
+
+    /// The tag(s) to point to the the given target
+    #[clap(value_name = "TAG", required = true)]
     tags: Vec<String>,
 }
 

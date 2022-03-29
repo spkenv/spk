@@ -3,27 +3,24 @@
 // https://github.com/imageworks/spk
 use std::path::PathBuf;
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// Store an arbitrary blob of data in spfs
+#[derive(Debug, Args)]
+#[clap(visible_aliases = &["write-file"])]
 pub struct CmdWrite {
-    #[structopt(
-        long = "tag",
-        short = "t",
-        about = "Can be given many times: human-readable tags to update with the resulting object"
-    )]
+    /// A human-readable tag for the generated object
+    ///
+    /// Can be provided more than once.
+    #[clap(long = "tag", short)]
     tags: Vec<String>,
-    #[structopt(
-        long,
-        short,
-        about = "Write to a remote repository instead of the local one"
-    )]
+
+    /// Write to a remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        long,
-        short,
-        about = "Store the contents of this file instead of reading from stdin"
-    )]
+
+    /// Store the contents of this file instead of reading from stdin
+    #[clap(long, short)]
     file: Option<PathBuf>,
 }
 

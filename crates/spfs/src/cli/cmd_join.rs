@@ -2,23 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use clap::Parser;
 use spfs::Result;
 use std::ffi::OsString;
-use structopt::StructOpt;
 
 #[macro_use]
 mod args;
 
 main!(CmdJoin, sentry = false, sync = true);
 
-#[derive(StructOpt, Debug)]
-#[structopt(about = "enter an existing runtime that is still active")]
+/// Enter an existing runtime that is still active
+#[derive(Parser, Debug)]
 pub struct CmdJoin {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(about = "The name or id of the runtime to join")]
+
+    /// The name or id of the runtime to join
     runtime: String,
-    #[structopt(about = "Optional command to run in the environment, spawns a shell if not given")]
+
+    /// Optional command to run in the environment, spawns a shell if not given
     cmd: Vec<OsString>,
 }
 

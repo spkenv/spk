@@ -2,26 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use clap::Args;
 use colored::Colorize;
-use structopt::StructOpt;
 use tokio_stream::StreamExt;
 
 use spfs::io::{self, DigestFormat};
 
-#[derive(Debug, StructOpt)]
+/// List all tags in an spfs repository
+#[derive(Debug, Args)]
 pub struct CmdTags {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Show layers from remote repository instead of the local one"
-    )]
+    /// Show layers from remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(long, about = "Also show the target digest of each tag")]
+
+    /// Also show the target digest of each tag
+    #[clap(long)]
     target: bool,
-    #[structopt(
-        long,
-        about = "Show the shortened form of each reported digest, implies --target"
-    )]
+
+    /// Show the shortened form of each reported digest, implies --target
+    #[clap(long)]
     short: bool,
 }
 
