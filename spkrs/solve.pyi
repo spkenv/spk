@@ -1,4 +1,4 @@
-from typing import Dict, Iterator, Mapping, NamedTuple, Tuple, Union, List
+from typing import Any, Dict, Iterator, Mapping, NamedTuple, Tuple, Union, List
 from . import storage, api, Digest
 
 PackageSource = Union[Tuple[storage.Repository, Dict[str, Digest]], api.Spec]
@@ -46,9 +46,8 @@ class Graph:
     def walk(self) -> Iterator[Tuple[Node, Decision]]: ...
 
 class Node: ...
-
-Change = Union[None]
-Note = Union[None]
+class Change: ...
+class Note: ...
 
 class Decision:
     changes: List[Change]
