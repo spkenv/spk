@@ -45,7 +45,7 @@ impl CmdCommit {
         };
 
         let result: spfs::graph::Object = if let Some(path) = &self.path {
-            let manifest = repo.commit_dir(&path).await?;
+            let manifest = repo.commit_dir(path).await?;
             if manifest.is_empty() {
                 return Err(spfs::Error::NothingToCommit);
             }

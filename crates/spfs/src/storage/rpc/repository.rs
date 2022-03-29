@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use storage::FromUrl;
+
 use crate::proto::{
     database_service_client::DatabaseServiceClient, payload_service_client::PayloadServiceClient,
     repository_client::RepositoryClient, tag_service_client::TagServiceClient,
@@ -12,14 +14,44 @@ use crate::{proto, storage, Error, Result};
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
     pub address: url::Url,
+    #[serde(flatten)]
+    pub params: Params,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, Default)]
+pub struct Params {
+    /// if true, don't actually attempt to connect until first use
+    #[serde(default)]
+    pub lazy: bool,
 }
 
 #[async_trait::async_trait]
-impl storage::FromUrl for Config {
+impl FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
-        Ok(Self {
-            address: url.clone(),
-        })
+        let mut address = url.clone();
+        let params = if let Some(qs) = address.query() {
+            serde_qs::from_str(qs).map_err(|err| {
+                crate::Error::String(format!("Invalid grpc repo parameters: {:?}", err))
+            })?
+        } else {
+            Params::default()
+        };
+        address.set_query(None);
+        Ok(Self { address, params })
+    }
+}
+
+impl Config {
+    pub fn to_address(&self) -> Result<url::Url> {
+        let query = serde_qs::to_string(&self.params).map_err(|err| {
+            crate::Error::String(format!(
+                "Grpc repo parameters do not create a valid url: {:?}",
+                err
+            ))
+        })?;
+        let mut address = self.address.clone();
+        address.set_query(Some(&query));
+        Ok(address)
     }
 }
 
@@ -37,38 +69,37 @@ impl storage::FromConfig for RpcRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> Result<Self> {
-        Self::connect(config.address).await
+        Self::new(config).await
     }
 }
 
 impl RpcRepository {
+    #[deprecated(
+        since = "0.32.0",
+        note = "instead, use the spfs::storage::FromUrl trait: RpcRepository::from_url(address)"
+    )]
     pub async fn connect(address: url::Url) -> Result<Self> {
-        let endpoint =
-            tonic::transport::Endpoint::from_shared(address.to_string()).map_err(|err| {
+        Self::from_url(&address).await
+    }
+
+    /// Create a new rpc repository client for the given configuration
+    pub async fn new(config: Config) -> Result<Self> {
+        let endpoint = tonic::transport::Endpoint::from_shared(config.address.to_string())
+            .map_err(|err| {
                 Error::String(format!("invalid address for rpc repository: {:?}", err))
             })?;
-        let repo_client = RepositoryClient::connect(endpoint.clone())
-            .await
-            .map_err(|err| {
+        let channel = match config.params.lazy {
+            true => endpoint.connect_lazy(),
+            false => endpoint.connect().await.map_err(|err| {
                 Error::String(format!("failed to connect to rpc repository: {:?}", err))
-            })?;
-        let tag_client = TagServiceClient::connect(endpoint.clone())
-            .await
-            .map_err(|err| {
-                Error::String(format!("failed to connect to rpc repository: {:?}", err))
-            })?;
-        let db_client = DatabaseServiceClient::connect(endpoint.clone())
-            .await
-            .map_err(|err| {
-                Error::String(format!("failed to connect to rpc repository: {:?}", err))
-            })?;
-        let payload_client = PayloadServiceClient::connect(endpoint)
-            .await
-            .map_err(|err| {
-                Error::String(format!("failed to connect to rpc repository: {:?}", err))
-            })?;
+            })?,
+        };
+        let repo_client = RepositoryClient::new(channel.clone());
+        let tag_client = TagServiceClient::new(channel.clone());
+        let db_client = DatabaseServiceClient::new(channel.clone());
+        let payload_client = PayloadServiceClient::new(channel);
         Ok(Self {
-            address,
+            address: config.to_address()?,
             repo_client,
             tag_client,
             db_client,
