@@ -268,7 +268,7 @@ async fn test_tag_ordering(#[future] tmprepo: TempRepo) {
         if i == 4 {
             tag.target = encoding::NULL_DIGEST.into();
         }
-        tmprepo.push_raw_tag(&tag).await.unwrap();
+        tmprepo.insert_raw_tag(&tag).await.unwrap();
         println!("\n");
     }
 
