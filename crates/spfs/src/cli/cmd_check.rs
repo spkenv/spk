@@ -28,6 +28,7 @@ impl CmdCheck {
             RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo).await,
             RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo).await,
             RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo).await,
+            RepositoryHandle::Proxy(repo) => spfs::graph::check_database_integrity(&*repo).await,
         };
         for error in errors.iter() {
             tracing::error!("{:?}", error);

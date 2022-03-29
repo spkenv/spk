@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 use std::sync::{Arc, RwLock};
 
-use config::{Config as ConfigBase, Environment, File};
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use structopt::lazy_static;
@@ -120,6 +119,7 @@ pub enum RemoteConfig {
     Fs(storage::fs::Config),
     Grpc(storage::rpc::Config),
     Tar(storage::tar::Config),
+    Proxy(storage::proxy::Config),
 }
 
 impl RemoteConfig {
@@ -129,6 +129,7 @@ impl RemoteConfig {
             "tar" => Self::Tar(storage::tar::Config::from_url(&url).await?),
             "file" | "" => Self::Fs(storage::fs::Config::from_url(&url).await?),
             "http2" | "grpc" => Self::Grpc(storage::rpc::Config::from_url(&url).await?),
+            "proxy" => Self::Proxy(storage::proxy::Config::from_url(&url).await?),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
         })
     }
@@ -151,6 +152,9 @@ impl RemoteConfig {
                 .await?
                 .into(),
             Self::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
+                .await?
+                .into(),
+            Self::Proxy(config) => storage::proxy::ProxyRepository::from_config(config)
                 .await?
                 .into(),
         })
@@ -189,6 +193,10 @@ impl Config {
     }
 
     /// Load the given string as a config
+    #[deprecated(
+        since = "0.32.0",
+        note = "use the appropriate serde crate to deserialize a Config directly"
+    )]
     pub fn load_string<S: AsRef<str>>(conf: S) -> Result<Self> {
         let mut s = config::Config::default();
         #[allow(deprecated)]
@@ -196,7 +204,7 @@ impl Config {
             conf.as_ref(),
             config::FileFormat::Ini,
         ))?;
-        Ok(s.try_into()?)
+        Ok(Config::deserialize(s)?)
     }
 
     /// List the names of all configured remote repositories.
@@ -276,41 +284,42 @@ pub fn get_config() -> Result<Arc<Config>> {
 ///
 /// This includes the default, user and system configurations, if they exist.
 pub fn load_config() -> Result<Config> {
-    let user_config = expanduser::expanduser("~/.config/spfs/spfs.conf")?;
-    let system_config = PathBuf::from("/etc/spfs.conf");
+    use config::{Config as RawConfig, Environment, File, FileFormat::Ini};
 
-    let mut s = ConfigBase::new();
-    if let Some(name) = system_config.to_str() {
-        s.merge(
-            File::with_name(name)
-                .format(config::FileFormat::Ini)
-                .required(false),
-        )?;
-    }
-    if let Some(name) = user_config.to_str() {
-        s.merge(
-            File::with_name(name)
-                .format(config::FileFormat::Ini)
-                .required(false),
-        )?;
-    }
-    s.merge(Environment::with_prefix("SPFS").separator("_"))?;
+    let user_config = expanduser::expanduser("~/.config/spfs/spfs")?;
 
-    if let Ok(v) = s.get_str("filesystem.max.layers") {
-        let _ = s.set("filesystem.max_layers", v);
+    let mut builder = RawConfig::builder()
+        // for backwards compatibility we also support .conf as an ini extension
+        .add_source(File::new("/etc/spfs.conf", Ini).required(false))
+        // the system config can also be in any support format: toml, yaml, json, ini, etc
+        .add_source(File::with_name("/etc/spfs").required(false))
+        // for backwards compatibility we also support .conf as an ini extension
+        .add_source(File::new(&format!("{}.conf", user_config.display()), Ini).required(false))
+        // the user config can also be in any support format: toml, yaml, json, ini, etc
+        .add_source(File::with_name(&format!("{}", user_config.display())).required(false))
+        .add_source(Environment::with_prefix("SPFS").separator("_"));
+
+    let base = builder.build_cloned()?;
+
+    // unfortunately, we need to load the config twice, because
+    // the initial one may load values from the environment and
+    // place them into the wrong structure if the target field
+    // name also includes an underscore
+    if let Ok(v) = base.get_string("filesystem.max.layers") {
+        builder = builder.set_override("filesystem.max_layers", v)?;
     }
-    if let Ok(v) = s.get_str("filesystem.tmpfs.size") {
-        let _ = s.set("filesystem.tmpfs_size", v);
+    if let Ok(v) = base.get_string("filesystem.tmpfs.size") {
+        builder = builder.set_override("filesystem.tmpfs_size", v)?;
     }
-    Ok(s.try_into()?)
+
+    let config = builder.build()?;
+
+    Ok(Config::deserialize(config)?)
 }
 
 /// Open the repository at the given url address
 pub async fn open_repository<S: AsRef<str>>(
     address: S,
 ) -> crate::Result<storage::RepositoryHandle> {
-    crate::config::RemoteConfig::from_str(address)
-        .await?
-        .open()
-        .await
+    RemoteConfig::from_str(address).await?.open().await
 }
