@@ -10,6 +10,7 @@ use futures::{future::ready, TryStreamExt};
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
+use spfs::storage::EntryType;
 use tokio::io::AsyncReadExt;
 use tokio::runtime::Handle;
 
@@ -65,7 +66,7 @@ impl<T: Into<spfs::storage::RepositoryHandle>> From<T> for SPFSRepository {
 impl SPFSRepository {
     pub async fn new(address: &str) -> Result<Self> {
         Ok(Self {
-            inner: spfs::storage::open_repository(address).await?,
+            inner: spfs::open_repository(address).await?,
         })
     }
 }
@@ -82,10 +83,9 @@ impl Repository for SPFSRepository {
                 .inner
                 .ls_tags(path)
                 .try_filter_map(|entry| {
-                    ready(if entry.ends_with('/') {
-                        Ok(Some(entry[0..entry.len() - 1].to_owned()))
-                    } else {
-                        Ok(None)
+                    ready(match entry {
+                        EntryType::Folder(name) => Ok(Some(name)),
+                        EntryType::Tag(_) => Ok(None),
                     })
                 })
                 .try_collect()
@@ -99,14 +99,12 @@ impl Repository for SPFSRepository {
             let versions: HashSet<_> = self
                 .inner
                 .ls_tags(&path)
-                .and_then(|entry| {
-                    ready(Ok(if entry.ends_with('/') {
-                        let stripped = &entry[0..entry.len() - 1];
+                .try_filter_map(|entry| {
+                    ready(Ok(Some(match entry {
                         // undo our encoding of the invalid '+' character in spfs tags
-                        stripped.replace("..", "+")
-                    } else {
-                        entry.replace("..", "+")
-                    }))
+                        EntryType::Folder(name) => name.replace("..", "+"),
+                        EntryType::Tag(name) => name.replace("..", "+"),
+                    })))
                 })
                 .try_filter_map(|v| {
                     ready(match api::parse_version(&v) {
@@ -137,12 +135,10 @@ impl Repository for SPFSRepository {
             let builds: HashSet<_> = self
                 .inner
                 .ls_tags(&base)
-                .and_then(|mut entry| {
-                    ready({
-                        if entry.ends_with('/') {
-                            entry.truncate(entry.len() - 1)
-                        }
-                        Ok(entry)
+                .try_filter_map(|tag| {
+                    ready(match tag {
+                        EntryType::Tag(name) => Ok(Some(name)),
+                        EntryType::Folder(name) => Ok(Some(name)),
                     })
                 })
                 .try_filter_map(|b| {
@@ -390,7 +386,7 @@ impl Repository for SPFSRepository {
         }
         meta.version = target_version;
         crate::HANDLE.block_on(self.write_metadata(&meta))?;
-        Ok("All packages were retagged for components".to_string())
+        Ok("All packages were re-tagged for components".to_string())
     }
 }
 
@@ -436,7 +432,12 @@ impl SPFSRepository {
         let tag_specs: HashMap<Component, TagSpec> = self
             .inner
             .ls_tags(&tag_path)
-            .try_filter(|e| ready(!e.ends_with('/')))
+            .try_filter_map(|e| {
+                ready(match e {
+                    EntryType::Tag(name) => Ok(Some(name)),
+                    EntryType::Folder(_) => Ok(None),
+                })
+            })
             .try_filter_map(|e| ready(Ok(Component::parse(&e).map(|c| (c, e)).ok())))
             .try_filter_map(|(c, e)| {
                 ready(Ok(TagSpec::parse(&tag_path.join(e)).map(|p| (c, p)).ok()))
@@ -537,7 +538,7 @@ impl StoredPackage {
 
 /// Return the local packages repository used for development.
 pub async fn local_repository() -> Result<SPFSRepository> {
-    let config = spfs::load_config()?;
+    let config = spfs::get_config()?;
     let repo = config.get_repository().await?;
     Ok(SPFSRepository { inner: repo.into() })
 }
@@ -546,7 +547,7 @@ pub async fn local_repository() -> Result<SPFSRepository> {
 ///
 /// If not name is specified, return the default spfs repository.
 pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository> {
-    let config = spfs::load_config()?;
+    let config = spfs::get_config()?;
     let repo = config.get_remote(name).await?;
     Ok(SPFSRepository { inner: repo })
 }

@@ -31,7 +31,7 @@ serde = { version = "1.0.117", features = ["derive"] }
 serde_derive = "1.0.118"
 serde_json = "1.0.57"
 serde_yaml = "0.8.17"
-spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.31.1' }
+spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.32.0' }
 sys-info = "0.9.0"
 tempdir = "0.3.7"
 tokio = { version = "1.15", features = ["rt"] }

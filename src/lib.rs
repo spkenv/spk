@@ -251,6 +251,14 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Ok(())
     }
 
+    #[pyfn(m)]
+    #[pyo3(name = "reload_config")]
+    fn reload_config() -> Result<()> {
+        let config = spfs::load_config()?;
+        config.make_current()?;
+        Ok(())
+    }
+
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
 
