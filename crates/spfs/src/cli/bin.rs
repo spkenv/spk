@@ -27,6 +27,7 @@ mod cmd_tag;
 mod cmd_tags;
 mod cmd_untag;
 mod cmd_version;
+mod cmd_write;
 
 main!(Opt);
 
@@ -100,6 +101,8 @@ pub enum Command {
     Clean(cmd_clean::CmdClean),
     #[structopt(about = "output the contents of a stored payload to stdout", visible_aliases = &["read-file", "cat", "cat-file"])]
     Read(cmd_read::CmdRead),
+    #[structopt(about = "store an arbitrary payload in spfs", visible_aliases = &["write-file"])]
+    Write(cmd_write::CmdWrite),
 
     #[structopt(external_subcommand)]
     External(Vec<String>),
@@ -129,6 +132,7 @@ impl Opt {
             Command::Check(cmd) => cmd.run(config).await,
             Command::Clean(cmd) => cmd.run(config).await,
             Command::Read(cmd) => cmd.run(config).await,
+            Command::Write(cmd) => cmd.run(config).await,
             Command::External(args) => run_external_subcommand(args.clone()).await,
         }
     }
