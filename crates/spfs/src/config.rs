@@ -1,8 +1,12 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::sync::{Arc, RwLock};
 
 use config::{Config as ConfigBase, Environment, File};
+use serde::{Deserialize, Serialize};
+use storage::{FromConfig, FromUrl};
+use structopt::lazy_static;
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
@@ -14,6 +18,10 @@ mod config_test;
 
 static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
 static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
+
+lazy_static::lazy_static! {
+    static ref CONFIG: RwLock<Option<Arc<Config>>> = RwLock::new(None);
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -74,9 +82,79 @@ impl Storage {
     }
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+pub enum Remote {
+    Address(RemoteAddress),
+    Config(RemoteConfig),
+}
+
+impl<'de> serde::de::Deserialize<'de> for Remote {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde_json::{Map, Value};
+        let data = Map::deserialize(deserializer)?;
+        if data.contains_key(&String::from("scheme")) {
+            Ok(Self::Config(
+                RemoteConfig::deserialize(Value::Object(data)).map_err(serde::de::Error::custom)?,
+            ))
+        } else {
+            Ok(Self::Address(
+                RemoteAddress::deserialize(Value::Object(data))
+                    .map_err(serde::de::Error::custom)?,
+            ))
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Remote {
+pub struct RemoteAddress {
     pub address: url::Url,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "scheme", rename_all = "lowercase")]
+pub enum RemoteConfig {
+    Fs(storage::fs::Config),
+    Grpc(storage::rpc::Config),
+    Tar(storage::tar::Config),
+}
+
+impl RemoteConfig {
+    /// Parse a complete repository connection config from a url
+    pub async fn from_address(url: url::Url) -> Result<Self> {
+        Ok(match url.scheme() {
+            "tar" => Self::Tar(storage::tar::Config::from_url(&url).await?),
+            "file" | "" => Self::Fs(storage::fs::Config::from_url(&url).await?),
+            "http2" | "grpc" => Self::Grpc(storage::rpc::Config::from_url(&url).await?),
+            scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
+        })
+    }
+
+    /// Parse a complete repository connection from an address string
+    pub async fn from_str<S: AsRef<str>>(address: S) -> Result<Self> {
+        let url = match url::Url::parse(address.as_ref()) {
+            Ok(url) => url,
+            Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
+        };
+
+        Self::from_address(url).await
+    }
+
+    /// Open a handle to a repository using this configuration
+    pub async fn open(&self) -> Result<storage::RepositoryHandle> {
+        Ok(match self.clone() {
+            Self::Fs(config) => storage::fs::FSRepository::from_config(config).await?.into(),
+            Self::Tar(config) => storage::tar::TarRepository::from_config(config)
+                .await?
+                .into(),
+            Self::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
+                .await?
+                .into(),
+        })
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -89,8 +167,31 @@ pub struct Config {
 }
 
 impl Config {
+    /// Get the current loaded config, loading it if needed
+    pub fn current() -> Result<Arc<Self>> {
+        get_config()
+    }
+
+    /// Load the config from disk, even if it's already been loaded before
+    pub fn load() -> Result<Self> {
+        load_config()
+    }
+
+    /// Make this config the current global one
+    pub fn make_current(self) -> Result<Arc<Self>> {
+        let mut lock = CONFIG.write().map_err(|err| {
+            crate::Error::String(format!(
+                "Cannot load config, lock has been poisoned: {:?}",
+                err
+            ))
+        })?;
+        Ok(lock.insert(Arc::new(self)).clone())
+    }
+
+    /// Load the given string as a config
     pub fn load_string<S: AsRef<str>>(conf: S) -> Result<Self> {
-        let mut s = ConfigBase::new();
+        let mut s = config::Config::default();
+        #[allow(deprecated)]
         s.merge(config::File::from_str(
             conf.as_ref(),
             config::FileFormat::Ini,
@@ -125,22 +226,53 @@ impl Config {
         &self,
         name_or_address: S,
     ) -> Result<storage::RepositoryHandle> {
-        let addr = match self.remote.get(name_or_address.as_ref()) {
-            Some(remote) => remote.address.clone(),
-            None => {
-                if let Ok(addr) = url::Url::parse(name_or_address.as_ref()) {
-                    addr
-                } else {
-                    url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())?
-                }
+        match self.remote.get(name_or_address.as_ref()) {
+            Some(Remote::Address(remote)) => {
+                let config = RemoteConfig::from_address(remote.address.clone()).await?;
+                tracing::debug!(?config, "opening repository");
+                config.open().await
             }
-        };
-        tracing::debug!(addr = addr.as_str(), "opening repository");
-        storage::open_repository(addr).await
+            Some(Remote::Config(config)) => {
+                tracing::debug!(?config, "opening repository");
+                config.open().await
+            }
+            None => {
+                let addr = match url::Url::parse(name_or_address.as_ref()) {
+                    Ok(addr) => addr,
+                    Err(_) => {
+                        url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())?
+                    }
+                };
+                let config = RemoteConfig::from_address(addr).await?;
+                tracing::debug!(?config, "opening repository");
+                config.open().await
+            }
+        }
     }
 }
 
-/// Load the spfs configuration from disk.
+/// Get the current spfs config, fetching it from disk if needed.
+pub fn get_config() -> Result<Arc<Config>> {
+    let lock = CONFIG.read().map_err(|err| {
+        crate::Error::String(format!(
+            "Cannot load config, lock has been poisoned: {:?}",
+            err
+        ))
+    })?;
+    if let Some(config) = &*lock {
+        return Ok(config.clone());
+    }
+    drop(lock);
+
+    // there is still a possible race condition here
+    // where someone loads the config between the first check and
+    // aquiring this lock, but the redundant work is still
+    // less than not having a cache at all
+    let config = load_config()?;
+    config.make_current()
+}
+
+/// Load the spfs configuration from disk, even if it's already been loaded.
 ///
 /// This includes the default, user and system configurations, if they exist.
 pub fn load_config() -> Result<Config> {
@@ -171,4 +303,14 @@ pub fn load_config() -> Result<Config> {
         let _ = s.set("filesystem.tmpfs_size", v);
     }
     Ok(s.try_into()?)
+}
+
+/// Open the repository at the given url address
+pub async fn open_repository<S: AsRef<str>>(
+    address: S,
+) -> crate::Result<storage::RepositoryHandle> {
+    crate::config::RemoteConfig::from_str(address)
+        .await?
+        .open()
+        .await
 }

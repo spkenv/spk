@@ -21,6 +21,7 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
         "prune",
         encoding::NULL_DIGEST.into(),
     )
+
     .unwrap();
     old.parent = encoding::NULL_DIGEST.into();
     old.time = Utc.timestamp(10000, 0);
@@ -30,6 +31,7 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
         "prune",
         encoding::EMPTY_DIGEST.into(),
     )
+
     .unwrap();
     new.parent = encoding::EMPTY_DIGEST.into();
     new.time = Utc.timestamp(30000, 0);
@@ -147,7 +149,9 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         for year in vec![2020, 2021, 2022, 2023, 2024, 2025].into_iter() {
             let time = Utc.ymd(year, 1, 1).and_hms(0, 0, 0);
             let digest = random_digest();
-            let mut tag = tracking::Tag::new(Some("test".into()), "prune", digest).unwrap();
+            let mut tag = tracking::Tag::new(Some("test".into()), "prune", digest)
+
+                .unwrap();
             tag.time = time;
             tmprepo.push_raw_tag(&tag).await.unwrap();
             tags.insert(year, tag);

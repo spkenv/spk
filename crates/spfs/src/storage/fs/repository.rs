@@ -9,6 +9,21 @@ use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::Result;
 
+/// Configuration for an fs repository
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct Config {
+    pub path: std::path::PathBuf,
+}
+
+#[async_trait::async_trait]
+impl FromUrl for Config {
+    async fn from_url(url: &url::Url) -> Result<Self> {
+        Ok(Self {
+            path: std::path::PathBuf::from(url.path()),
+        })
+    }
+}
+
 /// A pure filesystem-based repository of spfs data.
 pub struct FSRepository {
     root: PathBuf,
@@ -18,6 +33,15 @@ pub struct FSRepository {
     pub objects: FSHashStore,
     /// stores rendered file system layers for use in overlayfs
     pub renders: Option<FSHashStore>,
+}
+
+#[async_trait::async_trait]
+impl FromConfig for FSRepository {
+    type Config = Config;
+
+    async fn from_config(config: Self::Config) -> Result<Self> {
+        Self::create(&config.path).await
+    }
 }
 
 impl FSRepository {

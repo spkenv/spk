@@ -10,11 +10,13 @@ mod platform;
 mod repository;
 mod tag;
 
+mod config;
 pub mod fs;
 pub mod prelude;
 pub mod rpc;
 pub mod tar;
 
+pub use self::config::{FromConfig, FromUrl};
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;
 pub use manifest::{ManifestStorage, ManifestViewer};
@@ -80,23 +82,13 @@ impl From<rpc::RpcRepository> for RepositoryHandle {
 }
 
 /// Open the repository at the given url address
+#[deprecated(
+    since = "0.32.0",
+    note = "instead, use the top-level one: spfs::open_repository(address)"
+)]
 pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
-    use url::Url;
-
-    let url = match Url::parse(address.as_ref()) {
-        Ok(url) => url,
-        Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
-    };
-
-    match url.scheme() {
-        "file" | "" => {
-            if url.path().ends_with(".tar") {
-                Ok(tar::TarRepository::open(url.path()).await?.into())
-            } else {
-                Ok(fs::FSRepository::open(url.path()).await?.into())
-            }
-        }
-        "http2" => Ok(rpc::RpcRepository::connect(url).await?.into()),
-        scheme => Err(format!("Unsupported repository scheme: '{scheme}'").into()),
-    }
+    crate::config::RemoteConfig::from_str(address)
+        .await?
+        .open()
+        .await
 }

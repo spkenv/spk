@@ -8,4 +8,4 @@ mod payload;
 mod repository;
 mod tag;
 
-pub use repository::RpcRepository;
+pub use repository::{Config, RpcRepository};
