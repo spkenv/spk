@@ -6,4 +6,4 @@
 //! into a tar archive on disk
 
 mod repository;
-pub use repository::TarRepository;
+pub use repository::{Config, TarRepository};

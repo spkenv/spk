@@ -2,29 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// Remove tag versions or entire tag streams
+#[derive(Debug, Args)]
 pub struct CmdUntag {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "remove tags in a remote repository instead of the local one"
-    )]
+    /// Remove tags in a remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(long = "latest", help = "only remove the latest version of this tag")]
+
+    /// Only remove the latest version of this tag
+    #[clap(long)]
     latest: bool,
-    #[structopt(
-        short = "a",
-        long = "all",
-        help = "remove all versions of this tag, deleting it completely"
-    )]
+
+    /// Remove all versions of this tag, deleting it completely
+    #[clap(short, long)]
     all: bool,
-    #[structopt(
-        value_name = "TAG",
-        required = true,
-        help = "The tag to remove. Unless --all or --latest is provided, this must have an explicit version number (eg: path/name~0)"
-    )]
+
+    /// The tag to remove
+    ///
+    /// Unless --all or --latest is provided, this must have
+    /// an explicit version number (eg: path/name~0)
+    #[clap(value_name = "TAG", required = true)]
     tag: String,
 }
 

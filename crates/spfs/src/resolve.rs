@@ -7,7 +7,7 @@ use std::{collections::HashSet, path::Path};
 use itertools::Itertools;
 use tokio_stream::StreamExt;
 
-use super::config::load_config;
+use super::config::get_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
 use storage::{ManifestStorage, Repository};
@@ -52,7 +52,7 @@ pub async fn render_into_directory(
     env_spec: &tracking::EnvSpec,
     target: impl AsRef<std::path::Path>,
 ) -> Result<()> {
-    let repo = load_config()?.get_repository().await?;
+    let repo = get_config()?.get_repository().await?;
     let mut stack = Vec::new();
     for target in &env_spec.items {
         let target = target.to_string();
@@ -75,7 +75,7 @@ pub async fn render_into_directory(
 
 /// Compute or load the spfs manifest representation for a saved reference.
 pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
-    let config = load_config()?;
+    let config = get_config()?;
     let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository().await?.into()];
     for name in config.list_remote_names() {
         match config.get_remote(&name).await {
@@ -141,7 +141,7 @@ pub async fn compute_object_manifest(
 ///
 /// These are returned as a list, from bottom to top.
 pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
-    let config = load_config()?;
+    let config = get_config()?;
     let repo = config.get_repository().await?.into();
     let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.get_stack().iter(), Some(&repo)).await?;
@@ -206,7 +206,7 @@ pub async fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
     let repo = match repo.take() {
         Some(repo) => repo,
         None => {
-            let config = load_config()?;
+            let config = get_config()?;
             owned_handle = storage::RepositoryHandle::from(config.get_repository().await?);
             &owned_handle
         }

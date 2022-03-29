@@ -2,17 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
 use spfs::prelude::*;
 
-#[derive(Debug, StructOpt)]
+/// Check a repositories internal integrity
+#[derive(Debug, Args)]
 pub struct CmdCheck {
-    #[structopt(
-        short = "r",
-        long = "remote",
-        about = "Trigger the check operation on a remote repository"
-    )]
+    /// Trigger the check operation on a remote repository instead of the local one
+    #[clap(short, long)]
     remote: Option<String>,
 }
 
@@ -28,6 +26,7 @@ impl CmdCheck {
             RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo).await,
             RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo).await,
             RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo).await,
+            RepositoryHandle::Proxy(repo) => spfs::graph::check_database_integrity(&*repo).await,
         };
         for error in errors.iter() {
             tracing::error!("{:?}", error);

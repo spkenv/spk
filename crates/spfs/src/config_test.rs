@@ -14,7 +14,9 @@ fn test_config_list_remote_names_empty() {
 
 #[rstest]
 fn test_config_list_remote_names() {
-    let config = Config::load_string("[remote.origin]\naddress=http://myaddres").unwrap();
+    let config: Config =
+        serde_json::from_str(r#"{"remote": { "origin": { "address": "http://myaddress" } } }"#)
+            .unwrap();
     assert_eq!(config.list_remote_names(), vec!["origin".to_string()]);
 }
 
@@ -37,11 +39,30 @@ async fn test_config_get_remote() {
         .await
         .unwrap();
 
-    let config = Config::load_string(format!(
-        "[remote.origin]\naddress=file://{}",
+    let config: Config = serde_json::from_str(&format!(
+        r#"{{"remote": {{ "origin": {{ "address": "file://{}" }} }} }}"#,
         &remote.to_string_lossy()
     ))
     .unwrap();
     let repo = config.get_remote("origin").await;
     assert!(repo.is_ok());
+}
+
+#[rstest]
+#[case(
+    r#"
+{
+    "remote": {
+        "addressed": {
+            "address": "file:/some/path"
+        },
+        "configured": {
+            "scheme": "fs",
+            "path": "/some/path"
+        }
+    }
+}"#
+)]
+fn test_remote_config_or_address(#[case] source: &str) {
+    let _config: Config = serde_json::from_str(source).expect("config should have loaded properly");
 }

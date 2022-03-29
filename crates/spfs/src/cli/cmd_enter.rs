@@ -4,7 +4,7 @@
 
 use std::ffi::OsString;
 
-use structopt::StructOpt;
+use clap::Parser;
 
 #[macro_use]
 mod args;
@@ -14,28 +14,21 @@ mod args;
 // we must use a single threaded async runtime, if any.
 main!(CmdEnter, sentry = false, sync = true);
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "spfs-enter",
-    about = "Run a command in a configured spfs runtime"
-)]
+/// Run a command in a configured spfs runtime
+#[derive(Debug, Parser)]
+#[clap(name = "spfs-enter")]
 pub struct CmdEnter {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
 
-    #[structopt(
-        short = "r",
-        long = "remount",
-        about = "remount the overlay filesystem, don't enter a new namepace"
-    )]
+    /// Remount the overlay filesystem, don't enter a new namepace
+    #[clap(short, long)]
     remount: bool,
 
-    #[structopt()]
+    /// The root directory of the spfs runtime being entered
     runtime_root: String,
 
-    #[structopt()]
     cmd: Option<OsString>,
-    #[structopt()]
     args: Vec<OsString>,
 }
 

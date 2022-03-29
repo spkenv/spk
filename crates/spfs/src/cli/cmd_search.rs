@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 use tokio_stream::StreamExt;
 
-#[derive(Debug, StructOpt)]
+/// Search for available tags by substring
+#[derive(Debug, Args)]
 pub struct CmdSearch {
-    #[structopt(value_name = "TERM", about = "The search term/substring to look for")]
+    /// The search term/substring to look for
+    #[clap(value_name = "TERM")]
     term: String,
 }
 

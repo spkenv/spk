@@ -2,21 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use clap::Args;
 use colored::*;
 use futures::StreamExt;
-use structopt::StructOpt;
 
 use spfs::{self};
 
-#[derive(Debug, StructOpt)]
+/// Log the history of a given tag over time
+#[derive(Debug, Args)]
 pub struct CmdLog {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Show layers from remote repository instead of the local one"
-    )]
+    /// Load the tag from remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(about = "The tag to show history of")]
+
+    /// The tag to show history of
     tag: String,
 }
 

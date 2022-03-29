@@ -32,7 +32,7 @@ impl Tag {
         name: impl Into<String>,
         target: encoding::Digest,
     ) -> Result<Self> {
-        let config = crate::config::load_config()?;
+        let config = crate::config::get_config()?;
         // we want to ensure that these components
         // can build a valid tag spec
         let spec = build_tag_spec(org, name.into(), 0)?;

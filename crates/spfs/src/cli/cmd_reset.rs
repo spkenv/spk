@@ -2,26 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use clap::Args;
 use spfs::prelude::*;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+/// Reset changes, or rebuild the entire spfs directory
+#[derive(Args, Debug)]
 pub struct CmdReset {
-    #[structopt(
-        short = "e",
-        long = "edit",
-        about = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
-    )]
+    /// Mount the resulting runtime in edit mode
+    ///
+    /// Default to true if REF is empty or not given
+    #[clap(short, long)]
     edit: bool,
-    #[structopt(
-        long = "ref",
-        short = "r",
-        about = "The tag or id of the desired runtime, or the current runtime if not given. \
-                Use '-' or an empty string to request an empty environment. Only valid \
-                if no paths are given"
-    )]
+
+    /// The tag or id to rebuild the runtime with.
+    ///
+    /// Uses current runtime stack if not given. Use '-' or
+    /// an empty string to request an empty environment. Only valid
+    /// if no paths are given
+    #[clap(long = "ref", short)]
     reference: Option<String>,
-    #[structopt(about = "Paths under /spfs to reset, or all paths if none given")]
+
+    /// Glob patterns in the spfs dir of files to reset, defaults to everything
     paths: Vec<String>,
 }
 

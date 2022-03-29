@@ -4,7 +4,7 @@
 
 use tokio_stream::StreamExt;
 
-use super::config::load_config;
+use super::config::get_config;
 use crate::prelude::*;
 use crate::{graph, storage, tracking, Error, Result};
 
@@ -21,7 +21,7 @@ pub async fn push_ref<R: AsRef<str>>(
     reference: R,
     remote: Option<storage::RepositoryHandle>,
 ) -> Result<graph::Object> {
-    let config = load_config()?;
+    let config = get_config()?;
     let local = config.get_repository().await?.into();
     let remote = match remote {
         Some(remote) => remote,
@@ -179,8 +179,8 @@ pub async fn sync_manifest(
         let dest_address = dest.address();
         let src_address = src.address();
         let future = tokio::spawn(async move {
-            let src = storage::open_repository(src_address).await?;
-            let dest = storage::open_repository(dest_address).await?;
+            let src = crate::open_repository(src_address).await?;
+            let dest = crate::open_repository(dest_address).await?;
             sync_entry(&entry, &src, &dest).await?;
             Ok(entry.size)
         });

@@ -114,7 +114,7 @@ macro_rules! main {
             std::process::exit(main2())
         }
         fn main2() -> i32 {
-            let mut opt = $cmd::from_args();
+            let mut opt = $cmd::parse();
             let config = configure!(opt, $sentry);
 
             let result = opt.run(&config);
@@ -130,7 +130,7 @@ macro_rules! main {
             std::process::exit(main2())
         }
         fn main2() -> i32 {
-            let mut opt = $cmd::from_args();
+            let mut opt = $cmd::parse();
             let config = configure!(opt, $sentry);
 
             let rt = match tokio::runtime::Builder::new_multi_thread()
@@ -158,7 +158,7 @@ macro_rules! configure {
         args::configure_logging($opt.verbose);
         args::configure_spops($opt.verbose);
 
-        match spfs::load_config() {
+        match spfs::get_config() {
             Err(err) => {
                 tracing::error!(err = ?err, "failed to load config");
                 return 1;

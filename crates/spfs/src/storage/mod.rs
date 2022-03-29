@@ -10,16 +10,20 @@ mod platform;
 mod repository;
 mod tag;
 
+mod config;
 pub mod fs;
 pub mod prelude;
+pub mod proxy;
 pub mod rpc;
 pub mod tar;
 
+pub use self::config::{FromConfig, FromUrl};
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;
 pub use manifest::{ManifestStorage, ManifestViewer};
 pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
+pub use proxy::{Config, ProxyRepository};
 pub use repository::Repository;
 pub use tag::{EntryType, TagStorage};
 
@@ -29,6 +33,7 @@ pub enum RepositoryHandle {
     FS(fs::FSRepository),
     Tar(tar::TarRepository),
     Rpc(rpc::RpcRepository),
+    Proxy(Box<proxy::ProxyRepository>),
 }
 
 impl RepositoryHandle {
@@ -37,6 +42,7 @@ impl RepositoryHandle {
             Self::FS(repo) => Box::new(repo),
             Self::Tar(repo) => Box::new(repo),
             Self::Rpc(repo) => Box::new(repo),
+            Self::Proxy(repo) => repo,
         }
     }
 }
@@ -49,6 +55,7 @@ impl std::ops::Deref for RepositoryHandle {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
+            RepositoryHandle::Proxy(repo) => &**repo,
         }
     }
 }
@@ -59,6 +66,7 @@ impl std::ops::DerefMut for RepositoryHandle {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
+            RepositoryHandle::Proxy(repo) => &mut **repo,
         }
     }
 }
@@ -78,25 +86,20 @@ impl From<rpc::RpcRepository> for RepositoryHandle {
         RepositoryHandle::Rpc(repo)
     }
 }
+impl From<proxy::ProxyRepository> for RepositoryHandle {
+    fn from(repo: proxy::ProxyRepository) -> Self {
+        RepositoryHandle::Proxy(Box::new(repo))
+    }
+}
 
 /// Open the repository at the given url address
+#[deprecated(
+    since = "0.32.0",
+    note = "instead, use the top-level one: spfs::open_repository(address)"
+)]
 pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
-    use url::Url;
-
-    let url = match Url::parse(address.as_ref()) {
-        Ok(url) => url,
-        Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
-    };
-
-    match url.scheme() {
-        "file" | "" => {
-            if url.path().ends_with(".tar") {
-                Ok(tar::TarRepository::open(url.path()).await?.into())
-            } else {
-                Ok(fs::FSRepository::open(url.path()).await?.into())
-            }
-        }
-        "http2" => Ok(rpc::RpcRepository::connect(url).await?.into()),
-        scheme => Err(format!("Unsupported repository scheme: '{scheme}'").into()),
-    }
+    crate::config::RemoteConfig::from_str(address)
+        .await?
+        .open()
+        .await
 }

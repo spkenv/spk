@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::{Parser, Subcommand};
 
 #[macro_use]
 mod args;
@@ -27,14 +27,14 @@ mod cmd_tag;
 mod cmd_tags;
 mod cmd_untag;
 mod cmd_version;
+mod cmd_write;
 
 main!(Opt);
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "spfs",
-    version = spfs::VERSION,
-    about = "Filesystem isolation, capture and distribution.",
+/// Filesystem isolation, capture and distribution.
+#[derive(Debug, Parser)]
+#[clap(
+    about,
     after_help = "EXTERNAL SUBCOMMANDS:\
                   \n    init         run a command in the current spfs shell environment\
                   \n    run          run a command in an spfs environment\
@@ -46,62 +46,39 @@ main!(Opt);
                   "
 )]
 pub struct Opt {
-    #[structopt(short = "v", long = "verbose", global = true, parse(from_occurrences))]
+    #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(short = "h", long = "help", about = "Prints help information")]
-    pub help: bool,
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub cmd: Command,
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt(setting = structopt::clap::AppSettings::DontDelimitTrailingValues)]
-#[structopt(setting = structopt::clap::AppSettings::TrailingVarArg)]
+#[derive(Debug, Subcommand)]
+#[clap(trailing_var_arg = true, dont_delimit_trailing_values = true)]
 pub enum Command {
-    #[structopt(about = "print the version of spfs")]
     Version(cmd_version::CmdVersion),
-    #[structopt(about = "make the current runtime editable")]
     Edit(cmd_edit::CmdEdit),
-    #[structopt(about = "commit the current runtime state to storage")]
     Commit(cmd_commit::CmdCommit),
-    #[structopt(about = "output configuration information")]
     Config(cmd_config::CmdConfig),
-    #[structopt(about = "rebuild /spfs with the requested refs, removing any active changes")]
     Reset(cmd_reset::CmdReset),
-    #[structopt(about = "tag an object")]
     Tag(cmd_tag::CmdTag),
-    #[structopt(about = "remove tag versions or entire tag streams")]
     Untag(cmd_untag::CmdUntag),
-    #[structopt(about = "list the current set of spfs runtimes")]
     Runtimes(cmd_runtimes::CmdRuntimes),
-    #[structopt(about = "list all layers in an spfs repository")]
     Layers(cmd_layers::CmdLayers),
-    #[structopt(about = "list all platforms in an spfs repository")]
     Platforms(cmd_platforms::CmdPlatforms),
-    #[structopt(about = "list all tags in an spfs repository")]
     Tags(cmd_tags::CmdTags),
-    #[structopt(about = "display information about the current environment or specific items")]
     Info(cmd_info::CmdInfo),
-    #[structopt(about = "log the history of a given tag over time")]
     Log(cmd_log::CmdLog),
-    #[structopt(about = "search for available tags by substring")]
     Search(cmd_search::CmdSearch),
-    #[structopt(about = "compare two spfs file system states")]
     Diff(cmd_diff::CmdDiff),
-    #[structopt(about = "list tags by their path", visible_aliases = &["list-tags"])]
     LsTags(cmd_ls_tags::CmdLsTags),
-    #[structopt(about = "list the contents of a committed directory", visible_aliases = &["list-dir", "list"])]
     Ls(cmd_ls::CmdLs),
-    #[structopt(about = "migrate the data from and older repository format to the latest one")]
     Migrate(cmd_migrate::CmdMigrate),
-    #[structopt(about = "check a repositories internal integrity")]
     Check(cmd_check::CmdCheck),
-    #[structopt(about = "clean the repository storage of untracked data")]
     Clean(cmd_clean::CmdClean),
-    #[structopt(about = "output the contents of a stored payload to stdout", visible_aliases = &["read-file", "cat", "cat-file"])]
     Read(cmd_read::CmdRead),
+    Write(cmd_write::CmdWrite),
 
-    #[structopt(external_subcommand)]
+    #[clap(external_subcommand)]
     External(Vec<String>),
 }
 
@@ -129,6 +106,7 @@ impl Opt {
             Command::Check(cmd) => cmd.run(config).await,
             Command::Clean(cmd) => cmd.run(config).await,
             Command::Read(cmd) => cmd.run(config).await,
+            Command::Write(cmd) => cmd.run(config).await,
             Command::External(args) => run_external_subcommand(args.clone()).await,
         }
     }
