@@ -21,7 +21,7 @@ use super::FSRepository;
 use crate::{
     encoding,
     storage::{
-        tag::{TagSpecAndTagStream, TagStream},
+        tag::{EntryType, TagSpecAndTagStream, TagStream},
         TagStorage,
     },
     tracking, Error, Result,
@@ -67,7 +67,10 @@ impl FSRepository {
 
 #[async_trait::async_trait]
 impl TagStorage for FSRepository {
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         let filepath = path.to_path(self.tags_root());
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
@@ -77,7 +80,6 @@ impl TagStorage for FSRepository {
             },
         };
 
-        let mut entries = std::collections::HashSet::new();
         let iter = read_dir.filter_map(move |entry| {
             let entry = match entry {
                 Err(err) => return Some(Err(err.into())),
@@ -85,31 +87,11 @@ impl TagStorage for FSRepository {
             };
             let path = entry.path();
             if path.extension() == Some(std::ffi::OsStr::new(TAG_EXT)) {
-                match path.file_stem().map(|s| s.to_string_lossy().to_string()) {
-                    None => None,
-                    Some(tag_name) => {
-                        if entries.insert(tag_name.clone()) {
-                            Some(Ok(tag_name))
-                        } else {
-                            None
-                        }
-                    }
-                }
+                path.file_stem()
+                    .map(|s| Ok(EntryType::Tag(s.to_string_lossy().to_string())))
             } else {
-                match path
-                    .file_name()
-                    .map(|s| s.to_string_lossy() + "/")
-                    .map(|s| s.to_string())
-                {
-                    None => None,
-                    Some(tag_dir) => {
-                        if entries.insert(tag_dir.clone()) {
-                            Some(Ok(tag_dir))
-                        } else {
-                            None
-                        }
-                    }
-                }
+                path.file_name()
+                    .map(|s| Ok(EntryType::Folder(s.to_string_lossy().to_string())))
             }
         });
         Box::pin(futures::stream::iter(iter))

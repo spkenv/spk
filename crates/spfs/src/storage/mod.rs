@@ -13,8 +13,8 @@ mod tag;
 mod config;
 pub mod fs;
 pub mod prelude;
-pub mod rpc;
 pub mod proxy;
+pub mod rpc;
 pub mod tar;
 
 pub use self::config::{FromConfig, FromUrl};
@@ -23,9 +23,9 @@ pub use layer::LayerStorage;
 pub use manifest::{ManifestStorage, ManifestViewer};
 pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
-pub use repository::Repository;
 pub use proxy::{Config, ProxyRepository};
-pub use tag::TagStorage;
+pub use repository::Repository;
+pub use tag::{EntryType, TagStorage};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]

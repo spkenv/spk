@@ -8,6 +8,7 @@ use futures::Stream;
 
 use super::config::get_config;
 use super::storage::prelude::*;
+use crate::storage::EntryType;
 use crate::Result;
 
 /// List tags and tag directories based on a tag path.
@@ -21,7 +22,7 @@ use crate::Result;
 ///     latest
 pub async fn ls_tags<P: AsRef<relative_path::RelativePath>>(
     path: Option<P>,
-) -> Pin<Box<dyn Stream<Item = Result<String>>>> {
+) -> Pin<Box<dyn Stream<Item = Result<EntryType>>>> {
     let repo = match get_config() {
         Ok(c) => match c.get_repository().await {
             Ok(repo) => repo,

@@ -9,6 +9,7 @@ use futures::{Stream, TryStreamExt};
 use relative_path::RelativePath;
 
 use crate::proto::{self, tag_service_client::TagServiceClient, RpcResult};
+use crate::storage::EntryType;
 use crate::{
     encoding,
     storage::{self, tag::TagSpecAndTagStream},
@@ -33,7 +34,10 @@ impl storage::TagStorage for super::RpcRepository {
         response.to_result()?.try_into()
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         let request = proto::LsTagsRequest {
             path: path.to_string(),
         };
@@ -41,7 +45,7 @@ impl storage::TagStorage for super::RpcRepository {
         let stream = futures::stream::once(async move { client.ls_tags(request).await })
             .map_err(crate::Error::from)
             .and_then(|r| async { r.into_inner().to_result() })
-            .map_ok(|resp| futures::stream::iter(resp.entries.into_iter().map(Ok)))
+            .map_ok(|resp| futures::stream::iter(resp.entries.into_iter().map(TryInto::try_into)))
             .try_flatten();
         Box::pin(stream)
     }

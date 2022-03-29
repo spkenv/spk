@@ -6,7 +6,7 @@ use std::os::unix::fs::MetadataExt;
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::storage::{fs::FSRepository, TagStorage};
+use crate::storage::{fs::FSRepository, EntryType, TagStorage};
 use crate::{encoding, tracking, Result};
 use relative_path::RelativePathBuf;
 
@@ -149,7 +149,7 @@ async fn test_ls_tags(#[future] tmprepo: TempRepo) {
         .collect::<Result<Vec<_>>>()
         .await
         .unwrap();
-    assert_eq!(tags, vec!["spi/".to_string()]);
+    assert_eq!(tags, vec![EntryType::Folder("spi".to_string())]);
     tags = tmprepo
         .ls_tags(&RelativePathBuf::from("/spi"))
         .collect::<Result<Vec<_>>>()
@@ -159,9 +159,9 @@ async fn test_ls_tags(#[future] tmprepo: TempRepo) {
     assert_eq!(
         tags,
         vec![
-            "latest/".to_string(),
-            "stable".to_string(),
-            "stable/".to_string()
+            EntryType::Folder("latest".to_string()),
+            EntryType::Folder("stable".to_string()),
+            EntryType::Tag("stable".to_string()),
         ]
     );
     tags = tmprepo
@@ -170,7 +170,13 @@ async fn test_ls_tags(#[future] tmprepo: TempRepo) {
         .await
         .unwrap();
     tags.sort();
-    assert_eq!(tags, vec!["my_tag".to_string(), "other_tag".to_string()]);
+    assert_eq!(
+        tags,
+        vec![
+            EntryType::Tag("my_tag".to_string()),
+            EntryType::Tag("other_tag".to_string())
+        ]
+    );
 }
 
 #[rstest(
@@ -202,7 +208,13 @@ async fn test_rm_tags(#[future] tmprepo: TempRepo) {
         .await
         .unwrap();
     tags.sort();
-    assert_eq!(tags, vec!["latest/", "stable/"]);
+    assert_eq!(
+        tags,
+        vec![
+            EntryType::Folder("latest".to_string()),
+            EntryType::Folder("stable".to_string())
+        ]
+    );
     tmprepo
         .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/my_tag").unwrap())
         .await
@@ -212,7 +224,7 @@ async fn test_rm_tags(#[future] tmprepo: TempRepo) {
         .collect::<Result<Vec<_>>>()
         .await
         .unwrap();
-    assert_eq!(tags, vec!["other_tag"]);
+    assert_eq!(tags, vec![EntryType::Tag("other_tag".to_string())]);
     tmprepo
         .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/other_tag").unwrap())
         .await
@@ -224,7 +236,7 @@ async fn test_rm_tags(#[future] tmprepo: TempRepo) {
         .unwrap();
     assert_eq!(
         tags,
-        vec!["latest/"],
+        vec![EntryType::Folder("latest".to_string())],
         "should remove empty tag folders during cleanup"
     );
 }

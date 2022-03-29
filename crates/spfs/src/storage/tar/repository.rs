@@ -11,7 +11,7 @@ use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::graph;
-use crate::storage::tag::TagSpecAndTagStream;
+use crate::storage::{tag::TagSpecAndTagStream, EntryType};
 use crate::Result;
 use crate::{encoding, prelude::*, storage, tracking};
 
@@ -196,7 +196,10 @@ impl TagStorage for TarRepository {
         self.repo.resolve_tag(tag_spec).await
     }
 
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         self.repo.ls_tags(path)
     }
 

@@ -9,6 +9,7 @@ use relative_path::RelativePath;
 
 use crate::graph;
 use crate::storage::tag::TagSpecAndTagStream;
+use crate::storage::EntryType;
 use crate::Result;
 use crate::{encoding, prelude::*, storage, tracking};
 
@@ -149,7 +150,10 @@ impl PayloadStorage for ProxyRepository {
 
 #[async_trait::async_trait]
 impl TagStorage for ProxyRepository {
-    fn ls_tags(&self, path: &RelativePath) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         self.primary.ls_tags(path)
     }
 
