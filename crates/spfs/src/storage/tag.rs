@@ -133,12 +133,12 @@ pub trait TagStorage: Send + Sync {
         let mut new_tag = tracking::Tag::new(tag.org(), tag.name(), *target)?;
         new_tag.parent = parent_ref;
 
-        self.push_raw_tag(&new_tag).await?;
+        self.insert_raw_tag(&new_tag).await?;
         Ok(new_tag)
     }
 
     /// Push the given tag data to the tag stream, regardless of if it's valid.
-    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()>;
+    async fn insert_raw_tag(&self, tag: &tracking::Tag) -> Result<()>;
 
     /// Remove an entire tag and all related tag history.
     ///
@@ -180,8 +180,8 @@ impl<T: TagStorage> TagStorage for &T {
         TagStorage::read_tag(&**self, tag).await
     }
 
-    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        TagStorage::push_raw_tag(&**self, tag).await
+    async fn insert_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        TagStorage::insert_raw_tag(&**self, tag).await
     }
 
     async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {

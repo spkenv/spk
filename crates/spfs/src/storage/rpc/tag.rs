@@ -99,14 +99,14 @@ impl storage::TagStorage for super::RpcRepository {
         read_tag(self.tag_client.clone(), tag).await
     }
 
-    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    async fn insert_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let request = proto::PushRawTagRequest {
             tag: Some(tag.into()),
         };
         let _response = self
             .tag_client
             .clone()
-            .push_raw_tag(request)
+            .insert_raw_tag(request)
             .await?
             .into_inner()
             .to_result()?;
