@@ -2,17 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 use tokio_stream::StreamExt;
 
-#[derive(Debug, StructOpt)]
+use spfs::io::{self, DigestFormat};
+
+/// List all layers in an spfs repository
+#[derive(Debug, Args)]
 pub struct CmdLayers {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Show layers from remote repository instead of the local one"
-    )]
+    /// Show layers from remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
+
+    /// Show the shortened form of each reported layer digest
+    #[clap(long)]
+    short: bool,
+
+    /// Also find and report any tags that point to each layer, implies --short
+    #[clap(long)]
+    tags: bool,
 }
 
 impl CmdLayers {
@@ -24,11 +32,22 @@ impl CmdLayers {
         let mut layers = repo.iter_layers();
         while let Some(layer) = layers.next().await {
             let (digest, _) = layer?;
-            println!(
-                "{}",
-                spfs::io::format_digest(&digest.to_string(), Some(&repo)).await?
-            );
+            println!("{}", self.format_digest(digest, &repo).await?);
         }
         Ok(0)
+    }
+
+    async fn format_digest<'repo>(
+        &self,
+        digest: spfs::encoding::Digest,
+        repo: &'repo spfs::storage::RepositoryHandle,
+    ) -> spfs::Result<String> {
+        if self.tags {
+            io::format_digest(digest, DigestFormat::ShortenedWithTags(repo)).await
+        } else if self.short {
+            io::format_digest(digest, DigestFormat::Shortened(repo)).await
+        } else {
+            io::format_digest(digest, DigestFormat::Full).await
+        }
     }
 }

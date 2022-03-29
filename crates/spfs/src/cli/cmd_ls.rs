@@ -2,25 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// List the contents of a committed directory
+#[derive(Debug, Args)]
+#[clap(visible_aliases = &["list-dir", "list"])]
 pub struct CmdLs {
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "Operate on a remote repository instead of the local one"
-    )]
+    /// List files on a remote repository instead of the local one
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        value_name = "REF",
-        about = "The tag or digest of the file tree to read from"
-    )]
+
+    /// The tag or digest of the file tree to read from
+    #[clap(value_name = "REF")]
     reference: String,
-    #[structopt(
-        default_value = "/",
-        about = "The subdirectory to list, defaults to the root ('/spfs')"
-    )]
+
+    /// The subdirectory to list
+    #[clap(default_value = "/spfs")]
     path: String,
 }
 

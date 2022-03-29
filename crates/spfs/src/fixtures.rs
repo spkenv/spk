@@ -108,6 +108,7 @@ pub fn tmpdir() -> TempDir {
 
 #[fixture(kind = "fs")]
 pub async fn tmprepo(kind: &str) -> TempRepo {
+    use crate::storage::prelude::*;
     init_logging();
     let tmpdir = tmpdir();
     match kind {
@@ -186,7 +187,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 tokio::task::spawn(async move { http_future.await.expect("http server failed") });
             let url = format!("http2://{local_grpc_addr}").parse().unwrap();
             tracing::debug!("Connected to rpc test repo: {url}");
-            let repo = spfs::storage::rpc::RpcRepository::connect(url)
+            let repo = spfs::storage::rpc::RpcRepository::from_url(&url)
                 .await
                 .unwrap()
                 .into();

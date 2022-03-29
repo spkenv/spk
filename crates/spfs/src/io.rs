@@ -6,45 +6,65 @@ use colored::*;
 
 use crate::{encoding, storage, tracking, Result};
 
-/// Return a nicely formatted string representation of the given reference.
-pub async fn format_digest<R: AsRef<str>>(
-    reference: R,
-    repo: Option<&storage::RepositoryHandle>,
-) -> Result<String> {
-    let reference = reference.as_ref().to_string();
-    let all = match repo {
-        Some(repo) => {
-            let mut aliases: Vec<_> = match repo.find_aliases(reference.as_str()).await {
-                Ok(aliases) => aliases.into_iter().map(|r| r.to_string()).collect(),
-                // Formatting an invalid reference is strange, but not a good enough
-                // reason to return an error at this point
-                Err(crate::Error::InvalidReference(_)) => Default::default(),
-                // this is unlikely to happen, if things are setup and called correctly
-                // but in cases where this error does come up it's not a good enough reason
-                // to fail this formatting process
-                Err(crate::Error::UnknownReference(_)) => Default::default(),
-                // we won't be able to find aliases, but can still continue
-                // with formatting what we do have
-                Err(crate::Error::AmbiguousReference(_)) => Default::default(),
-                // this hints at deeper data integrity issues in the repository,
-                // but that is not a good enought reason to bail out here
-                Err(crate::Error::UnknownObject(_)) => Default::default(),
-                Err(err) => return Err(err),
-            };
+/// Specifies how a digest should be formatted
+///
+/// Some choices require access to the repostory that
+/// the digest was loaded from in order to resolve further
+/// information
+pub enum DigestFormat<'repo> {
+    Full,
+    Shortened(&'repo storage::RepositoryHandle),
+    ShortenedWithTags(&'repo storage::RepositoryHandle),
+}
 
-            let reference = if let Ok(digest) = encoding::parse_digest(&reference) {
-                repo.get_shortened_digest(digest).await
-            } else {
-                reference
-            };
-            let mut all = vec![reference];
-            all.append(&mut aliases);
-            all
+impl<'repo> DigestFormat<'repo> {
+    /// The repostory handle contained in this enum, if any
+    pub fn repository(&self) -> Option<&'repo storage::RepositoryHandle> {
+        match self {
+            Self::Full => None,
+            Self::Shortened(r) => Some(r),
+            Self::ShortenedWithTags(r) => Some(r),
         }
-        None => vec![reference],
+    }
+}
+
+/// Return a nicely formatted string representation of the given reference.
+pub async fn format_digest(digest: encoding::Digest, format: DigestFormat<'_>) -> Result<String> {
+    let mut all = match format.repository() {
+        Some(repo) => {
+            vec![repo.get_shortened_digest(digest).await]
+        }
+        None => {
+            vec![digest.to_string()]
+        }
     };
 
-    Ok(all.join(" -> "))
+    if let DigestFormat::ShortenedWithTags(repo) = format {
+        let mut aliases: Vec<_> = match repo.find_aliases(&digest.to_string()).await {
+            Ok(aliases) => aliases
+                .into_iter()
+                .map(|r| r.to_string().dimmed().to_string())
+                .collect(),
+            // Formatting an invalid reference is strange, but not a good enough
+            // reason to return an error at this point
+            Err(crate::Error::InvalidReference(_)) => Default::default(),
+            // this is unlikely to happen, if things are setup and called correctly
+            // but in cases where this error does come up it's not a good enough reason
+            // to fail this formatting process
+            Err(crate::Error::UnknownReference(_)) => Default::default(),
+            // we won't be able to find aliases, but can still continue
+            // with formatting what we do have
+            Err(crate::Error::AmbiguousReference(_)) => Default::default(),
+            // this hints at deeper data integrity issues in the repository,
+            // but that is not a good enought reason to bail out here
+            Err(crate::Error::UnknownObject(_)) => Default::default(),
+            Err(err) => return Err(err),
+        };
+
+        all.append(&mut aliases);
+    }
+
+    Ok(all.join(&" -> ".cyan().to_string()))
 }
 
 /// Return a human readable string rendering of the given diffs.

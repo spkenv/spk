@@ -2,42 +2,73 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use std::path::PathBuf;
 
-use spfs::{encoding::Encodable, storage::TagStorage};
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+use spfs::encoding::Encodable;
+
+/// Commit the current runtime state or a directory to storage
+#[derive(Debug, Args)]
 pub struct CmdCommit {
-    #[structopt(
-        long = "tag",
-        short = "t",
-        about = "Can be given many times: human-readable tags to update with the resulting object"
-    )]
+    /// Commit files directly into a remote repository
+    ///
+    /// The default is to commit to the local repository. This flag
+    /// only with the --path argument
+    #[clap(long, short)]
+    remote: Option<String>,
+
+    /// A human-readable tag for the generated object
+    ///
+    /// Can be provided more than once.
+    #[clap(long = "tag", short)]
     tags: Vec<String>,
-    #[structopt(
+
+    /// Commit this directory instead of the current spfs changes
+    #[clap(long)]
+    path: Option<PathBuf>,
+
+    /// The desired object type to create, skip this when giving --path
+    #[clap(
         possible_values = &["layer", "platform"],
-        about = "The desired object type to create"
+        conflicts_with_all = &["path", "remote"],
+        required_unless_present = "path",
     )]
-    kind: String,
+    kind: Option<String>,
 }
 
 impl CmdCommit {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut runtime = spfs::active_runtime()?;
+        let repo = match &self.remote {
+            Some(remote) => config.get_remote(remote).await?,
+            None => config.get_repository().await?.into(),
+        };
 
-        if !runtime.is_editable() {
-            tracing::error!("Active runtime is not editable, nothing to commmit");
-            return Ok(1);
-        }
+        let result: spfs::graph::Object = if let Some(path) = &self.path {
+            let manifest = repo.commit_dir(path).await?;
+            if manifest.is_empty() {
+                return Err(spfs::Error::NothingToCommit);
+            }
+            repo.create_layer(&spfs::graph::Manifest::from(&manifest))
+                .await?
+                .into()
+        } else {
+            // no path give, commit the current runtime
 
-        let repo = config.get_repository().await?;
+            let mut runtime = spfs::active_runtime()?;
 
-        let result: spfs::graph::Object = match self.kind.as_str() {
-            "layer" => spfs::commit_layer(&mut runtime).await?.into(),
-            "platform" => spfs::commit_platform(&mut runtime).await?.into(),
-            _ => {
-                tracing::error!("cannot commit {}", self.kind);
+            if !runtime.is_editable() {
+                tracing::error!("Active runtime is not editable, nothing to commmit");
                 return Ok(1);
+            }
+
+            match self.kind.clone().unwrap_or_default().as_str() {
+                "layer" => spfs::commit_layer(&mut runtime).await?.into(),
+                "platform" => spfs::commit_platform(&mut runtime).await?.into(),
+                kind => {
+                    tracing::error!("don't know how to commit a '{}'", kind);
+                    return Ok(1);
+                }
             }
         };
 
@@ -53,8 +84,10 @@ impl CmdCommit {
             repo.push_tag(&tag_spec, &result.digest()?).await?;
             tracing::info!(?tag, "created");
         }
+        if self.kind.is_some() {
+            tracing::info!("edit mode disabled");
+        }
 
-        tracing::info!("edit mode disabled");
         Ok(0)
     }
 }

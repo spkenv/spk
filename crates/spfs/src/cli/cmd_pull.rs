@@ -2,30 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Parser;
 
 #[macro_use]
 mod args;
 
 main!(CmdPull);
 
-#[derive(Debug, StructOpt)]
-#[structopt(about = "pull one or more objects to the local repository")]
+/// Pull one or more objects to the local repository
+#[derive(Debug, Parser)]
 pub struct CmdPull {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(
-        long = "remote",
-        short = "r",
-        about = "the name or address of the remote server to pull from, \
-                 defaults to searching all configured remotes"
-    )]
+
+    /// The name or address of the remote server to pull from
+    ///
+    /// Defaults to searching all configured remotes
+    #[clap(long, short)]
     remote: Option<String>,
-    #[structopt(
-        value_name = "REF",
-        required = true,
-        about = "the reference(s) to pull/localize"
-    )]
+
+    /// The reference(s) to pull/localize
+    #[clap(value_name = "REF", required = true)]
     refs: Vec<String>,
 }
 

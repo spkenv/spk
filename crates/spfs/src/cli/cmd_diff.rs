@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// Compare two spfs file system states
+#[derive(Debug, Args)]
 pub struct CmdDiff {
-    #[structopt(
-        value_name = "FROM",
-        about = "The tag or id to use as the base of the computed diff, defaults to the current runtime"
-    )]
+    /// The tag or id to use as the base of the computed diff, defaults to the current runtime
+    #[clap(value_name = "FROM")]
     base: Option<String>,
-    #[structopt(
-        value_name = "TO",
-        about = "The tag or id to diff the base against, defaults to the contents of /spfs"
-    )]
+
+    /// The tag or id to diff the base against, defaults to the contents of the spfs filesystem
+    #[clap(value_name = "TO")]
     top: Option<String>,
 }
 

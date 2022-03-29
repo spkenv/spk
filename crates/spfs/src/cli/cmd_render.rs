@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use spfs::prelude::*;
 
@@ -11,20 +11,19 @@ mod args;
 
 main!(CmdRender);
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct CmdRender {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(
-        long = "allow-existing",
-        help = "Allow re-rendering when the target directory is not empty"
-    )]
+
+    /// Allow re-rendering when the target directory is not empty
+    #[clap(long = "allow-existing")]
     allow_existing: bool,
-    #[structopt(help = "The tag or digest of what to render, use a '+' to join multiple layers")]
+
+    /// The tag or digest of what to render, use a '+' to join multiple layers
     reference: String,
-    #[structopt(
-        help = "Alternate path to render the manifest into (defaults to the local repository)"
-    )]
+
+    /// Alternate path to render the manifest into (defaults to the local repository)
     target: Option<std::path::PathBuf>,
 }
 

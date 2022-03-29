@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use structopt::StructOpt;
+use clap::Args;
 
-#[derive(Debug, StructOpt)]
+/// Migrate the data from and older repository format to the latest one
+#[derive(Debug, Args)]
 pub struct CmdMigrate {
-    #[structopt(
-        long = "upgrade",
-        about = "Replace old data with migrated data one complete"
-    )]
+    /// Replace old data with migrated data one complete
+    #[clap(long)]
     upgrade: bool,
-    #[structopt(about = "The path to the filesystem repository to migrate")]
+
+    /// The path to the filesystem repository to migrate
     path: String,
 }
 

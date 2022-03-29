@@ -4,43 +4,35 @@
 
 use std::ffi::OsString;
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use spfs::prelude::*;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "spfs-run",
-    about = "Run a program in a configured spfs environment"
-)]
+/// Run a program in a configured spfs environment
+#[derive(Debug, Parser)]
+#[clap(name = "spfs-run")]
 pub struct CmdRun {
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-    #[structopt(
-        short = "p",
-        long = "pull",
-        help = "try to pull the latest iteration of each tag even if it exists locally"
-    )]
+
+    /// Try to pull the latest iteration of each tag even if it exists locally
+    #[clap(short, long)]
     pub pull: bool,
-    #[structopt(
-        short = "e",
-        long = "edit",
-        help = "mount the /spfs filesystem in edit mode (true if REF is empty or not given)"
-    )]
+
+    /// Mount the spfs filesystem in edit mode (true if REF is empty or not given)
+    #[clap(short, long)]
     pub edit: bool,
-    #[structopt(
-        short = "n",
-        long = "name",
-        about = "provide a name for this runtime to make it easier to identify"
-    )]
+
+    /// Provide a name for this runtime to make it easier to identify
+    #[clap(short, long)]
     pub name: Option<String>,
-    #[structopt(
-        help = "The tag or id of the desired runtime, use '-' or an empty string to request an empty environment"
-    )]
+
+    /// The tag or id of the desired runtime
+    ///
+    /// Use '-' or an empty string to request an empty environment
     pub reference: String,
-    #[structopt()]
+
     pub cmd: OsString,
-    #[structopt()]
     pub args: Vec<OsString>,
 }
 
