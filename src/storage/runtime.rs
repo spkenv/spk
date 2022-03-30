@@ -228,7 +228,7 @@ fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> 
 
 async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
     let runtime = spfs::active_runtime()?;
-    let repo = spfs::load_config()?.get_repository().await?.into();
+    let repo = spfs::get_config()?.get_repository().await?.into();
 
     let stack = runtime.get_stack();
     let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo)).await?;

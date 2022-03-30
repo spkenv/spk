@@ -535,7 +535,7 @@ pub async fn commit_component_layers(
     runtime: &mut spfs::runtime::Runtime,
 ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
     let layer = spfs::commit_layer(runtime).await?;
-    let config = spfs::load_config()?;
+    let config = spfs::get_config()?;
     let repo = config.get_repository().await?;
     let manifest = repo.read_manifest(layer.manifest).await?.unlock();
     let manifests = split_manifest_by_component(&spec.pkg, &manifest, &spec.install.components)?;
