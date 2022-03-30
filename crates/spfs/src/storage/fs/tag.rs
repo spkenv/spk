@@ -148,7 +148,7 @@ impl TagStorage for FSRepository {
         }
     }
 
-    async fn insert_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;

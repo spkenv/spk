@@ -84,10 +84,10 @@ message ReadTagResponse {
     }
 }
 
-message InsertRawTagRequest {
+message InsertTagRequest {
     Tag tag = 1;
 }
-message InsertRawTagResponse {
+message InsertTagResponse {
     oneof result {
         Error error = 1;
         Ok ok = 2;
@@ -120,7 +120,7 @@ service TagService {
     rpc FindTags(FindTagsRequest) returns (FindTagsResponse);
     rpc IterTagSpecs(IterTagSpecsRequest) returns (IterTagSpecsResponse);
     rpc ReadTag(ReadTagRequest) returns (ReadTagResponse);
-    rpc InsertRawTag(InsertRawTagRequest) returns (InsertRawTagResponse);
+    rpc InsertTag(InsertTagRequest) returns (InsertTagResponse);
     rpc RemoveTagStream(RemoveTagStreamRequest) returns (RemoveTagStreamResponse);
     rpc RemoveTag(RemoveTagRequest) returns (RemoveTagResponse);
 }

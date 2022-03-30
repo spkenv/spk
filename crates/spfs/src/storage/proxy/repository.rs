@@ -190,8 +190,8 @@ impl TagStorage for ProxyRepository {
         res
     }
 
-    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.primary.push_raw_tag(tag).await?;
+    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        self.primary.insert_tag(tag).await?;
         Ok(())
     }
 

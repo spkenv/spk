@@ -89,14 +89,14 @@ impl proto::tag_service_server::TagService for TagService {
         Ok(Response::new(data))
     }
 
-    async fn insert_raw_tag(
+    async fn insert_tag(
         &self,
-        request: tonic::Request<proto::InsertRawTagRequest>,
-    ) -> Result<tonic::Response<proto::InsertRawTagResponse>, tonic::Status> {
+        request: tonic::Request<proto::InsertTagRequest>,
+    ) -> Result<tonic::Response<proto::InsertTagResponse>, tonic::Status> {
         let request = request.into_inner();
         let tag = proto::handle_error!(request.tag.try_into());
-        proto::handle_error!(self.repo.insert_raw_tag(&tag).await);
-        let data = proto::InsertRawTagResponse::ok(proto::Ok {});
+        proto::handle_error!(self.repo.insert_tag(&tag).await);
+        let data = proto::InsertTagResponse::ok(proto::Ok {});
         Ok(Response::new(data))
     }
 
