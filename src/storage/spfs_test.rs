@@ -25,7 +25,7 @@ fn test_metadata_io(tmpdir: tempdir::TempDir) {
     let _guard = crate::HANDLE.enter();
     init_logging();
     let repo_root = tmpdir.path();
-    let mut repo = SPFSRepository::from(
+    let repo = SPFSRepository::from(
         crate::HANDLE
             .block_on(spfs::storage::fs::FSRepository::create(repo_root))
             .unwrap(),
@@ -43,7 +43,7 @@ fn test_upgrade_sets_version(tmpdir: tempdir::TempDir) {
     init_logging();
     let current_version = crate::api::Version::from_str(super::REPO_VERSION).unwrap();
     let repo_root = tmpdir.path();
-    let mut repo = SPFSRepository::from(
+    let repo = SPFSRepository::from(
         crate::HANDLE
             .block_on(spfs::storage::fs::FSRepository::create(repo_root))
             .unwrap(),
@@ -75,7 +75,7 @@ fn test_upgrade_changes_tags(tmpdir: tempdir::TempDir) {
     let spfs_repo = crate::HANDLE
         .block_on(spfs::storage::fs::FSRepository::create(repo_root))
         .unwrap();
-    let mut repo = crate::HANDLE
+    let repo = crate::HANDLE
         .block_on(SPFSRepository::new(&format!(
             "file://{}",
             repo_root.display()

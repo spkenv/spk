@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use pyo3::prelude::*;
@@ -44,7 +44,7 @@ impl CollectionError {
 #[pyclass]
 pub struct SourcePackageBuilder {
     spec: api::Spec,
-    repo: Option<Arc<Mutex<storage::RepositoryHandle>>>,
+    repo: Option<Arc<storage::RepositoryHandle>>,
     prefix: PathBuf,
 }
 
@@ -79,7 +79,7 @@ impl SourcePackageBuilder {
 impl SourcePackageBuilder {
     /// Set the repository that the created package should be published to.
     pub fn with_target_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repo = Some(Arc::new(repo.into()));
+        self.repo = Some(Arc::new(repo));
         self
     }
 
@@ -90,15 +90,13 @@ impl SourcePackageBuilder {
             Some(r) => r,
             None => {
                 let repo = crate::HANDLE.block_on(storage::local_repository())?;
-                self.repo.insert(Arc::new(Mutex::new(repo.into())))
+                self.repo.insert(Arc::new(repo.into()))
             }
         };
         let pkg = self.spec.pkg.clone();
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
-        repo.lock()
-            .unwrap()
-            .publish_package(self.spec.clone(), components)?;
+        repo.publish_package(self.spec.clone(), components)?;
         Ok(pkg)
     }
 

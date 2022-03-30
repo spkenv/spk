@@ -6,7 +6,7 @@ use std::{
     ffi::OsString,
     io::Write,
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc,  RwLock},
 };
 
 use pyo3::prelude::*;
@@ -19,7 +19,7 @@ pub struct PackageInstallTester {
     prefix: PathBuf,
     spec: api::Spec,
     script: String,
-    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
+    repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: Option<PathBuf>,
@@ -38,7 +38,7 @@ impl PackageInstallTester {
     }
 
     pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repos.push(Arc::new(Mutex::new(repo)));
+        self.repos.push(Arc::new(repo));
         self
     }
 
@@ -46,8 +46,7 @@ impl PackageInstallTester {
         &mut self,
         repos: impl IntoIterator<Item = storage::RepositoryHandle>,
     ) -> &mut Self {
-        self.repos
-            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
+        self.repos.extend(repos.into_iter().map(Arc::new));
         self
     }
 

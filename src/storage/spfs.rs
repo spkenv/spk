@@ -216,7 +216,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn publish_spec(&mut self, spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, spec: api::Spec) -> Result<()> {
         let spec = Handle::current().block_on(async {
             if spec.pkg.build.is_some() {
                 return Err(api::InvalidBuildError::new_error(
@@ -236,7 +236,7 @@ impl Repository for SPFSRepository {
         self.force_publish_spec(spec)
     }
 
-    fn remove_spec(&mut self, pkg: &api::Ident) -> Result<()> {
+    fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
         Handle::current().block_on(async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
@@ -250,7 +250,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn force_publish_spec(&mut self, spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
         Handle::current().block_on(async {
             if let Some(api::Build::Embedded) = spec.pkg.build {
                 return Err(api::InvalidBuildError::new_error(
@@ -276,7 +276,7 @@ impl Repository for SPFSRepository {
     }
 
     fn publish_package(
-        &mut self,
+        &self,
         spec: api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
@@ -323,7 +323,7 @@ impl Repository for SPFSRepository {
         Ok(())
     }
 
-    fn remove_package(&mut self, pkg: &api::Ident) -> Result<()> {
+    fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
         Handle::current().block_on(async {
             for tag_spec in self.lookup_package(pkg).await?.tags() {
                 match self.inner.remove_tag_stream(tag_spec).await {
@@ -345,7 +345,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn upgrade(&mut self) -> Result<String> {
+    fn upgrade(&self) -> Result<String> {
         let target_version = crate::api::Version::from_str(REPO_VERSION).unwrap();
         let mut meta = Handle::current().block_on(self.read_metadata())?;
         if meta.version > target_version {
@@ -415,7 +415,7 @@ impl SPFSRepository {
     }
 
     /// Update the metadata for this spk repository.
-    async fn write_metadata(&mut self, meta: &RepositoryMetadata) -> Result<()> {
+    async fn write_metadata(&self, meta: &RepositoryMetadata) -> Result<()> {
         let tag_spec = spfs::tracking::TagSpec::parse(REPO_METADATA_TAG).unwrap();
         let yaml = serde_yaml::to_string(meta)?;
         let (digest, _size) = self

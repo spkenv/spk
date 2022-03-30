@@ -5,7 +5,7 @@
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use pyo3::prelude::*;
 
@@ -17,7 +17,7 @@ pub struct PackageSourceTester {
     prefix: PathBuf,
     spec: api::Spec,
     script: String,
-    repos: Vec<Arc<Mutex<storage::RepositoryHandle>>>,
+    repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: Option<PathBuf>,
@@ -36,7 +36,7 @@ impl PackageSourceTester {
     }
 
     pub fn with_repository(&mut self, repo: storage::RepositoryHandle) -> &mut Self {
-        self.repos.push(Arc::new(Mutex::new(repo)));
+        self.repos.push(Arc::new(repo));
         self
     }
 
@@ -44,8 +44,7 @@ impl PackageSourceTester {
         &mut self,
         repos: impl IntoIterator<Item = storage::RepositoryHandle>,
     ) -> &mut Self {
-        self.repos
-            .extend(repos.into_iter().map(Mutex::new).map(Arc::new));
+        self.repos.extend(repos.into_iter().map(Arc::new));
         self
     }
 
