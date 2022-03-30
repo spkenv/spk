@@ -83,7 +83,10 @@ rpc_result!(
     gen::read_tag_response::Result,
     gen::read_tag_response::TagList
 );
-rpc_result!(gen::PushRawTagResponse, gen::push_raw_tag_response::Result);
+rpc_result!(
+    gen::InsertRawTagResponse,
+    gen::insert_raw_tag_response::Result
+);
 rpc_result!(
     gen::RemoveTagStreamResponse,
     gen::remove_tag_stream_response::Result

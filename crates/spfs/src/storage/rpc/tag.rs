@@ -100,7 +100,7 @@ impl storage::TagStorage for super::RpcRepository {
     }
 
     async fn insert_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        let request = proto::PushRawTagRequest {
+        let request = proto::InsertRawTagRequest {
             tag: Some(tag.into()),
         };
         let _response = self
