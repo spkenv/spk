@@ -137,7 +137,11 @@ pub trait TagStorage: Send + Sync {
         Ok(new_tag)
     }
 
-    /// Push the given tag data to the tag stream, regardless of if it's valid.
+    /// Insert the given tag into the tag stream, regardless of if it's valid.
+    ///
+    /// This insertion must sort the tag in order of datetime with any
+    /// existing tags in the stream so that `read_tag` streams tags from newest
+    /// to oldest.
     async fn insert_raw_tag(&self, tag: &tracking::Tag) -> Result<()>;
 
     /// Remove an entire tag and all related tag history.
