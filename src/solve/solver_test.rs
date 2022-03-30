@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
@@ -29,7 +29,7 @@ macro_rules! make_repo {
         make_repo!([ $( $spec ),* ], options=options)
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
-        let mut repo = crate::storage::RepositoryHandle::new_mem();
+        let repo = crate::storage::RepositoryHandle::new_mem();
         let _opts = $options;
         $(
             let (s, cmpts) = make_package!(repo, $spec, &_opts);
@@ -227,7 +227,7 @@ fn test_solver_no_requests(mut solver: Solver) {
 
 #[rstest]
 fn test_solver_package_with_no_spec(mut solver: Solver) {
-    let mut repo = crate::storage::RepositoryHandle::new_mem();
+    let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
     let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
@@ -241,7 +241,7 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
     repo.publish_package(spec, components).unwrap();
 
     solver.update_options(options);
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
     let res = io::run_and_print_resolve(&solver, 100);
@@ -254,7 +254,7 @@ fn test_solver_single_package_no_deps(mut solver: Solver) {
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
 
     solver.update_options(options);
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -281,7 +281,7 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
     );
 
     solver.update_options(options);
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-b/1.1"));
 
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -309,7 +309,7 @@ fn test_solver_dependency_abi_compat(mut solver: Solver) {
     );
 
     solver.update_options(options);
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-b/1.1"));
 
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -333,7 +333,7 @@ fn test_solver_dependency_incompatible(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin/1"));
     // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request(request!("maya/2019"));
@@ -363,7 +363,7 @@ fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin/1"));
     // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
     solver.add_request(request!("maya/2019"));
@@ -394,7 +394,7 @@ fn test_solver_dependency_already_satisfied(mut solver: Solver) {
             {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1/1"}]}},
         ]
     );
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
 
@@ -428,7 +428,7 @@ fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
             },
         ]
     );
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
@@ -460,7 +460,7 @@ fn test_solver_dependency_reiterate(mut solver: Solver) {
             },
         ]
     );
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
     let packages = io::run_and_print_resolve(&solver, 100).unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
@@ -491,7 +491,7 @@ fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
             },
         ]
     );
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
     let result = io::run_and_print_resolve(&solver, 100);
     assert!(matches!(result, Err(Error::PyErr(_)))); // should have been SolverError
@@ -507,7 +507,7 @@ fn test_solver_pre_release_config(mut solver: Solver) {
             {"pkg": "my-pkg/1.0.0-pre.2"},
         ]
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
@@ -547,7 +547,7 @@ fn test_solver_constraint_only(mut solver: Solver) {
             }
         ]
     );
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
@@ -579,7 +579,7 @@ fn test_solver_constraint_and_request(mut solver: Solver) {
             {"pkg": "python/3.8.1"},
         ]
     );
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
@@ -607,9 +607,9 @@ fn test_solver_option_compatibility(mut solver: Solver) {
     let py37 = make_build!({"pkg": "python/3.7.3"});
     let for_py27 = make_build!(spec, [py27]);
     let for_py37 = make_build!(spec, [py37]);
-    let mut repo = make_repo!([for_py27, for_py37]);
+    let repo = make_repo!([for_py27, for_py37]);
     repo.publish_spec(spec).unwrap();
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     for pyver in ["2", "2.7", "2.7.5", "3", "3.7", "3.7.3"] {
         solver.reset();
@@ -663,10 +663,10 @@ fn test_solver_option_injection(mut solver: Solver) {
         }
     );
     let build = make_build!(spec, [pybuild]);
-    let mut repo = make_repo!([build]);
+    let repo = make_repo!([build]);
     repo.publish_spec(spec).unwrap();
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
@@ -715,7 +715,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
         ],
         options={"debug" => "off"}
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     // the new option value should disqulify the existing build
@@ -768,7 +768,7 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
         options={"gcc"=>"4.8"}
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     // the new option value should disqualify the existing build
     // and there is no 6.3 that can be resolved for this request
     solver.add_request(request!({"var": "gcc/6.3"}));
@@ -816,7 +816,7 @@ fn test_solver_build_from_source_dependency(mut solver: Solver) {
     // the new option value should disqualify the existing build
     // but a new one should be generated for this set of options
     solver.update_options(option_map! {"debug" => "on"});
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
 
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -836,7 +836,7 @@ fn test_solver_deprecated_build(mut solver: Solver) {
         {"pkg": "my-pkg/1.0.0"},
         deprecated,
     ]);
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
@@ -869,7 +869,7 @@ fn test_solver_deprecated_version(mut solver: Solver) {
     let repo = make_repo!(
         [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": true}, deprecated]
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
@@ -900,7 +900,7 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     // test when no appropriate build exists and the main package
     // has been deprecated, no source build should be allowed
 
-    let mut repo = make_repo!(
+    let repo = make_repo!(
         [
             {
                 "pkg": "my-tool/1.2.0/src",
@@ -919,7 +919,7 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     spec.deprecated = true;
     repo.force_publish_spec(spec).unwrap();
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
@@ -943,7 +943,7 @@ fn test_solver_embedded_package_adds_request(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("maya"));
 
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -974,7 +974,7 @@ fn test_solver_embedded_package_solvable(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("qt"));
     solver.add_request(request!("maya"));
 
@@ -1009,7 +1009,7 @@ fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
 
     let res = io::run_and_print_resolve(&solver, 100);
@@ -1044,7 +1044,7 @@ fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-lib"));
 
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -1076,7 +1076,7 @@ fn test_solver_embedded_request_invalidates(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python"));
     solver.add_request(request!("my-lib"));
 
@@ -1091,7 +1091,7 @@ fn test_solver_unknown_package_options(mut solver: Solver) {
     // - the solver resolves versions that do define the option
 
     let repo = make_repo!([{"pkg": "my-lib/2.0.0"}]);
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
     solver.add_repository(repo.clone());
 
     // this option is specific to the my-lib package and is not known by the package
@@ -1136,7 +1136,7 @@ fn test_solver_var_requirements(mut solver: Solver) {
             },
         ]
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-app/2"));
@@ -1183,7 +1183,7 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
             },
         ]
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     // python is resolved first to get 3.7
@@ -1230,10 +1230,10 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
 
     let a_build = make_build!(a_spec, [dep_v1]);
     let b_build = make_build!(b_spec, [dep_v2]);
-    let mut repo = make_repo!([a_build, b_build,]);
+    let repo = make_repo!([a_build, b_build,]);
     repo.publish_spec(a_spec).unwrap();
     repo.publish_spec(b_spec).unwrap();
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     // a gets resolved and adds options for debug/on and build-dep/1
@@ -1286,7 +1286,7 @@ fn test_solver_components(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkga"));
     solver.add_request(request!("pkgb"));
 
@@ -1323,7 +1323,7 @@ fn test_solver_all_component(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:all"));
 
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -1369,7 +1369,7 @@ fn test_solver_component_availability(mut solver: Solver) {
     // but the last/lowest version number has a publish for all components
     // and should be the one that is selected because of this
     let (build371, cmpt371) = make_build_and_components!(spec371, [], {}, ["bin", "lib"]);
-    let mut repo = make_repo!([
+    let repo = make_repo!([
         (build373, cmpt373),
         (build372, cmpt372),
         (build371, cmpt371),
@@ -1378,7 +1378,7 @@ fn test_solver_component_availability(mut solver: Solver) {
     repo.publish_spec(spec372).unwrap();
     repo.publish_spec(spec371).unwrap();
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:bin"));
 
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
@@ -1417,7 +1417,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
             {"pkg": "depr"},
         ]
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     solver.add_request(request!("mypkg:build"));
@@ -1459,7 +1459,7 @@ fn test_solver_component_requirements_extending(mut solver: Solver) {
         ]
     );
 
-    solver.add_repository(Arc::new(Mutex::new(repo)));
+    solver.add_repository(Arc::new(repo));
     // the initial resolve of this component will add no new requirements
     solver.add_request(request!("depa:build"));
     // depb has its own requirement on depa:run, which, also
@@ -1506,7 +1506,7 @@ fn test_solver_component_embedded(mut solver: Solver) {
             },
         ]
     );
-    let repo = Arc::new(Mutex::new(repo));
+    let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
     solver.add_request(request!("downstream1"));
