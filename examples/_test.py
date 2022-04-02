@@ -44,6 +44,9 @@ def test_example(stage: str, spec_file: str) -> None:
     except FileNotFoundError:
         pytest.skip("examples depend on external packages")
 
+    if "CI" in os.environ:
+        pytest.skip("examples depend on external packages, and do not run in CI")
+
     subprocess.check_call(
         [
             os.path.dirname(sys.executable) + "/spk",

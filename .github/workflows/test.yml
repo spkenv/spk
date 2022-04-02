@@ -1,4 +1,4 @@
-name: Python
+name: Lint & Test
 
 on:
   pull_request:
@@ -10,16 +10,28 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  lint:
+  lint-python:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
       - run: sudo pip3 install pipenv
       - run: pipenv sync --dev
-      - name: Lint Formatting with Black
-        run: pipenv run -- black --check .
-      - name: Lint Typing with MyPy
-        run: pipenv run -- mypy spk
+      - name: Lint Python Code
+        run: make lint-python
+  lint-rust:
+    runs-on: ubuntu-latest
+    env:
+      SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
+      SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check Rust Formatting
+        run: cargo fmt -- --check
+      - run: sudo apt-get install -y libcap-dev
+      - name: Patch spfs Pull Auth
+        run: sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
+      - name: Lint Rust Code
+        run: make lint-rust
   test:
     runs-on: ubuntu-18.04
     steps:
@@ -48,6 +60,7 @@ jobs:
           -e SPFS_PULL_USERNAME
           -e SPFS_PULL_PASSWORD
           -e HOME=/root
+          -e CI
           --rm
           --privileged
           -v $PWD:/source
