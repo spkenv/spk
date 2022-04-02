@@ -5,6 +5,10 @@ use std::collections::HashMap;
 
 use crate::{api, Result};
 
+#[cfg(test)]
+#[path = "./repository_test.rs"]
+mod repository_test;
+
 pub trait Repository {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository

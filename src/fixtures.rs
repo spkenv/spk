@@ -32,6 +32,14 @@ impl Drop for RuntimeLock {
     }
 }
 
+/// The types of temporary repositories that can be created.
+#[derive(Debug, Eq, PartialEq)]
+pub enum RepoKind {
+    Mem,
+    SPFS,
+}
+
+/// A temporary repository of some type for use in testing
 pub struct TempRepo {
     pub repo: Arc<storage::RepositoryHandle>,
     pub tmpdir: tempdir::TempDir,
@@ -84,29 +92,42 @@ pub fn tmprepo() -> storage::RepositoryHandle {
 /// for use in generating test data to sync around.
 #[fixture]
 pub async fn spfsrepo() -> TempRepo {
+    make_repo(RepoKind::SPFS).await
+}
+
+/// Create a temporary repository of the desired flavor
+pub async fn make_repo(kind: RepoKind) -> TempRepo {
+    tracing::trace!(?kind, "creating repo for test...");
+
     let tmpdir = tempdir::TempDir::new("spk-test-spfs-repo")
         .expect("failed to establish tmpdir for spfs runtime");
-    let storage_root = tmpdir.path().join("repo");
-    let spfs_repo = spfs::storage::fs::FSRepository::create(&storage_root)
-        .await
-        .expect("failed to establish temporary local repo for test");
-    let written = spfs_repo
-        .write_data(Box::pin(std::io::Cursor::new(b"")))
-        .await
-        .expect("failed to add an empty object to spfs");
-    let empty_manifest = spfs::graph::Manifest::default();
-    let empty_layer = empty_layer();
-    let _ = spfs_repo
-        .write_object(&empty_layer.into())
-        .await
-        .expect("failed to save empty layer to spfs repo");
-    let _ = spfs_repo
-        .write_object(&empty_manifest.into())
-        .await
-        .expect("failed to save empty manifest to spfs repo");
-    assert_eq!(written.0, spfs::encoding::EMPTY_DIGEST.into());
+    let repo = match kind {
+        RepoKind::SPFS => {
+            let storage_root = tmpdir.path().join("repo");
+            let spfs_repo = spfs::storage::fs::FSRepository::create(&storage_root)
+                .await
+                .expect("failed to establish temporary local repo for test");
+            let written = spfs_repo
+                .write_data(Box::pin(std::io::Cursor::new(b"")))
+                .await
+                .expect("failed to add an empty object to spfs");
+            let empty_manifest = spfs::graph::Manifest::default();
+            let empty_layer = empty_layer();
+            let _ = spfs_repo
+                .write_object(&empty_layer.into())
+                .await
+                .expect("failed to save empty layer to spfs repo");
+            let _ = spfs_repo
+                .write_object(&empty_manifest.into())
+                .await
+                .expect("failed to save empty manifest to spfs repo");
+            assert_eq!(written.0, spfs::encoding::EMPTY_DIGEST.into());
+            storage::RepositoryHandle::SPFS(spfs_repo.into())
+        }
+        RepoKind::Mem => storage::RepositoryHandle::new_mem(),
+    };
 
-    let repo = Arc::new(storage::RepositoryHandle::SPFS(spfs_repo.into()));
+    let repo = Arc::new(repo);
     TempRepo { tmpdir, repo }
 }
 

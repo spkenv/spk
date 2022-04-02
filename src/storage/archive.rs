@@ -8,6 +8,10 @@ use futures::TryStreamExt;
 use super::{Repository, SPFSRepository};
 use crate::{api, Error, Result};
 
+#[cfg(test)]
+#[path = "./archive_test.rs"]
+mod archive_test;
+
 pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<()> {
     // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
     // relative paths properly.
