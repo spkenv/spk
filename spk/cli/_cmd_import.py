@@ -8,7 +8,6 @@ import argparse
 import structlog
 
 import spk
-import spk.external
 
 
 _LOGGER = structlog.get_logger("spk.cli")
