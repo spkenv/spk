@@ -8,6 +8,7 @@ mod error;
 pub mod exec;
 mod global;
 pub mod io;
+mod publish;
 pub mod solve;
 pub mod storage;
 pub mod test;
@@ -18,6 +19,7 @@ mod fixtures;
 pub use env::current_env;
 pub use error::{Error, Result};
 pub use global::{load_spec, save_spec};
+pub use publish::Publisher;
 
 lazy_static::lazy_static! {
     pub(crate) static ref HANDLE: tokio::runtime::Handle = {
@@ -269,6 +271,7 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         env::current_env()
     }
 
+    m.add_class::<Publisher>()?;
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
 
