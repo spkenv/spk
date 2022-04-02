@@ -4,66 +4,80 @@
 use rstest::rstest;
 
 use super::{export_package, import_package};
-use crate::{api, build, fixtures::*, storage};
+use crate::{build, fixtures::*};
 
 #[rstest]
-fn test_archive_io(tmpdir: tempdir::TempDir) {
-    // spec = api.Spec.from_dict(
-    //     {
-    //         "pkg": "spk-archive-test/0.0.1",
-    //         "build": {"script": "touch /spfs/file.txt"},
-    //     }
-    // )
-    // repo = storage.local_repository()
-    // repo.publish_spec(spec)
-    // builder = build.BinaryPackageBuilder.from_spec(spec).with_source(".")
-    // spec = builder.build()
-    // filename = tmpdir.join("achive.spk").ensure().strpath
-    // export_package(spec.pkg, filename)
-    // actual: List[str] = []
-    // with tarfile.open(filename) as tar:
-    //     for file in tar:
-    //         actual.append(file.name)
-    // actual.sort()
-    // top_level_and_tags = list(filter(lambda p: "/" not in p or "tags" in p, actual))
-    // assert top_level_and_tags == [
-    //     ".",
-    //     "VERSION",
-    //     "objects",
-    //     "payloads",
-    //     "renders",
-    //     "tags",
-    //     "tags/spk",
-    //     "tags/spk/pkg",
-    //     "tags/spk/pkg/spk-archive-test",
-    //     "tags/spk/pkg/spk-archive-test/0.0.1",
-    //     "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6",
-    //     "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6.tag",
-    //     "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/build.tag",
-    //     "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/run.tag",
-    //     "tags/spk/spec",
-    //     "tags/spk/spec/spk-archive-test",
-    //     "tags/spk/spec/spk-archive-test/0.0.1",
-    //     "tags/spk/spec/spk-archive-test/0.0.1.tag",
-    //     "tags/spk/spec/spk-archive-test/0.0.1/3I42H3S6.tag",
-    // ]
-    // import_package(filename)
-    todo!()
+fn test_archive_io() {
+    let _guard = crate::HANDLE.enter();
+    let rt = crate::HANDLE.block_on(spfs_runtime());
+    let spec = crate::spec!(
+        {
+            "pkg": "spk-archive-test/0.0.1",
+            "build": {"script": "touch /spfs/file.txt"},
+        }
+    );
+    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    let spec = build::BinaryPackageBuilder::from_spec(spec)
+        .with_source(build::BuildSource::LocalPath(".".into()))
+        .build()
+        .unwrap();
+    let filename = rt.tmpdir.path().join("achive.spk");
+    filename.ensure();
+    export_package(&spec.pkg, &filename).expect("failed to export");
+    let mut actual = Vec::new();
+    let mut tarfile = tar::Archive::new(std::fs::File::open(&filename).unwrap());
+    for entry in tarfile.entries().unwrap() {
+        let filename = entry.unwrap().path().unwrap().to_string_lossy().to_string();
+        if filename.contains('/') && !filename.contains("tags") {
+            // ignore specific object data for this test
+            continue;
+        }
+        actual.push(filename);
+    }
+    actual.sort();
+    assert_eq!(
+        actual,
+        vec![
+            "VERSION".to_string(),
+            "objects".to_string(),
+            "payloads".to_string(),
+            "renders".to_string(),
+            "tags".to_string(),
+            "tags/spk".to_string(),
+            "tags/spk/pkg".to_string(),
+            "tags/spk/pkg/spk-archive-test".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6.tag".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/build.tag".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/run.tag".to_string(),
+            "tags/spk/spec".to_string(),
+            "tags/spk/spec/spk-archive-test".to_string(),
+            "tags/spk/spec/spk-archive-test/0.0.1".to_string(),
+            "tags/spk/spec/spk-archive-test/0.0.1.tag".to_string(),
+            "tags/spk/spec/spk-archive-test/0.0.1/3I42H3S6.tag".to_string(),
+        ]
+    );
+    crate::HANDLE
+        .block_on(import_package(&filename))
+        .expect("failed to import package");
 }
 
 #[rstest]
-fn test_archive_create_parents(tmpdir: tempdir::TempDir) {
-    // spec = api.Spec.from_dict(
-    //     {
-    //         "pkg": "spk-archive-test/0.0.1",
-    //         "build": {"script": "touch /spfs/file.txt"},
-    //     }
-    // )
-    // repo = storage.local_repository()
-    // repo.publish_spec(spec)
-    // builder = build.BinaryPackageBuilder.from_spec(spec).with_source(".")
-    // spec = builder.build()
-    // filename = tmpdir.join("deep/nested/path/archive.spk").strpath
-    // export_package(spec.pkg, filename)
-    todo!()
+fn test_archive_create_parents() {
+    let _guard = crate::HANDLE.enter();
+    let rt = crate::HANDLE.block_on(spfs_runtime());
+    let spec = crate::spec!(
+        {
+            "pkg": "spk-archive-test/0.0.1",
+            "build": {"script": "touch /spfs/file.txt"},
+        }
+    );
+    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    let spec = build::BinaryPackageBuilder::from_spec(spec)
+        .with_source(build::BuildSource::LocalPath(".".into()))
+        .build()
+        .unwrap();
+    let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");
+    export_package(&spec.pkg, filename).expect("export should create dirs as needed");
 }

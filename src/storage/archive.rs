@@ -35,7 +35,9 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
         crate::HANDLE.block_on(spfs::storage::tar::TarRepository::create(&filename))?,
     ));
 
-    let mut to_transfer = std::collections::HashSet::new();
+    // these are sorted to ensure that the version spec is published
+    // before any build - it's only an error in testing, but still best practice
+    let mut to_transfer = std::collections::BTreeSet::new();
     to_transfer.insert(pkg.clone());
     if pkg.build.is_none() {
         to_transfer.extend(local_repo.list_package_builds(pkg)?);
@@ -56,7 +58,7 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
             Err(err) => Some(err),
         };
         // we will hide the remote_err in cases when both failed,
-        // but the remote was always a fallback and fixing the
+        // because the remote was always a fallback and fixing the
         // local error is preferred
         return Err(local_err
             .or(remote_err)
