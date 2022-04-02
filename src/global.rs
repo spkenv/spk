@@ -1,26 +1,36 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from typing import Union
+use std::convert::TryInto;
 
-from . import api, storage
+use crate::{
+    api,
+    storage::{self, Repository},
+    Error, Result,
+};
 
+#[cfg(test)]
+#[path = "./global_test.rs"]
+mod global_test;
 
-def load_spec(pkg: Union[str, api.Ident]) -> api.Spec:
-    """Load a package spec from the default repository."""
+/// Load a package spec from the default repository.
+pub fn load_spec<S: TryInto<api::Ident, Error = crate::Error>>(pkg: S) -> Result<api::Spec> {
+    let pkg = pkg.try_into()?;
 
-    if not isinstance(pkg, api.Ident):
-        pkg = api.parse_ident(pkg)
+    match crate::HANDLE
+        .block_on(storage::remote_repository("origin"))?
+        .read_spec(&pkg)
+    {
+        Err(Error::PackageNotFoundError(_)) => crate::HANDLE
+            .block_on(storage::local_repository())?
+            .read_spec(&pkg),
+        res => res,
+    }
+}
 
-    try:
-        return storage.remote_repository().read_spec(pkg)
-    except storage.PackageNotFoundError:
-        return storage.local_repository().read_spec(pkg)
-
-
-def save_spec(spec: api.Spec) -> None:
-    """Save a package spec to the local repository."""
-
-    repo = storage.local_repository()
+/// Save a package spec to the local repository.
+pub fn save_spec(spec: api::Spec) -> Result<()> {
+    let repo = crate::HANDLE.block_on(storage::local_repository())?;
     repo.force_publish_spec(spec)
+}

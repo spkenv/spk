@@ -1,31 +1,35 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-import pytest
+use rstest::rstest;
 
-from . import storage, api
-from ._global import save_spec, load_spec
+use super::{load_spec, save_spec};
+use crate::fixtures::*;
 
+#[rstest]
+fn test_load_spec_local() {
+    let _guard = crate::HANDLE.enter();
+    let rt = crate::HANDLE.block_on(spfs_runtime());
+    let spec = crate::spec!({"pkg": "my-pkg"});
+    rt.tmprepo.publish_spec(spec.clone()).unwrap();
 
-def test_load_spec_local() -> None:
+    let actual = load_spec("my-pkg").unwrap();
+    assert_eq!(actual, spec);
+}
 
-    spec = api.Spec.from_dict({"pkg": "my-pkg"})
-    repo = storage.local_repository()
-    repo.publish_spec(spec)
+#[rstest]
+fn test_save_spec() {
+    let _guard = crate::HANDLE.enter();
+    let rt = crate::HANDLE.block_on(spfs_runtime());
+    let spec = crate::spec!({"pkg": "my-pkg"});
 
-    actual = load_spec("my-pkg")
-    assert actual == spec
+    let res = rt.tmprepo.read_spec(&spec.pkg);
+    assert!(matches!(res, Err(crate::Error::PackageNotFoundError(_))));
 
+    save_spec(spec.clone()).unwrap();
 
-def test_save_spec() -> None:
-
-    spec = api.Spec.from_dict({"pkg": "my-pkg"})
-    repo = storage.local_repository()
-
-    with pytest.raises(storage.PackageNotFoundError):
-        repo.read_spec(spec.pkg)
-
-    save_spec(spec)
-
-    assert repo.read_spec(spec.pkg) is not None
+    rt.tmprepo
+        .read_spec(&spec.pkg)
+        .expect("should exist in repo after saving");
+}

@@ -6,16 +6,18 @@ pub mod build;
 mod env;
 mod error;
 pub mod exec;
+mod global;
 pub mod io;
 pub mod solve;
 pub mod storage;
+pub mod test;
 
 #[cfg(test)]
 mod fixtures;
-pub mod test;
 
 pub use env::current_env;
 pub use error::{Error, Result};
+pub use global::{load_spec, save_spec};
 
 lazy_static::lazy_static! {
     pub(crate) static ref HANDLE: tokio::runtime::Handle = {
