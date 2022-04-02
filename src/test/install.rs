@@ -6,7 +6,7 @@ use std::{
     ffi::OsString,
     io::Write,
     path::PathBuf,
-    sync::{Arc,  RwLock},
+    sync::{Arc, RwLock},
 };
 
 use pyo3::prelude::*;
