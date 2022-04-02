@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use tokio::sync::{Mutex, MutexGuard};
+use std::sync::Arc;
 
 use rstest::fixture;
-use spfs::runtime;
+use spfs::{prelude::*, runtime};
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::storage;
 
@@ -16,7 +17,7 @@ lazy_static::lazy_static! {
 pub struct RuntimeLock {
     original_config: spfs::Config,
     pub runtime: MutexGuard<'static, spfs::runtime::Runtime>,
-    pub tmprepo: std::sync::Arc<storage::RepositoryHandle>,
+    pub tmprepo: Arc<storage::RepositoryHandle>,
     pub tmpdir: tempdir::TempDir,
 }
 
@@ -31,6 +32,19 @@ impl Drop for RuntimeLock {
     }
 }
 
+pub struct TempRepo {
+    pub repo: Arc<storage::RepositoryHandle>,
+    pub tmpdir: tempdir::TempDir,
+}
+
+impl std::ops::Deref for TempRepo {
+    type Target = storage::RepositoryHandle;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.repo
+    }
+}
+
 pub fn init_logging() {
     let sub = tracing_subscriber::FmtSubscriber::builder()
         .with_max_level(tracing::Level::TRACE)
@@ -38,6 +52,20 @@ pub fn init_logging() {
         .with_test_writer()
         .finish();
     let _ = tracing::subscriber::set_global_default(sub);
+}
+
+/// Returns an empty spfs layer object for easy testing
+pub fn empty_layer() -> spfs::graph::Layer {
+    spfs::graph::Layer {
+        manifest: Default::default(),
+    }
+}
+
+/// Returns the digest for an empty spfs layer.
+pub fn empty_layer_digest() -> spfs::Digest {
+    empty_layer()
+        .digest()
+        .expect("Empty layer should have valid digest")
 }
 
 #[fixture]
@@ -48,6 +76,38 @@ pub fn tmpdir() -> tempdir::TempDir {
 #[fixture]
 pub fn tmprepo() -> storage::RepositoryHandle {
     storage::RepositoryHandle::Mem(Default::default())
+}
+
+/// Establishes a temporary spfs repo on disk.
+///
+/// This repo comes prefilled with an empty layer and object
+/// for use in generating test data to sync around.
+#[fixture]
+pub async fn spfsrepo() -> TempRepo {
+    let tmpdir = tempdir::TempDir::new("spk-test-spfs-repo")
+        .expect("failed to establish tmpdir for spfs runtime");
+    let storage_root = tmpdir.path().join("repo");
+    let spfs_repo = spfs::storage::fs::FSRepository::create(&storage_root)
+        .await
+        .expect("failed to establish temporary local repo for test");
+    let written = spfs_repo
+        .write_data(Box::pin(std::io::Cursor::new(b"")))
+        .await
+        .expect("failed to add an empty object to spfs");
+    let empty_manifest = spfs::graph::Manifest::default();
+    let empty_layer = empty_layer();
+    let _ = spfs_repo
+        .write_object(&empty_layer.into())
+        .await
+        .expect("failed to save empty layer to spfs repo");
+    let _ = spfs_repo
+        .write_object(&empty_manifest.into())
+        .await
+        .expect("failed to save empty manifest to spfs repo");
+    assert_eq!(written.0, spfs::encoding::EMPTY_DIGEST.into());
+
+    let repo = Arc::new(storage::RepositoryHandle::SPFS(spfs_repo.into()));
+    TempRepo { tmpdir, repo }
 }
 
 /// Establishes a segregated spfs runtime for use in the test.
@@ -67,17 +127,8 @@ pub async fn spfs_runtime() -> RuntimeLock {
         .as_ref()
         .clone();
 
-    // we also establish a temporary repository in this context for any
-    // changes that the test wants to make (commit, render, run, etc)
-    let tmpdir = tempdir::TempDir::new("spk-test-spfs-repo")
-        .expect("failed to establish tmpdir for spfs runtime");
-    let storage_root = tmpdir.path().join("repo");
-    let tmprepo = std::sync::Arc::new(storage::RepositoryHandle::SPFS(
-        spfs::storage::fs::FSRepository::create(&storage_root)
-            .await
-            .expect("failed to establish temporary local repo for test")
-            .into(),
-    ));
+    let tmprepo = spfsrepo().await;
+    let storage_root = tmprepo.tmpdir.path().join("repo");
 
     let mut new_config = original_config.clone();
     // preserve the runtime root in case it was inferred in the original one
@@ -105,8 +156,8 @@ pub async fn spfs_runtime() -> RuntimeLock {
     RuntimeLock {
         original_config,
         runtime,
-        tmpdir,
-        tmprepo,
+        tmpdir: tmprepo.tmpdir,
+        tmprepo: tmprepo.repo,
     }
 }
 
