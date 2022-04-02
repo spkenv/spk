@@ -109,3 +109,18 @@ pub async fn spfs_runtime() -> RuntimeLock {
         tmprepo,
     }
 }
+
+/// A simple trait for use in test writing that allows something to be
+/// ensured to exist and be usable, whatever that means in context.
+pub trait Ensure {
+    fn ensure(&self);
+}
+
+impl Ensure for std::path::PathBuf {
+    fn ensure(&self) {
+        if let Some(parent) = self.parent() {
+            std::fs::create_dir_all(parent).expect("failed to ensure parent dir for file");
+        }
+        std::fs::write(self, b"").expect("failed to ensure empty file");
+    }
+}
