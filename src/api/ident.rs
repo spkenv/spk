@@ -34,7 +34,7 @@ macro_rules! ident {
 /// range of package versions/releases depending on the
 /// syntax and context
 #[pyclass]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
 pub struct Ident {
     #[pyo3(get)]
     name: String,
