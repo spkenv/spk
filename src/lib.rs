@@ -271,6 +271,18 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         env::current_env()
     }
 
+    #[pyfn(m)]
+    fn load_spec(pkg: api::Ident) -> Result<api::Spec> {
+        let _guard = crate::HANDLE.enter();
+        global::load_spec(pkg.to_string().as_str())
+    }
+
+    #[pyfn(m)]
+    fn save_spec(spec: api::Spec) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
+        global::save_spec(spec)
+    }
+
     m.add_class::<Publisher>()?;
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;

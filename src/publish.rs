@@ -75,7 +75,7 @@ impl Publisher {
         mut slf: PyRefMut<Self>,
         repo: storage::python::Repository,
     ) -> PyRefMut<Self> {
-        slf.from = repo.handle.clone();
+        slf.from = repo.handle;
         slf
     }
 
@@ -84,7 +84,7 @@ impl Publisher {
         mut slf: PyRefMut<Self>,
         repo: storage::python::Repository,
     ) -> PyRefMut<Self> {
-        slf.to = repo.handle.clone();
+        slf.to = repo.handle;
         slf
     }
 
@@ -105,7 +105,7 @@ impl Publisher {
 
     pub fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let builds = if pkg.build.is_none() {
-            tracing::info!("   loading spec: {}", io::format_ident(&pkg));
+            tracing::info!("   loading spec: {}", io::format_ident(pkg));
             match self.from.read_spec(pkg) {
                 Err(Error::PackageNotFoundError(_)) => (),
                 Err(err) => return Err(err),
