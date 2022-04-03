@@ -34,8 +34,6 @@ impl Runtime {
     pub fn relaunch_with_runtime(&self) -> Result<spfs::runtime::Runtime> {
         use std::os::unix::ffi::OsStrExt;
 
-        let exe = std::env::current_exe()
-            .context("Could not identify the path of the running spk command")?;
         let args = std::env::args_os();
 
         // ensure that we don't go into an infinite loop
@@ -52,7 +50,8 @@ impl Runtime {
         args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
         args.insert(0, spfs.clone());
 
-        tracing::trace!("relaunching under spfs");
+        tracing::debug!("relaunching under spfs");
+        tracing::trace!("{:?}", args);
         nix::unistd::execvp(&spfs, args.as_slice())
             .context("Failed to re-launch spk in an spfs runtime")?;
         unreachable!()

@@ -245,12 +245,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    fn load_spec(pkg: api::Ident) -> Result<api::Spec> {
-        let _guard = crate::HANDLE.enter();
-        global::load_spec(pkg.to_string().as_str())
-    }
-
-    #[pyfn(m)]
     fn save_spec(spec: api::Spec) -> Result<()> {
         let _guard = crate::HANDLE.enter();
         global::save_spec(spec)
