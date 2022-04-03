@@ -3,9 +3,12 @@
 // https://github.com/imageworks/spk
 //! Main entry points and utilities for command line interface and interaction.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
+pub mod env;
+pub mod flags;
 // mod cmd_bake;
 // mod cmd_build;
 // mod cmd_convert;
@@ -36,6 +39,17 @@ pub struct Opt {
     pub verbose: usize,
     #[clap(subcommand)]
     pub cmd: Command,
+}
+
+impl Opt {
+    pub fn run(&self) -> Result<i32> {
+        let res = env::configure_logging(self.verbose).context("Failed to initialize output log");
+        if let Err(err) = res {
+            eprintln!("{}", err.to_string().red());
+            return Ok(1);
+        }
+        self.cmd.run()
+    }
 }
 
 #[derive(Subcommand)]
@@ -93,7 +107,7 @@ impl Command {
 
 fn main() {
     let opts = Opt::parse();
-    let code = match opts.cmd.run() {
+    let code = match opts.run() {
         Ok(code) => code,
         Err(err) => {
             tracing::error!("{:?}", err);

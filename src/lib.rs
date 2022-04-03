@@ -154,36 +154,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "configure_logging")]
-    fn configure_logging(_py: Python, verbosity: usize) -> Result<()> {
-        use tracing_subscriber::layer::SubscriberExt;
-        let mut directives = match verbosity {
-            0 => "spk=info,spfs=warn",
-            1 => "spk=debug,spfs=info",
-            2 => "spk=trace,spfs=debug",
-            _ => "spk=trace,spfs=trace",
-        }
-        .to_string();
-        if let Ok(overrides) = std::env::var("RUST_LOG") {
-            // this is a common scenario because spk often calls itself
-            if directives != overrides {
-                directives = format!("{},{}", directives, overrides);
-            }
-        }
-        std::env::set_var("RUST_LOG", &directives);
-        let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
-        let registry = tracing_subscriber::Registry::default().with(env_filter);
-        let mut fmt_layer = tracing_subscriber::fmt::layer()
-            .with_writer(std::io::stderr)
-            .without_time();
-        if verbosity < 3 {
-            fmt_layer = fmt_layer.with_target(false);
-        }
-        let sub = registry.with(fmt_layer);
-        tracing::subscriber::set_global_default(sub).unwrap();
-        Ok(())
-    }
-    #[pyfn(m)]
     #[pyo3(name = "active_runtime")]
     fn active_runtime(_py: Python) -> Result<Runtime> {
         let rt = spfs::active_runtime()?;
