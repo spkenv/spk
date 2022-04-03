@@ -394,6 +394,14 @@ impl Request {
             Request::Pkg(r) => r.pkg.to_string(),
         }
     }
+
+    pub fn is_pkg(&self) -> bool {
+        matches!(self, Self::Pkg(_))
+    }
+
+    pub fn is_var(&self) -> bool {
+        matches!(self, Self::Var(_))
+    }
 }
 
 impl From<VarRequest> for Request {

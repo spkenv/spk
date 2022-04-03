@@ -13,6 +13,7 @@ create_exception!(errors, SolverError, PyException);
 #[derive(Debug)]
 pub enum Error {
     SolverError(String),
+    FailedToResolve(super::Graph),
     OutOfOptions(OutOfOptions),
 }
 
@@ -26,6 +27,7 @@ impl From<Error> for PyErr {
     fn from(err: Error) -> Self {
         match err {
             Error::SolverError(s) => SolverError::new_err(s),
+            Error::FailedToResolve(g) => SolverError::new_err(g),
             Error::OutOfOptions(err) => SolverError::new_err(err.to_string()),
         }
     }
@@ -43,6 +45,15 @@ pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestErro
 pub enum GetMergedRequestError {
     NoRequestFor(String),
     Other(crate::Error),
+}
+
+impl std::fmt::Display for GetMergedRequestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoRequestFor(s) => s.fmt(f),
+            Self::Other(s) => s.fmt(f),
+        }
+    }
 }
 
 impl From<GetMergedRequestError> for crate::Error {

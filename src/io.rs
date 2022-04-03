@@ -290,7 +290,7 @@ pub fn run_and_print_resolve(solver: &solve::Solver, verbosity: u32) -> Result<s
     for line in format_decisions(&mut runtime, verbosity) {
         println!("{}", line?);
     }
-    Ok(runtime.current_solution()?)
+    runtime.current_solution()
 }
 
 #[allow(clippy::type_complexity)]

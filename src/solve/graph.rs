@@ -30,6 +30,16 @@ const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 #[derive(Debug)]
 pub enum GraphError {
     RecursionError(&'static str),
+    RequestError(errors::GetMergedRequestError),
+}
+
+impl std::fmt::Display for GraphError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RecursionError(s) => s.fmt(f),
+            Self::RequestError(s) => s.fmt(f),
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, GraphError>;
@@ -973,10 +983,12 @@ impl State {
         }
     }
 
-    pub fn as_solution(&self) -> PyResult<Solution> {
+    pub fn as_solution(&self) -> Result<Solution> {
         let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
         for (spec, source) in self.packages.iter() {
-            let req = self.get_merged_request(spec.pkg.name())?;
+            let req = self
+                .get_merged_request(spec.pkg.name())
+                .map_err(GraphError::RequestError)?;
             solution.add(&req, spec.clone(), source.clone());
         }
         Ok(solution)
@@ -1187,10 +1199,10 @@ pub struct StepBack {
 }
 
 impl StepBack {
-    pub fn new(cause: &str, to: &Arc<State>) -> Self {
+    pub fn new(cause: impl Into<String>, to: &Arc<State>) -> Self {
         StepBack {
-            cause: cause.to_owned(),
-            destination: Arc::clone(to),
+            cause: cause.into(),
+            destination: to.clone(),
         }
     }
 
