@@ -127,6 +127,22 @@ impl TryFrom<&str> for Ident {
     }
 }
 
+impl TryFrom<&String> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        Self::from_str(value.as_str())
+    }
+}
+
+impl TryFrom<String> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_str(value.as_str())
+    }
+}
+
 impl FromStr for Ident {
     type Err = crate::Error;
 
