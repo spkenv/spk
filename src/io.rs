@@ -80,6 +80,9 @@ where
 }
 
 pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
+    if solution.is_empty() {
+        return "Nothing Installed".to_string();
+    }
     let mut out = "Installed Packages:\n".to_string();
     for req in solution.items() {
         let mut installed = api::PkgRequest::from_ident(&req.spec.pkg);
