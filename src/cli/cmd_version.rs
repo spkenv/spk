@@ -1,25 +1,18 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from typing import Any
-import argparse
+use anyhow::Result;
+use clap::Args;
 
-import spk
+/// Print the spk version information
+#[derive(Args)]
+pub struct Version {}
 
-
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
-
-    version_cmd = sub_parsers.add_parser(
-        "version", help=_version.__doc__, description=_version.__doc__, **parser_args
-    )
-    version_cmd.set_defaults(func=_version)
-    return version_cmd
-
-
-def _version(_: argparse.Namespace) -> None:
-    """Print the spk version number and exit."""
-
-    print(spk.__version__)
+impl Version {
+    pub fn run(&self) -> Result<i32> {
+        println!(" spk {}", spk::VERSION);
+        println!("spfs {}", spfs::VERSION);
+        Ok(0)
+    }
+}

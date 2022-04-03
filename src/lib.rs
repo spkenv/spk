@@ -21,6 +21,8 @@ pub use error::{Error, Result};
 pub use global::{load_spec, save_spec};
 pub use publish::Publisher;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 lazy_static::lazy_static! {
     pub(crate) static ref HANDLE: tokio::runtime::Handle = {
         let rt = tokio::runtime::Builder::new_multi_thread()
