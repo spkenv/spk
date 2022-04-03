@@ -4,7 +4,6 @@
 
 use rstest::rstest;
 
-use super::Repository;
 use crate::{api, fixtures::*, Error};
 
 #[rstest]
@@ -13,8 +12,10 @@ use crate::{api, fixtures::*, Error};
 fn test_repo_list_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // assert repo.list_packages() == [], "should not fail when empty"
-    todo!()
+    assert!(
+        repo.list_packages().unwrap().is_empty(),
+        "should not fail when empty"
+    );
 }
 
 #[rstest]
@@ -23,10 +24,10 @@ fn test_repo_list_empty(#[case] repo: RepoKind) {
 fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // assert (
-    //     list(repo.list_package_versions("nothing")) == []
-    // ), "should not fail with unknown package"
-    todo!()
+    assert!(
+        repo.list_package_versions("nothing").unwrap().is_empty(),
+        "should not fail with unknown package"
+    );
 }
 
 #[rstest]
@@ -35,11 +36,11 @@ fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
 fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // nothing = api.parse_ident("nothing/1.0.0")
-    // assert (
-    //     list(repo.list_package_builds(nothing)) == []
-    // ), "should not fail with unknown package"
-    todo!();
+    let nothing = api::parse_ident("nothing/1.0.0").unwrap();
+    assert!(
+        repo.list_package_builds(&nothing).unwrap().is_empty(),
+        "should not fail with unknown package"
+    );
 }
 
 #[rstest]
@@ -48,9 +49,11 @@ fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
 fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // with pytest.raises(PackageNotFoundError):
-    //     repo.read_spec(api.parse_ident("nothing"))
-    todo!()
+    let nothing = api::parse_ident("nothing").unwrap();
+    match repo.read_spec(&nothing) {
+        Err(Error::PackageNotFoundError(_)) => (),
+        _ => panic!("expected package not found error"),
+    }
 }
 
 #[rstest]
@@ -59,9 +62,11 @@ fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
 fn test_repo_get_package_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // with pytest.raises(PackageNotFoundError):
-    //     repo.get_package(api.parse_ident("nothing/1.0.0/src"))
-    todo!()
+    let nothing = api::parse_ident("nothing/1.0.0/src").unwrap();
+    match repo.read_spec(&nothing) {
+        Err(Error::PackageNotFoundError(_)) => (),
+        _ => panic!("expected package not found error"),
+    }
 }
 
 #[rstest]
@@ -70,15 +75,17 @@ fn test_repo_get_package_empty(#[case] repo: RepoKind) {
 fn test_repo_publish_spec(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
-    // repo.publish_spec(spec)
-    // assert list(repo.list_packages()) == ["my-pkg"]
-    // assert list(repo.list_package_versions("my-pkg")) == ["1.0.0"]
+    let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
+    repo.publish_spec(spec.clone()).unwrap();
+    assert_eq!(repo.list_packages().unwrap(), vec!["my-pkg"]);
+    assert_eq!(repo.list_package_versions("my-pkg").unwrap(), vec!["1.0.0"]);
 
-    // with pytest.raises(VersionExistsError):
-    //     repo.publish_spec(spec)
-    // repo.force_publish_spec(spec)
-    todo!()
+    match repo.publish_spec(spec.clone()) {
+        Err(Error::VersionExistsError(_)) => (),
+        _ => panic!("expected version exists error"),
+    }
+    repo.force_publish_spec(spec)
+        .expect("force publish should ignore existing version");
 }
 
 #[rstest]
@@ -87,13 +94,22 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
 fn test_repo_publish_package(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
-    // repo.publish_spec(spec)
-    // spec.pkg = spec.pkg.with_build("7CI5R7Y4")
-    // repo.publish_package(spec, {"run": spkrs.EMPTY_DIGEST})
-    // assert list(repo.list_package_builds(spec.pkg)) == [spec.pkg]
-    // assert repo.read_spec(spec.pkg) == spec
-    todo!()
+    let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
+    repo.publish_spec(spec.clone()).unwrap();
+    spec.pkg
+        .set_build(Some(api::parse_build("7CI5R7Y4").unwrap()));
+    repo.publish_package(
+        spec.clone(),
+        vec![(api::Component::Run, empty_layer_digest())]
+            .into_iter()
+            .collect(),
+    )
+    .unwrap();
+    assert_eq!(
+        repo.list_package_builds(&spec.pkg).unwrap(),
+        [spec.pkg.clone()]
+    );
+    assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
 }
 
 #[rstest]
@@ -102,13 +118,22 @@ fn test_repo_publish_package(#[case] repo: RepoKind) {
 fn test_repo_remove_package(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
-    // spec = api.Spec.from_dict({"pkg": "my-pkg/1.0.0"})
-    // repo.publish_spec(spec)
-    // spec.pkg = spec.pkg.with_build("7CI5R7Y4")
-    // repo.publish_package(spec, {"run": spkrs.EMPTY_DIGEST})
-    // assert list(repo.list_package_builds(spec.pkg)) == [spec.pkg]
-    // assert repo.read_spec(spec.pkg) == spec
-    // repo.remove_package(spec.pkg)
-    // assert list(repo.list_package_builds(spec.pkg)) == []
-    todo!()
+    let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
+    repo.publish_spec(spec.clone()).unwrap();
+    spec.pkg
+        .set_build(Some(api::parse_build("7CI5R7Y4").unwrap()));
+    repo.publish_package(
+        spec.clone(),
+        vec![(api::Component::Run, empty_layer_digest())]
+            .into_iter()
+            .collect(),
+    )
+    .unwrap();
+    assert_eq!(
+        repo.list_package_builds(&spec.pkg).unwrap(),
+        vec![spec.pkg.clone()]
+    );
+    assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
+    repo.remove_package(&spec.pkg).unwrap();
+    assert!(repo.list_package_builds(&spec.pkg).unwrap().is_empty());
 }
