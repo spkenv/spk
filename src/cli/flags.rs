@@ -7,12 +7,14 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
 
+static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
+
 // OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
 
 #[derive(Args)]
 pub struct Runtime {
     /// Reconfigure the current spfs runtime (useful for speed and debugging)
-    #[clap(long)]
+    #[clap(long, env = SPK_NO_RUNTIME)]
     pub no_runtime: bool,
 
     /// A name to use for the created spfs runtime (useful for rejoining it later)
@@ -21,17 +23,39 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn ensure_active_runtime(&self) -> spfs::runtime::Runtime {
-        // if args.no_runtime:
-        //     return spkrs.active_runtime()
+    pub fn ensure_active_runtime(&self) -> Result<spfs::runtime::Runtime> {
+        if self.no_runtime {
+            return Ok(spfs::active_runtime()?);
+        }
+        self.relaunch_with_runtime()
+    }
 
-        // cmd = sys.argv
-        // cmd_index = cmd.index(args.command)
-        // cmd.insert(cmd_index + 1, "--no-runtime")
-        // name_args = ["--name", args.env_name] if args.env_name else []
-        // cmd = ["spfs", "run", *name_args, "-", "--"] + cmd
-        // os.execvp(cmd[0], cmd)
-        todo!()
+    #[cfg(target_os = "linux")]
+    pub fn relaunch_with_runtime(&self) -> Result<spfs::runtime::Runtime> {
+        use std::os::unix::ffi::OsStrExt;
+
+        let exe = std::env::current_exe()
+            .context("Could not identify the path of the running spk command")?;
+        let args = std::env::args_os();
+
+        // ensure that we don't go into an infinite loop
+        // by disabling this process in the next command
+        std::env::set_var(SPK_NO_RUNTIME, "true");
+
+        let spfs = std::ffi::CString::new("spfs").expect("should never fail");
+        let mut args = args
+            .map(|arg| std::ffi::CString::new(arg.as_bytes()))
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .context("One or more arguments was not a valid c-string")?;
+        args.insert(0, std::ffi::CString::new("--").expect("should never fail"));
+        args.insert(0, std::ffi::CString::new("-").expect("should never fail"));
+        args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
+        args.insert(0, spfs.clone());
+
+        tracing::trace!("relaunching under spfs");
+        nix::unistd::execvp(&spfs, args.as_slice())
+            .context("Failed to re-launch spk in an spfs runtime")?;
+        unreachable!()
     }
 }
 

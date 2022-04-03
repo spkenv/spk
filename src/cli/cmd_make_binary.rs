@@ -6,16 +6,18 @@ use anyhow::{anyhow, Context, Result};
 use clap::Args;
 use colored::Colorize;
 
+use super::flags;
+
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
 #[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
 pub struct MakeBinary {
     #[clap(flatten)]
-    repos: super::flags::Repositories,
+    repos: flags::Repositories,
     #[clap(flatten)]
-    options: super::flags::Options,
+    options: flags::Options,
     #[clap(flatten)]
-    runtime: super::flags::Runtime,
+    runtime: flags::Runtime,
 
     /// Build from the current directory, instead of a source package)
     #[clap(long)]
@@ -36,7 +38,7 @@ pub struct MakeBinary {
 
 impl MakeBinary {
     pub fn run(&self) -> Result<i32> {
-        // runtime = _flags.ensure_active_runtime(args)
+        let runtime = self.runtime.ensure_active_runtime()?;
 
         // options = _flags.get_options_from_flags(args)
         // repos = list(_flags.get_repos_from_repo_flags(args).values())
