@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{anyhow, Context, Result};
+use std::sync::Arc;
+
+use anyhow::{Context, Result};
 use clap::Args;
-use colored::Colorize;
 
 use super::flags;
 
@@ -18,6 +19,9 @@ pub struct MakeBinary {
     options: flags::Options,
     #[clap(flatten)]
     runtime: flags::Runtime,
+
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u32,
 
     /// Build from the current directory, instead of a source package)
     #[clap(long)]
@@ -38,56 +42,82 @@ pub struct MakeBinary {
 
 impl MakeBinary {
     pub fn run(&self) -> Result<i32> {
-        let runtime = self.runtime.ensure_active_runtime()?;
+        let _runtime = self.runtime.ensure_active_runtime()?;
 
-        // options = _flags.get_options_from_flags(args)
-        // repos = list(_flags.get_repos_from_repo_flags(args).values())
-        // for package in args.packages:
-        //     if os.path.isfile(package):
-        //         spec = spk.api.read_spec_file(package)
-        //         _LOGGER.info("saving spec file", pkg=spec.pkg)
-        //         spk.save_spec(spec)
-        //     else:
-        //         spec = spk.load_spec(package)
+        let options = self.options.get_options()?;
+        let repos: Vec<_> = self
+            .repos
+            .get_repos(&["origin".to_string()])?
+            .into_iter()
+            .map(|(_, r)| Arc::new(r))
+            .collect();
+        for package in self.packages.iter() {
+            let spec = if std::path::Path::new(&package).is_file() {
+                let spec = spk::api::read_spec_file(package)?;
+                tracing::info!(pkg = %spk::io::format_ident(&spec.pkg) ,"saving spec file");
+                spk::save_spec(spec.clone())?;
+                spec
+            } else {
+                // TODO:: load from given repos
+                spk::load_spec(package)?
+            };
 
-        //     _LOGGER.info("building binary package", pkg=spec.pkg)
-        //     built = set()
-        //     for variant in spec.build.variants:
+            tracing::info!(pkg = %spk::io::format_ident(&spec.pkg), "building binary package");
+            let mut built = std::collections::HashSet::new();
+            for variant in spec.build.variants.iter() {
+                let mut opts = if !self.options.no_host {
+                    spk::api::host_options()?
+                } else {
+                    spk::api::OptionMap::default()
+                };
 
-        //         if not args.no_host:
-        //             opts = spk.api.host_options()
-        //         else:
-        //             opts = spk.api.OptionMap()
+                opts.extend(variant.clone());
+                opts.extend(options.clone());
+                let digest = opts.digest_str();
+                if !built.insert(digest) {
+                    continue;
+                }
 
-        //         opts.update(variant)
-        //         opts.update(options)
-        //         if opts.digest in built:
-        //             continue
-        //         built.add(opts.digest)
+                tracing::info!(variant = %spk::io::format_options(&opts), "building variant");
+                let mut builder = spk::build::BinaryPackageBuilder::from_spec(spec.clone());
+                builder
+                    .with_options(opts.clone())
+                    .with_repositories(repos.iter().cloned())
+                    .set_interactive(self.interactive);
+                if self.here {
+                    let here =
+                        std::env::current_dir().context("Failed to get current directory")?;
+                    builder.with_source(spk::build::BuildSource::LocalPath(here));
+                }
+                let out = match builder.build() {
+                    Err(err @ spk::Error::Solve(_)) => {
+                        tracing::error!(variant = %spk::io::format_options(&opts), "build failed");
+                        if self.verbose > 0 {
+                            let graph = builder.get_solve_graph();
+                            let graph = graph.read().unwrap();
+                            for line in spk::io::format_solve_graph(&*graph, self.verbose) {
+                                println!("{}", line?);
+                            }
+                        }
+                        return Err(err.into());
+                    }
+                    Ok(out) => out,
+                    Err(err) => return Err(err.into()),
+                };
+                tracing::info!(pkg = %spk::io::format_ident(&out.pkg), "created");
 
-        //         _LOGGER.info("building variant", variant=opts)
-        //         builder = (
-        //             spk.BinaryPackageBuilder.from_spec(spec)
-        //             .with_options(opts)
-        //             .with_repositories(repos)
-        //         )
-        //         if args.here:
-        //             builder = builder.with_source(os.getcwd())
-        //         builder.set_interactive(args.interactive)
-        //         try:
-        //             out = builder.build()
-        //         except (ValueError, spk.SolverError):
-        //             _LOGGER.error("build failed", variant=opts)
-        //             if args.verbose:
-        //                 graph = builder.get_solve_graph()
-        //                 print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
-        //             raise
-        //         else:
-        //             _LOGGER.info("created", pkg=out.pkg)
-        //         if args.env:
-        //             cmd = ["spk", "env", "-l", str(out.pkg)]
-        //             _LOGGER.info("entering environment of new package", cmd=" ".join(cmd))
-        //             os.execvp(cmd[0], cmd)
-        todo!()
+                if self.env {
+                    let request = spk::api::PkgRequest::from_ident(&out.pkg);
+                    let mut cmd = std::process::Command::new("spk");
+                    cmd.args(&["env", "--local-repo"])
+                        .arg(request.pkg.to_string());
+                    tracing::info!("entering environment with new package...");
+                    tracing::debug!("{:?}", cmd);
+                    let status = cmd.status()?;
+                    return Ok(status.code().unwrap_or(1));
+                }
+            }
+        }
+        Ok(0)
     }
 }
