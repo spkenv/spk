@@ -12,7 +12,8 @@ use colored::Colorize;
 pub struct View {
     #[clap(flatten)]
     requests: super::flags::Requests,
-
+    #[clap(flatten)]
+    options: super::flags::Options,
     #[clap(flatten)]
     solver: super::flags::Solver,
 
@@ -30,8 +31,8 @@ impl View {
             Some(p) => p,
         };
 
-        let mut solver = self.solver.get_solver();
-        let request = self.requests.parse_request(&package);
+        let mut solver = self.solver.get_solver(&self.options)?;
+        let request = self.requests.parse_request(&package, &self.options)?;
         solver.add_request(request.clone());
         let request = match request {
             spk::api::Request::Pkg(pkg) => pkg,
