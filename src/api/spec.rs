@@ -124,15 +124,15 @@ impl Spec {
                 }
                 Compatibility::Compatible
             }
-            Some(Opt::Pkg(opt)) => opt.validate(Some(request.value())),
+            Some(Opt::Pkg(opt)) => opt.validate(Some(&request.value)),
             Some(Opt::Var(opt)) => {
-                let exact = opt.get_value(Some(request.value()));
-                if exact.as_deref() != Some(request.value()) {
+                let exact = opt.get_value(Some(&request.value));
+                if exact.as_deref() != Some(&request.value) {
                     Compatibility::Incompatible(format!(
                         "Incompatible build option '{}': '{}' != '{}'",
                         request.var,
                         exact.unwrap_or_else(|| "None".to_string()),
-                        request.value()
+                        request.value
                     ))
                 } else {
                     Compatibility::Compatible

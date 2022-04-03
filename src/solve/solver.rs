@@ -64,8 +64,11 @@ impl Solver {
     }
 
     /// Add a repository where the solver can get packages.
-    pub fn add_repository(&mut self, repo: Arc<storage::RepositoryHandle>) {
-        self.repos.push(repo);
+    pub fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<storage::RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
     }
 
     pub fn get_initial_state(&self) -> Arc<State> {
@@ -91,7 +94,7 @@ impl Solver {
     }
 
     fn make_iterator(&self, package_name: &str) -> Arc<Mutex<Box<dyn PackageIterator>>> {
-        assert!(!self.repos.is_empty());
+        debug_assert!(!self.repos.is_empty());
         Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
             package_name.to_owned(),
             self.repos.clone(),

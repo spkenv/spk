@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
+use anyhow::{anyhow, Context, Result};
 use clap::Args;
 
 // OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
@@ -37,9 +38,7 @@ impl Runtime {
 #[derive(Args)]
 pub struct Solver {
     #[clap(flatten)]
-    pub options: Options,
-    #[clap(flatten)]
-    pub repo: Repositories,
+    pub repos: Repositories,
 
     /// If true, build packages from source if needed
     #[clap(long)]
@@ -47,22 +46,33 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn get_solver(&self) -> spk::solve::Solver {
-        // options = get_options_from_flags(args)
-        // solver = spk.Solver()
-        // solver.update_options(options)
-        // configure_solver_with_repo_flags(args, solver) // defaults = ["origin"]
-        // solver.set_binary_only(not args.allow_builds)
-        // for r in get_var_requests_from_option_flags(args):
-        //     solver.add_request(r)
-        // return solver
-        todo!()
+    pub fn get_solver(&self, options: &Options) -> Result<spk::solve::Solver> {
+        let option_map = options.get_options()?;
+        let mut solver = spk::Solver::default();
+        solver.update_options(option_map);
+        self.repos
+            .configure_solver(&mut solver, &["origin".to_string()])?;
+        solver.set_binary_only(!self.allow_builds);
+        for r in options.get_var_requests()? {
+            solver.add_request(r.into());
+        }
+        Ok(solver)
     }
 }
 
 #[derive(Args)]
 pub struct Options {
-    /// Specify build options
+    /// Specify build/resolve options
+    ///
+    /// When building packages, these options are used to specify
+    /// inputs to the build itself as well as parameters for resolving the
+    /// build environment. In other cases, the options are used to
+    /// limit which packages builds can be used/resolved.
+    ///
+    /// Options are specified as key/value pairs separated by either
+    /// an equals sign or colon (--opt name=value --opt other:value).
+    /// Additionally, many options can be specified at once in yaml
+    /// or json format (--opt '{name: value, other: value}').
     #[clap(long = "opt", short)]
     pub options: Vec<String>,
 
@@ -72,44 +82,43 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn get_options(&self) -> spk::api::OptionMap {
-        // if args.no_host:
-        //     opts = spk::api::OptionMap()
-        // else:
-        //     opts = spk::api::host_options()
+    pub fn get_options(&self) -> Result<spk::api::OptionMap> {
+        let mut opts = match self.no_host {
+            true => spk::api::OptionMap::default(),
+            false => {
+                spk::api::host_options().context("Failed to compute options for current host")?
+            }
+        };
 
-        // for req in get_var_requests_from_option_flags(args):
-        //     opts[req.var] = req.value
+        for req in self.get_var_requests()? {
+            opts.insert(req.var, req.value);
+        }
 
-        // return opts
-        todo!()
+        Ok(opts)
     }
 
-    pub fn get_var_requests(&self) -> Vec<spk::api::VarRequest> {
-        // for pair in getattr(args, "opt", []):
+    pub fn get_var_requests(&self) -> Result<Vec<spk::api::VarRequest>> {
+        let mut requests = Vec::with_capacity(self.options.len());
+        for pair in self.options.iter() {
+            let pair = pair.trim();
+            if pair.starts_with('{') {
+                let given: HashMap<String, String> = serde_yaml::from_str(pair)
+                    .context("--opt value looked like yaml, but could not be parsed")?;
+                for (name, value) in given.into_iter() {
+                    requests.push(spk::api::VarRequest::new_with_value(name, value));
+                }
+                continue;
+            }
 
-        //     pair = pair.strip()
-        //     if pair.startswith("{"):
-        //         for name, value in (yaml.safe_load(pair) or {}).items():
-        //             assert not isinstance(
-        //                 value, dict
-        //             ), f"provided value for '{name}' must be a scalar"
-        //             assert not isinstance(
-        //                 value, list
-        //             ), f"provided value for '{name}' must be a scalar"
-        //             yield spk::api::VarRequest(name, str(value))
-        //         continue
-
-        //     if "=" in pair:
-        //         name, value = pair.split("=", 1)
-        //     elif ":" in pair:
-        //         name, value = pair.split(":", 1)
-        //     else:
-        //         raise ValueError(
-        //             f"Invalid option: -o {pair} (should be in the form name=value)"
-        //         )
-        //     yield spk::api::VarRequest(name, value)
-        todo!()
+            let (name, value) = pair
+                .split_once('=')
+                .or_else(|| pair.split_once(':'))
+                .ok_or_else(|| {
+                    anyhow!("Invalid option: -o {pair} (should be in the form name=value)")
+                })?;
+            requests.push(spk::api::VarRequest::new_with_value(name, value));
+        }
+        Ok(requests)
     }
 }
 
@@ -148,82 +157,110 @@ impl Requests {
         todo!()
     }
 
-    /// Parse an build a request from the given string and these flags
-    pub fn parse_request<R: AsRef<str>>(&self, request: R) -> spk::api::Request {
-        self.parse_requests([request.as_ref()]).pop().unwrap()
+    /// Parse and build a request from the given string and these flags
+    pub fn parse_request<R: AsRef<str>>(
+        &self,
+        request: R,
+        options: &Options,
+    ) -> Result<spk::api::Request> {
+        Ok(self
+            .parse_requests([request.as_ref()], options)?
+            .pop()
+            .unwrap())
     }
 
-    /// Parse an build requests from the given strings and these flags
+    /// Parse and build requests from the given strings and these flags.
     pub fn parse_requests<'a, I: IntoIterator<Item = &'a str>>(
         &self,
         requests: I,
-    ) -> Vec<spk::api::Request> {
-        // options = get_options_from_flags(args)
+        options: &Options,
+    ) -> Result<Vec<spk::api::Request>> {
+        let options = options.get_options()?;
 
-        // out: List[spk::api::Request] = []
-        // for name, value in spk::api::host_options().items():
-        //     if value:
-        //         out.append(spk::api::VarRequest(name, value))
+        let mut out = Vec::<spk::api::Request>::new();
+        for (name, value) in spk::api::host_options()?.into_iter() {
+            if !value.is_empty() {
+                out.push(spk::api::VarRequest::new_with_value(name, value).into());
+            }
+        }
 
-        // for r in requests:
+        for r in requests.into_iter() {
+            if r.contains('@') {
+                let (spec, _, stage) = parse_stage_specifier(r)?;
 
-        //     if "@" in r:
-        //         spec, _, stage = parse_stage_specifier(r)
+                match stage {
+                    spk::api::TestStage::Sources => {
+                        let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
+                        out.push(spk::api::PkgRequest::from_ident(&ident).into());
+                    }
 
-        //         if stage == "source":
-        //             ident = spec.pkg.with_build(spk::api::SRC)
-        //             out.append(spk::api::PkgRequest.from_ident(ident))
+                    spk::api::TestStage::Build => {
+                        let requirements = spk::build::BinaryPackageBuilder::from_spec(spec)
+                            .with_options(options.clone())
+                            .get_build_requirements()?;
+                        for request in requirements {
+                            out.push(request);
+                        }
+                    }
+                    spk::api::TestStage::Install => {
+                        for request in spec.install.requirements.iter() {
+                            out.push(request.clone());
+                        }
+                    }
+                }
+                continue;
+            }
+            let value: serde_yaml::Value =
+                serde_yaml::from_str(r).context("Request was not a valid yaml value")?;
+            let mut request_data = match value {
+                v @ serde_yaml::Value::String(_) => {
+                    let mut mapping = serde_yaml::Mapping::with_capacity(1);
+                    mapping.insert("pkg".into(), v);
+                    mapping
+                }
+                serde_yaml::Value::Mapping(m) => m,
+                _ => {
+                    return Err(anyhow!(
+                        "Invalid request, expected either a string or a mapping, got: {:?}",
+                        value
+                    ))
+                }
+            };
 
-        //         elif stage == "build":
-        //             builder = spk.build.BinaryPackageBuilder.from_spec(spec).with_options(
-        //                 options
-        //             )
-        //             for request in builder.get_build_requirements():
-        //                 out.append(request)
+            let prerelease_policy_key = "prereleasePolicy".into();
+            if self.pre && !request_data.contains_key(&prerelease_policy_key) {
+                request_data.insert(prerelease_policy_key, "IncludeAll".into());
+            }
 
-        //         elif stage == "install":
-        //             for request in spec.install.requirements:
-        //                 out.append(request)
-        //         else:
-        //             print(
-        //                 f"Unknown stage '{stage}', should be one of: 'source', 'build', 'install'"
-        //             )
-        //             sys.exit(1)
-        //     else:
-        //         parsed = yaml.safe_load(r)
-        //         if isinstance(parsed, str):
-        //             request_data = {"pkg": parsed}
-        //         else:
-        //             request_data = parsed
+            let mut req: spk::api::PkgRequest = serde_yaml::from_value(request_data.into())
+                .context(format!("Failed to parse request {}", r))?;
+            if req.pkg.components.is_empty() {
+                req.pkg.components.insert(spk::api::Component::Run);
+            }
+            if req.required_compat.is_none() {
+                req.required_compat = Some(spk::api::CompatRule::API);
+            }
+            out.push(req.into());
+        }
 
-        //         if args.pre:
-        //             request_data.setdefault("prereleasePolicy", "IncludeAll")
-
-        //         req = spk::api::PkgRequest.from_dict(request_data)
-        //         if not req.pkg.components:
-        //             pkg = req.pkg
-        //             pkg.components = set(["run"])
-        //             req.pkg = pkg
-        //         if req.required_compat is None:
-        //             req.required_compat = "API"
-        //         out.append(req)
-
-        // return out
-        todo!()
+        Ok(out)
     }
 }
 
-// pub fn parse_stage_specifier(specifier: str) -> Tuple[spk::api::Spec, str, str]:
-//     """Returns the spec, filename and stage for the given specifier."""
+/// Returns the spec, filename and stage for the given specifier
+pub fn parse_stage_specifier(
+    specifier: &str,
+) -> Result<(spk::api::Spec, String, spk::api::TestStage)> {
+    //     if "@" not in specifier:
+    //         raise ValueError(
+    //             f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
+    //         )
 
-//     if "@" not in specifier:
-//         raise ValueError(
-//             f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
-//         )
-
-//     package, stage = specifier.split("@", 1)
-//     spec, filename = find_package_spec(package)
-//     return spec, filename, stage
+    //     package, stage = specifier.split("@", 1)
+    //     spec, filename = find_package_spec(package)
+    //     return spec, filename, stage
+    todo!()
+}
 
 // pub fn find_package_spec(package: str) -> Tuple[spk::api::Spec, str]:
 
@@ -287,27 +324,43 @@ pub struct Repositories {
 }
 
 impl Repositories {
-    pub fn configure_solver(&self, solver: &mut spk::solve::Solver) {
-        // for name, repo in get_repos_from_repo_flags(args).items():
-        //     _LOGGER.debug("using repository", repo=name)
-        //     solver.add_repository(repo)
-        todo!()
+    /// Configure a solver with the repositories requested on the command line.
+    ///
+    /// The provided defaults are used if nothing was specified.
+    pub fn configure_solver<'a, 'b: 'a, I>(
+        &'b self,
+        solver: &mut spk::solve::Solver,
+        defaults: I,
+    ) -> Result<()>
+    where
+        I: IntoIterator<Item = &'a String>,
+    {
+        for (name, repo) in self.get_repos(defaults)?.into_iter() {
+            tracing::debug!(repo=%name, "using repository");
+            solver.add_repository(repo);
+        }
+        Ok(())
     }
 
     /// Get the repositories specified on the command line.
     ///
     /// The provided defaults are used if nothing was specified.
-    pub fn get_repos<'a, I: IntoIterator<Item = &'a str>>(
-        &self,
+    pub fn get_repos<'a, 'b: 'a, I: IntoIterator<Item = &'a String>>(
+        &'b self,
         defaults: I,
-    ) -> HashMap<String, spk::storage::RepositoryHandle> {
-        // repos: Dict[str, spk.storage.Repository] = OrderedDict()
-        // if args.local_repo:
-        //     repos["local"] = spk.storage.local_repository()
-        // for name in args.enable_repo:
-        //     if name not in args.disable_repo:
-        //         repos[name] = spk.storage.remote_repository(name)
-        // return repos
-        todo!()
+    ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
+        let mut repos = Vec::new();
+        if self.local_repo && !self.no_local_repo {
+            let repo = spk::HANDLE.block_on(spk::storage::local_repository())?;
+            repos.push(("local".into(), repo.into()));
+        }
+        let enabled = self.enable_repo.iter().chain(defaults.into_iter());
+        for name in enabled {
+            if !self.disable_repo.contains(name) {
+                let repo = spk::HANDLE.block_on(spk::storage::remote_repository(name))?;
+                repos.push((name.into(), repo.into()));
+            }
+        }
+        Ok(repos)
     }
 }
