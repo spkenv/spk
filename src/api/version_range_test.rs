@@ -12,15 +12,15 @@ use crate::{
 #[rstest]
 fn test_parse_version_range_carat() {
     let vr = parse_version_range("^1.0.1").unwrap();
-    assert_eq!(vr.greater_or_equal_to(), Some("1.0.1".parse().unwrap()));
-    assert_eq!(vr.less_than(), Some("2.0.0".parse().unwrap()));
+    assert_eq!(vr.greater_or_equal_to().expect("some version"), "1.0.1");
+    assert_eq!(vr.less_than().expect("some version"), "2.0.0");
 }
 
 #[rstest]
 fn test_parse_version_range_tilde() {
     let vr = parse_version_range("~1.0.1").unwrap();
-    assert_eq!(vr.greater_or_equal_to().unwrap(), "1.0.1".parse().unwrap());
-    assert_eq!(vr.less_than().unwrap(), "1.1.0".parse().unwrap());
+    assert_eq!(vr.greater_or_equal_to().expect("some version"), "1.0.1");
+    assert_eq!(vr.less_than().expect("some version"), "1.1.0");
 
     assert!(parse_version_range("~2").is_err());
 }

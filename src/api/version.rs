@@ -203,6 +203,12 @@ pub struct Version {
     pub post: TagSet,
 }
 
+impl std::cmp::PartialEq<&str> for Version {
+    fn eq(&self, other: &&str) -> bool {
+        self.to_string().eq(other)
+    }
+}
+
 #[pymethods]
 impl Version {
     #[new(major = 0, minor = 0, patch = 0)]

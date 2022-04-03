@@ -6,7 +6,7 @@ use spfs::prelude::*;
 use super::SPFSRepository;
 use crate::storage::Repository;
 
-use crate::fixtures::*;
+use crate::{api, fixtures::*};
 
 #[rstest]
 fn test_repo_meta_tag_is_valid() {
@@ -54,7 +54,7 @@ fn test_upgrade_sets_version(tmpdir: tempdir::TempDir) {
             .block_on(repo.read_metadata())
             .unwrap()
             .version,
-        Default::default()
+        api::Version::default()
     );
     repo.upgrade()
         .expect("upgrading an empty repo should succeed");
