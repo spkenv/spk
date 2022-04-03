@@ -56,6 +56,10 @@ pub fn configure_logging(verbosity: usize) -> Result<()> {
         // we also allow a full override via the RUST_LOG variable for debugging
         directives = overrides;
     }
+    // this is not ideal, because it can propagate annoyingly into
+    // created environments, but without it the spfs logging configuration
+    // takes over in it's current setup/state.
+    std::env::set_var("RUST_LOG", &directives);
     let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
     let registry = tracing_subscriber::Registry::default().with(env_filter);
     let mut fmt_layer = tracing_subscriber::fmt::layer()
