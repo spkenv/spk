@@ -1,88 +1,81 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from typing import Any
-import argparse
-import sys
+use anyhow::{anyhow, Context, Result};
+use clap::Args;
+use colored::Colorize;
 
-import structlog
-from ruamel import yaml
-from colorama import Fore, Style
+/// View the current environment or information about a package
+#[derive(Args)]
+#[clap(visible_alias = "info")]
+pub struct View {
+    #[clap(flatten)]
+    requests: super::flags::Requests,
 
-import spk
+    #[clap(flatten)]
+    solver: super::flags::Solver,
 
-from . import _flags
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u32,
 
-_LOGGER = structlog.get_logger("spk.cli")
+    /// The package to show information about
+    package: Option<String>,
+}
 
+impl View {
+    pub fn run(&self) -> Result<i32> {
+        let package = match &self.package {
+            None => return self.print_current_env(),
+            Some(p) => p,
+        };
 
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
+        let mut solver = self.solver.get_solver();
+        let request = self.requests.parse_request(&package);
+        solver.add_request(request.clone());
+        let request = match request {
+            spk::api::Request::Pkg(pkg) => pkg,
+            _ => return Err(anyhow!("Not a package request: {request:?}")),
+        };
 
-    view_cmd = sub_parsers.add_parser(
-        "view",
-        aliases=["info"],
-        help=_view.__doc__,
-        description=_view.__doc__,
-        **parser_args,
-    )
-    view_cmd.add_argument(
-        "package",
-        metavar="PKG",
-        nargs="?",
-        help="Package, or package build to show the spec file of",
-    )
-    _flags.add_request_flags(view_cmd)
-    _flags.add_solver_flags(view_cmd)
-    view_cmd.set_defaults(func=_view)
-    return view_cmd
+        let mut runtime = solver.run();
+        let solution = match runtime.solution() {
+            Ok(s) => s,
+            Err(err @ spk::Error::Solve(_)) => {
+                println!("{}", err.to_string().red());
+                match self.verbose {
+                    0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
+                    v if v < 2 => {
+                        eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
+                    }
+                    v => {
+                        let graph = runtime.graph();
+                        let graph = graph.read().unwrap();
+                        for line in spk::io::format_solve_graph(&*graph, v) {
+                            println!("{}", line?);
+                        }
+                    }
+                }
 
+                return Ok(1);
+            }
+            Err(err) => return Err(err.into()),
+        };
 
-def _view(args: argparse.Namespace) -> None:
-    """View the current environment or a specific package's information."""
+        for item in solution.items() {
+            if item.spec.pkg.name() == request.pkg.name() {
+                serde_yaml::to_writer(std::io::stdout(), &*item.spec)
+                    .context("Failed to serialize loaded spec")?;
+                return Ok(0);
+            }
+        }
+        tracing::error!("Internal Error: requested package was not in solution");
+        Ok(1)
+    }
 
-    if not args.package:
-        _print_current_env(args)
-        return
-
-    solver = _flags.get_solver_from_flags(args)
-    request = _flags.parse_requests_using_flags(args, args.package)[0]
-    solver.add_request(request)
-    if not isinstance(request, spk.api.PkgRequest):
-        raise ValueError(f"Not a package request: {request}")
-
-    runtime = solver.run()
-    try:
-        solution = runtime.solution()
-    except spk.SolverError as e:
-        print(f"{Fore.RED}{e}{Fore.RESET}")
-        if args.verbose:
-            graph = runtime.graph()
-            print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
-        if args.verbose == 0:
-            print(
-                f"{Fore.YELLOW}{Style.DIM}try '--verbose' for more info{Style.RESET_ALL}",
-                file=sys.stderr,
-            )
-        elif args.verbose < 2:
-            print(
-                f"{Fore.YELLOW}{Style.DIM}try '-vv' for even more info{Style.RESET_ALL}",
-                file=sys.stderr,
-            )
-
-        sys.exit(1)
-
-    for _, spec, _ in solution.items():
-        if spec.pkg.name == request.pkg.name:
-            yaml.round_trip_dump(spec.to_dict(), sys.stdout, default_flow_style=False)
-            break
-    else:
-        raise RuntimeError("Internal Error: requested package was not in solution")
-
-
-def _print_current_env(args: argparse.Namespace) -> None:
-
-    solution = spk.current_env()
-    print(spk.io.format_solution(solution, verbosity=args.verbose))
+    fn print_current_env(&self) -> Result<i32> {
+        let solution = spk::current_env()?;
+        println!("{}", spk::io::format_solution(&solution, self.verbose));
+        Ok(0)
+    }
+}

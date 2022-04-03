@@ -29,7 +29,7 @@ pub mod flags;
 // mod cmd_search;
 // mod cmd_test;
 mod cmd_version;
-// mod cmd_view;
+mod cmd_view;
 
 /// A Package Manager for SPFS
 #[derive(Parser)]
@@ -73,7 +73,7 @@ pub enum Command {
     // Remove(cmd_remove::Remove),
     // Search(cmd_search::Search),
     Version(cmd_version::Version),
-    // View(cmd_view::View),
+    View(cmd_view::View),
     // Repo(cmd_repo::Repo),
 }
 
@@ -99,7 +99,7 @@ impl Command {
             // Self::Remove(cmd) => cmd.run(),
             // Self::Search(cmd) => cmd.run(),
             Self::Version(cmd) => cmd.run(),
-            // Self::View(cmd) => cmd.run(),
+            Self::View(cmd) => cmd.run(),
             // Self::Repo(cmd) => cmd.run(),
         }
     }
