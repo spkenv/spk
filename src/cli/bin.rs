@@ -19,7 +19,7 @@ pub mod flags;
 // mod cmd_import;
 // mod cmd_install;
 // mod cmd_ls;
-// mod cmd_make_binary;
+mod cmd_make_binary;
 // mod cmd_make_source;
 // mod cmd_new;
 // mod cmd_publish;
@@ -67,7 +67,7 @@ pub enum Command {
     // Render(cmd_render::Render),
     // Install(cmd_install::Install),
     // Ls(cmd_ls::Ls),
-    // MakeBinary(cmd_make_binary::MakeBinary),
+    MakeBinary(cmd_make_binary::MakeBinary),
     // MakeSource(cmd_make_source::MakeSource),
     // New(cmd_new::New),
     // Publish(cmd_publish::Publish),
@@ -93,7 +93,7 @@ impl Command {
             // Self::Render(cmd) => cmd.run(),
             // Self::Install(cmd) => cmd.run(),
             // Self::Ls(cmd) => cmd.run(),
-            // Self::MakeBinary(cmd) => cmd.run(),
+            Self::MakeBinary(cmd) => cmd.run(),
             // Self::MakeSource(cmd) => cmd.run(),
             // Self::New(cmd) => cmd.run(),
             // Self::Publish(cmd) => cmd.run(),

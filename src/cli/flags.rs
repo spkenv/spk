@@ -306,20 +306,20 @@ pub struct Repositories {
     pub local_repo: bool,
 
     /// Disable resolving packages from the local repository
-    #[clap(short, long)]
+    #[clap(long)]
     pub no_local_repo: bool,
 
     /// Repositories to include in the resolve
     ///
     /// Any configured spfs repository can be named here as well as a path
     /// on disk or a full remote repository url.
-    #[clap(long, short)]
+    #[clap(long, short = 'r')]
     pub enable_repo: Vec<String>,
 
     /// Repositories to exclude in the resolve
     ///
     /// Any configured spfs repository can be named here
-    #[clap(long, short)]
+    #[clap(long)]
     pub disable_repo: Vec<String>,
 }
 
