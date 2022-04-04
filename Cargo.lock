@@ -2659,6 +2659,7 @@ dependencies = [
  "data-encoding",
  "dyn-clone",
  "futures",
+ "glob",
  "ignore",
  "indexmap",
  "itertools 0.9.0",

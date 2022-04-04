@@ -51,6 +51,7 @@ impl Build {
         matches!(self, Build::Embedded)
     }
 }
+
 impl std::fmt::Debug for Build {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.digest().as_str())

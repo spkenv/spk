@@ -36,7 +36,7 @@ pub struct MakeBinary {
     pub env: bool,
 
     /// The packages or yaml spec files to build
-    #[clap(required = true, name = "PKG|SPEC_FILE")]
+    #[clap(name = "PKG|SPEC_FILE")]
     pub packages: Vec<String>,
 }
 
@@ -51,15 +51,24 @@ impl MakeBinary {
             .into_iter()
             .map(|(_, r)| Arc::new(r))
             .collect();
-        for package in self.packages.iter() {
-            let spec = if std::path::Path::new(&package).is_file() {
-                let spec = spk::api::read_spec_file(package)?;
-                tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
-                spk::save_spec(spec.clone())?;
-                spec
-            } else {
-                // TODO:: load from given repos
-                spk::load_spec(package)?
+
+        let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
+        if packages.is_empty() {
+            packages.push(None)
+        }
+
+        for package in packages {
+            let spec = match flags::find_package_spec(package)? {
+                flags::FindPackageSpecResult::NotFound(name) => {
+                    // TODO:: load from given repos
+                    spk::api::read_spec_file(name)?
+                }
+                res => {
+                    let (_, spec) = res.must_be_found();
+                    tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
+                    spk::save_spec(spec.clone())?;
+                    spec
+                }
             };
 
             tracing::info!(

@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::Arc;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use super::flags;
@@ -35,9 +33,9 @@ pub struct Build {
     #[clap(long, short)]
     env: bool,
 
-    /// The packages or yaml spec files to build
-    #[clap(required = true, name = "SPEC_FILE")]
-    files: Vec<String>,
+    /// The package names or yaml spec files to build
+    #[clap(name = "NAME|SPEC_FILE")]
+    packages: Vec<String>,
 }
 
 /// Runs make-source and then make-binary
@@ -45,11 +43,17 @@ impl Build {
     pub fn run(&self) -> Result<i32> {
         self.runtime.ensure_active_runtime()?;
 
-        for filename in self.files.iter() {
+        // divide our packages into one for each iteration of mks/mkb
+        let mut runs: Vec<_> = self.packages.iter().map(|f| vec![f.to_owned()]).collect();
+        if runs.is_empty() {
+            runs.push(Vec::new());
+        }
+
+        for packages in runs {
             let make_source = super::cmd_make_source::MakeSource {
                 verbose: self.verbose,
+                packages: packages.clone(),
                 runtime: self.runtime.clone(),
-                packages: vec![filename.to_owned()],
             };
             let code = make_source.run()?;
             if code != 0 {
@@ -64,7 +68,7 @@ impl Build {
                 here: self.here,
                 interactive: self.interactive,
                 env: self.env,
-                packages: vec![filename.to_owned()],
+                packages,
             };
             let code = make_binary.run()?;
             if code != 0 {

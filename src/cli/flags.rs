@@ -274,55 +274,105 @@ impl Requests {
 pub fn parse_stage_specifier(
     specifier: &str,
 ) -> Result<(spk::api::Spec, String, spk::api::TestStage)> {
-    //     if "@" not in specifier:
-    //         raise ValueError(
-    //             f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
-    //         )
+    // if "@" not in specifier:
+    //     raise ValueError(
+    //         f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
+    //     )
 
-    //     package, stage = specifier.split("@", 1)
-    //     spec, filename = find_package_spec(package)
-    //     return spec, filename, stage
+    // package, stage = specifier.split("@", 1)
+    // spec, filename = find_package_spec(package)
+    // return spec, filename, stage
     todo!()
 }
 
-// pub fn find_package_spec(package: str) -> Tuple[spk::api::Spec, str]:
+/// The result of the [`find_package_spec`] function.
+#[allow(clippy::large_enum_variant)]
+pub enum FindPackageSpecResult {
+    /// A non-ambiguous package spec file was found
+    Found {
+        path: std::path::PathBuf,
+        spec: spk::api::Spec,
+    },
+    /// No package was specifically requested, and there are multiple
+    /// spec files in the current repository.
+    MultipleSpecFiles,
+    /// No package was specifically requested, and there are multiple
+    /// spec files in the current repository.
+    NoSpecFiles,
+    NotFound(String),
+}
 
-//     packages = glob.glob("*.spk.yaml")
-//     if not package:
-//         if len(packages) == 1:
-//             package = packages[0]
-//         elif len(packages) > 1:
-//             print(
-//                 f"{Fore.RED}Multiple package specs in current directory{Fore.RESET}",
-//                 file=sys.stderr,
-//             )
-//             print(
-//                 f"{Fore.RED} > please specify a package name or filepath{Fore.RESET}",
-//                 file=sys.stderr,
-//             )
-//             sys.exit(1)
-//         else:
-//             print(
-//                 f"{Fore.RED}No package specs found in current directory{Fore.RESET}",
-//                 file=sys.stderr,
-//             )
-//             print(
-//                 f"{Fore.RED} > please specify a filepath{Fore.RESET}", file=sys.stderr
-//             )
-//             sys.exit(1)
-//     try:
-//         spec = spk::api::read_spec_file(package)
-//     except FileNotFoundError:
-//         for filename in packages:
-//             spec = spk::api::read_spec_file(filename)
-//             if spec.pkg.name == package:
-//                 package = filename
-//                 break
-//         else:
-//             raise
-//     return spec, package
+impl FindPackageSpecResult {
+    pub fn is_found(&self) -> bool {
+        matches!(self, Self::Found { .. })
+    }
 
-#[derive(Args)]
+    /// Prints error messages and exists if no spec file was found
+    pub fn must_be_found(self) -> (std::path::PathBuf, spk::api::Spec) {
+        match self {
+            Self::Found { path, spec } => return (path, spec),
+            Self::MultipleSpecFiles => {
+                tracing::error!("Multiple package specs in current directory");
+                tracing::error!(" > please specify a package name or filepath");
+            }
+            Self::NoSpecFiles => {
+                tracing::error!("No package specs found in current directory");
+                tracing::error!(" > please specify a filepath");
+            }
+            Self::NotFound(request) => {
+                tracing::error!("Spec file not found for '{request}', or the file does not exist");
+            }
+        }
+        std::process::exit(1);
+    }
+}
+
+/// Find a package spec file for the requested package, if any.
+///
+/// This function will use the current directory and the provided
+/// package name or filename to try and discover the matching
+/// yaml spec file.
+pub fn find_package_spec(package: Option<String>) -> Result<FindPackageSpecResult> {
+    use FindPackageSpecResult::*;
+    let mut packages = glob::glob("*.spk.yaml")?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .context("Failed to discover spec files in current directory")?;
+    let package = match package {
+        Some(package) => package,
+        None if packages.len() == 1 => {
+            let path = packages.pop().unwrap();
+            let spec = spk::api::read_spec_file(&path)?;
+            return Ok(Found { path, spec });
+        }
+        None if packages.len() > 1 => {
+            return Ok(MultipleSpecFiles);
+        }
+        None => {
+            return Ok(NoSpecFiles);
+        }
+    };
+
+    match spk::api::read_spec_file(&package) {
+        Err(spk::Error::IO(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
+        res => {
+            return Ok(Found {
+                path: package.into(),
+                spec: res?,
+            })
+        }
+    }
+
+    for path in packages {
+        let spec = spk::api::read_spec_file(&path)?;
+        if spec.pkg.name() == package {
+            return Ok(Found { path, spec });
+        }
+    }
+
+    Ok(NotFound(package))
+}
+
+#[derive(Args, Clone)]
 pub struct Repositories {
     /// Resolve packages from the local repository
     #[clap(short, long)]
