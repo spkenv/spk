@@ -34,7 +34,7 @@ macro_rules! ident {
 /// range of package versions/releases depending on the
 /// syntax and context
 #[pyclass]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
+#[derive(Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
 pub struct Ident {
     #[pyo3(get)]
     name: String,
@@ -42,6 +42,12 @@ pub struct Ident {
     pub version: Version,
     #[pyo3(get, set)]
     pub build: Option<Build>,
+}
+
+impl std::fmt::Debug for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Ident").field(&self.to_string()).finish()
+    }
 }
 
 impl std::fmt::Display for Ident {
