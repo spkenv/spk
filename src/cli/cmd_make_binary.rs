@@ -14,30 +14,30 @@ use super::flags;
 #[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
 pub struct MakeBinary {
     #[clap(flatten)]
-    repos: flags::Repositories,
+    pub repos: flags::Repositories,
     #[clap(flatten)]
-    options: flags::Options,
+    pub options: flags::Options,
     #[clap(flatten)]
-    runtime: flags::Runtime,
+    pub runtime: flags::Runtime,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
     /// Build from the current directory, instead of a source package)
     #[clap(long)]
-    here: bool,
+    pub here: bool,
 
     /// Setup the build, but instead of running the build script start an interactive shell
     #[clap(long, short)]
-    interactive: bool,
+    pub interactive: bool,
 
     /// Build the first variant of this package, and then immediately enter a shell environment with it
     #[clap(long, short)]
-    env: bool,
+    pub env: bool,
 
     /// The packages or yaml spec files to build
     #[clap(required = true, name = "PKG|SPEC_FILE")]
-    packages: Vec<String>,
+    pub packages: Vec<String>,
 }
 
 impl MakeBinary {

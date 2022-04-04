@@ -11,7 +11,7 @@ static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
 
 // OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct Runtime {
     /// Reconfigure the current spfs runtime (useful for speed and debugging)
     #[clap(long, env = SPK_NO_RUNTIME)]
@@ -83,7 +83,7 @@ impl Solver {
     }
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct Options {
     /// Specify build/resolve options
     ///

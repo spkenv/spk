@@ -12,14 +12,14 @@ use super::flags;
 #[clap(visible_aliases = &["mksource", "mksrc", "mks"])]
 pub struct MakeSource {
     #[clap(flatten)]
-    runtime: flags::Runtime,
+    pub runtime: flags::Runtime,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
     /// The packages or yaml spec files to collect
     #[clap(required = true, name = "PKG|SPEC_FILE")]
-    packages: Vec<String>,
+    pub packages: Vec<String>,
 }
 
 impl MakeSource {
