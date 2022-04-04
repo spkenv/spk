@@ -153,7 +153,7 @@ pub struct Requests {
 }
 
 impl Requests {
-    pub fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(packages: I) -> Vec<spk::api::Ident> {
+    pub fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(_packages: I) -> Vec<spk::api::Ident> {
         // idents = []
         // for package in packages:
         //     if "@" in package:
@@ -272,7 +272,7 @@ impl Requests {
 
 /// Returns the spec, filename and stage for the given specifier
 pub fn parse_stage_specifier(
-    specifier: &str,
+    _specifier: &str,
 ) -> Result<(spk::api::Spec, String, spk::api::TestStage)> {
     // if "@" not in specifier:
     //     raise ValueError(
