@@ -93,7 +93,8 @@ impl MakeBinary {
                     builder.with_source(spk::build::BuildSource::LocalPath(here));
                 }
                 let out = match builder.build() {
-                    Err(err @ spk::Error::Solve(_)) => {
+                    Err(err @ spk::Error::Solve(_))
+                    | Err(err @ spk::Error::PackageNotFoundError(_)) => {
                         tracing::error!("variant failed {}", spk::io::format_options(&opts));
                         if self.verbose > 0 {
                             let graph = builder.get_solve_graph();
