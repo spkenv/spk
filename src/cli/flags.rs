@@ -193,11 +193,15 @@ impl Requests {
     }
 
     /// Parse and build requests from the given strings and these flags.
-    pub fn parse_requests<'a, I: IntoIterator<Item = &'a str>>(
+    pub fn parse_requests<'a, I, S>(
         &self,
         requests: I,
         options: &Options,
-    ) -> Result<Vec<spk::api::Request>> {
+    ) -> Result<Vec<spk::api::Request>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
         let options = options.get_options()?;
 
         let mut out = Vec::<spk::api::Request>::new();
@@ -208,6 +212,7 @@ impl Requests {
         }
 
         for r in requests.into_iter() {
+            let r = r.as_ref();
             if r.contains('@') {
                 let (spec, _, stage) = parse_stage_specifier(r)?;
 

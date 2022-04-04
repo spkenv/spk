@@ -1,8 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::ffi::OsString;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Args;
 
 use super::flags;
@@ -12,7 +13,7 @@ use super::flags;
 /// Use '--' to separate the command from requests. If no command is given,
 /// spawn a new shell
 #[derive(Args)]
-#[clap(visible_alias = "run")]
+#[clap(visible_aliases = &["run", "shell"])]
 pub struct Env {
     #[clap(flatten)]
     pub solver: flags::Solver,
@@ -20,13 +21,15 @@ pub struct Env {
     pub options: flags::Options,
     #[clap(flatten)]
     pub runtime: flags::Runtime,
+    #[clap(flatten)]
+    pub requests: flags::Requests,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
     /// The requests to resolve and run
-    #[clap()]
-    pub requests: Vec<String>,
+    #[clap(name = "REQUESTS")]
+    pub requested: Vec<String>,
 
     /// An optional command to run in the resolved environment.
     ///
@@ -38,48 +41,63 @@ pub struct Env {
 
 impl Env {
     pub fn run(&self) -> Result<i32> {
-        // // parse args again to get flags that might be missed
-        // // while using the argparse.REMAINDER flag above
-        // extra_parser = argparse.ArgumentParser()
-        // extra_parser.add_argument("--verbose", "-v", action="count", default=0)
-        // add_env_flags(extra_parser)
+        self.runtime.ensure_active_runtime()?;
 
-        // try:
-        //     separator = args.args.index("--")
-        // except ValueError:
-        //     separator = len(args.args)
-        // requests = args.args[:separator]
-        // command = args.args[separator + 1 :] or []
-        // args, requests = extra_parser.parse_known_args(requests, args)
+        let mut solver = self.solver.get_solver(&self.options)?;
+        let requests = self
+            .requests
+            .parse_requests(&self.requested, &self.options)?;
+        for request in requests {
+            solver.add_request(request)
+        }
 
-        // _flags.ensure_active_runtime(args)
+        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
 
-        // solver = _flags.get_solver_from_flags(args)
+        if self.verbose > 0 {
+            eprintln!("{}", spk::io::format_solution(&solution, self.verbose));
+        }
 
-        // for request in _flags.parse_requests_using_flags(args, *requests):
-        //     solver.add_request(request)
+        let solution = spk::build_required_packages(&solution)?;
+        spk::setup_current_runtime(&solution)?;
+        let env = solution.to_environment(Some(std::env::vars()));
+        let _: Vec<_> = std::env::vars()
+            .map(|(k, _)| k)
+            .map(std::env::remove_var)
+            .collect();
+        for (name, value) in env.into_iter() {
+            std::env::set_var(name, value);
+        }
 
-        // try:
-        //     generator = solver.run()
-        //     spk.io.print_decisions(generator, args.verbose)
-        //     solution = generator.solution()
-        // except spk.SolverError as e:
-        //     print(spk.io.format_error(e, args.verbose), file=sys.stderr)
-        //     sys.exit(1)
+        let mut command = if self.command.is_empty() {
+            let rt = spfs::active_runtime()?;
+            spfs::build_interactive_shell_cmd(&rt)?
+        } else {
+            let cmd = std::ffi::OsString::from(self.command.get(0).unwrap());
+            let mut args = self.command[1..]
+                .iter()
+                .map(std::ffi::OsString::from)
+                .collect();
+            spfs::build_shell_initialized_command(cmd, &mut args)?
+        };
+        let exe = command.drain(..1).next().unwrap();
+        self.run_command(exe, command)
+    }
 
-        // if args.verbose > 1:
-        //     print(spk.io.format_solution(solution, args.verbose))
+    #[cfg(target_os = "linux")]
+    pub fn run_command(&self, exe: OsString, args: Vec<OsString>) -> Result<i32> {
+        use std::os::unix::ffi::OsStrExt;
 
-        // solution = spk.build_required_packages(solution)
-        // spk.setup_current_runtime(solution)
-        // env = solution.to_environment(os.environ)
-        // os.environ.clear()
-        // os.environ.update(env)
-        // if not command:
-        //     cmd = spkrs.build_interactive_shell_command()
-        // else:
-        //     cmd = spkrs.build_shell_initialized_command(*command)
-        // os.execvp(cmd[0], cmd)
-        todo!()
+        let exe = std::ffi::CString::new(exe.as_bytes())
+            .context("Provided command was not a valid string")?;
+        let mut args = args
+            .iter()
+            .map(|arg| std::ffi::CString::new(arg.as_bytes()))
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .context("One or more arguments was not a valid c-string")?;
+        args.insert(0, exe.clone());
+
+        tracing::trace!("{:?}", args);
+        nix::unistd::execvp(&exe, args.as_slice()).context("Command failed to launch")?;
+        unreachable!()
     }
 }
