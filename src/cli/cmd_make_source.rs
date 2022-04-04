@@ -1,54 +1,51 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from typing import Any
-import argparse
-import os
+use anyhow::{Context, Result};
+use clap::Args;
 
-import structlog
+use super::flags;
 
-from . import _flags
-import spk
+/// Build a source package from a spec file.
+#[derive(Args)]
+#[clap(visible_aliases = &["mksource", "mksrc", "mks"])]
+pub struct MakeSource {
+    #[clap(flatten)]
+    runtime: flags::Runtime,
 
-_LOGGER = structlog.get_logger("spk.cli")
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u32,
 
+    /// The packages or yaml spec files to collect
+    #[clap(required = true, name = "PKG|SPEC_FILE")]
+    packages: Vec<String>,
+}
 
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
+impl MakeSource {
+    pub fn run(&self) -> Result<i32> {
+        let _runtime = self.runtime.ensure_active_runtime()?;
 
-    make_source_cmd = sub_parsers.add_parser(
-        "make-source",
-        aliases=["mksource", "mksrc", "mks"],
-        help=_make_source.__doc__,
-        description=_make_source.__doc__,
-        **parser_args,
-    )
-    make_source_cmd.add_argument(
-        "packages",
-        metavar="PKG|SPEC_FILE",
-        nargs="+",
-        help="The packages or yaml specification files to build",
-    )
-    _flags.add_runtime_flags(make_source_cmd)
-    make_source_cmd.set_defaults(func=_make_source)
-    return make_source_cmd
+        for package in self.packages.iter() {
+            let spec = if std::path::Path::new(&package).is_file() {
+                let spec = spk::api::read_spec_file(package)?;
+                tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
+                spk::save_spec(spec.clone())?;
+                spec
+            } else {
+                // TODO:: load from given repos
+                spk::load_spec(package)?
+            };
 
-
-def _make_source(args: argparse.Namespace) -> None:
-    """Build a source package from a spec file."""
-
-    _flags.ensure_active_runtime(args)
-
-    for package in args.packages:
-        if os.path.isfile(package):
-            spec = spk.api.read_spec_file(package)
-            _LOGGER.info("saving spec file", pkg=spec.pkg)
-            spk.save_spec(spec)
-        else:
-            spec = spk.load_spec(package)
-
-        _LOGGER.info("collecting sources", pkg=spec.pkg)
-        out = spk.SourcePackageBuilder.from_spec(spec).build()
-        _LOGGER.info("created", pkg=out)
+            tracing::info!(
+                "collecting sources for {}",
+                spk::io::format_ident(&spec.pkg)
+            );
+            let out = spk::build::SourcePackageBuilder::from_spec(spec)
+                .build()
+                .context("Failed to collect sources")?;
+            tracing::info!("created {}", spk::io::format_ident(&out));
+        }
+        Ok(0)
+    }
+}

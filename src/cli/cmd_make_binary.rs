@@ -54,7 +54,7 @@ impl MakeBinary {
         for package in self.packages.iter() {
             let spec = if std::path::Path::new(&package).is_file() {
                 let spec = spk::api::read_spec_file(package)?;
-                tracing::info!(pkg = %spk::io::format_ident(&spec.pkg) ,"saving spec file");
+                tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
                 spk::save_spec(spec.clone())?;
                 spec
             } else {
@@ -62,7 +62,10 @@ impl MakeBinary {
                 spk::load_spec(package)?
             };
 
-            tracing::info!(pkg = %spk::io::format_ident(&spec.pkg), "building binary package");
+            tracing::info!(
+                "building binary package {}",
+                spk::io::format_ident(&spec.pkg)
+            );
             let mut built = std::collections::HashSet::new();
             for variant in spec.build.variants.iter() {
                 let mut opts = if !self.options.no_host {
@@ -78,7 +81,7 @@ impl MakeBinary {
                     continue;
                 }
 
-                tracing::info!(variant = %spk::io::format_options(&opts), "building variant");
+                tracing::info!("building variant {}", spk::io::format_options(&opts));
                 let mut builder = spk::build::BinaryPackageBuilder::from_spec(spec.clone());
                 builder
                     .with_options(opts.clone())
@@ -91,7 +94,7 @@ impl MakeBinary {
                 }
                 let out = match builder.build() {
                     Err(err @ spk::Error::Solve(_)) => {
-                        tracing::error!(variant = %spk::io::format_options(&opts), "build failed");
+                        tracing::error!("variant failed {}", spk::io::format_options(&opts));
                         if self.verbose > 0 {
                             let graph = builder.get_solve_graph();
                             let graph = graph.read().unwrap();
@@ -104,7 +107,7 @@ impl MakeBinary {
                     Ok(out) => out,
                     Err(err) => return Err(err.into()),
                 };
-                tracing::info!(pkg = %spk::io::format_ident(&out.pkg), "created");
+                tracing::info!("created {}", spk::io::format_ident(&out.pkg));
 
                 if self.env {
                     let request = spk::api::PkgRequest::from_ident(&out.pkg);
