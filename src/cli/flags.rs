@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashMap;
+use std::{collections::HashMap,  str::FromStr};
 
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
@@ -153,31 +153,40 @@ pub struct Requests {
 }
 
 impl Requests {
-    pub fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(_packages: I) -> Vec<spk::api::Ident> {
-        // idents = []
-        // for package in packages:
-        //     if "@" in package:
-        //         spec, _, stage = parse_stage_specifier(package)
+    /// Resolve command line requests to package identifiers.
+    pub fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(
+        &self,
+        packages: I,
+    ) -> Result<Vec<spk::api::Ident>> {
+        let mut idents = Vec::new();
+        for package in packages {
+            if package.contains('@') {
+                let (spec, _, stage) = parse_stage_specifier(package)?;
 
-        //         if stage == "source":
-        //             ident = spec.pkg.with_build(spk::api::SRC)
-        //             idents.append(ident)
+                match stage {
+                    spk::api::TestStage::Sources => {
+                        let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
+                        idents.push(ident);
+                        continue;
+                    }
+                    _ => {
+                        return Err(anyhow!(
+                        "Unsupported stage '{stage}', can only be empty or 'source' in this context"
+                    ));
+                    }
+                }
+            }
 
-        //         else:
-        //             print(
-        //                 f"Unsupported stage '{stage}', can only be empty or 'source' in this context"
-        //             )
-        //             sys.exit(1)
+            let path = std::path::Path::new(package);
+            if path.is_file() {
+                let (_, spec) = find_package_spec(Some(package.into()))?.must_be_found();
+                idents.push(spec.pkg);
+            } else {
+                idents.push(spk::api::parse_ident(package)?)
+            }
+        }
 
-        //     if os.path.isfile(package):
-        //         spec, _ = find_package_spec(package)
-        //         idents.append(spec.pkg)
-
-        //     else:
-        //         idents.append(spk::api::parse_ident(package))
-
-        // return idents
-        todo!()
+        Ok(idents)
     }
 
     /// Parse and build a request from the given string and these flags
@@ -277,17 +286,18 @@ impl Requests {
 
 /// Returns the spec, filename and stage for the given specifier
 pub fn parse_stage_specifier(
-    _specifier: &str,
-) -> Result<(spk::api::Spec, String, spk::api::TestStage)> {
-    // if "@" not in specifier:
-    //     raise ValueError(
-    //         f"Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
-    //     )
+    specifier: &str,
+) -> Result<(spk::api::Spec, std::path::PathBuf, spk::api::TestStage)> {
+    let (package, stage) = specifier.split_once('@').ok_or_else(|| {
+        anyhow!(
+            "Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
+        )
+    })?;
 
-    // package, stage = specifier.split("@", 1)
-    // spec, filename = find_package_spec(package)
-    // return spec, filename, stage
-    todo!()
+    let stage = spk::api::TestStage::from_str(stage)?;
+
+    let (filename, spec) = find_package_spec(Some(package.into()))?.must_be_found();
+    Ok((spec, filename, stage))
 }
 
 /// The result of the [`find_package_spec`] function.

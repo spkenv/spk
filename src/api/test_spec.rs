@@ -1,6 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::str::FromStr;
+
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -48,11 +51,19 @@ impl<'de> Deserialize<'de> for TestStage {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        match value.as_str() {
+        Self::from_str(&value).map_err(serde::de::Error::custom)
+    }
+}
+
+impl FromStr for TestStage {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             SOURCES_NAME => Ok(Self::Sources),
             BUILD_NAME => Ok(Self::Build),
             INSTALL_NAME => Ok(Self::Install),
-            other => Err(serde::de::Error::custom(format!(
+            other => Err(crate::Error::String(format!(
                 "Invalid test stage '{}', must be one of: {}, {}, {}",
                 other, SOURCES_NAME, BUILD_NAME, INSTALL_NAME,
             ))),

@@ -1,9 +1,8 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::OsString;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use super::flags;
