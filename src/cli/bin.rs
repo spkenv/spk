@@ -9,9 +9,9 @@ use colored::Colorize;
 
 mod cmd_bake;
 mod cmd_build;
+mod cmd_convert;
 pub mod env;
 pub mod flags;
-// mod cmd_convert;
 // mod cmd_deprecate;
 mod cmd_env;
 // mod cmd_explain;
@@ -57,8 +57,8 @@ impl Opt {
 pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
+    Convert(cmd_convert::Convert),
     // Test(cmd_test::Test),
-    // Convert(cmd_convert::Convert),
     // Deprecate(cmd_deprecate::Deprecate),
     Env(cmd_env::Env),
     // Explain(cmd_explain::Explain),
@@ -83,8 +83,8 @@ impl Command {
         match self {
             Self::Bake(cmd) => cmd.run(),
             Self::Build(cmd) => cmd.run(),
+            Self::Convert(cmd) => cmd.run(),
             // Self::Test(cmd) => cmd.run(),
-            // Self::Convert(cmd) => cmd.run(),
             // Self::Deprecate(cmd) => cmd.run(),
             Self::Env(cmd) => cmd.run(),
             // Self::Explain(cmd) => cmd.run(),

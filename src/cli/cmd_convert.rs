@@ -1,39 +1,54 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from typing import Any
-import subprocess
-import re
-import argparse
+use anyhow::Result;
+use clap::Args;
 
-import structlog
+use super::flags;
 
-from . import _flags
+/// Convert a package from an external packaging system for use in spk
+#[derive(Args)]
+pub struct Convert {
+    #[clap(flatten)]
+    pub solver: flags::Solver,
+    #[clap(flatten)]
+    pub options: flags::Options,
+    #[clap(flatten)]
+    pub runtime: flags::Runtime,
+    #[clap(flatten)]
+    pub requests: flags::Requests,
 
-_LOGGER = structlog.get_logger("spk.cli")
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u32,
 
+    /// The converter to run
+    converter: String,
 
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
+    /// Arguments to the conversion command, separated with '--'.
+    ///
+    /// If you are not sure what arguments are available, you can
+    /// always run it with the --help argument.
+    #[clap(raw = true)]
+    args: Vec<String>,
+}
 
-    convert_cmd = sub_parsers.add_parser(
-        "convert", help=_convert.__doc__, description=_convert.__doc__, **parser_args
-    )
-    convert_cmd.add_argument("converter", nargs=1, help="the converter to run")
-    convert_cmd.add_argument("args", nargs=argparse.REMAINDER)
+impl Convert {
+    pub fn run(&self) -> Result<i32> {
+        let converter_package = format!("spk-convert-{}", self.converter);
 
-    convert_cmd.set_defaults(func=_convert)
-    return convert_cmd
+        let mut command = vec![converter_package.clone()];
+        command.extend(self.args.clone());
 
-
-def _convert(args: argparse.Namespace) -> None:
-    """Convert a package from an external packaging system for use in spk."""
-
-    converter = args.converter[0]
-    exe = f"spk-convert-{converter}"
-    cmd = [exe, *args.args]
-    if converter == "pip":
-        cmd = ["spk", "env", exe, "--", *cmd]
-    subprocess.check_call(cmd)
+        let env = super::cmd_env::Env {
+            solver: self.solver.clone(),
+            options: self.options.clone(),
+            runtime: self.runtime.clone(),
+            requests: self.requests.clone(),
+            verbose: self.verbose,
+            requested: vec![converter_package],
+            command,
+        };
+        env.run()
+    }
+}
