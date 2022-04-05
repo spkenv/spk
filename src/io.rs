@@ -213,64 +213,55 @@ where
             return Some(Ok(next));
         }
 
-        // in the case of not outputting anything, we simply want
-        // to consume the whole iterator unless there are errors
-        if self.verbosity == 0 {
-            for r in self.inner.by_ref() {
-                if let Err(err) = r {
-                    return Some(Err(err));
+        while self.output_queue.is_empty() {
+            let decision = match self.inner.next() {
+                None => return None,
+                Some(Ok((_, d))) => d,
+                Some(Err(err)) => return Some(Err(err)),
+            };
+
+            if self.verbosity > 1 {
+                let fill: String = ".".repeat(self.level);
+                for note in decision.notes.iter() {
+                    self.output_queue
+                        .push_back(format!("{} {}", fill, format_note(note)));
                 }
             }
-            return None;
-        }
 
-        let decision = match self.inner.next() {
-            None => return None,
-            Some(Ok((_, d))) => d,
-            Some(Err(err)) => return Some(Err(err)),
-        };
-
-        if self.verbosity > 1 {
-            let fill: String = ".".repeat(self.level);
-            for note in decision.notes.iter() {
-                self.output_queue
-                    .push_back(format!("{} {}", fill, format_note(note)));
-            }
-        }
-
-        let mut fill: &str;
-        let mut level_change: i64 = 1;
-        for change in decision.changes.iter() {
-            use solve::graph::Change::*;
-            match change {
-                SetPackage(change) => {
-                    if change.spec.pkg.build == Some(api::Build::Embedded) {
+            let mut fill: &str;
+            let mut level_change: i64 = 1;
+            for change in decision.changes.iter() {
+                use solve::graph::Change::*;
+                match change {
+                    SetPackage(change) => {
+                        if change.spec.pkg.build == Some(api::Build::Embedded) {
+                            fill = ".";
+                        } else {
+                            fill = ">";
+                        }
+                    }
+                    StepBack(_) => {
+                        fill = "!";
+                        level_change = -1;
+                    }
+                    _ => {
                         fill = ".";
-                    } else {
-                        fill = ">";
                     }
                 }
-                StepBack(_) => {
-                    fill = "!";
-                    level_change = -1;
-                }
-                _ => {
-                    fill = ".";
-                }
-            }
 
-            if !change_is_relevant_at_verbosity(change, self.verbosity) {
-                continue;
-            }
+                if !change_is_relevant_at_verbosity(change, self.verbosity) {
+                    continue;
+                }
 
-            let prefix: String = fill.repeat(self.level);
-            self.output_queue.push_back(format!(
-                "{} {}",
-                prefix,
-                format_change(change, self.verbosity)
-            ))
+                let prefix: String = fill.repeat(self.level);
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    prefix,
+                    format_change(change, self.verbosity)
+                ))
+            }
+            self.level = (self.level as i64 + level_change) as usize;
         }
-        self.level = (self.level as i64 + level_change) as usize;
         self.output_queue.pop_front().map(Ok)
     }
 }

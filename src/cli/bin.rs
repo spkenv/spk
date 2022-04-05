@@ -12,9 +12,9 @@ mod cmd_build;
 mod cmd_convert;
 mod cmd_deprecate;
 mod cmd_env;
+mod cmd_explain;
 pub mod env;
 pub mod flags;
-// mod cmd_explain;
 // mod cmd_export;
 // mod cmd_import;
 // mod cmd_install;
@@ -59,9 +59,9 @@ pub enum Command {
     Build(cmd_build::Build),
     Convert(cmd_convert::Convert),
     Deprecate(cmd_deprecate::Deprecate),
-    // Test(cmd_test::Test),
     Env(cmd_env::Env),
-    // Explain(cmd_explain::Explain),
+    Explain(cmd_explain::Explain),
+    // Test(cmd_test::Test),
     // Export(cmd_export::Export),
     // Import(cmd_import::Import),
     // Render(cmd_render::Render),
@@ -85,9 +85,9 @@ impl Command {
             Self::Build(cmd) => cmd.run(),
             Self::Convert(cmd) => cmd.run(),
             Self::Deprecate(cmd) => cmd.run(),
-            // Self::Test(cmd) => cmd.run(),
             Self::Env(cmd) => cmd.run(),
-            // Self::Explain(cmd) => cmd.run(),
+            Self::Explain(cmd) => cmd.run(),
+            // Self::Test(cmd) => cmd.run(),
             // Self::Export(cmd) => cmd.run(),
             // Self::Import(cmd) => cmd.run(),
             // Self::Render(cmd) => cmd.run(),
