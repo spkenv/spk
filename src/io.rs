@@ -213,11 +213,23 @@ where
             return Some(Ok(next));
         }
 
+        // in the case of not outputting anything, we simply want
+        // to consume the whole iterator unless there are errors
+        if self.verbosity == 0 {
+            for r in self.inner.by_ref() {
+                if let Err(err) = r {
+                    return Some(Err(err));
+                }
+            }
+            return None;
+        }
+
         let decision = match self.inner.next() {
             None => return None,
             Some(Ok((_, d))) => d,
             Some(Err(err)) => return Some(Err(err)),
         };
+
         if self.verbosity > 1 {
             let fill: String = ".".repeat(self.level);
             for note in decision.notes.iter() {
