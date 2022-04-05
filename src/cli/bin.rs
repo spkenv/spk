@@ -7,10 +7,10 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 
+mod cmd_bake;
+mod cmd_build;
 pub mod env;
 pub mod flags;
-// mod cmd_bake;
-mod cmd_build;
 // mod cmd_convert;
 // mod cmd_deprecate;
 mod cmd_env;
@@ -55,7 +55,7 @@ impl Opt {
 
 #[derive(Subcommand)]
 pub enum Command {
-    // Bake(cmd_bake::Bake),
+    Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
     // Test(cmd_test::Test),
     // Convert(cmd_convert::Convert),
@@ -81,7 +81,7 @@ pub enum Command {
 impl Command {
     fn run(&self) -> Result<i32> {
         match self {
-            // Self::Bake(cmd) => cmd.run(),
+            Self::Bake(cmd) => cmd.run(),
             Self::Build(cmd) => cmd.run(),
             // Self::Test(cmd) => cmd.run(),
             // Self::Convert(cmd) => cmd.run(),

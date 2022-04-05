@@ -9,7 +9,7 @@ use super::flags;
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args, Clone)]
-#[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
+#[clap(visible_aliases = &["make", "mk"])]
 pub struct Build {
     #[clap(flatten)]
     runtime: flags::Runtime,

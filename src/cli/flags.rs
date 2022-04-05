@@ -58,7 +58,7 @@ impl Runtime {
     }
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct Solver {
     #[clap(flatten)]
     pub repos: Repositories,
@@ -145,7 +145,7 @@ impl Options {
     }
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct Requests {
     /// Allow pre-releases for all command line package requests
     #[clap(long)]
