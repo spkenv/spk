@@ -83,7 +83,7 @@ pub async fn import_package<P: AsRef<Path>>(filename: P) -> Result<()> {
     let mut stream = tar_repo.iter_tags();
     while let Some((tag, _)) = stream.try_next().await? {
         tracing::info!(?tag, "importing");
-        spfs::sync_ref(tag.to_string(), &local_repo, &tar_repo).await?;
+        spfs::sync_ref(tag.to_string(), &tar_repo, &local_repo).await?;
     }
     Ok(())
 }
