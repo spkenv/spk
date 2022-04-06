@@ -124,7 +124,11 @@ impl proto::tag_service_server::TagService for TagService {
 }
 
 impl TagService {
+    pub fn new(repo: Arc<storage::RepositoryHandle>) -> Self {
+        Self { repo }
+    }
+
     pub fn new_srv(repo: Arc<storage::RepositoryHandle>) -> TagServiceServer<Self> {
-        TagServiceServer::new(Self { repo })
+        TagServiceServer::new(Self::new(repo))
     }
 }
