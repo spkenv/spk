@@ -1,33 +1,33 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use anyhow::Result;
+use clap::Args;
+use colored::Colorize;
 
-from typing import Any
-import argparse
+/// Initialize a new package
+#[derive(Args)]
+#[clap(visible_alias = "init")]
+pub struct New {
+    /// The name of the new package to generate
+    name: String,
+}
 
-import structlog
+impl New {
+    pub fn run(&mut self) -> Result<i32> {
+        spk::api::validate_name(&self.name)?;
+        let spec = get_stub(&self.name);
 
-import spk
+        let spec_file = format!("{}.spk.yaml", self.name);
+        std::fs::write(&spec_file, &spec)?;
+        println!("{}: {}", "Created".green(), spec_file);
+        Ok(0)
+    }
+}
 
-_LOGGER = structlog.get_logger("cli")
-
-
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
-
-    new_cmd = sub_parsers.add_parser(
-        "new", help=_new.__doc__, description=_new.__doc__, **parser_args
-    )
-    new_cmd.add_argument(
-        "name", metavar="NAME", nargs=1, help="The name of the new package"
-    )
-    new_cmd.set_defaults(func=_new)
-    return new_cmd
-
-
-TEMPLATE = """\
-pkg: {name}/0.1.0
+fn get_stub(name: &String) -> String {
+    format!(
+        r#"pkg: {name}/0.1.0
 
 build:
 
@@ -66,17 +66,6 @@ install:
       # we can use the version of python from the build environment to dynamically
       # define the install requirement
       fromBuildEnv: x.x
-"""
-
-
-def _new(args: argparse.Namespace) -> None:
-    """Generate a new package spec file."""
-
-    name = args.name[0]
-    spk.api.validate_name(name)
-    spec = TEMPLATE.format(name=name)
-
-    spec_file = f"{name}.spk.yaml"
-    with open(spec_file, "x") as writer:
-        writer.write(spec)
-    print("created:", spec_file)
+"#
+    )
+}

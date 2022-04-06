@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashMap,  str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
@@ -202,7 +202,7 @@ impl Requests {
     }
 
     /// Parse and build requests from the given strings and these flags.
-    pub fn parse_requests<'a, I, S>(
+    pub fn parse_requests<I, S>(
         &self,
         requests: I,
         options: &Options,

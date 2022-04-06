@@ -19,9 +19,9 @@ mod cmd_install;
 mod cmd_ls;
 mod cmd_make_binary;
 mod cmd_make_source;
+mod cmd_new;
 pub mod env;
 pub mod flags;
-// mod cmd_new;
 // mod cmd_publish;
 // mod cmd_remove;
 // mod cmd_render;
@@ -67,9 +67,9 @@ pub enum Command {
     Ls(cmd_ls::Ls),
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
+    New(cmd_new::New),
     // Test(cmd_test::Test),
     // Render(cmd_render::Render),
-    // New(cmd_new::New),
     // Publish(cmd_publish::Publish),
     // Remove(cmd_remove::Remove),
     // Search(cmd_search::Search),
@@ -93,9 +93,9 @@ impl Command {
             Self::Ls(cmd) => cmd.run(),
             Self::MakeBinary(cmd) => cmd.run(),
             Self::MakeSource(cmd) => cmd.run(),
+            Self::New(cmd) => cmd.run(),
             // Self::Test(cmd) => cmd.run(),
             // Self::Render(cmd) => cmd.run(),
-            // Self::New(cmd) => cmd.run(),
             // Self::Publish(cmd) => cmd.run(),
             // Self::Remove(cmd) => cmd.run(),
             // Self::Search(cmd) => cmd.run(),
