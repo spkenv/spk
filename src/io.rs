@@ -269,18 +269,61 @@ where
 pub fn format_error(err: &Error, verbosity: u32) -> String {
     let mut msg = String::new();
     match err {
+        Error::PackageNotFoundError(pkg) => {
+            msg.push_str("Package not found: ");
+            msg.push_str(&format_ident(&pkg));
+            msg.push_str("\n");
+            msg.push_str(
+                &" * check the spelling of the name\n"
+                    .yellow()
+                    .dimmed()
+                    .to_string(),
+            );
+            msg.push_str(
+                &" * ensure that you have enabled the right repositories"
+                    .yellow()
+                    .dimmed()
+                    .to_string(),
+            )
+        }
         Error::Solve(err) => {
             msg.push_str("Failed to resolve");
-            msg.push_str(&format!("\n * {:?}", err));
+            match err {
+                solve::Error::FailedToResolve(_graph) => {
+                    // TODO: provide a summary based on the graph
+                }
+                solve::Error::OutOfOptions(_) => {
+                    msg.push_str("\n * out of options");
+                }
+                solve::Error::SolverError(reason) => {
+                    msg.push_str("\n * ");
+                    msg.push_str(&reason);
+                }
+            }
             match verbosity {
                 0 => {
-                    msg.push_str(&"\n * try '--verbose/-v' for more info".dimmed().yellow());
+                    msg.push_str(
+                        &"\n * try '--verbose/-v' for more info"
+                            .dimmed()
+                            .yellow()
+                            .to_string(),
+                    );
                 }
                 1 => {
-                    msg.push_str(&"\n * try '-vv' for even more info".dimmed().yellow());
+                    msg.push_str(
+                        &"\n * try '-vv' for even more info"
+                            .dimmed()
+                            .yellow()
+                            .to_string(),
+                    );
                 }
                 2 => {
-                    msg.push_str(&"\n * try '-vvv' for even more info".dimmed().yellow());
+                    msg.push_str(
+                        &"\n * try '-vvv' for even more info"
+                            .dimmed()
+                            .yellow()
+                            .to_string(),
+                    );
                 }
                 3.. => (),
             }

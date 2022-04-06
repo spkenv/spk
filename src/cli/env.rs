@@ -36,7 +36,7 @@ pub fn configure_sentry() {
     todo!();
 }
 
-pub fn configure_logging(verbosity: usize) -> Result<()> {
+pub fn configure_logging(verbosity: u32) -> Result<()> {
     use tracing_subscriber::layer::SubscriberExt;
     let mut directives = match verbosity {
         0 => "spk=info,spfs=warn",

@@ -36,7 +36,7 @@ mod cmd_view;
 #[clap(about)]
 pub struct Opt {
     #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: usize,
+    pub verbose: u32,
     #[clap(subcommand)]
     pub cmd: Command,
 }
@@ -111,7 +111,12 @@ fn main() {
     let code = match opts.run() {
         Ok(code) => code,
         Err(err) => {
-            tracing::error!("{:?}", err);
+            let root = err.root_cause();
+            if let Some(err) = root.downcast_ref() {
+                eprintln!("{}", spk::io::format_error(err, opts.verbose));
+            } else {
+                tracing::error!("{:?}", err);
+            }
             1
         }
     };
