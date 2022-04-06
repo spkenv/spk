@@ -85,6 +85,15 @@ impl Ident {
         }
     }
 
+    /// Return a copy of this identifier with the given version number instead
+    pub fn with_version(&self, version: Version) -> Ident {
+        Self {
+            name: self.name.clone(),
+            version,
+            build: self.build.clone(),
+        }
+    }
+
     /// Set the build component of this package identifier.
     pub fn set_build(&mut self, build: Option<Build>) {
         self.build = build;

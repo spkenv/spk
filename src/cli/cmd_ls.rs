@@ -1,131 +1,144 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use std::collections::BTreeSet;
 
-from typing import Any, Dict
-import argparse
-import sys
+use anyhow::Result;
+use clap::Args;
+use colored::Colorize;
 
-import structlog
-from colorama import Fore, Style
+use super::flags;
 
-import spk
+/// List packages in one or more repositories
+#[derive(Args)]
+#[clap(visible_alias = "list")]
+pub struct Ls {
+    #[clap(flatten)]
+    pub repos: flags::Repositories,
 
-from . import _flags
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u32,
 
-_LOGGER = structlog.get_logger("spk.cli")
+    /// Show available package components in the output
+    #[clap(long, short)]
+    components: bool,
 
+    /// Recursively list all package versions and builds (recursive results are not sorted)
+    #[clap(long)]
+    recursive: bool,
 
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
+    /// Given a name, list versions. Given a name/version list builds.
+    ///
+    /// If nothing is provided, list all available packages.
+    #[clap(name = "NAME[/VERSION]")]
+    package: Option<String>,
+}
 
-    ls_cmd = sub_parsers.add_parser(
-        "ls", aliases=["list"], help=_ls.__doc__, description=_ls.__doc__, **parser_args
-    )
-    ls_cmd.add_argument(
-        "package",
-        metavar="PKG",
-        nargs="?",
-        help="Given a name, list versions. Given a name/version list builds",
-    )
-    ls_cmd.add_argument(
-        "--recursive",
-        action="store_true",
-        help="Recursively list all package versions and builds (recursive results are not sorted)",
-    )
-    ls_cmd.add_argument(
-        "--components",
-        "-c",
-        action="store_true",
-        help="Show available package components in the output",
-    )
-    # no defaults since we want --local to be mutually exclusive
-    _flags.add_repo_flags(ls_cmd, defaults=[])
-    ls_cmd.set_defaults(func=_ls)
-    return ls_cmd
+impl Ls {
+    pub fn run(&mut self) -> Result<i32> {
+        let mut repos = self.repos.get_repos(None)?;
 
+        if repos.is_empty() {
+            let local = String::from("local");
+            if !self.repos.disable_repo.contains(&local) {
+                self.repos.local_repo = true;
+                repos = self.repos.get_repos(None)?;
+            } else {
+                eprintln!(
+                    "{}",
+                    "No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r)"
+                        .yellow()
+                );
+                return Ok(1);
+            }
+        }
 
-def _ls(args: argparse.Namespace) -> None:
-    """List packages in one or more repositories."""
+        if self.recursive {
+            return self.list_recursively(repos);
+        }
 
-    repos = _flags.get_repos_from_repo_flags(args)
-    if not repos:
-        if "origin" not in args.disable_repo:
-            args.enable_repo = ["origin"]
-            repos = _flags.get_repos_from_repo_flags(args)
-        else:
-            print(
-                f"{Fore.YELLOW}No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r){Fore.RESET}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        let mut results = BTreeSet::new();
+        match &self.package {
+            None => {
+                for (_repo_name, repo) in repos {
+                    results.extend(repo.list_packages()?)
+                }
+            }
+            Some(package) if !package.contains('/') => {
+                for (_, repo) in repos {
+                    results.extend(
+                        repo.list_package_versions(&package)?
+                            .iter()
+                            .map(ToString::to_string),
+                    );
+                }
+            }
+            Some(package) => {
+                let pkg = spk::api::parse_ident(package)?;
+                for (_, repo) in repos {
+                    for build in repo.list_package_builds(&pkg)? {
+                        results.insert(self.format_build(&build, &repo)?);
+                    }
+                }
+            }
+        }
 
-    if args.recursive:
-        return _list_recursively(repos, args)
+        for item in results {
+            println!("{}", item);
+        }
+        Ok(0)
+    }
 
-    results = set()
-    if not args.package:
-        for repo_name, repo in repos.items():
-            for name in repo.list_packages():
-                results.add(name)
+    fn list_recursively(
+        &self,
+        repos: Vec<(String, spk::storage::RepositoryHandle)>,
+    ) -> Result<i32> {
+        for (_repo_name, repo) in repos {
+            let packages = match &self.package {
+                Some(package) => vec![package.to_owned()],
+                None => repo.list_packages()?,
+            };
+            for package in packages {
+                let versions = if package.contains('/') {
+                    vec![spk::api::parse_ident(&package)?]
+                } else {
+                    let base = spk::api::Ident::new(&package)?;
+                    repo.list_package_versions(&package)?
+                        .into_iter()
+                        .map(|v| base.with_version(v))
+                        .collect()
+                };
+                for pkg in versions {
+                    for build in repo.list_package_builds(&pkg)? {
+                        println!("{}", self.format_build(&build, &repo)?);
+                    }
+                }
+            }
+        }
+        Ok(0)
+    }
 
-    elif "/" not in args.package:
-        for repo in repos.values():
-            for version in repo.list_package_versions(args.package):
-                results.add(str(version))
+    fn format_build(
+        &self,
+        pkg: &spk::api::Ident,
+        repo: &spk::storage::RepositoryHandle,
+    ) -> Result<String> {
+        if pkg.build.is_none() || pkg.is_source() {
+            return Ok(spk::io::format_ident(&pkg));
+        }
 
-    else:
-        for repo in repos.values():
-            pkg = spk.api.parse_ident(args.package)
-            for build in repo.list_package_builds(pkg):
-                if not build.build or build.build == spk.api.SRC:
-                    results.add(spk.io.format_ident(build))
-                    continue
-
-                item = spk.io.format_ident(build)
-                if args.verbose:
-                    spec = repo.read_spec(build)
-                    options = spec.resolve_all_options(spk.api.OptionMap({}))
-                    item += " " + spk.io.format_options(options)
-                if args.verbose > 1:
-                    cmpts = repo.get_package(build).keys()
-                    item += " " + spk.io.format_components(list(cmpts))
-                results.add(item)
-
-    print("\n".join(sorted(results)))
-
-
-def _list_recursively(
-    repos: Dict[str, spk.storage.Repository],
-    args: argparse.Namespace,
-) -> None:
-
-    for _repo_name, repo in repos.items():
-        if not args.package:
-            packages = repo.list_packages()
-        else:
-            packages = [args.package]
-        for package in packages:
-            if "/" in package:
-                versions = [package]
-            else:
-                versions = [
-                    f"{package}/{v}" for v in repo.list_package_versions(package)
-                ]
-            for version in versions:
-                pkg = spk.api.parse_ident(version)
-                for build in repo.list_package_builds(pkg):
-                    if not build.build or build.build == "SRC":
-                        print(spk.io.format_ident(build))
-                        continue
-
-                    print(spk.io.format_ident(build), end="")
-                    if args.verbose:
-                        spec = repo.read_spec(build)
-                        options = spec.resolve_all_options(spk.api.OptionMap({}))
-                        print("", spk.io.format_options(options), end="")
-                    if args.verbose > 1:
-                        cmpts = repo.get_package(build).keys()
-                        print("", spk.io.format_components(list(cmpts)), end="")
-                    print()
+        let mut item = spk::io::format_ident(&pkg);
+        if self.verbose > 0 {
+            let spec = repo.read_spec(&pkg)?;
+            let options = spec.resolve_all_options(&spk::api::OptionMap::default());
+            item.push_str(" ");
+            item.push_str(&spk::io::format_options(&options));
+        }
+        if self.verbose > 1 || self.components {
+            let cmpts = repo.get_package(&pkg)?;
+            item.push_str(" ");
+            item.push_str(&spk::io::format_components(cmpts.keys()));
+        }
+        Ok(item)
+    }
+}

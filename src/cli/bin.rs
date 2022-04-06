@@ -16,11 +16,11 @@ mod cmd_explain;
 mod cmd_export;
 mod cmd_import;
 mod cmd_install;
-pub mod env;
-pub mod flags;
-// mod cmd_ls;
+mod cmd_ls;
 mod cmd_make_binary;
 mod cmd_make_source;
+pub mod env;
+pub mod flags;
 // mod cmd_new;
 // mod cmd_publish;
 // mod cmd_remove;
@@ -42,7 +42,7 @@ pub struct Opt {
 }
 
 impl Opt {
-    pub fn run(&self) -> Result<i32> {
+    pub fn run(&mut self) -> Result<i32> {
         let _guard = spk::HANDLE.enter();
         let res = env::configure_logging(self.verbose).context("Failed to initialize output log");
         if let Err(err) = res {
@@ -64,11 +64,11 @@ pub enum Command {
     Export(cmd_export::Export),
     Import(cmd_import::Import),
     Install(cmd_install::Install),
-    // Test(cmd_test::Test),
-    // Render(cmd_render::Render),
-    // Ls(cmd_ls::Ls),
+    Ls(cmd_ls::Ls),
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
+    // Test(cmd_test::Test),
+    // Render(cmd_render::Render),
     // New(cmd_new::New),
     // Publish(cmd_publish::Publish),
     // Remove(cmd_remove::Remove),
@@ -79,7 +79,7 @@ pub enum Command {
 }
 
 impl Command {
-    fn run(&self) -> Result<i32> {
+    fn run(&mut self) -> Result<i32> {
         match self {
             Self::Bake(cmd) => cmd.run(),
             Self::Build(cmd) => cmd.run(),
@@ -90,11 +90,11 @@ impl Command {
             Self::Export(cmd) => cmd.run(),
             Self::Import(cmd) => cmd.run(),
             Self::Install(cmd) => cmd.run(),
-            // Self::Test(cmd) => cmd.run(),
-            // Self::Render(cmd) => cmd.run(),
-            // Self::Ls(cmd) => cmd.run(),
+            Self::Ls(cmd) => cmd.run(),
             Self::MakeBinary(cmd) => cmd.run(),
             Self::MakeSource(cmd) => cmd.run(),
+            // Self::Test(cmd) => cmd.run(),
+            // Self::Render(cmd) => cmd.run(),
             // Self::New(cmd) => cmd.run(),
             // Self::Publish(cmd) => cmd.run(),
             // Self::Remove(cmd) => cmd.run(),
@@ -107,7 +107,7 @@ impl Command {
 }
 
 fn main() {
-    let opts = Opt::parse();
+    let mut opts = Opt::parse();
     let code = match opts.run() {
         Ok(code) => code,
         Err(err) => {
