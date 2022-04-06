@@ -15,9 +15,9 @@ mod cmd_env;
 mod cmd_explain;
 mod cmd_export;
 mod cmd_import;
+mod cmd_install;
 pub mod env;
 pub mod flags;
-// mod cmd_install;
 // mod cmd_ls;
 mod cmd_make_binary;
 mod cmd_make_source;
@@ -63,9 +63,9 @@ pub enum Command {
     Explain(cmd_explain::Explain),
     Export(cmd_export::Export),
     Import(cmd_import::Import),
+    Install(cmd_install::Install),
     // Test(cmd_test::Test),
     // Render(cmd_render::Render),
-    // Install(cmd_install::Install),
     // Ls(cmd_ls::Ls),
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
@@ -89,9 +89,9 @@ impl Command {
             Self::Explain(cmd) => cmd.run(),
             Self::Export(cmd) => cmd.run(),
             Self::Import(cmd) => cmd.run(),
+            Self::Install(cmd) => cmd.run(),
             // Self::Test(cmd) => cmd.run(),
             // Self::Render(cmd) => cmd.run(),
-            // Self::Install(cmd) => cmd.run(),
             // Self::Ls(cmd) => cmd.run(),
             Self::MakeBinary(cmd) => cmd.run(),
             Self::MakeSource(cmd) => cmd.run(),

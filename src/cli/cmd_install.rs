@@ -1,160 +1,112 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
 
-from typing import Any
-import argparse
-import sys
+use std::{collections::HashSet, io::Write};
 
-import spkrs
-import structlog
-from colorama import Fore, Style
+use anyhow::{Context, Result};
+use clap::Args;
+use colored::Colorize;
 
-import spk
+use super::flags;
 
-from . import _flags
+/// Install a package into the current environment
+#[derive(Args)]
+pub struct Install {
+    #[clap(flatten)]
+    pub solver: flags::Solver,
+    #[clap(flatten)]
+    pub options: flags::Options,
+    #[clap(flatten)]
+    pub requests: flags::Requests,
 
-_LOGGER = structlog.get_logger("spk.cli")
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u32,
 
+    /// Do not prompt for confirmation, just continue
+    #[clap(long, short)]
+    yes: bool,
 
-def register(
-    sub_parsers: argparse._SubParsersAction, **parser_args: Any
-) -> argparse.ArgumentParser:
+    /// The packages to install
+    #[clap(name = "PKG", required = true)]
+    pub packages: Vec<String>,
+}
 
-    install_cmd = sub_parsers.add_parser(
-        "install",
-        aliases=["i"],
-        help=_install.__doc__,
-        description=_install.__doc__,
-        **parser_args,
-    )
-    install_cmd.add_argument(
-        "packages", metavar="PKG", nargs="+", help="The packages to install"
-    )
-    install_cmd.add_argument(
-        "--save",
-        nargs="?",
-        const="@build",
-        metavar="PKG@STAGE",
-        help="Also save this requirement to the local package spec file",
-    )
-    install_cmd.add_argument(
-        "--yes",
-        "-y",
-        action="store_true",
-        default=False,
-        help="Do not prompt for confirmation, just continue",
-    )
-    _flags.add_request_flags(install_cmd)
-    _flags.add_solver_flags(install_cmd)
-    install_cmd.set_defaults(func=_install)
-    return install_cmd
+impl Install {
+    pub fn run(&self) -> Result<i32> {
+        let mut solver = self.solver.get_solver(&self.options)?;
+        let requests = self
+            .requests
+            .parse_requests(&self.packages, &self.options)?;
 
+        let env = spk::current_env()?;
 
-def _install(args: argparse.Namespace) -> None:
-    """Install a package into spkrs."""
+        for solved in env.items() {
+            solver.add_request(solved.request.into());
+        }
+        for request in requests {
+            solver.add_request(request);
+        }
 
-    solver = _flags.get_solver_from_flags(args)
-    requests = _flags.parse_requests_using_flags(args, *args.packages)
+        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
 
-    try:
-        env = spk.current_env()
-    except spk.NoEnvironmentError:
-        if args.save:
-            _LOGGER.warning("no current environment to install to")
-            return
-        raise
+        println!("The following packages will be installed:\n");
+        let requested: HashSet<_> = solver
+            .get_initial_state()
+            .pkg_requests
+            .iter()
+            .map(|r| r.pkg.name().to_string())
+            .collect();
+        let mut primary = Vec::new();
+        let mut tertiary = Vec::new();
+        for solved in solution.items() {
+            if requested.contains(solved.spec.pkg.name()) {
+                primary.push(solved.spec);
+                continue;
+            }
+            if solution.get(solved.request.pkg.name()).is_none() {
+                tertiary.push(solved.spec)
+            }
+        }
 
-    if args.save:
-        spec, filename, stage = _flags.parse_stage_specifier(args.save)
-        if stage == "source":
-            raise NotImplementedError("'source' stage is not yet supported")
-        elif stage == "build":
-            for r in requests:
-                o = spk.api.opt_from_request(r)
-                build = spec.build
-                build.upsert_opt(o)
-                spec.build = build
+        println!("  Requested:");
+        for spec in primary {
+            let mut end = String::new();
+            if spec.pkg.build.is_none() {
+                end = " [build from source]".magenta().to_string();
+            }
+            println!("    {}{end}", spk::io::format_ident(&spec.pkg));
+        }
+        if !tertiary.is_empty() {
+            println!("\n  Dependencies:");
+        }
+        for spec in tertiary {
+            let mut end = String::new();
+            if spec.pkg.build.is_none() {
+                end = " [build from source]".magenta().to_string();
+            }
+            println!("    {}{end}", spk::io::format_ident(&spec.pkg))
+        }
 
-        elif stage == "install":
-            for r in requests:
-                spec.install.upsert_requirement(r)
-        else:
-            print(
-                f"{Fore.RED}Unknown stage '{stage}', should be one of: 'source', 'build', 'install'{Fore.RESET}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        println!("");
 
-        spk.api.save_spec_file(filename, spec)
-        print(f"{Fore.YELLOW}Updated: {filename}{Fore.RESET}")
-        try:
-            spkrs.active_runtime()
-        except RuntimeError:
-            return
+        if !self.yes {
+            let mut input = String::new();
+            print!("Do you want to continue? [y/N]: ");
+            let _ = std::io::stdout().flush();
+            std::io::stdin().read_line(&mut input)?;
+            match input.trim() {
+                "y" | "yes" => {}
+                _ => {
+                    println!("Installation cancelled");
+                    return Ok(1);
+                }
+            }
+        }
 
-    for solved in env.items():
-        solver.add_request(solved.request)
-    for request in requests:
-        solver.add_request(request)
-
-    runtime = solver.run()
-    try:
-        packages = runtime.solution()
-    except spk.SolverError as e:
-        print(f"{Fore.RED}{e}{Fore.RESET}")
-        if args.verbose:
-            graph = runtime.graph()
-            print(spk.io.format_solve_graph(graph, verbosity=args.verbose))
-        if args.verbose == 0:
-            print(
-                f"{Fore.YELLOW}{Style.DIM}try '--verbose/-v' for more info{Style.RESET_ALL}",
-                file=sys.stderr,
-            )
-        elif args.verbose < 2:
-            print(
-                f"{Fore.YELLOW}{Style.DIM}try '-vv' for even more info{Style.RESET_ALL}",
-                file=sys.stderr,
-            )
-        sys.exit(1)
-
-    if not packages:
-        print(f"Nothing to do.")
-        return
-
-    print("The following packages will be modified:\n")
-    requested = set(r.pkg.name for r in solver.get_initial_state().pkg_requests)
-    primary, tertiary = [], []
-    for req, spec, _ in packages.items():
-        if spec.pkg.name in requested:
-            primary.append(spec)
-            continue
-        try:
-            env.get(req.pkg.name)
-        except KeyError:
-            tertiary.append(spec)
-
-    print("  Requested:")
-    for spec in primary:
-        end = "\n"
-        if spec.pkg.build is None:
-            end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
-        print("    " + spk.io.format_ident(spec.pkg), end=end)
-    if tertiary:
-        print("\n  Dependencies:")
-        for spec in tertiary:
-            end = "\n"
-            if spec.pkg.build is None:
-                end = f" {Fore.MAGENTA}[build from source]{Fore.RESET}\n"
-            print("    " + spk.io.format_ident(spec.pkg), end=end)
-
-    print("")
-
-    if args.yes:
-        pass
-    elif input("Do you want to continue? [y/N]: ").lower() not in ("y", "yes"):
-        print("Installation cancelled")
-        sys.exit(1)
-
-    compiled_solution = spk.build_required_packages(packages)
-    spk.setup_current_runtime(compiled_solution)
+        let compiled_solution = spk::build_required_packages(&solution)
+            .context("Failed to build one or more packages from source")?;
+        spk::setup_current_runtime(&compiled_solution)?;
+        Ok(0)
+    }
+}
