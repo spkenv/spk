@@ -23,6 +23,7 @@ use super::{
     package_iterator::{
         EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
     },
+    python::State as PyState,
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
 };
@@ -65,6 +66,15 @@ impl Solver {
     /// Add a repository where the solver can get packages.
     pub fn add_repository(&mut self, repo: Arc<storage::RepositoryHandle>) {
         self.repos.push(repo);
+    }
+
+    pub fn get_initial_state(&self) -> Arc<State> {
+        let mut state = None;
+        let else_closure = || Arc::new(State::default());
+        for change in self.initial_state_builders.iter() {
+            state = Some(change.apply(&state.unwrap_or_else(else_closure)))
+        }
+        state.unwrap_or_else(else_closure)
     }
 
     fn get_iterator(
@@ -294,12 +304,9 @@ impl Solver {
         Ok(())
     }
 
-    pub fn get_initial_state(&self) -> State {
-        let mut state = State::default();
-        for change in self.initial_state_builders.iter() {
-            state = change.apply(&state)
-        }
-        state
+    #[pyo3(name = "get_initial_state")]
+    pub fn py_get_initial_state(&self) -> PyState {
+        self.get_initial_state().into()
     }
 
     pub fn reset(&mut self) {

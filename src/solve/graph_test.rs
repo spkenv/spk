@@ -88,11 +88,11 @@ fn test_request_default_component() {
         }
     });
     let spec = std::sync::Arc::new(spec);
-    let base = super::State::default();
+    let base = std::sync::Arc::new(super::State::default());
 
     let resolve_state = DecisionBuilder::new(spec.clone(), &base)
         .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
-        .apply(base.clone());
+        .apply(&base);
     let request = resolve_state.get_merged_request("dependency").unwrap();
     assert!(
         request.pkg.components.contains(&api::Component::Run),
@@ -102,7 +102,7 @@ fn test_request_default_component() {
     let build_state = DecisionBuilder::new(spec, &base)
         .build_package(&solve::solution::Solution::new(None))
         .unwrap()
-        .apply(base.clone());
+        .apply(&base);
     let request = build_state.get_merged_request("dependency").unwrap();
     assert!(
         request.pkg.components.contains(&api::Component::Run),

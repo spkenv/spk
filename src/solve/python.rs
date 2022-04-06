@@ -5,13 +5,15 @@ use pyo3::prelude::*;
 use pyo3::py_run;
 use pyo3::wrap_pyfunction;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::api;
 
 use super::errors::SolverError;
+use super::graph;
 use super::graph::{
     Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
-    SetPackageBuild, SkipPackageNote, State, StepBack,
+    SetPackageBuild, SkipPackageNote, StepBack,
 };
 use super::solution::{PackageSource, Solution};
 use super::solver::{Solver, SolverFailedError};
@@ -21,11 +23,11 @@ use super::validation::{self, Validators, VarRequirementsValidator};
 #[pyo3(name = "BuildPackage")]
 fn build_package(
     spec: api::Spec,
-    base: State,
+    base: &State,
     components: HashSet<api::Component>,
     build_env: &Solution,
 ) -> crate::Result<Decision> {
-    super::graph::Decision::builder(spec.into(), &base)
+    super::graph::Decision::builder(spec.into(), base.into())
         .with_components(&components)
         .build_package(build_env)
 }
@@ -34,11 +36,11 @@ fn build_package(
 #[pyo3(name = "ResolvePackage")]
 fn resolve_package(
     spec: api::Spec,
-    base: State,
+    base: &State,
     components: HashSet<api::Component>,
     source: PackageSource,
 ) -> Decision {
-    super::graph::Decision::builder(spec.into(), &base)
+    super::graph::Decision::builder(spec.into(), base.into())
         .with_components(&components)
         .resolve_package(source)
 }
@@ -47,6 +49,80 @@ fn resolve_package(
 #[pyclass(subclass)]
 #[derive(Clone)]
 pub struct Change {}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct State {
+    state: Arc<graph::State>,
+}
+
+impl<'a> From<&'a State> for &'a graph::State {
+    fn from(o: &'a State) -> Self {
+        &*o.state
+    }
+}
+
+impl<'a> From<&'a State> for &'a Arc<graph::State> {
+    fn from(o: &'a State) -> Self {
+        &o.state
+    }
+}
+
+impl From<graph::State> for State {
+    fn from(o: graph::State) -> Self {
+        State { state: Arc::new(o) }
+    }
+}
+
+impl From<Arc<graph::State>> for State {
+    fn from(o: Arc<graph::State>) -> Self {
+        State {
+            state: Arc::clone(&o),
+        }
+    }
+}
+
+#[pymethods]
+impl State {
+    #[new]
+    pub fn newpy(
+        pkg_requests: Vec<api::PkgRequest>,
+        var_requests: Vec<api::VarRequest>,
+        options: Vec<(String, String)>,
+        packages: Vec<(api::Spec, PackageSource)>,
+        #[allow(unused_variables)] hash_cache: Vec<u64>,
+    ) -> Self {
+        graph::State::new(
+            pkg_requests,
+            var_requests,
+            packages
+                .into_iter()
+                .map(|(s, ps)| (Arc::new(s), ps))
+                .collect(),
+            options,
+        )
+        .into()
+    }
+
+    #[staticmethod]
+    pub fn default() -> Self {
+        graph::State::default().into()
+    }
+
+    pub fn get_option_map(&self) -> api::OptionMap {
+        self.state.get_option_map()
+    }
+
+    #[getter]
+    pub fn id(&self) -> u64 {
+        self.state.id()
+    }
+
+    #[getter]
+    pub fn pkg_requests(&self) -> Vec<api::PkgRequest> {
+        (*self.state.pkg_requests).clone()
+    }
+}
 
 fn init_submodule_graph(_py: &Python, module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(build_package, module)?)?;
