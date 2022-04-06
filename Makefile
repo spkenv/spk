@@ -39,10 +39,7 @@ devel:
 .PHONY: test test-python test-rust
 test: test-rust test-python
 test-rust:
-	# other tooling (rust-analyzer) can create
-	# unhappy builds of pyo3 which cause the build of
-	# the tests to fail
-	cargo clean -p pyo3 && cargo test --no-default-features
+	spfs run - -- cargo test --no-default-features
 test-python:
 	mkdir -p /tmp/spfs-runtimes
 	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
@@ -50,7 +47,8 @@ test-python:
 
 .PHONY: cargo-test
 cargo-test:
-	cargo test --no-default-features
+	# some tests must be run in an spfs environment
+	spfs run - -- cargo test --no-default-features
 
 converters:
 	$(MAKE) -C packages spk-convert-pip/spk-convert-pip.spk

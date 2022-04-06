@@ -82,6 +82,22 @@ impl Default for LocalSource {
     }
 }
 
+impl LocalSource {
+    /// Create a new local source for the given path.
+    pub fn new<P: Into<PathBuf>>(path: P) -> Self {
+        Self {
+            path: path.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Place the collected local sources into the given subdirectory in the source package.
+    pub fn set_subdir<S: ToString>(mut self, subdir: S) -> Self {
+        self.subdir = Some(subdir.to_string());
+        self
+    }
+}
+
 #[pymethods]
 impl LocalSource {
     #[staticmethod]
@@ -268,6 +284,24 @@ pub struct ScriptSource {
 }
 
 impl ScriptSource {
+    /// Create a new script source that executes the given lines of script.
+    pub fn new<I, S>(script: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self {
+            script: script.into_iter().map(Into::into).collect(),
+            subdir: None,
+        }
+    }
+
+    /// Place the collected local sources into the given subdirectory in the source package.
+    pub fn set_subdir<S: ToString>(mut self, subdir: S) -> Self {
+        self.subdir = Some(subdir.to_string());
+        self
+    }
+
     /// Collect the represented sources files into the given directory.
     pub fn collect(&self, dirname: &Path, env: &HashMap<String, String>) -> Result<()> {
         let mut bash = std::process::Command::new("bash");

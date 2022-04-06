@@ -2651,6 +2651,7 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "sys-info",
+ "tar",
  "tempdir",
  "tokio 1.17.0",
  "tracing",

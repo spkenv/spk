@@ -172,8 +172,9 @@ impl BinaryPackageBuilder {
 }
 
 impl BinaryPackageBuilder {
-    pub fn with_prefix(&mut self, prefix: PathBuf) {
-        self.prefix = prefix
+    pub fn with_prefix(&mut self, prefix: PathBuf) -> &mut Self {
+        self.prefix = prefix;
+        self
     }
 
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self

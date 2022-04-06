@@ -27,9 +27,9 @@ jobs:
   make_packages:
     runs-on: ubuntu-latest
     needs: build
-    # we only build all the packages on master, or when
+    # we only build all the packages on master, and when
     # it is manually triggered by someone to run
-    if: github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v2
       - name: Download Deps

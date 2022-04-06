@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use crate::{api, build, io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
