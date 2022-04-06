@@ -273,6 +273,6 @@ impl PackageBuildTester {
         let mut runtime = solver.run();
         let solution = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        solution
     }
 }

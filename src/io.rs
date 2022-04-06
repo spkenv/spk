@@ -271,8 +271,8 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
     match err {
         Error::PackageNotFoundError(pkg) => {
             msg.push_str("Package not found: ");
-            msg.push_str(&format_ident(&pkg));
-            msg.push_str("\n");
+            msg.push_str(&format_ident(pkg));
+            msg.push('\n');
             msg.push_str(
                 &" * check the spelling of the name\n"
                     .yellow()
@@ -297,7 +297,7 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
                 }
                 solve::Error::SolverError(reason) => {
                     msg.push_str("\n * ");
-                    msg.push_str(&reason);
+                    msg.push_str(reason);
                 }
             }
             match verbosity {

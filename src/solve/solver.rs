@@ -387,7 +387,7 @@ impl Solver {
     /// Adds requests for all build requirements and solves
     pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
         self.configure_for_build_environment(spec)?;
-        Ok(self.solve()?)
+        self.solve()
     }
 
     pub fn update_options(&mut self, options: OptionMap) {

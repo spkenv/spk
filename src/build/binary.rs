@@ -295,7 +295,7 @@ impl BinaryPackageBuilder {
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        solution
     }
 
     fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
@@ -313,7 +313,7 @@ impl BinaryPackageBuilder {
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        solution
     }
 
     /// List the requirements for the build environment.
