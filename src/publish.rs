@@ -20,7 +20,11 @@ pub struct Publisher {
 }
 
 impl Publisher {
-    fn new(
+    /// Create a new publisher that moves packages from 'source' to 'destination'.
+    ///
+    /// The publisher can be further configured before calling [`Publisher::publish`]
+    /// to run the operation.
+    pub fn new(
         source: Arc<storage::RepositoryHandle>,
         destination: Arc<storage::RepositoryHandle>,
     ) -> Self {
@@ -33,25 +37,25 @@ impl Publisher {
     }
 
     /// Change the source repository to publish packages from.
-    pub fn with_source(&mut self, repo: Arc<storage::RepositoryHandle>) -> &mut Self {
+    pub fn with_source(mut self, repo: Arc<storage::RepositoryHandle>) -> Self {
         self.from = repo;
         self
     }
 
     /// Change the destination repository to publish packages into.
-    pub fn with_target(&mut self, repo: Arc<storage::RepositoryHandle>) -> &mut Self {
+    pub fn with_target(mut self, repo: Arc<storage::RepositoryHandle>) -> Self {
         self.to = repo;
         self
     }
 
     /// Do not publish source packages, even if they exist for the version being published.
-    pub fn skip_source_packages(&mut self, skip_source_packages: bool) -> &mut Self {
+    pub fn skip_source_packages(mut self, skip_source_packages: bool) -> Self {
         self.skip_source_packages = skip_source_packages;
         self
     }
 
     /// Forcefully publishing a package will overwrite an existing publish if it exists.
-    pub fn force(&mut self, force: bool) -> &mut Self {
+    pub fn force(mut self, force: bool) -> Self {
         self.force = force;
         self
     }
@@ -105,7 +109,7 @@ impl Publisher {
 
     pub fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let builds = if pkg.build.is_none() {
-            tracing::info!("   loading spec: {}", io::format_ident(pkg));
+            tracing::info!("loading spec: {}", io::format_ident(pkg));
             match self.from.read_spec(pkg) {
                 Err(Error::PackageNotFoundError(_)) => (),
                 Err(err) => return Err(err),
