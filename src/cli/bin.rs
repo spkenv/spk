@@ -21,15 +21,15 @@ mod cmd_make_binary;
 mod cmd_make_source;
 mod cmd_new;
 mod cmd_publish;
-pub mod env;
-pub mod flags;
-// mod cmd_remove;
-// mod cmd_render;
-// mod cmd_repo;
-// mod cmd_search;
-// mod cmd_test;
+mod cmd_remove;
+mod cmd_render;
+mod cmd_repo;
+mod cmd_search;
+mod cmd_test;
 mod cmd_version;
 mod cmd_view;
+pub mod env;
+pub mod flags;
 
 /// A Package Manager for SPFS
 #[derive(Parser)]
@@ -69,13 +69,13 @@ pub enum Command {
     MakeSource(cmd_make_source::MakeSource),
     New(cmd_new::New),
     Publish(cmd_publish::Publish),
-    // Test(cmd_test::Test),
-    // Render(cmd_render::Render),
-    // Remove(cmd_remove::Remove),
-    // Search(cmd_search::Search),
+    Remove(cmd_remove::Remove),
+    Render(cmd_render::Render),
+    Repo(cmd_repo::Repo),
+    Search(cmd_search::Search),
+    Test(cmd_test::Test),
     Version(cmd_version::Version),
     View(cmd_view::View),
-    // Repo(cmd_repo::Repo),
 }
 
 impl Command {
@@ -95,13 +95,13 @@ impl Command {
             Self::MakeSource(cmd) => cmd.run(),
             Self::New(cmd) => cmd.run(),
             Self::Publish(cmd) => cmd.run(),
-            // Self::Test(cmd) => cmd.run(),
-            // Self::Render(cmd) => cmd.run(),
-            // Self::Remove(cmd) => cmd.run(),
-            // Self::Search(cmd) => cmd.run(),
+            Self::Remove(cmd) => cmd.run(),
+            Self::Render(cmd) => cmd.run(),
+            Self::Repo(cmd) => cmd.run(),
+            Self::Search(cmd) => cmd.run(),
+            Self::Test(cmd) => cmd.run(),
             Self::Version(cmd) => cmd.run(),
             Self::View(cmd) => cmd.run(),
-            // Self::Repo(cmd) => cmd.run(),
         }
     }
 }
