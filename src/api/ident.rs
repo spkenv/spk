@@ -116,10 +116,14 @@ impl Ident {
         })
     }
 
+    /// The validated name portion of this identifier
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 
+    /// A string containing the properly formatted name and version number
+    ///
+    /// This is the same as [`Ident::to_string`] when the build is None.
     pub fn version_and_build(&self) -> Option<String> {
         match &self.build {
             Some(build) => Some(format!("{}/{}", self.version, build.digest())),
@@ -132,6 +136,7 @@ impl Ident {
             }
         }
     }
+
 }
 
 impl TryFrom<&str> for Ident {

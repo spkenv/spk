@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::ffi::OsString;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use super::flags;
