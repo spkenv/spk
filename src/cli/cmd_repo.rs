@@ -1,12 +1,10 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::OsString;
 
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-
-use super::flags;
+use spk::storage::Repository;
 
 /// Perform repository-level actions and maintenance
 #[derive(Args)]
@@ -31,16 +29,20 @@ pub enum RepoCommand {
     /// nature and the size of the repository so. Please, take time to
     /// read any release and upgrade notes before invoking this.
     Upgrade {
-        // upgrade_cmd.add_argument(
-    //     "repo", metavar="REPO", nargs=1, help="The repository to upgrade"
-    // )
+        /// The repository to upgrade (name or path or url)
+        #[clap(name = "REPO")]
+        repo: String,
     },
 }
 
 impl RepoCommand {
     pub fn run(&self) -> Result<i32> {
-        // repo = spk.storage.remote_repository(args.repo[0])
-        // print(repo.upgrade())
-        todo!()
+        let repo = match &self {
+            Self::Upgrade { repo } => repo,
+        };
+        let repo = spk::HANDLE.block_on(spk::storage::remote_repository(repo))?;
+        let status = repo.upgrade().context("Upgrade failed")?;
+        tracing::info!("{}", status);
+        Ok(1)
     }
 }
