@@ -18,7 +18,7 @@ fn test_resolve_build_same_result() {
     // should both result in the same final state... this
     // ensures that builds are not attempted when one already exists
 
-    let base = graph::State::default();
+    let base = Arc::new(graph::State::default());
 
     let mut build_spec = spec!({"pkg": "test/1.0.0"});
     build_spec
@@ -33,8 +33,8 @@ fn test_resolve_build_same_result() {
         .build_package(&solve::Solution::new(None))
         .unwrap();
 
-    let with_binary = resolve.apply(base.clone());
-    let with_build = build.apply(base);
+    let with_binary = resolve.apply(&base);
+    let with_build = build.apply(&base);
 
     println!("resolve");
     for change in resolve.changes.iter() {

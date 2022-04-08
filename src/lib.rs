@@ -3,17 +3,23 @@
 // https://github.com/imageworks/spk
 pub mod api;
 pub mod build;
+mod env;
 mod error;
 pub mod exec;
+mod global;
 pub mod io;
+mod publish;
 pub mod solve;
 pub mod storage;
+pub mod test;
 
 #[cfg(test)]
 mod fixtures;
-pub mod test;
 
+pub use env::current_env;
 pub use error::{Error, Result};
+pub use global::{load_spec, save_spec};
+pub use publish::Publisher;
 
 lazy_static::lazy_static! {
     pub(crate) static ref HANDLE: tokio::runtime::Handle = {
@@ -259,12 +265,36 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         Ok(())
     }
 
+    #[pyfn(m)]
+    fn current_env() -> Result<solve::Solution> {
+        let _guard = crate::HANDLE.enter();
+        env::current_env()
+    }
+
+    #[pyfn(m)]
+    fn load_spec(pkg: api::Ident) -> Result<api::Spec> {
+        let _guard = crate::HANDLE.enter();
+        global::load_spec(pkg.to_string().as_str())
+    }
+
+    #[pyfn(m)]
+    fn save_spec(spec: api::Spec) -> Result<()> {
+        let _guard = crate::HANDLE.enter();
+        global::save_spec(spec)
+    }
+
+    m.add_class::<Publisher>()?;
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
 
     let empty_spfs: spfs::encoding::Digest = spfs::encoding::EMPTY_DIGEST.into();
     let empty_spk = Digest::from(empty_spfs);
     m.setattr::<&str, PyObject>("EMPTY_DIGEST", empty_spk.into_py(py))?;
+
+    m.add(
+        "NoEnvironmentError",
+        py.get_type::<env::NoEnvironmentError>(),
+    )?;
 
     Ok(())
 }
