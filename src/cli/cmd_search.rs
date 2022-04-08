@@ -1,9 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::OsString;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use super::flags;
@@ -12,36 +10,40 @@ use super::flags;
 #[derive(Args)]
 pub struct Search {
     #[clap(flatten)]
-    pub solver: flags::Solver,
-    #[clap(flatten)]
-    pub options: flags::Options,
-    #[clap(flatten)]
-    pub runtime: flags::Runtime,
-    #[clap(flatten)]
-    pub requests: flags::Requests,
+    pub repos: flags::Repositories,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
-    // _flags.add_repo_flags(search_cmd)
-    // search_cmd.add_argument("term", metavar="TERM", help="The search term / substring")
+
+    /// The text/substring to search for in package names
+    term: String,
 }
 
 impl Search {
     pub fn run(&self) -> Result<i32> {
-        // repos = _flags.get_repos_from_repo_flags(args)
+        let repos = self.repos.get_repos(&["origin".to_string()])?;
 
-        // width = max(map(len, repos.keys()))
-        // for repo_name, repo in repos.items():
-        //     for name in repo.list_packages():
-        //         if args.term in name:
-        //             versions = list(
-        //                 spk.api.Ident(name, v) for v in repo.list_package_versions(name)
-        //             )
-        //             for v in versions:
-        //                 print(
-        //                     ("{: <" + str(width) + "}").format(repo_name),
-        //                     spk.io.format_ident(v),
-        //                 )
-        todo!()
+        let width = repos
+            .iter()
+            .map(|(n, _)| n)
+            .map(String::len)
+            .max()
+            .unwrap_or_default();
+        let mut exit = 1;
+        for (repo_name, repo) in repos.iter() {
+            for name in repo.list_packages()? {
+                if !name.contains(&self.term) {
+                    continue;
+                }
+                let mut ident = spk::api::parse_ident(&name)?;
+                let versions = repo.list_package_versions(&name)?;
+                for v in versions {
+                    ident.version = v;
+                    exit = 0;
+                    println!("{repo_name: <width$} {}", spk::io::format_ident(&ident));
+                }
+            }
+        }
+        Ok(exit)
     }
 }
