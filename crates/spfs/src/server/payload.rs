@@ -73,6 +73,10 @@ impl proto::payload_service_server::PayloadService for PayloadService {
     ) -> Result<Response<proto::OpenPayloadResponse>, Status> {
         let request = request.into_inner();
         let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        // do a little effort to determine if we can actually serve the
+        // requested payload
+        let handle = proto::handle_error!(self.repo.open_payload(digest).await);
+        drop(handle);
         let mut option = proto::open_payload_response::DownloadOption::default();
         let mut self_download = self.external_root.clone();
         if let Ok(mut p) = self_download.path_segments_mut() {
