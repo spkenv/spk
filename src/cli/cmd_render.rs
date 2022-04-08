@@ -1,9 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::OsString;
+use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Args;
 
 use super::flags;
@@ -16,55 +16,49 @@ pub struct Render {
     #[clap(flatten)]
     pub options: flags::Options,
     #[clap(flatten)]
-    pub runtime: flags::Runtime,
-    #[clap(flatten)]
     pub requests: flags::Requests,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
-    // render_cmd.add_argument(
-    //     "packages", metavar="PKG", nargs="+", help="The packages to resolve and render"
-    // )
-    // render_cmd.add_argument(
-    //     "target", metavar="PATH", help="The empty directory to render into"
-    // )
-    // _flags.add_request_flags(render_cmd)
-    // _flags.add_solver_flags(render_cmd)
+    /// The packages to resolve and render
+    #[clap(name = "PKG", required = true)]
+    packages: Vec<String>,
+
+    /// The empty directory to render into
+    #[clap(name = "PATH")]
+    target: PathBuf,
 }
 
 impl Render {
     pub fn run(&self) -> Result<i32> {
-        // solver = _flags.get_solver_from_flags(args)
-        // for name in args.packages:
-        //     solver.add_request(name)
+        let mut solver = self.solver.get_solver(&self.options)?;
+        for name in self
+            .requests
+            .parse_requests(&self.packages, &self.options)?
+        {
+            solver.add_request(name);
+        }
 
-        // for request in _flags.parse_requests_using_flags(args, *args.packages):
-        //     solver.add_request(request)
+        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
 
-        // try:
-        //     generator = solver.run()
-        //     spk.io.print_decisions(generator, args.verbose)
-        //     solution = generator.solution()
-        // except spk.SolverError as e:
-        //     print(spk.io.format_error(e, args.verbose), file=sys.stderr)
-        //     sys.exit(1)
+        let solution = spk::build_required_packages(&solution)?;
+        let stack = spk::exec::resolve_runtime_layers(&solution)?;
+        std::fs::create_dir_all(&self.target).context("Failed to create output directory")?;
+        if std::fs::read_dir(&self.target)
+            .context("Failed to validate output directory")?
+            .next()
+            .is_some()
+        {
+            return Err(anyhow!("Output directory does not appear to be empty"));
+        }
 
-        // solution = spk.build_required_packages(solution)
-        // stack = spk.exec.resolve_runtime_layers(solution)
-        // path = os.path.abspath(args.target)
-        // os.makedirs(path, exist_ok=True)
-        // if len(os.listdir(path)) != 0:
-        //     print(
-        //         spk.io.format_error(
-        //             ValueError(f"Directory is not empty {path}"), args.verbose
-        //         ),
-        //         file=sys.stderr,
-        //     )
-        //     sys.exit(1)
-        // _LOGGER.info(f"Rendering into dir: {path}")
-        // spkrs.render_into_dir(stack, path)
-        // _LOGGER.info(f"Render completed: {path}")
-        todo!()
+        let path = self.target.canonicalize()?;
+        tracing::info!("Rendering into dir: {path:?}");
+        let items: Vec<String> = stack.iter().map(ToString::to_string).collect();
+        let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;
+        spk::HANDLE.block_on(spfs::render_into_directory(&env_spec, &path))?;
+        tracing::info!("Render completed: {path:?}");
+        Ok(0)
     }
 }
