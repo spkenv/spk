@@ -95,7 +95,7 @@ impl Repository {
         let _guard = crate::HANDLE.enter();
         self.handle.list_package_versions(name)
     }
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::BuildIdent>> {
         let _guard = crate::HANDLE.enter();
         self.handle.list_package_builds(pkg)
     }

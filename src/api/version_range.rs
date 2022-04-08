@@ -30,7 +30,7 @@ pub const VERSION_RANGE_SEP: &str = ",";
 /// This is not public API as the VersionRange enum is used
 /// as the public interface, which can be used to identify
 /// which range type is actually being used
-pub trait Ranged: Display + Clone + Into<VersionRange> {
+pub trait Ranged: std::fmt::Debug + Display + Clone + Into<VersionRange> {
     /// The lower, inclusive bound for this range
     fn greater_or_equal_to(&self) -> Option<Version>;
     /// The upper bound for this range
@@ -91,7 +91,7 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
 
     fn intersects(&self, other: impl Ranged) -> Compatibility {
         let self_lower = self.greater_or_equal_to();
-        let self_upper = self.less_than();
+        let self_upper = (&self).less_than();
         let other_lower = other.greater_or_equal_to();
         let other_upper = other.less_than();
 

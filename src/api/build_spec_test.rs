@@ -4,7 +4,7 @@
 use rstest::rstest;
 
 use super::BuildSpec;
-use crate::option_map;
+use crate::{build::BuildVariant, option_map};
 
 #[rstest]
 fn test_variants_must_be_unique() {
@@ -46,7 +46,9 @@ fn test_resolve_all_options_package_option() {
         "my-pkg.my-opt" => "override",
         "debug" => "on",
     };
-    let resolved = spec.resolve_all_options(Some("my-pkg"), &options);
+    let resolved = spec
+        .resolve_all_options(&BuildVariant::Default, Some("my-pkg"), &options)
+        .unwrap();
     assert_eq!(
         resolved.get("my-opt"),
         Some(&"override".to_string()),

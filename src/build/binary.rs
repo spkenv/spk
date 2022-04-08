@@ -13,6 +13,7 @@ use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 
 use super::env::data_path;
+use crate::api::SpecWithBuildVariant;
 use crate::{
     api, exec, solve,
     storage::{self, Repository},
@@ -52,6 +53,35 @@ pub enum BuildSource {
     LocalPath(PathBuf),
 }
 
+/// Identifies which variant (or the default build) is to be
+/// built.
+#[derive(Clone, Debug, Hash)]
+pub enum BuildVariant {
+    /// Build with the defaults rather than a variant.
+    Default,
+    /// Build a particular variant by index.
+    Variant(usize),
+}
+
+impl std::fmt::Display for BuildVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuildVariant::Default => f.pad("default"),
+            BuildVariant::Variant(i) => f.pad(&format!("variant {}", i)),
+        }
+    }
+}
+
+impl From<isize> for BuildVariant {
+    fn from(num: isize) -> Self {
+        if num < 0 {
+            BuildVariant::Default
+        } else {
+            BuildVariant::Variant(num as usize)
+        }
+    }
+}
+
 /// Builds a binary package.
 ///
 /// ```
@@ -69,7 +99,7 @@ pub enum BuildSource {
 #[derive(Clone)]
 pub struct BinaryPackageBuilder {
     prefix: PathBuf,
-    spec: api::Spec,
+    spec: api::SpecWithBuildVariant,
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
@@ -81,18 +111,9 @@ pub struct BinaryPackageBuilder {
 #[pymethods]
 impl BinaryPackageBuilder {
     #[staticmethod]
-    pub fn from_spec(spec: api::Spec) -> Self {
-        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
-        Self {
-            spec,
-            source,
-            prefix: PathBuf::from("/spfs"),
-            all_options: api::OptionMap::default(),
-            solver: solve::Solver::default(),
-            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
-            repos: Default::default(),
-            interactive: false,
-        }
+    #[pyo3(name = "from_spec")]
+    pub fn py_from_spec(spec: api::Spec, variant: isize) -> Self {
+        Self::from_spec(spec, variant.into())
     }
 
     #[pyo3(name = "get_solve_graph")]
@@ -109,7 +130,7 @@ impl BinaryPackageBuilder {
     #[pyo3(name = "build")]
     fn build_py(&mut self) -> Result<api::Spec> {
         let _guard = crate::HANDLE.enter();
-        self.build()
+        self.build().map(|s| (*s.spec).clone())
     }
 
     #[pyo3(name = "with_source")]
@@ -172,6 +193,23 @@ impl BinaryPackageBuilder {
 }
 
 impl BinaryPackageBuilder {
+    pub fn from_spec(spec: api::Spec, variant: BuildVariant) -> Self {
+        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
+        Self {
+            spec: SpecWithBuildVariant {
+                spec: Arc::new(spec),
+                variant,
+            },
+            source,
+            prefix: PathBuf::from("/spfs"),
+            all_options: api::OptionMap::default(),
+            solver: solve::Solver::default(),
+            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
+            repos: Default::default(),
+            interactive: false,
+        }
+    }
+
     pub fn with_prefix(&mut self, prefix: PathBuf) -> &mut Self {
         self.prefix = prefix;
         self
@@ -225,13 +263,13 @@ impl BinaryPackageBuilder {
     }
 
     /// Build the requested binary package.
-    pub fn build(&mut self) -> Result<api::Spec> {
+    pub fn build(&mut self) -> Result<api::SpecWithBuildVariant> {
         let mut runtime = spfs::active_runtime()?;
         runtime.set_editable(true)?;
         runtime.reset_all()?;
         runtime.reset_stack()?;
 
-        let pkg_options = self.spec.resolve_all_options(&self.all_options);
+        let pkg_options = self.spec.resolve_all_options(&self.all_options)?;
         tracing::debug!("package options: {}", pkg_options);
         let compat = self
             .spec
@@ -264,7 +302,7 @@ impl BinaryPackageBuilder {
         let components = crate::HANDLE.block_on(self.build_and_commit_artifacts(env))?;
         crate::HANDLE
             .block_on(storage::local_repository())?
-            .publish_package(self.spec.clone(), components)?;
+            .publish_package((*self.spec).clone(), components)?;
         Ok(self.spec.clone())
     }
 
@@ -318,7 +356,7 @@ impl BinaryPackageBuilder {
 
     /// List the requirements for the build environment.
     pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
-        let opts = self.spec.resolve_all_options(&self.all_options);
+        let opts = self.spec.resolve_all_options(&self.all_options)?;
         let mut requests = Vec::new();
         for opt in self.spec.build.options.iter() {
             match opt {
@@ -616,7 +654,7 @@ fn split_manifest_by_component(
 // NOTE(rbottriell): permission changes are not properly reset by spfs
 // so we must deal with them manually for now
 pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
-    diffs: &mut Vec<spfs::tracking::Diff>,
+    diffs: &mut [spfs::tracking::Diff],
     prefix: P,
 ) -> Result<()> {
     use spfs::tracking::DiffMode;

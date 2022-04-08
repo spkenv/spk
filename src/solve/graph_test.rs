@@ -20,12 +20,12 @@ fn test_resolve_build_same_result() {
 
     let base = Arc::new(graph::State::default());
 
-    let mut build_spec = spec!({"pkg": "test/1.0.0"});
+    let mut build_spec = spec!({"pkg": "test/1.0.0"}, default);
     build_spec
-        .update_for_build(&option_map! {}, [] as [&api::Spec; 0])
+        .update_for_build(&option_map! {}, [] as [&api::SpecWithBuildVariant; 0])
         .unwrap();
     let build_spec = Arc::new(build_spec);
-    let source = solve::PackageSource::Spec(build_spec.clone());
+    let source = solve::PackageSource::Spec(build_spec.spec.clone());
 
     let resolve =
         solve::graph::Decision::builder(build_spec.clone(), &base).resolve_package(source);
@@ -86,12 +86,13 @@ fn test_request_default_component() {
             {"pkg": "dependency/1.0.0"}
           ]
         }
-    });
+    },
+    default);
     let spec = std::sync::Arc::new(spec);
     let base = std::sync::Arc::new(super::State::default());
 
     let resolve_state = DecisionBuilder::new(spec.clone(), &base)
-        .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
+        .resolve_package(solve::solution::PackageSource::Spec(spec.spec.clone()))
         .apply(&base);
     let request = resolve_state.get_merged_request("dependency").unwrap();
     assert!(

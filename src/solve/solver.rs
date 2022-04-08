@@ -4,12 +4,14 @@
 use pyo3::{create_exception, exceptions, prelude::*, PyIterProtocol};
 use std::{
     borrow::Cow,
+    cell::RefCell,
     mem::take,
     sync::{Arc, Mutex, RwLock},
 };
 
 use crate::{
-    api::{self, Build, CompatRule, Component, OptionMap, Request},
+    api::{self, Build, CompatRule, Component, OptionMap, Request, SpecWithBuildVariant},
+    build::BuildVariant,
     solve::graph::{GraphError, StepBack},
     storage, Error, Result,
 };
@@ -68,6 +70,32 @@ impl Solver {
         self.repos.push(repo);
     }
 
+    /// Adds requests for all build requirements
+    pub fn configure_for_build_environment(
+        &mut self,
+        spec: &api::SpecWithBuildVariant,
+    ) -> Result<()> {
+        let state = self.get_initial_state();
+
+        let build_options = spec.resolve_all_options(&state.get_option_map())?;
+        for option in &spec.build.options {
+            if let api::Opt::Pkg(option) = option {
+                let given = build_options.get(&option.pkg);
+                let mut request = option.to_request(given.cloned())?;
+                // if no components were explicitly requested in a build option,
+                // then we inject the default for this context
+                if request.pkg.components.is_empty() {
+                    request.pkg.components.insert(Component::Build);
+                }
+                self.add_request(request.into())
+            }
+        }
+
+        // TODO: Add variant Pkg options here?
+
+        Ok(())
+    }
+
     pub fn get_initial_state(&self) -> Arc<State> {
         let mut state = None;
         let else_closure = || Arc::new(State::default());
@@ -98,7 +126,12 @@ impl Solver {
         ))))
     }
 
-    fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
+    fn resolve_new_build(
+        &self,
+        spec: api::Spec,
+        variant: BuildVariant,
+        state: &State,
+    ) -> Result<Solution> {
         let mut opts = state.get_option_map();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name()) {
@@ -117,11 +150,25 @@ impl Solver {
         let mut solver = Solver::new();
         solver.repos = self.repos.clone();
         solver.update_options(opts);
-        solver.solve_build_environment(spec)
+        solver.solve_build_environment(spec, variant)
+    }
+
+    /// Adds requests for all build requirements and solves
+    pub fn solve_build_environment(
+        &mut self,
+        spec: api::Spec,
+        variant: BuildVariant,
+    ) -> Result<Solution> {
+        let spec_with_variant = SpecWithBuildVariant {
+            spec: Arc::new(spec),
+            variant,
+        };
+        self.configure_for_build_environment(&spec_with_variant)?;
+        Ok(self.solve()?)
     }
 
     fn step_state(&self, node: &mut Node) -> Result<Option<Decision>> {
-        let mut notes = Vec::<NoteEnum>::new();
+        let notes = RefCell::new(Vec::<NoteEnum>::new());
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
@@ -131,16 +178,18 @@ impl Solver {
         let iterator = self.get_iterator(node, request.pkg.name());
         let mut iterator_lock = iterator.lock().unwrap();
         while let Some((pkg, builds)) = iterator_lock.next()? {
-            let mut compat = request.is_version_applicable(&pkg.version);
+            let compat = request.is_version_applicable(&pkg.version);
             if !&compat {
                 iterator_lock.set_builds(
                     &pkg.version,
                     Arc::new(Mutex::new(EmptyBuildIterator::new())),
                 );
-                notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
-                    pkg.clone(),
-                    compat,
-                )));
+                notes
+                    .borrow_mut()
+                    .push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                        pkg.clone(),
+                        compat,
+                    )));
                 continue;
             }
 
@@ -156,11 +205,25 @@ impl Solver {
             };
 
             while let Some((mut spec, repo)) = builds.lock().unwrap().next()? {
+                let validate_spec =
+                    |spec| -> std::result::Result<_, crate::Error> {
+                        let compat = self.validate(&node.state, spec, &repo)?;
+                        if !&compat {
+                            notes.borrow_mut().push(NoteEnum::SkipPackageNote(
+                                SkipPackageNote::new(spec.pkg.clone(), compat),
+                            ));
+                            Ok(false)
+                        } else {
+                            Ok(true)
+                        }
+                    };
+
                 let build_from_source = spec.pkg.build == Some(Build::Source)
                     && request.pkg.build != Some(Build::Source);
-                if build_from_source {
+
+                let mut decision = if build_from_source {
                     if let PackageSource::Spec(spec) = repo {
-                        notes.push(NoteEnum::SkipPackageNote(
+                        notes.borrow_mut().push(NoteEnum::SkipPackageNote(
                             SkipPackageNote::new_from_message(
                                 spec.pkg.clone(),
                                 "cannot build embedded source package",
@@ -169,10 +232,60 @@ impl Solver {
                         continue;
                     }
 
+                    let mut resolved_new_build = None;
+
                     match repo.read_spec(&spec.pkg.with_build(None)) {
-                        Ok(s) => spec = Arc::new(s),
+                        Ok(s) => {
+                            let mut found = false;
+                            for variant in s.build.buildvariants() {
+                                // Determine which variant will be used to build
+                                // from source.
+                                resolved_new_build = Some(self.resolve_new_build(
+                                    s.clone(),
+                                    variant.clone(),
+                                    &node.state,
+                                ));
+                                match &resolved_new_build {
+                                    Some(Ok(build_env)) => {
+                                        spec = Arc::new(SpecWithBuildVariant {
+                                            spec: Arc::new(s),
+                                            variant,
+                                        });
+                                        // XXX: multiple variants could satisfy the current
+                                        // state but not all may produce a viable solve.
+                                        found = true;
+                                        break;
+                                    }
+
+                                    // FIXME: This should only match `SolverError`
+                                    Some(Err(err)) => {
+                                        notes.borrow_mut().push(NoteEnum::SkipPackageNote(
+                                            SkipPackageNote::new_from_message(
+                                                s.pkg.clone(),
+                                                &format!(
+                                                    "cannot resolve build env (variant {}): {:?}",
+                                                    &variant, &err
+                                                ),
+                                            ),
+                                        ));
+                                        continue;
+                                    }
+
+                                    None => unreachable!(),
+                                }
+                            }
+                            if !found {
+                                notes.borrow_mut().push(NoteEnum::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        spec.pkg.clone(),
+                                        "no valid variant was found",
+                                    ),
+                                ));
+                                continue;
+                            }
+                        }
                         Err(Error::PackageNotFoundError(pkg)) => {
-                            notes.push(NoteEnum::SkipPackageNote(
+                            notes.borrow_mut().push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
                                     pkg,
                                     "cannot build from source, version spec not available",
@@ -182,27 +295,20 @@ impl Solver {
                         }
                         Err(err) => return Err(err),
                     }
-                }
 
-                compat = self.validate(&node.state, &spec, &repo)?;
-                if !&compat {
-                    notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
-                        spec.pkg.clone(),
-                        compat,
-                    )));
-                    continue;
-                }
+                    if !validate_spec(&spec)? {
+                        continue;
+                    }
 
-                let mut decision = if build_from_source {
-                    match self.resolve_new_build(&spec, &node.state) {
-                        Ok(build_env) => {
-                            match Decision::builder(spec.clone(), &node.state)
+                    let decision = match &resolved_new_build {
+                        Some(Ok(build_env)) => {
+                            match Decision::builder(Arc::clone(&spec), &node.state)
                                 .with_components(&request.pkg.components)
-                                .build_package(&build_env)
+                                .build_package(build_env)
                             {
                                 Ok(decision) => decision,
                                 Err(err) => {
-                                    notes.push(NoteEnum::SkipPackageNote(
+                                    notes.borrow_mut().push(NoteEnum::SkipPackageNote(
                                         SkipPackageNote::new_from_message(
                                             spec.pkg.clone(),
                                             &format!("cannot build package: {:?}", err),
@@ -214,8 +320,8 @@ impl Solver {
                         }
 
                         // FIXME: This should only match `SolverError`
-                        Err(err) => {
-                            notes.push(NoteEnum::SkipPackageNote(
+                        Some(Err(err)) => {
+                            notes.borrow_mut().push(NoteEnum::SkipPackageNote(
                                 SkipPackageNote::new_from_message(
                                     spec.pkg.clone(),
                                     &format!("cannot resolve build env: {:?}", err),
@@ -223,18 +329,29 @@ impl Solver {
                             ));
                             continue;
                         }
-                    }
+
+                        None => unreachable!(),
+                    };
+                    decision
                 } else {
+                    if !validate_spec(&spec)? {
+                        continue;
+                    }
+
                     Decision::builder(spec, &node.state)
                         .with_components(&request.pkg.components)
                         .resolve_package(repo)
                 };
-                decision.add_notes(notes.iter());
+                decision.add_notes(notes.borrow().iter());
                 return Ok(Some(decision));
             }
         }
 
-        Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
+        Err(errors::Error::OutOfOptions(errors::OutOfOptions {
+            request,
+            notes: notes.into_inner(),
+        })
+        .into())
     }
 
     fn validate(
@@ -360,31 +477,13 @@ impl Solver {
         runtime.current_solution()
     }
 
-    /// Adds requests for all build requirements
-    pub fn configure_for_build_environment(&mut self, spec: &api::Spec) -> Result<()> {
-        let state = self.get_initial_state();
-
-        let build_options = spec.resolve_all_options(&state.get_option_map());
-        for option in &spec.build.options {
-            if let api::Opt::Pkg(option) = option {
-                let given = build_options.get(&option.pkg);
-                let mut request = option.to_request(given.cloned())?;
-                // if no components were explicitly requested in a build option,
-                // then we inject the default for this context
-                if request.pkg.components.is_empty() {
-                    request.pkg.components.insert(Component::Build);
-                }
-                self.add_request(request.into())
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Adds requests for all build requirements and solves
-    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
-        self.configure_for_build_environment(spec)?;
-        Ok(self.solve()?)
+    #[pyo3(name = "solve_build_environment")]
+    pub fn py_solve_build_environment(
+        &mut self,
+        spec: api::Spec,
+        variant: isize,
+    ) -> Result<Solution> {
+        self.solve_build_environment(spec, variant.into())
     }
 
     pub fn update_options(&mut self, options: OptionMap) {

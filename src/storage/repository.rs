@@ -22,7 +22,7 @@ pub trait Repository {
     fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>>;
 
     /// Return the set of builds for the given package name and version.
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::BuildIdent>>;
 
     /// Returns the set of components published for a package build
     fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
@@ -32,6 +32,12 @@ pub trait Repository {
     /// # Errors:
     /// - PackageNotFoundError: If the package, version, or build does not exist
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec>;
+
+    /// Read a package spec file for the given package, version and build.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, version, or build does not exist
+    fn read_build_spec(&self, pkg: &api::BuildIdent) -> Result<api::SpecWithBuildVariant>;
 
     /// Identify the payloads for the identified package's components.
     fn get_package(

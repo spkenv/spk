@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::{api, build, io, solve, storage, Error, Result};
+use crate::{
+    api,
+    build::{self, BuildVariant},
+    io, solve, storage, Error, Result,
+};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
@@ -74,7 +78,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 "collecting {} of {} {}",
                 i + 1,
                 to_sync_count,
-                io::format_ident(&spec.pkg),
+                io::format_ident(&spec.spec.pkg),
             );
             crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), repo, &local_repo))?;
         }
@@ -119,11 +123,18 @@ pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solu
             io::format_ident(&item.spec.pkg),
             io::format_options(&options)
         );
-        let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
-            .with_repositories(repos.clone())
-            .with_options(options.clone())
-            .build()?;
-        let components = local_repo.get_package(&spec.pkg)?;
+        let spec = build::BinaryPackageBuilder::from_spec(
+            (*source_spec).clone(),
+            // XXX: One of the variants of this source package may be
+            // the only way to satisfy the requirements; the `SolvedRequest`
+            // likely needs to have some concept of which variant needs to
+            // built for source packages.
+            BuildVariant::Default,
+        )
+        .with_repositories(repos.clone())
+        .with_options(options.clone())
+        .build()?;
+        let components = local_repo.get_package(&spec.spec.pkg)?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,

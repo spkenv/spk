@@ -7,7 +7,7 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
 use super::{RequestEnum, Solver};
-use crate::{api, io, option_map, spec, Error};
+use crate::{api, ident, io, option_map, spec, Error};
 
 #[fixture]
 fn solver() -> Solver {
@@ -72,12 +72,20 @@ macro_rules! make_package {
 ///     the options used to make the build (eg: {"debug" => "on"})
 #[macro_export(local_inner_macros)]
 macro_rules! make_build {
+    ($spec:tt, default) => {{
+        let opts = crate::api::OptionMap::default();
+        make_build!($spec, [], opts, default)
+    }};
     ($spec:tt) => {
         make_build!($spec, [])
     };
     ($spec:tt, $deps:tt) => {
         make_build!($spec, $deps, {})
     };
+    ($spec:tt, $deps:tt, $opts:tt, default) => {{
+        let (spec, _) = make_build_and_components!($spec, $deps, $opts, [], default);
+        spec
+    }};
     ($spec:tt, $deps:tt, $opts:tt) => {{
         let (spec, _) = make_build_and_components!($spec, $deps, $opts);
         spec
@@ -106,16 +114,16 @@ macro_rules! make_build_and_components {
         let opts = crate::option_map!{$($k => $v),*};
         make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
     }};
-    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
-        let mut spec = make_spec!($spec);
+    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*], default) => {{
+        let mut spec = make_spec!($spec, default);
         let mut components = std::collections::HashMap::<crate::api::Component, spfs::encoding::Digest>::new();
-        let deps: Vec<&api::Spec> = std::vec![$(&$dep),*];
+        let deps: Vec<&crate::api::SpecWithBuildVariant> = std::vec![$(&$dep),*];
         if spec.pkg.is_source() {
             components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
             (spec, components)
         } else {
             let mut build_opts = $opts.clone();
-            let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
+            let mut resolved_opts = spec.resolve_all_options(&build_opts).expect("valid variant").into_iter();
             build_opts.extend(&mut resolved_opts);
             spec.update_for_build(&build_opts, deps)
                 .expect("Failed to render build spec");
@@ -129,6 +137,35 @@ macro_rules! make_build_and_components {
             }
             (spec, components)
         }
+    }};
+    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
+        let spec = make_spec!($spec);
+        let mut components = std::collections::HashMap::<crate::api::Component, spfs::encoding::Digest>::new();
+        let deps: Vec<&crate::api::SpecWithBuildVariant> = std::vec![$(&$dep),*];
+        if spec.pkg.is_source() {
+            components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
+            (spec, components)
+        } else {
+            let mut build_opts = $opts.clone();
+            let mut spec_with_variant = crate::api::SpecWithBuildVariant {
+                spec: std::sync::Arc::new(spec.clone()),
+                variant: crate::build::BuildVariant::Default,
+            };
+            let mut resolved_opts = spec_with_variant.resolve_all_options(&build_opts).expect("valid variant").into_iter();
+            build_opts.extend(&mut resolved_opts);
+            spec_with_variant.update_for_build(&build_opts, deps)
+                .expect("Failed to render build spec");
+            let spec = spec_with_variant.spec;
+            let mut names = std::vec![$($component.to_string()),*];
+            if names.is_empty() {
+                names = spec.install.components.iter().map(|c| c.name.to_string()).collect();
+            }
+            for name in names {
+                let name = crate::api::Component::parse(name).expect("invalid component name");
+                components.insert(name, spfs::encoding::EMPTY_DIGEST.into());
+            }
+            ((*spec).clone(), components)
+        }
     }}
 }
 
@@ -138,6 +175,9 @@ macro_rules! make_build_and_components {
 macro_rules! make_spec {
     ($spec:ident) => {
         $spec.clone()
+    };
+    ($spec:tt, default) => {
+        crate::spec!($spec, default)
     };
     ($spec:tt) => {
         crate::spec!($spec)
@@ -587,6 +627,33 @@ fn test_solver_constraint_and_request(mut solver: Solver) {
 }
 
 #[rstest]
+fn test_repo_contains_multiple_builds() {
+    // test some underlying assumptions made by `test_solver_option_compatibility`
+    let spec = spec!(
+        {
+            "pkg": "vnp3/2.0.0",
+            "build": {
+                // favoritize 2.7, otherwise an option of python=2 doesn't actually
+                // exclude python 3 from being resolved
+                "options": [{"pkg": "python/~2.7"}],
+                "variants": [{"python": "3.7"}, {"python": "2.7"}],
+            },
+        }
+    );
+    let py27 = make_build!({"pkg": "python/2.7.5"}, default);
+    let py37 = make_build!({"pkg": "python/3.7.3"}, default);
+    let for_py27 = make_build!(spec, [py27]);
+    let for_py37 = make_build!(spec, [py37]);
+    let repo = make_repo!([for_py27, for_py37]);
+    repo.publish_spec(spec).unwrap();
+    let repo = Arc::new(repo);
+    let builds = repo
+        .list_package_builds(&ident!("vnp3/2.0.0"))
+        .expect("a list of builds");
+    assert_eq!(builds.len(), 2);
+}
+
+#[rstest]
 fn test_solver_option_compatibility(mut solver: Solver) {
     // test what happens when an option is given in the solver
     // - the options for each build are checked
@@ -603,8 +670,8 @@ fn test_solver_option_compatibility(mut solver: Solver) {
             },
         }
     );
-    let py27 = make_build!({"pkg": "python/2.7.5"});
-    let py37 = make_build!({"pkg": "python/3.7.3"});
+    let py27 = make_build!({"pkg": "python/2.7.5"}, default);
+    let py37 = make_build!({"pkg": "python/3.7.3"}, default);
     let for_py27 = make_build!(spec, [py27]);
     let for_py37 = make_build!(spec, [py37]);
     let repo = make_repo!([for_py27, for_py37]);
@@ -660,7 +727,8 @@ fn test_solver_option_injection(mut solver: Solver) {
         {
             "pkg": "python/2.7.5",
             "build": {"options": [{"var": "abi/cp27mu"}]},
-        }
+        },
+        default
     );
     let build = make_build!(spec, [pybuild]);
     let repo = make_repo!([build]);
@@ -748,7 +816,7 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
     // - if the requested pkg cannot resolve a build environment
     // - this is flagged by the solver as impossible
 
-    let gcc48 = make_build!({"pkg": "gcc/4.8"});
+    let gcc48 = make_build!({"pkg": "gcc/4.8"}, default);
     let build_with_48 = make_build!(
         {
             "pkg": "my-tool/1.2.0",
@@ -756,9 +824,10 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
         },
         [gcc48]
     );
+    let gcc48_plain_spec = (*gcc48.spec).clone();
     let repo = make_repo!(
         [
-            gcc48,
+            gcc48_plain_spec,
             build_with_48,
             {
                 "pkg": "my-tool/1.2.0/src",
@@ -786,7 +855,7 @@ fn test_solver_build_from_source_dependency(mut solver: Solver) {
     // - a new build is created of the dependent
     // - the local package is used in the resolve
 
-    let python36 = make_build!({"pkg": "python/3.6.3", "compat": "x.a.b"});
+    let python36 = make_build!({"pkg": "python/3.6.3", "compat": "x.a.b"}, default);
     let build_with_py36 = make_build!(
         {
             "pkg": "my-tool/1.2.0",
@@ -1215,8 +1284,8 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     //  - that option can conflict with another packages build options
     //  - as long as there is no explicit requirement on that option's value
 
-    let dep_v1 = spec!({"pkg": "build-dep/1.0.0"});
-    let dep_v2 = spec!({"pkg": "build-dep/2.0.0"});
+    let dep_v1 = spec!({"pkg": "build-dep/1.0.0"}, default);
+    let dep_v2 = spec!({"pkg": "build-dep/2.0.0"}, default);
 
     let a_spec = spec!({
         "pkg": "pkga/1.0.0",

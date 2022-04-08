@@ -7,7 +7,10 @@ use itertools::Itertools;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::{Compatibility, Opt, OptionMap, ValidationSpec};
+use crate::build::BuildVariant;
+use crate::{Error, Result};
+
+use super::{Compatibility, Opt, OptionMap, ValidationSpec, VarOpt};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -34,22 +37,97 @@ impl Default for BuildSpec {
         Self {
             script: vec!["sh ./build.sh".into()],
             options: Vec::new(),
-            variants: vec![OptionMap::default()],
+            variants: Vec::new(),
             validation: ValidationSpec::default(),
         }
     }
 }
 
+pub struct BuildVariantIter {
+    variants_remaining: Option<usize>,
+}
+
+impl Iterator for BuildVariantIter {
+    type Item = BuildVariant;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(remaining) = self.variants_remaining {
+            if remaining == 0 {
+                self.variants_remaining = None;
+                Some(BuildVariant::Default)
+            } else {
+                self.variants_remaining = Some(remaining - 1);
+                Some(BuildVariant::Variant(remaining - 1))
+            }
+        } else {
+            None
+        }
+    }
+}
+
 impl BuildSpec {
+    /// Return an Iterator of all the BuildVariants described
+    /// by this spec.
+    pub fn buildvariants(&self) -> BuildVariantIter {
+        BuildVariantIter {
+            variants_remaining: Some(self.variants.len()),
+        }
+    }
+
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
 
     fn is_default_variants(variants: &[OptionMap]) -> bool {
-        if variants.len() != 1 {
-            return false;
+        variants.is_empty()
+    }
+
+    pub fn resolve_all_options(
+        &self,
+        variant: &BuildVariant,
+        package_name: Option<&str>,
+        given: &OptionMap,
+    ) -> Result<OptionMap> {
+        let mut resolved = OptionMap::default();
+
+        let mut process_opt = |opt: &Opt| {
+            let name = opt.name();
+            let mut given_value: Option<&String> = None;
+
+            if let Some(name) = &package_name {
+                given_value = given.get(&opt.namespaced_name(name))
+            }
+            if given_value.is_none() {
+                given_value = given.get(name)
+            }
+
+            let value = opt.get_value(given_value.map(String::as_ref));
+            resolved.insert(name.to_string(), value);
+        };
+
+        for opt in self.options.iter() {
+            process_opt(opt)
         }
-        variants.get(0) == Some(&OptionMap::default())
+
+        match variant {
+            BuildVariant::Default => {}
+            BuildVariant::Variant(index) => {
+                let variant = self
+                    .variants
+                    .get(*index as usize)
+                    .ok_or_else(|| Error::String("Variant index out of range".to_owned()))?;
+
+                for (k, v) in variant.iter() {
+                    process_opt(&Opt::Var({
+                        let mut var_opt = VarOpt::new(k);
+                        var_opt.set_value(v.to_owned())?;
+                        var_opt
+                    }))
+                }
+            }
+        }
+
+        Ok(resolved)
     }
 }
 
@@ -63,24 +141,15 @@ impl BuildSpec {
         }
     }
 
-    pub fn resolve_all_options(&self, package_name: Option<&str>, given: &OptionMap) -> OptionMap {
-        let mut resolved = OptionMap::default();
-        for opt in self.options.iter() {
-            let name = opt.name();
-            let mut given_value: Option<&String> = None;
-
-            if let Some(name) = &package_name {
-                given_value = given.get(&opt.namespaced_name(name))
-            }
-            if given_value.is_none() {
-                given_value = given.get(name)
-            }
-
-            let value = opt.get_value(given_value.map(String::as_ref));
-            resolved.insert(name.to_string(), value);
-        }
-
-        resolved
+    #[pyo3(name = "resolve_all_options")]
+    pub fn py_resolve_all_options(
+        &self,
+        variant: isize,
+        package_name: Option<&str>,
+        given: &OptionMap,
+    ) -> PyResult<OptionMap> {
+        self.resolve_all_options(&variant.into(), package_name, given)
+            .map_err(|err| err.into())
     }
 
     fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
@@ -140,9 +209,16 @@ impl<'de> Deserialize<'de> for BuildSpec {
 
         let mut variant_builds = Vec::new();
         let mut unique_variants = HashSet::new();
-        for variant in bs.variants.iter() {
-            let mut build_opts = variant.clone();
-            build_opts.append(&mut bs.resolve_all_options(None, variant));
+        let empty = OptionMap::default();
+        for variant in bs.buildvariants() {
+            // Skip the default variant; it is legal for any one variant to
+            // match the default (this situation is common).
+            if matches!(variant, BuildVariant::Default) {
+                continue;
+            }
+
+            // unwrap safety: `buildvariants` will not return an out-of-bounds variant
+            let build_opts = bs.resolve_all_options(&variant, None, &empty).unwrap();
             let digest = build_opts.digest();
             variant_builds.push((digest, variant.clone()));
             unique_variants.insert(digest);

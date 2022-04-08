@@ -1,13 +1,13 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
 
 use super::Repository;
-use crate::{api, Error, Result};
+use crate::{api, build::BuildVariant, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
@@ -86,7 +86,7 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::BuildIdent>> {
         let mut base = self.root.join(pkg.name());
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
@@ -100,7 +100,7 @@ impl Repository for RuntimeRepository {
             })
             .filter(|entry| base.join(entry).join("spec.yaml").exists())
             .filter_map(|candidate| match api::parse_build(&candidate) {
-                Ok(b) => Some(pkg.with_build(Some(b))),
+                Ok(b) => Some(pkg.to_build_ident(b)),
                 Err(err) => {
                     tracing::debug!(
                         "Skipping invalid build in {:?}: [{}] {:?}",
@@ -124,6 +124,29 @@ impl Repository for RuntimeRepository {
             .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
             .map(api::Component::parse)
             .collect()
+    }
+
+    fn read_build_spec(&self, pkg: &api::BuildIdent) -> Result<api::SpecWithBuildVariant> {
+        let mut path = self.root.join(pkg.to_string());
+        path.push("spec.yaml");
+
+        match api::read_spec_file(&path) {
+            Err(Error::IO(err)) => {
+                if err.kind() == std::io::ErrorKind::NotFound {
+                    Err(Error::PackageNotFoundError(pkg.into()))
+                } else {
+                    Err(err.into())
+                }
+            }
+            Err(err) => Err(err),
+            Ok(spec) => {
+                Ok(api::SpecWithBuildVariant {
+                    spec: Arc::new(spec),
+                    // FIXME: need a way to read the variant used when the build was created
+                    variant: BuildVariant::Default,
+                })
+            }
+        }
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {

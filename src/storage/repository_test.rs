@@ -106,7 +106,11 @@ fn test_repo_publish_package(#[case] repo: RepoKind) {
     )
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(&spec.pkg).unwrap(),
+        repo.list_package_builds(&spec.pkg)
+            .unwrap()
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<api::Ident>>(),
         [spec.pkg.clone()]
     );
     assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
@@ -130,7 +134,11 @@ fn test_repo_remove_package(#[case] repo: RepoKind) {
     )
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(&spec.pkg).unwrap(),
+        repo.list_package_builds(&spec.pkg)
+            .unwrap()
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<api::Ident>>(),
         vec![spec.pkg.clone()]
     );
     assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);

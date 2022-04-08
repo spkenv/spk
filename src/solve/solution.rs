@@ -8,7 +8,8 @@ use std::{
 };
 
 use crate::{
-    api::{self, Ident},
+    api::{self, Ident, SpecWithBuildVariant},
+    build::BuildVariant,
     storage, Result,
 };
 
@@ -72,7 +73,7 @@ impl PackageSource {
 pub struct SolvedRequest {
     #[pyo3(get)]
     pub request: api::PkgRequest,
-    pub spec: Arc<api::Spec>,
+    pub spec: Arc<api::SpecWithBuildVariant>,
     #[pyo3(get)]
     pub source: PackageSource,
 }
@@ -81,7 +82,7 @@ pub struct SolvedRequest {
 impl SolvedRequest {
     #[getter]
     pub fn spec(&self) -> api::Spec {
-        (*self.spec).clone()
+        (*self.spec.spec).clone()
     }
 
     pub fn is_source_build(&self) -> bool {
@@ -98,7 +99,7 @@ impl pyo3::PySequenceProtocol for SolvedRequest {
     fn __getitem__(&self, idx: isize) -> PyResult<PyObject> {
         Python::with_gil(|py| match idx {
             0 => Ok(self.request.clone().into_py(py)),
-            1 => Ok((*self.spec).clone().into_py(py)),
+            1 => Ok((*self.spec.spec).clone().into_py(py)),
             2 => Ok(self.source.clone().into_py(py)),
             _ => Err(pyo3::exceptions::PyIndexError::new_err("")),
         })
@@ -114,8 +115,8 @@ impl pyo3::PySequenceProtocol for SolvedRequest {
 #[derive(Clone, Debug)]
 pub struct Solution {
     options: api::OptionMap,
-    resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,
-    by_name: HashMap<String, Arc<api::Spec>>,
+    resolved: HashMap<api::PkgRequest, (Arc<api::SpecWithBuildVariant>, PackageSource)>,
+    by_name: HashMap<String, Arc<api::SpecWithBuildVariant>>,
     insertion_order: HashMap<api::PkgRequest, usize>,
 }
 
@@ -155,10 +156,14 @@ impl Solution {
 
     #[pyo3(name = "add")]
     pub fn add_py(&mut self, request: &api::PkgRequest, package: api::Spec, source: PackageSource) {
-        let package = Arc::new(package);
+        let package = Arc::new(SpecWithBuildVariant {
+            spec: Arc::new(package),
+            // XXX: Workaround for python, waiting for python removal
+            variant: BuildVariant::Default,
+        });
         if self
             .resolved
-            .insert(request.clone(), (package.clone(), source))
+            .insert(request.clone(), (Arc::clone(&package), source))
             .is_none()
         {
             self.insertion_order
@@ -251,7 +256,7 @@ impl Solution {
     pub fn add(
         &mut self,
         request: &api::PkgRequest,
-        package: Arc<api::Spec>,
+        package: Arc<api::SpecWithBuildVariant>,
         source: PackageSource,
     ) {
         if self

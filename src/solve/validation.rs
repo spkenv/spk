@@ -12,7 +12,7 @@ use super::{errors, graph, python::State as PyState, solution::PackageSource};
 #[path = "./validation_test.rs"]
 mod validation_test;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Validators {
     Deprecation(DeprecationValidator),
     BinaryOnly(BinaryOnlyValidator),
@@ -71,7 +71,7 @@ impl IntoPy<Py<PyAny>> for Validators {
 
 /// Ensures that deprecated packages are not included unless specifically requested.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct DeprecationValidator {}
 
 #[pymethods]
@@ -114,7 +114,7 @@ impl ValidatorT for DeprecationValidator {
 
 /// Enforces the resolution of binary packages only, denying new builds from source.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct BinaryOnlyValidator {}
 
 const ONLY_BINARY_PACKAGES_ALLOWED: &str = "only binary packages are allowed";
@@ -142,7 +142,7 @@ impl ValidatorT for BinaryOnlyValidator {
 }
 
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct EmbeddedPackageValidator {}
 
 #[pymethods]
@@ -206,7 +206,7 @@ impl EmbeddedPackageValidator {
 
 /// Ensures that a package is compatible with all requested options.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct OptionsValidator {}
 
 #[pymethods]
@@ -244,7 +244,7 @@ impl ValidatorT for OptionsValidator {
 
 /// Ensures that a package meets all requested version criteria.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PkgRequestValidator {}
 
 #[pymethods]
@@ -289,7 +289,7 @@ impl ValidatorT for PkgRequestValidator {
 
 /// Ensures that all of the requested components are available.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ComponentsValidator {}
 
 #[pymethods]
@@ -369,7 +369,7 @@ impl ValidatorT for ComponentsValidator {
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PkgRequirementsValidator {}
 
 #[pymethods]
@@ -527,7 +527,7 @@ impl PkgRequirementsValidator {
 
 /// Validates that the var install requirements do not conflict with the existing options.
 #[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct VarRequirementsValidator {}
 
 #[pymethods]

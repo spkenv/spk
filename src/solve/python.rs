@@ -4,10 +4,10 @@
 use pyo3::prelude::*;
 use pyo3::py_run;
 use pyo3::wrap_pyfunction;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::api;
+use crate::build::BuildVariant;
 
 use super::errors::SolverError;
 use super::graph;
@@ -15,35 +15,10 @@ use super::graph::{
     Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SetPackage,
     SetPackageBuild, SkipPackageNote, StepBack,
 };
-use super::solution::{PackageSource, Solution};
+use super::solution::Solution;
 use super::solver::{Solver, SolverFailedError};
 use super::validation::{self, Validators, VarRequirementsValidator};
-
-#[pyfunction]
-#[pyo3(name = "BuildPackage")]
-fn build_package(
-    spec: api::Spec,
-    base: &State,
-    components: HashSet<api::Component>,
-    build_env: &Solution,
-) -> crate::Result<Decision> {
-    super::graph::Decision::builder(spec.into(), base.into())
-        .with_components(&components)
-        .build_package(build_env)
-}
-
-#[pyfunction]
-#[pyo3(name = "ResolvePackage")]
-fn resolve_package(
-    spec: api::Spec,
-    base: &State,
-    components: HashSet<api::Component>,
-    source: PackageSource,
-) -> Decision {
-    super::graph::Decision::builder(spec.into(), base.into())
-        .with_components(&components)
-        .resolve_package(source)
-}
+use super::PackageSource;
 
 /// A single change made to a state.
 #[pyclass(subclass)]
@@ -97,7 +72,16 @@ impl State {
             var_requests,
             packages
                 .into_iter()
-                .map(|(s, ps)| (Arc::new(s), ps))
+                .map(|(s, ps)| {
+                    (
+                        Arc::new(api::SpecWithBuildVariant {
+                            spec: Arc::new(s),
+                            // XXX: hard coded variant here. This method will go away soon?
+                            variant: BuildVariant::Default,
+                        }),
+                        ps,
+                    )
+                })
                 .collect(),
             options,
         )
@@ -125,9 +109,6 @@ impl State {
 }
 
 fn init_submodule_graph(_py: &Python, module: &PyModule) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(build_package, module)?)?;
-    module.add_function(wrap_pyfunction!(resolve_package, module)?)?;
-
     module.add_class::<Change>()?;
     module.add_class::<Decision>()?;
     module.add_class::<Graph>()?;

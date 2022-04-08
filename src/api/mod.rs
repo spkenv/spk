@@ -33,7 +33,7 @@ pub use component_spec::{Component, ComponentSpec, FileMatcher};
 pub use component_spec_list::ComponentSpecList;
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
-pub use ident::{parse_ident, Ident};
+pub use ident::{parse_ident, BuildIdent, Ident};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
 pub use name::{validate_name, validate_tag_name, InvalidNameError};
@@ -45,7 +45,7 @@ pub use request::{
 };
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::{read_spec_file, save_spec_file, Spec};
+pub use spec::{read_spec_file, save_spec_file, Spec, SpecWithBuildVariant};
 
 pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};

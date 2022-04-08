@@ -13,6 +13,8 @@ use crate::{
     storage::{self, Repository},
 };
 
+use crate::build::binary::BuildVariant;
+
 #[rstest]
 fn test_split_manifest_permissions() {
     use spfs::tracking::{Entry, EntryKind, Manifest};
@@ -52,7 +54,7 @@ fn test_empty_var_option_is_not_a_request() {
     }"#,
     )
     .unwrap();
-    let builder = super::BinaryPackageBuilder::from_spec(spec);
+    let builder = super::BinaryPackageBuilder::from_spec(spec, BuildVariant::Default);
     let requirements = builder.get_build_requirements().unwrap();
     assert!(
         requirements.is_empty(),
@@ -72,7 +74,7 @@ fn test_build_workdir(tmpdir: tempdir::TempDir) {
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
     spec.build.script = vec![format!("echo $PWD > {:?}", out_file)];
 
-    BinaryPackageBuilder::from_spec(spec)
+    BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
         .build()
         .unwrap();
@@ -113,14 +115,14 @@ fn test_build_package_options() {
 
     rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
 
-    BinaryPackageBuilder::from_spec(dep_spec)
+    BinaryPackageBuilder::from_spec(dep_spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
 
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    let spec = BinaryPackageBuilder::from_spec(spec)
+    let spec = BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         // option should be set in final published spec
@@ -135,9 +137,11 @@ fn test_build_package_options() {
         .read_spec(&spec.pkg)
         .unwrap()
         .resolve_all_options(
+            &BuildVariant::Default,
             // given value should be ignored after build
             &crate::option_map! {"dep" => "7"},
-        );
+        )
+        .unwrap();
     assert_eq!(build_options.get("dep"), Some(&String::from("~1.0.0")));
 }
 
@@ -162,13 +166,13 @@ fn test_build_package_pinning() {
     );
 
     rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
-    BinaryPackageBuilder::from_spec(dep_spec)
+    BinaryPackageBuilder::from_spec(dep_spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    let spec = BinaryPackageBuilder::from_spec(spec)
+    let spec = BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
@@ -199,7 +203,7 @@ fn test_build_package_missing_deps() {
 
     // should not fail to resolve build env and build even though
     // runtime dependency is missing in the current repos
-    BinaryPackageBuilder::from_spec(spec)
+    BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
@@ -242,12 +246,12 @@ fn test_build_var_pinning() {
 
     rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    BinaryPackageBuilder::from_spec(dep_spec)
+    BinaryPackageBuilder::from_spec(dep_spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
-    let spec = BinaryPackageBuilder::from_spec(spec)
+    let spec = BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
@@ -283,7 +287,7 @@ fn test_build_bad_options() {
     );
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
 
-    let res = BinaryPackageBuilder::from_spec(spec)
+    let res = BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_option("debug", "false")
         .build();
@@ -321,7 +325,7 @@ fn test_build_package_source_cleanup() {
         .build()
         .unwrap();
 
-    let pkg = BinaryPackageBuilder::from_spec(spec)
+    let pkg = BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
@@ -377,7 +381,7 @@ fn test_build_package_requirement_propagation() {
         .with_target_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
-    let _base_pkg = BinaryPackageBuilder::from_spec(base_spec.clone())
+    let _base_pkg = BinaryPackageBuilder::from_spec(base_spec.clone(), BuildVariant::Default)
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
@@ -386,7 +390,7 @@ fn test_build_package_requirement_propagation() {
         .with_target_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
-    let top_pkg = BinaryPackageBuilder::from_spec(top_spec.clone())
+    let top_pkg = BinaryPackageBuilder::from_spec(top_spec.clone(), BuildVariant::Default)
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
@@ -441,7 +445,7 @@ fn test_default_build_component() {
             },
         }
     );
-    let builder = BinaryPackageBuilder::from_spec(spec);
+    let builder = BinaryPackageBuilder::from_spec(spec, BuildVariant::Default);
     let requirements = builder.get_build_requirements().unwrap();
     assert_eq!(requirements.len(), 1, "should have one build requirement");
     let req = requirements.get(0).unwrap();
@@ -472,7 +476,7 @@ fn test_build_components_metadata() {
         }
     );
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    let spec = BinaryPackageBuilder::from_spec(spec.clone())
+    let spec = BinaryPackageBuilder::from_spec(spec.clone(), BuildVariant::Default)
         .with_source(BuildSource::LocalPath(".".into()))
         .build()
         .unwrap();
@@ -510,14 +514,14 @@ fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
                 "environment": [
                     {"set": "TESTPKG", "value": true},
                     {"append": "TESTPKG", "value": "append"},
-                    {"prepend": "TESTPKG", "value": 1.7},
+                    {"prepend": "TESTPKG", "value": "1.7"},
                 ]
             },
         }
     );
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
 
-    BinaryPackageBuilder::from_spec(spec)
+    BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_prefix(tmpdir.path().into())
         .generate_startup_scripts()
         .unwrap();
@@ -545,3 +549,27 @@ fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
 
     assert_eq!(tcsh_value.as_slice(), b"1.7:true:append\n");
 }
+
+/*
+#[rstest]
+fn test_pkg_option_declared_in_variant_only() {
+    let spec: crate::api::Spec = serde_yaml::from_str(
+        r#"{
+        pkg: mypackage/1.0.0,
+        build: {
+            variants: [
+                {something: "2.7"},
+                {something: "3.7"},
+            ]
+        }
+    }"#,
+    )
+    .unwrap();
+    let builder = super::BinaryPackageBuilder::from_spec(spec, BuildVariant::Variant(0));
+    let requirements = builder.get_build_requirements().unwrap();
+    assert!(
+        !requirements.is_empty(),
+        "a package in the variants list should create a build requirement"
+    )
+}
+*/

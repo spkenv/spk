@@ -9,6 +9,7 @@ use std::sync::{Arc, RwLock};
 
 use pyo3::prelude::*;
 
+use crate::build::BuildVariant;
 use crate::{
     api,
     build::{self, BuildSource},
@@ -30,7 +31,7 @@ impl TestError {
 #[pyclass]
 pub struct PackageBuildTester {
     prefix: PathBuf,
-    spec: api::Spec,
+    spec: api::SpecWithBuildVariant,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
@@ -96,7 +97,10 @@ impl PackageBuildTester {
         let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
             prefix: PathBuf::from("/spfs"),
-            spec,
+            spec: api::SpecWithBuildVariant {
+                spec: Arc::new(spec),
+                variant: BuildVariant::Default,
+            },
             script,
             repos: Vec::new(),
             options: api::OptionMap::default(),

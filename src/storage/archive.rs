@@ -40,8 +40,18 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
     let mut to_transfer = std::collections::BTreeSet::new();
     to_transfer.insert(pkg.clone());
     if pkg.build.is_none() {
-        to_transfer.extend(local_repo.list_package_builds(pkg)?);
-        to_transfer.extend(remote_repo.list_package_builds(pkg)?);
+        to_transfer.extend(
+            local_repo
+                .list_package_builds(pkg)?
+                .into_iter()
+                .map(Into::into),
+        );
+        to_transfer.extend(
+            remote_repo
+                .list_package_builds(pkg)?
+                .into_iter()
+                .map(Into::into),
+        );
     } else {
         to_transfer.insert(pkg.with_build(None));
     }

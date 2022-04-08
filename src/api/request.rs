@@ -106,7 +106,7 @@ impl RangeIdent {
             ));
         }
 
-        let compat = self.version.contains(&other.version);
+        let compat = (&self.version).contains(&other.version);
         if !compat.is_ok() {
             return compat;
         }

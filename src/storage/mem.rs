@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use super::Repository;
+use crate::build::BuildVariant;
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
@@ -55,12 +56,12 @@ impl Repository for MemRepository {
         }
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::BuildIdent>> {
         if let Some(versions) = self.packages.read().unwrap().get(pkg.name()) {
             if let Some(builds) = versions.get(&pkg.version) {
                 Ok(builds
                     .keys()
-                    .map(|b| pkg.with_build(Some(b.clone())))
+                    .map(|b| pkg.to_build_ident(b.clone()))
                     .collect())
             } else {
                 Ok(Vec::new())
@@ -85,6 +86,24 @@ impl Repository for MemRepository {
             .map(|(_, build_map)| build_map)
             .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default())
+    }
+
+    fn read_build_spec(&self, pkg: &api::BuildIdent) -> Result<api::SpecWithBuildVariant> {
+        self.packages
+            .read()
+            .unwrap()
+            .get(pkg.name())
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.into()))?
+            .get(&pkg.version)
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.into()))?
+            .get(&pkg.build)
+            .map(|(b, _)| b.to_owned())
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.into()))
+            .map(|spec| api::SpecWithBuildVariant {
+                spec: Arc::new(spec),
+                // FIXME: need a way to read the variant used when the build was created
+                variant: BuildVariant::Default,
+            })
     }
 
     fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {

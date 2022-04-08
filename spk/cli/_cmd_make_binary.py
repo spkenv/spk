@@ -73,7 +73,7 @@ def _make_binary(args: argparse.Namespace) -> None:
 
         _LOGGER.info("building binary package", pkg=spec.pkg)
         built = set()
-        for variant in spec.build.variants:
+        for (variant_index, variant) in enumerate(spec.build.variants):
 
             if not args.no_host:
                 opts = spk.api.host_options()
@@ -88,7 +88,7 @@ def _make_binary(args: argparse.Namespace) -> None:
 
             _LOGGER.info("building variant", variant=opts)
             builder = (
-                spk.BinaryPackageBuilder.from_spec(spec)
+                spk.BinaryPackageBuilder.from_spec(spec, variant_index)
                 .with_options(opts)
                 .with_repositories(repos)
             )

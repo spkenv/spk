@@ -96,9 +96,10 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             format_request(req.spec.pkg.name(), &[installed])
         ));
         if verbosity > 0 {
-            let options = req.spec.resolve_all_options(&api::OptionMap::default());
-            out.push(' ');
-            out.push_str(&format_options(&options));
+            if let Ok(options) = req.spec.resolve_all_options(&api::OptionMap::default()) {
+                out.push(' ');
+                out.push_str(&format_options(&options));
+            }
         }
         out.push('\n');
     }

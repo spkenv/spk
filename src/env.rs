@@ -30,7 +30,7 @@ pub fn current_env() -> Result<solve::Solution> {
         for version in repo.list_package_versions(&name)? {
             let pkg = api::parse_ident(format!("{name}/{version}"))?;
             for pkg in repo.list_package_builds(&pkg)? {
-                let spec = repo.read_spec(&pkg)?;
+                let spec = repo.read_build_spec(&pkg)?;
                 let components = repo.get_package(&spec.pkg)?;
                 let range_ident = api::RangeIdent::exact(&spec.pkg, components.keys().cloned());
                 let mut request = api::PkgRequest::new(range_ident);

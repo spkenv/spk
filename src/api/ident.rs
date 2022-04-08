@@ -105,6 +105,19 @@ impl Ident {
         self.name.as_str()
     }
 
+    pub fn name_string(&self) -> &String {
+        &self.name
+    }
+
+    /// Return a BuildIdent.
+    pub fn to_build_ident(&self, build: Build) -> BuildIdent {
+        BuildIdent {
+            name: self.name.clone(),
+            version: self.version.clone(),
+            build,
+        }
+    }
+
     pub fn version_and_build(&self) -> Option<String> {
         match &self.build {
             Some(build) => Some(format!("{}/{}", self.version, build.digest())),
@@ -175,5 +188,58 @@ impl<'de> Deserialize<'de> for Ident {
     {
         let s = String::deserialize(deserializer)?;
         Self::from_str(&s).map_err(de::Error::custom)
+    }
+}
+
+/// BuildIdent represents a specific package build.
+///
+/// Like `Ident`, except a `Build` is required.
+#[pyclass]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct BuildIdent {
+    name: String,
+    pub version: Version,
+    pub build: Build,
+}
+
+impl BuildIdent {
+    /// Return true if this identifier is for a source package.
+    pub fn is_source(&self) -> bool {
+        self.build.is_source()
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl std::fmt::Display for BuildIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.name.as_str())?;
+        f.write_char('/')?;
+        f.write_str(self.version.to_string().as_str())?;
+        f.write_char('/')?;
+        f.write_str(self.build.to_string().as_str())?;
+        Ok(())
+    }
+}
+
+impl From<BuildIdent> for Ident {
+    fn from(bi: BuildIdent) -> Self {
+        Ident {
+            name: bi.name,
+            version: bi.version,
+            build: Some(bi.build),
+        }
+    }
+}
+
+impl From<&BuildIdent> for Ident {
+    fn from(bi: &BuildIdent) -> Self {
+        Ident {
+            name: bi.name.clone(),
+            version: bi.version.clone(),
+            build: Some(bi.build.clone()),
+        }
     }
 }

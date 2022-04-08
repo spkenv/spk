@@ -11,6 +11,7 @@ use std::{
 use super::solution::PackageSource;
 use crate::{
     api::{self, Build},
+    build::BuildVariant,
     storage, Error, Result,
 };
 
@@ -19,7 +20,8 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_sorted_build_iterator(&self) -> bool {
         false
     }
-    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>>;
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::SpecWithBuildVariant>, PackageSource)>>;
+    /// Return the non-build-specific Spec
     fn version_spec(&self) -> Option<Arc<api::Spec>>;
 }
 
@@ -191,7 +193,7 @@ impl RepositoryPackageIterator {
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
     repo: Arc<storage::RepositoryHandle>,
-    builds: VecDeque<api::Ident>,
+    builds: VecDeque<api::BuildIdent>,
     spec: Option<Arc<api::Spec>>,
 }
 
@@ -200,14 +202,14 @@ impl BuildIterator for RepositoryBuildIterator {
         self.builds.is_empty()
     }
 
-    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::SpecWithBuildVariant>, PackageSource)>> {
         let build = if let Some(build) = self.builds.pop_front() {
             build
         } else {
             return Ok(None);
         };
 
-        let mut spec = match self.repo.read_spec(&build) {
+        let mut spec = match self.repo.read_build_spec(&build) {
             Ok(spec) => spec,
             Err(Error::PackageNotFoundError(..)) => {
                 tracing::warn!(
@@ -220,7 +222,7 @@ impl BuildIterator for RepositoryBuildIterator {
             Err(err) => return Err(err),
         };
 
-        let components = match self.repo.get_package(&build) {
+        let components = match self.repo.get_package(&(&build).into()) {
             Ok(c) => c,
             Err(Error::PackageNotFoundError(..)) => Default::default(),
             Err(err) => return Err(err),
@@ -231,7 +233,9 @@ impl BuildIterator for RepositoryBuildIterator {
                 "Published spec is corrupt (has no associated build), pkg={}",
                 build,
             );
-            spec.pkg = spec.pkg.with_build(build.build);
+            let mut new_spec = (*spec.spec).clone();
+            new_spec.pkg = new_spec.pkg.with_build(Some(build.build));
+            spec.spec = Arc::new(new_spec);
         }
 
         Ok(Some((
@@ -277,7 +281,7 @@ impl BuildIterator for EmptyBuildIterator {
         true
     }
 
-    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::SpecWithBuildVariant>, PackageSource)>> {
         Ok(None)
     }
 
@@ -296,7 +300,7 @@ impl EmptyBuildIterator {
 pub struct SortedBuildIterator {
     options: api::OptionMap,
     source: Arc<Mutex<dyn BuildIterator>>,
-    builds: VecDeque<(Arc<api::Spec>, PackageSource)>,
+    builds: VecDeque<(Arc<api::SpecWithBuildVariant>, PackageSource)>,
 }
 
 impl BuildIterator for SortedBuildIterator {
@@ -308,7 +312,7 @@ impl BuildIterator for SortedBuildIterator {
         true
     }
 
-    fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
+    fn next(&mut self) -> crate::Result<Option<(Arc<api::SpecWithBuildVariant>, PackageSource)>> {
         Ok(self.builds.pop_front())
     }
 
@@ -319,7 +323,7 @@ impl BuildIterator for SortedBuildIterator {
 
 impl SortedBuildIterator {
     pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> PyResult<Self> {
-        let mut builds = VecDeque::<(Arc<api::Spec>, PackageSource)>::new();
+        let mut builds = VecDeque::new();
         {
             let mut source_lock = source.lock().unwrap();
             while let Some(item) = source_lock.next()? {
@@ -347,7 +351,12 @@ impl SortedBuildIterator {
             .unwrap_or(0);
         let default_options = version_spec
             .as_ref()
-            .map(|s| s.resolve_all_options(&api::OptionMap::default()))
+            .map(|s| {
+                // XXX: Passing Default here for now, this sort routine
+                // logic is getting an overhaul in a separate branch
+                s.resolve_all_options(&BuildVariant::Default, &api::OptionMap::default())
+                    .unwrap()
+            })
             .unwrap_or_else(api::OptionMap::default);
 
         let self_options = self.options.clone();
@@ -387,8 +396,9 @@ impl SortedBuildIterator {
 
                 // and then it's the distance from the default option set,
                 // where distance is just the number of differing options
-                let current_options_unfiltered =
-                    spec.resolve_all_options(&api::OptionMap::default());
+                let current_options_unfiltered = spec
+                    .resolve_all_options(&api::OptionMap::default())
+                    .unwrap();
                 let current_options: HashSet<(&String, &String)> = current_options_unfiltered
                     .iter()
                     .filter(|&(o, _)| self_options.contains_key(o))

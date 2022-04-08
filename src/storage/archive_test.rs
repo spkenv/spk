@@ -4,7 +4,10 @@
 use rstest::rstest;
 
 use super::{export_package, import_package};
-use crate::{build, fixtures::*};
+use crate::{
+    build::{self, BuildVariant},
+    fixtures::*,
+};
 
 #[rstest]
 fn test_archive_io() {
@@ -17,7 +20,7 @@ fn test_archive_io() {
         }
     );
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    let spec = build::BinaryPackageBuilder::from_spec(spec)
+    let spec = build::BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(build::BuildSource::LocalPath(".".into()))
         .build()
         .unwrap();
@@ -74,7 +77,7 @@ fn test_archive_create_parents() {
         }
     );
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    let spec = build::BinaryPackageBuilder::from_spec(spec)
+    let spec = build::BinaryPackageBuilder::from_spec(spec, BuildVariant::Default)
         .with_source(build::BuildSource::LocalPath(".".into()))
         .build()
         .unwrap();

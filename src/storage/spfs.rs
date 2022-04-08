@@ -4,6 +4,7 @@
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
+    sync::Arc,
 };
 
 use futures::{future::ready, TryStreamExt};
@@ -15,7 +16,7 @@ use tokio::io::AsyncReadExt;
 use tokio::runtime::Handle;
 
 use super::Repository;
-use crate::{api, Error, Result};
+use crate::{api, build::BuildVariant, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -123,7 +124,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::BuildIdent>> {
         Handle::current().block_on(async {
             let pkg = pkg.with_build(Some(api::Build::Source));
             let mut base = self.build_package_tag(&pkg)?;
@@ -150,7 +151,7 @@ impl Repository for SPFSRepository {
                         }
                     })
                 })
-                .and_then(|b| ready(Ok(pkg.with_build(Some(b)))))
+                .and_then(|b| ready(Ok(pkg.to_build_ident(b))))
                 .try_collect()
                 .await?;
             Ok(builds.into_iter().collect_vec())
@@ -164,6 +165,31 @@ impl Repository for SPFSRepository {
                 Err(Error::PackageNotFoundError(_)) => Ok(Vec::new()),
                 Err(err) => Err(err),
             }
+        })
+    }
+
+    fn read_build_spec(&self, pkg: &api::BuildIdent) -> Result<api::SpecWithBuildVariant> {
+        Handle::current().block_on(async {
+            let ident = pkg.into();
+            let tag_path = self.build_spec_tag(&ident);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self
+                .inner
+                .resolve_tag(&tag_spec)
+                .await
+                .map_err(|err| match err {
+                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(ident),
+                    err => err.into(),
+                })?;
+
+            let mut reader = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader.read_to_string(&mut yaml).await?;
+            Ok(api::SpecWithBuildVariant {
+                spec: Arc::new(serde_yaml::from_str(&yaml)?),
+                // FIXME: need a way to read the variant used when the build was created
+                variant: BuildVariant::Default,
+            })
         })
     }
 
@@ -357,14 +383,15 @@ impl Repository for SPFSRepository {
             for version in self.list_package_versions(&name)? {
                 pkg.version = version;
                 for build in self.list_package_builds(&pkg)? {
-                    let stored = crate::HANDLE.block_on(self.lookup_package(&build))?;
+                    let ident = build.into();
+                    let stored = crate::HANDLE.block_on(self.lookup_package(&ident))?;
                     if stored.has_components() {
                         continue;
                     }
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
                         let tag = crate::HANDLE.block_on(self.resolve_tag(&tag_spec))?;
-                        let new_tag_path = self.build_package_tag(&build)?.join(name.to_string());
+                        let new_tag_path = self.build_package_tag(&ident)?.join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
                         // NOTE(rbottriell): this copying process feels annoying

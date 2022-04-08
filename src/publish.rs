@@ -119,7 +119,11 @@ impl Publisher {
                 }
             }
 
-            self.from.list_package_builds(pkg)?
+            self.from
+                .list_package_builds(pkg)?
+                .into_iter()
+                .map(Into::into)
+                .collect()
         } else {
             vec![pkg.to_owned()]
         };
