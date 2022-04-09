@@ -23,7 +23,9 @@ mod spec_test;
 /// cannot be deserialized into a spec.
 ///
 /// ```
-/// let spec = spec!({
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// spec!({
 ///   "pkg": "my-pkg/1.0.0",
 ///   "build": {
 ///     "options": [
@@ -31,12 +33,13 @@ mod spec_test;
 ///     ]
 ///   }
 /// });
+/// # }
 /// ```
 #[macro_export]
 macro_rules! spec {
     ($($spec:tt)+) => {{
         let value = serde_json::json!($($spec)+);
-        let spec: crate::api::Spec = serde_json::from_value(value).unwrap();
+        let spec: $crate::api::Spec = serde_json::from_value(value).unwrap();
         spec
     }};
 }

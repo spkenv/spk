@@ -33,13 +33,15 @@ impl CollectionError {
 
 /// Builds a source package.
 ///
-/// ```
-/// SourcePackageBuilder
-///    .from_spec(api.Spec.from_dict({
+/// ```no_run
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// spk::build::SourcePackageBuilder::from_spec(spk::spec!({
 ///        "pkg": "my-pkg",
 ///     }))
 ///    .build()
-///    .unwrap()
+///    .unwrap();
+/// # }
 /// ```
 #[pyclass]
 pub struct SourcePackageBuilder {

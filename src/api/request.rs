@@ -260,8 +260,8 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// Parse a package identifier which specifies a range of versions.
 ///
 /// ```
-/// parse_ident_range("maya/~2020.0").unwrap()
-/// parse_ident_range("maya/^2020.0").unwrap()
+/// spk::api::parse_ident_range("maya/~2020.0").unwrap();
+/// spk::api::parse_ident_range("maya/^2020.0").unwrap();
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     let mut parts = source.as_ref().split('/');

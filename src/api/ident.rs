@@ -19,12 +19,15 @@ mod ident_test;
 /// and should only be used for testing.
 ///
 /// ```
-/// ident!("my-pkg/1.0.0")
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// ident!("my-pkg/1.0.0");
+/// # }
 /// ```
 #[macro_export]
 macro_rules! ident {
     ($ident:literal) => {
-        crate::api::parse_ident($ident).unwrap()
+        $crate::api::parse_ident($ident).unwrap()
     };
 }
 
@@ -136,7 +139,6 @@ impl Ident {
             }
         }
     }
-
 }
 
 impl TryFrom<&str> for Ident {
