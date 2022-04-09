@@ -74,7 +74,7 @@ import:
 
 %.spk : %.spk.yaml
 	spk info -l $<@source > /dev/null 2>&1 || spk make-source -v $<
-	spk mkb -dr origin -lv $<
+	spk mkb -r origin -lv $<
 	spk export $< $@
 
 .PRECIOUS: bootstrap/*.spk.yaml
