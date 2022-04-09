@@ -10,14 +10,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  lint-python:
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v2
-      - run: sudo pip3 install pipenv
-      - run: pipenv sync --dev
-      - name: Lint Python Code
-        run: make lint-python
   lint-rust:
     runs-on: ubuntu-latest
     env:
