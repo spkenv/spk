@@ -88,7 +88,7 @@ fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
     assert!(dest_dir.join("git_repo").is_dir());
     assert!(dest_dir.join("archive/src").is_dir());
     assert!(dest_dir.join("archive/src/src/lib.rs").is_file());
-    assert!(dest_dir.join("git_repo/spk/__init__.py").is_file());
+    assert!(dest_dir.join("git_repo/src/lib.rs").is_file());
     assert!(
         !dest_dir.join("local/.git").exists(),
         "should exclude git repo"
