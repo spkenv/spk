@@ -44,9 +44,9 @@ impl PackageInstallTester {
 
     pub fn with_repositories(
         &mut self,
-        repos: impl IntoIterator<Item = storage::RepositoryHandle>,
+        repos: impl IntoIterator<Item = Arc<storage::RepositoryHandle>>,
     ) -> &mut Self {
-        self.repos.extend(repos.into_iter().map(Arc::new));
+        self.repos.extend(repos.into_iter());
         self
     }
 

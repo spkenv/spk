@@ -76,14 +76,14 @@ impl FromStr for TestStage {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestSpec {
     #[pyo3(get, set)]
-    stage: TestStage,
+    pub stage: TestStage,
     #[pyo3(get, set)]
     #[serde(deserialize_with = "super::build_spec::deserialize_script")]
-    script: Vec<String>,
+    pub script: Vec<String>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    selectors: Vec<OptionMap>,
+    pub selectors: Vec<OptionMap>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    requirements: Vec<Request>,
+    pub requirements: Vec<Request>,
 }
