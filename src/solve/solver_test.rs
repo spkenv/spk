@@ -339,7 +339,7 @@ fn test_solver_dependency_incompatible(mut solver: Solver) {
     solver.add_request(request!("maya/2019"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -494,7 +494,7 @@ fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
     let result = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(result, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(result, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -551,7 +551,7 @@ fn test_solver_constraint_only(mut solver: Solver) {
     solver.add_request(request!("vnp3"));
     let solution = io::run_and_print_resolve(&solver, 100).unwrap();
 
-    assert!(solution.get("python").is_err());
+    assert!(solution.get("python").is_none());
 }
 
 #[rstest]
@@ -739,7 +739,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
     solver.set_binary_only(true);
     // Should fail when binary-only is specified
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -775,7 +775,7 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
     solver.add_request(request!("my-tool"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -924,7 +924,7 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     solver.add_request(request!("my-tool"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -1013,7 +1013,7 @@ fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
     solver.add_request(request!("my-plugin"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -1081,7 +1081,7 @@ fn test_solver_embedded_request_invalidates(mut solver: Solver) {
     solver.add_request(request!("my-lib"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -1099,7 +1099,7 @@ fn test_solver_unknown_package_options(mut solver: Solver) {
     solver.add_request(request!("my-lib"));
 
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 
     // this time we don't request that option, and it should be ok
     solver.reset();
@@ -1252,7 +1252,7 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     // this time the explicit request will cause a failure
     solver.add_request(request!({"var": "build-dep/=1.0.0"}));
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
@@ -1426,7 +1426,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
 
     solution.get("dep").expect("should exist");
     solution.get("depb").expect("should exist");
-    assert!(solution.get("depr").is_err());
+    assert!(solution.get("depr").is_none());
 
     solver.reset();
     solver.add_repository(repo);
@@ -1436,7 +1436,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
 
     solution.get("dep").expect("should exist");
     solution.get("depr").expect("should exist");
-    assert!(solution.get("depb").is_err());
+    assert!(solution.get("depb").is_none());
 }
 
 #[rstest]
@@ -1522,7 +1522,7 @@ fn test_solver_component_embedded(mut solver: Solver) {
     // should fail because the one embedded package
     // does not meet the requirements in downstream spec
     let res = io::run_and_print_resolve(&solver, 100);
-    assert!(matches!(res, Err(Error::PyErr(_)))); // should have been SolverError
+    assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]

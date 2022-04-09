@@ -28,6 +28,7 @@ pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(|| Arc::new(State::default()
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum GraphError {
     RecursionError(&'static str),
     RequestError(errors::GetMergedRequestError),
