@@ -67,7 +67,7 @@ impl Ls {
             Some(package) if !package.contains('/') => {
                 for (_, repo) in repos {
                     results.extend(
-                        repo.list_package_versions(&package)?
+                        repo.list_package_versions(package)?
                             .iter()
                             .map(ToString::to_string),
                     );
@@ -124,19 +124,19 @@ impl Ls {
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
         if pkg.build.is_none() || pkg.is_source() {
-            return Ok(spk::io::format_ident(&pkg));
+            return Ok(spk::io::format_ident(pkg));
         }
 
-        let mut item = spk::io::format_ident(&pkg);
+        let mut item = spk::io::format_ident(pkg);
         if self.verbose > 0 {
-            let spec = repo.read_spec(&pkg)?;
+            let spec = repo.read_spec(pkg)?;
             let options = spec.resolve_all_options(&spk::api::OptionMap::default());
-            item.push_str(" ");
+            item.push(' ');
             item.push_str(&spk::io::format_options(&options));
         }
         if self.verbose > 1 || self.components {
-            let cmpts = repo.get_package(&pkg)?;
-            item.push_str(" ");
+            let cmpts = repo.get_package(pkg)?;
+            item.push(' ');
             item.push_str(&spk::io::format_components(cmpts.keys()));
         }
         Ok(item)

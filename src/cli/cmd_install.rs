@@ -88,7 +88,7 @@ impl Install {
             println!("    {}{end}", spk::io::format_ident(&spec.pkg))
         }
 
-        println!("");
+        println!();
 
         if !self.yes {
             let mut input = String::new();

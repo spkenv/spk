@@ -61,7 +61,7 @@ impl Remove {
                 let versions = if name.contains('/') {
                     vec![pkg]
                 } else {
-                    repo.list_package_versions(&name)?
+                    repo.list_package_versions(name)?
                         .into_iter()
                         .map(|v| pkg.with_version(v))
                         .collect()
@@ -69,9 +69,9 @@ impl Remove {
 
                 for version in versions {
                     if version.build.is_some() {
-                        remove_build(&repo_name, &repo, &version)?;
+                        remove_build(repo_name, repo, &version)?;
                     } else {
-                        remove_all(&repo_name, &repo, &version)?;
+                        remove_all(repo_name, repo, &version)?;
                     }
                 }
             }
@@ -81,12 +81,12 @@ impl Remove {
 }
 
 fn remove_build(
-    repo_name: &String,
+    repo_name: &str,
     repo: &spk::storage::RepositoryHandle,
     pkg: &spk::api::Ident,
 ) -> Result<()> {
     let repo_name = repo_name.bold();
-    let pretty_pkg = spk::io::format_ident(&pkg);
+    let pretty_pkg = spk::io::format_ident(pkg);
     match repo.remove_spec(pkg) {
         Ok(()) => {
             tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
@@ -109,7 +109,7 @@ fn remove_build(
 }
 
 fn remove_all(
-    repo_name: &String,
+    repo_name: &str,
     repo: &spk::storage::RepositoryHandle,
     pkg: &spk::api::Ident,
 ) -> Result<()> {

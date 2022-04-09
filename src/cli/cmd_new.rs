@@ -25,7 +25,7 @@ impl New {
     }
 }
 
-fn get_stub(name: &String) -> String {
+fn get_stub(name: &str) -> String {
     format!(
         r#"pkg: {name}/0.1.0
 
