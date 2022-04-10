@@ -21,9 +21,7 @@ clean: packages.clean
 .PHONY: lint lint-rust
 lint: lint-rust
 lint-rust:
-	# we need to ingore this clippy warning until the next
-	# release of py03 which solves for it
-	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
+	cargo clippy
 
 .PHONY: format
 format:
@@ -32,7 +30,7 @@ format:
 .PHONY: test test-rust
 test: test-rust
 test-rust:
-	spfs run - -- cargo test --no-default-features
+	spfs run - -- cargo test
 
 converters:
 	$(MAKE) -C packages spk-convert-pip/spk-convert-pip.spk
