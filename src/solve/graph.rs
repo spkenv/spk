@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use once_cell::sync::Lazy;
-use pyo3::{prelude::*, PyIterProtocol};
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -12,10 +11,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::api::{self, Ident, InclusionPolicy};
 
-use super::errors;
+use super::errors::{self, GetMergedRequestError};
 use super::{
     package_iterator::PackageIterator,
-    python::State as PyState,
     solution::{PackageSource, Solution},
 };
 
@@ -40,6 +38,12 @@ impl std::fmt::Display for GraphError {
             Self::RecursionError(s) => s.fmt(f),
             Self::RequestError(s) => s.fmt(f),
         }
+    }
+}
+
+impl From<GetMergedRequestError> for GraphError {
+    fn from(err: GetMergedRequestError) -> Self {
+        Self::RequestError(err)
     }
 }
 
@@ -68,41 +72,6 @@ impl Change {
     }
 }
 
-impl<'source> FromPyObject<'source> for Change {
-    fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        if let Ok(rp) = RequestPackage::extract(ob) {
-            Ok(Change::RequestPackage(rp))
-        } else if let Ok(rv) = RequestVar::extract(ob) {
-            Ok(Change::RequestVar(rv))
-        } else if let Ok(so) = SetOptions::extract(ob) {
-            Ok(Change::SetOptions(so))
-        } else if let Ok(sp) = SetPackage::extract(ob) {
-            Ok(Change::SetPackage(Box::new(sp)))
-        } else if let Ok(spb) = SetPackageBuild::extract(ob) {
-            Ok(Change::SetPackageBuild(Box::new(spb)))
-        } else if let Ok(sb) = StepBack::extract(ob) {
-            Ok(Change::StepBack(sb))
-        } else {
-            Err(pyo3::exceptions::PyTypeError::new_err(
-                "Not a valid change instance",
-            ))
-        }
-    }
-}
-
-impl IntoPy<Py<PyAny>> for Change {
-    fn into_py(self, py: Python) -> Py<PyAny> {
-        match self {
-            Change::RequestPackage(rp) => rp.into_py(py),
-            Change::RequestVar(rv) => rv.into_py(py),
-            Change::SetOptions(so) => so.into_py(py),
-            Change::SetPackage(sp) => sp.into_py(py),
-            Change::SetPackageBuild(spb) => spb.into_py(py),
-            Change::StepBack(sb) => sb.into_py(py),
-        }
-    }
-}
-
 impl Change {
     pub fn as_decision(&self) -> Decision {
         Decision {
@@ -112,60 +81,21 @@ impl Change {
     }
 }
 
-#[pyclass]
-pub struct ChangesIter {
-    iter: std::vec::IntoIter<Change>,
-}
-
-#[pyproto]
-impl PyIterProtocol for ChangesIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<Change> {
-        slf.iter.next()
-    }
-}
-
 /// The decision represents a choice made by the solver.
 ///
 /// Each decision connects one state to another in the graph.
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct Decision {
     pub changes: Vec<Change>,
-    pub notes: Vec<NoteEnum>,
-}
-
-#[pymethods]
-impl Decision {
-    #[pyo3(name = "apply")]
-    pub fn py_apply(&self, base: &PyState) -> PyState {
-        self.apply(base.into()).into()
-    }
-
-    pub fn iter_changes(&self) -> ChangesIter {
-        ChangesIter {
-            iter: self.changes.clone().into_iter(),
-        }
-    }
-
-    pub fn iter_notes(&self) -> NotesIter {
-        NotesIter {
-            iter: self.notes.clone().into_iter(),
-        }
-    }
+    pub notes: Vec<Note>,
 }
 
 impl Decision {
-    pub fn apply(&self, base: &Arc<State>) -> Arc<State> {
-        let mut state = None;
-        let else_closure = || Arc::clone(base);
-        for change in self.changes.iter() {
-            state = Some(change.apply(&state.unwrap_or_else(else_closure)));
-        }
-        state.unwrap_or_else(else_closure)
+    pub fn builder<'state>(
+        spec: Arc<api::Spec>,
+        base: &'state State,
+    ) -> DecisionBuilder<'state, 'static> {
+        DecisionBuilder::new(spec, base)
     }
 
     pub fn new(changes: Vec<Change>) -> Self {
@@ -175,15 +105,17 @@ impl Decision {
         }
     }
 
-    pub fn builder<'state>(
-        spec: Arc<api::Spec>,
-        base: &'state State,
-    ) -> DecisionBuilder<'state, 'static> {
-        DecisionBuilder::new(spec, base)
+    pub fn apply(&self, base: &Arc<State>) -> Arc<State> {
+        let mut state = None;
+        let else_closure = || Arc::clone(base);
+        for change in self.changes.iter() {
+            state = Some(change.apply(&state.unwrap_or_else(else_closure)));
+        }
+        state.unwrap_or_else(else_closure)
     }
 
-    pub fn add_notes<'a>(&mut self, notes: impl Iterator<Item = &'a NoteEnum>) {
-        self.notes.extend(notes.cloned())
+    pub fn add_notes(&mut self, notes: impl IntoIterator<Item = Note>) {
+        self.notes.extend(notes)
     }
 }
 
@@ -376,23 +308,10 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     }
 }
 
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct Graph {
     pub root: Arc<RwLock<Node>>,
     pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
-}
-
-#[pymethods]
-impl Graph {
-    #[new]
-    pub fn pynew() -> Self {
-        Self::default()
-    }
-
-    pub fn walk(&self) -> GraphIter {
-        GraphIter::new(self.clone())
-    }
 }
 
 impl Graph {
@@ -449,6 +368,10 @@ impl Graph {
         }
         Ok(new_node)
     }
+
+    pub fn walk(&self) -> GraphIter {
+        GraphIter::new(self)
+    }
 }
 
 impl Default for Graph {
@@ -463,9 +386,8 @@ enum WalkState {
     YieldNextNode(Decision),
 }
 
-#[pyclass]
-pub struct GraphIter {
-    graph: Graph,
+pub struct GraphIter<'graph> {
+    graph: &'graph Graph,
     node_outputs: HashMap<u64, VecDeque<Decision>>,
     to_process: VecDeque<Arc<RwLock<Node>>>,
     /// Which entry of node_outputs is currently being worked on.
@@ -474,8 +396,8 @@ pub struct GraphIter {
     walk_state: WalkState,
 }
 
-impl GraphIter {
-    fn new(graph: Graph) -> Self {
+impl<'graph> GraphIter<'graph> {
+    pub fn new(graph: &'graph Graph) -> GraphIter<'graph> {
         let to_process = VecDeque::from_iter([graph.root.clone()]);
         let iter_node = graph.root.clone();
         GraphIter {
@@ -489,7 +411,7 @@ impl GraphIter {
     }
 }
 
-impl Iterator for GraphIter {
+impl<'graph> Iterator for GraphIter<'graph> {
     type Item = (Node, Decision);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -553,18 +475,6 @@ impl Iterator for GraphIter {
     }
 }
 
-#[pyproto]
-impl PyIterProtocol for GraphIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<(Node, Decision)> {
-        slf.next()
-    }
-}
-
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct Node {
     // Preserve order of inputs/outputs for iterating
@@ -596,7 +506,7 @@ impl Node {
         self.iterators.get(package_name).cloned()
     }
 
-    fn new(state: Arc<State>) -> Self {
+    pub fn new(state: Arc<State>) -> Self {
         Node {
             inputs: HashSet::default(),
             inputs_decisions: Vec::default(),
@@ -627,58 +537,15 @@ impl Node {
     }
 }
 
-#[pyclass(subclass)]
-#[derive(Clone)]
-pub struct Note {}
-
-// XXX this should be called "Note", resolve python interop
+/// Some additional information left by the solver
 #[derive(Clone, Debug)]
-pub enum NoteEnum {
+pub enum Note {
     SkipPackageNote(SkipPackageNote),
     Other(String),
 }
 
-impl<'source> FromPyObject<'source> for NoteEnum {
-    fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        match SkipPackageNote::extract(ob) {
-            Ok(n) => Ok(Self::SkipPackageNote(n)),
-            Err(_) => {
-                let string = String::extract(ob)?;
-                Ok(Self::Other(string))
-            }
-        }
-    }
-}
-
-impl IntoPy<Py<PyAny>> for NoteEnum {
-    fn into_py(self, py: Python) -> Py<PyAny> {
-        match self {
-            Self::SkipPackageNote(n) => n.into_py(py),
-            Self::Other(s) => s.into_py(py),
-        }
-    }
-}
-
-#[pyclass]
-pub struct NotesIter {
-    iter: std::vec::IntoIter<NoteEnum>,
-}
-
-#[pyproto]
-impl PyIterProtocol for NotesIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<NoteEnum> {
-        slf.iter.next()
-    }
-}
-
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
-    #[pyo3(get)]
     pub request: api::PkgRequest,
 }
 
@@ -687,7 +554,7 @@ impl RequestPackage {
         RequestPackage { request }
     }
 
-    fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
         let mut new_requests = (*base.pkg_requests).clone();
@@ -696,10 +563,8 @@ impl RequestPackage {
     }
 }
 
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct RequestVar {
-    #[pyo3(get)]
     pub request: api::VarRequest,
 }
 
@@ -708,7 +573,7 @@ impl RequestVar {
         RequestVar { request }
     }
 
-    fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
         let mut new_requests = (*base.var_requests).clone();
@@ -724,28 +589,17 @@ impl RequestVar {
     }
 }
 
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetOptions {
-    #[pyo3(get)]
     pub options: api::OptionMap,
 }
 
-#[pymethods]
 impl SetOptions {
-    #[new]
     pub fn new(options: api::OptionMap) -> Self {
         SetOptions { options }
     }
 
-    #[pyo3(name = "apply")]
-    pub fn py_apply(&self, base: &PyState) -> PyState {
-        self.apply(base.into()).into()
-    }
-}
-
-impl SetOptions {
-    fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, base: &State) -> Arc<State> {
         // Update options while preserving order to match
         // python dictionary behaviour. "Updating a key
         // does not affect the order."
@@ -789,7 +643,6 @@ impl SetOptions {
     }
 }
 
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackage {
     pub spec: Arc<api::Spec>,
@@ -797,25 +650,16 @@ pub struct SetPackage {
 }
 
 impl SetPackage {
-    fn new(spec: Arc<api::Spec>, source: PackageSource) -> Self {
+    pub fn new(spec: Arc<api::Spec>, source: PackageSource) -> Self {
         SetPackage { spec, source }
     }
 
-    fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, base: &State) -> Arc<State> {
         Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
     }
 }
 
-#[pymethods]
-impl SetPackage {
-    #[getter]
-    fn spec(&self) -> api::Spec {
-        (*self.spec).clone()
-    }
-}
-
 /// Sets a package in the resolve, denoting is as a new build.
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SetPackageBuild {
     pub spec: Arc<api::Spec>,
@@ -823,23 +667,15 @@ pub struct SetPackageBuild {
 }
 
 impl SetPackageBuild {
-    fn new(spec: Arc<api::Spec>, source: Arc<api::Spec>) -> Self {
+    pub fn new(spec: Arc<api::Spec>, source: Arc<api::Spec>) -> Self {
         SetPackageBuild {
             spec,
             source: PackageSource::Spec(source),
         }
     }
 
-    fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, base: &State) -> Arc<State> {
         Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
-    }
-}
-
-#[pymethods]
-impl SetPackageBuild {
-    #[getter]
-    fn spec(&self) -> api::Spec {
-        (*self.spec).clone()
     }
 }
 
@@ -858,7 +694,7 @@ impl StateId {
         self.full_hash
     }
 
-    fn new(
+    pub fn new(
         pkg_requests_hash: u64,
         var_requests_hash: u64,
         packages_hash: u64,
@@ -1051,7 +887,7 @@ impl State {
         }
     }
 
-    pub fn get_next_request(&self) -> PyResult<Option<api::PkgRequest>> {
+    pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
         // tests reveal this method is not safe to cache.
         let packages: HashSet<&str> = self
             .packages
@@ -1157,21 +993,9 @@ impl std::fmt::Display for SkipPackageNoteReason {
     }
 }
 
-impl IntoPy<Py<PyAny>> for SkipPackageNoteReason {
-    fn into_py(self, py: Python) -> Py<PyAny> {
-        match self {
-            SkipPackageNoteReason::String(s) => s.into_py(py),
-            SkipPackageNoteReason::Compatibility(c) => c.into_py(py),
-        }
-    }
-}
-
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SkipPackageNote {
-    #[pyo3(get)]
     pub pkg: Ident,
-    #[pyo3(get)]
     pub reason: SkipPackageNoteReason,
 }
 
@@ -1191,10 +1015,8 @@ impl SkipPackageNote {
     }
 }
 
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct StepBack {
-    #[pyo3(get)]
     pub cause: String,
     pub destination: Arc<State>,
 }
@@ -1207,7 +1029,7 @@ impl StepBack {
         }
     }
 
-    fn apply(&self, _base: &State) -> Arc<State> {
+    pub fn apply(&self, _base: &State) -> Arc<State> {
         self.destination.clone()
     }
 }

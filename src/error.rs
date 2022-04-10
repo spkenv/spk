@@ -4,6 +4,8 @@
 
 use pyo3::{exceptions, prelude::*};
 
+use crate::solve;
+
 use super::{api, build, test};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -84,6 +86,12 @@ impl From<serde_yaml::Error> for Error {
     }
 }
 
+impl From<solve::graph::GraphError> for Error {
+    fn from(err: solve::graph::GraphError) -> Error {
+        Error::Solve(err.into())
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(&format!("{:?}", self))
@@ -98,7 +106,7 @@ impl From<Error> for PyErr {
             Error::SPFS(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
             Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
             Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
-            Error::Solve(err) => err.into(),
+            Error::Solve(_err) => todo!(),
             Error::InvalidBuildError(err) => exceptions::PyValueError::new_err(err.message),
             Error::InvalidVersionError(err) => exceptions::PyValueError::new_err(err.message),
             Error::InvalidNameError(err) => exceptions::PyValueError::new_err(err.message),

@@ -52,7 +52,7 @@ impl View {
                     v => {
                         let graph = runtime.graph();
                         let graph = graph.read().unwrap();
-                        for line in spk::io::format_solve_graph(&*graph, v) {
+                        for line in spk::io::format_decisions(graph.walk().map(Ok), v) {
                             println!("{}", line?);
                         }
                     }

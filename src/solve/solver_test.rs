@@ -6,12 +6,12 @@ use std::sync::Arc;
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
-use super::{RequestEnum, Solver};
+use super::Solver;
 use crate::{api, io, option_map, spec, Error};
 
 #[fixture]
 fn solver() -> Solver {
-    Solver::new()
+    Solver::default()
 }
 
 /// Creates a repository containing a set of provided package specs.
@@ -1527,10 +1527,9 @@ fn test_solver_component_embedded(mut solver: Solver) {
 
 #[rstest]
 fn test_request_default_component() {
-    let mut solver = Solver::new();
-    solver
-        .py_add_request(RequestEnum::String("python/3.7.3".into()))
-        .unwrap();
+    let mut solver = Solver::default();
+    let req = api::parse_ident("python/3.7.3").unwrap();
+    solver.add_request(req.into());
     let state = solver.get_initial_state();
     let request = state
         .pkg_requests

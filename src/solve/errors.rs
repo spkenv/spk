@@ -1,19 +1,16 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::exceptions::PyException;
-use pyo3::{create_exception, PyErr};
 
 use crate::api;
 
-use super::graph::NoteEnum;
-
-create_exception!(errors, SolverError, PyException);
+use super::graph::{GraphError, Note};
 
 #[derive(Debug)]
 pub enum Error {
     SolverError(String),
     FailedToResolve(super::Graph),
+    Graph(GraphError),
     OutOfOptions(OutOfOptions),
 }
 
@@ -23,13 +20,9 @@ impl From<Error> for crate::Error {
     }
 }
 
-impl From<Error> for PyErr {
-    fn from(err: Error) -> Self {
-        match err {
-            Error::SolverError(s) => SolverError::new_err(s),
-            Error::FailedToResolve(g) => SolverError::new_err(g),
-            Error::OutOfOptions(err) => SolverError::new_err(err.to_string()),
-        }
+impl From<GraphError> for Error {
+    fn from(err: GraphError) -> Self {
+        Error::Graph(err)
     }
 }
 
@@ -44,7 +37,7 @@ pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestErro
 #[derive(Debug)]
 pub enum GetMergedRequestError {
     NoRequestFor(String),
-    Other(crate::Error),
+    Other(Box<crate::Error>),
 }
 
 impl std::fmt::Display for GetMergedRequestError {
@@ -60,36 +53,21 @@ impl From<GetMergedRequestError> for crate::Error {
     fn from(err: GetMergedRequestError) -> Self {
         match err {
             GetMergedRequestError::NoRequestFor(s) => crate::Error::String(s),
-            GetMergedRequestError::Other(err) => err,
+            GetMergedRequestError::Other(err) => *err,
         }
-    }
-}
-
-impl From<GetMergedRequestError> for PyErr {
-    fn from(err: GetMergedRequestError) -> Self {
-        match err {
-            GetMergedRequestError::NoRequestFor(s) => SolverError::new_err(s),
-            GetMergedRequestError::Other(err) => err.into(),
-        }
-    }
-}
-
-impl From<PyErr> for GetMergedRequestError {
-    fn from(err: PyErr) -> Self {
-        GetMergedRequestError::Other(crate::Error::PyErr(err))
     }
 }
 
 impl From<crate::Error> for GetMergedRequestError {
     fn from(err: crate::Error) -> Self {
-        GetMergedRequestError::Other(err)
+        GetMergedRequestError::Other(Box::new(err))
     }
 }
 
 #[derive(Debug)]
 pub struct OutOfOptions {
     pub request: api::PkgRequest,
-    pub notes: Vec<NoteEnum>,
+    pub notes: Vec<Note>,
 }
 
 impl std::fmt::Display for OutOfOptions {

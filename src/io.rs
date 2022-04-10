@@ -108,10 +108,10 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     out
 }
 
-pub fn format_note(note: &solve::graph::NoteEnum) -> String {
-    use solve::graph::NoteEnum;
+pub fn format_note(note: &solve::graph::Note) -> String {
+    use solve::graph::Note;
     match note {
-        NoteEnum::SkipPackageNote(n) => {
+        Note::SkipPackageNote(n) => {
             format!(
                 "{} {} - {}",
                 "TRY".magenta(),
@@ -119,7 +119,7 @@ pub fn format_note(note: &solve::graph::NoteEnum) -> String {
                 n.reason
             )
         }
-        NoteEnum::Other(s) => format!("{} {}", "NOTE".magenta(), s),
+        Note::Other(s) => format!("{} {}", "NOTE".magenta(), s),
     }
 }
 
@@ -168,9 +168,9 @@ pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
     }
 }
 
-pub fn format_decisions<I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
+pub fn format_decisions<'a, I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
 where
-    I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
+    I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>> + 'a,
 {
     FormattedDecisionsIter::new(decisions, verbosity)
 }
@@ -299,6 +299,10 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
                     msg.push_str("\n * ");
                     msg.push_str(reason);
                 }
+                solve::Error::Graph(err) => {
+                    msg.push_str("\n * ");
+                    msg.push_str(&err.to_string());
+                }
             }
             match verbosity {
                 0 => {
@@ -340,15 +344,4 @@ pub fn run_and_print_resolve(solver: &solve::Solver, verbosity: u32) -> Result<s
         println!("{}", line?);
     }
     runtime.current_solution()
-}
-
-#[allow(clippy::type_complexity)]
-pub fn format_solve_graph(
-    graph: &solve::Graph,
-    verbosity: u32,
-) -> FormattedDecisionsIter<
-    Box<dyn Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>>,
-> {
-    let mapped: Box<dyn Iterator<Item = _>> = Box::new(graph.walk().map(Ok));
-    format_decisions(mapped, verbosity)
 }

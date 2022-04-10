@@ -112,10 +112,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     storage::init_module(&py, storage_mod)?;
     m.add_submodule(storage_mod)?;
 
-    let solve_mod = PyModule::new(py, "solve")?;
-    solve::init_module(&py, solve_mod)?;
-    m.add_submodule(solve_mod)?;
-
     // ensure that from spkrs.submodule import xx works
     // as expected on the python side by injecting them
     py.run(
@@ -221,12 +217,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let config = spfs::load_config()?;
         config.make_current()?;
         Ok(())
-    }
-
-    #[pyfn(m)]
-    fn current_env() -> Result<solve::Solution> {
-        let _guard = crate::HANDLE.enter();
-        env::current_env()
     }
 
     #[pyfn(m)]

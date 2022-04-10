@@ -416,6 +416,12 @@ impl From<PkgRequest> for Request {
     }
 }
 
+impl From<Ident> for Request {
+    fn from(pkg: Ident) -> Request {
+        Self::Pkg(pkg.into())
+    }
+}
+
 impl<'de> Deserialize<'de> for Request {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -728,17 +734,17 @@ impl PkgRequest {
 
     #[staticmethod]
     pub fn from_ident(pkg: &Ident) -> Self {
-        Self::from(pkg)
+        Self::from(pkg.clone())
     }
 }
 
-impl From<&Ident> for PkgRequest {
-    fn from(pkg: &Ident) -> PkgRequest {
+impl From<Ident> for PkgRequest {
+    fn from(pkg: Ident) -> PkgRequest {
         let ri = RangeIdent {
             name: pkg.name().to_owned(),
             components: Default::default(),
-            version: VersionFilter::single(ExactVersion::version_range(pkg.version.clone())),
-            build: pkg.build.clone(),
+            version: VersionFilter::single(ExactVersion::version_range(pkg.version)),
+            build: pkg.build,
         };
         PkgRequest::new(ri)
     }
