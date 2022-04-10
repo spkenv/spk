@@ -7,9 +7,11 @@ use std::{collections::HashMap, str::FromStr};
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
 
-static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
+#[cfg(test)]
+#[path = "./flags_test.rs"]
+mod flags_test;
 
-// OPTION_VAR_RE = re.compile(r"^SPK_OPT_([\w\.]+)$")
+static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
 
 #[derive(Args, Clone)]
 pub struct Runtime {

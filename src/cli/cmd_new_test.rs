@@ -1,18 +1,13 @@
-# Copyright (c) 2021 Sony Pictures Imageworks, et al.
-# SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+// Copyright (c) 2022 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+use rstest::rstest;
 
-import io
-
-import py.path
-
-import spk
-from ._cmd_new import TEMPLATE
-
-
-def test_template_is_valid(tmpdir: py.path.local) -> None:
-
-    spec = TEMPLATE.format(name="my-package")
-    spec_file = tmpdir.join("file")
-    spec_file.write(spec)
-    spk.api.read_spec_file(spec_file.strpath)
+#[rstest]
+fn test_template_is_valid() {
+    let tmpdir = tempdir::TempDir::new("spk-cli-test").unwrap();
+    let raw_spec = super::get_stub("my-package");
+    let spec_file = tmpdir.path().join("file");
+    std::fs::write(&spec_file, raw_spec).unwrap();
+    let _spec = spk::api::read_spec_file(&spec_file).unwrap();
+}

@@ -5,6 +5,10 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
+#[cfg(test)]
+#[path = "./cmd_new_test.rs"]
+mod cmd_new_test;
+
 /// Initialize a new package
 #[derive(Args)]
 #[clap(visible_alias = "init")]
