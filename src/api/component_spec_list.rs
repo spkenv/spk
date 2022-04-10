@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 use std::collections::{HashMap, HashSet};
 
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{Component, ComponentSpec};
@@ -127,17 +126,5 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
         unchecked.sort_by(|a, b| a.name.cmp(&b.name));
 
         Ok(ComponentSpecList(unchecked))
-    }
-}
-
-impl IntoPy<Py<pyo3::types::PyAny>> for ComponentSpecList {
-    fn into_py(self, py: Python) -> Py<pyo3::types::PyAny> {
-        self.0.into_py(py)
-    }
-}
-
-impl<'source> FromPyObject<'source> for ComponentSpecList {
-    fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        Ok(ComponentSpecList(Vec::<ComponentSpec>::extract(ob)?))
     }
 }

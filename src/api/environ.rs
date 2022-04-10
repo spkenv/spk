@@ -1,7 +1,6 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -14,7 +13,7 @@ const DEFAULT_VAR_SEP: &str = ";";
 const DEFAULT_VAR_SEP: &str = ":";
 
 /// An operation performed to the environment
-#[derive(Debug, Clone, Hash, Serialize, Eq, PartialEq, FromPyObject)]
+#[derive(Debug, Clone, Hash, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum EnvOp {
     Append(AppendEnv),
@@ -80,23 +79,18 @@ impl<'de> Deserialize<'de> for EnvOp {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppendEnv {
-    #[pyo3(get, set)]
     append: String,
     #[serde(deserialize_with = "super::option_map::string_from_scalar")]
-    #[pyo3(get, set)]
     value: String,
     #[serde(
         default,
         deserialize_with = "super::option::optional_string_from_scalar"
     )]
-    #[pyo3(get, set)]
     separator: Option<String>,
 }
 
-#[pymethods]
 impl AppendEnv {
     /// Return the separator for this append operation
     pub fn sep(&self) -> &str {
@@ -138,23 +132,18 @@ impl AppendEnv {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrependEnv {
-    #[pyo3(get, set)]
     prepend: String,
     #[serde(deserialize_with = "super::option_map::string_from_scalar")]
-    #[pyo3(get, set)]
     value: String,
     #[serde(
         default,
         deserialize_with = "super::option::optional_string_from_scalar"
     )]
-    #[pyo3(get, set)]
     separator: Option<String>,
 }
 
-#[pymethods]
 impl PrependEnv {
     /// Return the separator for this prepend operation
     pub fn sep(&self) -> &str {
@@ -193,17 +182,13 @@ impl PrependEnv {
 }
 
 /// Operates on an environment variable by setting it to a value
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetEnv {
-    #[pyo3(get, set)]
     set: String,
     #[serde(deserialize_with = "super::option_map::string_from_scalar")]
-    #[pyo3(get, set)]
     value: String,
 }
 
-#[pymethods]
 impl SetEnv {
     /// Construct the bash source representation for this operation
     pub fn bash_source(&self) -> String {

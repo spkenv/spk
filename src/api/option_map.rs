@@ -6,7 +6,6 @@ use std::convert::TryInto;
 use std::iter::FromIterator;
 
 use itertools::Itertools;
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use sys_info;
@@ -72,7 +71,6 @@ pub fn host_options() -> crate::Result<OptionMap> {
 }
 
 /// A set of values for package build options.
-#[pyclass]
 #[derive(Default, Clone, Hash, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct OptionMap {
@@ -123,56 +121,7 @@ impl IntoIterator for OptionMap {
     }
 }
 
-#[pymethods]
 impl OptionMap {
-    #[new]
-    #[args(py_kwargs = "**")]
-    pub fn new(
-        py: pyo3::Python,
-        py_args: Option<&pyo3::types::PyDict>,
-        py_kwargs: Option<&pyo3::types::PyDict>,
-    ) -> Self {
-        let mut opts = OptionMap::default();
-        if let Some(data) = py_args.or(py_kwargs) {
-            for (name, value) in data.iter() {
-                let name = name
-                    .str()
-                    .unwrap_or_else(|_| pyo3::types::PyString::new(py, ""))
-                    .to_string_lossy()
-                    .to_string();
-                let value = value
-                    .str()
-                    .unwrap_or_else(|_| pyo3::types::PyString::new(py, ""))
-                    .to_string_lossy()
-                    .to_string();
-                opts.insert(name, value);
-            }
-        }
-        opts
-    }
-
-    fn get(&self, key: String, default: Option<String>) -> Option<String> {
-        let res = self.options.get(&key).map(String::to_owned);
-        if res.is_some() {
-            res
-        } else {
-            default
-        }
-    }
-
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    fn update(&mut self, other: &OptionMap) {
-        self.options.append(&mut other.options.clone())
-    }
-
-    #[getter(digest)]
-    fn pydigest(&self) -> String {
-        self.digest_str()
-    }
-
     /// Return the data of these options as environment variables.
     pub fn to_environment(&self) -> HashMap<String, String> {
         let mut out = HashMap::default();
@@ -252,39 +201,6 @@ impl OptionMap {
         for name in to_remove.into_iter() {
             env.remove(&name);
         }
-    }
-}
-
-#[pyproto]
-impl pyo3::mapping::PyMappingProtocol for OptionMap {
-    fn __len__(self) -> usize {
-        self.options.len()
-    }
-
-    fn __getitem__(&self, key: String) -> PyResult<String> {
-        self.options
-            .get(&key)
-            .map(String::clone)
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key))
-    }
-
-    fn __setitem__(&mut self, key: String, value: String) {
-        self.options.insert(key, value);
-    }
-
-    fn __delitem__(&mut self, key: String) {
-        self.options.remove(&key);
-    }
-}
-
-#[pyproto]
-impl pyo3::PySequenceProtocol for OptionMap {
-    fn __len__(&self) -> usize {
-        self.options.len()
-    }
-
-    fn __contains__(&self, item: &str) -> bool {
-        self.options.contains_key(item)
     }
 }
 

@@ -4,7 +4,6 @@
 
 use std::str::FromStr;
 
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{OptionMap, Request};
@@ -25,8 +24,7 @@ impl std::fmt::Display for TestStage {
         f.write_str(
             // Note that we need `TestStage::to_string` to produce
             // these exact values in order to match correctly with
-            // the spelling on the python side and in the package
-            // yaml.
+            // the spelling on the in the package yaml.
             match self {
                 TestStage::Build => BUILD_NAME,
                 TestStage::Install => INSTALL_NAME,
@@ -72,18 +70,13 @@ impl FromStr for TestStage {
 }
 
 /// A set of structured inputs used to build a package.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestSpec {
-    #[pyo3(get, set)]
     pub stage: TestStage,
-    #[pyo3(get, set)]
     #[serde(deserialize_with = "super::build_spec::deserialize_script")]
     pub script: Vec<String>,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub selectors: Vec<OptionMap>,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: Vec<Request>,
 }

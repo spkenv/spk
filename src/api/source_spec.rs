@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 
@@ -15,7 +14,7 @@ use crate::{Error, Result};
 #[path = "./source_spec_test.rs"]
 mod source_spec_test;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, FromPyObject)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SourceSpec {
     Local(LocalSource),
@@ -50,7 +49,6 @@ impl SourceSpec {
 }
 
 /// Package source files in a local directory or file path.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalSource {
     pub path: PathBuf,
@@ -58,16 +56,13 @@ pub struct LocalSource {
         default = "LocalSource::default_exclude",
         skip_serializing_if = "Vec::is_empty"
     )]
-    #[pyo3(get, set)]
     pub exclude: Vec<String>,
     #[serde(
         default = "LocalSource::default_filter",
         skip_serializing_if = "Vec::is_empty"
     )]
-    #[pyo3(get, set)]
     pub filter: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 
@@ -95,19 +90,6 @@ impl LocalSource {
     pub fn set_subdir<S: ToString>(mut self, subdir: S) -> Self {
         self.subdir = Some(subdir.to_string());
         self
-    }
-}
-
-#[pymethods]
-impl LocalSource {
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        super::python::from_dict(input, py)
-    }
-
-    #[getter]
-    fn get_path(&self) -> String {
-        self.path.to_string_lossy().into()
     }
 }
 
@@ -160,22 +142,17 @@ impl LocalSource {
 }
 
 /// Package source files from a remote git repository.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitSource {
-    #[pyo3(get, set)]
     pub git: String,
     #[serde(default, rename = "ref", skip_serializing_if = "String::is_empty")]
-    #[pyo3(get, set)]
     pub reference: String,
     #[serde(
         default = "default_git_clone_depth",
         skip_serializing_if = "is_default_git_clone_depth"
     )]
-    #[pyo3(get, set)]
     pub depth: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 
@@ -218,13 +195,10 @@ impl GitSource {
 }
 
 /// Package source files from a local or remote tar archive.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TarSource {
-    #[pyo3(get, set)]
     pub tar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 
@@ -272,14 +246,11 @@ impl TarSource {
 }
 
 /// Package source files collected via arbitrary shell script.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSource {
-    #[pyo3(get, set)]
     #[serde(deserialize_with = "super::build_spec::deserialize_script")]
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[pyo3(get, set)]
     pub subdir: Option<String>,
 }
 

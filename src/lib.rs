@@ -105,7 +105,6 @@ impl Runtime {
 #[pymodule]
 fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     let api_mod = PyModule::new(py, "api")?;
-    api::init_module(&py, api_mod)?;
     m.add_submodule(api_mod)?;
 
     // ensure that from spkrs.submodule import xx works
@@ -213,12 +212,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         let config = spfs::load_config()?;
         config.make_current()?;
         Ok(())
-    }
-
-    #[pyfn(m)]
-    fn save_spec(spec: api::Spec) -> Result<()> {
-        let _guard = crate::HANDLE.enter();
-        global::save_spec(spec)
     }
 
     m.add_class::<Digest>()?;

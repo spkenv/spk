@@ -15,7 +15,6 @@ mod meta;
 mod name;
 mod option;
 mod option_map;
-mod python;
 mod request;
 mod requirements_list;
 mod source_spec;
@@ -47,7 +46,6 @@ pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{read_spec_file, save_spec_file, Spec};
 
-pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};
 pub use version::{
