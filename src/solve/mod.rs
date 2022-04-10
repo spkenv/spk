@@ -9,7 +9,6 @@ mod solution;
 mod solver;
 mod validation;
 
-pub(crate) use errors::SolverError; // python integration only
 pub use errors::{Error, OutOfOptions};
 pub use graph::Graph;
 pub use python::init_module;

@@ -132,34 +132,3 @@ pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solu
     }
     Ok(compiled_solution)
 }
-
-pub mod python {
-    use crate::{solve, Digest, Result};
-    use pyo3::prelude::*;
-
-    #[pyfunction]
-    pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>> {
-        Ok(super::resolve_runtime_layers(solution)?
-            .into_iter()
-            .map(Digest::from)
-            .collect())
-    }
-
-    #[pyfunction]
-    pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
-        let _guard = crate::HANDLE.enter();
-        super::setup_current_runtime(solution)
-    }
-
-    #[pyfunction]
-    pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
-        super::build_required_packages(solution)
-    }
-
-    pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
-        m.add_function(wrap_pyfunction!(resolve_runtime_layers, m)?)?;
-        m.add_function(wrap_pyfunction!(setup_current_runtime, m)?)?;
-        m.add_function(wrap_pyfunction!(build_required_packages, m)?)?;
-        Ok(())
-    }
-}

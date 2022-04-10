@@ -120,14 +120,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     solve::init_module(&py, solve_mod)?;
     m.add_submodule(solve_mod)?;
 
-    let exec_mod = PyModule::new(py, "exec")?;
-    exec::python::init_module(&py, exec_mod)?;
-    m.add_submodule(exec_mod)?;
-
-    let io_mod = PyModule::new(py, "io")?;
-    io::python::init_module(&py, io_mod)?;
-    m.add_submodule(io_mod)?;
-
     let test_mod = PyModule::new(py, "test")?;
     test::python::init_module(&py, test_mod)?;
     m.add_submodule(test_mod)?;
@@ -251,18 +243,12 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
         global::save_spec(spec)
     }
 
-    m.add_class::<Publisher>()?;
     m.add_class::<Digest>()?;
     m.add_class::<Runtime>()?;
 
     let empty_spfs: spfs::encoding::Digest = spfs::encoding::EMPTY_DIGEST.into();
     let empty_spk = Digest::from(empty_spfs);
     m.setattr::<&str, PyObject>("EMPTY_DIGEST", empty_spk.into_py(py))?;
-
-    m.add(
-        "NoEnvironmentError",
-        py.get_type::<env::NoEnvironmentError>(),
-    )?;
 
     Ok(())
 }

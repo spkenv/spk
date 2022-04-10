@@ -111,9 +111,7 @@ impl From<Error> for PyErr {
             Error::Build(err) => build::python::BuildError::new_err(err.message),
             Error::Collection(err) => build::python::CollectionError::new_err(err.message),
             Error::Test(err) => test::python::TestError::new_err(err.message),
-            Error::NoEnvironment => super::env::NoEnvironmentError::new_err(String::from(
-                "Not running in an spk environment",
-            )),
+            Error::NoEnvironment => todo!(),
             Error::PyErr(err) => err,
         }
     }
