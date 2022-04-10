@@ -27,8 +27,8 @@ pub enum Error {
     VersionExistsError(api::Ident),
 
     // Build Errors
-    Collection(crate::build::CollectionError),
-    Build(crate::build::BuildError),
+    Collection(build::CollectionError),
+    Build(build::BuildError),
 
     // Test Errors
     Test(test::TestError),
@@ -108,9 +108,9 @@ impl From<Error> for PyErr {
             Error::VersionExistsError(pkg) => {
                 exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
             }
-            Error::Build(err) => build::python::BuildError::new_err(err.message),
-            Error::Collection(err) => build::python::CollectionError::new_err(err.message),
-            Error::Test(err) => todo!(),
+            Error::Build(_err) => todo!(),
+            Error::Collection(_err) => todo!(),
+            Error::Test(_err) => todo!(),
             Error::NoEnvironment => todo!(),
             Error::PyErr(err) => err,
         }

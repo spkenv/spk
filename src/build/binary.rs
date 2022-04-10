@@ -8,7 +8,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
-use pyo3::prelude::*;
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 
@@ -63,7 +62,6 @@ pub enum BuildSource {
 ///     .build()
 ///     .unwrap();
 /// ```
-#[pyclass]
 #[derive(Clone)]
 pub struct BinaryPackageBuilder {
     prefix: PathBuf,
@@ -76,9 +74,7 @@ pub struct BinaryPackageBuilder {
     interactive: bool,
 }
 
-#[pymethods]
 impl BinaryPackageBuilder {
-    #[staticmethod]
     pub fn from_spec(spec: api::Spec) -> Self {
         let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
@@ -93,83 +89,6 @@ impl BinaryPackageBuilder {
         }
     }
 
-    #[pyo3(name = "get_solve_graph")]
-    fn get_solve_graph_py(&self) -> solve::Graph {
-        self.last_solve_graph.read().unwrap().clone()
-    }
-
-    #[pyo3(name = "with_prefix")]
-    pub fn with_prefix_py(mut slf: PyRefMut<Self>, prefix: PathBuf) -> PyRefMut<Self> {
-        slf.with_prefix(prefix);
-        slf
-    }
-
-    #[pyo3(name = "build")]
-    fn build_py(&mut self) -> Result<api::Spec> {
-        let _guard = crate::HANDLE.enter();
-        self.build()
-    }
-
-    #[pyo3(name = "with_source")]
-    fn with_source_py(mut slf: PyRefMut<Self>, source: Py<PyAny>) -> Result<PyRefMut<Self>> {
-        if let Ok(ident) = source.extract::<api::Ident>(slf.py()) {
-            slf.with_source(BuildSource::SourcePackage(ident));
-        } else if let Ok(path) = source.extract::<String>(slf.py()) {
-            slf.with_source(BuildSource::LocalPath(path.into()));
-        } else {
-            return Err(Error::String("Expected api.Ident or str".to_string()));
-        }
-        Ok(slf)
-    }
-
-    #[pyo3(name = "with_option")]
-    pub fn with_option_py(mut slf: PyRefMut<Self>, name: String, value: String) -> PyRefMut<Self> {
-        slf.with_option(name, value);
-        slf
-    }
-
-    #[pyo3(name = "with_options")]
-    pub fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
-        slf.all_options.extend(options.into_iter());
-        slf
-    }
-
-    #[pyo3(name = "with_repository")]
-    pub fn with_repository_py(
-        mut slf: PyRefMut<Self>,
-        repo: storage::python::Repository,
-    ) -> PyRefMut<Self> {
-        slf.repos.push(repo.handle);
-        slf
-    }
-
-    #[pyo3(name = "with_repositories")]
-    pub fn with_repositories_py(
-        mut slf: PyRefMut<Self>,
-        repos: Vec<storage::python::Repository>,
-    ) -> PyRefMut<Self> {
-        slf.repos.extend(repos.into_iter().map(|r| r.handle));
-        slf
-    }
-
-    #[pyo3(name = "set_interactive")]
-    pub fn set_interactive_py(mut slf: PyRefMut<Self>, interactive: bool) -> PyRefMut<Self> {
-        slf.interactive = interactive;
-        slf
-    }
-
-    #[pyo3(name = "get_build_requirements")]
-    pub fn get_build_requirements_py(&self) -> Result<Vec<api::Request>> {
-        self.get_build_requirements()
-    }
-
-    #[pyo3(name = "generate_startup_scripts")]
-    pub fn generate_startup_scripts_py(&self) -> Result<()> {
-        self.generate_startup_scripts()
-    }
-}
-
-impl BinaryPackageBuilder {
     pub fn with_prefix(&mut self, prefix: PathBuf) -> &mut Self {
         self.prefix = prefix;
         self
