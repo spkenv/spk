@@ -248,7 +248,7 @@ impl Solver {
         Ok(api::Compatibility::Compatible)
     }
 
-    /// Put this solver back into it's default state
+    /// Put this solver back into its default state
     pub fn reset(&mut self) {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
