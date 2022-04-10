@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use pyo3::{exceptions, prelude::*};
-
 use crate::solve;
 
 use super::{api, build, test};
@@ -17,7 +15,6 @@ pub enum Error {
     Serde(serde_yaml::Error),
     Solve(crate::solve::Error),
     String(String),
-    PyErr(PyErr),
 
     // API Errors
     InvalidVersionError(api::InvalidVersionError),
@@ -42,16 +39,7 @@ pub enum Error {
 impl Error {
     /// Wraps an error message with a prefix, creating a contextual but generic error
     pub fn wrap<S: AsRef<str>>(prefix: S, err: Self) -> Self {
-        // preserve PyErr types
-        match err {
-            Error::PyErr(pyerr) => Error::PyErr(Python::with_gil(|py| {
-                PyErr::from_type(
-                    pyerr.ptype(py),
-                    format!("{}: {}", prefix.as_ref(), pyerr.pvalue(py)),
-                )
-            })),
-            err => Error::String(format!("{}: {:?}", prefix.as_ref(), err)),
-        }
+        Error::String(format!("{}: {:?}", prefix.as_ref(), err))
     }
 
     /// Wraps an error message with a prefix, creating a contextual error
@@ -61,12 +49,6 @@ impl Error {
 }
 
 impl std::error::Error for Error {}
-
-impl From<PyErr> for Error {
-    fn from(err: PyErr) -> Error {
-        Error::PyErr(err)
-    }
-}
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
@@ -95,32 +77,5 @@ impl From<solve::graph::GraphError> for Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(&format!("{:?}", self))
-    }
-}
-
-impl From<Error> for PyErr {
-    fn from(err: Error) -> PyErr {
-        match err {
-            Error::IO(err) => err.into(),
-            Error::SPFS(spfs::Error::IO(err)) => err.into(),
-            Error::SPFS(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
-            Error::Solve(_err) => todo!(),
-            Error::InvalidBuildError(err) => exceptions::PyValueError::new_err(err.message),
-            Error::InvalidVersionError(err) => exceptions::PyValueError::new_err(err.message),
-            Error::InvalidNameError(err) => exceptions::PyValueError::new_err(err.message),
-            Error::PackageNotFoundError(pkg) => {
-                exceptions::PyFileNotFoundError::new_err(format!("Package not found: {}", pkg))
-            }
-            Error::VersionExistsError(pkg) => {
-                exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
-            }
-            Error::Build(_err) => todo!(),
-            Error::Collection(_err) => todo!(),
-            Error::Test(_err) => todo!(),
-            Error::NoEnvironment => todo!(),
-            Error::PyErr(err) => err,
-        }
     }
 }

@@ -330,7 +330,7 @@ impl PkgRequirementsValidator {
         let request = match restricted.restrict(request) {
             Ok(_) => restricted,
             // FIXME: only match ValueError
-            Err(crate::Error::PyErr(err)) => {
+            Err(crate::Error::String(err)) => {
                 return Ok(Incompatible(format!("conflicting requirement: {}", err)))
             }
             Err(err) => return Err(err),
