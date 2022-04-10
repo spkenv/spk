@@ -9,12 +9,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use pyo3::prelude::*;
-
 use super::TestError;
 use crate::{api, exec, solve, storage, Result};
 
-#[pyclass]
 pub struct PackageInstallTester {
     prefix: PathBuf,
     spec: api::Spec,
@@ -27,6 +24,19 @@ pub struct PackageInstallTester {
 }
 
 impl PackageInstallTester {
+    pub fn new(spec: api::Spec, script: String) -> Self {
+        Self {
+            prefix: PathBuf::from("/spfs"),
+            spec,
+            script,
+            repos: Vec::new(),
+            options: api::OptionMap::default(),
+            additional_requirements: Vec::new(),
+            source: None,
+            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
+        }
+    }
+
     pub fn with_option(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
         self.options.insert(name.into(), value.into());
         self
@@ -73,73 +83,6 @@ impl PackageInstallTester {
     /// If the tester has not run, return an incomplete graph.
     pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
         self.last_solve_graph.clone()
-    }
-}
-
-#[pymethods]
-impl PackageInstallTester {
-    #[new]
-    pub fn new(spec: api::Spec, script: String) -> Self {
-        Self {
-            prefix: PathBuf::from("/spfs"),
-            spec,
-            script,
-            repos: Vec::new(),
-            options: api::OptionMap::default(),
-            additional_requirements: Vec::new(),
-            source: None,
-            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
-        }
-    }
-
-    #[pyo3(name = "get_solve_graph")]
-    fn get_solve_graph_py(&self) -> solve::Graph {
-        self.get_solve_graph().read().unwrap().clone()
-    }
-
-    #[pyo3(name = "with_option")]
-    fn with_option_py(mut slf: PyRefMut<Self>, name: String, value: String) -> PyRefMut<Self> {
-        slf.with_option(name, value);
-        slf
-    }
-
-    #[pyo3(name = "with_options")]
-    fn with_options_py(mut slf: PyRefMut<Self>, options: api::OptionMap) -> PyRefMut<Self> {
-        slf.with_options(options);
-        slf
-    }
-
-    #[pyo3(name = "with_repository")]
-    fn with_repository_py(
-        mut slf: PyRefMut<Self>,
-        repo: storage::python::Repository,
-    ) -> PyRefMut<Self> {
-        slf.repos.push(repo.handle);
-        slf
-    }
-
-    #[pyo3(name = "with_repositories")]
-    fn with_repositories_py(
-        mut slf: PyRefMut<Self>,
-        repos: Vec<storage::python::Repository>,
-    ) -> PyRefMut<Self> {
-        slf.repos.extend(&mut repos.into_iter().map(|r| r.handle));
-        slf
-    }
-
-    #[pyo3(name = "with_source")]
-    fn with_source_py(mut slf: PyRefMut<Self>, source: Option<PathBuf>) -> PyRefMut<Self> {
-        slf.source = source;
-        slf
-    }
-
-    #[pyo3(name = "with_requirements")]
-    fn with_requirements_py(
-        mut slf: PyRefMut<Self>,
-        requests: Vec<api::Request>,
-    ) -> PyRefMut<Self> {
-        slf.additional_requirements.extend(requests);
-        slf
     }
 
     pub fn test(&mut self) -> Result<()> {

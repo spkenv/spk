@@ -120,10 +120,6 @@ fn spkrs(py: Python, m: &PyModule) -> PyResult<()> {
     solve::init_module(&py, solve_mod)?;
     m.add_submodule(solve_mod)?;
 
-    let test_mod = PyModule::new(py, "test")?;
-    test::python::init_module(&py, test_mod)?;
-    m.add_submodule(test_mod)?;
-
     // ensure that from spkrs.submodule import xx works
     // as expected on the python side by injecting them
     py.run(
