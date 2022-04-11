@@ -4,36 +4,20 @@
 
 use anyhow::{Context, Result};
 
-pub fn configure_sentry() {
-    // from sentry_sdk.integrations.stdlib import StdlibIntegration
-    // from sentry_sdk.integrations.excepthook import ExcepthookIntegration
-    // from sentry_sdk.integrations.dedupe import DedupeIntegration
-    // from sentry_sdk.integrations.atexit import AtexitIntegration
-    // from sentry_sdk.integrations.logging import LoggingIntegration
-    // from sentry_sdk.integrations.argv import ArgvIntegration
-    // from sentry_sdk.integrations.modules import ModulesIntegration
-    // from sentry_sdk.integrations.threading import ThreadingIntegration
-
-    // sentry_sdk.init(
-    //     "http://4506b47108ac4b648fdf18a8d803f403@sentry.k8s.spimageworks.com/25",
-    //     environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
-    //     release=spk.__version__,
-    //     default_integrations=False,
-    //     integrations=[
-    //         StdlibIntegration(),
-    //         ExcepthookIntegration(),
-    //         DedupeIntegration(),
-    //         AtexitIntegration(),
-    //         LoggingIntegration(),
-    //         ArgvIntegration(),
-    //         ModulesIntegration(),
-    //         ThreadingIntegration(),
-    //     ],
-    // )
-    // with sentry_sdk.configure_scope() as scope:
-    //     username = getpass.getuser()
-    //     scope.user = {"email": f"{username}@imageworks.com", "username": username}
-    todo!();
+#[cfg(feature = "sentry")]
+pub fn configure_sentry() -> sentry::ClientInitGuard {
+    // When using the sentry feature it is expected that the DSN
+    // and other configuration is provided at *compile* time.
+    sentry::init((
+        option_env!("SENTRY_DSN"),
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            environment: option_env!("SENTRY_ENVIRONMENT")
+                .map(ToString::to_string)
+                .map(std::borrow::Cow::Owned),
+            ..Default::default()
+        },
+    ))
 }
 
 pub fn configure_logging(verbosity: u32) -> Result<()> {

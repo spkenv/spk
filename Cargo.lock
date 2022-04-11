@@ -2520,6 +2520,7 @@ dependencies = [
  "relative-path",
  "ring",
  "rstest",
+ "sentry",
  "serde",
  "serde_derive",
  "serde_json",
