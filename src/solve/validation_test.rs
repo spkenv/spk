@@ -86,6 +86,8 @@ fn test_qualified_var_supercedes_unqualified() {
         vec![],
     );
 
+    // this static value of debug=on should be valid even though it conflicts
+    // with the unqualified request for the debug=off
     let spec = Arc::new(spec!(
         {
             "pkg": "my-package/1.0.0",
@@ -97,6 +99,23 @@ fn test_qualified_var_supercedes_unqualified() {
     let compat = validator.validate(&state, &*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
+        "qualified var requests should superceded unqualified ones, got: {}",
+        compat
+    );
+
+    // where the above is valid, this spec should fail because debug
+    // is set to off and we have the same qualified request for it to
+    // be on, even though there is an unqualified request for 'off'
+    let spec = Arc::new(spec!(
+        {
+            "pkg": "my-package/1.0.0",
+            "build": {"options": [{"var": "debug", "static": "off"}]},
+        }
+    ));
+    let source = solve::PackageSource::Spec(spec.clone());
+    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    assert!(
+        !compat.is_ok(),
         "qualified var requests should superceded unqualified ones, got: {}",
         compat
     );
