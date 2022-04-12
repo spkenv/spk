@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, str::FromStr};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
 
 #[cfg(test)]
@@ -172,9 +172,9 @@ impl Requests {
                         continue;
                     }
                     _ => {
-                        return Err(anyhow!(
+                        bail!(
                         "Unsupported stage '{stage}', can only be empty or 'source' in this context"
-                    ));
+                    );
                     }
                 }
             }
@@ -259,10 +259,10 @@ impl Requests {
                 }
                 serde_yaml::Value::Mapping(m) => m,
                 _ => {
-                    return Err(anyhow!(
+                    bail!(
                         "Invalid request, expected either a string or a mapping, got: {:?}",
                         value
-                    ))
+                    )
                 }
             };
 
