@@ -52,6 +52,10 @@ impl Deprecate {
             let ident = spk::api::parse_ident(name)?;
             for (repo_name, repo) in repos.iter() {
                 let mut spec = repo.read_spec(&ident)?;
+                if spec.deprecated {
+                    tracing::warn!(repo=%repo_name, "no change  {} (already deprecated)", spk::io::format_ident(&ident));
+                    continue;
+                }
                 spec.deprecated = true;
                 repo.force_publish_spec(spec)?;
                 tracing::info!(repo=%repo_name, "deprecated {}", spk::io::format_ident(&ident));
