@@ -2,12 +2,33 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-pub static SOURCE: &str = r#"#!/usr/bin/env sh
+pub fn source<T>(tmpdir: &Option<T>) -> String
+where
+    T: AsRef<str>,
+{
+    let tmpdir_replacement = tmpdir
+        .as_ref()
+        .map(|value| {
+            format!(
+                r#"# Re-assign $TMPDIR because this value is lost when
+# exec'ing a privileged process.
+export TMPDIR="{}"
+
+"#,
+                value.as_ref()
+            )
+        })
+        .unwrap_or_default();
+
+    format!(
+        r#"#!/usr/bin/env sh
 if [ -f ~/.bashrc ]; then
     source ~/.bashrc || true
 fi
+
+{tmpdir_replacement}
 startup_dir="/spfs/etc/spfs/startup.d"
-if [ -d "${startup_dir}" ]; then
+if [ -d "${{startup_dir}}" ]; then
     filenames=$(/bin/ls $startup_dir | grep '\.sh$')
     if [ ! -z "$filenames" ]; then
         for file in $filenames; do
@@ -23,4 +44,6 @@ if [ "$#" -ne 0 ]; then
 fi
 
 echo "* You are now in an configured subshell *" 1>&2
-"#;
+"#
+    )
+}
