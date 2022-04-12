@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use itertools::Itertools;
+use std::collections::HashSet;
 
 use crate::api::{self, Build, Compatibility};
 
@@ -160,7 +161,7 @@ impl EmbeddedPackageValidator {
 }
 
 /// Ensures that a package is compatible with all requested options.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct OptionsValidator {}
 
 impl ValidatorT for OptionsValidator {
@@ -170,7 +171,23 @@ impl ValidatorT for OptionsValidator {
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        for request in state.get_var_requests() {
+        let requests = state.get_var_requests();
+        let qualified_requests: HashSet<_> = requests
+            .iter()
+            .filter_map(|r| {
+                if Some(spec.pkg.name()) == r.package() {
+                    Some(r.base_name().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for request in requests {
+            if request.package().is_none() && qualified_requests.contains(&request.var) {
+                // a qualified request was found that supercedes this one:
+                // eg: this is 'debug', but we have 'thispackage.debug'
+                continue;
+            }
             let compat = spec.satisfies_var_request(request);
             if !&compat {
                 return Ok(api::Compatibility::Incompatible(format!(

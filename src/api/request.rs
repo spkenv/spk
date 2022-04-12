@@ -494,6 +494,12 @@ impl VarRequest {
         Ok(new)
     }
 
+    /// The name of this variable without any package qualifier
+    pub fn base_name(&self) -> &str {
+        let index = self.var.find('.').map(|i| i + 1).unwrap_or_default();
+        &self.var[index..]
+    }
+
     /// Return the name of the package that this var refers to (if any)
     pub fn package(&self) -> Option<&str> {
         if self.var.contains('.') {

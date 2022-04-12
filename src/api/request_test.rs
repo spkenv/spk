@@ -126,3 +126,20 @@ fn test_pkg_request_pin_rendering(
         .expect("should not fail to render pin");
     assert_eq!(&res.pkg.version.to_string(), expected);
 }
+
+#[rstest]
+fn test_var_request_base_name() {
+    let req = VarRequest {
+        var: "pkg.var".to_string(),
+        value: String::new(),
+        pin: false,
+    };
+    assert_eq!(req.base_name(), "var");
+
+    let req = VarRequest {
+        var: "var".to_string(),
+        value: String::new(),
+        pin: false,
+    };
+    assert_eq!(req.base_name(), "var");
+}
