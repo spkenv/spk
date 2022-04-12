@@ -303,6 +303,9 @@ pub fn parse_stage_specifier(
 }
 
 /// The result of the [`find_package_spec`] function.
+// We are okay with the large variant here because it's specifically
+// used as the positive result of the function, with the others simply
+// denoting unique error cases.
 #[allow(clippy::large_enum_variant)]
 pub enum FindPackageSpecResult {
     /// A non-ambiguous package spec file was found
