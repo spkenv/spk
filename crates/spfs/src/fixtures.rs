@@ -97,7 +97,7 @@ pub fn spfs_binary() -> std::path::PathBuf {
 
         path.pop();
     }
-    path.push(env!("CARGO_PKG_NAME").to_string());
+    path.push(env!("CARGO_PKG_NAME"));
     path
 }
 
