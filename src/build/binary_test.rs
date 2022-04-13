@@ -545,3 +545,18 @@ fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
 
     assert_eq!(tcsh_value.as_slice(), b"1.7:true:append\n");
 }
+
+#[rstest]
+fn test_path_and_parents() {
+    use relative_path::RelativePathBuf;
+    let path = RelativePathBuf::from("some/deep/path");
+    let hierarchy = super::path_and_parents(path);
+    assert_eq!(
+        hierarchy,
+        vec![
+            RelativePathBuf::from("some/deep/path"),
+            RelativePathBuf::from("some/deep"),
+            RelativePathBuf::from("some"),
+        ]
+    );
+}

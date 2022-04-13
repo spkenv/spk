@@ -54,16 +54,14 @@ pub enum BuildSource {
 
 /// Builds a binary package.
 ///
-/// ```
-/// BinaryPackageBuilder
-///     .from_spec(api.Spec.from_dict({
+/// ```no_run
+/// spk::build::BinaryPackageBuilder::from_spec(spk::spec!({
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
 ///     .with_option("debug", "true")
-///     .with_source(".")
 ///     .build()
-///     .unwrap()
+///     .unwrap();
 /// ```
 #[pyclass]
 #[derive(Clone)]
@@ -295,7 +293,7 @@ impl BinaryPackageBuilder {
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        solution
     }
 
     fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
@@ -313,7 +311,7 @@ impl BinaryPackageBuilder {
         let mut runtime = self.solver.run();
         let solution = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        solution
     }
 
     /// List the requirements for the build environment.
@@ -691,27 +689,16 @@ pub fn component_marker_path(pkg: &api::Ident, name: &api::Component) -> Relativ
 }
 
 /// Expand a path to a list of itself and all of its parents
-///
-/// ```
-/// use relative_path::RelativePathBuf;
-/// let path = RelativePathBuf::from("some/deep/path")
-/// let hierarchy = path_and_parents(path);
-/// assert_eq!(hierarchy, vec![
-///     RelativePathBuf::from("some/deep/path"),
-///     RelativePathBuf::from("some/deep"),
-///     RelativePathBuf::from("some"),
-/// ]);
-/// ```
 fn path_and_parents(mut path: RelativePathBuf) -> Vec<RelativePathBuf> {
     let mut hierarchy = Vec::new();
     loop {
         let parent = path.parent().map(ToOwned::to_owned);
         hierarchy.push(path);
         match parent {
-            None => break,
-            Some(parent) => {
+            Some(parent) if !parent.as_str().is_empty() => {
                 path = parent;
             }
+            _ => break,
         }
     }
     hierarchy

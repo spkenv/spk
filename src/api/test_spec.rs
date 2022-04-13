@@ -1,6 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::str::FromStr;
+
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -48,11 +51,19 @@ impl<'de> Deserialize<'de> for TestStage {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        match value.as_str() {
+        Self::from_str(&value).map_err(serde::de::Error::custom)
+    }
+}
+
+impl FromStr for TestStage {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             SOURCES_NAME => Ok(Self::Sources),
             BUILD_NAME => Ok(Self::Build),
             INSTALL_NAME => Ok(Self::Install),
-            other => Err(serde::de::Error::custom(format!(
+            other => Err(crate::Error::String(format!(
                 "Invalid test stage '{}', must be one of: {}, {}, {}",
                 other, SOURCES_NAME, BUILD_NAME, INSTALL_NAME,
             ))),
@@ -65,14 +76,14 @@ impl<'de> Deserialize<'de> for TestStage {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestSpec {
     #[pyo3(get, set)]
-    stage: TestStage,
+    pub stage: TestStage,
     #[pyo3(get, set)]
     #[serde(deserialize_with = "super::build_spec::deserialize_script")]
-    script: Vec<String>,
+    pub script: Vec<String>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    selectors: Vec<OptionMap>,
+    pub selectors: Vec<OptionMap>,
     #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    requirements: Vec<Request>,
+    pub requirements: Vec<Request>,
 }

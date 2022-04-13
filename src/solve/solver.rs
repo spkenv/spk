@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{create_exception, exceptions, prelude::*, PyIterProtocol};
+use pyo3::{create_exception, prelude::*, PyIterProtocol};
 use std::{
     borrow::Cow,
     mem::take,
@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     api::{self, Build, CompatRule, Component, OptionMap, Request},
-    solve::graph::{GraphError, StepBack},
+    solve::graph::StepBack,
     storage, Error, Result,
 };
 
@@ -64,8 +64,11 @@ impl Solver {
     }
 
     /// Add a repository where the solver can get packages.
-    pub fn add_repository(&mut self, repo: Arc<storage::RepositoryHandle>) {
-        self.repos.push(repo);
+    pub fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<storage::RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
     }
 
     pub fn get_initial_state(&self) -> Arc<State> {
@@ -91,7 +94,7 @@ impl Solver {
     }
 
     fn make_iterator(&self, package_name: &str) -> Arc<Mutex<Box<dyn PackageIterator>>> {
-        assert!(!self.repos.is_empty());
+        debug_assert!(!self.repos.is_empty());
         Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
             package_name.to_owned(),
             self.repos.clone(),
@@ -352,7 +355,7 @@ impl Solver {
         }
     }
 
-    pub fn solve(&mut self) -> PyResult<Solution> {
+    pub fn solve(&mut self) -> Result<Solution> {
         let mut runtime = self.run();
         for step in runtime.iter() {
             step?;
@@ -384,7 +387,7 @@ impl Solver {
     /// Adds requests for all build requirements and solves
     pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
         self.configure_for_build_environment(spec)?;
-        Ok(self.solve()?)
+        self.solve()
     }
 
     pub fn update_options(&mut self, options: OptionMap) {
@@ -421,20 +424,12 @@ impl SolverRuntime {
     pub fn iter(&mut self) -> SolverRuntimeIter<'_> {
         SolverRuntimeIter(self)
     }
-}
-
-#[pymethods]
-impl SolverRuntime {
-    #[pyo3(name = "graph")]
-    pub fn pygraph(&self) -> Graph {
-        self.graph.read().unwrap().clone()
-    }
 
     /// Returns the completed solution for this runtime.
     ///
     /// If needed, this function will iterate any remaining
     /// steps for the current state.
-    pub fn solution(&mut self) -> PyResult<Solution> {
+    pub fn solution(&mut self) -> Result<Solution> {
         let _guard = crate::HANDLE.enter();
         for item in self.iter() {
             item?;
@@ -446,10 +441,11 @@ impl SolverRuntime {
     ///
     /// If the runtime has not yet completed, this solution
     /// may be incomplete or empty.
-    pub fn current_solution(&self) -> PyResult<Solution> {
-        let current_node = self.current_node.as_ref().ok_or_else(|| {
-            exceptions::PyRuntimeError::new_err("Solver runtime as not been consumed")
-        })?;
+    pub fn current_solution(&self) -> Result<Solution> {
+        let current_node = self
+            .current_node
+            .as_ref()
+            .ok_or_else(|| Error::String("Solver runtime has not been consumed".into()))?;
         let current_node_lock = current_node.read().unwrap();
 
         let is_dead = current_node_lock.state.id()
@@ -461,11 +457,13 @@ impl SolverRuntime {
             .get_pkg_requests()
             .is_empty();
         if is_dead && !is_empty {
-            Err(SolverFailedError::new_err(
-                (*self.graph).read().unwrap().clone(),
-            ))
+            Err(super::Error::FailedToResolve((*self.graph).read().unwrap().clone()).into())
         } else {
-            current_node_lock.state.as_solution()
+            current_node_lock
+                .state
+                .as_solution()
+                // TODO: make a proper conversion for this
+                .map_err(|e| crate::Error::String(e.to_string()))
         }
     }
 }
@@ -505,17 +503,19 @@ impl Iterator for SolverRuntime {
                 self.decision.take().unwrap(),
             ) {
                 Ok(cn) => cn,
-                Err(GraphError::RecursionError(msg)) => {
+                Err(err) => {
                     match self.history.pop() {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(msg, &n_lock.state)).as_decision(),
+                                Change::StepBack(StepBack::new(err.to_string(), &n_lock.state))
+                                    .as_decision(),
                             )
                         }
                         None => {
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(msg, &DEAD_STATE)).as_decision(),
+                                Change::StepBack(StepBack::new(err.to_string(), &DEAD_STATE))
+                                    .as_decision(),
                             )
                         }
                     }

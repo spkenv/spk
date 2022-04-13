@@ -19,12 +19,15 @@ mod ident_test;
 /// and should only be used for testing.
 ///
 /// ```
-/// ident!("my-pkg/1.0.0")
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// ident!("my-pkg/1.0.0");
+/// # }
 /// ```
 #[macro_export]
 macro_rules! ident {
     ($ident:literal) => {
-        crate::api::parse_ident($ident).unwrap()
+        $crate::api::parse_ident($ident).unwrap()
     };
 }
 
@@ -34,7 +37,7 @@ macro_rules! ident {
 /// range of package versions/releases depending on the
 /// syntax and context
 #[pyclass]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
+#[derive(Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
 pub struct Ident {
     #[pyo3(get)]
     name: String,
@@ -42,6 +45,12 @@ pub struct Ident {
     pub version: Version,
     #[pyo3(get, set)]
     pub build: Option<Build>,
+}
+
+impl std::fmt::Debug for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Ident").field(&self.to_string()).finish()
+    }
 }
 
 impl std::fmt::Display for Ident {
@@ -79,6 +88,15 @@ impl Ident {
         }
     }
 
+    /// Return a copy of this identifier with the given version number instead
+    pub fn with_version(&self, version: Version) -> Ident {
+        Self {
+            name: self.name.clone(),
+            version,
+            build: self.build.clone(),
+        }
+    }
+
     /// Set the build component of this package identifier.
     pub fn set_build(&mut self, build: Option<Build>) {
         self.build = build;
@@ -101,10 +119,14 @@ impl Ident {
         })
     }
 
+    /// The validated name portion of this identifier
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 
+    /// A string containing the properly formatted name and version number
+    ///
+    /// This is the same as [`Ident::to_string`] when the build is None.
     pub fn version_and_build(&self) -> Option<String> {
         match &self.build {
             Some(build) => Some(format!("{}/{}", self.version, build.digest())),
@@ -124,6 +146,22 @@ impl TryFrom<&str> for Ident {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::from_str(value)
+    }
+}
+
+impl TryFrom<&String> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        Self::from_str(value.as_str())
+    }
+}
+
+impl TryFrom<String> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_str(value.as_str())
     }
 }
 

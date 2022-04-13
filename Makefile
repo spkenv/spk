@@ -3,7 +3,7 @@ VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 # Create a file called "config.mak" to configure variables.
 -include config.mak
 
-default: devel
+default: lint test
 
 .PHONY: packages
 packages:
@@ -18,36 +18,20 @@ packages.%:
 .PHONY: clean
 clean: packages.clean
 
-.PHONY: lint lint-python lint-rust
-lint: lint-rust lint-python
+.PHONY: lint lint-rust
+lint: lint-rust
 lint-rust:
 	# we need to ingore this clippy warning until the next
 	# release of py03 which solves for it
 	cargo clippy -- -Dwarnings -Aclippy::needless_option_as_deref
-lint-python:
-	pipenv run -- mypy spk spkrs
-	pipenv run -- black --check spk setup.py spkrs packages/spk-convert-pip/spk-convert-pip
 
 .PHONY: format
 format:
-	pipenv run -- black spk setup.py spkrs packages/spk-convert-pip/spk-convert-pip
+	cargo fmt
 
-.PHONY: devel
-devel:
-	pipenv run -- python setup.py develop
-
-.PHONY: test test-python test-rust
-test: test-rust test-python
+.PHONY: test test-rust
+test: test-rust
 test-rust:
-	spfs run - -- cargo test --no-default-features
-test-python:
-	mkdir -p /tmp/spfs-runtimes
-	SPFS_STORAGE_RUNTIMES="/tmp/spfs-runtimes" \
-	pipenv run -- spfs run - -- pytest -x -vvv
-
-.PHONY: cargo-test
-cargo-test:
-	# some tests must be run in an spfs environment
 	spfs run - -- cargo test --no-default-features
 
 converters:

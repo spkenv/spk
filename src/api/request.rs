@@ -260,8 +260,8 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// Parse a package identifier which specifies a range of versions.
 ///
 /// ```
-/// parse_ident_range("maya/~2020.0").unwrap()
-/// parse_ident_range("maya/^2020.0").unwrap()
+/// spk::api::parse_ident_range("maya/~2020.0").unwrap();
+/// spk::api::parse_ident_range("maya/^2020.0").unwrap();
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     let mut parts = source.as_ref().split('/');
@@ -394,6 +394,14 @@ impl Request {
             Request::Pkg(r) => r.pkg.to_string(),
         }
     }
+
+    pub fn is_pkg(&self) -> bool {
+        matches!(self, Self::Pkg(_))
+    }
+
+    pub fn is_var(&self) -> bool {
+        matches!(self, Self::Var(_))
+    }
 }
 
 impl From<VarRequest> for Request {
@@ -457,16 +465,26 @@ struct VarRequestSchema {
 }
 
 impl VarRequest {
-    pub fn new<S: AsRef<str>>(name: S) -> Self {
+    /// Create a new empty request for the named variable
+    pub fn new<S: Into<String>>(name: S) -> Self {
         Self {
-            var: name.as_ref().to_string(),
+            var: name.into(),
             pin: false,
             value: Default::default(),
         }
     }
 
-    pub fn value(&self) -> &str {
-        self.value.as_str()
+    /// Create a new request for the named variable at the specified value
+    pub fn new_with_value<N, V>(name: N, value: V) -> Self
+    where
+        N: Into<String>,
+        V: Into<String>,
+    {
+        Self {
+            var: name.into(),
+            pin: false,
+            value: value.into(),
+        }
     }
 
     /// Create a copy of this request with it's pin rendered out using 'var'.

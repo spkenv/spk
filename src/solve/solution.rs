@@ -183,17 +183,17 @@ impl Solution {
         items
     }
 
-    pub fn get(&self, name: &str) -> PyResult<SolvedRequest> {
+    pub fn get(&self, name: &str) -> Option<SolvedRequest> {
         for (request, (spec, source)) in &self.resolved {
             if request.pkg.name() == name {
-                return Ok(SolvedRequest {
+                return Some(SolvedRequest {
                     request: request.clone(),
                     spec: spec.clone(),
                     source: source.clone(),
                 });
             }
         }
-        Err(pyo3::exceptions::PyKeyError::new_err(name.to_owned()))
+        None
     }
 
     pub fn options(&self) -> api::OptionMap {

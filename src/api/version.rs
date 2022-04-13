@@ -140,8 +140,8 @@ impl pyo3::mapping::PyMappingProtocol for TagSet {
 /// Parse the given string as a set of version tags.
 ///
 /// ```
-/// let tag_set = parse_tag_set("release.tags,alpha.1").unwrap();
-/// assert_eq!(tag_set.get("alpha"), Some(1));
+/// let tag_set = spk::api::parse_tag_set("dev.4,alpha.1").unwrap();
+/// assert_eq!(tag_set.get("alpha"), Some(&1));
 /// ```
 pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
     let tags = tags.as_ref();

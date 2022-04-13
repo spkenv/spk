@@ -23,10 +23,21 @@ pub const DIGEST_SIZE: usize = 8;
 
 type Digest = [char; DIGEST_SIZE];
 
+/// Create a set of options from a simple mapping.
+///
+/// ```
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// option_map!{
+///   "debug" => "on",
+///   "python.abi" => "cp37m"
+/// };
+/// # }
+/// ```
 #[macro_export]
 macro_rules! option_map {
     ($($k:expr => $v:expr),* $(,)?) => {{
-        use crate::api::OptionMap;
+        use $crate::api::OptionMap;
         #[allow(unused_mut)]
         let mut opts = OptionMap::default();
         $(opts.insert($k.into(), $v.into());)*

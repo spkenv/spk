@@ -51,7 +51,8 @@ pub use python::init_module;
 pub use test_spec::{TestSpec, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};
 pub use version::{
-    parse_version, InvalidVersionError, TagSet, Version, TAG_SEP, TAG_SET_SEP, VERSION_SEP,
+    parse_tag_set, parse_version, InvalidVersionError, TagSet, Version, TAG_SEP, TAG_SET_SEP,
+    VERSION_SEP,
 };
 pub use version_range::{
     parse_version_range, CompatRange, ExactVersion, ExcludedVersion, GreaterThanOrEqualToRange,

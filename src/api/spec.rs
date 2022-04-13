@@ -23,7 +23,9 @@ mod spec_test;
 /// cannot be deserialized into a spec.
 ///
 /// ```
-/// let spec = spec!({
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// spec!({
 ///   "pkg": "my-pkg/1.0.0",
 ///   "build": {
 ///     "options": [
@@ -31,12 +33,13 @@ mod spec_test;
 ///     ]
 ///   }
 /// });
+/// # }
 /// ```
 #[macro_export]
 macro_rules! spec {
     ($($spec:tt)+) => {{
         let value = serde_json::json!($($spec)+);
-        let spec: crate::api::Spec = serde_json::from_value(value).unwrap();
+        let spec: $crate::api::Spec = serde_json::from_value(value).unwrap();
         spec
     }};
 }
@@ -124,15 +127,15 @@ impl Spec {
                 }
                 Compatibility::Compatible
             }
-            Some(Opt::Pkg(opt)) => opt.validate(Some(request.value())),
+            Some(Opt::Pkg(opt)) => opt.validate(Some(&request.value)),
             Some(Opt::Var(opt)) => {
-                let exact = opt.get_value(Some(request.value()));
-                if exact.as_deref() != Some(request.value()) {
+                let exact = opt.get_value(Some(&request.value));
+                if exact.as_deref() != Some(&request.value) {
                     Compatibility::Incompatible(format!(
                         "Incompatible build option '{}': '{}' != '{}'",
                         request.var,
                         exact.unwrap_or_else(|| "None".to_string()),
-                        request.value()
+                        request.value
                     ))
                 } else {
                     Compatibility::Compatible

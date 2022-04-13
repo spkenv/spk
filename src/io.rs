@@ -80,6 +80,9 @@ where
 }
 
 pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
+    if solution.is_empty() {
+        return "Nothing Installed".to_string();
+    }
     let mut out = "Installed Packages:\n".to_string();
     for req in solution.items() {
         let mut installed = api::PkgRequest::from_ident(&req.spec.pkg);
@@ -210,52 +213,55 @@ where
             return Some(Ok(next));
         }
 
-        let decision = match self.inner.next() {
-            None => return None,
-            Some(Ok((_, d))) => d,
-            Some(Err(err)) => return Some(Err(err)),
-        };
-        if self.verbosity > 1 {
-            let fill: String = ".".repeat(self.level);
-            for note in decision.notes.iter() {
-                self.output_queue
-                    .push_back(format!("{} {}", fill, format_note(note)));
-            }
-        }
+        while self.output_queue.is_empty() {
+            let decision = match self.inner.next() {
+                None => return None,
+                Some(Ok((_, d))) => d,
+                Some(Err(err)) => return Some(Err(err)),
+            };
 
-        let mut fill: &str;
-        let mut level_change: i64 = 1;
-        for change in decision.changes.iter() {
-            use solve::graph::Change::*;
-            match change {
-                SetPackage(change) => {
-                    if change.spec.pkg.build == Some(api::Build::Embedded) {
+            if self.verbosity > 1 {
+                let fill: String = ".".repeat(self.level);
+                for note in decision.notes.iter() {
+                    self.output_queue
+                        .push_back(format!("{} {}", fill, format_note(note)));
+                }
+            }
+
+            let mut fill: &str;
+            let mut level_change: i64 = 1;
+            for change in decision.changes.iter() {
+                use solve::graph::Change::*;
+                match change {
+                    SetPackage(change) => {
+                        if change.spec.pkg.build == Some(api::Build::Embedded) {
+                            fill = ".";
+                        } else {
+                            fill = ">";
+                        }
+                    }
+                    StepBack(_) => {
+                        fill = "!";
+                        level_change = -1;
+                    }
+                    _ => {
                         fill = ".";
-                    } else {
-                        fill = ">";
                     }
                 }
-                StepBack(_) => {
-                    fill = "!";
-                    level_change = -1;
-                }
-                _ => {
-                    fill = ".";
-                }
-            }
 
-            if !change_is_relevant_at_verbosity(change, self.verbosity) {
-                continue;
-            }
+                if !change_is_relevant_at_verbosity(change, self.verbosity) {
+                    continue;
+                }
 
-            let prefix: String = fill.repeat(self.level);
-            self.output_queue.push_back(format!(
-                "{} {}",
-                prefix,
-                format_change(change, self.verbosity)
-            ))
+                let prefix: String = fill.repeat(self.level);
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    prefix,
+                    format_change(change, self.verbosity)
+                ))
+            }
+            self.level = (self.level as i64 + level_change) as usize;
         }
-        self.level = (self.level as i64 + level_change) as usize;
         self.output_queue.pop_front().map(Ok)
     }
 }
@@ -263,18 +269,61 @@ where
 pub fn format_error(err: &Error, verbosity: u32) -> String {
     let mut msg = String::new();
     match err {
+        Error::PackageNotFoundError(pkg) => {
+            msg.push_str("Package not found: ");
+            msg.push_str(&format_ident(pkg));
+            msg.push('\n');
+            msg.push_str(
+                &" * check the spelling of the name\n"
+                    .yellow()
+                    .dimmed()
+                    .to_string(),
+            );
+            msg.push_str(
+                &" * ensure that you have enabled the right repositories"
+                    .yellow()
+                    .dimmed()
+                    .to_string(),
+            )
+        }
         Error::Solve(err) => {
             msg.push_str("Failed to resolve");
-            msg.push_str(&format!("\n * {:?}", err));
+            match err {
+                solve::Error::FailedToResolve(_graph) => {
+                    // TODO: provide a summary based on the graph
+                }
+                solve::Error::OutOfOptions(_) => {
+                    msg.push_str("\n * out of options");
+                }
+                solve::Error::SolverError(reason) => {
+                    msg.push_str("\n * ");
+                    msg.push_str(reason);
+                }
+            }
             match verbosity {
                 0 => {
-                    msg.push_str(&"\n * try '--verbose/-v' for more info".dimmed().yellow());
+                    msg.push_str(
+                        &"\n * try '--verbose/-v' for more info"
+                            .dimmed()
+                            .yellow()
+                            .to_string(),
+                    );
                 }
                 1 => {
-                    msg.push_str(&"\n * try '-vv' for even more info".dimmed().yellow());
+                    msg.push_str(
+                        &"\n * try '-vv' for even more info"
+                            .dimmed()
+                            .yellow()
+                            .to_string(),
+                    );
                 }
                 2 => {
-                    msg.push_str(&"\n * try '-vvv' for even more info".dimmed().yellow());
+                    msg.push_str(
+                        &"\n * try '-vvv' for even more info"
+                            .dimmed()
+                            .yellow()
+                            .to_string(),
+                    );
                 }
                 3.. => (),
             }
@@ -290,7 +339,7 @@ pub fn run_and_print_resolve(solver: &solve::Solver, verbosity: u32) -> Result<s
     for line in format_decisions(&mut runtime, verbosity) {
         println!("{}", line?);
     }
-    Ok(runtime.current_solution()?)
+    runtime.current_solution()
 }
 
 #[allow(clippy::type_complexity)]
