@@ -4,7 +4,6 @@
 use std::collections::HashSet;
 
 use itertools::Itertools;
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{Compatibility, Opt, OptionMap, ValidationSpec};
@@ -14,16 +13,12 @@ use super::{Compatibility, Opt, OptionMap, ValidationSpec};
 mod build_spec_test;
 
 /// A set of structured inputs used to build a package.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct BuildSpec {
-    #[pyo3(get, set)]
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[pyo3(get, set)]
     pub options: Vec<Opt>,
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
-    #[pyo3(get, set)]
     pub variants: Vec<OptionMap>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
@@ -51,17 +46,6 @@ impl BuildSpec {
         }
         variants.get(0) == Some(&OptionMap::default())
     }
-}
-
-#[pymethods]
-impl BuildSpec {
-    #[new]
-    fn init(options: Vec<Opt>) -> Self {
-        Self {
-            options,
-            ..Self::default()
-        }
-    }
 
     pub fn resolve_all_options(&self, package_name: Option<&str>, given: &OptionMap) -> OptionMap {
         let mut resolved = OptionMap::default();
@@ -81,10 +65,6 @@ impl BuildSpec {
         }
 
         resolved
-    }
-
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        super::python::to_dict(self, py)
     }
 
     /// Validate the given options against the options in this spec.

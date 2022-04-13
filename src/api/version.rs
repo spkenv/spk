@@ -7,7 +7,6 @@ use std::{
     str::FromStr,
 };
 
-use pyo3::prelude::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::validate_tag_name;
@@ -34,7 +33,6 @@ impl InvalidVersionError {
 }
 
 /// TagSet contains a set of pre or post release version tags
-#[pyclass]
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct TagSet {
     tags: std::collections::BTreeMap<String, u32>,
@@ -115,28 +113,6 @@ impl FromStr for TagSet {
     }
 }
 
-#[pyproto]
-impl pyo3::mapping::PyMappingProtocol for TagSet {
-    fn __len__(self) -> usize {
-        self.tags.len()
-    }
-
-    fn __getitem__(&self, key: String) -> PyResult<u32> {
-        self.tags
-            .get(&key)
-            .map(u32::to_owned)
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key))
-    }
-
-    fn __setitem__(&mut self, key: String, value: u32) {
-        self.tags.insert(key, value);
-    }
-
-    fn __delitem__(&mut self, key: String) {
-        self.tags.remove(&key);
-    }
-}
-
 /// Parse the given string as a set of version tags.
 ///
 /// ```
@@ -186,20 +162,13 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
 }
 
 /// Version specifies a package version number.
-#[pyclass]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Version {
-    #[pyo3(get, set)]
     pub major: u32,
-    #[pyo3(get, set)]
     pub minor: u32,
-    #[pyo3(get, set)]
     pub patch: u32,
-    #[pyo3(get, set)]
     pub tail: Vec<u32>,
-    #[pyo3(get, set)]
     pub pre: TagSet,
-    #[pyo3(get, set)]
     pub post: TagSet,
 }
 
@@ -209,9 +178,7 @@ impl std::cmp::PartialEq<&str> for Version {
     }
 }
 
-#[pymethods]
 impl Version {
-    #[new(major = 0, minor = 0, patch = 0)]
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {
             major,
@@ -221,8 +188,18 @@ impl Version {
         }
     }
 
+    /// Build a new version number from any number of digits
+    pub fn from_parts<P: Iterator<Item = u32>>(mut parts: P) -> Self {
+        Version {
+            major: parts.next().unwrap_or_default(),
+            minor: parts.next().unwrap_or_default(),
+            patch: parts.next().unwrap_or_default(),
+            tail: parts.collect(),
+            ..Default::default()
+        }
+    }
+
     /// The integer pieces of this version number
-    #[getter]
     pub fn parts(&self) -> Vec<u32> {
         let mut parts = vec![self.major, self.minor, self.patch];
         parts.append(&mut self.tail.clone());
@@ -230,7 +207,6 @@ impl Version {
     }
 
     /// The base integer portion of this version as a string
-    #[getter]
     pub fn base(&self) -> String {
         let part_strings: Vec<_> = self.parts().into_iter().map(|p| p.to_string()).collect();
         part_strings.join(VERSION_SEP)
@@ -242,18 +218,6 @@ impl Version {
             self.pre.is_empty() && self.post.is_empty()
         } else {
             false
-        }
-    }
-}
-
-impl Version {
-    pub fn from_parts<P: Iterator<Item = u32>>(mut parts: P) -> Self {
-        Version {
-            major: parts.next().unwrap_or_default(),
-            minor: parts.next().unwrap_or_default(),
-            patch: parts.next().unwrap_or_default(),
-            tail: parts.collect(),
-            ..Default::default()
         }
     }
 }

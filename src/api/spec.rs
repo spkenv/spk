@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -44,51 +43,27 @@ macro_rules! spec {
     }};
 }
 
-#[pyclass]
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct Spec {
-    #[pyo3(get, set)]
     #[serde(default)]
     pub pkg: Ident,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceSpec>,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "BuildSpec::is_default")]
     pub build: BuildSpec,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
-    #[pyo3(get, set)]
     #[serde(default, skip_serializing_if = "InstallSpec::is_default")]
     pub install: InstallSpec,
 }
 
-#[pymethods]
 impl Spec {
-    #[new]
-    fn init() -> Self {
-        Self::default()
-    }
-
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        super::python::from_dict(input, py)
-    }
-
     /// Return the full set of resolved build options using the given ones.
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
         self.build.resolve_all_options(Some(self.pkg.name()), given)
@@ -173,16 +148,6 @@ impl Spec {
         ))
     }
 
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        super::python::to_dict(self, py)
-    }
-
-    fn update_spec_for_build(&mut self, options: &OptionMap, resolved: Vec<Spec>) -> Result<()> {
-        self.update_for_build(options, resolved.iter())
-    }
-}
-
-impl Spec {
     /// Validate the current spfs change as a build of this spec
     pub async fn validate_build_changeset(&self) -> Result<()> {
         self.build.validation.validate_build_changeset(self).await

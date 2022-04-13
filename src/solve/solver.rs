@@ -1,7 +1,6 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::{create_exception, prelude::*, PyIterProtocol};
 use std::{
     borrow::Cow,
     mem::take,
@@ -9,21 +8,20 @@ use std::{
 };
 
 use crate::{
-    api::{self, Build, CompatRule, Component, OptionMap, Request},
+    api::{self, Build, Component, OptionMap, Request},
     solve::graph::StepBack,
     storage, Error, Result,
 };
 
 use super::{
-    errors::{self, SolverError},
+    errors,
     graph::{
-        self, Change, Decision, Graph, Node, NoteEnum, RequestPackage, RequestVar, SkipPackageNote,
+        self, Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SkipPackageNote,
         State, DEAD_STATE,
     },
     package_iterator::{
         EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
     },
-    python::State as PyState,
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
 };
@@ -32,9 +30,6 @@ use super::{
 #[path = "./solver_test.rs"]
 mod solver_test;
 
-create_exception!(errors, SolverFailedError, SolverError);
-
-#[pyclass]
 #[derive(Clone)]
 pub struct Solver {
     repos: Vec<Arc<storage::RepositoryHandle>>,
@@ -52,12 +47,16 @@ impl Default for Solver {
     }
 }
 
-// Methods not exposed to Python
 impl Solver {
     /// Add a request to this solver.
     pub fn add_request(&mut self, request: api::Request) {
         let request = match request {
-            Request::Pkg(request) => Change::RequestPackage(RequestPackage::new(request)),
+            Request::Pkg(mut request) => {
+                if request.pkg.components.is_empty() {
+                    request.pkg.components.insert(api::Component::Run);
+                }
+                Change::RequestPackage(RequestPackage::new(request))
+            }
             Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
         };
         self.initial_state_builders.push(request);
@@ -117,14 +116,14 @@ impl Solver {
             }
         }
 
-        let mut solver = Solver::new();
+        let mut solver = Solver::default();
         solver.repos = self.repos.clone();
         solver.update_options(opts);
         solver.solve_build_environment(spec)
     }
 
     fn step_state(&self, node: &mut Node) -> Result<Option<Decision>> {
-        let mut notes = Vec::<NoteEnum>::new();
+        let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
@@ -140,7 +139,7 @@ impl Solver {
                     &pkg.version,
                     Arc::new(Mutex::new(EmptyBuildIterator::new())),
                 );
-                notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                     pkg.clone(),
                     compat,
                 )));
@@ -163,24 +162,20 @@ impl Solver {
                     && request.pkg.build != Some(Build::Source);
                 if build_from_source {
                     if let PackageSource::Spec(spec) = repo {
-                        notes.push(NoteEnum::SkipPackageNote(
-                            SkipPackageNote::new_from_message(
-                                spec.pkg.clone(),
-                                "cannot build embedded source package",
-                            ),
-                        ));
+                        notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                            spec.pkg.clone(),
+                            "cannot build embedded source package",
+                        )));
                         continue;
                     }
 
                     match repo.read_spec(&spec.pkg.with_build(None)) {
                         Ok(s) => spec = Arc::new(s),
                         Err(Error::PackageNotFoundError(pkg)) => {
-                            notes.push(NoteEnum::SkipPackageNote(
-                                SkipPackageNote::new_from_message(
-                                    pkg,
-                                    "cannot build from source, version spec not available",
-                                ),
-                            ));
+                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                                pkg,
+                                "cannot build from source, version spec not available",
+                            )));
                             continue;
                         }
                         Err(err) => return Err(err),
@@ -189,7 +184,7 @@ impl Solver {
 
                 compat = self.validate(&node.state, &spec, &repo)?;
                 if !&compat {
-                    notes.push(NoteEnum::SkipPackageNote(SkipPackageNote::new(
+                    notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg.clone(),
                         compat,
                     )));
@@ -205,7 +200,7 @@ impl Solver {
                             {
                                 Ok(decision) => decision,
                                 Err(err) => {
-                                    notes.push(NoteEnum::SkipPackageNote(
+                                    notes.push(Note::SkipPackageNote(
                                         SkipPackageNote::new_from_message(
                                             spec.pkg.clone(),
                                             &format!("cannot build package: {:?}", err),
@@ -218,12 +213,10 @@ impl Solver {
 
                         // FIXME: This should only match `SolverError`
                         Err(err) => {
-                            notes.push(NoteEnum::SkipPackageNote(
-                                SkipPackageNote::new_from_message(
-                                    spec.pkg.clone(),
-                                    &format!("cannot resolve build env: {:?}", err),
-                                ),
-                            ));
+                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                                spec.pkg.clone(),
+                                &format!("cannot resolve build env: {:?}", err),
+                            )));
                             continue;
                         }
                     }
@@ -232,7 +225,7 @@ impl Solver {
                         .with_components(&request.pkg.components)
                         .resolve_package(repo)
                 };
-                decision.add_notes(notes.iter());
+                decision.add_notes(notes.iter().cloned());
                 return Ok(Some(decision));
             }
         }
@@ -254,70 +247,15 @@ impl Solver {
         }
         Ok(api::Compatibility::Compatible)
     }
-}
 
-#[derive(FromPyObject)]
-pub enum RequestEnum {
-    Ident(api::Ident),
-    Request(api::Request),
-    String(String),
-}
-
-#[pymethods]
-impl Solver {
-    #[new]
-    fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add a repository where the solver can get packages.
-    #[pyo3(name = "add_repository")]
-    pub fn py_add_repository(&mut self, repo: storage::python::Repository) {
-        self.repos.push(repo.handle);
-    }
-
-    /// Add a request to this solver.
-    #[pyo3(name = "add_request")]
-    pub fn py_add_request(&mut self, request: RequestEnum) -> PyResult<()> {
-        let mut request = request;
-        let request = loop {
-            match request {
-                RequestEnum::Ident(r) => {
-                    request = RequestEnum::String(r.to_string());
-                    continue;
-                }
-                RequestEnum::String(request) => {
-                    let mut request = serde_yaml::from_str::<api::PkgRequest>(&format!(
-                        "{{\"pkg\": {}}}",
-                        request
-                    ))
-                    .map_err(|err| {
-                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
-                    })?;
-                    request.required_compat = Some(CompatRule::API);
-                    if request.pkg.components.is_empty() {
-                        request.pkg.components.insert(Component::Run);
-                    }
-                    break api::Request::Pkg(request);
-                }
-                RequestEnum::Request(request) => break request,
-            }
-        };
-        self.add_request(request);
-        Ok(())
-    }
-
-    #[pyo3(name = "get_initial_state")]
-    pub fn py_get_initial_state(&self) -> PyState {
-        self.get_initial_state().into()
-    }
-
+    /// Put this solver back into its default state
     pub fn reset(&mut self) {
-        self.repos.clear();
-        self.initial_state_builders.clear();
+        self.repos.truncate(0);
+        self.initial_state_builders.truncate(0);
         self.validators = Cow::from(validation::default_validators());
     }
 
+    /// Run this solver
     pub fn run(&self) -> SolverRuntime {
         SolverRuntime::new(self.clone())
     }
@@ -396,7 +334,7 @@ impl Solver {
     }
 }
 
-#[pyclass]
+#[must_use = "The solver runtime does nothing unless iterated to completion"]
 pub struct SolverRuntime {
     solver: Solver,
     graph: Arc<RwLock<Graph>>,
@@ -417,10 +355,12 @@ impl SolverRuntime {
         }
     }
 
+    /// A reference to the solve graph being built by this runtime
     pub fn graph(&self) -> Arc<RwLock<Graph>> {
         self.graph.clone()
     }
 
+    /// Iterate through each step of this runtime, trying to converge on a solution
     pub fn iter(&mut self) -> SolverRuntimeIter<'_> {
         SolverRuntimeIter(self)
     }
@@ -553,7 +493,7 @@ impl Iterator for SolverRuntime {
                     }
                 }
                 if let Some(d) = self.decision.as_mut() {
-                    d.add_notes(err.notes.iter())
+                    d.add_notes(err.notes.iter().cloned())
                 }
                 return Some(Ok(to_yield));
             }
@@ -561,22 +501,6 @@ impl Iterator for SolverRuntime {
         };
         self.history.push(current_node.clone());
         Some(Ok(to_yield))
-    }
-}
-
-#[pyproto]
-impl PyIterProtocol for SolverRuntime {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Result<Option<(Node, Decision)>> {
-        let _guard = crate::HANDLE.enter();
-        match slf.next() {
-            Some(Ok(i)) => Ok(Some(i)),
-            Some(Err(err)) => Err(err),
-            None => Ok(None),
-        }
     }
 }
 

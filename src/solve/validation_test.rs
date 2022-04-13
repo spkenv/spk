@@ -46,7 +46,7 @@ fn test_src_package_install_requests_are_not_considered() {
 
 #[rstest]
 fn test_empty_options_can_match_anything() {
-    let validator = VarRequirementsValidator::new();
+    let validator = VarRequirementsValidator::default();
 
     let state = State::new(
         vec![],

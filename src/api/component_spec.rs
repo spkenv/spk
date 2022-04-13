@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 use std::convert::{TryFrom, TryInto};
 
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
@@ -13,20 +12,15 @@ use crate::{Error, Result};
 mod component_spec_test;
 
 /// Defines a named package component.
-#[pyclass]
 #[derive(Debug, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ComponentSpec {
-    #[pyo3(get, set)]
     pub name: Component,
     #[serde(default)]
     pub files: FileMatcher,
-    #[pyo3(get, set)]
     #[serde(default)]
     pub uses: Vec<Component>,
-    #[pyo3(get, set)]
     #[serde(default)]
     pub requirements: super::RequirementsList,
-    #[pyo3(get, set)]
     #[serde(default)]
     pub embedded: super::EmbeddedPackagesList,
 }

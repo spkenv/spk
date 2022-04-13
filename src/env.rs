@@ -4,15 +4,11 @@
 
 use std::sync::Arc;
 
-use pyo3::exceptions::PyRuntimeError;
-
 use crate::{
     api, solve,
     storage::{self},
     Error, Result,
 };
-
-pyo3::create_exception!(spk, NoEnvironmentError, PyRuntimeError);
 
 /// Load the current environment from the spfs file system.
 pub fn current_env() -> Result<solve::Solution> {

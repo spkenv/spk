@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use dyn_clone::DynClone;
-use pyo3::prelude::*;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
@@ -125,7 +124,8 @@ impl PackageIterator for RepositoryPackageIterator {
                 "version not found in version_map".to_owned(),
             ));
         };
-        let pkg = api::Ident::newpy(self.package_name.as_str(), Some(version.clone()), None)?;
+        let mut pkg = api::Ident::new(&self.package_name)?;
+        pkg.version = version.clone();
         if !self.builds_map.contains_key(version) {
             self.builds_map.insert(
                 version.clone(),
@@ -318,7 +318,7 @@ impl BuildIterator for SortedBuildIterator {
 }
 
 impl SortedBuildIterator {
-    pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> PyResult<Self> {
+    pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> Result<Self> {
         let mut builds = VecDeque::<(Arc<api::Spec>, PackageSource)>::new();
         {
             let mut source_lock = source.lock().unwrap();

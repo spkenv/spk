@@ -3,15 +3,18 @@
 // https://github.com/imageworks/spk
 use std::sync::Arc;
 
-use pyo3::prelude::*;
-
 use crate::{api, io, storage, Error, Result};
 
 #[cfg(test)]
 #[path = "./publish_test.rs"]
 mod publish_test;
 
-#[pyclass]
+/// Manages the publishing of packages from one repo to another.
+///
+/// Usually, the publish process moves packages from the local
+/// repo to a shared one, but this is not strictly required.
+/// The publisher can be customized after creation before calling
+/// the publish method to execute.
 pub struct Publisher {
     from: Arc<storage::RepositoryHandle>,
     to: Arc<storage::RepositoryHandle>,
@@ -59,54 +62,8 @@ impl Publisher {
         self.force = force;
         self
     }
-}
 
-#[pymethods]
-impl Publisher {
-    #[new]
-    fn new_py() -> Result<Self> {
-        let from = Arc::new(crate::HANDLE.block_on(storage::local_repository())?.into());
-        let to = Arc::new(
-            crate::HANDLE
-                .block_on(storage::remote_repository("origin"))?
-                .into(),
-        );
-        Ok(Self::new(from, to))
-    }
-
-    #[pyo3(name = "with_source")]
-    pub fn with_source_py(
-        mut slf: PyRefMut<Self>,
-        repo: storage::python::Repository,
-    ) -> PyRefMut<Self> {
-        slf.from = repo.handle;
-        slf
-    }
-
-    #[pyo3(name = "with_target")]
-    pub fn with_target_py(
-        mut slf: PyRefMut<Self>,
-        repo: storage::python::Repository,
-    ) -> PyRefMut<Self> {
-        slf.to = repo.handle;
-        slf
-    }
-
-    #[pyo3(name = "skip_source_packages")]
-    pub fn skip_source_packages_py(
-        mut slf: PyRefMut<Self>,
-        skip_source_packages: bool,
-    ) -> PyRefMut<Self> {
-        slf.skip_source_packages = skip_source_packages;
-        slf
-    }
-
-    #[pyo3(name = "force")]
-    pub fn force_py(mut slf: PyRefMut<Self>, force: bool) -> PyRefMut<Self> {
-        slf.force = force;
-        slf
-    }
-
+    /// Publish the identified package as configured.
     pub fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let builds = if pkg.build.is_none() {
             tracing::info!("loading spec: {}", io::format_ident(pkg));

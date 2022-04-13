@@ -1,7 +1,6 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{Build, BuildSpec, InstallSpec, Spec};
@@ -63,17 +62,5 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
         }
 
         Ok(EmbeddedPackagesList(unchecked))
-    }
-}
-
-impl IntoPy<Py<pyo3::types::PyAny>> for EmbeddedPackagesList {
-    fn into_py(self, py: Python) -> Py<pyo3::types::PyAny> {
-        self.0.into_py(py)
-    }
-}
-
-impl<'source> FromPyObject<'source> for EmbeddedPackagesList {
-    fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        Ok(EmbeddedPackagesList(Vec::<Spec>::extract(ob)?))
     }
 }

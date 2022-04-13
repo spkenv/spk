@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 use std::collections::HashSet;
 
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{Ident, OptionMap, Request};
@@ -121,17 +120,5 @@ impl<'de> Deserialize<'de> for RequirementsList {
         }
 
         Ok(RequirementsList(unchecked))
-    }
-}
-
-impl IntoPy<Py<pyo3::types::PyAny>> for super::RequirementsList {
-    fn into_py(self, py: Python) -> Py<pyo3::types::PyAny> {
-        self.0.into_py(py)
-    }
-}
-
-impl<'source> FromPyObject<'source> for RequirementsList {
-    fn extract(ob: &'source PyAny) -> PyResult<Self> {
-        Ok(RequirementsList(Vec::<Request>::extract(ob)?))
     }
 }

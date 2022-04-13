@@ -108,7 +108,9 @@ impl MakeBinary {
                         if self.verbose > 0 {
                             let graph = builder.get_solve_graph();
                             let graph = graph.read().unwrap();
-                            for line in spk::io::format_solve_graph(&*graph, self.verbose) {
+                            for line in
+                                spk::io::format_decisions(graph.walk().map(Ok), self.verbose)
+                            {
                                 println!("{}", line?);
                             }
                         }

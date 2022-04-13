@@ -4,7 +4,6 @@
 use std::convert::TryFrom;
 
 use indexmap::set::IndexSet;
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -54,7 +53,7 @@ impl Inheritance {
 }
 
 /// An option that can be provided to provided to the package build process
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, FromPyObject)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Opt {
     Pkg(PkgOpt),
@@ -167,17 +166,12 @@ impl<'de> Deserialize<'de> for Opt {
     }
 }
 
-#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VarOpt {
-    #[pyo3(get, set)]
     pub var: String,
-    #[pyo3(get, set)]
     pub default: String,
     pub choices: IndexSet<String>,
-    #[pyo3(get, set)]
     pub inheritance: Inheritance,
-    #[pyo3(get)]
     value: Option<String>,
 }
 
@@ -208,30 +202,6 @@ impl VarOpt {
             value: None,
         }
     }
-}
-
-#[pymethods]
-impl VarOpt {
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    #[getter]
-    pub fn get_choices(&self) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
-            let set = pyo3::types::PySet::empty(py)?;
-            {
-                for val in &self.choices {
-                    set.add(val.into_py(py))?;
-                }
-            }
-            Ok(set.into())
-        })
-    }
-
-    fn name(&self) -> String {
-        self.var.clone()
-    }
 
     pub fn namespaced_name(&self, pkg: &str) -> String {
         if self.var.contains('.') {
@@ -241,7 +211,6 @@ impl VarOpt {
         }
     }
 
-    #[args(given = "None")]
     pub fn get_value(&self, given: Option<&str>) -> Option<String> {
         if let Some(v) = &self.value {
             if !v.is_empty() {
@@ -306,15 +275,6 @@ impl VarOpt {
             value,
             pin: false,
         }
-    }
-
-    #[new]
-    fn init(var: &str, value: Option<String>) -> Result<Self> {
-        let mut opt = Self::new(var);
-        if let Some(value) = value {
-            opt.set_value(value)?;
-        }
-        Ok(opt)
     }
 }
 
@@ -394,18 +354,12 @@ impl<'de> Deserialize<'de> for VarOpt {
     }
 }
 
-#[pyclass]
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
-    #[pyo3(get)]
     pub pkg: String,
-    #[pyo3(get, set)]
     pub default: String,
-    #[pyo3(get, set)]
     pub prerelease_policy: PreReleasePolicy,
-    #[pyo3(get, set)]
     pub required_compat: Option<CompatRule>,
-    #[pyo3(get)]
     value: Option<String>,
 }
 
@@ -420,19 +374,7 @@ impl PkgOpt {
             required_compat: None,
         })
     }
-}
 
-#[pymethods]
-impl PkgOpt {
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    fn name(&self) -> String {
-        self.pkg.clone()
-    }
-
-    #[args(given = "None")]
     pub fn get_value(&self, given: Option<&str>) -> Option<String> {
         if let Some(v) = &self.value {
             Some(v.clone())
@@ -484,15 +426,6 @@ impl PkgOpt {
             )),
             Ok(value_range) => value_range.contains(&base_range),
         }
-    }
-
-    #[new]
-    fn init(pkg: &str, value: Option<String>) -> Result<Self> {
-        let mut opt = Self::new(pkg)?;
-        if let Some(value) = value {
-            opt.set_value(value)?;
-        }
-        Ok(opt)
     }
 
     pub fn to_request(&self, given_value: Option<String>) -> Result<PkgRequest> {

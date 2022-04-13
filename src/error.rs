@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use pyo3::{exceptions, prelude::*};
+use crate::solve;
 
 use super::{api, build, test};
 
@@ -15,7 +15,6 @@ pub enum Error {
     Serde(serde_yaml::Error),
     Solve(crate::solve::Error),
     String(String),
-    PyErr(PyErr),
 
     // API Errors
     InvalidVersionError(api::InvalidVersionError),
@@ -27,8 +26,8 @@ pub enum Error {
     VersionExistsError(api::Ident),
 
     // Build Errors
-    Collection(crate::build::CollectionError),
-    Build(crate::build::BuildError),
+    Collection(build::CollectionError),
+    Build(build::BuildError),
 
     // Test Errors
     Test(test::TestError),
@@ -40,16 +39,7 @@ pub enum Error {
 impl Error {
     /// Wraps an error message with a prefix, creating a contextual but generic error
     pub fn wrap<S: AsRef<str>>(prefix: S, err: Self) -> Self {
-        // preserve PyErr types
-        match err {
-            Error::PyErr(pyerr) => Error::PyErr(Python::with_gil(|py| {
-                PyErr::from_type(
-                    pyerr.ptype(py),
-                    format!("{}: {}", prefix.as_ref(), pyerr.pvalue(py)),
-                )
-            })),
-            err => Error::String(format!("{}: {:?}", prefix.as_ref(), err)),
-        }
+        Error::String(format!("{}: {:?}", prefix.as_ref(), err))
     }
 
     /// Wraps an error message with a prefix, creating a contextual error
@@ -59,12 +49,6 @@ impl Error {
 }
 
 impl std::error::Error for Error {}
-
-impl From<PyErr> for Error {
-    fn from(err: PyErr) -> Error {
-        Error::PyErr(err)
-    }
-}
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
@@ -84,37 +68,14 @@ impl From<serde_yaml::Error> for Error {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&format!("{:?}", self))
+impl From<solve::graph::GraphError> for Error {
+    fn from(err: solve::graph::GraphError) -> Error {
+        Error::Solve(err.into())
     }
 }
 
-impl From<Error> for PyErr {
-    fn from(err: Error) -> PyErr {
-        match err {
-            Error::IO(err) => err.into(),
-            Error::SPFS(spfs::Error::IO(err)) => err.into(),
-            Error::SPFS(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::Serde(err) => exceptions::PyRuntimeError::new_err(err.to_string()),
-            Error::String(msg) => exceptions::PyRuntimeError::new_err(msg),
-            Error::Solve(err) => err.into(),
-            Error::InvalidBuildError(err) => exceptions::PyValueError::new_err(err.message),
-            Error::InvalidVersionError(err) => exceptions::PyValueError::new_err(err.message),
-            Error::InvalidNameError(err) => exceptions::PyValueError::new_err(err.message),
-            Error::PackageNotFoundError(pkg) => {
-                exceptions::PyFileNotFoundError::new_err(format!("Package not found: {}", pkg))
-            }
-            Error::VersionExistsError(pkg) => {
-                exceptions::PyFileExistsError::new_err(format!("Version already exists: {}", pkg))
-            }
-            Error::Build(err) => build::python::BuildError::new_err(err.message),
-            Error::Collection(err) => build::python::CollectionError::new_err(err.message),
-            Error::Test(err) => test::python::TestError::new_err(err.message),
-            Error::NoEnvironment => super::env::NoEnvironmentError::new_err(String::from(
-                "Not running in an spk environment",
-            )),
-            Error::PyErr(err) => err,
-        }
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self))
     }
 }

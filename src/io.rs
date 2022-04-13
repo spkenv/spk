@@ -108,10 +108,10 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     out
 }
 
-pub fn format_note(note: &solve::graph::NoteEnum) -> String {
-    use solve::graph::NoteEnum;
+pub fn format_note(note: &solve::graph::Note) -> String {
+    use solve::graph::Note;
     match note {
-        NoteEnum::SkipPackageNote(n) => {
+        Note::SkipPackageNote(n) => {
             format!(
                 "{} {} - {}",
                 "TRY".magenta(),
@@ -119,7 +119,7 @@ pub fn format_note(note: &solve::graph::NoteEnum) -> String {
                 n.reason
             )
         }
-        NoteEnum::Other(s) => format!("{} {}", "NOTE".magenta(), s),
+        Note::Other(s) => format!("{} {}", "NOTE".magenta(), s),
     }
 }
 
@@ -168,9 +168,9 @@ pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
     }
 }
 
-pub fn format_decisions<I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
+pub fn format_decisions<'a, I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
 where
-    I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
+    I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>> + 'a,
 {
     FormattedDecisionsIter::new(decisions, verbosity)
 }
@@ -299,6 +299,10 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
                     msg.push_str("\n * ");
                     msg.push_str(reason);
                 }
+                solve::Error::Graph(err) => {
+                    msg.push_str("\n * ");
+                    msg.push_str(&err.to_string());
+                }
             }
             match verbosity {
                 0 => {
@@ -340,148 +344,4 @@ pub fn run_and_print_resolve(solver: &solve::Solver, verbosity: u32) -> Result<s
         println!("{}", line?);
     }
     runtime.current_solution()
-}
-
-#[allow(clippy::type_complexity)]
-pub fn format_solve_graph(
-    graph: &solve::Graph,
-    verbosity: u32,
-) -> FormattedDecisionsIter<
-    Box<dyn Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>>,
-> {
-    let mapped: Box<dyn Iterator<Item = _>> = Box::new(graph.walk().map(Ok));
-    format_decisions(mapped, verbosity)
-}
-
-pub mod python {
-    use crate::{api, solve, Error, Result};
-    use pyo3::prelude::*;
-
-    #[pyfunction]
-    pub fn format_ident(pkg: &api::Ident) -> String {
-        super::format_ident(pkg)
-    }
-    #[pyfunction]
-    pub fn format_build(build: api::Build) -> String {
-        super::format_build(&build)
-    }
-
-    #[pyfunction]
-    pub fn format_options(options: api::OptionMap) -> String {
-        super::format_options(&options)
-    }
-
-    #[pyfunction]
-    pub fn format_request(name: &str, requests: Vec<api::PkgRequest>) -> String {
-        super::format_request(name, requests.iter())
-    }
-
-    #[pyfunction]
-    pub fn format_solution(solution: &solve::Solution, verbosity: Option<u32>) -> String {
-        super::format_solution(solution, verbosity.unwrap_or_default())
-    }
-
-    #[pyfunction]
-    pub fn format_components(components: Vec<api::Component>) -> String {
-        super::format_components(components.iter())
-    }
-
-    #[pyfunction]
-    pub fn format_note(note: solve::graph::NoteEnum) -> String {
-        super::format_note(&note)
-    }
-
-    #[pyfunction]
-    pub fn change_is_relevant_at_verbosity(
-        change: solve::graph::Change,
-        verbosity: Option<u32>,
-    ) -> bool {
-        super::change_is_relevant_at_verbosity(&change, verbosity.unwrap_or_default())
-    }
-
-    #[pyfunction]
-    pub fn format_change(change: solve::graph::Change, verbosity: Option<u32>) -> String {
-        super::format_change(&change, verbosity.unwrap_or_default())
-    }
-
-    #[pyfunction]
-    pub fn format_decisions(decisions: &PyAny, verbosity: Option<u32>) -> PyResult<String> {
-        let iterator = decisions.iter()?.map(|r| {
-            r.and_then(|i| i.extract::<(solve::graph::Node, solve::graph::Decision)>())
-                .map_err(crate::Error::from)
-        });
-        Ok(
-            super::format_decisions(iterator, verbosity.unwrap_or_default())
-                .collect::<Result<Vec<_>>>()?
-                .join("\n"),
-        )
-    }
-
-    #[pyfunction]
-    pub fn print_decisions(decisions: &PyAny, verbosity: Option<u32>) -> PyResult<()> {
-        let iterator = decisions.iter()?.map(|r| {
-            r.and_then(|i| i.extract::<(solve::graph::Node, solve::graph::Decision)>())
-                .map_err(crate::Error::from)
-        });
-        for line in super::format_decisions(iterator, verbosity.unwrap_or_default()) {
-            let line = line?;
-            println!("{}", line);
-        }
-        Ok(())
-    }
-
-    #[pyfunction]
-    pub fn format_error(py: Python<'_>, err: &PyAny, verbosity: Option<u32>) -> String {
-        // we're making an assumption here that only the SolveError is worth
-        // extracting back out of a python exception because that's the only
-        // logic that existed in the format_error function at the time of
-        // porting it
-        let err = PyErr::from_instance(err);
-        if err.is_instance::<solve::SolverError>(py) {
-            super::format_error(
-                &Error::Solve(solve::Error::SolverError(err.to_string())),
-                verbosity.unwrap_or_default(),
-            )
-        } else {
-            super::format_error(
-                &Error::String(err.to_string()),
-                verbosity.unwrap_or_default(),
-            )
-        }
-    }
-
-    #[pyfunction]
-    pub fn format_solve_graph(graph: solve::Graph, verbosity: Option<u32>) -> Result<String> {
-        Ok(
-            super::format_solve_graph(&graph, verbosity.unwrap_or_default())
-                .collect::<Result<Vec<_>>>()?
-                .join("\n"),
-        )
-    }
-
-    #[pyfunction]
-    pub fn run_and_print_resolve(
-        solver: solve::Solver,
-        verbosity: Option<u32>,
-    ) -> Result<solve::Solution> {
-        super::run_and_print_resolve(&solver, verbosity.unwrap_or_default())
-    }
-
-    pub fn init_module(_py: &Python, m: &PyModule) -> PyResult<()> {
-        m.add_function(wrap_pyfunction!(format_ident, m)?)?;
-        m.add_function(wrap_pyfunction!(format_build, m)?)?;
-        m.add_function(wrap_pyfunction!(format_options, m)?)?;
-        m.add_function(wrap_pyfunction!(format_request, m)?)?;
-        m.add_function(wrap_pyfunction!(format_solution, m)?)?;
-        m.add_function(wrap_pyfunction!(format_components, m)?)?;
-        m.add_function(wrap_pyfunction!(format_note, m)?)?;
-        m.add_function(wrap_pyfunction!(change_is_relevant_at_verbosity, m)?)?;
-        m.add_function(wrap_pyfunction!(format_change, m)?)?;
-        m.add_function(wrap_pyfunction!(format_decisions, m)?)?;
-        m.add_function(wrap_pyfunction!(print_decisions, m)?)?;
-        m.add_function(wrap_pyfunction!(format_error, m)?)?;
-        m.add_function(wrap_pyfunction!(format_solve_graph, m)?)?;
-        m.add_function(wrap_pyfunction!(run_and_print_resolve, m)?)?;
-        Ok(())
-    }
 }

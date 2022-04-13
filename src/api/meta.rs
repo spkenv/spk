@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -10,7 +9,6 @@ use std::collections::BTreeMap;
 #[path = "./meta_test.rs"]
 mod meta_test;
 
-#[pyclass]
 #[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Meta {
     #[serde(skip_serializing_if = "Option::is_none")]

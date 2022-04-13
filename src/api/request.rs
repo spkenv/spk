@@ -9,7 +9,6 @@ use std::{
 };
 
 use itertools::Itertools;
-use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -24,16 +23,11 @@ use crate::{Error, Result};
 mod request_test;
 
 /// Identifies a range of package versions and builds.
-#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeIdent {
-    #[pyo3(get)]
     name: String,
-    #[pyo3(get, set)]
     pub components: HashSet<Component>,
-    #[pyo3(get, set)]
     pub version: VersionFilter,
-    #[pyo3(get, set)]
     pub build: Option<Build>,
 }
 
@@ -135,16 +129,13 @@ impl RangeIdent {
             self.build = other.build.clone();
             Ok(())
         } else {
-            Err(Error::PyErr(PyValueError::new_err(format!(
+            Err(Error::String(format!(
                 "Incompatible builds: {} && {}",
                 self, other
-            ))))
+            )))
         }
     }
-}
 
-#[pymethods]
-impl RangeIdent {
     /// Return true if the given package spec satisfies this request.
     pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
         if spec.pkg.name() != self.name {
@@ -379,7 +370,7 @@ impl Default for InclusionPolicy {
 }
 
 /// Represents a contraint added to a resolved environment.
-#[derive(Debug, Serialize, Clone, Hash, PartialEq, Eq, FromPyObject)]
+#[derive(Debug, Serialize, Clone, Hash, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum Request {
     Var(VarRequest),
@@ -416,6 +407,12 @@ impl From<PkgRequest> for Request {
     }
 }
 
+impl From<Ident> for Request {
+    fn from(pkg: Ident) -> Request {
+        Self::Pkg(pkg.into())
+    }
+}
+
 impl<'de> Deserialize<'de> for Request {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -446,14 +443,10 @@ impl<'de> Deserialize<'de> for Request {
 }
 
 /// A set of restrictions placed on selected packages' build options.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VarRequest {
-    #[pyo3(get, set)]
     pub var: String,
-    #[pyo3(get, set)]
     pub pin: bool,
-    #[pyo3(get)]
     pub value: String,
 }
 
@@ -500,22 +493,11 @@ impl VarRequest {
         new.value = value.into();
         Ok(new)
     }
-}
-
-#[pymethods]
-impl VarRequest {
-    #[new]
-    #[args(value = "\"\"")]
-    fn init(var: &str, value: &str) -> Self {
-        let mut r = Self::new(var);
-        r.value = value.to_string();
-        r
-    }
 
     /// Return the name of the package that this var refers to (if any)
-    pub fn package(&self) -> Option<String> {
+    pub fn package(&self) -> Option<&str> {
         if self.var.contains('.') {
-            Some(self.var.split('.').next().unwrap().to_string())
+            self.var.split('.').next()
         } else {
             None
         }
@@ -573,34 +555,28 @@ impl Serialize for VarRequest {
 }
 
 /// A desired package and set of restrictions on how it's selected.
-#[pyclass]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct PkgRequest {
-    #[pyo3(get, set)]
     pub pkg: RangeIdent,
     #[serde(
         rename = "prereleasePolicy",
         default,
         skip_serializing_if = "PreReleasePolicy::is_default"
     )]
-    #[pyo3(get, set)]
     pub prerelease_policy: PreReleasePolicy,
     #[serde(
         rename = "include",
         default,
         skip_serializing_if = "InclusionPolicy::is_default"
     )]
-    #[pyo3(get, set)]
     pub inclusion_policy: InclusionPolicy,
     #[serde(
         rename = "fromBuildEnv",
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    #[pyo3(get, set)]
     pub pin: Option<String>,
     #[serde(skip)]
-    #[pyo3(get, set)]
     pub required_compat: Option<CompatRule>,
 }
 
@@ -613,6 +589,11 @@ impl PkgRequest {
             pin: Default::default(),
             required_compat: Some(CompatRule::Binary),
         }
+    }
+
+    // TODO: change parameter to `pkg: Ident`
+    pub fn from_ident(pkg: &Ident) -> Self {
+        Self::from(pkg.clone())
     }
 
     fn rendered_to_pkgrequest(&self, rendered: Vec<char>) -> Result<PkgRequest> {
@@ -658,27 +639,6 @@ impl PkgRequest {
             }
         }
     }
-}
-
-#[pymethods]
-impl PkgRequest {
-    #[new]
-    pub fn init(pkg: RangeIdent, prerelease_policy: Option<PreReleasePolicy>) -> Self {
-        let mut req = Self::new(pkg);
-        if let Some(prp) = prerelease_policy {
-            req.prerelease_policy = prp
-        }
-        req
-    }
-
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    #[staticmethod]
-    fn from_dict(input: Py<pyo3::types::PyDict>, py: Python) -> crate::Result<Self> {
-        super::python::from_dict(input, py)
-    }
 
     ///Return true if the given version number is applicable to this request.
     ///
@@ -721,24 +681,15 @@ impl PkgRequest {
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
         self.pkg.restrict(&other.pkg)
     }
-
-    fn to_dict(&self, py: Python) -> PyResult<Py<pyo3::types::PyDict>> {
-        super::python::to_dict(self, py)
-    }
-
-    #[staticmethod]
-    pub fn from_ident(pkg: &Ident) -> Self {
-        Self::from(pkg)
-    }
 }
 
-impl From<&Ident> for PkgRequest {
-    fn from(pkg: &Ident) -> PkgRequest {
+impl From<Ident> for PkgRequest {
+    fn from(pkg: Ident) -> PkgRequest {
         let ri = RangeIdent {
             name: pkg.name().to_owned(),
             components: Default::default(),
-            version: VersionFilter::single(ExactVersion::version_range(pkg.version.clone())),
-            build: pkg.build.clone(),
+            version: VersionFilter::single(ExactVersion::version_range(pkg.version)),
+            build: pkg.build,
         };
         PkgRequest::new(ri)
     }

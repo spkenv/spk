@@ -4,7 +4,6 @@
 
 use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
-use pyo3::prelude::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{parse_build, parse_version, validate_name, Build, InvalidNameError, Version};
@@ -36,14 +35,10 @@ macro_rules! ident {
 /// The identifier is either a specific package or
 /// range of package versions/releases depending on the
 /// syntax and context
-#[pyclass]
 #[derive(Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
 pub struct Ident {
-    #[pyo3(get)]
     name: String,
-    #[pyo3(get, set)]
     pub version: Version,
-    #[pyo3(get, set)]
     pub build: Option<Build>,
 }
 
@@ -64,22 +59,7 @@ impl std::fmt::Display for Ident {
     }
 }
 
-#[pymethods]
 impl Ident {
-    #[new]
-    pub fn newpy(
-        name: &str,
-        version: Option<Version>,
-        build: Option<Build>,
-    ) -> crate::Result<Self> {
-        let mut ident = Self::new(name)?;
-        if let Some(version) = version {
-            ident.version = version;
-        }
-        ident.build = build;
-        Ok(ident)
-    }
-
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         match &self.build {

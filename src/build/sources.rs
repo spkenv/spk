@@ -6,7 +6,6 @@ use std::{
     sync::Arc,
 };
 
-use pyo3::prelude::*;
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
@@ -43,16 +42,13 @@ impl CollectionError {
 ///    .unwrap();
 /// # }
 /// ```
-#[pyclass]
 pub struct SourcePackageBuilder {
     spec: api::Spec,
     repo: Option<Arc<storage::RepositoryHandle>>,
     prefix: PathBuf,
 }
 
-#[pymethods]
 impl SourcePackageBuilder {
-    #[staticmethod]
     pub fn from_spec(mut spec: api::Spec) -> Self {
         spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
         Self {
@@ -62,23 +58,6 @@ impl SourcePackageBuilder {
         }
     }
 
-    #[pyo3(name = "with_target_repository")]
-    pub fn with_target_repository_py(
-        mut slf: PyRefMut<Self>,
-        repo: storage::python::Repository,
-    ) -> PyRefMut<Self> {
-        slf.repo = Some(repo.handle);
-        slf
-    }
-
-    #[pyo3(name = "build")]
-    fn build_py(&mut self) -> Result<api::Ident> {
-        let _guard = crate::HANDLE.enter();
-        self.build()
-    }
-}
-
-impl SourcePackageBuilder {
     /// Set the repository that the created package should be published to.
     pub fn with_target_repository(
         &mut self,

@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use itertools::Itertools;
-use pyo3::prelude::*;
 
 use crate::api::{self, Build, Compatibility};
 
-use super::{errors, graph, python::State as PyState, solution::PackageSource};
+use super::{errors, graph, solution::PackageSource};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -54,38 +53,9 @@ impl ValidatorT for Validators {
     }
 }
 
-impl IntoPy<Py<PyAny>> for Validators {
-    fn into_py(self, py: Python) -> Py<PyAny> {
-        match self {
-            Validators::Deprecation(v) => v.into_py(py),
-            Validators::BinaryOnly(v) => v.into_py(py),
-            Validators::PackageRequest(v) => v.into_py(py),
-            Validators::Components(v) => v.into_py(py),
-            Validators::Options(v) => v.into_py(py),
-            Validators::VarRequirements(v) => v.into_py(py),
-            Validators::PkgRequirements(v) => v.into_py(py),
-            Validators::EmbeddedPackage(v) => v.into_py(py),
-        }
-    }
-}
-
 /// Ensures that deprecated packages are not included unless specifically requested.
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
-
-#[pymethods]
-impl DeprecationValidator {
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for DeprecationValidator {
     fn validate(
@@ -113,7 +83,6 @@ impl ValidatorT for DeprecationValidator {
 }
 
 /// Enforces the resolution of binary packages only, denying new builds from source.
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
@@ -141,22 +110,8 @@ impl ValidatorT for BinaryOnlyValidator {
     }
 }
 
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
-
-#[pymethods]
-impl EmbeddedPackageValidator {
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for EmbeddedPackageValidator {
     fn validate(
@@ -205,22 +160,8 @@ impl EmbeddedPackageValidator {
 }
 
 /// Ensures that a package is compatible with all requested options.
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct OptionsValidator {}
-
-#[pymethods]
-impl OptionsValidator {
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for OptionsValidator {
     fn validate(
@@ -243,22 +184,8 @@ impl ValidatorT for OptionsValidator {
 }
 
 /// Ensures that a package meets all requested version criteria.
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct PkgRequestValidator {}
-
-#[pymethods]
-impl PkgRequestValidator {
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for PkgRequestValidator {
     #[allow(clippy::nonminimal_bool)]
@@ -288,22 +215,8 @@ impl ValidatorT for PkgRequestValidator {
 }
 
 /// Ensures that all of the requested components are available.
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct ComponentsValidator {}
-
-#[pymethods]
-impl ComponentsValidator {
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for ComponentsValidator {
     #[allow(clippy::nonminimal_bool)]
@@ -368,22 +281,8 @@ impl ValidatorT for ComponentsValidator {
 }
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
-#[pyclass]
 #[derive(Clone, Copy)]
 pub struct PkgRequirementsValidator {}
-
-#[pymethods]
-impl PkgRequirementsValidator {
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for PkgRequirementsValidator {
     fn validate(
@@ -431,7 +330,7 @@ impl PkgRequirementsValidator {
         let request = match restricted.restrict(request) {
             Ok(_) => restricted,
             // FIXME: only match ValueError
-            Err(crate::Error::PyErr(err)) => {
+            Err(crate::Error::String(err)) => {
                 return Ok(Incompatible(format!("conflicting requirement: {}", err)))
             }
             Err(err) => return Err(err),
@@ -526,27 +425,8 @@ impl PkgRequirementsValidator {
 }
 
 /// Validates that the var install requirements do not conflict with the existing options.
-#[pyclass]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct VarRequirementsValidator {}
-
-#[pymethods]
-impl VarRequirementsValidator {
-    #[new]
-    fn new() -> Self {
-        VarRequirementsValidator {}
-    }
-
-    #[pyo3(name = "validate")]
-    fn validatepy(
-        &self,
-        state: &PyState,
-        spec: &api::Spec,
-        source: PackageSource,
-    ) -> crate::Result<api::Compatibility> {
-        self.validate(state.into(), spec, &source)
-    }
-}
 
 impl ValidatorT for VarRequirementsValidator {
     fn validate(
@@ -586,6 +466,7 @@ impl ValidatorT for VarRequirementsValidator {
     }
 }
 
+/// The default set of validators that is used for resolving packages
 pub const fn default_validators() -> &'static [Validators] {
     &[
         Validators::Deprecation(DeprecationValidator {}),
