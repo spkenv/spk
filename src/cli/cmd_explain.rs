@@ -41,7 +41,7 @@ impl Explain {
 
         let solution = spk::io::run_and_print_resolve(&solver, self.verbose + 1)?;
 
-        eprintln!("{}", spk::io::format_solution(&solution, self.verbose + 1));
+        println!("{}", spk::io::format_solution(&solution, self.verbose + 1));
         Ok(0)
     }
 }
