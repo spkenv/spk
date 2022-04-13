@@ -328,8 +328,18 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
         }
     }
 
-    std::fs::write(&runtime.sh_startup_file, startup_sh::SOURCE)?;
-    std::fs::write(&runtime.csh_startup_file, startup_csh::SOURCE)?;
+    // Capture the current $TMPDIR value here before it
+    // is lost when entering the runtime later.
+    let tmpdir_value_for_child_process = std::env::var("TMPDIR").ok();
+
+    std::fs::write(
+        &runtime.sh_startup_file,
+        startup_sh::source(&tmpdir_value_for_child_process),
+    )?;
+    std::fs::write(
+        &runtime.csh_startup_file,
+        startup_csh::source(&tmpdir_value_for_child_process),
+    )?;
     std::fs::write(&runtime.csh_expect_file, csh_exp::SOURCE)?;
     Ok(runtime)
 }
