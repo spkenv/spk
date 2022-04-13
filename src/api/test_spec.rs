@@ -24,7 +24,7 @@ impl std::fmt::Display for TestStage {
         f.write_str(
             // Note that we need `TestStage::to_string` to produce
             // these exact values in order to match correctly with
-            // the spelling on the in the package yaml.
+            // the spelling in the package yaml.
             match self {
                 TestStage::Build => BUILD_NAME,
                 TestStage::Install => INSTALL_NAME,

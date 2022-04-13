@@ -64,7 +64,6 @@ pub struct Spec {
 }
 
 impl Spec {
-
     /// Return the full set of resolved build options using the given ones.
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
         self.build.resolve_all_options(Some(self.pkg.name()), given)

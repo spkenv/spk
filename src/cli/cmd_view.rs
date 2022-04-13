@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 
@@ -36,7 +36,7 @@ impl View {
         solver.add_request(request.clone());
         let request = match request {
             spk::api::Request::Pkg(pkg) => pkg,
-            _ => return Err(anyhow!("Not a package request: {request:?}")),
+            _ => bail!("Not a package request: {request:?}"),
         };
 
         let mut runtime = solver.run();

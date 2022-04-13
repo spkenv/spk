@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Args;
 
 use super::flags;
@@ -50,7 +50,7 @@ impl Render {
             .next()
             .is_some()
         {
-            return Err(anyhow!("Output directory does not appear to be empty"));
+            bail!("Output directory does not appear to be empty");
         }
 
         let path = self.target.canonicalize()?;

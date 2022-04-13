@@ -248,7 +248,7 @@ impl Solver {
         Ok(api::Compatibility::Compatible)
     }
 
-    /// Put this solver back into it's default state
+    /// Put this solver back into its default state
     pub fn reset(&mut self) {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
@@ -385,7 +385,7 @@ impl SolverRuntime {
         let current_node = self
             .current_node
             .as_ref()
-            .ok_or_else(|| Error::String("Solver runtime as not been consumed".into()))?;
+            .ok_or_else(|| Error::String("Solver runtime has not been consumed".into()))?;
         let current_node_lock = current_node.read().unwrap();
 
         let is_dead = current_node_lock.state.id()

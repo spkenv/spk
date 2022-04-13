@@ -60,7 +60,6 @@ impl std::fmt::Display for Ident {
 }
 
 impl Ident {
-
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         match &self.build {

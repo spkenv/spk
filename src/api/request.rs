@@ -597,6 +597,7 @@ impl PkgRequest {
         }
     }
 
+    // TODO: change parameter to `pkg: Ident`
     pub fn from_ident(pkg: &Ident) -> Self {
         Self::from(pkg.clone())
     }

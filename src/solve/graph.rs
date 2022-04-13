@@ -1025,11 +1025,11 @@ impl StepBack {
     pub fn new(cause: impl Into<String>, to: &Arc<State>) -> Self {
         StepBack {
             cause: cause.into(),
-            destination: to.clone(),
+            destination: Arc::clone(to),
         }
     }
 
     pub fn apply(&self, _base: &State) -> Arc<State> {
-        self.destination.clone()
+        Arc::clone(&self.destination)
     }
 }
