@@ -5,9 +5,9 @@ use std::sync::Arc;
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::{default_validators, VarRequirementsValidator};
+use super::{default_validators, OptionsValidator, VarRequirementsValidator};
 use crate::solve::{graph::State, validation::ValidatorT};
-use crate::{api, ident, solve, spec};
+use crate::{api, fixtures::*, ident, solve, spec};
 
 #[rstest]
 fn test_src_package_install_requests_are_not_considered() {
@@ -68,5 +68,55 @@ fn test_empty_options_can_match_anything() {
     assert!(
         validator.validate(&state, &*spec, &source).unwrap().is_ok(),
         "empty option should not invalidate requirement"
+    );
+}
+
+#[rstest]
+fn test_qualified_var_supercedes_unqualified() {
+    init_logging();
+    let validator = OptionsValidator::default();
+
+    let state = State::new(
+        vec![],
+        vec![
+            serde_yaml::from_str("{var: debug/off}").unwrap(),
+            serde_yaml::from_str("{var: my-package.debug/on}").unwrap(),
+        ],
+        vec![],
+        vec![],
+    );
+
+    // this static value of debug=on should be valid even though it conflicts
+    // with the unqualified request for the debug=off
+    let spec = Arc::new(spec!(
+        {
+            "pkg": "my-package/1.0.0",
+            "build": {"options": [{"var": "debug", "static": "on"}]},
+        }
+    ));
+    let source = solve::PackageSource::Spec(spec.clone());
+
+    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    assert!(
+        compat.is_ok(),
+        "qualified var requests should superceded unqualified ones, got: {}",
+        compat
+    );
+
+    // where the above is valid, this spec should fail because debug
+    // is set to off and we have the same qualified request for it to
+    // be on, even though there is an unqualified request for 'off'
+    let spec = Arc::new(spec!(
+        {
+            "pkg": "my-package/1.0.0",
+            "build": {"options": [{"var": "debug", "static": "off"}]},
+        }
+    ));
+    let source = solve::PackageSource::Spec(spec.clone());
+    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    assert!(
+        !compat.is_ok(),
+        "qualified var requests should superceded unqualified ones, got: {}",
+        compat
     );
 }
