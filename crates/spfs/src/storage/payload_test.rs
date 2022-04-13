@@ -44,7 +44,7 @@ async fn test_payload_io(#[future] tmprepo: TempRepo) {
     case::rpc(tmprepo("rpc"))
 )]
 #[tokio::test]
-async fn test_payload_existance(#[future] tmprepo: TempRepo) {
+async fn test_payload_existence(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes.clone());
