@@ -78,7 +78,7 @@ impl Spec {
 
     /// Check if this package spec satisfies the given var request.
     pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.package().as_deref() == Some(self.pkg.name());
+        let opt_required = request.package() == Some(self.pkg.name());
         let mut opt: Option<&Opt> = None;
         let request_name = &request.var;
         for o in self.build.options.iter() {
