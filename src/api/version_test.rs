@@ -30,22 +30,26 @@ fn test_is_gt(#[case] base: &str, #[case] test: &str, #[case] expected: bool) {
     let a = parse_version(base).unwrap();
     let b = parse_version(test).unwrap();
     let actual = a > b;
-    assert_eq!(actual, expected, "{} should be greater than {}", a, b);
+    if expected {
+        assert_eq!(actual, expected, "{} should be greater than {}", a, b);
+    } else {
+        assert_eq!(actual, expected, "{} should not be greater than {}", a, b);
+    }
 }
 
 #[rstest]
 #[case("1.0.0", Version::new(1, 0, 0))]
 #[case("0.0.0", Version::new(0, 0, 0))]
 #[case("1.2.3.4.5.6", Version{
-    major: 1, minor: 2, patch: 3, tail: vec![4, 5, 6], ..Default::default()
+    parts: vec![1, 2, 3, 4, 5, 6], ..Default::default()
 })]
 #[case("1.0+post.1", Version{
-    major: 1, post: TagSet::single("post", 1), ..Default::default()
+    parts: vec![1, 0], post: TagSet::single("post", 1), ..Default::default()
 })]
 #[case(
      "1.2.5.7-alpha.4+rev.6",
      Version{
-         major: 1, minor: 2, patch: 5, tail: vec![7],
+         parts: vec![1, 2, 5, 7],
          pre:TagSet::single("alpha", 4), post:TagSet::single("rev", 6)
     },
 )]

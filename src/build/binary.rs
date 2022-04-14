@@ -425,21 +425,21 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
     );
     env.insert(
         "SPK_PKG_VERSION_MAJOR".to_string(),
-        spec.pkg.version.major.to_string(),
+        spec.pkg.version.major().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_MINOR".to_string(),
-        spec.pkg.version.minor.to_string(),
+        spec.pkg.version.minor().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_PATCH".to_string(),
-        spec.pkg.version.patch.to_string(),
+        spec.pkg.version.patch().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_BASE".to_string(),
         spec.pkg
             .version
-            .parts()
+            .parts
             .iter()
             .map(u32::to_string)
             .collect::<Vec<_>>()

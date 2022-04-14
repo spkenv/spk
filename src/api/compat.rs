@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::str::FromStr;
 
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{Version, VERSION_SEP};
@@ -225,21 +225,21 @@ impl Compat {
         Compat(vec![first, second, third])
     }
 
-    /// Return true if the two version are api compatible by this compat rule.
+    /// Return true if the two versions are api compatible by this compat rule.
     pub fn is_api_compatible(&self, base: &Version, other: &Version) -> Compatibility {
         self.check_compat(base, other, CompatRule::API)
     }
 
-    /// Return true if the two version are binary compatible by this compat rule.
+    /// Return true if the two versions are binary compatible by this compat rule.
     pub fn is_binary_compatible(&self, base: &Version, other: &Version) -> Compatibility {
         self.check_compat(base, other, CompatRule::Binary)
     }
 
     pub fn render(&self, version: &Version) -> String {
         let parts = version
-            .parts()
-            .into_iter()
-            .chain(std::iter::repeat(0))
+            .parts
+            .iter()
+            .chain(std::iter::repeat(&0))
             .take(self.0.len())
             .map(|p| p.to_string());
         format!("~{}", parts.format(VERSION_SEP))
@@ -250,35 +250,46 @@ impl Compat {
             return Compatibility::Compatible;
         }
 
-        let each = itertools::izip!(self.0.iter(), base.parts(), other.parts());
-        for (i, (rule, a, b)) in each.enumerate() {
+        for (i, rule) in self.0.iter().enumerate() {
+            let a = base.parts.get(i);
+            let b = other.parts.get(i);
             if rule.0.contains(&CompatRule::None) {
-                if a != b {
-                    return Compatibility::Incompatible(format!(
-                        "Not compatible with {} [{} at pos {}]",
-                        base, self, i
-                    ));
+                match (a, b) {
+                    (Some(a), Some(b)) if a != b => {
+                        return Compatibility::Incompatible(format!(
+                            "Not compatible with {} [{} at pos {}]",
+                            base, self, i
+                        ));
+                    }
+                    _ => continue,
                 }
-                continue;
             }
 
             if !rule.0.contains(&required) {
-                if b == a {
-                    continue;
+                match (a, b) {
+                    (Some(a), Some(b)) if a == b => {
+                        continue;
+                    }
+                    (Some(_), Some(_)) => {
+                        return Compatibility::Incompatible(format!(
+                            "Not {:?} compatible with {} [{} at pos {}]",
+                            required, base, self, i
+                        ));
+                    }
+                    _ => continue,
                 }
-                return Compatibility::Incompatible(format!(
-                    "Not {:?} compatible with {} [{} at pos {}]",
-                    required, base, self, i
-                ));
             }
 
-            if b < a {
-                return Compatibility::Incompatible(format!(
-                    "Not {:?} compatible with {} [{} at pos {}]",
-                    required, base, self, i
-                ));
-            } else {
-                return Compatibility::Compatible;
+            match (a, b) {
+                (Some(a), Some(b)) if b < a => {
+                    return Compatibility::Incompatible(format!(
+                        "Not {:?} compatible with {} [{} at pos {}]",
+                        required, base, self, i
+                    ));
+                }
+                _ => {
+                    return Compatibility::Compatible;
+                }
             }
         }
 

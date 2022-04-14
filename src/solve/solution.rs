@@ -184,21 +184,21 @@ impl Solution {
             );
             out.insert(
                 format!("SPK_PKG_{}_VERSION_MAJOR", spec.pkg.name()),
-                spec.pkg.version.major.to_string(),
+                spec.pkg.version.major().to_string(),
             );
             out.insert(
                 format!("SPK_PKG_{}_VERSION_MINOR", spec.pkg.name()),
-                spec.pkg.version.minor.to_string(),
+                spec.pkg.version.minor().to_string(),
             );
             out.insert(
                 format!("SPK_PKG_{}_VERSION_PATCH", spec.pkg.name()),
-                spec.pkg.version.patch.to_string(),
+                spec.pkg.version.patch().to_string(),
             );
             out.insert(
                 format!("SPK_PKG_{}_VERSION_BASE", spec.pkg.name()),
                 spec.pkg
                     .version
-                    .parts()
+                    .parts
                     .iter()
                     .map(|v| v.to_string())
                     .collect::<Vec<String>>()
