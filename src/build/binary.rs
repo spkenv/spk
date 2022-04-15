@@ -533,7 +533,7 @@ fn split_manifest_by_component(
 // NOTE(rbottriell): permission changes are not properly reset by spfs
 // so we must deal with them manually for now
 pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
-    diffs: &mut Vec<spfs::tracking::Diff>,
+    diffs: &mut [spfs::tracking::Diff],
     prefix: P,
 ) -> Result<()> {
     use spfs::tracking::DiffMode;

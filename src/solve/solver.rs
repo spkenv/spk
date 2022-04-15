@@ -116,8 +116,10 @@ impl Solver {
             }
         }
 
-        let mut solver = Solver::default();
-        solver.repos = self.repos.clone();
+        let mut solver = Solver {
+            repos: self.repos.clone(),
+            ..Default::default()
+        };
         solver.update_options(opts);
         solver.solve_build_environment(spec)
     }

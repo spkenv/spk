@@ -21,7 +21,8 @@ clean: packages.clean
 .PHONY: lint lint-rust
 lint: lint-rust
 lint-rust:
-	cargo clippy
+	cargo fmt --check
+	cargo clippy -- -Dwarnings
 
 .PHONY: format
 format:
