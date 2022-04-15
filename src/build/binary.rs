@@ -77,6 +77,7 @@ pub struct BinaryPackageBuilder {
 }
 
 impl BinaryPackageBuilder {
+    /// Create a new builder that builds a binary package from the given spec
     pub fn from_spec(spec: api::Spec) -> Self {
         let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
@@ -93,11 +94,21 @@ impl BinaryPackageBuilder {
         }
     }
 
+    /// Use an alternate prefix when building (not /spfs).
+    ///
+    /// This is not something that can usually be done well in a
+    /// production context, but can be valuable when testing and
+    /// in abnormal circumstances.
     pub fn with_prefix(&mut self, prefix: PathBuf) -> &mut Self {
         self.prefix = prefix;
         self
     }
 
+    /// Update a single build option value
+    ///
+    /// These options are used when computing the final options
+    /// for the binary package, and may affect many aspect of the build
+    /// environment and generated package.
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
     where
         N: Into<String>,
@@ -107,21 +118,29 @@ impl BinaryPackageBuilder {
         self
     }
 
+    /// Update the build options with all of the provided ones
+    ///
+    /// These options are used when computing the final options
+    /// for the binary package, and may affect many aspect of the build
+    /// environment and generated package.
     pub fn with_options(&mut self, options: api::OptionMap) -> &mut Self {
         self.all_options.extend(options.into_iter());
         self
     }
 
+    /// Define the source files that this build should run against
     pub fn with_source(&mut self, source: BuildSource) -> &mut Self {
         self.source = source;
         self
     }
 
+    /// Use the given repository when resolving source and build environment packages
     pub fn with_repository(&mut self, repo: Arc<storage::RepositoryHandle>) -> &mut Self {
         self.repos.push(repo);
         self
     }
 
+    /// Use the given repositories when resolving source and build environment packages
     pub fn with_repositories(
         &mut self,
         repos: impl IntoIterator<Item = Arc<storage::RepositoryHandle>>,
@@ -158,6 +177,9 @@ impl BinaryPackageBuilder {
         self
     }
 
+    /// Interactive builds stop just before running the build
+    /// script and attempt to spawn an interactive shell process
+    /// for the user to inspect and debug the build
     pub fn set_interactive(&mut self, interactive: bool) -> &mut Self {
         self.interactive = interactive;
         self
