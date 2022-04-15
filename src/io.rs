@@ -340,6 +340,13 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
 
 pub fn run_and_print_resolve(solver: &solve::Solver, verbosity: u32) -> Result<solve::Solution> {
     let mut runtime = solver.run();
+    run_and_print_decisions(&mut runtime, verbosity)
+}
+
+pub fn run_and_print_decisions(
+    mut runtime: &mut solve::SolverRuntime,
+    verbosity: u32,
+) -> Result<solve::Solution> {
     for line in format_decisions(&mut runtime, verbosity) {
         println!("{}", line?);
     }
