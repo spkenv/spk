@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
 
@@ -74,7 +75,7 @@ impl encoding::Encodable for EntryKind {
     }
 }
 impl encoding::Decodable for EntryKind {
-    fn decode(reader: &mut impl std::io::Read) -> Result<Self> {
+    fn decode(reader: &mut impl BufRead) -> Result<Self> {
         Self::from_str(encoding::read_string(reader)?.as_str())
     }
 }

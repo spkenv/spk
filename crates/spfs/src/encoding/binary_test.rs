@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use assert_matches::assert_matches;
 use rand::Rng;
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
 
 use rstest::rstest;
 
@@ -85,4 +86,100 @@ fn test_read_write_string(i: u64) {
     let mut remaining = String::new();
     stream.read_to_string(&mut remaining).unwrap();
     assert_eq!(remaining, "postfix");
+}
+
+const TEST_RAW_ERROR: i32 = 22;
+
+#[derive(Debug, Default)]
+struct TestStream {
+    data: Vec<u8>,
+    buffer: Vec<u8>,
+    buffer_size: usize,
+    fill_buf_fails: bool,
+}
+
+impl TestStream {
+    fn new<S>(strings: Vec<S>, buffer_size: usize) -> Self
+    where
+        S: AsRef<str>,
+    {
+        let mut data = Vec::new();
+        for s in strings {
+            data.extend(s.as_ref().as_bytes());
+            data.push(0);
+        }
+        Self {
+            data,
+            buffer_size,
+            ..Default::default()
+        }
+    }
+}
+
+impl Read for TestStream {
+    fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+        unreachable!()
+    }
+}
+
+impl BufRead for TestStream {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        if self.fill_buf_fails {
+            return Err(std::io::Error::from_raw_os_error(TEST_RAW_ERROR));
+        } else if self.data.is_empty() {
+            return Ok(&[]);
+        } else if self.buffer.is_empty() {
+            self.buffer = self
+                .data
+                .drain(..self.data.len().min(self.buffer_size))
+                .collect();
+        }
+        Ok(&self.buffer[..])
+    }
+
+    fn consume(&mut self, amt: usize) {
+        let remaining_in_buffer = self.buffer.len();
+        if amt > remaining_in_buffer {
+            panic!(
+                "Invalid amt given to consume: {} > {}",
+                amt, remaining_in_buffer
+            )
+        }
+        self.buffer.drain(..amt);
+    }
+}
+
+#[test]
+fn test_read_string_failure() {
+    let mut ts = TestStream {
+        fill_buf_fails: true,
+        ..Default::default()
+    };
+    let r = read_string(&mut ts);
+    assert_matches!(r, Err(crate::Error::IO(io)) if io.raw_os_error() == Some(TEST_RAW_ERROR));
+}
+
+#[test]
+fn test_read_string_eof() {
+    let mut ts = TestStream::default();
+    let r = read_string(&mut ts);
+    assert_matches!(r, Err(crate::Error::String(s)) if s == "Unexpected EOF");
+}
+
+#[test]
+fn test_read_string_normal() {
+    let test_string1 = "this is a test 1";
+    let test_string2 = "this is a test 2";
+
+    // This assertion is obviously true but it codifies that
+    // this test is intended to exercise `read_string` hitting
+    // the end of a buffer.
+    let buffer_size = 8;
+    assert!(buffer_size < test_string1.len() + test_string2.len() + 2);
+
+    let mut ts = TestStream::new(vec![test_string1, test_string2], buffer_size);
+    let r = read_string(&mut ts);
+    assert_matches!(r, Ok(s) if s == test_string1);
+    let r = read_string(&mut ts);
+    assert_matches!(r, Ok(s) if s == test_string2);
 }

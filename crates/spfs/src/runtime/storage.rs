@@ -4,6 +4,7 @@
 
 ///! Local file system storage of runtimes.
 use std::ffi::OsStr;
+use std::io::{BufReader, BufWriter, Write};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -272,20 +273,23 @@ impl Runtime {
     }
 
     fn write_config(&self) -> Result<()> {
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&self.config_file)?;
+        let mut file = BufWriter::new(
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&self.config_file)?,
+        );
         serde_json::to_writer(&mut file, &self.config)?;
-        file.sync_all()?;
+        file.flush()?;
+        file.get_ref().sync_all()?;
         Ok(())
     }
 
     fn read_config(&mut self) -> Result<&mut Config> {
         match std::fs::File::open(&self.config_file) {
             Ok(file) => {
-                let config = serde_json::from_reader(file)?;
+                let config = serde_json::from_reader(BufReader::new(file))?;
                 self.config = config;
                 Ok(&mut self.config)
             }

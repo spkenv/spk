@@ -104,7 +104,6 @@ tokio-util = { version = "0.6", features = ["compat"] }
 tonic = "0.6.1"
 tracing = "0.1.22"
 tracing-subscriber = "0.2.15"
-unicode_reader = "1.0.1"
 url = "2.2.0"
 uuid = { version = "0.8.1", features = ["v4"] }
 walkdir = "2.3.1"
@@ -115,5 +114,6 @@ thiserror = "1.0"
 tonic-build = "0.6.0"
 
 [dev-dependencies]
+assert_matches = "1.5"
 rstest = { version = "0.12", default_features = false }
 serial_test = "0.5.1"

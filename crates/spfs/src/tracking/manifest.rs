@@ -342,7 +342,7 @@ where
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
             entry.kind = EntryKind::Blob;
-            let reader = tokio::fs::File::open(path).await?;
+            let reader = tokio::io::BufReader::new(tokio::fs::File::open(path).await?);
             entry.object = (self.hasher)(Box::pin(reader)).await?;
         }
         Ok(())

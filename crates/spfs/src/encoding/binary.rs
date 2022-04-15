@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::io::{Read, Write};
-
-use unicode_reader::CodePoints;
+use std::{
+    io::{BufRead, Read, Write},
+    iter::FromIterator,
+};
 
 use super::hash::{Digest, DIGEST_SIZE, NULL_DIGEST};
 use crate::{Error, Result};
@@ -88,13 +89,30 @@ pub fn write_string(mut writer: impl Write, string: &str) -> Result<()> {
 }
 
 /// Read a string from the given binary stream.
-pub fn read_string(reader: impl Read) -> Result<String> {
-    let unicode_reader = CodePoints::from(reader);
-    let text: std::result::Result<Vec<_>, _> = unicode_reader
-        .take_while(|c| match c {
-            Ok(c) => c != &'\x00',
-            Err(_) => true,
-        })
-        .collect();
-    Ok(text?.into_iter().collect())
+pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
+    let mut r = Vec::with_capacity(
+        // most strings are short enough that they are expected
+        // to be fully read in one iteration, but we can get
+        // unlucky with the string spanning two buffered reads.
+        2,
+    );
+    loop {
+        let buf = reader.fill_buf()?;
+        match buf.iter().position(|&c| c == 0) {
+            Some(index) => {
+                r.push(std::str::from_utf8(&buf[..index])?.to_string());
+                reader.consume(index + 1);
+                break;
+            }
+            None => {
+                if buf.is_empty() {
+                    return Err(Error::from("Unexpected EOF"));
+                }
+                r.push(std::str::from_utf8(buf)?.to_string());
+                let l = buf.len();
+                reader.consume(l)
+            }
+        }
+    }
+    Ok(String::from_iter(r.into_iter()))
 }

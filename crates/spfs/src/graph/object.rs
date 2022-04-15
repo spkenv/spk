@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::io::BufRead;
+
 use super::Blob;
 use super::Layer;
 use super::Manifest;
@@ -130,7 +132,7 @@ impl encoding::Encodable for Object {
 }
 
 impl encoding::Decodable for Object {
-    fn decode(mut reader: &mut impl std::io::Read) -> crate::Result<Self> {
+    fn decode(mut reader: &mut impl BufRead) -> crate::Result<Self> {
         encoding::consume_header(&mut reader, OBJECT_HEADER)?;
         let type_id = encoding::read_uint(&mut reader)?;
         match ObjectKind::from_u64(type_id) {

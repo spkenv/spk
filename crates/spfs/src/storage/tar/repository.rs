@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::io::BufReader;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,7 +78,7 @@ impl TarRepository {
     // exist and be a repository
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().canonicalize()?;
-        let mut file = std::fs::File::open(&path)?;
+        let mut file = BufReader::new(std::fs::File::open(&path)?);
         let mut archive = Archive::new(&mut file);
         let tmpdir = tempdir::TempDir::new("spfs-tar-repo")?;
         let repo_path = tmpdir.path().to_path_buf();

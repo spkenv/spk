@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::io::BufRead;
+
 use chrono::prelude::*;
 
 use crate::encoding;
@@ -105,7 +107,7 @@ impl Encodable for Tag {
 }
 
 impl encoding::Decodable for Tag {
-    fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
+    fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         let org = encoding::read_string(&mut reader)?;
         let org = match org.as_str() {
             "" => None,
