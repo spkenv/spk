@@ -27,12 +27,21 @@ impl CmdLsTags {
 
         let path = relative_path::RelativePathBuf::from(&self.path);
         let mut names = repo.ls_tags(&path);
+
+        // Accumulate the entries in order output them in sorted order.
+        let mut entries = Vec::new();
+
         while let Some(item) = names.next().await {
             match item {
-                Ok(name) => println!("{name}"),
+                Ok(name) => entries.push(name),
                 Err(err) => tracing::error!("{err}"),
             }
         }
+
+        for name in itertools::sorted(entries.iter()) {
+            println!("{name}")
+        }
+
         Ok(0)
     }
 }
