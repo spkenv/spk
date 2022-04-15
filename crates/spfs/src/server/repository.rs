@@ -7,7 +7,7 @@ use tonic::{Request, Response, Status};
 use crate::proto;
 use proto::repository_server::RepositoryServer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Repository {}
 
 #[tonic::async_trait]
@@ -22,7 +22,11 @@ impl proto::repository_server::Repository for Repository {
 }
 
 impl Repository {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn new_srv() -> RepositoryServer<Self> {
-        RepositoryServer::new(Self {})
+        RepositoryServer::new(Self::new())
     }
 }
