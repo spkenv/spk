@@ -12,6 +12,7 @@ use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 
 use super::env::data_path;
+use crate::solve::{Solution, SolverRuntime};
 use crate::{
     api, exec, solve,
     storage::{self, Repository},
@@ -62,13 +63,14 @@ pub enum BuildSource {
 ///     .build()
 ///     .unwrap();
 /// ```
-#[derive(Clone)]
 pub struct BinaryPackageBuilder {
     prefix: PathBuf,
     spec: api::Spec,
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
+    source_resolver: Box<dyn FnMut(&mut SolverRuntime) -> Result<Solution>>,
+    build_resolver: Box<dyn FnMut(&mut SolverRuntime) -> Result<Solution>>,
     last_solve_graph: Arc<RwLock<solve::Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
@@ -83,6 +85,8 @@ impl BinaryPackageBuilder {
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
             solver: solve::Solver::default(),
+            source_resolver: Box::new(|r| r.solution()),
+            build_resolver: Box::new(|r| r.solution()),
             last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
             repos: Default::default(),
             interactive: false,
@@ -126,6 +130,34 @@ impl BinaryPackageBuilder {
         self
     }
 
+    /// Provide a function that will be called when resolving the source package.
+    ///
+    /// This function should run the provided solver runtime to
+    /// completion, returning the final result. This function
+    /// is useful for introspecting and reporting on the solve
+    /// process as needed.
+    pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
+    where
+        F: FnMut(&mut SolverRuntime) -> Result<Solution> + 'static,
+    {
+        self.source_resolver = Box::new(resolver);
+        self
+    }
+
+    /// Provide a function that will be called when resolving the build environment.
+    ///
+    /// This function should run the provided solver runtime to
+    /// completion, returning the final result. This function
+    /// is useful for introspecting and reporting on the solve
+    /// process as needed.
+    pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
+    where
+        F: FnMut(&mut SolverRuntime) -> Result<Solution> + 'static,
+    {
+        self.build_resolver = Box::new(resolver);
+        self
+    }
+
     pub fn set_interactive(&mut self, interactive: bool) -> &mut Self {
         self.interactive = interactive;
         self
@@ -161,9 +193,11 @@ impl BinaryPackageBuilder {
 
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
+            tracing::debug!("Resolving source package for build");
             let solution = self.resolve_source_package(&ident)?;
             stack.extend(exec::resolve_runtime_layers(&solution)?)
         };
+        tracing::debug!("Resolving build environment");
         let solution = self.resolve_build_environment()?;
         let mut opts = solution.options();
         std::mem::swap(&mut opts, &mut self.all_options);
@@ -185,7 +219,7 @@ impl BinaryPackageBuilder {
         Ok(self.spec.clone())
     }
 
-    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
+    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
@@ -210,12 +244,12 @@ impl BinaryPackageBuilder {
         self.solver.add_request(request.into());
 
         let mut runtime = self.solver.run();
-        let solution = runtime.solution();
+        let solution = (self.source_resolver)(&mut runtime);
         self.last_solve_graph = runtime.graph();
         solution
     }
 
-    fn resolve_build_environment(&mut self) -> Result<solve::Solution> {
+    fn resolve_build_environment(&mut self) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
         self.solver.set_binary_only(true);
@@ -228,7 +262,7 @@ impl BinaryPackageBuilder {
         }
 
         let mut runtime = self.solver.run();
-        let solution = runtime.solution();
+        let solution = (self.build_resolver)(&mut runtime);
         self.last_solve_graph = runtime.graph();
         solution
     }
