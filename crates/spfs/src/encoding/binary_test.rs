@@ -163,7 +163,7 @@ fn test_read_string_failure() {
 fn test_read_string_eof() {
     let mut ts = TestStream::default();
     let r = read_string(&mut ts);
-    assert_matches!(r, Err(crate::Error::String(s)) if s == "Unexpected EOF");
+    assert_matches!(r, Err(crate::Error::IO(io)) if io.kind() == std::io::ErrorKind::UnexpectedEof);
 }
 
 #[test]

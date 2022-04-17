@@ -106,7 +106,9 @@ pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
             }
             None => {
                 if buf.is_empty() {
-                    return Err(Error::from("Unexpected EOF"));
+                    return Err(Error::from(std::io::Error::from(
+                        std::io::ErrorKind::UnexpectedEof,
+                    )));
                 }
                 r.push(std::str::from_utf8(buf)?.to_string());
                 let l = buf.len();
