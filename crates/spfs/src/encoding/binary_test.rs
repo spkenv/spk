@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use assert_matches::assert_matches;
 use rand::Rng;
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
 
@@ -156,14 +155,16 @@ fn test_read_string_failure() {
         ..Default::default()
     };
     let r = read_string(&mut ts);
-    assert_matches!(r, Err(crate::Error::IO(io)) if io.raw_os_error() == Some(TEST_RAW_ERROR));
+    assert!(matches!(r, Err(crate::Error::IO(io)) if io.raw_os_error() == Some(TEST_RAW_ERROR)));
 }
 
 #[test]
 fn test_read_string_eof() {
     let mut ts = TestStream::default();
     let r = read_string(&mut ts);
-    assert_matches!(r, Err(crate::Error::IO(io)) if io.kind() == std::io::ErrorKind::UnexpectedEof);
+    assert!(
+        matches!(r, Err(crate::Error::IO(io)) if io.kind() == std::io::ErrorKind::UnexpectedEof)
+    );
 }
 
 #[test]
@@ -179,7 +180,7 @@ fn test_read_string_normal() {
 
     let mut ts = TestStream::new(vec![test_string1, test_string2], buffer_size);
     let r = read_string(&mut ts);
-    assert_matches!(r, Ok(s) if s == test_string1);
+    assert!(matches!(r, Ok(s) if s == test_string1));
     let r = read_string(&mut ts);
-    assert_matches!(r, Ok(s) if s == test_string2);
+    assert!(matches!(r, Ok(s) if s == test_string2));
 }

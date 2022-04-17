@@ -114,6 +114,5 @@ thiserror = "1.0"
 tonic-build = "0.6.0"
 
 [dev-dependencies]
-assert_matches = "1.5"
 rstest = { version = "0.12", default_features = false }
 serial_test = "0.5.1"
