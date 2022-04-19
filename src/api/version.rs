@@ -246,10 +246,10 @@ impl Version {
 
     /// Reports if this version is exactly 0.0.0... etc.
     pub fn is_zero(&self) -> bool {
-        match self.parts.iter().max() {
-            Some(0) | None => self.pre.is_empty() && self.post.is_empty(),
-            _ => false,
+        if !self.pre.is_empty() || !self.post.is_empty() {
+            return false;
         }
+        !self.parts.iter().any(|x| x > &0)
     }
 }
 
