@@ -21,6 +21,7 @@ mod cmd_ls;
 mod cmd_make_binary;
 mod cmd_make_source;
 mod cmd_new;
+mod cmd_num_variants;
 mod cmd_publish;
 mod cmd_remove;
 mod cmd_render;
@@ -76,6 +77,7 @@ pub enum Command {
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
     New(cmd_new::New),
+    NumVariants(cmd_num_variants::NumVariants),
     Publish(cmd_publish::Publish),
     Remove(cmd_remove::Remove),
     Render(cmd_render::Render),
