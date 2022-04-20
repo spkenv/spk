@@ -357,22 +357,30 @@ where
     S: AsRef<str>,
 {
     use FindPackageSpecResult::*;
-    let mut packages = glob::glob("*.spk.yaml")?
-        .collect::<std::result::Result<Vec<_>, _>>()
-        .context("Failed to discover spec files in current directory")?;
+
+    // Lazily process the glob. This closure is expected to be called at
+    // most once, but there are two code paths that might need to call it.
+    let find_packages = || {
+        glob::glob("*.spk.yaml")?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .context("Failed to discover spec files in current directory")
+    };
+
     let package = match package {
-        Some(package) => package,
-        None if packages.len() == 1 => {
-            let path = packages.pop().unwrap();
-            let spec = spk::api::read_spec_file(&path)?;
-            return Ok(Found { path, spec });
-        }
-        None if packages.len() > 1 => {
-            return Ok(MultipleSpecFiles);
-        }
         None => {
-            return Ok(NoSpecFiles);
+            let mut packages = find_packages()?;
+
+            return match packages.len() {
+                1 => {
+                    let path = packages.pop().unwrap();
+                    let spec = spk::api::read_spec_file(&path)?;
+                    Ok(Found { path, spec })
+                }
+                2.. => Ok(MultipleSpecFiles),
+                _ => Ok(NoSpecFiles),
+            };
         }
+        Some(package) => package,
     };
 
     match spk::api::read_spec_file(package.as_ref()) {
@@ -385,7 +393,7 @@ where
         }
     }
 
-    for path in packages {
+    for path in find_packages()? {
         let spec = spk::api::read_spec_file(&path)?;
         if spec.pkg.name() == package.as_ref() {
             return Ok(Found { path, spec });
