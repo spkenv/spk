@@ -162,7 +162,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
 }
 
 /// Version specifies a package version number.
-#[derive(Debug, Default, Clone, Hash)]
+#[derive(Debug, Default, Clone)]
 pub struct Version {
     pub parts: Vec<u32>,
     pub pre: TagSet,
@@ -201,6 +201,18 @@ impl std::cmp::PartialEq for Version {
 }
 
 impl std::cmp::Eq for Version {}
+
+impl std::hash::Hash for Version {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // trailing zeros do not alter the hash/cmp for a version
+        match self.parts.iter().rposition(|d| d != &0) {
+            Some(last_nonzero) => self.parts[..last_nonzero + 1].hash(state),
+            None => {}
+        }
+        self.pre.hash(state);
+        self.post.hash(state);
+    }
+}
 
 impl Version {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
@@ -295,7 +307,7 @@ impl Ord for Version {
 
         for self_part in self_parts {
             match other_parts.next() {
-                Some(other_part) => match self_part.cmp(&other_part) {
+                Some(other_part) => match self_part.cmp(other_part) {
                     Ordering::Equal => continue,
                     res => return res,
                 },
