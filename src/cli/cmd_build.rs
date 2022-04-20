@@ -36,6 +36,10 @@ pub struct Build {
     /// The package names or yaml spec files to build
     #[clap(name = "NAME|SPEC_FILE")]
     packages: Vec<String>,
+
+    /// Build only the specified variant, by index, if defined
+    #[clap(long)]
+    variant: Option<usize>,
 }
 
 /// Runs make-source and then make-binary
@@ -69,6 +73,7 @@ impl Run for Build {
                 interactive: self.interactive,
                 env: self.env,
                 packages,
+                variant: self.variant,
             };
             let code = make_binary.run()?;
             if code != 0 {

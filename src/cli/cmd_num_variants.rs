@@ -21,10 +21,7 @@ impl Run for NumVariants {
             .context("find package spec")?
             .must_be_found();
 
-        println!(
-            "{}",
-            spec.build.variants.as_ref().map(|v| v.len()).unwrap_or(0)
-        );
+        println!("{}", spec.build.variants.len());
 
         Ok(0)
     }
