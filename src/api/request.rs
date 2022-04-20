@@ -631,7 +631,7 @@ impl PkgRequest {
                 self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
-                let mut digits = pkg.version.parts().into_iter().chain(std::iter::repeat(0));
+                let mut digits = pkg.version.parts.iter().chain(std::iter::repeat(&0));
                 let mut rendered = Vec::with_capacity(pin.len());
                 for char in pin.chars() {
                     if char == 'x' {

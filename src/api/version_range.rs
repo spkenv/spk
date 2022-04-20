@@ -298,7 +298,7 @@ impl Ranged for SemverRange {
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self.minimum.parts();
+        let mut parts = self.minimum.parts.clone();
         for (i, p) in parts.iter().enumerate() {
             if p == &0 {
                 continue;
@@ -310,7 +310,7 @@ impl Ranged for SemverRange {
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts.into_iter()))
+        Some(Version::from_parts(parts))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
@@ -391,9 +391,9 @@ impl Ranged for WildcardRange {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        for (i, (a, b)) in self.parts.iter().zip(version.parts()).enumerate() {
+        for (i, (a, b)) in self.parts.iter().zip(&version.parts).enumerate() {
             if let Some(a) = a {
-                if a != &b {
+                if a != b {
                     return Compatibility::Incompatible(format!(
                         "Out of range: {} [at pos {}]",
                         self, i
@@ -460,11 +460,11 @@ impl Ranged for LowestSpecifiedRange {
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self.base.parts().drain(..self.specified - 1).collect_vec();
+        let mut parts = self.base.parts[..self.specified - 1].to_vec();
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts.into_iter()))
+        Some(Version::from_parts(parts.clone()))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
@@ -474,11 +474,9 @@ impl Ranged for LowestSpecifiedRange {
 
 impl Display for LowestSpecifiedRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let base_str = self
-            .base
-            .parts()
-            .drain(..self.specified)
-            .map(|p| p.to_string())
+        let base_str = self.base.parts[..self.specified]
+            .iter()
+            .map(ToString::to_string)
             .collect_vec()
             .join(VERSION_SEP);
         f.write_char('~')?;
@@ -711,15 +709,15 @@ impl Ranged for ExactVersion {
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self.version.parts();
+        let mut parts = self.version.parts.clone();
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts.into_iter()))
+        Some(Version::from_parts(parts))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        if self.version.base() != spec.pkg.version.base() {
+        if self.version.parts != spec.pkg.version.parts {
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal]",
                 &spec.pkg.version, self
@@ -787,7 +785,7 @@ impl Ranged for ExcludedVersion {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        if version.parts()[..self.specified] == self.base.parts()[..self.specified] {
+        if version.parts[..self.specified] == self.base.parts[..self.specified] {
             return Compatibility::Incompatible(format!("excluded [{}]", self));
         }
         Compatibility::Compatible
@@ -800,11 +798,9 @@ impl Ranged for ExcludedVersion {
 
 impl Display for ExcludedVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let base_str = self
-            .base
-            .parts()
-            .drain(..self.specified)
-            .map(|p| p.to_string())
+        let base_str = self.base.parts[..self.specified]
+            .iter()
+            .map(ToString::to_string)
             .collect_vec()
             .join(VERSION_SEP);
         f.write_str("!=")?;
@@ -815,7 +811,7 @@ impl Display for ExcludedVersion {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
     base: Version,
-    /// if unset, the required compatibilty is based on the type
+    /// if unset, the required compatibility is based on the type
     /// of package being validated. Source packages require api
     /// compat and binary packages require binary compat.
     required: Option<CompatRule>,

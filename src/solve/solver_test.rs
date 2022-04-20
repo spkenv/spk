@@ -174,8 +174,7 @@ macro_rules! assert_resolved {
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        let version = pkg.spec.pkg.version.to_string();
-        assert_eq!(&version, $version, $message);
+        assert_eq!(pkg.spec.pkg.version, $version, $message);
     }};
 
     ($solution:ident, $pkg:literal, build = $build:expr) => {

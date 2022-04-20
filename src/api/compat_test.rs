@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::parse_compat;
-use crate::api::parse_version;
+use crate::{api::parse_version, fixtures::*};
 
 #[rstest]
 #[case("x.x.x", "1.0.0", "1.0.0", true)]
@@ -35,10 +35,11 @@ fn test_compat_api(#[case] compat: &str, #[case] a: &str, #[case] b: &str, #[cas
 #[case("x.a.b", "3.6.5", "3.7.1", false)]
 #[case("x.a.b", "3.7.1", "3.7.5", true)]
 fn test_compat_abi(#[case] compat: &str, #[case] a: &str, #[case] b: &str, #[case] expected: bool) {
+    init_logging();
     let actual = parse_compat(compat)
         .unwrap()
         .is_binary_compatible(&parse_version(a).unwrap(), &parse_version(b).unwrap());
-    println!("{}", actual);
+    tracing::info!("{}", actual);
     assert_eq!(actual.is_ok(), expected);
 }
 
