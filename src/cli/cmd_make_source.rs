@@ -32,7 +32,7 @@ impl Run for MakeSource {
         }
 
         for package in packages.into_iter() {
-            let spec = match flags::find_package_spec(package)? {
+            let spec = match flags::find_package_spec(&package)? {
                 flags::FindPackageSpecResult::NotFound(name) => {
                     // TODO:: load from given repos
                     spk::api::read_spec_file(name)?

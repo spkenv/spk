@@ -75,7 +75,7 @@ impl Run for Test {
                 }
             };
 
-            let (spec, filename) = match flags::find_package_spec(Some(name.clone()))? {
+            let (spec, filename) = match flags::find_package_spec(&Some(&name))? {
                 flags::FindPackageSpecResult::Found { path, spec } => (spec, path),
                 _ => {
                     let pkg = spk::api::parse_ident(&name)?;
