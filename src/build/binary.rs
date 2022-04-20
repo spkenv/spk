@@ -155,7 +155,7 @@ impl BinaryPackageBuilder {
     /// completion, returning the final result. This function
     /// is useful for introspecting and reporting on the solve
     /// process as needed.
-    pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
+    pub fn watch_source_resolve<F>(&mut self, resolver: F) -> &mut Self
     where
         F: FnMut(&mut SolverRuntime) -> Result<Solution> + 'static,
     {
@@ -169,7 +169,7 @@ impl BinaryPackageBuilder {
     /// completion, returning the final result. This function
     /// is useful for introspecting and reporting on the solve
     /// process as needed.
-    pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
+    pub fn watch_build_resolve<F>(&mut self, resolver: F) -> &mut Self
     where
         F: FnMut(&mut SolverRuntime) -> Result<Solution> + 'static,
     {
