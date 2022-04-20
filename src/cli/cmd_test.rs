@@ -136,6 +136,7 @@ impl Test {
                             spk::io::format_options(&opts)
                         );
 
+                        let verbose = self.verbose;
                         match stage {
                             spk::api::TestStage::Sources => spk::test::PackageSourceTester::new(
                                 spec.clone(),
@@ -145,6 +146,9 @@ impl Test {
                             .with_repositories(repos.iter().cloned())
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
+                            .watch_environment_resolve(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
                             .test()?,
 
                             spk::api::TestStage::Build => spk::test::PackageBuildTester::new(
@@ -164,6 +168,12 @@ impl Test {
                                         )
                                     }),
                             )
+                            .watch_source_resolve(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
+                            .watch_build_resolve(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
                             .test()?,
 
                             spk::api::TestStage::Install => spk::test::PackageInstallTester::new(
@@ -174,6 +184,9 @@ impl Test {
                             .with_repositories(repos.iter().cloned())
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
+                            .watch_environment_resolve(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
                             .test()?,
                         }
                     }

@@ -33,6 +33,8 @@ pub struct PackageBuildTester {
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: BuildSource,
+    source_resolver: Box<dyn FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution>>,
+    build_resolver: Box<dyn FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution>>,
     last_solve_graph: Arc<RwLock<solve::Graph>>,
 }
 
@@ -47,6 +49,8 @@ impl PackageBuildTester {
             options: api::OptionMap::default(),
             additional_requirements: Vec::new(),
             source,
+            source_resolver: Box::new(|r| r.solution()),
+            build_resolver: Box::new(|r| r.solution()),
             last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
         }
     }
@@ -89,6 +93,34 @@ impl PackageBuildTester {
         self
     }
 
+    /// Provide a function that will be called when resolving the source package.
+    ///
+    /// This function should run the provided solver runtime to
+    /// completion, returning the final result. This function
+    /// is useful for introspecting and reporting on the solve
+    /// process as needed.
+    pub fn watch_source_resolve<F>(&mut self, resolver: F) -> &mut Self
+    where
+        F: FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution> + 'static,
+    {
+        self.source_resolver = Box::new(resolver);
+        self
+    }
+
+    /// Provide a function that will be called when resolving the build environment.
+    ///
+    /// This function should run the provided solver runtime to
+    /// completion, returning the final result. This function
+    /// is useful for introspecting and reporting on the solve
+    /// process as needed.
+    pub fn watch_build_resolve<F>(&mut self, resolver: F) -> &mut Self
+    where
+        F: FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution> + 'static,
+    {
+        self.build_resolver = Box::new(resolver);
+        self
+    }
+
     /// Return the solver graph for the test environment.
     ///
     /// This is most useful for debugging test environments that failed to resolve,
@@ -123,9 +155,8 @@ impl PackageBuildTester {
         }
         solver.configure_for_build_environment(&self.spec)?;
         let mut runtime = solver.run();
-        let result = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        let solution = result?;
+        let solution = (self.build_resolver)(&mut runtime)?;
 
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(&layer)?;
@@ -183,7 +214,6 @@ impl PackageBuildTester {
 
     fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
         let mut solver = solve::Solver::default();
-        solver.set_binary_only(true);
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
             Arc::new(crate::HANDLE.block_on(storage::local_repository())?.into());
@@ -196,8 +226,7 @@ impl PackageBuildTester {
             solver.add_repository(repo.clone());
         }
 
-        let mut ident_range = api::RangeIdent::exact(package, [api::Component::All]);
-        ident_range.components.insert(api::Component::Source);
+        let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
         let request = api::PkgRequest {
             pkg: ident_range,
             prerelease_policy: api::PreReleasePolicy::IncludeAll,
@@ -208,7 +237,7 @@ impl PackageBuildTester {
         solver.add_request(request.into());
 
         let mut runtime = solver.run();
-        let solution = runtime.solution();
+        let solution = (self.source_resolver)(&mut runtime);
         self.last_solve_graph = runtime.graph();
         solution
     }

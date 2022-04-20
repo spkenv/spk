@@ -18,6 +18,7 @@ pub struct PackageSourceTester {
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: Option<PathBuf>,
+    env_resolver: Box<dyn FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution>>,
     last_solve_graph: Arc<RwLock<solve::Graph>>,
 }
 
@@ -31,6 +32,7 @@ impl PackageSourceTester {
             options: api::OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
+            env_resolver: Box::new(|r| r.solution()),
             last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
         }
     }
@@ -71,6 +73,20 @@ impl PackageSourceTester {
         requests: impl IntoIterator<Item = api::Request>,
     ) -> &mut Self {
         self.additional_requirements.extend(requests);
+        self
+    }
+
+    /// Provide a function that will be called when resolving the test environment.
+    ///
+    /// This function should run the provided solver runtime to
+    /// completion, returning the final result. This function
+    /// is useful for introspecting and reporting on the solve
+    /// process as needed.
+    pub fn watch_environment_resolve<F>(&mut self, resolver: F) -> &mut Self
+    where
+        F: FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution> + 'static,
+    {
+        self.env_resolver = Box::new(resolver);
         self
     }
 
@@ -119,9 +135,8 @@ impl PackageSourceTester {
         }
 
         let mut runtime = solver.run();
-        let result = runtime.solution();
         self.last_solve_graph = runtime.graph();
-        let solution = result?;
+        let solution = (self.env_resolver)(&mut runtime)?;
 
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(&layer)?;
