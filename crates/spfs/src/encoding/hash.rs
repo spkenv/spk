@@ -146,7 +146,7 @@ where
     Self: Encodable,
 {
     /// Read a previously encoded object from the given binary stream.
-    fn decode(reader: &mut impl Read) -> Result<Self>;
+    fn decode(reader: &mut impl std::io::BufRead) -> Result<Self>;
 }
 
 impl Encodable for String {
@@ -155,7 +155,7 @@ impl Encodable for String {
     }
 }
 impl Decodable for String {
-    fn decode(reader: &mut impl Read) -> Result<Self> {
+    fn decode(reader: &mut impl std::io::BufRead) -> Result<Self> {
         super::binary::read_string(reader)
     }
 }
@@ -397,8 +397,8 @@ impl Encodable for Digest {
 }
 
 impl Decodable for Digest {
-    fn decode(mut reader: &mut impl Read) -> Result<Self> {
-        binary::read_digest(&mut reader)
+    fn decode(reader: &mut impl std::io::BufRead) -> Result<Self> {
+        binary::read_digest(reader)
     }
 }
 

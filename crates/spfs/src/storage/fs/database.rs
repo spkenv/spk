@@ -16,12 +16,13 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 impl DatabaseView for super::FSRepository {
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         let filepath = self.objects.build_digest_path(&digest);
-        let mut file = tokio::fs::File::open(&filepath)
-            .await
-            .map_err(|err| match err.kind() {
-                std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-                _ => Error::from(err),
-            })?;
+        let mut file =
+            tokio::io::BufReader::new(tokio::fs::File::open(&filepath).await.map_err(|err| {
+                match err.kind() {
+                    std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
+                    _ => Error::from(err),
+                }
+            })?);
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).await?;
         Object::decode(&mut buf.as_slice())
@@ -66,18 +67,24 @@ impl graph::Database for super::FSRepository {
         self.objects.ensure_base_dir(&working_file)?;
         let mut encoded = Vec::new();
         obj.encode(&mut encoded)?;
-        let mut writer = tokio::fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&working_file)
-            .await?;
+        let mut writer = tokio::io::BufWriter::new(
+            tokio::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&working_file)
+                .await?,
+        );
         if let Err(err) = writer.write_all(encoded.as_slice()).await {
             let _ = tokio::fs::remove_file(&working_file).await;
             return Err(err.into());
         }
-        if let Err(err) = writer.sync_all().await {
+        if let Err(err) = writer.flush().await {
             let _ = tokio::fs::remove_file(&working_file).await;
             return Err(Error::wrap_io(err, "Failed to finalize object write"));
+        }
+        if let Err(err) = writer.get_ref().sync_all().await {
+            let _ = tokio::fs::remove_file(&working_file).await;
+            return Err(Error::wrap_io(err, "Failed to sync object write"));
         }
         self.objects.ensure_base_dir(&filepath)?;
         match tokio::fs::rename(&working_file, &filepath).await {

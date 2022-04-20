@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::BTreeSet;
+use std::io::BufRead;
 
 use super::Entry;
 use crate::encoding;
@@ -108,7 +109,7 @@ impl encoding::Encodable for Tree {
 }
 
 impl encoding::Decodable for Tree {
-    fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
+    fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         let mut tree = Tree {
             entries: Default::default(),
         };

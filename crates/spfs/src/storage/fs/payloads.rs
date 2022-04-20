@@ -28,7 +28,7 @@ impl crate::storage::PayloadStorage for FSRepository {
     ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
         let path = self.payloads.build_digest_path(&digest);
         match tokio::fs::File::open(&path).await {
-            Ok(file) => Ok(Box::pin(file)),
+            Ok(file) => Ok(Box::pin(tokio::io::BufReader::new(file))),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(err.into()),

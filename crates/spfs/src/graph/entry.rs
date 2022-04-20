@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::io::BufRead;
+
 use crate::encoding;
 use crate::tracking;
 use crate::Result;
@@ -66,7 +68,7 @@ impl encoding::Encodable for Entry {
     }
 }
 impl encoding::Decodable for Entry {
-    fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
+    fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         Ok(Entry {
             object: encoding::read_digest(&mut reader)?,
             kind: tracking::EntryKind::decode(&mut reader)?,

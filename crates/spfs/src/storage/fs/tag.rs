@@ -45,16 +45,21 @@ impl FSRepository {
 
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
 
-        let mut file = tokio::fs::OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(&filepath)
-            .await?;
+        let mut file = tokio::io::BufWriter::new(
+            tokio::fs::OpenOptions::new()
+                .write(true)
+                .append(true)
+                .create(true)
+                .open(&filepath)
+                .await?,
+        );
         file.write_i64(size as i64).await?;
         tokio::io::copy(&mut buf.as_slice(), &mut file).await?;
-        if let Err(err) = file.sync_all().await {
+        if let Err(err) = file.flush().await {
             return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
+        }
+        if let Err(err) = file.get_ref().sync_all().await {
+            return Err(Error::wrap_io(err, "Failed to sync tag data file"));
         }
 
         let perms = std::fs::Permissions::from_mode(0o777);
@@ -234,7 +239,7 @@ enum TagStreamIterState {
     WalkingTree,
     LoadingTag {
         spec: tracking::TagSpec,
-        future: Pin<Box<dyn Future<Output = Result<TagIter<tokio::fs::File>>> + Send>>,
+        future: Pin<Box<dyn Future<Output = Result<TagIter>> + Send>>,
     },
 }
 
@@ -306,33 +311,43 @@ impl Stream for TagStreamIter {
     }
 }
 
+trait TagReader: AsyncRead + AsyncSeek + Send + Unpin {}
+
+impl TagReader for tokio::io::BufReader<tokio::fs::File> {}
+
 /// Return an iterator over all tags in the identified tag file
 ///
 /// This iterator outputs tags from latest to earliest, ie backwards
 /// stating at the latest version of the tag.
-async fn read_tag_file<P: AsRef<Path>>(path: P) -> Result<TagIter<tokio::fs::File>> {
+async fn read_tag_file<P>(path: P) -> Result<TagIter>
+where
+    P: AsRef<Path>,
+{
     let reader = tokio::fs::File::open(path.as_ref()).await?;
-    Ok(TagIter::new(reader))
+    Ok(TagIter::new(Box::new(tokio::io::BufReader::new(reader))))
 }
 
-enum TagIterState<R>
-where
-    R: AsyncRead + AsyncSeek + Send + Unpin,
-{
+enum TagIterState {
     /// Currently reading the size of a tag in bytes for the index
-    ReadingIndex { reader: R, bytes_read: usize },
+    ReadingIndex {
+        reader: Box<dyn TagReader>,
+        bytes_read: usize,
+    },
     /// Currently seeking to the end of a tag to read the next tag's size
-    SeekingIndex { reader: R },
+    SeekingIndex { reader: Box<dyn TagReader> },
     /// Currently seeking backwards to the next tag to be yielded
-    SeekingTag { reader: R, size: u64 },
+    SeekingTag {
+        reader: Box<dyn TagReader>,
+        size: u64,
+    },
     /// Currently reading the tag bytes so that they can be decoded
-    ReadingTag { reader: R, bytes_read: usize },
+    ReadingTag {
+        reader: Box<dyn TagReader>,
+        bytes_read: usize,
+    },
 }
 
-impl<R> std::fmt::Debug for TagIterState<R>
-where
-    R: AsyncRead + AsyncSeek + Send + Unpin,
-{
+impl std::fmt::Debug for TagIterState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ReadingIndex { bytes_read, .. } => f
@@ -355,20 +370,14 @@ where
 /// starting with the latest version of tag
 ///
 /// Tag files are written
-struct TagIter<R>
-where
-    R: AsyncRead + AsyncSeek + Send + Unpin,
-{
+struct TagIter {
     buf: Vec<u8>,
     sizes: Vec<u64>,
-    state: Option<TagIterState<R>>,
+    state: Option<TagIterState>,
 }
 
-impl<R> TagIter<R>
-where
-    R: AsyncRead + AsyncSeek + Send + Unpin,
-{
-    fn new(reader: R) -> Self {
+impl TagIter {
+    fn new(reader: Box<dyn TagReader>) -> Self {
         Self {
             sizes: Vec::new(),
             buf: vec![0; size_of::<i64>()],
@@ -380,10 +389,7 @@ where
     }
 }
 
-impl<R> Stream for TagIter<R>
-where
-    R: AsyncRead + AsyncSeek + Send + Unpin,
-{
+impl Stream for TagIter {
     type Item = Result<tracking::Tag>;
 
     fn poll_next(

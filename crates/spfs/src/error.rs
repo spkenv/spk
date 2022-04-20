@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::io;
+use std::{io, str::Utf8Error};
 
 use thiserror::Error;
 
@@ -27,6 +27,8 @@ pub enum Error {
     InvalidDateTime(#[from] chrono::ParseError),
     #[error(transparent)]
     Caps(#[from] caps::errors::CapsError),
+    #[error(transparent)]
+    Utf8Error(#[from] Utf8Error),
     #[error("Error communicating with the server: {0:?}")]
     Tonic(#[from] tonic::Status),
 

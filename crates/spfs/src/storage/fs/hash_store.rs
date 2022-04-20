@@ -10,6 +10,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use futures::{Future, Stream};
+use tokio::io::AsyncWriteExt;
 
 use crate::runtime::makedirs_with_perms;
 use crate::{encoding, Error, Result};
@@ -72,12 +73,14 @@ impl FSHashStore {
         let working_file = self.workdir().join(uuid);
 
         self.ensure_base_dir(&working_file)?;
-        let mut writer = tokio::fs::OpenOptions::new()
-            .create_new(true)
-            .read(true)
-            .write(true)
-            .open(&working_file)
-            .await?;
+        let mut writer = tokio::io::BufWriter::new(
+            tokio::fs::OpenOptions::new()
+                .create_new(true)
+                .read(true)
+                .write(true)
+                .open(&working_file)
+                .await?,
+        );
         let mut hasher = encoding::Hasher::with_target(&mut writer);
         let copied = match tokio::io::copy(&mut reader, &mut hasher).await {
             Err(err) => {
@@ -88,8 +91,11 @@ impl FSHashStore {
         };
 
         let digest = hasher.digest();
-        if let Err(err) = writer.sync_all().await {
+        if let Err(err) = writer.flush().await {
             return Err(Error::wrap_io(err, "Failed to finalize object write"));
+        }
+        if let Err(err) = writer.get_ref().sync_all().await {
+            return Err(Error::wrap_io(err, "Failed to sync object write"));
         }
 
         let path = self.build_digest_path(&digest);

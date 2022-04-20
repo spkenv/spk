@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::BufRead;
 
 use super::{Entry, Tree};
 use crate::encoding::Encodable;
@@ -195,7 +196,7 @@ impl Encodable for Manifest {
 }
 
 impl Decodable for Manifest {
-    fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
+    fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         let mut manifest = Manifest {
             root: Tree::decode(&mut reader)?,
             ..Default::default()
