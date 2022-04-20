@@ -6,6 +6,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 
+use super::Run;
+
 /// Publish a package into a shared repository
 #[derive(Args)]
 pub struct Publish {
@@ -38,8 +40,8 @@ pub struct Publish {
     pub packages: Vec<spk::api::Ident>,
 }
 
-impl Publish {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Publish {
+    fn run(&mut self) -> Result<i32> {
         let source = spk::HANDLE.block_on(spk::storage::local_repository())?;
         let target = spk::HANDLE.block_on(spk::storage::remote_repository(&self.target_repo))?;
 

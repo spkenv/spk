@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
@@ -40,8 +40,8 @@ pub struct MakeBinary {
     pub packages: Vec<String>,
 }
 
-impl MakeBinary {
-    pub fn run(&self) -> Result<i32> {
+impl Run for MakeBinary {
+    fn run(&mut self) -> Result<i32> {
         let _runtime = self.runtime.ensure_active_runtime()?;
 
         let options = self.options.get_options()?;

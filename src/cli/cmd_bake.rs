@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Bake an executable environment from a set of requests or the current environment.
 #[derive(Args)]
@@ -27,8 +27,8 @@ pub struct Bake {
     pub requested: Vec<String>,
 }
 
-impl Bake {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Bake {
+    fn run(&mut self) -> Result<i32> {
         if self.requested.is_empty() {
             let rt = spfs::active_runtime()?;
             let layers = rt.get_stack();
@@ -41,13 +41,15 @@ impl Bake {
             self.solve_and_build_new_runtime()
         }
     }
+}
 
+impl Bake {
     fn solve_and_build_new_runtime(&self) -> Result<i32> {
         let exe = std::env::current_exe()?
             .to_str()
             .map(String::from)
             .context("Failed converting current executable path to a string")?;
-        let env = super::cmd_env::Env {
+        let mut env = super::cmd_env::Env {
             solver: self.solver.clone(),
             runtime: self.runtime.clone(),
             requests: self.requests.clone(),

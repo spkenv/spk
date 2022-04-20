@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args, Clone)]
@@ -39,8 +39,8 @@ pub struct Build {
 }
 
 /// Runs make-source and then make-binary
-impl Build {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Build {
+    fn run(&mut self) -> Result<i32> {
         self.runtime.ensure_active_runtime()?;
 
         // divide our packages into one for each iteration of mks/mkb
@@ -50,7 +50,7 @@ impl Build {
         }
 
         for packages in runs {
-            let make_source = super::cmd_make_source::MakeSource {
+            let mut make_source = super::cmd_make_source::MakeSource {
                 verbose: self.verbose,
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
@@ -60,7 +60,7 @@ impl Build {
                 return Ok(code);
             }
 
-            let make_binary = super::cmd_make_binary::MakeBinary {
+            let mut make_binary = super::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
                 runtime: self.runtime.clone(),
                 repos: self.repos.clone(),

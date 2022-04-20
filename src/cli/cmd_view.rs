@@ -6,6 +6,8 @@ use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 
+use super::Run;
+
 /// View the current environment or information about a package
 #[derive(Args)]
 #[clap(visible_alias = "info")]
@@ -24,8 +26,8 @@ pub struct View {
     package: Option<String>,
 }
 
-impl View {
-    pub fn run(&self) -> Result<i32> {
+impl Run for View {
+    fn run(&mut self) -> Result<i32> {
         let package = match &self.package {
             None => return self.print_current_env(),
             Some(p) => p,
@@ -73,7 +75,9 @@ impl View {
         tracing::error!("Internal Error: requested package was not in solution");
         Ok(1)
     }
+}
 
+impl View {
     fn print_current_env(&self) -> Result<i32> {
         let solution = spk::current_env()?;
         println!("{}", spk::io::format_solution(&solution, self.verbose));

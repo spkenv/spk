@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use colored::Colorize;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Install a package into the current environment
 #[derive(Args)]
@@ -32,8 +32,8 @@ pub struct Install {
     pub packages: Vec<String>,
 }
 
-impl Install {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Install {
+    fn run(&mut self) -> Result<i32> {
         let mut solver = self.solver.get_solver(&self.options)?;
         let requests = self
             .requests

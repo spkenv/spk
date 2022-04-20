@@ -5,6 +5,8 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
+use super::Run;
+
 #[cfg(test)]
 #[path = "./cmd_new_test.rs"]
 mod cmd_new_test;
@@ -17,8 +19,8 @@ pub struct New {
     name: String,
 }
 
-impl New {
-    pub fn run(&mut self) -> Result<i32> {
+impl Run for New {
+    fn run(&mut self) -> Result<i32> {
         spk::api::validate_name(&self.name)?;
         let spec = get_stub(&self.name);
 

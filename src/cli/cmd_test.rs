@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Run package tests
 ///
@@ -39,8 +39,8 @@ pub struct Test {
     packages: Vec<String>,
 }
 
-impl Test {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Test {
+    fn run(&mut self) -> Result<i32> {
         let _runtime = self.runtime.ensure_active_runtime()?;
         let options = self.options.get_options()?;
         let mut repos: Vec<_> = self

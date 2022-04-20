@@ -4,7 +4,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Search for packages by name/substring
 #[derive(Args)]
@@ -19,8 +19,8 @@ pub struct Search {
     term: String,
 }
 
-impl Search {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Search {
+    fn run(&mut self) -> Result<i32> {
         let repos = self.repos.get_repos(&["origin".to_string()])?;
 
         let width = repos

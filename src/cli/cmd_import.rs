@@ -5,6 +5,8 @@
 use anyhow::{Context, Result};
 use clap::Args;
 
+use super::Run;
+
 /// Import a previously exported package/archive
 #[derive(Args)]
 pub struct Import {
@@ -13,8 +15,8 @@ pub struct Import {
     pub files: Vec<std::path::PathBuf>,
 }
 
-impl Import {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Import {
+    fn run(&mut self) -> Result<i32> {
         for filename in self.files.iter() {
             spk::HANDLE
                 .block_on(spk::storage::import_package(filename))
