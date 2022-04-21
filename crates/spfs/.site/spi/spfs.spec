@@ -25,6 +25,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q -n %{name}-v%{version}
 
 %build
+export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
 dev env -- cargo build --release --verbose --all

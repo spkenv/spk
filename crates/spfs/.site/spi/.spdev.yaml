@@ -15,7 +15,7 @@ components:
 
   - name: rpm
     kind: RPMPackage
-    spec_file: spfs.spec
+    spec_file: .site/spi/spfs.spec
     ci_config:
       parallel: true
 
@@ -51,3 +51,8 @@ components:
       parallel: true
       needs:
         - component: rpm
+
+ci_config:
+  all:
+    variables:
+      - SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
