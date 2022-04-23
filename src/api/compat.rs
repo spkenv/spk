@@ -16,8 +16,11 @@ use crate::{Error, Result};
 #[path = "./compat_test.rs"]
 mod compat_test;
 
+pub const API_COMPAT_STR: &str = "a";
 pub const API_STR: &str = "API";
+pub const BINARY_COMPAT_STR: &str = "b";
 pub const BINARY_STR: &str = "Binary";
+pub const NONE_COMPAT_STR: &str = "x";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompatRule {
@@ -55,28 +58,12 @@ impl std::str::FromStr for CompatRule {
     }
 }
 
-impl TryFrom<&char> for CompatRule {
-    type Error = crate::Error;
-
-    fn try_from(c: &char) -> crate::Result<CompatRule> {
-        match c {
-            'x' => Ok(CompatRule::None),
-            'a' => Ok(CompatRule::API),
-            'b' => Ok(CompatRule::Binary),
-            _ => Err(crate::Error::String(format!(
-                "Invalid compatibility rule: {}",
-                c
-            ))),
-        }
-    }
-}
-
 impl AsRef<str> for CompatRule {
     fn as_ref(&self) -> &str {
         match self {
-            CompatRule::None => "x",
-            CompatRule::API => "a",
-            CompatRule::Binary => "b",
+            CompatRule::None => NONE_COMPAT_STR,
+            CompatRule::API => API_COMPAT_STR,
+            CompatRule::Binary => BINARY_COMPAT_STR,
         }
     }
 }
@@ -197,14 +184,39 @@ impl FromStr for Compat {
     type Err = crate::Error;
 
     fn from_str(value: &str) -> crate::Result<Self> {
-        let mut parts = Vec::new();
-        for part in value.split('.') {
-            let mut rule_set = CompatRuleSet::default();
-            for c in part.chars() {
-                rule_set.0.insert(CompatRule::try_from(&c)?);
-            }
-            parts.push(rule_set);
+        use nom::branch::alt;
+        use nom::bytes::complete::tag;
+        use nom::combinator::{complete, map};
+        use nom::multi::{many1, separated_list1};
+        use nom::IResult;
+
+        fn compat_none(s: &str) -> IResult<&str, CompatRule> {
+            map(tag(NONE_COMPAT_STR), |_| CompatRule::None)(s)
         }
+
+        fn compat_api(s: &str) -> IResult<&str, CompatRule> {
+            map(tag(API_COMPAT_STR), |_| CompatRule::API)(s)
+        }
+
+        fn compat_binary(s: &str) -> IResult<&str, CompatRule> {
+            map(tag(BINARY_COMPAT_STR), |_| CompatRule::Binary)(s)
+        }
+
+        fn compat_rule(s: &str) -> IResult<&str, CompatRule> {
+            alt((compat_none, compat_api, compat_binary))(s)
+        }
+
+        fn compat_rule_set(s: &str) -> IResult<&str, CompatRuleSet> {
+            map(many1(compat_rule), |rules| {
+                CompatRuleSet(rules.into_iter().collect())
+            })(s)
+        }
+
+        let (_, parts) =
+            complete(separated_list1(tag(VERSION_SEP), compat_rule_set))(value).map_err(|err| {
+                Error::String(format!("Failed to parse compat value '{}': {}", value, err))
+            })?;
+
         Ok(Self(parts))
     }
 }
