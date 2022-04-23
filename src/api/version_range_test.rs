@@ -83,6 +83,22 @@ fn test_version_range_is_applicable(
 #[case("API:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x"}), true)]
 // newer post-release but `x.x.x` compat with Binary compatibility
 #[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x"}), true)]
+// newer post-release but `x.x.x+x` compat with API compatibility
+#[case("API:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+x"}), false)]
+// newer post-release but `x.x.x+x` compat with Binary compatibility
+#[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+x"}), false)]
+// newer post-release but `x.x.x+a` compat with API compatibility
+#[case("API:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+a"}), true)]
+// newer post-release but `x.x.x+a` compat with Binary compatibility
+#[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+a"}), false)]
+// newer post-release but `x.x.x+b` compat with API compatibility
+#[case("API:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+b"}), false)]
+// newer post-release but `x.x.x+b` compat with Binary compatibility
+#[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+b"}), true)]
+// newer post-release but `x.x.x+ab` compat with API compatibility
+#[case("API:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+ab"}), true)]
+// newer post-release but `x.x.x+ab` compat with Binary compatibility
+#[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+ab"}), true)]
 fn test_version_range_is_satisfied(
     #[case] range: &str,
     #[case] spec: Spec,

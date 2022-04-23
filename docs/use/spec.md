@@ -24,6 +24,8 @@ The optional `compat` field of a package specifies the compatibility between ver
 
 If not specified, the default value for this field is: `x.a.b`. This means that at build time and on the command line, when API compatibility is needed, any minor version of this package can be considered compatible (eg `my-package/1.0.0` could resolve any `my-package/1.*`). When resolving dependencies however, when binary compatibility is needed, only the patch version is considered (eg `my-package/1.0.0` could resolve any `my-package/1.0.*`).
 
+Pre-releases and post-releases of the same version are treated as compatible, however this can be controlled by adding an extra compatibility clause to the `compat` field. For example, `x.x.x-x+x` would mark a build as completely incompatible with any other build, including other pre- or post-releases of the same version.
+
 ```yaml
 pkg: my-package/1.0.0
 compat: x.a.b
