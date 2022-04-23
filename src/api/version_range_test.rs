@@ -79,6 +79,10 @@ fn test_version_range_is_applicable(
 #[case("API:1.0.0", spec!({"pkg": "test/1.1.0/JRSXNRF4", "compat": "x.a.b"}), true)]
 // unspecified parts in request have no opinion (rather than requesting zero)
 #[case("1", spec!({"pkg": "test/1.2.3/JRSXNRF4", "compat": "x.a.b"}), true)]
+// newer post-release but `x.x.x` compat with API compatibility
+#[case("API:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x"}), true)]
+// newer post-release but `x.x.x` compat with Binary compatibility
+#[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x"}), true)]
 fn test_version_range_is_satisfied(
     #[case] range: &str,
     #[case] spec: Spec,
