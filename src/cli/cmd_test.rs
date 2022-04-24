@@ -39,7 +39,7 @@ pub struct Test {
     packages: Vec<String>,
 
     /// Test only the specified variant, by index, if defined
-    #[clap(long)]
+    #[clap(long, hide = true)]
     pub variant: Option<usize>,
 }
 

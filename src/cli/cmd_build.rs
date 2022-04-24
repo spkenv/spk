@@ -38,7 +38,7 @@ pub struct Build {
     packages: Vec<String>,
 
     /// Build only the specified variant, by index, if defined
-    #[clap(long)]
+    #[clap(long, hide = true)]
     variant: Option<usize>,
 }
 
