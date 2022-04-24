@@ -34,7 +34,7 @@ pub use component_spec::{Component, ComponentSpec, FileMatcher};
 pub use component_spec_list::ComponentSpecList;
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
-pub use ident::{parse_ident, Ident};
+pub use ident::{parse_ident, Ident, RepositoryName};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
 pub use name::{validate_tag_name, InvalidNameError, OptName, OptNameBuf, PkgName, PkgNameBuf};
