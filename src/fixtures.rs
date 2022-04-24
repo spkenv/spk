@@ -123,7 +123,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
-            storage::RepositoryHandle::SPFS(spfs_repo.into())
+            storage::RepositoryHandle::SPFS((tmpdir.path().display().to_string(), spfs_repo).into())
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
     };

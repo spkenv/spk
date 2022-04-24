@@ -31,6 +31,7 @@ const REPO_VERSION: &str = "1.0.0";
 #[derive(Debug)]
 pub struct SPFSRepository {
     address: url::Url,
+    name: api::RepositoryName,
     inner: spfs::storage::RepositoryHandle,
     cache_policy: AtomicPtr<CachePolicy>,
 }
@@ -75,11 +76,12 @@ impl std::ops::DerefMut for SPFSRepository {
     }
 }
 
-impl<T: Into<spfs::storage::RepositoryHandle>> From<T> for SPFSRepository {
-    fn from(repo: T) -> Self {
-        let inner = repo.into();
+impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> From<(S, T)> for SPFSRepository {
+    fn from(name_and_repo: (S, T)) -> Self {
+        let inner = name_and_repo.1.into();
         Self {
             address: inner.address(),
+            name: api::RepositoryName(name_and_repo.0.as_ref().to_owned()),
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         }
@@ -87,10 +89,11 @@ impl<T: Into<spfs::storage::RepositoryHandle>> From<T> for SPFSRepository {
 }
 
 impl SPFSRepository {
-    pub async fn new(address: &str) -> Result<Self> {
+    pub async fn new(name: &str, address: &str) -> Result<Self> {
         let inner = spfs::open_repository(address).await?;
         Ok(Self {
             address: inner.address(),
+            name: api::RepositoryName(name.to_owned()),
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
@@ -279,6 +282,10 @@ impl Repository for SPFSRepository {
             Err(Error::PackageNotFoundError(_)) => Ok(Vec::new()),
             Err(err) => Err(err),
         }
+    }
+
+    fn name(&self) -> &api::RepositoryName {
+        &self.name
     }
 
     async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
@@ -758,6 +765,7 @@ pub async fn local_repository() -> Result<SPFSRepository> {
     let inner: spfs::prelude::RepositoryHandle = repo.into();
     Ok(SPFSRepository {
         address: inner.address(),
+        name: api::RepositoryName("local".to_owned()),
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
@@ -768,9 +776,10 @@ pub async fn local_repository() -> Result<SPFSRepository> {
 /// If not name is specified, return the default spfs repository.
 pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository> {
     let config = spfs::get_config()?;
-    let repo = config.get_remote(name).await?;
+    let repo = config.get_remote(&name).await?;
     Ok(SPFSRepository {
         address: repo.address(),
+        name: api::RepositoryName(name.as_ref().to_owned()),
         inner: repo,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
