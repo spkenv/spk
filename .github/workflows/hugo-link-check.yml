@@ -1,0 +1,17 @@
+name: Website
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  check:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: peaceiris/actions-hugo@v2
+      - run: hugo
+        working-directory: website
+      - run: docker run -v $(pwd)./website/public:/test --rm wjdp/htmltest

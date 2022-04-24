@@ -21,7 +21,7 @@ solve --> storage
 
 ### High-Level Modules
 
-At the top of this graph are the `spk`, `build` and `test` modules. `spk` defines the highest level API for running spk environments, publishing packages, etc. One step down from that the `build` and `test` modules define how spk build and test envrionments are created and executed, with the `build` package also defining how both source and binary packages should be validated and captured in spfs.
+At the top of this graph are the `spk`, `build` and `test` modules. `spk` defines the highest level API for running spk environments, publishing packages, etc. One step down from that the `build` and `test` modules define how spk build and test environments are created and executed, with the `build` package also defining how both source and binary packages should be validated and captured in spfs.
 
 ### Environment Solver
 
