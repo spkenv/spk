@@ -20,16 +20,18 @@ Package names can only be composed of lowercase ascii letters, digits and dashes
 
 ### Compatibility
 
-The optional `compat` field of a package specifies the compatibility between versions of this package. The compat field takes a version number, with each digit replaced by one or more characters denoting compatibility (`a` for api compatibility, `b` for binary compatbility and `x` for no compatibility). Multiple characters can be put together if necessary: `x.ab`.
+The optional `compat` field of a package specifies the compatibility between versions of this package. The compat field takes a version number, with each digit replaced by one or more characters denoting compatibility (`a` for api compatibility, `b` for binary compatibility and `x` for no compatibility). Multiple characters can be put together if necessary: `x.ab`.
 
 If not specified, the default value for this field is: `x.a.b`. This means that at build time and on the command line, when API compatibility is needed, any minor version of this package can be considered compatible (eg `my-package/1.0.0` could resolve any `my-package/1.*`). When resolving dependencies however, when binary compatibility is needed, only the patch version is considered (eg `my-package/1.0.0` could resolve any `my-package/1.0.*`).
+
+Pre-releases and post-releases of the same version are treated as compatible, however this can be controlled by adding an extra compatibility clause to the `compat` field. For example, `x.x.x-x+x` would mark a build as completely incompatible with any other build, including other pre- or post-releases of the same version.
 
 ```yaml
 pkg: my-package/1.0.0
 compat: x.a.b
-# where major verions are not compatible
-# minor versions are API-compatbile
-# patch versions are binary compatible.
+# where major versions are not compatible
+# minor versions are API-compatible
+# patch versions are binary compatible
 ```
 
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.

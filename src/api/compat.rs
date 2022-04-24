@@ -16,8 +16,13 @@ use crate::{Error, Result};
 #[path = "./compat_test.rs"]
 mod compat_test;
 
+pub const API_COMPAT_STR: &str = "a";
 pub const API_STR: &str = "API";
+pub const BINARY_COMPAT_STR: &str = "b";
 pub const BINARY_STR: &str = "Binary";
+pub const NONE_COMPAT_STR: &str = "x";
+pub const POST_DELIMITER_STR: &str = "+";
+pub const PRE_DELIMITER_STR: &str = "-";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompatRule {
@@ -55,28 +60,12 @@ impl std::str::FromStr for CompatRule {
     }
 }
 
-impl TryFrom<&char> for CompatRule {
-    type Error = crate::Error;
-
-    fn try_from(c: &char) -> crate::Result<CompatRule> {
-        match c {
-            'x' => Ok(CompatRule::None),
-            'a' => Ok(CompatRule::API),
-            'b' => Ok(CompatRule::Binary),
-            _ => Err(crate::Error::String(format!(
-                "Invalid compatibility rule: {}",
-                c
-            ))),
-        }
-    }
-}
-
 impl AsRef<str> for CompatRule {
     fn as_ref(&self) -> &str {
         match self {
-            CompatRule::None => "x",
-            CompatRule::API => "a",
-            CompatRule::Binary => "b",
+            CompatRule::None => NONE_COMPAT_STR,
+            CompatRule::API => API_COMPAT_STR,
+            CompatRule::Binary => BINARY_COMPAT_STR,
         }
     }
 }
@@ -165,23 +154,40 @@ impl CompatRuleSet {
 
 /// Compat specifies the compatilbility contract of a compat number.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Compat(Vec<CompatRuleSet>);
+pub struct Compat {
+    parts: Vec<CompatRuleSet>,
+    pre: Option<CompatRuleSet>,
+    post: Option<CompatRuleSet>,
+}
 
 impl Default for Compat {
     fn default() -> Compat {
         // equivalent to "x.a.b"
-        Compat(vec![
-            CompatRuleSet::single(CompatRule::None),
-            CompatRuleSet::single(CompatRule::API),
-            CompatRuleSet::single(CompatRule::Binary),
-        ])
+        Compat {
+            parts: vec![
+                CompatRuleSet::single(CompatRule::None),
+                CompatRuleSet::single(CompatRule::API),
+                CompatRuleSet::single(CompatRule::Binary),
+            ],
+            pre: None,
+            post: None,
+        }
     }
 }
 
 impl std::fmt::Display for Compat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let str_parts: Vec<_> = self.0.iter().map(|r| r.to_string()).collect();
-        f.write_str(&str_parts.join(VERSION_SEP))
+        let str_parts: Vec<_> = self.parts.iter().map(|r| r.to_string()).collect();
+        f.write_str(&str_parts.join(VERSION_SEP))?;
+        if let Some(pre) = &self.pre {
+            f.write_str(PRE_DELIMITER_STR)?;
+            f.write_str(&pre.to_string())?;
+        }
+        if let Some(post) = &self.post {
+            f.write_str(POST_DELIMITER_STR)?;
+            f.write_str(&post.to_string())?;
+        }
+        Ok(())
     }
 }
 
@@ -197,15 +203,83 @@ impl FromStr for Compat {
     type Err = crate::Error;
 
     fn from_str(value: &str) -> crate::Result<Self> {
-        let mut parts = Vec::new();
-        for part in value.split('.') {
-            let mut rule_set = CompatRuleSet::default();
-            for c in part.chars() {
-                rule_set.0.insert(CompatRule::try_from(&c)?);
-            }
-            parts.push(rule_set);
+        use nom::branch::alt;
+        use nom::bytes::complete::tag;
+        use nom::combinator::{complete, map};
+        use nom::multi::{fold_many0, many1, separated_list1};
+        use nom::sequence::preceded;
+        use nom::IResult;
+
+        fn compat_none(s: &str) -> IResult<&str, CompatRule> {
+            map(tag(NONE_COMPAT_STR), |_| CompatRule::None)(s)
         }
-        Ok(Self(parts))
+
+        fn compat_api(s: &str) -> IResult<&str, CompatRule> {
+            map(tag(API_COMPAT_STR), |_| CompatRule::API)(s)
+        }
+
+        fn compat_binary(s: &str) -> IResult<&str, CompatRule> {
+            map(tag(BINARY_COMPAT_STR), |_| CompatRule::Binary)(s)
+        }
+
+        fn compat_rule(s: &str) -> IResult<&str, CompatRule> {
+            alt((compat_none, compat_api, compat_binary))(s)
+        }
+
+        fn compat_rule_set(s: &str) -> IResult<&str, CompatRuleSet> {
+            map(many1(compat_rule), |rules| {
+                CompatRuleSet(rules.into_iter().collect())
+            })(s)
+        }
+
+        // Parse the main period-separated list of `CompatRule`s
+        let (s, parts) =
+            separated_list1(tag(VERSION_SEP), compat_rule_set)(value).map_err(|err| {
+                Error::String(format!("Failed to parse compat value '{}': {}", value, err))
+            })?;
+
+        enum PreOrPost {
+            Pre,
+            Post,
+        }
+
+        fn pre_rule(s: &str) -> IResult<&str, (PreOrPost, CompatRuleSet)> {
+            preceded(
+                tag(PRE_DELIMITER_STR),
+                map(compat_rule_set, |s| (PreOrPost::Pre, s)),
+            )(s)
+        }
+
+        fn post_rule(s: &str) -> IResult<&str, (PreOrPost, CompatRuleSet)> {
+            preceded(
+                tag(POST_DELIMITER_STR),
+                map(compat_rule_set, |s| (PreOrPost::Post, s)),
+            )(s)
+        }
+
+        // Parse optional Pre- and Post-`CompatRule`s.
+        let (_, compat) = complete(fold_many0(
+            alt((pre_rule, post_rule)),
+            || Self {
+                parts: parts.clone(),
+                ..Default::default()
+            },
+            |mut acc, (pre_or_post, compat_rule)| {
+                match pre_or_post {
+                    PreOrPost::Pre => acc.pre = Some(compat_rule),
+                    PreOrPost::Post => acc.post = Some(compat_rule),
+                }
+                acc
+            },
+        ))(s)
+        .map_err(|err| {
+            Error::String(format!(
+                "Failed to parse pre/post compat value '{}': {}",
+                value, err
+            ))
+        })?;
+
+        Ok(compat)
     }
 }
 
@@ -217,12 +291,18 @@ impl Compat {
 
     /// Create a compat rule set with two parts
     pub fn double(first: CompatRuleSet, second: CompatRuleSet) -> Self {
-        Compat(vec![first, second])
+        Compat {
+            parts: vec![first, second],
+            ..Default::default()
+        }
     }
 
     /// Create a compat rule set with three parts
     pub fn triple(first: CompatRuleSet, second: CompatRuleSet, third: CompatRuleSet) -> Self {
-        Compat(vec![first, second, third])
+        Compat {
+            parts: vec![first, second, third],
+            ..Default::default()
+        }
     }
 
     /// Return true if the two versions are api compatible by this compat rule.
@@ -240,17 +320,54 @@ impl Compat {
             .parts
             .iter()
             .chain(std::iter::repeat(&0))
-            .take(self.0.len())
+            .take(self.parts.len())
             .map(|p| p.to_string());
         format!("~{}", parts.format(VERSION_SEP))
     }
 
     fn check_compat(&self, base: &Version, other: &Version, required: CompatRule) -> Compatibility {
-        if base == other {
+        // If `base` and `other` only differ by the pre or post parts, then
+        // compatibility is determined by our pre/post rules.
+        if base.parts == other.parts {
+            let pre_matches = base.pre == other.pre;
+            let post_matches = base.post == other.post;
+
+            // If no pre/post compat rule is specified, then we default
+            // to treating different pre/post releases as compatible.
+            if (pre_matches || self.pre.is_none()) && (post_matches || self.post.is_none()) {
+                return Compatibility::Compatible;
+            }
+
+            for (matches, optruleset, desc) in [
+                (pre_matches, &self.pre, "pre"),
+                (post_matches, &self.post, "post"),
+            ] {
+                if matches {
+                    continue;
+                }
+
+                if let Some(ruleset) = optruleset {
+                    if ruleset.0.contains(&CompatRule::None) {
+                        return Compatibility::Incompatible(format!(
+                            "Not compatible with {} [{} at {}]",
+                            base, self, desc
+                        ));
+                    }
+
+                    if !ruleset.0.contains(&required) {
+                        return Compatibility::Incompatible(format!(
+                            "Not {:?} compatible with {} [{} at {}]",
+                            required, base, self, desc
+                        ));
+                    }
+                }
+            }
+
+            // If above logic finds no problems then it is compatible
             return Compatibility::Compatible;
         }
 
-        for (i, rule) in self.0.iter().enumerate() {
+        for (i, rule) in self.parts.iter().enumerate() {
             let a = base.parts.get(i);
             let b = other.parts.get(i);
             if rule.0.contains(&CompatRule::None) {
