@@ -71,7 +71,7 @@ pub fn host_options() -> crate::Result<OptionMap> {
 }
 
 /// A set of values for package build options.
-#[derive(Default, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Ord, PartialOrd)]
 #[serde(transparent)]
 pub struct OptionMap {
     options: BTreeMap<String, String>,
