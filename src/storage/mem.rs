@@ -15,6 +15,7 @@ type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
 #[derive(Clone, Debug)]
 pub struct MemRepository {
     address: url::Url,
+    name: api::RepositoryName,
     specs: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, SpecByVersion>>>,
     packages: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, HashMap<api::Version, BuildMap>>>>,
 }
@@ -28,6 +29,7 @@ impl MemRepository {
             .expect("[INTERNAL ERROR] hex address should always create a valid url");
         Self {
             address,
+            name: api::RepositoryName("mem".to_string()),
             specs,
             packages: Arc::default(),
         }
@@ -125,6 +127,10 @@ impl Repository for MemRepository {
             .map(|(_, build_map)| build_map)
             .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default())
+    }
+
+    fn name(&self) -> &api::RepositoryName {
+        &self.name
     }
 
     async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
