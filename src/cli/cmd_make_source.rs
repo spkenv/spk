@@ -27,12 +27,20 @@ pub struct MakeSource {
 #[async_trait::async_trait]
 impl Run for MakeSource {
     async fn run(&mut self) -> Result<i32> {
+        self.make_source().await.map(|_| 0)
+    }
+}
+
+impl MakeSource {
+    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::Ident>> {
         let _runtime = self.runtime.ensure_active_runtime().await?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
         if packages.is_empty() {
             packages.push(None)
         }
+
+        let mut idents = Vec::new();
 
         for package in packages.into_iter() {
             let spec = match flags::find_package_spec(&package)? {
@@ -57,8 +65,9 @@ impl Run for MakeSource {
                 .await
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", spk::io::format_ident(&out));
+            idents.push(out)
         }
-        Ok(0)
+        Ok(idents)
     }
 }
 

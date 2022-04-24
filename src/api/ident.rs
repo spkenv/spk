@@ -43,7 +43,7 @@ macro_rules! ident {
 }
 
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct RepositoryName(String);
+pub struct RepositoryName(pub String);
 
 /// Ident represents a package identifier.
 ///
@@ -97,6 +97,11 @@ impl Ident {
     /// Set the build component of this package identifier.
     pub fn set_build(&mut self, build: Option<Build>) {
         self.build = build;
+    }
+
+    /// Set the repository name of this package identifier.
+    pub fn set_repository_name(&mut self, repository_name: Option<RepositoryName>) {
+        self.repository_name = repository_name;
     }
 
     /// Return a copy of this identifier with the given build replaced.
