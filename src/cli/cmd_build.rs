@@ -65,18 +65,10 @@ impl Run for Build {
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
             };
-            let mut idents = make_source.make_source().await?;
+            let idents = make_source.make_source().await?;
 
-            // Constrain these source packages to the local repo so we don't
-            // resolve a wrong version from some remote repo.
-            // TODO: This should also constrain the version exactly, using
+            // TODO: This should constrain the ident's version exactly, using
             // the proposed new `==` syntax.
-            for ident in &mut idents {
-                // XXX: This "local" should not be hard-coded. It should be whatever
-                // repo `make_source` created the new package in. Any reason why
-                // `make_source` shouldn't populate this itself?
-                ident.set_repository_name(Some(spk::api::RepositoryName("local".to_owned())))
-            }
 
             let mut make_binary = super::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
