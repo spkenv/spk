@@ -72,6 +72,9 @@ impl Run for Build {
             // TODO: This should also constrain the version exactly, using
             // the proposed new `==` syntax.
             for ident in &mut idents {
+                // XXX: This "local" should not be hard-coded. It should be whatever
+                // repo `make_source` created the new package in. Any reason why
+                // `make_source` shouldn't populate this itself?
                 ident.set_repository_name(Some(spk::api::RepositoryName("local".to_owned())))
             }
 
