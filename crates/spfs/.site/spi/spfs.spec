@@ -13,8 +13,8 @@ BuildRequires: gcc-c++
 BuildRequires: chrpath
 BuildRequires: libcap-devel
 BuildRequires: openssl-devel
-# Minimum version with parallel component support
-BuildRequires: spdev >= 0.25.0
+# Minimum version with parallel component support and relocatable .spdev.yaml
+BuildRequires: spdev >= 0.25.5
 
 %define debug_package %{nil}
 
