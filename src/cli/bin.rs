@@ -46,6 +46,10 @@ pub struct Opt {
 impl Opt {
     pub fn run(&mut self) -> Result<i32> {
         let _guard = spk::HANDLE.enter();
+
+        #[cfg(feature = "sentry")]
+        let _sentry_guard = env::configure_sentry();
+
         let res = env::configure_logging(self.verbose).context("Failed to initialize output log");
         if let Err(err) = res {
             eprintln!("{}", err.to_string().red());
