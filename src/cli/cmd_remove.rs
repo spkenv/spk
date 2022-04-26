@@ -8,7 +8,7 @@ use clap::Args;
 use colored::Colorize;
 use spk::api;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Remove a package from a repository
 #[derive(Args)]
@@ -25,8 +25,8 @@ pub struct Remove {
     packages: Vec<String>,
 }
 
-impl Remove {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Remove {
+    fn run(&mut self) -> Result<i32> {
         let repos = self.repos.get_repos(None)?;
         if repos.is_empty() {
             eprintln!(

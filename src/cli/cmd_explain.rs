@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Show the resolve process for a set of packages.
 #[derive(Args)]
@@ -27,8 +27,8 @@ pub struct Explain {
     pub requested: Vec<String>,
 }
 
-impl Explain {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Explain {
+    fn run(&mut self) -> Result<i32> {
         self.runtime.ensure_active_runtime()?;
 
         let mut solver = self.solver.get_solver(&self.options)?;

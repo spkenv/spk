@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Build a source package from a spec file.
 #[derive(Args)]
@@ -22,8 +22,8 @@ pub struct MakeSource {
     pub packages: Vec<String>,
 }
 
-impl MakeSource {
-    pub fn run(&self) -> Result<i32> {
+impl Run for MakeSource {
+    fn run(&mut self) -> Result<i32> {
         let _runtime = self.runtime.ensure_active_runtime()?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
@@ -32,7 +32,7 @@ impl MakeSource {
         }
 
         for package in packages.into_iter() {
-            let spec = match flags::find_package_spec(package)? {
+            let spec = match flags::find_package_spec(&package)? {
                 flags::FindPackageSpecResult::NotFound(name) => {
                     // TODO:: load from given repos
                     spk::api::read_spec_file(name)?

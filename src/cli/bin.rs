@@ -6,6 +6,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use enum_dispatch::enum_dispatch;
 
 mod cmd_bake;
 mod cmd_build;
@@ -20,6 +21,7 @@ mod cmd_ls;
 mod cmd_make_binary;
 mod cmd_make_source;
 mod cmd_new;
+mod cmd_num_variants;
 mod cmd_publish;
 mod cmd_remove;
 mod cmd_render;
@@ -53,6 +55,13 @@ impl Opt {
     }
 }
 
+/// Trait all cli commands must implement to be runnable.
+#[enum_dispatch]
+trait Run {
+    fn run(&mut self) -> Result<i32>;
+}
+
+#[enum_dispatch(Run)]
 #[derive(Subcommand)]
 pub enum Command {
     Bake(cmd_bake::Bake),
@@ -68,6 +77,8 @@ pub enum Command {
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
     New(cmd_new::New),
+    #[clap(hide = true)]
+    NumVariants(cmd_num_variants::NumVariants),
     Publish(cmd_publish::Publish),
     Remove(cmd_remove::Remove),
     Render(cmd_render::Render),
@@ -76,34 +87,6 @@ pub enum Command {
     Test(cmd_test::Test),
     Version(cmd_version::Version),
     View(cmd_view::View),
-}
-
-impl Command {
-    fn run(&mut self) -> Result<i32> {
-        match self {
-            Self::Bake(cmd) => cmd.run(),
-            Self::Build(cmd) => cmd.run(),
-            Self::Convert(cmd) => cmd.run(),
-            Self::Deprecate(cmd) => cmd.run(),
-            Self::Env(cmd) => cmd.run(),
-            Self::Explain(cmd) => cmd.run(),
-            Self::Export(cmd) => cmd.run(),
-            Self::Import(cmd) => cmd.run(),
-            Self::Install(cmd) => cmd.run(),
-            Self::Ls(cmd) => cmd.run(),
-            Self::MakeBinary(cmd) => cmd.run(),
-            Self::MakeSource(cmd) => cmd.run(),
-            Self::New(cmd) => cmd.run(),
-            Self::Publish(cmd) => cmd.run(),
-            Self::Remove(cmd) => cmd.run(),
-            Self::Render(cmd) => cmd.run(),
-            Self::Repo(cmd) => cmd.run(),
-            Self::Search(cmd) => cmd.run(),
-            Self::Test(cmd) => cmd.run(),
-            Self::Version(cmd) => cmd.run(),
-            Self::View(cmd) => cmd.run(),
-        }
-    }
 }
 
 fn main() {

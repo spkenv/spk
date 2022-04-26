@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use anyhow::{bail, Context, Result};
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Output the contents of an spk environment (/spfs) to a folder
 #[derive(Args)]
@@ -30,8 +30,8 @@ pub struct Render {
     target: PathBuf,
 }
 
-impl Render {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Render {
+    fn run(&mut self) -> Result<i32> {
         let mut solver = self.solver.get_solver(&self.options)?;
         for name in self
             .requests

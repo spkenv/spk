@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Run package tests
 ///
@@ -37,10 +37,14 @@ pub struct Test {
     /// limit which tests are executed.
     #[clap(name = "FILE|PKG[@STAGE]", required = true)]
     packages: Vec<String>,
+
+    /// Test only the specified variant, by index, if defined
+    #[clap(long, hide = true)]
+    pub variant: Option<usize>,
 }
 
-impl Test {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Test {
+    fn run(&mut self) -> Result<i32> {
         let _runtime = self.runtime.ensure_active_runtime()?;
         let options = self.options.get_options()?;
         let mut repos: Vec<_> = self
@@ -75,7 +79,7 @@ impl Test {
                 }
             };
 
-            let (spec, filename) = match flags::find_package_spec(Some(name.clone()))? {
+            let (spec, filename) = match flags::find_package_spec(&Some(&name))? {
                 flags::FindPackageSpecResult::Found { path, spec } => (spec, path),
                 _ => {
                     let pkg = spk::api::parse_ident(&name)?;
@@ -98,7 +102,13 @@ impl Test {
                 tracing::info!("Testing {}@{stage}...", filename.display());
 
                 let mut tested = std::collections::HashSet::new();
-                for variant in spec.build.variants.iter() {
+
+                let variants_to_test = match self.variant {
+                    Some(index) => spec.build.variants.iter().skip(index).take(1),
+                    None => spec.build.variants.iter().skip(0).take(usize::MAX),
+                };
+
+                for variant in variants_to_test {
                     let mut opts = match self.options.no_host {
                         true => spk::api::OptionMap::default(),
                         false => spk::api::host_options()?,

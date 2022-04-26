@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Export a package as a tar file
 #[derive(Args)]
@@ -26,8 +26,8 @@ pub struct Export {
     pub filename: Option<std::path::PathBuf>,
 }
 
-impl Export {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Export {
+    fn run(&mut self) -> Result<i32> {
         let pkg = self
             .requests
             .parse_idents([self.package.as_str()])?

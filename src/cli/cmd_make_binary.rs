@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
@@ -38,10 +38,14 @@ pub struct MakeBinary {
     /// The packages or yaml spec files to build
     #[clap(name = "PKG|SPEC_FILE")]
     pub packages: Vec<String>,
+
+    /// Build only the specified variant, by index, if defined
+    #[clap(long)]
+    pub variant: Option<usize>,
 }
 
-impl MakeBinary {
-    pub fn run(&self) -> Result<i32> {
+impl Run for MakeBinary {
+    fn run(&mut self) -> Result<i32> {
         let _runtime = self.runtime.ensure_active_runtime()?;
 
         let options = self.options.get_options()?;
@@ -58,7 +62,7 @@ impl MakeBinary {
         }
 
         for package in packages {
-            let spec = match flags::find_package_spec(package)? {
+            let spec = match flags::find_package_spec(&package)? {
                 flags::FindPackageSpecResult::NotFound(name) => {
                     // TODO:: load from given repos
                     spk::api::read_spec_file(name)?
@@ -76,7 +80,13 @@ impl MakeBinary {
                 spk::io::format_ident(&spec.pkg)
             );
             let mut built = std::collections::HashSet::new();
-            for variant in spec.build.variants.iter() {
+
+            let variants_to_build = match self.variant {
+                Some(index) => spec.build.variants.iter().skip(index).take(1),
+                None => spec.build.variants.iter().skip(0).take(usize::MAX),
+            };
+
+            for variant in variants_to_build {
                 let mut opts = if !self.options.no_host {
                     spk::api::host_options()?
                 } else {

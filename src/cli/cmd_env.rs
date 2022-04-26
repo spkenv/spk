@@ -6,7 +6,7 @@ use std::ffi::OsString;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Resolve and run an environment on-the-fly
 ///
@@ -39,8 +39,8 @@ pub struct Env {
     pub command: Vec<String>,
 }
 
-impl Env {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Env {
+    fn run(&mut self) -> Result<i32> {
         self.runtime.ensure_active_runtime()?;
 
         let mut solver = self.solver.get_solver(&self.options)?;
@@ -82,7 +82,9 @@ impl Env {
         let exe = command.drain(..1).next().unwrap();
         self.run_command(exe, command)
     }
+}
 
+impl Env {
     #[cfg(target_os = "linux")]
     pub fn run_command(&self, exe: OsString, args: Vec<OsString>) -> Result<i32> {
         use std::os::unix::ffi::OsStrExt;

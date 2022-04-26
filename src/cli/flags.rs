@@ -181,7 +181,7 @@ impl Requests {
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let (_, spec) = find_package_spec(Some(package.into()))?.must_be_found();
+                let (_, spec) = find_package_spec(&Some(package))?.must_be_found();
                 idents.push(spec.pkg);
             } else {
                 idents.push(spk::api::parse_ident(package)?)
@@ -298,7 +298,7 @@ pub fn parse_stage_specifier(
 
     let stage = spk::api::TestStage::from_str(stage)?;
 
-    let (filename, spec) = find_package_spec(Some(package.into()))?.must_be_found();
+    let (filename, spec) = find_package_spec(&Some(package))?.must_be_found();
     Ok((spec, filename, stage))
 }
 
@@ -352,44 +352,55 @@ impl FindPackageSpecResult {
 /// This function will use the current directory and the provided
 /// package name or filename to try and discover the matching
 /// yaml spec file.
-pub fn find_package_spec(package: Option<String>) -> Result<FindPackageSpecResult> {
+pub fn find_package_spec<S>(package: &Option<S>) -> Result<FindPackageSpecResult>
+where
+    S: AsRef<str>,
+{
     use FindPackageSpecResult::*;
-    let mut packages = glob::glob("*.spk.yaml")?
-        .collect::<std::result::Result<Vec<_>, _>>()
-        .context("Failed to discover spec files in current directory")?;
-    let package = match package {
-        Some(package) => package,
-        None if packages.len() == 1 => {
-            let path = packages.pop().unwrap();
-            let spec = spk::api::read_spec_file(&path)?;
-            return Ok(Found { path, spec });
-        }
-        None if packages.len() > 1 => {
-            return Ok(MultipleSpecFiles);
-        }
-        None => {
-            return Ok(NoSpecFiles);
-        }
+
+    // Lazily process the glob. This closure is expected to be called at
+    // most once, but there are two code paths that might need to call it.
+    let find_packages = || {
+        glob::glob("*.spk.yaml")?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .context("Failed to discover spec files in current directory")
     };
 
-    match spk::api::read_spec_file(&package) {
+    let package = match package {
+        None => {
+            let mut packages = find_packages()?;
+
+            return match packages.len() {
+                1 => {
+                    let path = packages.pop().unwrap();
+                    let spec = spk::api::read_spec_file(&path)?;
+                    Ok(Found { path, spec })
+                }
+                2.. => Ok(MultipleSpecFiles),
+                _ => Ok(NoSpecFiles),
+            };
+        }
+        Some(package) => package,
+    };
+
+    match spk::api::read_spec_file(package.as_ref()) {
         Err(spk::Error::IO(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
         res => {
             return Ok(Found {
-                path: package.into(),
+                path: package.as_ref().into(),
                 spec: res?,
             })
         }
     }
 
-    for path in packages {
+    for path in find_packages()? {
         let spec = spk::api::read_spec_file(&path)?;
-        if spec.pkg.name() == package {
+        if spec.pkg.name() == package.as_ref() {
             return Ok(Found { path, spec });
         }
     }
 
-    Ok(NotFound(package))
+    Ok(NotFound(package.as_ref().to_owned()))
 }
 
 #[derive(Args, Clone)]

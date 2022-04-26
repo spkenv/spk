@@ -6,6 +6,8 @@ use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 
+use super::{flags, Run};
+
 /// View the current environment or information about a package
 #[derive(Args)]
 #[clap(visible_alias = "info")]
@@ -22,10 +24,18 @@ pub struct View {
 
     /// The package to show information about
     package: Option<String>,
+
+    /// Display information about the variants defined by the package
+    #[clap(long)]
+    variants: bool,
 }
 
-impl View {
-    pub fn run(&self) -> Result<i32> {
+impl Run for View {
+    fn run(&mut self) -> Result<i32> {
+        if self.variants {
+            return self.print_variants_info();
+        }
+
         let package = match &self.package {
             None => return self.print_current_env(),
             Some(p) => p,
@@ -73,10 +83,24 @@ impl View {
         tracing::error!("Internal Error: requested package was not in solution");
         Ok(1)
     }
+}
 
+impl View {
     fn print_current_env(&self) -> Result<i32> {
         let solution = spk::current_env()?;
         println!("{}", spk::io::format_solution(&solution, self.verbose));
+        Ok(0)
+    }
+
+    fn print_variants_info(&self) -> Result<i32> {
+        let (_, spec) = flags::find_package_spec(&self.package)
+            .context("find package spec")?
+            .must_be_found();
+
+        for (index, variant) in spec.build.variants.iter().enumerate() {
+            println!("{}: {}", index, variant);
+        }
+
         Ok(0)
     }
 }

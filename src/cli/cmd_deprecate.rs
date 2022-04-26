@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Deprecate a package in a repository.
 ///
@@ -32,8 +32,8 @@ pub struct Deprecate {
 }
 
 /// Runs make-source and then make-binary
-impl Deprecate {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Deprecate {
+    fn run(&mut self) -> Result<i32> {
         let repos: Vec<_> = self
             .repos
             .get_repos(None)?

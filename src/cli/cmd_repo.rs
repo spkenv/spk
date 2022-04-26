@@ -6,6 +6,8 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use spk::storage::Repository;
 
+use super::Run;
+
 /// Perform repository-level actions and maintenance
 #[derive(Args)]
 pub struct Repo {
@@ -13,8 +15,8 @@ pub struct Repo {
     command: RepoCommand,
 }
 
-impl Repo {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Repo {
+    fn run(&mut self) -> Result<i32> {
         self.command.run()
     }
 }
@@ -36,7 +38,7 @@ pub enum RepoCommand {
 }
 
 impl RepoCommand {
-    pub fn run(&self) -> Result<i32> {
+    pub fn run(&mut self) -> Result<i32> {
         let repo = match &self {
             Self::Upgrade { repo } => repo,
         };

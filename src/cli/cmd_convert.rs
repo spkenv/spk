@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Convert a package from an external packaging system for use in spk
 #[derive(Args)]
@@ -33,14 +33,14 @@ pub struct Convert {
     args: Vec<String>,
 }
 
-impl Convert {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Convert {
+    fn run(&mut self) -> Result<i32> {
         let converter_package = format!("spk-convert-{}", self.converter);
 
         let mut command = vec![converter_package.clone()];
         command.extend(self.args.clone());
 
-        let env = super::cmd_env::Env {
+        let mut env = super::cmd_env::Env {
             solver: self.solver.clone(),
             options: self.options.clone(),
             runtime: self.runtime.clone(),

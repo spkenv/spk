@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
-use super::flags;
+use super::{flags, Run};
 
 /// List packages in one or more repositories
 #[derive(Args)]
@@ -34,8 +34,8 @@ pub struct Ls {
     package: Option<String>,
 }
 
-impl Ls {
-    pub fn run(&mut self) -> Result<i32> {
+impl Run for Ls {
+    fn run(&mut self) -> Result<i32> {
         let mut repos = self.repos.get_repos(None)?;
 
         if repos.is_empty() {
@@ -88,7 +88,9 @@ impl Ls {
         }
         Ok(0)
     }
+}
 
+impl Ls {
     fn list_recursively(
         &self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,

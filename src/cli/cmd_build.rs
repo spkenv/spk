@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::flags;
+use super::{flags, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args, Clone)]
@@ -36,11 +36,15 @@ pub struct Build {
     /// The package names or yaml spec files to build
     #[clap(name = "NAME|SPEC_FILE")]
     packages: Vec<String>,
+
+    /// Build only the specified variant, by index, if defined
+    #[clap(long, hide = true)]
+    variant: Option<usize>,
 }
 
 /// Runs make-source and then make-binary
-impl Build {
-    pub fn run(&self) -> Result<i32> {
+impl Run for Build {
+    fn run(&mut self) -> Result<i32> {
         self.runtime.ensure_active_runtime()?;
 
         // divide our packages into one for each iteration of mks/mkb
@@ -50,7 +54,7 @@ impl Build {
         }
 
         for packages in runs {
-            let make_source = super::cmd_make_source::MakeSource {
+            let mut make_source = super::cmd_make_source::MakeSource {
                 verbose: self.verbose,
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
@@ -60,7 +64,7 @@ impl Build {
                 return Ok(code);
             }
 
-            let make_binary = super::cmd_make_binary::MakeBinary {
+            let mut make_binary = super::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
                 runtime: self.runtime.clone(),
                 repos: self.repos.clone(),
@@ -69,6 +73,7 @@ impl Build {
                 interactive: self.interactive,
                 env: self.env,
                 packages,
+                variant: self.variant,
             };
             let code = make_binary.run()?;
             if code != 0 {
