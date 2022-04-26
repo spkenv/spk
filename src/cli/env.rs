@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 pub fn configure_sentry() -> sentry::ClientInitGuard {
     // When using the sentry feature it is expected that the DSN
     // and other configuration is provided at *compile* time.
-    sentry::init((
+    let guard = sentry::init((
         option_env!("SENTRY_DSN"),
         sentry::ClientOptions {
             release: sentry::release_name!(),
@@ -17,7 +17,18 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
                 .map(std::borrow::Cow::Owned),
             ..Default::default()
         },
-    ))
+    ));
+
+    if let Ok(username) = std::env::var("USER") {
+        sentry::configure_scope(|scope| {
+            scope.set_user(Some(sentry::User {
+                username: Some(username),
+                ..Default::default()
+            }))
+        });
+    }
+
+    guard
 }
 
 pub fn configure_logging(verbosity: u32) -> Result<()> {
