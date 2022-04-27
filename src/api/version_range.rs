@@ -629,10 +629,24 @@ impl Ranged for ExcludedVersion {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        if version.parts[..self.specified] == self.base.parts[..self.specified] {
-            return Compatibility::Incompatible(format!("excluded [{}]", self));
+        // Is some part of the specified version different?
+        if version
+            .parts
+            .iter()
+            .zip(self.base.parts.iter())
+            .take(self.specified)
+            .any(|(l, r)| l != r)
+        {
+            return Compatibility::Compatible;
         }
-        Compatibility::Compatible
+
+        // To mirror `ExactVersion`, different post releases are unequal,
+        // but unspecified post release is considered equal.
+        if !self.base.post.is_empty() && self.base.post != version.post {
+            return Compatibility::Compatible;
+        }
+
+        Compatibility::Incompatible(format!("excluded [{}]", self))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
@@ -642,8 +656,11 @@ impl Ranged for ExcludedVersion {
 
 impl Display for ExcludedVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let base_str = self.base.parts[..self.specified]
+        let base_str = self
+            .base
+            .parts
             .iter()
+            .take(self.specified)
             .map(ToString::to_string)
             .collect_vec()
             .join(VERSION_SEP);
