@@ -133,6 +133,8 @@ impl<T: Ranged> Ranged for &T {
 #[enum_dispatch(Ranged)]
 pub enum VersionRange {
     Compat(CompatRange),
+    DoubleEquals(DoubleEqualsVersion),
+    DoubleNotEquals(DoubleNotEqualsVersion),
     Equals(EqualsVersion),
     Filter(VersionFilter),
     GreaterThan(GreaterThanRange),
@@ -149,6 +151,8 @@ impl Display for VersionRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             VersionRange::Compat(vr) => vr.fmt(f),
+            VersionRange::DoubleEquals(vr) => vr.fmt(f),
+            VersionRange::DoubleNotEquals(vr) => vr.fmt(f),
             VersionRange::Equals(vr) => vr.fmt(f),
             VersionRange::Filter(vr) => vr.fmt(f),
             VersionRange::GreaterThan(vr) => vr.fmt(f),
@@ -670,6 +674,134 @@ impl Display for NotEqualsVersion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DoubleEqualsVersion {
+    version: Version,
+}
+
+impl DoubleEqualsVersion {
+    pub fn version_range(version: Version) -> VersionRange {
+        VersionRange::DoubleEquals(Self { version })
+    }
+}
+
+impl From<Version> for DoubleEqualsVersion {
+    fn from(version: Version) -> Self {
+        Self { version }
+    }
+}
+
+impl Ranged for DoubleEqualsVersion {
+    fn greater_or_equal_to(&self) -> Option<Version> {
+        Some(self.version.clone())
+    }
+
+    fn less_than(&self) -> Option<Version> {
+        let mut parts = self.version.parts.clone();
+        if let Some(last) = parts.last_mut() {
+            *last += 1;
+        }
+        Some(Version::from_parts(parts))
+    }
+
+    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+        if self.version.parts != spec.pkg.version.parts {
+            return Compatibility::Incompatible(format!(
+                "{} !! {} [not equal precisely]",
+                &spec.pkg.version, self
+            ));
+        }
+
+        if self.version.pre != spec.pkg.version.pre {
+            return Compatibility::Incompatible(format!(
+                "{} !! {} [not equal precisely @ prerelease]",
+                &spec.pkg.version, self
+            ));
+        }
+        // post release tags must match exactly
+        if self.version.post != spec.pkg.version.post {
+            return Compatibility::Incompatible(format!(
+                "{} !! {} [not equal precisely @ postrelease]",
+                &spec.pkg.version, self
+            ));
+        }
+        Compatibility::Compatible
+    }
+}
+
+impl Display for DoubleEqualsVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("==")?;
+        f.write_str(&self.version.to_string())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DoubleNotEqualsVersion {
+    specified: usize,
+    base: Version,
+}
+
+impl DoubleNotEqualsVersion {
+    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
+        let range = Self {
+            specified: exclude.as_ref().split(VERSION_SEP).count(),
+            base: parse_version(exclude)?,
+        };
+        Ok(VersionRange::DoubleNotEquals(range))
+    }
+}
+
+impl Ranged for DoubleNotEqualsVersion {
+    fn greater_or_equal_to(&self) -> Option<Version> {
+        None
+    }
+
+    fn less_than(&self) -> Option<Version> {
+        None
+    }
+
+    fn is_applicable(&self, version: &Version) -> Compatibility {
+        // Is some part of the specified version different?
+        if version
+            .parts
+            .iter()
+            .zip(self.base.parts.iter())
+            .take(self.specified)
+            .any(|(l, r)| l != r)
+        {
+            return Compatibility::Compatible;
+        }
+
+        // To mirror `PreciseExactVersion`, any differences in post
+        // releases makes these unequal.
+        if self.base.post != version.post {
+            return Compatibility::Compatible;
+        }
+
+        Compatibility::Incompatible(format!("excluded precisely [{}]", self))
+    }
+
+    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+        self.is_applicable(&spec.pkg.version)
+    }
+}
+
+impl Display for DoubleNotEqualsVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let base_str = self
+            .base
+            .parts
+            .iter()
+            .take(self.specified)
+            .map(ToString::to_string)
+            .collect_vec()
+            .join(VERSION_SEP);
+        f.write_str("!==")?;
+        f.write_str(&base_str)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
     base: Version,
     /// if unset, the required compatibility is based on the type
@@ -912,9 +1044,14 @@ impl FromStr for VersionFilter {
                 GreaterThanRange::new_version_range(end)?
             } else if let Some(end) = rule_str.strip_prefix('<') {
                 LessThanRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix("==") {
+                let version = Version::from_str(end)?;
+                DoubleEqualsVersion::version_range(version)
             } else if let Some(end) = rule_str.strip_prefix('=') {
                 let version = Version::from_str(end)?;
                 EqualsVersion::version_range(version)
+            } else if let Some(end) = rule_str.strip_prefix("!==") {
+                DoubleNotEqualsVersion::new_version_range(end)?
             } else if let Some(end) = rule_str.strip_prefix("!=") {
                 NotEqualsVersion::new_version_range(end)?
             } else if rule_str.contains('*') {
