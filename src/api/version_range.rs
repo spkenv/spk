@@ -132,33 +132,33 @@ impl<T: Ranged> Ranged for &T {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[enum_dispatch(Ranged)]
 pub enum VersionRange {
-    Semver(SemverRange),
-    Wildcard(WildcardRange),
-    LowestSpecified(LowestSpecifiedRange),
-    GreaterThan(GreaterThanRange),
-    LessThan(LessThanRange),
-    GreaterThanOrEqualTo(GreaterThanOrEqualToRange),
-    LessThanOrEqualTo(LessThanOrEqualToRange),
+    Compat(CompatRange),
     Exact(ExactVersion),
     Excluded(ExcludedVersion),
-    Compat(CompatRange),
     Filter(VersionFilter),
+    GreaterThan(GreaterThanRange),
+    GreaterThanOrEqualTo(GreaterThanOrEqualToRange),
+    LessThan(LessThanRange),
+    LessThanOrEqualTo(LessThanOrEqualToRange),
+    LowestSpecified(LowestSpecifiedRange),
+    Semver(SemverRange),
+    Wildcard(WildcardRange),
 }
 
 impl Display for VersionRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            VersionRange::Semver(vr) => vr.fmt(f),
-            VersionRange::Wildcard(vr) => vr.fmt(f),
-            VersionRange::LowestSpecified(vr) => vr.fmt(f),
-            VersionRange::GreaterThan(vr) => vr.fmt(f),
-            VersionRange::LessThan(vr) => vr.fmt(f),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.fmt(f),
-            VersionRange::LessThanOrEqualTo(vr) => vr.fmt(f),
+            VersionRange::Compat(vr) => vr.fmt(f),
             VersionRange::Exact(vr) => vr.fmt(f),
             VersionRange::Excluded(vr) => vr.fmt(f),
-            VersionRange::Compat(vr) => vr.fmt(f),
             VersionRange::Filter(vr) => vr.fmt(f),
+            VersionRange::GreaterThan(vr) => vr.fmt(f),
+            VersionRange::GreaterThanOrEqualTo(vr) => vr.fmt(f),
+            VersionRange::LessThan(vr) => vr.fmt(f),
+            VersionRange::LessThanOrEqualTo(vr) => vr.fmt(f),
+            VersionRange::LowestSpecified(vr) => vr.fmt(f),
+            VersionRange::Semver(vr) => vr.fmt(f),
+            VersionRange::Wildcard(vr) => vr.fmt(f),
         }
     }
 }
