@@ -1,9 +1,10 @@
+api: v1alpha1/package
 pkg: openimageio/2.3.7.2
-  # - name: OpenImageIO
-  # - description: "Library and tools for image files and processing"
-  # - homepage: https://openimageio.readthedocs.io
+meta:
+  description: "Library and tools for image files and processing"
+  homepage: https://openimageio.readthedocs.io
+  license: BSD-3-clause
   # - author: "Larry Gritz <lg@larrygritz.com>"
-  # - license: BSD-3-clause
   # - bindings: [ "C++", "C", "Python", "cli" ]
 
 # If building off the master/development branch of OIIO, there is no
@@ -18,148 +19,135 @@ pkg: openimageio/2.3.7.2
 #
 compat: x.x.a.b
 
-sources:
+options:
+  - var: arch
+  - var: os
+  - var: centos
+  - var: python.abi
+  - pkg: gcc/6.3
+  - pkg: python/~3.7.0
+    atRuntime:
+      when: Requested
+  - pkg: pybind11/2.6.2
+    atRuntime: false
+  - pkg: numpy
+  - pkg: cmake/^3.13
+    atRuntime: false
+  - pkg: boost/~1.70.0
+  - pkg: zlib
+  - pkg: libtiff/4.3
+  - pkg: imath/~3.1.0
+  - pkg: openexr/~3.1.0
+  - pkg: fmt/~8.0.0
+  - pkg: opencolorio/~2.0.1
+  - pkg: giflib
+  - pkg: libpng
+  - pkg: pugixml
+  - pkg: robinmap
+  - pkg: libraw
+  - pkg: freetype
+  - pkg: libjpeg
+  - pkg: openjpeg
+  - pkg: tbb/2019.9
+  - pkg: openvdb/8.0
+  - pkg: libheif/1.12
+  - pkg: ffmpeg/4.2
+  # TODO:
+  # - pkg: webp
+  # - pkg: qt5
+  # - pkg: libsquish?
+  # - pkg: jpeg-turbo?
+  # optional: opencv?
+  - var: cxx/14
+    choices: [14, 17]
+  - var: debug/off
+    choices: [on, off]
+  - var: sse4/on
+    choices: [on, off]
+  - var: avx2/off
+    choices: [on, off]
+  - var: avx512f/off
+    choices: [on, off]
+
+source:
+  collect:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
   # or (c) nothing (does a fresh clone from GitHub).
   - path: ./
   - script:
     - if [ ! -d oiio ] ; then git clone https://github.com/OpenImageIO/oiio -b v2.3.7.2 ; fi
 
-
 build:
-
-  options:
-    - var: arch
-    - var: os
-    - var: centos
-    - var: python.abi
-    - pkg: gcc/6.3
-    - pkg: python/~3.7.0
-    - pkg: pybind11/2.6.2
-    - pkg: numpy
-    - pkg: cmake/^3.13
-    - pkg: boost/~1.70.0
-    - pkg: zlib
-    - pkg: libtiff/4.3
-    - pkg: imath/~3.1.0
-    - pkg: openexr/~3.1.0
-    - pkg: fmt/~8.0.0
-    - pkg: opencolorio/~2.0.1
-    - pkg: giflib
-    - pkg: libpng
-    - pkg: pugixml
-    - pkg: robinmap
-    - pkg: libraw
-    - pkg: freetype
-    - pkg: libjpeg
-    - pkg: openjpeg
-    - pkg: tbb/2019.9
-    - pkg: openvdb/8.0
-    - pkg: libheif/1.12
-    - pkg: ffmpeg/4.2
-    # TODO:
-    # - pkg: webp
-    # - pkg: qt5
-    # - pkg: libsquish?
-    # - pkg: jpeg-turbo?
-    # optional: opencv?
-    - var: oiio_cxx/14
-      choices: [14, 17]
-    - var: oiio_debug/off
-      choices: [on, off]
-    - var: oiio_sse4/on
-      choices: [on, off]
-    - var: oiio_avx2/off
-      choices: [on, off]
-    - var: oiio_avx512f/off
-      choices: [on, off]
-
   # variants declares the default set of variants to build and publish
   # using the spk build and make-* commands
-  variants:
+  defaultVariants:
     # VFX Platform 2019-ish, Maya 2020, Houdini 18
-    - { gcc: 6.3, oiio_cxx: 14, python: ~2.7.0, python.abi: "cp27mu", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - [
+        {pkg: gcc/6.3},
+        {var: openimageio.cxx/14},
+        {pkg: python/~2.7.0},
+        {var: python.abi/cp27mu},
+        {pkg: boost/~1.70.0},
+        {pkg: openexr/~2.4.3},
+        {pkg: imath/~2.4.0},
+      ],
     # VFX Platform 2020-ish (Nuke 13?)
-    - { gcc: 6.3, oiio_cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - [
+        {pkg: gcc/6.3},
+        {var: openimageio.cxx/14},
+        {pkg: python/~3.7.0},
+        {var: python.abi/cp37m},
+        {pkg: boost/~1.70.0},
+        {pkg: openexr/~2.4.3},
+        {pkg: imath/~2.4.0}
+      ]
     # VFX Platform 2021-ish, Maya 2022, Houdini 19
-    - { gcc: 9.3, oiio_cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - [
+        {pkg: gcc/9.3},
+        {var: openimageio.cxx/17},
+        {pkg: python/~3.7.0},
+        {var: python.abi/cp37m},
+        {pkg: boost/~1.73.0},
+        {pkg: openexr/~2.4.3},
+        {pkg: imath/~2.4.0}
+      ]
     # VFX Platform 2022-ish (including newer Imath + OpenEXR versions)
-    - { gcc: 9.3, oiio_cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~3.1.0, imath: ~3.1.0 }
+    - [
+        {pkg: gcc/9.3},
+        {var: openimageio.cxx/17},
+        {pkg: python/~3.7.0},
+        {var: python.abi/cp37m},
+        {pkg: boost/~1.73.0},
+        {pkg: openexr/~3.1.0},
+        {pkg: imath/~3.1.0}
+      ]
     # # unneeded?
     # # - { gcc: 9.3, cxx: 17, python: ~2.7.0, boost: ~1.73.0, openexr: ~2.4.0, imath: ~2.4.0 }
-
   script:
-    - export SIMD_OPTS="-DUSE_SIMD=sse2"
-    - if [ "$SPK_OPT_oiio_sse4" == "on" ] ; then SIMD_OPTS+=",sse4.2" ; fi
-    - if [ "$SPK_OPT_oiio_avx2" == "on" ] ; then SIMD_OPTS+=",avx2" ; fi
-    - if [ "$SPK_OPT_oiio_avx512f" == "on" ] ; then SIMD_OPTS+=",avx512f" ; fi
-    - export CMAKE_BUILD_TYPE=Release
-    - if [ "${SPK_OPT_oiio_debug}" == "debug" ] ; then export CMAKE_BUILD_TYPE=Debug ; fi
-    - export CI=1
-    - cmake -S oiio -B build -G Ninja
-        -DVERBOSE=1
-        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-        -DCMAKE_INSTALL_PREFIX=${PREFIX}
-        -DCMAKE_PREFIX_PATH=${PREFIX}
-        -DCMAKE_CXX_STANDARD=${SPK_OPT_oiio_cxx}
-        ${SIMD_OPTS}
-        -DPYBIND11_PYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
-        -DPYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
-        -DENABLE_FIELD3D=OFF
-        -DENABLE_PTEX=OFF
-        -DUSE_OPENCV=0
-        -DOpenJPEG_ROOT=$PREFIX
-        -DTBB_USE_DEBUG_BUILD=0
-        -DCMAKE_DISABLE_FIND_PACKAGE_JPEGTurbo=ON
-    - cmake --build build --target install
-
-
-install:
-  requirements:
-    - pkg: gcc
-      fromBuildEnv: Binary
-    - pkg: python
-      fromBuildEnv: Binary
-      # If python is already in the environment/resolve then we
-      # we require it to be compatible with what we built with.
-      # But no python at all is also okay.
-      include: IfAlreadyPresent
-    - { var: python.abi, fromBuildEnv: true }
-    - pkg: numpy
-      fromBuildEnv: Binary
-    - pkg: boost
-      fromBuildEnv: Binary
-    - pkg: fmt
-      fromBuildEnv: Binary
-    - pkg: imath
-      fromBuildEnv: Binary
-    - pkg: openexr
-      fromBuildEnv: Binary
-    - pkg: opencolorio
-      fromBuildEnv: Binary
-    - pkg: libtiff
-      fromBuildEnv: Binary
-    - pkg: giflib
-      fromBuildEnv: Binary
-    - pkg: libpng
-      fromBuildEnv: Binary
-    - pkg: pugixml
-      fromBuildEnv: Binary
-    - pkg: libraw
-      fromBuildEnv: Binary
-    - pkg: freetype
-      fromBuildEnv: Binary
-    - pkg: openjpeg
-      fromBuildEnv: Binary
-    - pkg: libjpeg
-      fromBuildEnv: Binary
-    - pkg: tbb
-      fromBuildEnv: Binary
-    - pkg: openvdb
-      fromBuildEnv: Binary
-    - pkg: libheif
-      fromBuildEnv: Binary
-    - pkg: ffmpeg
-      fromBuildEnv: Binary
-    - pkg: zlib
-      fromBuildEnv: Binary
+  - when: {var: os/linux}
+    do:
+      - SIMD_OPTS="-DUSE_SIMD=sse2"
+      # TODO: this must be able to ensure that we use the
+      #       self value when applicable (openimageio.sse4)
+      - {when: {var: sse4/on}, do: 'SIMD_OPTS+=",sse4.2"'}
+      - {when: {var: avx2/on}, do: 'SIMD_OPTS+=",avx2"'}
+      - {when: {var: avx512f/on}, do: 'SIMD_OPTS+=",avx512f"'}
+      - {when: {var: debug/off}, do: CMAKE_BUILD_TYPE=Release}
+      - {when: {var: debug/on}, do: CMAKE_BUILD_TYPE=Debug}
+      - export CI=1
+      - cmake -S oiio -B build -G Ninja
+          -DVERBOSE=1
+          -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+          -DCMAKE_INSTALL_PREFIX=${PREFIX}
+          -DCMAKE_PREFIX_PATH=${PREFIX}
+          -DCMAKE_CXX_STANDARD=${SPK_OPT_cxx} # TODO: what do we guarentee here about where this value comes from (self vs resolve)
+          ${SIMD_OPTS}
+          -DPYBIND11_PYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
+          -DPYTHON_VERSION=${SPK_PKG_python_VERSION_BASE}
+          -DENABLE_FIELD3D=OFF
+          -DENABLE_PTEX=OFF
+          -DUSE_OPENCV=0
+          -DOpenJPEG_ROOT=$PREFIX
+          -DTBB_USE_DEBUG_BUILD=0
+          -DCMAKE_DISABLE_FIND_PACKAGE_JPEGTurbo=ON
+      - cmake --build build --target install

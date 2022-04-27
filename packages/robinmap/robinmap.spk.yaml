@@ -1,33 +1,34 @@
+api: v1alpha1/package
 pkg: robinmap/0.6.3
-  # - name: "Robin-map"
-  # - description: "C++ implementation of a fast hash map and hash set"
-  # - license: MIT
-  # - url: https://github.com/Tessil/robin-map
-  # - bindings: [ "C++" ]
+meta:
+  description: "C++ implementation of a fast hash map and hash set"
+  homepage: https://github.com/Tessil/robin-map
+  license: MIT
 
-sources:
-  # This idiom can work with any of (a) a local clone, (b) a git submodule,
-  # or (c) nothing (does a fresh clone).
-  - path: ./
-  - script:
-    - if [ ! -d robin-map ] ; then git clone https://github.com/Tessil/robin-map -b v0.6.3 ; fi
+options:
+  - var: arch
+  - var: os
+  - var: centos
+  - pkg: stdfs
+  - pkg: cmake/^3.13
+    atRuntime: false
+
+source:
+  collect:
+    # This idiom can work with any of (a) a local clone, (b) a git submodule,
+    # or (c) nothing (does a fresh clone).
+    - path: ./
+    - script:
+      - if [ ! -d robin-map ] ; then git clone https://github.com/Tessil/robin-map -b v0.6.3 ; fi
 
 build:
-  options:
-    - var: arch
-    - var: os
-    - var: centos
-    - pkg: stdfs
-    - pkg: cmake/^3.13
-    # No gcc, because it's a header-only library
+  # in theory, this builds cross-platform and so we don't need
+  # to break it down with when clauses
+  # TODO: do we allow a single value instead of a list for
+  #       simplicity? Or does the deviation just make it more confusing
   script:
     - cmake -S robin-map -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_PREFIX_PATH=/spfs
-        -DCMAKE_INSTALL_PREFIX=/spfs
+        -DCMAKE_PREFIX_PATH=${PREFIX}
+        -DCMAKE_INSTALL_PREFIX=${PREFIX}
     - cmake --build build --target install
-
-install:
-  requirements:
-    - pkg: stdfs
-    # No need for gcc runtime, it's a header-only library
