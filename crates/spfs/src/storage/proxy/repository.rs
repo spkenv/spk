@@ -83,8 +83,11 @@ impl graph::DatabaseView for ProxyRepository {
         res
     }
 
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        self.primary.iter_digests()
+    fn find_digests(
+        &self,
+        search_criteria: graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        self.primary.find_digests(search_criteria)
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {

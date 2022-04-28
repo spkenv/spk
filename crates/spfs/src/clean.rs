@@ -142,7 +142,7 @@ pub async fn get_all_unattached_objects(
 ) -> Result<HashSet<encoding::Digest>> {
     tracing::info!("evaluating repository digraph");
     let mut digests = HashSet::new();
-    let mut digest_stream = repo.iter_digests();
+    let mut digest_stream = repo.find_digests(crate::graph::DigestSearchCriteria::All);
     while let Some(digest) = digest_stream.next().await {
         digests.insert(digest?);
     }

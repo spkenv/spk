@@ -88,7 +88,7 @@ impl<'db> DatabaseIterator<'db> {
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
     pub fn new(db: &'db dyn DatabaseView) -> Self {
-        let iter = db.iter_digests();
+        let iter = db.find_digests(crate::graph::DigestSearchCriteria::All);
         DatabaseIterator {
             db,
             inner: iter,
@@ -128,6 +128,11 @@ impl<'db> Stream for DatabaseIterator<'db> {
     }
 }
 
+pub enum DigestSearchCriteria {
+    All,
+    StartsWith(Vec<u8>),
+}
+
 /// A read-only object database.
 #[async_trait::async_trait]
 pub trait DatabaseView: Sync + Send {
@@ -137,8 +142,11 @@ pub trait DatabaseView: Sync + Send {
     /// - [`spfs::Error::UnknownObject`]: if the object is not in this database
     async fn read_object(&self, digest: encoding::Digest) -> Result<Object>;
 
-    /// Iterate all the object digests in this database.
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
+    /// Find the object digests in this database matching a search criteria.
+    fn find_digests(
+        &self,
+        search_criteria: DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if this database contains the identified object
     async fn has_object(&self, digest: encoding::Digest) -> bool {
@@ -159,7 +167,7 @@ pub trait DatabaseView: Sync + Send {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
-        let mut digests = self.iter_digests();
+        let mut digests = self.find_digests(DigestSearchCriteria::StartsWith(Vec::from(shortest)));
         while let Some(other) = digests.next().await {
             match other {
                 Err(_) => continue,
@@ -196,7 +204,9 @@ pub trait DatabaseView: Sync + Send {
             return Ok(digest);
         }
         let mut options = Vec::new();
-        let mut digests = self.iter_digests();
+        let mut digests = self.find_digests(crate::graph::DigestSearchCriteria::StartsWith(
+            partial.to_vec(),
+        ));
         while let Some(digest) = digests.next().await {
             let digest = digest?;
             if &digest.as_bytes()[..partial.len()] == partial.as_slice() {
@@ -218,8 +228,11 @@ impl<T: DatabaseView> DatabaseView for &T {
         DatabaseView::read_object(&**self, digest).await
     }
 
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        DatabaseView::iter_digests(&**self)
+    fn find_digests(
+        &self,
+        search_criteria: DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        DatabaseView::find_digests(&**self, search_criteria)
     }
 
     fn iter_objects(&self) -> DatabaseIterator<'_> {

@@ -18,8 +18,8 @@ pub struct DatabaseService {
 
 #[tonic::async_trait]
 impl proto::database_service_server::DatabaseService for DatabaseService {
-    type IterDigestsStream =
-        Pin<Box<dyn Stream<Item = Result<proto::IterDigestsResponse, Status>> + Send>>;
+    type FindDigestsStream =
+        Pin<Box<dyn Stream<Item = Result<proto::FindDigestsResponse, Status>> + Send>>;
     type IterObjectsStream =
         tokio_stream::Iter<std::vec::IntoIter<Result<proto::IterObjectsResponse, Status>>>;
     type WalkObjectsStream =
@@ -36,16 +36,21 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         Ok(Response::new(result))
     }
 
-    async fn iter_digests(
+    async fn find_digests(
         &self,
-        _request: Request<proto::IterDigestsRequest>,
-    ) -> Result<Response<Self::IterDigestsStream>, Status> {
+        request: Request<proto::FindDigestsRequest>,
+    ) -> Result<Response<Self::FindDigestsStream>, Status> {
+        let request = request.into_inner();
+        let search_criteria = request
+            .search_criteria
+            .try_into()
+            .map_err(|err: crate::Error| Status::invalid_argument(err.to_string()))?;
         let stream = self
             .repo
-            .iter_digests()
-            .map(proto::IterDigestsResponse::from_result)
+            .find_digests(search_criteria)
+            .map(proto::FindDigestsResponse::from_result)
             .map(Ok);
-        let stream: Self::IterDigestsStream = Box::pin(stream);
+        let stream: Self::FindDigestsStream = Box::pin(stream);
         let response = Response::new(stream);
         Ok(response)
     }
@@ -95,7 +100,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
 
 impl DatabaseService {
     pub fn new(repo: Arc<storage::RepositoryHandle>) -> Self {
-        Self{repo}
+        Self { repo }
     }
 
     pub fn new_srv(repo: Arc<storage::RepositoryHandle>) -> DatabaseServiceServer<Self> {

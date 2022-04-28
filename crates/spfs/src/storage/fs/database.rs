@@ -28,8 +28,11 @@ impl DatabaseView for super::FSRepository {
         Object::decode(&mut buf.as_slice())
     }
 
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        Box::pin(self.objects.iter())
+    fn find_digests(
+        &self,
+        search_criteria: graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        Box::pin(self.objects.find(search_criteria))
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
