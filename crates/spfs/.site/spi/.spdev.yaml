@@ -1,6 +1,8 @@
-version: 0.28.4
+version: 0.33.0
 release_notes: |
-  * Update dependencies for rust 1.53 support
+  * Sync up with github:
+  * - async API
+  * - client/server support
 
 toolchain:
   - kind: Rust
