@@ -168,10 +168,10 @@ impl Test {
                                         )
                                     }),
                             )
-                            .watch_source_resolve(move |r| {
+                            .with_source_resolver(move |r| {
                                 spk::io::run_and_print_decisions(r, verbose)
                             })
-                            .watch_build_resolve(move |r| {
+                            .with_build_resolver(move |r| {
                                 spk::io::run_and_print_decisions(r, verbose)
                             })
                             .test()?,

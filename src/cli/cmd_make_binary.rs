@@ -97,8 +97,8 @@ impl MakeBinary {
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .watch_source_resolve(move |r| spk::io::run_and_print_decisions(r, verbose))
-                    .watch_build_resolve(move |r| spk::io::run_and_print_decisions(r, verbose));
+                    .with_source_resolver(move |r| spk::io::run_and_print_decisions(r, verbose))
+                    .with_build_resolver(move |r| spk::io::run_and_print_decisions(r, verbose));
                 if self.here {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;
