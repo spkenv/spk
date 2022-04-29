@@ -11,6 +11,7 @@ use std::{
     str::FromStr,
 };
 
+use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 
 use crate::{Error, Result};
@@ -28,6 +29,7 @@ pub const VERSION_RANGE_SEP: &str = ",";
 /// This is not public API as the VersionRange enum is used
 /// as the public interface, which can be used to identify
 /// which range type is actually being used
+#[enum_dispatch]
 pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The lower, inclusive bound for this range
     fn greater_or_equal_to(&self) -> Option<Version>;
@@ -128,139 +130,39 @@ impl<T: Ranged> Ranged for &T {
 
 /// Specifies a range of version numbers by inclusion or exclusion
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[enum_dispatch(Ranged)]
 pub enum VersionRange {
+    Compat(CompatRange),
+    DoubleEquals(DoubleEqualsVersion),
+    DoubleNotEquals(DoubleNotEqualsVersion),
+    Equals(EqualsVersion),
+    Filter(VersionFilter),
+    GreaterThan(GreaterThanRange),
+    GreaterThanOrEqualTo(GreaterThanOrEqualToRange),
+    LessThan(LessThanRange),
+    LessThanOrEqualTo(LessThanOrEqualToRange),
+    LowestSpecified(LowestSpecifiedRange),
+    NotEquals(NotEqualsVersion),
     Semver(SemverRange),
     Wildcard(WildcardRange),
-    LowestSpecified(LowestSpecifiedRange),
-    GreaterThan(GreaterThanRange),
-    LessThan(LessThanRange),
-    GreaterThanOrEqualTo(GreaterThanOrEqualToRange),
-    LessThanOrEqualTo(LessThanOrEqualToRange),
-    Exact(ExactVersion),
-    Excluded(ExcludedVersion),
-    Compat(CompatRange),
-    Filter(VersionFilter),
-}
-
-impl Ranged for VersionRange {
-    fn greater_or_equal_to(&self) -> Option<Version> {
-        match self {
-            VersionRange::Semver(vr) => vr.greater_or_equal_to(),
-            VersionRange::Wildcard(vr) => vr.greater_or_equal_to(),
-            VersionRange::LowestSpecified(vr) => vr.greater_or_equal_to(),
-            VersionRange::GreaterThan(vr) => vr.greater_or_equal_to(),
-            VersionRange::LessThan(vr) => vr.greater_or_equal_to(),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.greater_or_equal_to(),
-            VersionRange::LessThanOrEqualTo(vr) => vr.greater_or_equal_to(),
-            VersionRange::Exact(vr) => vr.greater_or_equal_to(),
-            VersionRange::Excluded(vr) => vr.greater_or_equal_to(),
-            VersionRange::Compat(vr) => vr.greater_or_equal_to(),
-            VersionRange::Filter(vr) => vr.greater_or_equal_to(),
-        }
-    }
-
-    fn less_than(&self) -> Option<Version> {
-        match self {
-            VersionRange::Semver(vr) => vr.less_than(),
-            VersionRange::Wildcard(vr) => vr.less_than(),
-            VersionRange::LowestSpecified(vr) => vr.less_than(),
-            VersionRange::GreaterThan(vr) => vr.less_than(),
-            VersionRange::LessThan(vr) => vr.less_than(),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.less_than(),
-            VersionRange::LessThanOrEqualTo(vr) => vr.less_than(),
-            VersionRange::Exact(vr) => vr.less_than(),
-            VersionRange::Excluded(vr) => vr.less_than(),
-            VersionRange::Compat(vr) => vr.less_than(),
-            VersionRange::Filter(vr) => vr.less_than(),
-        }
-    }
-
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        match self {
-            VersionRange::Semver(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Wildcard(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::LowestSpecified(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::GreaterThan(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::LessThan(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::LessThanOrEqualTo(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Exact(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Excluded(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Compat(vr) => vr.is_satisfied_by(spec, required),
-            VersionRange::Filter(vr) => vr.is_satisfied_by(spec, required),
-        }
-    }
-
-    fn is_applicable(&self, other: &Version) -> Compatibility {
-        match self {
-            VersionRange::Semver(vr) => vr.is_applicable(other),
-            VersionRange::Wildcard(vr) => vr.is_applicable(other),
-            VersionRange::LowestSpecified(vr) => vr.is_applicable(other),
-            VersionRange::GreaterThan(vr) => vr.is_applicable(other),
-            VersionRange::LessThan(vr) => vr.is_applicable(other),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.is_applicable(other),
-            VersionRange::LessThanOrEqualTo(vr) => vr.is_applicable(other),
-            VersionRange::Exact(vr) => vr.is_applicable(other),
-            VersionRange::Excluded(vr) => vr.is_applicable(other),
-            VersionRange::Compat(vr) => vr.is_applicable(other),
-            VersionRange::Filter(vr) => vr.is_applicable(other),
-        }
-    }
-
-    fn contains(&self, other: impl Ranged) -> Compatibility {
-        match self {
-            VersionRange::Semver(vr) => vr.contains(other),
-            VersionRange::Wildcard(vr) => vr.contains(other),
-            VersionRange::LowestSpecified(vr) => vr.contains(other),
-            VersionRange::GreaterThan(vr) => vr.contains(other),
-            VersionRange::LessThan(vr) => vr.contains(other),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.contains(other),
-            VersionRange::LessThanOrEqualTo(vr) => vr.contains(other),
-            VersionRange::Exact(vr) => vr.contains(other),
-            VersionRange::Excluded(vr) => vr.contains(other),
-            VersionRange::Compat(vr) => vr.contains(other),
-            VersionRange::Filter(vr) => vr.contains(other),
-        }
-    }
-
-    fn intersects(&self, other: impl Ranged) -> Compatibility {
-        match self {
-            VersionRange::Semver(vr) => vr.intersects(other),
-            VersionRange::Wildcard(vr) => vr.intersects(other),
-            VersionRange::LowestSpecified(vr) => vr.intersects(other),
-            VersionRange::GreaterThan(vr) => vr.intersects(other),
-            VersionRange::LessThan(vr) => vr.intersects(other),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.intersects(other),
-            VersionRange::LessThanOrEqualTo(vr) => vr.intersects(other),
-            VersionRange::Exact(vr) => vr.intersects(other),
-            VersionRange::Excluded(vr) => vr.intersects(other),
-            VersionRange::Compat(vr) => vr.intersects(other),
-            VersionRange::Filter(vr) => vr.intersects(other),
-        }
-    }
-
-    fn rules(&self) -> HashSet<VersionRange> {
-        match self {
-            VersionRange::Filter(f) => f.rules(),
-            _ => Ranged::rules(self),
-        }
-    }
 }
 
 impl Display for VersionRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            VersionRange::Compat(vr) => vr.fmt(f),
+            VersionRange::DoubleEquals(vr) => vr.fmt(f),
+            VersionRange::DoubleNotEquals(vr) => vr.fmt(f),
+            VersionRange::Equals(vr) => vr.fmt(f),
+            VersionRange::Filter(vr) => vr.fmt(f),
+            VersionRange::GreaterThan(vr) => vr.fmt(f),
+            VersionRange::GreaterThanOrEqualTo(vr) => vr.fmt(f),
+            VersionRange::LessThan(vr) => vr.fmt(f),
+            VersionRange::LessThanOrEqualTo(vr) => vr.fmt(f),
+            VersionRange::LowestSpecified(vr) => vr.fmt(f),
+            VersionRange::NotEquals(vr) => vr.fmt(f),
             VersionRange::Semver(vr) => vr.fmt(f),
             VersionRange::Wildcard(vr) => vr.fmt(f),
-            VersionRange::LowestSpecified(vr) => vr.fmt(f),
-            VersionRange::GreaterThan(vr) => vr.fmt(f),
-            VersionRange::LessThan(vr) => vr.fmt(f),
-            VersionRange::GreaterThanOrEqualTo(vr) => vr.fmt(f),
-            VersionRange::LessThanOrEqualTo(vr) => vr.fmt(f),
-            VersionRange::Exact(vr) => vr.fmt(f),
-            VersionRange::Excluded(vr) => vr.fmt(f),
-            VersionRange::Compat(vr) => vr.fmt(f),
-            VersionRange::Filter(vr) => vr.fmt(f),
         }
     }
 }
@@ -283,12 +185,6 @@ impl SemverRange {
         Ok(VersionRange::Semver(SemverRange {
             minimum: minimum.try_into()?,
         }))
-    }
-}
-
-impl From<SemverRange> for VersionRange {
-    fn from(other: SemverRange) -> Self {
-        VersionRange::Semver(other)
     }
 }
 
@@ -360,12 +256,6 @@ impl WildcardRange {
             )));
         }
         Ok(VersionRange::Wildcard(range))
-    }
-}
-
-impl From<WildcardRange> for VersionRange {
-    fn from(other: WildcardRange) -> Self {
-        VersionRange::Wildcard(other)
     }
 }
 
@@ -448,12 +338,6 @@ impl LowestSpecifiedRange {
     }
 }
 
-impl From<LowestSpecifiedRange> for VersionRange {
-    fn from(other: LowestSpecifiedRange) -> Self {
-        VersionRange::LowestSpecified(other)
-    }
-}
-
 impl Ranged for LowestSpecifiedRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.base.clone())
@@ -496,12 +380,6 @@ impl GreaterThanRange {
         Ok(VersionRange::GreaterThan(Self {
             bound: boundary.try_into()?,
         }))
-    }
-}
-
-impl From<GreaterThanRange> for VersionRange {
-    fn from(other: GreaterThanRange) -> Self {
-        VersionRange::GreaterThan(other)
     }
 }
 
@@ -548,12 +426,6 @@ impl LessThanRange {
     }
 }
 
-impl From<LessThanRange> for VersionRange {
-    fn from(other: LessThanRange) -> Self {
-        VersionRange::LessThan(other)
-    }
-}
-
 impl Ranged for LessThanRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
@@ -594,12 +466,6 @@ impl GreaterThanOrEqualToRange {
         Ok(VersionRange::GreaterThanOrEqualTo(Self {
             bound: boundary.try_into()?,
         }))
-    }
-}
-
-impl From<GreaterThanOrEqualToRange> for VersionRange {
-    fn from(other: GreaterThanOrEqualToRange) -> Self {
-        VersionRange::GreaterThanOrEqualTo(other)
     }
 }
 
@@ -646,12 +512,6 @@ impl LessThanOrEqualToRange {
     }
 }
 
-impl From<LessThanOrEqualToRange> for VersionRange {
-    fn from(other: LessThanOrEqualToRange) -> Self {
-        VersionRange::LessThanOrEqualTo(other)
-    }
-}
-
 impl Ranged for LessThanOrEqualToRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
@@ -681,29 +541,23 @@ impl Display for LessThanOrEqualToRange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ExactVersion {
+pub struct EqualsVersion {
     version: Version,
 }
 
-impl ExactVersion {
+impl EqualsVersion {
     pub fn version_range(version: Version) -> VersionRange {
-        VersionRange::Exact(Self { version })
+        VersionRange::Equals(Self { version })
     }
 }
 
-impl From<Version> for ExactVersion {
+impl From<Version> for EqualsVersion {
     fn from(version: Version) -> Self {
         Self { version }
     }
 }
 
-impl From<ExactVersion> for VersionRange {
-    fn from(other: ExactVersion) -> Self {
-        VersionRange::Exact(other)
-    }
-}
-
-impl Ranged for ExactVersion {
+impl Ranged for EqualsVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.version.clone())
     }
@@ -746,7 +600,7 @@ impl Ranged for ExactVersion {
     }
 }
 
-impl Display for ExactVersion {
+impl Display for EqualsVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_char('=')?;
         f.write_str(&self.version.to_string())
@@ -754,28 +608,22 @@ impl Display for ExactVersion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ExcludedVersion {
+pub struct NotEqualsVersion {
     specified: usize,
     base: Version,
 }
 
-impl ExcludedVersion {
+impl NotEqualsVersion {
     pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
         let range = Self {
             specified: exclude.as_ref().split(VERSION_SEP).count(),
             base: parse_version(exclude)?,
         };
-        Ok(VersionRange::Excluded(range))
+        Ok(VersionRange::NotEquals(range))
     }
 }
 
-impl From<ExcludedVersion> for VersionRange {
-    fn from(other: ExcludedVersion) -> Self {
-        VersionRange::Excluded(other)
-    }
-}
-
-impl Ranged for ExcludedVersion {
+impl Ranged for NotEqualsVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
     }
@@ -785,10 +633,24 @@ impl Ranged for ExcludedVersion {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        if version.parts[..self.specified] == self.base.parts[..self.specified] {
-            return Compatibility::Incompatible(format!("excluded [{}]", self));
+        // Is some part of the specified version different?
+        if version
+            .parts
+            .iter()
+            .zip(self.base.parts.iter())
+            .take(self.specified)
+            .any(|(l, r)| l != r)
+        {
+            return Compatibility::Compatible;
         }
-        Compatibility::Compatible
+
+        // To mirror `ExactVersion`, different post releases are unequal,
+        // but unspecified post release is considered equal.
+        if !self.base.post.is_empty() && self.base.post != version.post {
+            return Compatibility::Compatible;
+        }
+
+        Compatibility::Incompatible(format!("excluded [{}]", self))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
@@ -796,14 +658,145 @@ impl Ranged for ExcludedVersion {
     }
 }
 
-impl Display for ExcludedVersion {
+impl Display for NotEqualsVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let base_str = self.base.parts[..self.specified]
+        let base_str = self
+            .base
+            .parts
             .iter()
+            .take(self.specified)
             .map(ToString::to_string)
             .collect_vec()
             .join(VERSION_SEP);
         f.write_str("!=")?;
+        f.write_str(&base_str)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DoubleEqualsVersion {
+    version: Version,
+}
+
+impl DoubleEqualsVersion {
+    pub fn version_range(version: Version) -> VersionRange {
+        VersionRange::DoubleEquals(Self { version })
+    }
+}
+
+impl From<Version> for DoubleEqualsVersion {
+    fn from(version: Version) -> Self {
+        Self { version }
+    }
+}
+
+impl Ranged for DoubleEqualsVersion {
+    fn greater_or_equal_to(&self) -> Option<Version> {
+        Some(self.version.clone())
+    }
+
+    fn less_than(&self) -> Option<Version> {
+        let mut parts = self.version.parts.clone();
+        if let Some(last) = parts.last_mut() {
+            *last += 1;
+        }
+        Some(Version::from_parts(parts))
+    }
+
+    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+        if self.version.parts != spec.pkg.version.parts {
+            return Compatibility::Incompatible(format!(
+                "{} !! {} [not equal precisely]",
+                &spec.pkg.version, self
+            ));
+        }
+
+        if self.version.pre != spec.pkg.version.pre {
+            return Compatibility::Incompatible(format!(
+                "{} !! {} [not equal precisely @ prerelease]",
+                &spec.pkg.version, self
+            ));
+        }
+        // post release tags must match exactly
+        if self.version.post != spec.pkg.version.post {
+            return Compatibility::Incompatible(format!(
+                "{} !! {} [not equal precisely @ postrelease]",
+                &spec.pkg.version, self
+            ));
+        }
+        Compatibility::Compatible
+    }
+}
+
+impl Display for DoubleEqualsVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("==")?;
+        f.write_str(&self.version.to_string())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DoubleNotEqualsVersion {
+    specified: usize,
+    base: Version,
+}
+
+impl DoubleNotEqualsVersion {
+    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
+        let range = Self {
+            specified: exclude.as_ref().split(VERSION_SEP).count(),
+            base: parse_version(exclude)?,
+        };
+        Ok(VersionRange::DoubleNotEquals(range))
+    }
+}
+
+impl Ranged for DoubleNotEqualsVersion {
+    fn greater_or_equal_to(&self) -> Option<Version> {
+        None
+    }
+
+    fn less_than(&self) -> Option<Version> {
+        None
+    }
+
+    fn is_applicable(&self, version: &Version) -> Compatibility {
+        // Is some part of the specified version different?
+        if version
+            .parts
+            .iter()
+            .zip(self.base.parts.iter())
+            .take(self.specified)
+            .any(|(l, r)| l != r)
+        {
+            return Compatibility::Compatible;
+        }
+
+        // To mirror `PreciseExactVersion`, any differences in post
+        // releases makes these unequal.
+        if self.base.post != version.post {
+            return Compatibility::Compatible;
+        }
+
+        Compatibility::Incompatible(format!("excluded precisely [{}]", self))
+    }
+
+    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+        self.is_applicable(&spec.pkg.version)
+    }
+}
+
+impl Display for DoubleNotEqualsVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let base_str = self
+            .base
+            .parts
+            .iter()
+            .take(self.specified)
+            .map(ToString::to_string)
+            .collect_vec()
+            .join(VERSION_SEP);
+        f.write_str("!==")?;
         f.write_str(&base_str)
     }
 }
@@ -831,12 +824,6 @@ impl CompatRange {
             },
         };
         Ok(VersionRange::Compat(compat_range))
-    }
-}
-
-impl From<CompatRange> for VersionRange {
-    fn from(other: CompatRange) -> Self {
-        VersionRange::Compat(other)
     }
 }
 
@@ -933,12 +920,6 @@ impl VersionFilter {
 
         self.rules.insert(other.into());
         Ok(())
-    }
-}
-
-impl From<VersionFilter> for VersionRange {
-    fn from(other: VersionFilter) -> Self {
-        VersionRange::Filter(other)
     }
 }
 
@@ -1063,11 +1044,16 @@ impl FromStr for VersionFilter {
                 GreaterThanRange::new_version_range(end)?
             } else if let Some(end) = rule_str.strip_prefix('<') {
                 LessThanRange::new_version_range(end)?
+            } else if let Some(end) = rule_str.strip_prefix("==") {
+                let version = Version::from_str(end)?;
+                DoubleEqualsVersion::version_range(version)
             } else if let Some(end) = rule_str.strip_prefix('=') {
                 let version = Version::from_str(end)?;
-                ExactVersion::version_range(version)
+                EqualsVersion::version_range(version)
+            } else if let Some(end) = rule_str.strip_prefix("!==") {
+                DoubleNotEqualsVersion::new_version_range(end)?
             } else if let Some(end) = rule_str.strip_prefix("!=") {
-                ExcludedVersion::new_version_range(end)?
+                NotEqualsVersion::new_version_range(end)?
             } else if rule_str.contains('*') {
                 WildcardRange::new_version_range(rule_str)?
             } else {

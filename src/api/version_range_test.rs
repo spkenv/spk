@@ -69,10 +69,20 @@ fn test_version_range_is_applicable(
 #[rstest]
 // exact version compatible with itself: YES
 #[case("=1.0.0", spec!({"pkg": "test/1.0.0"}), true)]
-// exact version compatible with different post-relese: YES
+// exact version compatible with different post-release: YES
 #[case("=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// precise exact version compatible with different post-release: NO
+#[case("==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
 // exact post release compatible with different one: NO
 #[case("=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+// negative exact version compatible with itself: NO
+#[case("!=1.0.0", spec!({"pkg": "test/1.0.0"}), false)]
+// negative exact version compatible with different post-release: NO
+#[case("!=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+// negative precise exact version compatible with different post-release: YES
+#[case("!==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// negative exact post release compatible with different one: YES
+#[case("!=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), true)]
 // default compat is contextual (given by test function)
 #[case("1.0.0", spec!({"pkg": "test/1.1.0/JRSXNRF4", "compat": "x.a.b"}), false)]
 // explicit api compat override
@@ -107,5 +117,5 @@ fn test_version_range_is_satisfied(
     let vr = parse_version_range(range).unwrap();
     let actual = vr.is_satisfied_by(&spec, crate::api::CompatRule::Binary);
 
-    assert_eq!(actual.is_ok(), expected, "{}", actual);
+    assert_eq!(actual.is_ok(), expected, "{} -> {:?}", range, actual);
 }

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
-    CompatRule, Compatibility, Component, ExactVersion, Ident, InvalidNameError, Spec, Version,
+    CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, Spec, Version,
     VersionFilter,
 };
 use crate::{Error, Result};
@@ -52,7 +52,7 @@ impl RangeIdent {
         Self {
             name: ident.name().to_string(),
             version: super::VersionFilter::single(
-                super::ExactVersion::from(ident.version.clone()).into(),
+                super::EqualsVersion::from(ident.version.clone()).into(),
             ),
             components: components.into_iter().collect(),
             build: ident.build.clone(),
@@ -694,7 +694,7 @@ impl From<Ident> for PkgRequest {
         let ri = RangeIdent {
             name: pkg.name().to_owned(),
             components: Default::default(),
-            version: VersionFilter::single(ExactVersion::version_range(pkg.version)),
+            version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
             build: pkg.build,
         };
         PkgRequest::new(ri)
