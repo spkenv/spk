@@ -55,7 +55,7 @@ pub use version::{
     VERSION_SEP,
 };
 pub use version_range::{
-    parse_version_range, CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
+    parse_version_range, CompatRange, DoubleEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
     LowestSpecifiedRange, NotEqualsVersion, Ranged, SemverRange, VersionFilter, VersionRange,
     WildcardRange, VERSION_RANGE_SEP,
