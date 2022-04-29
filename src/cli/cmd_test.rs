@@ -146,6 +146,7 @@ impl Run for Test {
                             spk::io::format_options(&opts)
                         );
 
+                        let verbose = self.verbose;
                         match stage {
                             spk::api::TestStage::Sources => spk::test::PackageSourceTester::new(
                                 spec.clone(),
@@ -155,6 +156,9 @@ impl Run for Test {
                             .with_repositories(repos.iter().cloned())
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
+                            .watch_environment_resolve(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
                             .test()?,
 
                             spk::api::TestStage::Build => spk::test::PackageBuildTester::new(
@@ -174,6 +178,12 @@ impl Run for Test {
                                         )
                                     }),
                             )
+                            .with_source_resolver(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
+                            .with_build_resolver(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
                             .test()?,
 
                             spk::api::TestStage::Install => spk::test::PackageInstallTester::new(
@@ -184,6 +194,9 @@ impl Run for Test {
                             .with_repositories(repos.iter().cloned())
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
+                            .watch_environment_resolve(move |r| {
+                                spk::io::run_and_print_decisions(r, verbose)
+                            })
                             .test()?,
                         }
                     }

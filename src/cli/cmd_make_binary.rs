@@ -102,10 +102,13 @@ impl Run for MakeBinary {
 
                 tracing::info!("building variant {}", spk::io::format_options(&opts));
                 let mut builder = spk::build::BinaryPackageBuilder::from_spec(spec.clone());
+                let verbose = self.verbose;
                 builder
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
-                    .set_interactive(self.interactive);
+                    .set_interactive(self.interactive)
+                    .with_source_resolver(move |r| spk::io::run_and_print_decisions(r, verbose))
+                    .with_build_resolver(move |r| spk::io::run_and_print_decisions(r, verbose));
                 if self.here {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;
@@ -115,15 +118,6 @@ impl Run for MakeBinary {
                     Err(err @ spk::Error::Solve(_))
                     | Err(err @ spk::Error::PackageNotFoundError(_)) => {
                         tracing::error!("variant failed {}", spk::io::format_options(&opts));
-                        if self.verbose > 0 {
-                            let graph = builder.get_solve_graph();
-                            let graph = graph.read().unwrap();
-                            for line in
-                                spk::io::format_decisions(graph.walk().map(Ok), self.verbose)
-                            {
-                                println!("{}", line?);
-                            }
-                        }
                         return Err(err.into());
                     }
                     Ok(out) => out,
