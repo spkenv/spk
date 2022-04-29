@@ -40,7 +40,7 @@ impl FromConfig for FSRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> Result<Self> {
-        Self::create(&config.path).await
+        Self::open(&config.path).await
     }
 }
 
