@@ -230,7 +230,7 @@ impl<'a> PackageBuildTester<'a> {
             solver.add_repository(repo.clone());
         }
 
-        let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
+        let ident_range = api::RangeIdent::equals(package, [api::Component::Source]);
         let request =
             api::PkgRequest::new(ident_range, api::RequestedBy::BuildTest(package.clone()))
                 .with_prerelease(api::PreReleasePolicy::IncludeAll)

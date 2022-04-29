@@ -125,7 +125,7 @@ impl<'a> PackageSourceTester<'a> {
             // we only require the source package to actually exist
             // if a local directory has not been specified for the test
             let source_pkg = self.spec.pkg.with_build(Some(api::Build::Source));
-            let mut ident_range = api::RangeIdent::exact(&source_pkg, [api::Component::Source]);
+            let mut ident_range = api::RangeIdent::equals(&source_pkg, [api::Component::Source]);
             ident_range.components.insert(api::Component::Source);
             let request =
                 api::PkgRequest::new(ident_range, api::RequestedBy::SourceTest(source_pkg))

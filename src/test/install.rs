@@ -116,7 +116,7 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_repository(repo);
         }
 
-        let pkg = api::RangeIdent::exact(&self.spec.pkg, [api::Component::All]);
+        let pkg = api::RangeIdent::equals(&self.spec.pkg, [api::Component::All]);
         let request =
             api::PkgRequest::new(pkg, api::RequestedBy::InstallTest(self.spec.pkg.clone()))
                 .with_prerelease(api::PreReleasePolicy::IncludeAll)

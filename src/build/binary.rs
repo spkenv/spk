@@ -261,7 +261,7 @@ impl<'a> BinaryPackageBuilder<'a> {
             self.solver.add_repository(repo.clone());
         }
 
-        let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
+        let ident_range = api::RangeIdent::equals(package, [api::Component::Source]);
         let request: api::PkgRequest =
             api::PkgRequest::new(ident_range, api::RequestedBy::SourceBuild(package.clone()))
                 .with_prerelease(api::PreReleasePolicy::IncludeAll)
