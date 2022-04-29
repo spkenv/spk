@@ -247,10 +247,15 @@ impl Solver {
                 builds
             };
 
-            while let Some((mut spec, repo)) = builds.lock().await.next().await? {
-                // Now all this build to the total considered during
+            while let Some(hm) = builds.lock().await.next().await? {
+                // Now add this build to the total considered during
                 // this overall step
+
                 self.number_total_builds += 1;
+
+                // Pull an arbitrary spec out from the hashmap
+                let (_, (spec, repo)) = &hm.iter().next().expect("non-empty hashmap");
+                let mut spec = Arc::clone(spec);
 
                 let build_from_source = spec.pkg.build == Some(Build::Source)
                     && request.pkg.build != Some(Build::Source);
@@ -278,7 +283,7 @@ impl Solver {
                     }
                 }
 
-                compat = self.validate(&node.state, &spec, &repo)?;
+                compat = self.validate(&node.state, &spec, repo)?;
                 if !&compat {
                     notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg.clone(),
@@ -322,7 +327,7 @@ impl Solver {
                 } else {
                     Decision::builder(spec, &node.state)
                         .with_components(&request.pkg.components)
-                        .resolve_package(repo)
+                        .resolve_package(repo.clone())
                 };
                 decision.add_notes(notes.iter().cloned());
                 return Ok(Some(decision));

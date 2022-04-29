@@ -43,13 +43,15 @@ static BUILD_KEY_NAME_ORDER: Lazy<Vec<OptNameBuf>> = Lazy::new(|| {
         .collect()
 });
 
+type BuildWithRepos = HashMap<api::RepositoryName, (Arc<api::Spec>, PackageSource)>;
+
 #[async_trait::async_trait]
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_empty(&self) -> bool;
     fn is_sorted_build_iterator(&self) -> bool {
         false
     }
-    async fn next(&mut self) -> Result<Option<(Arc<api::Spec>, PackageSource)>>;
+    async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>>;
     async fn version_spec(&self) -> Option<Arc<api::Spec>>;
     fn len(&self) -> usize;
 }
@@ -280,52 +282,57 @@ impl BuildIterator for RepositoryBuildIterator {
         self.builds.is_empty()
     }
 
-    async fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>> {
+    async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>> {
         let (build, repos) = if let Some(build) = self.builds.pop_front() {
             build
         } else {
             return Ok(None);
         };
 
-        let (_, repo) = repos
-            .iter()
-            .next()
-            .ok_or_else(|| Error::String("Unexpected empty repos set".to_owned()))?;
+        let mut result = HashMap::new();
 
-        let mut spec = match repo.read_spec(&build).await {
-            Ok(spec) => spec,
-            Err(Error::PackageNotFoundError(..)) => {
+        for (repo_name, repo) in repos.iter() {
+            let mut spec = match repo.read_spec(&build).await {
+                Ok(spec) => spec,
+                Err(Error::PackageNotFoundError(..)) => {
+                    tracing::warn!(
+                        "Repository listed build with no spec: {} from {:?}",
+                        build,
+                        repo
+                    );
+                    // Skip to next build
+                    return self.next().await;
+                }
+                Err(err) => return Err(err),
+            };
+
+            let components = match repo.get_package(&build).await {
+                Ok(c) => c,
+                Err(Error::PackageNotFoundError(..)) => Default::default(),
+                Err(err) => return Err(err),
+            };
+
+            if spec.pkg.build.is_none() {
                 tracing::warn!(
-                    "Repository listed build with no spec: {} from {:?}",
+                    "Published spec is corrupt (has no associated build), pkg={}",
                     build,
-                    repo
                 );
-                return self.next().await;
+                Arc::make_mut(&mut spec).pkg = spec.pkg.with_build(build.build.clone());
             }
-            Err(err) => return Err(err),
-        };
 
-        let components = match repo.get_package(&build).await {
-            Ok(c) => c,
-            Err(Error::PackageNotFoundError(..)) => Default::default(),
-            Err(err) => return Err(err),
-        };
-
-        if spec.pkg.build.is_none() {
-            tracing::warn!(
-                "Published spec is corrupt (has no associated build), pkg={}",
-                build,
+            result.insert(
+                repo_name.clone(),
+                (
+                    spec,
+                    PackageSource::Repository {
+                        repo: Arc::clone(repo),
+                        components,
+                    },
+                ),
             );
-            Arc::make_mut(&mut spec).pkg = spec.pkg.with_build(build.build);
         }
 
-        Ok(Some((
-            spec,
-            PackageSource::Repository {
-                repo: Arc::clone(repo),
-                components,
-            },
-        )))
+        Ok(Some(result))
     }
 
     async fn version_spec(&self) -> Option<Arc<api::Spec>> {
@@ -394,7 +401,7 @@ impl BuildIterator for EmptyBuildIterator {
         true
     }
 
-    async fn next(&mut self) -> Result<Option<(Arc<api::Spec>, PackageSource)>> {
+    async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>> {
         Ok(None)
     }
 
@@ -416,7 +423,7 @@ impl EmptyBuildIterator {
 #[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
     source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
-    builds: VecDeque<(Arc<api::Spec>, PackageSource)>,
+    builds: VecDeque<BuildWithRepos>,
 }
 
 #[async_trait::async_trait]
@@ -429,7 +436,7 @@ impl BuildIterator for SortedBuildIterator {
         true
     }
 
-    async fn next(&mut self) -> Result<Option<(Arc<api::Spec>, PackageSource)>> {
+    async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>> {
         Ok(self.builds.pop_front())
     }
 
@@ -460,7 +467,7 @@ impl SortedBuildIterator {
     ) -> Result<Self> {
         // Note: _options is unused in this implementation, it was used
         // in the by_distance sorting implementation
-        let mut builds = VecDeque::<(Arc<api::Spec>, PackageSource)>::new();
+        let mut builds = VecDeque::<BuildWithRepos>::new();
         {
             let mut source_lock = source.lock().await;
             while let Some(item) = source_lock.next().await? {
@@ -499,7 +506,7 @@ impl SortedBuildIterator {
         let mut build_name_values: HashMap<api::Ident, api::OptionMap> = HashMap::default();
         let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
-        for (build, _) in &self.builds {
+        for (build, _) in self.builds.iter().flat_map(|hm| hm.values()) {
             // Skip this if it's '/src' build because '/src' builds
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
@@ -598,15 +605,15 @@ impl SortedBuildIterator {
 
         // Sort the builds by their generated keys generated from the
         // ordered names and values worth including.
-        self.builds
-            .make_contiguous()
-            .sort_by_cached_key(|(spec, _)| {
-                SortedBuildIterator::make_option_values_build_key(
-                    spec,
-                    &ordered_names,
-                    &build_name_values,
-                )
-            });
+        self.builds.make_contiguous().sort_by_cached_key(|hm| {
+            // Pull an arbitrary spec out from the hashmap
+            let spec = &hm.iter().next().expect("non-empty hashmap").1 .0;
+            SortedBuildIterator::make_option_values_build_key(
+                spec,
+                &ordered_names,
+                &build_name_values,
+            )
+        });
 
         // Reverse the sort to get the build with the highest
         // "numbers" in the earlier parts of its key to come first,
@@ -635,6 +642,7 @@ impl SortedBuildIterator {
             "Keys by build option values: 'Build => Key : Options':\n {}",
             self.builds
                 .iter()
+                .flat_map(|hm| hm.values())
                 .map(|(spec, _)| {
                     format!(
                         "{} = {} : {:?}",
