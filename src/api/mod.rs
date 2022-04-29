@@ -27,6 +27,7 @@ mod version;
 mod version_range;
 
 pub use build::{parse_build, Build, InvalidBuildError};
+pub(crate) use build::{EMBEDDED, SRC};
 pub use build_key::BuildKey;
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
@@ -39,6 +40,7 @@ pub use install_spec::InstallSpec;
 pub use meta::Meta;
 pub use name::{validate_tag_name, InvalidNameError, OptName, OptNameBuf, PkgName, PkgNameBuf};
 pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
+pub(crate) use option_map::DIGEST_SIZE;
 pub use option_map::{host_options, OptionMap};
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
@@ -55,7 +57,7 @@ pub use version::{
     VERSION_SEP,
 };
 pub use version_range::{
-    parse_version_range, CompatRange, DoubleEqualsVersion, EqualsVersion,
+    parse_version_range, CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
     LowestSpecifiedRange, NotEqualsVersion, Ranged, SemverRange, VersionFilter, VersionRange,
     WildcardRange, VERSION_RANGE_SEP,
