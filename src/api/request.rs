@@ -74,21 +74,44 @@ impl PartialOrd for RangeIdent {
 }
 
 impl RangeIdent {
-    /// Create a range ident that exactly requests the identified package
-    ///
-    /// The returned range will request the identified components of the given package.
-    pub fn exact<I>(ident: &super::Ident, components: I) -> Self
+    fn new<I>(ident: &super::Ident, version_range: super::VersionRange, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
         Self {
             name: ident.name.clone(),
-            version: super::VersionFilter::single(
-                super::EqualsVersion::from(ident.version.clone()).into(),
-            ),
+            version: super::VersionFilter::single(version_range),
             components: components.into_iter().collect(),
             build: ident.build.clone(),
         }
+    }
+
+    /// Create a range ident that requests the identified package using `==` semantics.
+    ///
+    /// The returned range will request the identified components of the given package.
+    pub fn double_equals<I>(ident: &super::Ident, components: I) -> Self
+    where
+        I: IntoIterator<Item = Component>,
+    {
+        Self::new(
+            ident,
+            super::DoubleEqualsVersion::from(ident.version.clone()).into(),
+            components,
+        )
+    }
+
+    /// Create a range ident that requests the identified package using `=` semantics.
+    ///
+    /// The returned range will request the identified components of the given package.
+    pub fn equals<I>(ident: &super::Ident, components: I) -> Self
+    where
+        I: IntoIterator<Item = Component>,
+    {
+        Self::new(
+            ident,
+            super::EqualsVersion::from(ident.version.clone()).into(),
+            components,
+        )
     }
 
     pub fn name(&self) -> &PkgName {
