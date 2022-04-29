@@ -45,6 +45,13 @@ macro_rules! ident {
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RepositoryName(pub String);
 
+impl RepositoryName {
+    /// Return if this RepositoryName names the "local" repository
+    pub fn is_local(&self) -> bool {
+        self.0 == "local"
+    }
+}
+
 /// Ident represents a package identifier.
 ///
 /// The identifier is either a specific package or
@@ -97,6 +104,11 @@ impl Ident {
     /// Set the build component of this package identifier.
     pub fn set_build(&mut self, build: Option<Build>) {
         self.build = build;
+    }
+
+    /// Get the repository name of this package identifier.
+    pub fn repository_name(&self) -> &Option<RepositoryName> {
+        &self.repository_name
     }
 
     /// Set the repository name of this package identifier.
