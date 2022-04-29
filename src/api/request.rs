@@ -17,7 +17,7 @@ use super::{
     parse_build,
     version_range::{self, Ranged},
     Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, OptName,
-    OptNameBuf, PkgName, PkgNameBuf, Spec, Version, VersionFilter,
+    OptNameBuf, PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
 };
 use crate::{Error, Result};
 
@@ -28,6 +28,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RangeIdent {
+    pub repository_name: Option<RepositoryName>,
     pub name: PkgNameBuf,
     pub components: HashSet<Component>,
     pub version: VersionFilter,
@@ -79,6 +80,7 @@ impl RangeIdent {
         I: IntoIterator<Item = Component>,
     {
         Self {
+            repository_name: ident.repository_name().clone(),
             name: ident.name.clone(),
             version: super::VersionFilter::single(version_range),
             components: components.into_iter().collect(),
@@ -252,6 +254,10 @@ impl RangeIdent {
 
 impl Display for RangeIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(name) = &self.repository_name {
+            name.fmt(f)?;
+            f.write_char('/')?;
+        }
         self.name.fmt(f)?;
         match self.components.len() {
             0 => (),
@@ -282,7 +288,19 @@ impl FromStr for RangeIdent {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> crate::Result<Self> {
-        parse_ident_range(s)
+        // TODO: this list of possible names should come from reading
+        // the config file
+        let known_repositories: HashSet<&'static str> =
+            ["local", "origin"].iter().cloned().collect();
+
+        crate::parsing::range_ident(&known_repositories, s)
+            .map(|(_, ident)| ident)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::Error::String(nom::error::convert_error(s, e))
+                }
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 
@@ -333,6 +351,8 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     }
 
     Ok(RangeIdent {
+        // FIXME:
+        repository_name: None,
         name,
         components,
         version: VersionFilter::from_str(version)?,
@@ -773,6 +793,7 @@ impl PkgRequest {
     // TODO: change parameter to `pkg: Ident`
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
         let ri = RangeIdent {
+            repository_name: pkg.repository_name().clone(),
             name: pkg.name,
             components: Default::default(),
             version: VersionFilter::single(EqualsVersion::version_range(pkg.version.clone())),
