@@ -133,14 +133,14 @@ impl<T: Ranged> Ranged for &T {
 #[enum_dispatch(Ranged)]
 pub enum VersionRange {
     Compat(CompatRange),
-    Exact(ExactVersion),
-    Excluded(ExcludedVersion),
+    Equals(EqualsVersion),
     Filter(VersionFilter),
     GreaterThan(GreaterThanRange),
     GreaterThanOrEqualTo(GreaterThanOrEqualToRange),
     LessThan(LessThanRange),
     LessThanOrEqualTo(LessThanOrEqualToRange),
     LowestSpecified(LowestSpecifiedRange),
+    NotEquals(NotEqualsVersion),
     Semver(SemverRange),
     Wildcard(WildcardRange),
 }
@@ -149,14 +149,14 @@ impl Display for VersionRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             VersionRange::Compat(vr) => vr.fmt(f),
-            VersionRange::Exact(vr) => vr.fmt(f),
-            VersionRange::Excluded(vr) => vr.fmt(f),
+            VersionRange::Equals(vr) => vr.fmt(f),
             VersionRange::Filter(vr) => vr.fmt(f),
             VersionRange::GreaterThan(vr) => vr.fmt(f),
             VersionRange::GreaterThanOrEqualTo(vr) => vr.fmt(f),
             VersionRange::LessThan(vr) => vr.fmt(f),
             VersionRange::LessThanOrEqualTo(vr) => vr.fmt(f),
             VersionRange::LowestSpecified(vr) => vr.fmt(f),
+            VersionRange::NotEquals(vr) => vr.fmt(f),
             VersionRange::Semver(vr) => vr.fmt(f),
             VersionRange::Wildcard(vr) => vr.fmt(f),
         }
@@ -537,23 +537,23 @@ impl Display for LessThanOrEqualToRange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ExactVersion {
+pub struct EqualsVersion {
     version: Version,
 }
 
-impl ExactVersion {
+impl EqualsVersion {
     pub fn version_range(version: Version) -> VersionRange {
-        VersionRange::Exact(Self { version })
+        VersionRange::Equals(Self { version })
     }
 }
 
-impl From<Version> for ExactVersion {
+impl From<Version> for EqualsVersion {
     fn from(version: Version) -> Self {
         Self { version }
     }
 }
 
-impl Ranged for ExactVersion {
+impl Ranged for EqualsVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.version.clone())
     }
@@ -596,7 +596,7 @@ impl Ranged for ExactVersion {
     }
 }
 
-impl Display for ExactVersion {
+impl Display for EqualsVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_char('=')?;
         f.write_str(&self.version.to_string())
@@ -604,22 +604,22 @@ impl Display for ExactVersion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ExcludedVersion {
+pub struct NotEqualsVersion {
     specified: usize,
     base: Version,
 }
 
-impl ExcludedVersion {
+impl NotEqualsVersion {
     pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
         let range = Self {
             specified: exclude.as_ref().split(VERSION_SEP).count(),
             base: parse_version(exclude)?,
         };
-        Ok(VersionRange::Excluded(range))
+        Ok(VersionRange::NotEquals(range))
     }
 }
 
-impl Ranged for ExcludedVersion {
+impl Ranged for NotEqualsVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
         None
     }
@@ -654,7 +654,7 @@ impl Ranged for ExcludedVersion {
     }
 }
 
-impl Display for ExcludedVersion {
+impl Display for NotEqualsVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let base_str = self
             .base
@@ -914,9 +914,9 @@ impl FromStr for VersionFilter {
                 LessThanRange::new_version_range(end)?
             } else if let Some(end) = rule_str.strip_prefix('=') {
                 let version = Version::from_str(end)?;
-                ExactVersion::version_range(version)
+                EqualsVersion::version_range(version)
             } else if let Some(end) = rule_str.strip_prefix("!=") {
-                ExcludedVersion::new_version_range(end)?
+                NotEqualsVersion::new_version_range(end)?
             } else if rule_str.contains('*') {
                 WildcardRange::new_version_range(rule_str)?
             } else {
