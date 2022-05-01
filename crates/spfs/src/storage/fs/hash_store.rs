@@ -22,6 +22,15 @@ mod hash_store_test;
 
 static WORK_DIRNAME: &str = "work";
 
+pub(crate) enum PersistableObject {
+    #[cfg(test)]
+    EmptyFile,
+    WorkingFile {
+        working_file: PathBuf,
+        copied: u64,
+    },
+}
+
 pub struct FSHashStore {
     root: PathBuf,
     /// permissions used when creating new directories
@@ -103,15 +112,50 @@ impl FSHashStore {
             return Err(Error::wrap_io(err, "Failed to sync object write"));
         }
 
+        self.persist_object_with_digest(
+            PersistableObject::WorkingFile {
+                working_file,
+                copied,
+            },
+            digest,
+        )
+        .await
+    }
+
+    pub(crate) async fn persist_object_with_digest(
+        &self,
+        persistable_object: PersistableObject,
+        digest: encoding::Digest,
+    ) -> Result<(encoding::Digest, u64)> {
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
-        if let Err(err) = tokio::fs::rename(&working_file, &path).await {
-            let _ = tokio::fs::remove_file(working_file).await;
-            match err.kind() {
-                ErrorKind::AlreadyExists => (),
-                _ => return Err(Error::wrap_io(err, "Failed to store object")),
+
+        let copied = match persistable_object {
+            #[cfg(test)]
+            PersistableObject::EmptyFile => {
+                tokio::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&path)
+                    .await?;
+                0
             }
-        }
+            PersistableObject::WorkingFile {
+                working_file,
+                copied,
+            } => {
+                if let Err(err) = tokio::fs::rename(&working_file, &path).await {
+                    let _ = tokio::fs::remove_file(working_file).await;
+                    match err.kind() {
+                        ErrorKind::AlreadyExists => (),
+                        _ => return Err(Error::wrap_io(err, "Failed to store object")),
+                    }
+                }
+                copied
+            }
+        };
+
         if let Err(_err) = tokio::fs::set_permissions(
             &path,
             std::fs::Permissions::from_mode(self.file_permissions),

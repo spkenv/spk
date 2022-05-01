@@ -17,3 +17,14 @@ async fn test_hash_store_iter_states(tmpdir: tempdir::TempDir) {
         panic!("empty hash store should not yield any digests");
     }
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
+    init_logging();
+    let store = super::FSHashStore::open(tmpdir.path()).unwrap();
+    let mut stream = store.iter();
+    while stream.next().await.is_some() {
+        panic!("empty hash store should not yield any digests");
+    }
+}
