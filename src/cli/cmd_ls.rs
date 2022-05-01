@@ -96,7 +96,9 @@ impl Ls {
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
         let mut packages = Vec::new();
-        for (index, (_repo_name, repo)) in repos.iter().enumerate() {
+        let mut max_repo_name_len = 0;
+        for (index, (repo_name, repo)) in repos.iter().enumerate() {
+            let num_packages = packages.len();
             match &self.package {
                 Some(package) => {
                     packages.push((package.to_owned(), index));
@@ -105,6 +107,10 @@ impl Ls {
                     packages.extend(repo.list_packages()?.into_iter().map(|p| (p, index)));
                 }
             };
+            // Ignore this repo name if it didn't contribute any packages.
+            if packages.len() > num_packages {
+                max_repo_name_len = max_repo_name_len.max(repo_name.len());
+            }
         }
         packages.sort();
         for (package, index) in packages {
@@ -125,7 +131,11 @@ impl Ls {
                 builds.sort();
                 for build in builds {
                     if self.verbose > 0 {
-                        print!("[{}] ", repo_name);
+                        print!(
+                            "{:>width$} ",
+                            format!("[{}]", repo_name),
+                            width = max_repo_name_len + 2
+                        );
                     }
                     println!("{}", self.format_build(&build, repo)?);
                 }
