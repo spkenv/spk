@@ -355,7 +355,9 @@ impl Stream for FSHashStoreIter {
                     match &self.criteria {
                         crate::graph::DigestSearchCriteria::All => process_subdir(self, root, name),
                         crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                            if bytes.starts_with(name.as_bytes()) =>
+                            if (name.len() < bytes.len() && bytes.starts_with(name.as_bytes()))
+                                || (name.len() >= bytes.len()
+                                    && name.as_bytes().starts_with(bytes)) =>
                         {
                             process_subdir(self, root, name)
                         }
@@ -439,7 +441,7 @@ impl Stream for FSHashStoreIter {
                                 Poll::Ready(Some(Ok(digest)))
                             }
                             crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                                if digest.as_bytes().starts_with(bytes.as_slice()) =>
+                                if digest_str.as_bytes().starts_with(bytes.as_slice()) =>
                             {
                                 Poll::Ready(Some(Ok(digest)))
                             }
