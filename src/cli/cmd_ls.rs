@@ -23,7 +23,7 @@ pub struct Ls {
     #[clap(long, short)]
     components: bool,
 
-    /// Recursively list all package versions and builds (recursive results are not sorted)
+    /// Recursively list all package versions and builds
     #[clap(long)]
     recursive: bool,
 
@@ -94,25 +94,49 @@ impl Ls {
         &self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
-        for (_repo_name, repo) in repos {
-            let packages = match &self.package {
-                Some(package) => vec![package.to_owned()],
-                None => repo.list_packages()?,
+        let mut packages = Vec::new();
+        let mut max_repo_name_len = 0;
+        for (index, (repo_name, repo)) in repos.iter().enumerate() {
+            let num_packages = packages.len();
+            match &self.package {
+                Some(package) => {
+                    packages.push((package.to_owned(), index));
+                }
+                None => {
+                    packages.extend(repo.list_packages()?.into_iter().map(|p| (p, index)));
+                }
             };
-            for package in packages {
-                let versions = if package.contains('/') {
-                    vec![spk::api::parse_ident(&package)?]
-                } else {
-                    let base = spk::api::Ident::new(&package)?;
-                    repo.list_package_versions(&package)?
-                        .into_iter()
-                        .map(|v| base.with_version(v))
-                        .collect()
-                };
-                for pkg in versions {
-                    for build in repo.list_package_builds(&pkg)? {
-                        println!("{}", self.format_build(&build, &repo)?);
+            // Ignore this repo name if it didn't contribute any packages.
+            if packages.len() > num_packages {
+                max_repo_name_len = max_repo_name_len.max(repo_name.len());
+            }
+        }
+        packages.sort();
+        for (package, index) in packages {
+            let (repo_name, repo) = repos.get(index).unwrap();
+            let mut versions = if package.contains('/') {
+                vec![spk::api::parse_ident(&package)?]
+            } else {
+                let base = spk::api::Ident::new(&package)?;
+                repo.list_package_versions(&package)?
+                    .into_iter()
+                    .map(|v| base.with_version(v))
+                    .collect()
+            };
+            versions.sort();
+            versions.reverse();
+            for pkg in versions {
+                let mut builds = repo.list_package_builds(&pkg)?;
+                builds.sort();
+                for build in builds {
+                    if self.verbose > 0 {
+                        print!(
+                            "{:>width$} ",
+                            format!("[{}]", repo_name),
+                            width = max_repo_name_len + 2
+                        );
                     }
+                    println!("{}", self.format_build(&build, repo)?);
                 }
             }
         }
