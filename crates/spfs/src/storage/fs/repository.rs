@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::fs::Permissions;
+use std::io::Write;
+use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use super::FSHashStore;
@@ -40,7 +43,7 @@ impl FromConfig for FSRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> Result<Self> {
-        Self::create(&config.path).await
+        Self::open(&config.path).await
     }
 }
 
@@ -54,7 +57,7 @@ impl FSRepository {
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         let username = whoami::username();
         makedirs_with_perms(root.join("renders").join(username), 0o777)?;
-        set_last_migration(&root, None).await?;
+        set_last_migration(&root, None)?;
         Self::open(root).await
     }
 
@@ -99,7 +102,7 @@ impl FSRepository {
     }
 
     pub async fn set_last_migration(&self, version: semver::Version) -> Result<()> {
-        set_last_migration(self.root(), Some(version)).await
+        set_last_migration(self.root(), Some(version))
     }
 }
 
@@ -166,15 +169,21 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semv
 }
 
 /// Set the last migration version of the repo with the given root directory.
-pub async fn set_last_migration<P: AsRef<Path>>(
-    root: P,
-    version: Option<semver::Version>,
-) -> Result<()> {
+pub fn set_last_migration<P: AsRef<Path>>(root: P, version: Option<semver::Version>) -> Result<()> {
     let version = match version {
         Some(v) => v,
         None => semver::Version::parse(crate::VERSION).unwrap(),
     };
-    let version_file = root.as_ref().join("VERSION");
-    tokio::fs::write(version_file, version.to_string()).await?;
+    let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref())?;
+    // This file can be read only. It will be replaced by a new file
+    // if the contents need to be changed.
+    temp_version_file
+        .as_file()
+        .set_permissions(Permissions::from_mode(0o444))?;
+    temp_version_file.write_all(version.to_string().as_bytes())?;
+    temp_version_file.flush()?;
+    temp_version_file
+        .persist(root.as_ref().join("VERSION"))
+        .map_err(|err| crate::Error::String(err.to_string()))?;
     Ok(())
 }
