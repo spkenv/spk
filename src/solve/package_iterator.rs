@@ -57,7 +57,7 @@ impl VersionIterator {
 /// A stateful cursor yielding package builds from a set of repositories.
 #[derive(Debug)]
 pub struct RepositoryPackageIterator {
-    pub package_name: String,
+    pub package_name: api::Name,
     pub repos: Vec<Arc<storage::RepositoryHandle>>,
     versions: Option<VersionIterator>,
     version_map: HashMap<api::Version, Arc<storage::RepositoryHandle>>,
@@ -73,7 +73,7 @@ impl Clone for RepositoryPackageIterator {
                 Ok(version_map) => version_map,
                 Err(Error::PackageNotFoundError(_)) => {
                     return RepositoryPackageIterator::new(
-                        self.package_name.to_owned(),
+                        self.package_name.clone(),
                         self.repos.clone(),
                     )
                 }
@@ -124,7 +124,7 @@ impl PackageIterator for RepositoryPackageIterator {
                 "version not found in version_map".to_owned(),
             ));
         };
-        let mut pkg = api::Ident::new(&self.package_name)?;
+        let mut pkg = api::Ident::new(self.package_name.clone());
         pkg.version = version.clone();
         if !self.builds_map.contains_key(version) {
             self.builds_map.insert(
@@ -149,7 +149,7 @@ impl PackageIterator for RepositoryPackageIterator {
 }
 
 impl RepositoryPackageIterator {
-    pub fn new(package_name: String, repos: Vec<Arc<storage::RepositoryHandle>>) -> Self {
+    pub fn new(package_name: api::Name, repos: Vec<Arc<storage::RepositoryHandle>>) -> Self {
         RepositoryPackageIterator {
             package_name,
             repos,
@@ -169,9 +169,9 @@ impl RepositoryPackageIterator {
         }
 
         if version_map.is_empty() {
-            return Err(Error::PackageNotFoundError(api::Ident::new(
-                &self.package_name,
-            )?));
+            return Err(Error::PackageNotFoundError(
+                self.package_name.clone().into(),
+            ));
         }
 
         Ok(version_map)
@@ -373,13 +373,13 @@ impl SortedBuildIterator {
                     // most valuable
                     if !!&spec
                         .build
-                        .validate_options(spec.pkg.name(), &default_options)
+                        .validate_options(&spec.pkg.name, &default_options)
                     {
                         return (-1, build);
                     }
                     // then we sort based on the first defined variant that seems valid
                     for (i, variant) in version_spec.build.variants.iter().enumerate() {
-                        if !!&spec.build.validate_options(spec.pkg.name(), variant) {
+                        if !!&spec.build.validate_options(&spec.pkg.name, variant) {
                             return (i as i64, build);
                         }
                     }

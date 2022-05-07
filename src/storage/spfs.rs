@@ -76,15 +76,16 @@ impl Repository for SPFSRepository {
         self.inner.address()
     }
 
-    fn list_packages(&self) -> Result<Vec<String>> {
+    fn list_packages(&self) -> Result<Vec<api::Name>> {
         Handle::current().block_on(async {
             let path = relative_path::RelativePath::new("spk/spec");
             Ok(self
                 .inner
                 .ls_tags(path)
+                .map_err(crate::Error::SPFS)
                 .try_filter_map(|entry| {
                     ready(match entry {
-                        EntryType::Folder(name) => Ok(Some(name)),
+                        EntryType::Folder(name) => name.parse().map(Some),
                         EntryType::Tag(_) => Ok(None),
                     })
                 })
@@ -93,9 +94,9 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::Name) -> Result<Vec<api::Version>> {
         Handle::current().block_on(async {
-            let path = self.build_spec_tag(&api::parse_ident(name)?);
+            let path = self.build_spec_tag(&name.clone().into());
             let versions: HashSet<_> = self
                 .inner
                 .ls_tags(&path)
@@ -353,7 +354,7 @@ impl Repository for SPFSRepository {
         }
         for name in self.list_packages()? {
             tracing::info!("replicating old tags for {}...", name);
-            let mut pkg = api::Ident::new(&name)?;
+            let mut pkg = api::Ident::new(name.to_owned());
             for version in self.list_package_versions(&name)? {
                 pkg.version = version;
                 for build in self.list_package_builds(&pkg)? {

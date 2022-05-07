@@ -93,7 +93,9 @@ fn test_request_default_component() {
     let resolve_state = DecisionBuilder::new(spec.clone(), &base)
         .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
         .apply(&base);
-    let request = resolve_state.get_merged_request("dependency").unwrap();
+    let request = resolve_state
+        .get_merged_request(&"dependency".parse().unwrap())
+        .unwrap();
     assert!(
         request.pkg.components.contains(&api::Component::Run),
         "default run component should be injected when none specified"
@@ -103,7 +105,9 @@ fn test_request_default_component() {
         .build_package(&solve::solution::Solution::new(None))
         .unwrap()
         .apply(&base);
-    let request = build_state.get_merged_request("dependency").unwrap();
+    let request = build_state
+        .get_merged_request(&"dependency".parse().unwrap())
+        .unwrap();
     assert!(
         request.pkg.components.contains(&api::Component::Run),
         "default run component should be injected when none specified"

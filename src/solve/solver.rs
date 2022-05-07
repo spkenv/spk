@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Build, Component, OptionMap, Request},
+    api::{self, Build, Component, Name, OptionMap, Request},
     solve::graph::StepBack,
     storage, Error, Result,
 };
@@ -82,20 +82,20 @@ impl Solver {
     fn get_iterator(
         &self,
         node: &mut Node,
-        package_name: &str,
+        package_name: &Name,
     ) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
-        let iterator = self.make_iterator(package_name);
-        node.set_iterator(package_name, &iterator);
+        let iterator = self.make_iterator(package_name.clone());
+        node.set_iterator(package_name.clone(), &iterator);
         iterator
     }
 
-    fn make_iterator(&self, package_name: &str) -> Arc<Mutex<Box<dyn PackageIterator>>> {
+    fn make_iterator(&self, package_name: api::Name) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         debug_assert!(!self.repos.is_empty());
         Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
-            package_name.to_owned(),
+            package_name,
             self.repos.clone(),
         ))))
     }
@@ -103,9 +103,9 @@ impl Solver {
     fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
         let mut opts = state.get_option_map();
         for pkg_request in state.get_pkg_requests() {
-            if !opts.contains_key(pkg_request.pkg.name()) {
+            if !opts.contains_key(pkg_request.pkg.name.as_str()) {
                 opts.insert(
-                    pkg_request.pkg.name().to_owned(),
+                    pkg_request.pkg.name.to_string(),
                     pkg_request.pkg.version.to_string(),
                 );
             }
@@ -132,7 +132,7 @@ impl Solver {
             return Ok(None);
         };
 
-        let iterator = self.get_iterator(node, request.pkg.name());
+        let iterator = self.get_iterator(node, &request.pkg.name);
         let mut iterator_lock = iterator.lock().unwrap();
         while let Some((pkg, builds)) = iterator_lock.next()? {
             let mut compat = request.is_version_applicable(&pkg.version);
@@ -310,7 +310,7 @@ impl Solver {
         let build_options = spec.resolve_all_options(&state.get_option_map());
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
-                let given = build_options.get(&option.pkg);
+                let given = build_options.get(option.pkg.as_str());
                 let mut request = option.to_request(given.cloned())?;
                 // if no components were explicitly requested in a build option,
                 // then we inject the default for this context

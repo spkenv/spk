@@ -74,15 +74,13 @@ fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
     let file_source = api::LocalSource::new(source_file).set_subdir("local");
 
     let dest_dir = rt.tmpdir.path().join("dest");
-    let spec = api::Spec {
-        sources: vec![
-            api::SourceSpec::Git(git_source),
-            api::SourceSpec::Tar(tar_source),
-            api::SourceSpec::Local(file_source),
-            api::SourceSpec::Local(dir_source),
-        ],
-        ..Default::default()
-    };
+    let mut spec = api::Spec::new("test-pkg".parse().unwrap());
+    spec.sources = vec![
+        api::SourceSpec::Git(git_source),
+        api::SourceSpec::Tar(tar_source),
+        api::SourceSpec::Local(file_source),
+        api::SourceSpec::Local(dir_source),
+    ];
     collect_sources(&spec, &dest_dir).unwrap();
     assert!(dest_dir.join("local").is_dir());
     assert!(dest_dir.join("git_repo").is_dir());

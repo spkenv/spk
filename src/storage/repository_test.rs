@@ -25,7 +25,9 @@ fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
     assert!(
-        repo.list_package_versions("nothing").unwrap().is_empty(),
+        repo.list_package_versions(&"nothing".parse().unwrap())
+            .unwrap()
+            .is_empty(),
         "should not fail with unknown package"
     );
 }
@@ -77,8 +79,11 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
     let repo = crate::HANDLE.block_on(make_repo(repo));
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
     repo.publish_spec(spec.clone()).unwrap();
-    assert_eq!(repo.list_packages().unwrap(), vec!["my-pkg"]);
-    assert_eq!(repo.list_package_versions("my-pkg").unwrap(), vec!["1.0.0"]);
+    assert_eq!(repo.list_packages().unwrap(), vec![spec.pkg.name.clone()]);
+    assert_eq!(
+        repo.list_package_versions(&spec.pkg.name).unwrap(),
+        vec!["1.0.0"]
+    );
 
     match repo.publish_spec(spec.clone()) {
         Err(Error::VersionExistsError(_)) => (),

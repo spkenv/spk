@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryFrom};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
@@ -49,7 +49,7 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn list_packages(&self) -> Result<Vec<String>> {
+    fn list_packages(&self) -> Result<Vec<api::Name>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
@@ -59,10 +59,11 @@ impl Repository for RuntimeRepository {
                     None
                 }
             })
+            .filter_map(|e| api::Name::try_from(e).ok())
             .collect())
     }
 
-    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::Name) -> Result<Vec<api::Version>> {
         Ok(get_all_filenames(self.root.join(name))?
             .into_iter()
             .filter_map(|entry| {
@@ -87,7 +88,7 @@ impl Repository for RuntimeRepository {
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let mut base = self.root.join(pkg.name());
+        let mut base = self.root.join(pkg.name.as_str());
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
             .into_iter()

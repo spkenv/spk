@@ -30,7 +30,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
         if resolved.request.pkg.components.is_empty() {
             tracing::warn!(
                 "Package request for '{}' identified no components, nothing will be included",
-                resolved.request.pkg.name()
+                resolved.request.pkg.name
             );
             continue;
         }

@@ -56,7 +56,7 @@ impl SolvedRequest {
 pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,
-    by_name: HashMap<String, Arc<api::Spec>>,
+    by_name: HashMap<api::Name, Arc<api::Spec>>,
     insertion_order: HashMap<api::PkgRequest, usize>,
 }
 
@@ -86,9 +86,9 @@ impl Solution {
         items
     }
 
-    pub fn get(&self, name: &str) -> Option<SolvedRequest> {
+    pub fn get<S: AsRef<str>>(&self, name: S) -> Option<SolvedRequest> {
         for (request, (spec, source)) in &self.resolved {
-            if request.pkg.name() == name {
+            if request.pkg.name.as_str() == name.as_ref() {
                 return Some(SolvedRequest {
                     request: request.clone(),
                     spec: spec.clone(),
@@ -132,7 +132,7 @@ impl Solution {
             self.insertion_order
                 .insert(request.clone(), self.insertion_order.len());
         }
-        self.by_name.insert(request.pkg.name().to_owned(), package);
+        self.by_name.insert(request.pkg.name.clone(), package);
     }
 
     /// Return the set of repositories in this solution.
@@ -169,13 +169,13 @@ impl Solution {
 
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
         for (_request, (spec, _source)) in self.resolved.iter() {
-            out.insert(format!("SPK_PKG_{}", spec.pkg.name()), spec.pkg.to_string());
+            out.insert(format!("SPK_PKG_{}", spec.pkg.name), spec.pkg.to_string());
             out.insert(
-                format!("SPK_PKG_{}_VERSION", spec.pkg.name()),
+                format!("SPK_PKG_{}_VERSION", spec.pkg.name),
                 spec.pkg.version.to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_BUILD", spec.pkg.name()),
+                format!("SPK_PKG_{}_BUILD", spec.pkg.name),
                 spec.pkg
                     .build
                     .as_ref()
@@ -183,19 +183,19 @@ impl Solution {
                     .unwrap_or_else(|| "None".to_owned()),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MAJOR", spec.pkg.name()),
+                format!("SPK_PKG_{}_VERSION_MAJOR", spec.pkg.name),
                 spec.pkg.version.major().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MINOR", spec.pkg.name()),
+                format!("SPK_PKG_{}_VERSION_MINOR", spec.pkg.name),
                 spec.pkg.version.minor().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_PATCH", spec.pkg.name()),
+                format!("SPK_PKG_{}_VERSION_PATCH", spec.pkg.name),
                 spec.pkg.version.patch().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_BASE", spec.pkg.name()),
+                format!("SPK_PKG_{}_VERSION_BASE", spec.pkg.name),
                 spec.pkg
                     .version
                     .parts

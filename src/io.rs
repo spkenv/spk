@@ -9,7 +9,7 @@ use colored::Colorize;
 use crate::{api, option_map, solve, Error, Result};
 
 pub fn format_ident(pkg: &api::Ident) -> String {
-    let mut out = pkg.name().bold().to_string();
+    let mut out = pkg.name.bold().to_string();
     if !pkg.version.is_zero() || pkg.build.is_some() {
         out = format!("{}/{}", out, pkg.version.to_string().bright_blue());
     }
@@ -36,7 +36,7 @@ pub fn format_options(options: &api::OptionMap) -> String {
 }
 
 /// Create a canonical string to describe the combined request for a package.
-pub fn format_request<'a, R>(name: &str, requests: R) -> String
+pub fn format_request<'a, R>(name: &api::Name, requests: R) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
@@ -96,7 +96,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
 
         out.push_str(&format!(
             "  {}",
-            format_request(req.spec.pkg.name(), &[installed])
+            format_request(&req.spec.pkg.name, &[installed])
         ));
         if verbosity > 0 {
             let options = req.spec.resolve_all_options(&api::OptionMap::default());
@@ -143,7 +143,7 @@ pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
             format!(
                 "{} {}",
                 "REQUEST".blue(),
-                format_request(c.request.pkg.name(), [&c.request])
+                format_request(&c.request.pkg.name, [&c.request])
             )
         }
         RequestVar(c) => {
