@@ -54,7 +54,7 @@ impl RequirementsList {
     ) -> Result<()> {
         let mut by_name = std::collections::HashMap::new();
         for pkg in resolved {
-            by_name.insert(pkg.name(), pkg);
+            by_name.insert(&pkg.name, pkg);
         }
         for request in self.iter_mut() {
             match request {
@@ -62,10 +62,10 @@ impl RequirementsList {
                     if request.pin.is_none() {
                         continue;
                     }
-                    match by_name.get(&request.pkg.name()) {
+                    match by_name.get(&request.pkg.name) {
                         None => {
                             return Err(Error::String(
-                                format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name())
+                                format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name)
                             ));
                         }
                         Some(resolved) => {

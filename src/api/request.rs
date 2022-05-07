@@ -12,8 +12,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    compat::API_STR, compat::BINARY_STR, parse_build, validate_name, version_range::Ranged, Build,
-    CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, Spec, Version,
+    compat::API_STR, compat::BINARY_STR, parse_build, version_range::Ranged, Build, CompatRule,
+    Compatibility, Component, EqualsVersion, Ident, InvalidNameError, Name, Spec, Version,
     VersionFilter,
 };
 use crate::{Error, Result};
@@ -25,7 +25,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeIdent {
-    name: String,
+    pub name: Name,
     pub components: HashSet<Component>,
     pub version: VersionFilter,
     pub build: Option<Build>,
@@ -50,7 +50,7 @@ impl RangeIdent {
         I: IntoIterator<Item = Component>,
     {
         Self {
-            name: ident.name().to_string(),
+            name: ident.name.clone(),
             version: super::VersionFilter::single(
                 super::EqualsVersion::from(ident.version.clone()).into(),
             ),
@@ -77,7 +77,7 @@ impl RangeIdent {
     /// Versions that are applicable are not necessarily satisfactory, but
     /// this cannot be fully determined without a complete package spec.
     pub fn is_applicable(&self, pkg: &Ident) -> bool {
-        if pkg.name() != self.name {
+        if pkg.name != self.name {
             return false;
         }
 
@@ -138,7 +138,7 @@ impl RangeIdent {
 
     /// Return true if the given package spec satisfies this request.
     pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        if spec.pkg.name() != self.name {
+        if spec.pkg.name != self.name {
             return Compatibility::Incompatible("different package names".into());
         }
 
@@ -279,13 +279,12 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     })
 }
 
-fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(String, HashSet<Component>)> {
+fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(Name, HashSet<Component>)> {
     let source = source.as_ref();
     let mut components = HashSet::new();
 
     if let Some(delim) = source.find(':') {
-        let name = &source[..delim];
-        validate_name(&name)?;
+        let name = source[..delim].parse()?;
         let remainder = &source[delim + 1..];
         let cmpts = match remainder.starts_with('{') {
             true if remainder.ends_with('}') => &remainder[1..remainder.len() - 1],
@@ -300,11 +299,10 @@ fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(String, HashSe
         for cmpt in cmpts.split(',') {
             components.insert(Component::parse(cmpt)?);
         }
-        return Ok((name.to_string(), components));
+        return Ok((name, components));
     }
 
-    validate_name(source)?;
-    Ok((source.to_string(), components))
+    Ok((source.parse()?, components))
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -501,9 +499,14 @@ impl VarRequest {
     }
 
     /// Return the name of the package that this var refers to (if any)
-    pub fn package(&self) -> Option<&str> {
+    pub fn package(&self) -> Option<Name> {
         if self.var.contains('.') {
-            self.var.split('.').next()
+            self.var
+                .split('.')
+                .next()
+                .map(Name::from_str)
+                .map(Result::ok)
+                .flatten()
         } else {
             None
         }
@@ -692,7 +695,7 @@ impl PkgRequest {
 impl From<Ident> for PkgRequest {
     fn from(pkg: Ident) -> PkgRequest {
         let ri = RangeIdent {
-            name: pkg.name().to_owned(),
+            name: pkg.name,
             components: Default::default(),
             version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
             build: pkg.build,

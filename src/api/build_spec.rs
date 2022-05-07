@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::{Compatibility, Opt, OptionMap, ValidationSpec};
+use super::{Compatibility, Name, Opt, OptionMap, ValidationSpec};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -47,7 +47,7 @@ impl BuildSpec {
         variants.get(0) == Some(&OptionMap::default())
     }
 
-    pub fn resolve_all_options(&self, package_name: Option<&str>, given: &OptionMap) -> OptionMap {
+    pub fn resolve_all_options(&self, package_name: Option<&Name>, given: &OptionMap) -> OptionMap {
         let mut resolved = OptionMap::default();
         for opt in self.options.iter() {
             let name = opt.name();
@@ -68,7 +68,11 @@ impl BuildSpec {
     }
 
     /// Validate the given options against the options in this spec.
-    pub fn validate_options(&self, package_name: &str, given_options: &OptionMap) -> Compatibility {
+    pub fn validate_options(
+        &self,
+        package_name: &Name,
+        given_options: &OptionMap,
+    ) -> Compatibility {
         let mut must_exist = given_options.package_options_without_global(&package_name);
         let given_options = given_options.package_options(&package_name);
         for option in self.options.iter() {

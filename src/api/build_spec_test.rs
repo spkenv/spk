@@ -46,7 +46,8 @@ fn test_resolve_all_options_package_option() {
         "my-pkg.my-opt" => "override",
         "debug" => "on",
     };
-    let resolved = spec.resolve_all_options(Some("my-pkg"), &options);
+    let name = "my-pkg".parse().unwrap();
+    let resolved = spec.resolve_all_options(Some(&name), &options);
     assert_eq!(
         resolved.get("my-opt"),
         Some(&"override".to_string()),

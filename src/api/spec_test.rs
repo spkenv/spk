@@ -9,13 +9,13 @@ use super::Spec;
 use crate::fixtures::*;
 
 #[rstest]
-fn test_empty_spec_is_valid() {
-    let _spec: Spec = serde_yaml::from_str("{}").unwrap();
+fn test_spec_is_valid_with_only_name() {
+    let _spec: Spec = serde_yaml::from_str("{pkg: test-pkg}").unwrap();
 }
 
 #[rstest]
 fn test_explicit_no_sources() {
-    let spec: Spec = serde_yaml::from_str("sources: []").unwrap();
+    let spec: Spec = serde_yaml::from_str("{pkg: test-pkg, sources: []}").unwrap();
     assert!(spec.sources.is_empty());
 }
 
@@ -25,7 +25,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempdir::TempDir) {
     std::fs::create_dir(&spec_dir).unwrap();
     let spec_file = spec_dir.join("package.spk.yaml");
     let mut file = std::fs::File::create(&spec_file).unwrap();
-    file.write_all(b"{}").unwrap();
+    file.write_all(b"{pkg: test-pkg}").unwrap();
     drop(file);
 
     let spec = super::read_spec_file(&spec_file).unwrap();
