@@ -74,7 +74,7 @@ impl Run for View {
         };
 
         for item in solution.items() {
-            if item.spec.pkg.name() == request.pkg.name() {
+            if item.spec.pkg.name == request.pkg.name {
                 serde_yaml::to_writer(std::io::stdout(), &*item.spec)
                     .context("Failed to serialize loaded spec")?;
                 return Ok(0);

@@ -16,12 +16,11 @@ mod cmd_new_test;
 #[clap(visible_alias = "init")]
 pub struct New {
     /// The name of the new package to generate
-    name: String,
+    name: spk::api::Name,
 }
 
 impl Run for New {
     fn run(&mut self) -> Result<i32> {
-        spk::api::validate_name(&self.name)?;
         let spec = get_stub(&self.name);
 
         let spec_file = format!("{}.spk.yaml", self.name);
@@ -31,7 +30,7 @@ impl Run for New {
     }
 }
 
-fn get_stub(name: &str) -> String {
+fn get_stub(name: &spk::api::Name) -> String {
     format!(
         r#"pkg: {name}/0.1.0
 

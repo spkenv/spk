@@ -67,11 +67,11 @@ impl Run for Test {
                         spk::api::TestStage::Build,
                         spk::api::TestStage::Install,
                     ];
-                    (package.to_owned(), stages)
+                    (package.to_string(), stages)
                 }
             };
 
-            let (spec, filename) = match flags::find_package_spec(&Some(&name))? {
+            let (spec, filename) = match flags::find_package_spec(&Some(name.clone()))? {
                 flags::FindPackageSpecResult::Found { path, spec } => (spec, path),
                 _ => {
                     let pkg = spk::api::parse_ident(&name)?;
