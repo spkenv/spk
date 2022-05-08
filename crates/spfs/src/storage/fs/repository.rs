@@ -16,13 +16,29 @@ use crate::Result;
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
     pub path: std::path::PathBuf,
+    #[serde(flatten)]
+    pub params: Params,
+}
+
+#[derive(Clone, Default, Debug, serde::Deserialize, serde::Serialize)]
+pub struct Params {
+    #[serde(default)]
+    pub create: bool,
 }
 
 #[async_trait::async_trait]
 impl FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
+        let params = if let Some(qs) = url.query() {
+            serde_qs::from_str(qs).map_err(|err| {
+                crate::Error::String(format!("Invalid grpc repo parameters: {:?}", err))
+            })?
+        } else {
+            Params::default()
+        };
         Ok(Self {
             path: std::path::PathBuf::from(url.path()),
+            params,
         })
     }
 }
@@ -43,7 +59,11 @@ impl FromConfig for FSRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> Result<Self> {
-        Self::open(&config.path).await
+        if config.params.create {
+            Self::create(&config.path).await
+        } else {
+            Self::open(&config.path).await
+        }
     }
 }
 
