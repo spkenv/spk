@@ -79,8 +79,7 @@ impl Repository for SPFSRepository {
     fn list_packages(&self) -> Result<Vec<api::Name>> {
         Handle::current().block_on(async {
             let path = relative_path::RelativePath::new("spk/spec");
-            Ok(self
-                .inner
+            self.inner
                 .ls_tags(path)
                 .map_err(crate::Error::SPFS)
                 .try_filter_map(|entry| {
@@ -90,7 +89,7 @@ impl Repository for SPFSRepository {
                     })
                 })
                 .try_collect()
-                .await?)
+                .await
         })
     }
 

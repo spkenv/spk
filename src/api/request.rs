@@ -505,8 +505,7 @@ impl VarRequest {
                 .split('.')
                 .next()
                 .map(Name::from_str)
-                .map(Result::ok)
-                .flatten()
+                .and_then(Result::ok)
         } else {
             None
         }

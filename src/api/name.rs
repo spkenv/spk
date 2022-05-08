@@ -49,19 +49,19 @@ impl AsRef<str> for Name {
 
 impl AsRef<std::path::Path> for Name {
     fn as_ref(&self) -> &std::path::Path {
-        &std::path::Path::new(&self.0)
+        std::path::Path::new(&self.0)
     }
 }
 
 impl AsRef<std::ffi::OsStr> for Name {
     fn as_ref(&self) -> &std::ffi::OsStr {
-        &std::ffi::OsStr::new(&self.0)
+        std::ffi::OsStr::new(&self.0)
     }
 }
 
-impl Into<String> for Name {
-    fn into(self) -> String {
-        self.0
+impl From<Name> for String {
+    fn from(n: Name) -> Self {
+        n.0
     }
 }
 

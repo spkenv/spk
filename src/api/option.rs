@@ -1,14 +1,14 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryFrom;
+use std::{convert::TryFrom, str::FromStr};
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    parse_ident_range, CompatRule, Compatibility, InclusionPolicy, Name, PkgRequest,
-    PreReleasePolicy, Request, VarRequest,
+    CompatRule, Compatibility, InclusionPolicy, Name, PkgRequest, PreReleasePolicy, Ranged,
+    Request, VarRequest, VersionRange,
 };
 use crate::{Error, Result};
 
@@ -385,8 +385,7 @@ impl PkgOpt {
     }
 
     pub fn set_value(&mut self, value: String) -> Result<()> {
-        let ident = format!("{}/{}", self.pkg, value);
-        if let Err(err) = parse_ident_range(ident) {
+        if let Err(err) = VersionRange::from_str(&value) {
             return Err(Error::wrap(
                 format!(
                     "Invalid value '{}' for option '{}', not a valid package request",
@@ -408,8 +407,11 @@ impl PkgOpt {
 
         // skip any default that might exist since
         // that does not represent a definitive range
-        let base = self.value.as_deref().unwrap_or_default();
-        let base_range = match parse_ident_range(format!("{}/{}", self.pkg, base)) {
+        let base = match &self.value {
+            None => return Compatibility::Compatible,
+            Some(v) => v,
+        };
+        let base_range = match VersionRange::from_str(base) {
             Err(err) => {
                 return Compatibility::Incompatible(format!(
                     "Invalid value '{}' for option '{}', not a valid package request: {}",
@@ -418,7 +420,7 @@ impl PkgOpt {
             }
             Ok(r) => r,
         };
-        match parse_ident_range(format!("{}/{}", self.pkg, value)) {
+        match VersionRange::from_str(value) {
             Err(err) => Compatibility::Incompatible(format!(
                 "Invalid value '{}' for option '{}', not a valid package request: {}",
                 value, self.pkg, err
@@ -430,7 +432,12 @@ impl PkgOpt {
     pub fn to_request(&self, given_value: Option<String>) -> Result<PkgRequest> {
         let value = self.get_value(given_value.as_deref()).unwrap_or_default();
         Ok(PkgRequest {
-            pkg: parse_ident_range(format!("{}/{}", self.pkg, value))?,
+            pkg: super::RangeIdent {
+                name: self.pkg.clone(),
+                version: value.parse()?,
+                components: Default::default(),
+                build: None,
+            },
             pin: None,
             prerelease_policy: self.prerelease_policy,
             inclusion_policy: InclusionPolicy::default(),
