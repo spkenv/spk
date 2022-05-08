@@ -5,8 +5,9 @@
 use std::borrow::Cow;
 
 use sentry::IntoDsn;
+use tracing_subscriber::prelude::*;
 
-pub static SPFS_VERBOSITY: &str = "SPFS_VERBOSITY";
+pub static SPFS_LOG: &str = "SPFS_LOG";
 
 pub fn configure_sentry() {
     let mut opts = sentry::ClientOptions {
@@ -68,35 +69,31 @@ pub fn configure_spops(_verbosity: usize) {
     //     print(f"failed to initialize spops: {e}", file=sys.stderr)
 }
 
-pub fn configure_logging(mut verbosity: usize) {
-    if verbosity == 0 {
-        let parse_result = std::env::var(SPFS_VERBOSITY)
-            .unwrap_or_else(|_| "0".to_string())
-            .parse::<usize>();
-        if let Ok(parsed) = parse_result {
-            verbosity = usize::max(parsed, verbosity);
+pub fn configure_logging(verbosity: usize) {
+    let mut config = match verbosity {
+        0 => {
+            if let Ok(existing) = std::env::var(SPFS_LOG) {
+                existing
+            } else {
+                "spfs=info,warn".to_string()
+            }
         }
-    }
-    std::env::set_var(SPFS_VERBOSITY, verbosity.to_string());
-    use tracing_subscriber::layer::SubscriberExt;
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "spfs=trace");
-    }
-    let env_filter = tracing_subscriber::filter::EnvFilter::from_default_env();
-    let level_filter = match verbosity {
-        0 => tracing_subscriber::filter::LevelFilter::INFO,
-        1 => tracing_subscriber::filter::LevelFilter::DEBUG,
-        _ => tracing_subscriber::filter::LevelFilter::TRACE,
+        1 => "spfs=debug,info".to_string(),
+        2 => "spfs=trace,info".to_string(),
+        3 => "spfs=trace,debug".to_string(),
+        _ => "trace".to_string(),
     };
-    let registry = tracing_subscriber::Registry::default()
-        .with(env_filter)
-        .with(level_filter);
-    let mut fmt_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stderr)
-        .without_time();
-    if verbosity < 3 {
-        fmt_layer = fmt_layer.with_target(false);
+    if let Ok(overrides) = std::env::var("RUST_LOG") {
+        config.push(',');
+        config.push_str(&overrides);
     }
+
+    let env_filter = tracing_subscriber::filter::EnvFilter::from(config);
+    let registry = tracing_subscriber::Registry::default().with(env_filter);
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .without_time()
+        .with_target(verbosity > 2);
     let sub = registry.with(fmt_layer);
     tracing::subscriber::set_global_default(sub).unwrap();
 }
