@@ -84,7 +84,15 @@ impl FSRepository {
     // Open a repository over the given directory, which must already
     // exist and be a repository
     pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let root = tokio::fs::canonicalize(root).await?;
+        let root = match tokio::fs::canonicalize(&root).await {
+            Ok(r) => r,
+            Err(err) => {
+                return Err(crate::Error::FailedToOpenRepository {
+                    reason: root.as_ref().to_string_lossy().to_string(),
+                    source: Box::new(err.into()),
+                })
+            }
+        };
         let username = whoami::username();
         let repo = Self {
             objects: FSHashStore::open(root.join("objects"))?,

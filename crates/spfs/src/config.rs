@@ -3,9 +3,9 @@
 // https://github.com/imageworks/spk
 use std::sync::{Arc, RwLock};
 
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
-use lazy_static::lazy_static;
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
@@ -321,5 +321,12 @@ pub fn load_config() -> Result<Config> {
 pub async fn open_repository<S: AsRef<str>>(
     address: S,
 ) -> crate::Result<storage::RepositoryHandle> {
-    RemoteConfig::from_str(address).await?.open().await
+    match RemoteConfig::from_str(address).await?.open().await {
+        Ok(repo) => Ok(repo),
+        err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
+        Err(err) => Err(crate::Error::FailedToOpenRepository {
+            reason: String::from("error"),
+            source: Box::new(err),
+        }),
+    }
 }

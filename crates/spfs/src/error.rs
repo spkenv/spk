@@ -47,6 +47,12 @@ pub enum Error {
     #[error("Repository does not support manifest rendering: {0:?}")]
     NoRenderStorage(url::Url),
 
+    #[error(
+        "Failed to open repository: {reason}, {}",
+        .source.to_string()
+    )]
+    FailedToOpenRepository { reason: String, source: Box<Self> },
+
     #[error("Nothing to commit, resulting filesystem would be empty")]
     NothingToCommit,
     #[error("No active runtime")]
