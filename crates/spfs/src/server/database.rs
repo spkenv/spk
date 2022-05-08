@@ -95,7 +95,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
 
 impl DatabaseService {
     pub fn new(repo: Arc<storage::RepositoryHandle>) -> Self {
-        Self{repo}
+        Self { repo }
     }
 
     pub fn new_srv(repo: Arc<storage::RepositoryHandle>) -> DatabaseServiceServer<Self> {

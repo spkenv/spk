@@ -9,6 +9,7 @@ debug:
 	cargo build --all
 
 lint:
+	cargo fmt --check
 	cargo clippy --tests -- -Dwarnings
 
 test:
