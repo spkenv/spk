@@ -8,6 +8,9 @@ debug:
 	cd $(SOURCE_ROOT)
 	cargo build --all
 
+lint:
+	cargo clippy --tests -- -Dwarnings
+
 test:
 	cargo test --all
 
