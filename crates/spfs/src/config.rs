@@ -234,7 +234,7 @@ impl Config {
         &self,
         name_or_address: S,
     ) -> Result<storage::RepositoryHandle> {
-        match self.remote.get(name_or_address.as_ref()) {
+        let res = match self.remote.get(name_or_address.as_ref()) {
             Some(Remote::Address(remote)) => {
                 let config = RemoteConfig::from_address(remote.address.clone()).await?;
                 tracing::debug!(?config, "opening repository");
@@ -255,6 +255,14 @@ impl Config {
                 tracing::debug!(?config, "opening repository");
                 config.open().await
             }
+        };
+        match res {
+            Ok(repo) => Ok(repo),
+            err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
+            Err(err) => Err(crate::Error::FailedToOpenRepository {
+                reason: String::from("error"),
+                source: Box::new(err),
+            }),
         }
     }
 }
