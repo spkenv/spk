@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::borrow::Cow;
-
-use sentry::IntoDsn;
 use tracing_subscriber::prelude::*;
 
 pub static SPFS_LOG: &str = "SPFS_LOG";
 
+#[cfg(feature = "sentry")]
 pub fn configure_sentry() {
+    use sentry::IntoDsn;
+    use std::borrow::Cow;
     let mut opts = sentry::ClientOptions {
         dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
             .into_dsn()
@@ -83,7 +83,7 @@ pub fn configure_logging(verbosity: usize) {
         3 => "spfs=trace,debug".to_string(),
         _ => "trace".to_string(),
     };
-    std::env::set_var(SPFS_LOG, config);
+    std::env::set_var(SPFS_LOG, &config);
     if let Ok(overrides) = std::env::var("RUST_LOG") {
         config.push(',');
         config.push_str(&overrides);
@@ -151,6 +151,7 @@ macro_rules! configure {
     ($opt:ident, $sentry:literal) => {{
         // sentry makes this process multithreaded, and must be disabled
         // for commands that use system calls which are bothered by this
+        #[cfg(feature = "sentry")]
         if $sentry { args::configure_sentry() }
         args::configure_logging($opt.verbose);
         args::configure_spops($opt.verbose);
@@ -186,6 +187,7 @@ pub fn capture_if_relevant(err: &spfs::Error) {
         spfs::Error::AmbiguousReference(_) => (),
         spfs::Error::NothingToCommit => (),
         _ => {
+            #[cfg(features = "sentry")]
             sentry::capture_error(err);
         }
     }
