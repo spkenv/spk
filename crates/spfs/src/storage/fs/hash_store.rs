@@ -107,15 +107,16 @@ impl FSHashStore {
                 _ => return Err(Error::wrap_io(err, "Failed to store object")),
             }
         }
-        if let Err(err) = tokio::fs::set_permissions(
+        if let Err(_err) = tokio::fs::set_permissions(
             &path,
             std::fs::Permissions::from_mode(self.file_permissions),
         )
         .await
         {
             // not a good enough reason to fail entirely
+            #[cfg(feature = "sentry")]
             sentry::capture_event(sentry::protocol::Event {
-                message: Some(format!("{:?}", err)),
+                message: Some(format!("{:?}", _err)),
                 level: sentry::protocol::Level::Warning,
                 ..Default::default()
             });
