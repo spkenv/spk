@@ -5,6 +5,7 @@
 use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::Poll;
@@ -20,6 +21,15 @@ use crate::{encoding, Error, Result};
 mod hash_store_test;
 
 static WORK_DIRNAME: &str = "work";
+
+pub(crate) enum PersistableObject {
+    #[cfg(test)]
+    EmptyFile,
+    WorkingFile {
+        working_file: PathBuf,
+        copied: u64,
+    },
+}
 
 pub struct FSHashStore {
     root: PathBuf,
@@ -50,6 +60,10 @@ impl FSHashStore {
     /// The folder in which in-progress data is stored temporarily
     pub fn workdir(&self) -> PathBuf {
         self.root.join(&WORK_DIRNAME)
+    }
+
+    pub fn find(&self, search_criteria: crate::graph::DigestSearchCriteria) -> FSHashStoreIter {
+        FSHashStoreIter::with_criteria(&self.root(), search_criteria)
     }
 
     pub fn iter(&self) -> FSHashStoreIter {
@@ -98,15 +112,50 @@ impl FSHashStore {
             return Err(Error::wrap_io(err, "Failed to sync object write"));
         }
 
+        self.persist_object_with_digest(
+            PersistableObject::WorkingFile {
+                working_file,
+                copied,
+            },
+            digest,
+        )
+        .await
+    }
+
+    pub(crate) async fn persist_object_with_digest(
+        &self,
+        persistable_object: PersistableObject,
+        digest: encoding::Digest,
+    ) -> Result<(encoding::Digest, u64)> {
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
-        if let Err(err) = tokio::fs::rename(&working_file, &path).await {
-            let _ = tokio::fs::remove_file(working_file).await;
-            match err.kind() {
-                ErrorKind::AlreadyExists => (),
-                _ => return Err(Error::wrap_io(err, "Failed to store object")),
+
+        let copied = match persistable_object {
+            #[cfg(test)]
+            PersistableObject::EmptyFile => {
+                tokio::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&path)
+                    .await?;
+                0
             }
-        }
+            PersistableObject::WorkingFile {
+                working_file,
+                copied,
+            } => {
+                if let Err(err) = tokio::fs::rename(&working_file, &path).await {
+                    let _ = tokio::fs::remove_file(working_file).await;
+                    match err.kind() {
+                        ErrorKind::AlreadyExists => (),
+                        _ => return Err(Error::wrap_io(err, "Failed to store object")),
+                    }
+                }
+                copied
+            }
+        };
+
         if let Err(_err) = tokio::fs::set_permissions(
             &path,
             std::fs::Permissions::from_mode(self.file_permissions),
@@ -285,15 +334,27 @@ impl std::fmt::Debug for FSHashStoreIterState {
 pub struct FSHashStoreIter {
     root: PathBuf,
     state: Option<FSHashStoreIterState>,
+    criteria: crate::graph::DigestSearchCriteria,
 }
 
 impl FSHashStoreIter {
     pub fn new<P: Into<PathBuf>>(root: P) -> Self {
+        Self::with_criteria(root, crate::graph::DigestSearchCriteria::All)
+    }
+
+    pub fn with_criteria<P: Into<PathBuf>>(
+        root: P,
+        criteria: crate::graph::DigestSearchCriteria,
+    ) -> Self {
         let root = root.into();
         let state = Some(FSHashStoreIterState::OpeningRoot {
             future: Box::pin(tokio::fs::read_dir(root.clone())),
         });
-        Self { root, state }
+        Self {
+            root,
+            state,
+            criteria,
+        }
     }
 }
 
@@ -329,10 +390,34 @@ impl Stream for FSHashStoreIter {
                         self.state = Some(AwaitingSubdir { root });
                         return self.poll_next(cx);
                     }
-                    let path = self.root.join(&name);
-                    let future = Box::pin(tokio::fs::read_dir(path));
-                    self.state = Some(OpeningSubdir { root, name, future });
-                    self.poll_next(cx)
+                    let mut process_subdir = |mut this: Pin<&mut Self>, root, name| {
+                        let path = this.root.join(&name);
+                        let future = Box::pin(tokio::fs::read_dir(path));
+                        this.state = Some(OpeningSubdir { root, name, future });
+                        this.poll_next(cx)
+                    };
+                    match &self.criteria {
+                        crate::graph::DigestSearchCriteria::All => process_subdir(self, root, name),
+                        crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                            // If the directory name is shorter than the prefix, check that
+                            // the prefix starts with the directory name.
+                            if name.len() < bytes.len() && bytes.starts_with(name.as_bytes()) =>
+                        {
+                            process_subdir(self, root, name)
+                        }
+                        crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                            // If the directory name is longer than the prefix, check that
+                            // the directory name starts with the prefix.
+                            if name.len() >= bytes.len() && name.as_bytes().starts_with(bytes) =>
+                        {
+                            process_subdir(self, root, name)
+                        }
+                        crate::graph::DigestSearchCriteria::StartsWith(_) => {
+                            // Keep looking for a subdirectory that matches the search criteria
+                            self.state = Some(AwaitingSubdir { root });
+                            self.poll_next(cx)
+                        }
+                    }
                 }
                 Poll::Ready(Ok(None)) => Poll::Ready(None),
             },
@@ -376,10 +461,23 @@ impl Stream for FSHashStoreIter {
                     Poll::Pending
                 }
                 Poll::Ready(Err(err)) => Poll::Ready(Some(Err(err.into()))),
-                Poll::Ready(Ok(None)) => {
-                    self.state = Some(AwaitingSubdir { root });
-                    self.poll_next(cx)
-                }
+                Poll::Ready(Ok(None)) => match &self.criteria {
+                    crate::graph::DigestSearchCriteria::All => {
+                        self.state = Some(AwaitingSubdir { root });
+                        self.poll_next(cx)
+                    }
+                    crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                        if bytes.starts_with(name.as_bytes()) =>
+                    {
+                        // After reading the contents of the subdirectory that matches
+                        // the search criteria, there are no more results.
+                        Poll::Ready(None)
+                    }
+                    crate::graph::DigestSearchCriteria::StartsWith(_) => {
+                        self.state = Some(AwaitingSubdir { root });
+                        self.poll_next(cx)
+                    }
+                },
                 Poll::Ready(Ok(Some(entry))) => {
                     let mut digest_str = name.to_string_lossy().to_string();
                     digest_str.push_str(entry.file_name().to_string_lossy().as_ref());
@@ -389,7 +487,17 @@ impl Stream for FSHashStoreIter {
                         read_dir,
                     });
                     match encoding::parse_digest(&digest_str) {
-                        Ok(digest) => Poll::Ready(Some(Ok(digest))),
+                        Ok(digest) => match &self.criteria {
+                            crate::graph::DigestSearchCriteria::All => {
+                                Poll::Ready(Some(Ok(digest)))
+                            }
+                            crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                                if digest_str.as_bytes().starts_with(bytes.as_slice()) =>
+                            {
+                                Poll::Ready(Some(Ok(digest)))
+                            }
+                            crate::graph::DigestSearchCriteria::StartsWith(_) => self.poll_next(cx),
+                        },
                         Err(err) => {
                             tracing::debug!(
                                 ?err, name = ?digest_str,

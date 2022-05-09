@@ -132,8 +132,11 @@ impl graph::DatabaseView for TarRepository {
         self.repo.read_object(digest).await
     }
 
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        self.repo.iter_digests()
+    fn find_digests(
+        &self,
+        search_criteria: graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        self.repo.find_digests(search_criteria)
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {

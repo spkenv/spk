@@ -26,10 +26,15 @@ impl graph::DatabaseView for super::RpcRepository {
         obj.try_into()
     }
 
-    fn iter_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        let request = proto::IterDigestsRequest {};
+    fn find_digests(
+        &self,
+        search_criteria: graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        let request = proto::FindDigestsRequest {
+            search_criteria: Some(search_criteria.into()),
+        };
         let mut client = self.db_client.clone();
-        let stream = futures::stream::once(async move { client.iter_digests(request).await })
+        let stream = futures::stream::once(async move { client.find_digests(request).await })
             .map_err(crate::Error::from)
             .map_ok(|r| r.into_inner().map_err(crate::Error::from))
             .try_flatten()

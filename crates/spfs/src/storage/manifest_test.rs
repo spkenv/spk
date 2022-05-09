@@ -31,7 +31,10 @@ async fn test_read_write_manifest(#[future] repo: TempRepo, tmpdir: tempdir::Tem
     let manifest2 = Manifest::from(&tracking::compute_manifest(dir).await.unwrap());
     repo.write_object(&manifest2.into()).await.unwrap();
 
-    let digests: crate::Result<Vec<_>> = repo.iter_digests().collect().await;
+    let digests: crate::Result<Vec<_>> = repo
+        .find_digests(crate::graph::DigestSearchCriteria::All)
+        .collect()
+        .await;
     let digests = digests.unwrap();
     assert!(digests.contains(&expected));
 }

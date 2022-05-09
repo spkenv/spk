@@ -351,3 +351,46 @@ impl TryFrom<super::ls_tags_response::Entry> for storage::EntryType {
         }
     }
 }
+
+impl From<graph::DigestSearchCriteria> for super::DigestSearchCriteria {
+    fn from(search_criteria: graph::DigestSearchCriteria) -> Self {
+        Self {
+            criteria: Some(match search_criteria {
+                graph::DigestSearchCriteria::All => super::digest_search_criteria::Criteria::All(
+                    super::digest_search_criteria::All {},
+                ),
+                graph::DigestSearchCriteria::StartsWith(b) => {
+                    super::digest_search_criteria::Criteria::StartsWith(
+                        super::digest_search_criteria::StartsWith { bytes: b },
+                    )
+                }
+            }),
+        }
+    }
+}
+
+impl TryFrom<super::DigestSearchCriteria> for graph::DigestSearchCriteria {
+    type Error = Error;
+    fn try_from(search_criteria: super::DigestSearchCriteria) -> Result<Self> {
+        match search_criteria.criteria {
+            Some(criteria) => match criteria {
+                super::digest_search_criteria::Criteria::All(_) => {
+                    Ok(graph::DigestSearchCriteria::All)
+                }
+                super::digest_search_criteria::Criteria::StartsWith(bytes) => {
+                    Ok(graph::DigestSearchCriteria::StartsWith(bytes.bytes))
+                }
+            },
+            None => Err("Unknown criteria kind".into()),
+        }
+    }
+}
+
+impl TryFrom<Option<super::DigestSearchCriteria>> for graph::DigestSearchCriteria {
+    type Error = Error;
+    fn try_from(search_criteria: Option<super::DigestSearchCriteria>) -> Result<Self> {
+        search_criteria
+            .ok_or_else(|| Error::String("Expected non-null criteria in rpc message".into()))?
+            .try_into()
+    }
+}

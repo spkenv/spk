@@ -96,6 +96,11 @@ rpc_result!(
     gen::Object
 );
 rpc_result!(
+    gen::FindDigestsResponse,
+    gen::find_digests_response::Result,
+    gen::Digest
+);
+rpc_result!(
     gen::IterDigestsResponse,
     gen::iter_digests_response::Result,
     gen::Digest
