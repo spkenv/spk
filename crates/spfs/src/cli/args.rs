@@ -83,11 +83,11 @@ pub fn configure_logging(verbosity: usize) {
         3 => "spfs=trace,debug".to_string(),
         _ => "trace".to_string(),
     };
+    std::env::set_var(SPFS_LOG, config);
     if let Ok(overrides) = std::env::var("RUST_LOG") {
         config.push(',');
         config.push_str(&overrides);
     }
-
     let env_filter = tracing_subscriber::filter::EnvFilter::from(config);
     let registry = tracing_subscriber::Registry::default().with(env_filter);
     let fmt_layer = tracing_subscriber::fmt::layer()
