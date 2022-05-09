@@ -399,9 +399,16 @@ impl Stream for FSHashStoreIter {
                     match &self.criteria {
                         crate::graph::DigestSearchCriteria::All => process_subdir(self, root, name),
                         crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                            if (name.len() < bytes.len() && bytes.starts_with(name.as_bytes()))
-                                || (name.len() >= bytes.len()
-                                    && name.as_bytes().starts_with(bytes)) =>
+                            // If the directory name is shorter than the prefix, check that
+                            // the prefix starts with the directory name.
+                            if name.len() < bytes.len() && bytes.starts_with(name.as_bytes()) =>
+                        {
+                            process_subdir(self, root, name)
+                        }
+                        crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                            // If the directory name is longer than the prefix, check that
+                            // the directory name starts with the prefix.
+                            if name.len() >= bytes.len() && name.as_bytes().starts_with(bytes) =>
                         {
                             process_subdir(self, root, name)
                         }
