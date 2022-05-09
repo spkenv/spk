@@ -18,7 +18,7 @@ pub struct CmdInit {
 
     /// The root directory of the runtime being initialized
     #[clap(long = "runtime-dir")]
-    runtime_root_dir: Option<String>,
+    runtime_root_dir: std::path::PathBuf,
 
     /// The command to run after initialization
     #[clap(required = true)]
@@ -28,17 +28,9 @@ pub struct CmdInit {
 impl CmdInit {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         tracing::debug!("initializing runtime environment");
-        let _handle = match &self.runtime_root_dir {
-            Some(root) => {
-                let runtime = spfs::runtime::Runtime::new(root)?;
-                std::env::set_var("SPFS_RUNTIME", runtime.name());
-                Some(spfs::runtime::OwnedRuntime::upgrade(runtime)?)
-            }
-            None => {
-                std::env::remove_var("SPFS_RUNTIME");
-                None
-            }
-        };
+        let runtime = spfs::runtime::Runtime::new(&self.runtime_root_dir)?;
+        std::env::set_var("SPFS_RUNTIME", runtime.name());
+        let _handle = spfs::runtime::OwnedRuntime::upgrade(runtime)?;
 
         exec_runtime_command(self.cmd.clone())
     }

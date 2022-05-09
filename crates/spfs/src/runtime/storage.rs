@@ -63,6 +63,7 @@ impl OwnedRuntime {
 
 impl Drop for OwnedRuntime {
     fn drop(&mut self) {
+        tracing::debug!("cleaning up runtime");
         let _ = self.0.set_running(false);
         if let Err(err) = self.0.delete() {
             tracing::warn!(?err, "Failed to clean up runtime data")
