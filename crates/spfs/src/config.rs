@@ -3,9 +3,9 @@
 // https://github.com/imageworks/spk
 use std::sync::{Arc, RwLock};
 
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
-use lazy_static::lazy_static;
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
@@ -234,7 +234,7 @@ impl Config {
         &self,
         name_or_address: S,
     ) -> Result<storage::RepositoryHandle> {
-        match self.remote.get(name_or_address.as_ref()) {
+        let res = match self.remote.get(name_or_address.as_ref()) {
             Some(Remote::Address(remote)) => {
                 let config = RemoteConfig::from_address(remote.address.clone()).await?;
                 tracing::debug!(?config, "opening repository");
@@ -255,6 +255,14 @@ impl Config {
                 tracing::debug!(?config, "opening repository");
                 config.open().await
             }
+        };
+        match res {
+            Ok(repo) => Ok(repo),
+            err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
+            Err(err) => Err(crate::Error::FailedToOpenRepository {
+                reason: String::from("error"),
+                source: Box::new(err),
+            }),
         }
     }
 }
@@ -321,5 +329,12 @@ pub fn load_config() -> Result<Config> {
 pub async fn open_repository<S: AsRef<str>>(
     address: S,
 ) -> crate::Result<storage::RepositoryHandle> {
-    RemoteConfig::from_str(address).await?.open().await
+    match RemoteConfig::from_str(address).await?.open().await {
+        Ok(repo) => Ok(repo),
+        err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
+        Err(err) => Err(crate::Error::FailedToOpenRepository {
+            reason: String::from("error"),
+            source: Box::new(err),
+        }),
+    }
 }
