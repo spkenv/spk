@@ -2441,7 +2441,7 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.31.1"
+version = "0.33.0"
 dependencies = [
  "async-recursion",
  "async-trait",
