@@ -35,11 +35,12 @@ impl CmdJoin {
 }
 
 fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
+    let rt = spfs::active_runtime()?;
     if cmd.is_empty() || cmd[0] == *"" {
-        cmd = spfs::build_interactive_shell_cmd(&spfs::active_runtime()?)?;
+        cmd = spfs::build_interactive_shell_cmd(&rt)?;
         tracing::debug!("starting interactive shell environment");
     } else {
-        cmd = spfs::build_shell_initialized_command(cmd[0].clone(), &mut cmd[1..].to_vec())?;
+        cmd = spfs::build_shell_initialized_command(&rt, cmd[0].clone(), &mut cmd[1..].to_vec())?;
         tracing::debug!("executing runtime command");
     }
     tracing::debug!(?cmd);

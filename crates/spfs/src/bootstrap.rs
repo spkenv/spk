@@ -5,7 +5,6 @@ use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 use super::resolve::{which, which_spfs};
-use super::status::active_runtime;
 use crate::{runtime, Error, Result};
 
 #[cfg(test)]
@@ -101,10 +100,10 @@ pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString
 /// The returned command properly calls through a shell which sets up
 /// the current runtime appropriately before calling the desired command.
 pub fn build_shell_initialized_command(
+    runtime: &runtime::Runtime,
     command: OsString,
     args: &mut Vec<OsString>,
 ) -> Result<Vec<OsString>> {
-    let runtime = active_runtime()?;
     let desired_shell =
         std::env::var_os("SHELL").unwrap_or_else(|| which("bash").unwrap_or_default().into());
     let shell_name = std::path::Path::new(&desired_shell)
@@ -113,8 +112,8 @@ pub fn build_shell_initialized_command(
         .to_string_lossy()
         .to_string();
     let startup_file = match shell_name.as_str() {
-        "bash" | "sh" => runtime.sh_startup_file,
-        "tcsh" | "csh" => runtime.csh_startup_file,
+        "bash" | "sh" => &runtime.sh_startup_file,
+        "tcsh" | "csh" => &runtime.csh_startup_file,
         _ => return Err(Error::NoSupportedShell),
     };
 

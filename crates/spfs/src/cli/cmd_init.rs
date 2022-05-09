@@ -30,23 +30,26 @@ impl CmdInit {
         tracing::debug!("initializing runtime environment");
         let runtime = spfs::runtime::Runtime::new(&self.runtime_root_dir)?;
         std::env::set_var("SPFS_RUNTIME", runtime.name());
-        let _handle = spfs::runtime::OwnedRuntime::upgrade(runtime)?;
-
-        exec_runtime_command(self.cmd.clone())
+        let owned = spfs::runtime::OwnedRuntime::upgrade(runtime)?;
+        let res = self.exec_runtime_command(&owned);
+        drop(owned);
+        res
     }
-}
 
-fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
-    if cmd.is_empty() || cmd[0] == *"" {
-        cmd = spfs::build_interactive_shell_cmd(&spfs::active_runtime()?)?;
-        tracing::debug!("starting interactive shell environment");
-    } else {
-        cmd = spfs::build_shell_initialized_command(cmd[0].clone(), &mut cmd[1..].to_vec())?;
-        tracing::debug!("executing runtime command");
+    fn exec_runtime_command(&mut self, rt: &spfs::runtime::OwnedRuntime) -> Result<i32> {
+        let mut cmd: Vec<_> = self.cmd.drain(..).collect();
+        if cmd.is_empty() || cmd[0] == *"" {
+            cmd = spfs::build_interactive_shell_cmd(rt)?;
+            tracing::debug!("starting interactive shell environment");
+        } else {
+            cmd =
+                spfs::build_shell_initialized_command(rt, cmd[0].clone(), &mut cmd[1..].to_vec())?;
+            tracing::debug!("executing runtime command");
+        }
+        tracing::debug!(?cmd);
+        let mut proc = std::process::Command::new(cmd[0].clone());
+        proc.args(&cmd[1..]);
+        tracing::debug!("{:?}", proc);
+        Ok(proc.status()?.code().unwrap_or(1))
     }
-    tracing::debug!(?cmd);
-    let mut proc = std::process::Command::new(cmd[0].clone());
-    proc.args(&cmd[1..]);
-    tracing::debug!("{:?}", proc);
-    Ok(proc.status()?.code().unwrap_or(1))
 }
