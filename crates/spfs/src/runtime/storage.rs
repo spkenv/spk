@@ -22,13 +22,52 @@ mod storage_test;
 pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 
 /// Stores the configuration of a single runtime.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Config {
-    name: String,
-    stack: Vec<encoding::Digest>,
-    editable: bool,
-    running: bool,
-    pid: Option<u32>,
+    /// The name used to identify this runtime
+    pub name: String,
+    /// The set of layers that are being used in this runtime
+    pub stack: Vec<encoding::Digest>,
+    /// Whether or not this runtime is editable
+    pub editable: bool,
+    /// Whether of not this runtime is currently active
+    pub running: bool,
+    /// The id of the process that owns this runtime
+    ///
+    /// This process is responsible for monitoring the usage
+    /// of this runtime and cleaning it up when completed
+    pub pid: Option<u32>,
+    /// The location of the overlayfs upper directory for this runtime
+    pub upper_dir: PathBuf,
+    /// The location of the startup script for sh-based shells
+    pub sh_startup_file: PathBuf,
+    /// The location of the startup script for csh-based shells
+    pub csh_startup_file: PathBuf,
+    /// The location of the expect utility script used for csh-based shell environments
+    pub csh_expect_file: PathBuf,
+}
+
+impl Config {
+    const RUNTIME_DIR: &'static str = "/tmp/spfs-runtime";
+    const UPPER_DIR: &'static str = "upper";
+    const SH_STARTUP_FILE: &'static str = "startup.sh";
+    const CSH_STARTUP_FILE: &'static str = "startup.csh";
+    const CSH_EXPECT_FILE: &'static str = "_csh.exp";
+
+    pub fn new<S: Into<String>>(name: S) -> Self {
+        let runtime_dir = Path::new(Self::RUNTIME_DIR);
+        Self {
+            name: name.into(),
+            stack: Vec::new(),
+            editable: false,
+            running: false,
+            pid: None,
+            upper_dir: runtime_dir.join(Self::UPPER_DIR),
+            sh_startup_file: runtime_dir.join(Self::SH_STARTUP_FILE),
+            csh_startup_file: runtime_dir.join(Self::CSH_STARTUP_FILE),
+            csh_expect_file: runtime_dir.join(Self::CSH_EXPECT_FILE),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -77,21 +116,13 @@ impl Drop for OwnedRuntime {
 /// envrionment, the contained stack of read-only filesystem layers.
 #[derive(Debug)]
 pub struct Runtime {
-    root: PathBuf,
-    pub upper_dir: PathBuf,
-    pub config_file: PathBuf,
-    pub sh_startup_file: PathBuf,
-    pub csh_startup_file: PathBuf,
-    pub csh_expect_file: PathBuf,
     config: Config,
+    config_file: PathBuf,
+    root: PathBuf,
 }
 
 impl Runtime {
-    const UPPER_DIR: &'static str = "/tmp/spfs-runtime/upper";
     const CONFIG_FILE: &'static str = "config.json";
-    const SH_STARTUP_FILE: &'static str = "startup.sh";
-    const CSH_STARTUP_FILE: &'static str = "startup.csh";
-    const CSH_EXPECT_FILE: &'static str = "_csh.exp";
 
     /// Create a runtime to represent the data under 'root'.
     pub fn new<S: AsRef<Path>>(root: S) -> Result<Self> {
@@ -108,15 +139,8 @@ impl Runtime {
         makedirs_with_perms(&root, 0o777)?;
 
         let mut rt = Self {
-            upper_dir: PathBuf::from(Self::UPPER_DIR),
+            config: Config::new(name),
             config_file: root.join(Self::CONFIG_FILE),
-            sh_startup_file: root.join(Self::SH_STARTUP_FILE),
-            csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
-            csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
-            config: Config {
-                name,
-                ..Default::default()
-            },
             root,
         };
         rt.read_config()?;
@@ -125,6 +149,10 @@ impl Runtime {
 
     pub fn name(&self) -> &str {
         self.config.name.as_ref()
+    }
+
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     pub fn root(&self) -> &Path {
@@ -197,16 +225,16 @@ impl Runtime {
     pub fn reset<S: AsRef<str>>(&self, paths: &[S]) -> Result<()> {
         let paths = paths
             .iter()
-            .map(|pat| gitignore::Pattern::new(pat.as_ref(), &self.upper_dir))
+            .map(|pat| gitignore::Pattern::new(pat.as_ref(), &self.config.upper_dir))
             .map(|res| match res {
                 Err(err) => Err(Error::from(err)),
                 Ok(pat) => Ok(pat),
             })
             .collect::<Result<Vec<gitignore::Pattern>>>()?;
-        for entry in walkdir::WalkDir::new(&self.upper_dir) {
+        for entry in walkdir::WalkDir::new(&self.config.upper_dir) {
             let entry = entry?;
             let fullpath = entry.path();
-            if fullpath == self.upper_dir {
+            if fullpath == self.config.upper_dir {
                 continue;
             }
             for pattern in paths.iter() {
@@ -225,7 +253,7 @@ impl Runtime {
 
     /// Return true if the upper dir of this runtime has changes.
     pub fn is_dirty(&self) -> bool {
-        match std::fs::metadata(&self.upper_dir) {
+        match std::fs::metadata(&self.config.upper_dir) {
             Ok(meta) => meta.size() != 0,
             Err(err) => {
                 // Treating other error types as dirty is not strictly
@@ -319,7 +347,7 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
         }
     }
     let runtime = Runtime::new(&path)?;
-    match makedirs_with_perms(&runtime.upper_dir, 0o777) {
+    match makedirs_with_perms(&runtime.config.upper_dir, 0o777) {
         Ok(_) => (),
         Err(err) => {
             if let Some(libc::EROFS) = err.raw_os_error() {
@@ -338,14 +366,14 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
     let tmpdir_value_for_child_process = std::env::var("TMPDIR").ok();
 
     std::fs::write(
-        &runtime.sh_startup_file,
+        &runtime.config.sh_startup_file,
         startup_sh::source(&tmpdir_value_for_child_process),
     )?;
     std::fs::write(
-        &runtime.csh_startup_file,
+        &runtime.config.csh_startup_file,
         startup_csh::source(&tmpdir_value_for_child_process),
     )?;
-    std::fs::write(&runtime.csh_expect_file, csh_exp::SOURCE)?;
+    std::fs::write(&runtime.config.csh_expect_file, csh_exp::SOURCE)?;
     Ok(runtime)
 }
 

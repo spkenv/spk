@@ -14,10 +14,8 @@ use crate::fixtures::*;
 
 #[rstest]
 fn test_config_serialization() {
-    let expected = Config {
-        stack: vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()],
-        ..Default::default()
-    };
+    let mut expected = Config::new("spfs-testing");
+    expected.stack = vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()];
     let data = serde_json::to_string_pretty(&expected).expect("failed to serialize config");
     let actual: Config = serde_json::from_str(&data).expect("failed to deserialize config data");
 
@@ -37,10 +35,7 @@ fn test_runtime_properties(tmpdir: tempdir::TempDir) {
 #[rstest]
 fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
     let mut runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
-    let expected = Config {
-        name: runtime.name().to_string(),
-        ..Default::default()
-    };
+    let expected = Config::new(runtime.name().to_string());
     assert_eq!(runtime.config, expected);
     assert!(runtime.read_config().is_ok());
     assert!(runtime.config_file.metadata().is_ok());
@@ -51,7 +46,7 @@ fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
     let runtime = ensure_runtime(tmpdir.path().join("root")).expect("failed to ensure runtime");
     assert!(runtime.root().metadata().is_ok(), "root should exist");
     assert!(
-        runtime.upper_dir.metadata().is_ok(),
+        runtime.config.upper_dir.metadata().is_ok(),
         "upper_dir should exist"
     );
 
@@ -124,7 +119,7 @@ fn test_runtime_reset(tmpdir: tempdir::TempDir) {
         .create_owned_runtime()
         .expect("failed to create runtime in storage");
     let upper_dir = tmpdir.path().join("upper");
-    runtime.upper_dir = upper_dir.clone();
+    runtime.config.upper_dir = upper_dir.clone();
 
     ensure(upper_dir.join("file"), "file01");
     ensure(upper_dir.join("dir/file"), "file02");

@@ -70,9 +70,9 @@ pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString
             Some(expect) => {
                 return Ok(vec![
                     expect.as_os_str().to_owned(),
-                    rt.csh_expect_file.as_os_str().to_owned(),
+                    rt.config().csh_expect_file.as_os_str().to_owned(),
                     shell_path.into(),
-                    rt.csh_startup_file.as_os_str().to_owned(),
+                    rt.config().csh_startup_file.as_os_str().to_owned(),
                 ]);
             }
         }
@@ -91,7 +91,7 @@ pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString
     Ok(vec![
         shell_path.into(),
         "--init-file".into(),
-        rt.sh_startup_file.as_os_str().to_owned(),
+        rt.config().sh_startup_file.as_os_str().to_owned(),
     ])
 }
 
@@ -112,8 +112,8 @@ pub fn build_shell_initialized_command(
         .to_string_lossy()
         .to_string();
     let startup_file = match shell_name.as_str() {
-        "bash" | "sh" => &runtime.sh_startup_file,
-        "tcsh" | "csh" => &runtime.csh_startup_file,
+        "bash" | "sh" => &runtime.config().sh_startup_file,
+        "tcsh" | "csh" => &runtime.config().csh_startup_file,
         _ => return Err(Error::NoSupportedShell),
     };
 

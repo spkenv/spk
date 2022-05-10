@@ -45,7 +45,7 @@ fn test_shell_initialization_startup_scripts(
 
     let tmp_startup_dir = tmpdir.path().join("startup.d");
     std::fs::create_dir(&tmp_startup_dir).unwrap();
-    for startup_script in &[&rt.sh_startup_file, &rt.csh_startup_file] {
+    for startup_script in &[&rt.config().sh_startup_file, &rt.config().csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
         cmd.arg(format!(
@@ -68,6 +68,7 @@ fn test_shell_initialization_startup_scripts(
     config.make_current().unwrap();
 
     let args = build_shell_initialized_command(
+        &rt,
         OsString::from("printenv"),
         &mut vec![OsString::from("TEST_VALUE")],
     )
@@ -104,7 +105,7 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     };
 
     let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
-    for startup_script in &[&rt.sh_startup_file, &rt.csh_startup_file] {
+    for startup_script in &[&rt.config().sh_startup_file, &rt.config().csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
         cmd.arg(format!("s|/spfs/etc/spfs/startup.d|{tmp_startup_dir:?}|"));
@@ -120,7 +121,8 @@ fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::Te
     config.storage.runtimes = Some(rt.root().parent().unwrap().to_owned());
     config.make_current().unwrap();
 
-    let args = build_shell_initialized_command(OsString::from("echo"), &mut Vec::new()).unwrap();
+    let args =
+        build_shell_initialized_command(&rt, OsString::from("echo"), &mut Vec::new()).unwrap();
     let mut cmd = Command::new(args.get(0).unwrap());
     cmd.args(args[1..].iter());
     setenv(&mut cmd);
