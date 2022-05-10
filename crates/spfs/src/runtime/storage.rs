@@ -68,6 +68,16 @@ impl Config {
             csh_expect_file: runtime_dir.join(Self::CSH_EXPECT_FILE),
         }
     }
+
+    /// Change the root directory being used for runtime data
+    #[cfg(test)]
+    fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) {
+        let runtime_dir = path.as_ref();
+        self.upper_dir = runtime_dir.join(Self::UPPER_DIR);
+        self.sh_startup_file = runtime_dir.join(Self::SH_STARTUP_FILE);
+        self.csh_startup_file = runtime_dir.join(Self::CSH_STARTUP_FILE);
+        self.csh_expect_file = runtime_dir.join(Self::CSH_EXPECT_FILE);
+    }
 }
 
 #[derive(Debug)]
@@ -301,6 +311,33 @@ impl Runtime {
         &self.config
     }
 
+    /// Write out the startup script data to disk, ensuring
+    /// that all required startup files are present in their
+    /// defined location.
+    pub fn ensure_startup_scripts(&self) -> Result<()> {
+        // Capture the current $TMPDIR value here before it
+        // is lost when entering the runtime later.
+        let tmpdir_value_for_child_process = std::env::var("TMPDIR").ok();
+
+        std::fs::write(
+            &self.config.sh_startup_file,
+            startup_sh::source(&tmpdir_value_for_child_process),
+        )?;
+        std::fs::write(
+            &self.config.csh_startup_file,
+            startup_csh::source(&tmpdir_value_for_child_process),
+        )?;
+        std::fs::write(&self.config.csh_expect_file, csh_exp::SOURCE)?;
+        Ok(())
+    }
+
+    /// Modify the root directory where runtime data is stored
+    #[cfg(test)]
+    pub fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        self.config.set_runtime_dir(path);
+        self.write_config()
+    }
+
     fn write_config(&self) -> Result<()> {
         let mut file = BufWriter::new(
             std::fs::OpenOptions::new()
@@ -360,20 +397,6 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
             }
         }
     }
-
-    // Capture the current $TMPDIR value here before it
-    // is lost when entering the runtime later.
-    let tmpdir_value_for_child_process = std::env::var("TMPDIR").ok();
-
-    std::fs::write(
-        &runtime.config.sh_startup_file,
-        startup_sh::source(&tmpdir_value_for_child_process),
-    )?;
-    std::fs::write(
-        &runtime.config.csh_startup_file,
-        startup_csh::source(&tmpdir_value_for_child_process),
-    )?;
-    std::fs::write(&runtime.config.csh_expect_file, csh_exp::SOURCE)?;
     Ok(runtime)
 }
 

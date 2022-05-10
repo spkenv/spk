@@ -53,7 +53,10 @@ impl CmdEnter {
                 Some(cmd) => cmd,
                 None => return Err("command is required and was not given".into()),
             };
+
+            tracing::debug!("initalizing runtime");
             spfs::initialize_runtime(&runtime, config).await?;
+            runtime.ensure_startup_scripts()?;
 
             tracing::trace!("{:?} {:?}", cmd, self.args);
             use std::os::unix::ffi::OsStrExt;
