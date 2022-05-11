@@ -1,0 +1,42 @@
+api: v1alpha1/package
+pkg: ptex/2.4.0
+meta:
+  description: "Per-face texture mapping for production rendering"
+  license: BSD-3-clause
+  homepage: https://ptex.us
+
+options:
+  - var: arch
+  - var: os
+  - var: centos
+  - pkg: stdfs
+  - pkg: gcc/6.3
+    when: Requested
+      atRuntime: true
+  - pkg: zlib
+  - pkg: cmake/3.13
+    atRuntime: false
+
+sources:
+  # This idiom can work with any of (a) a local clone, (b) a git submodule,
+  # or (c) nothing (does a fresh clone).
+  - path: ./
+    filter: [ ]
+  - script:
+    - if [ ! -d ptex ] ; then git clone https://github.com/wdas/ptex.git -b v2.4.0 ; fi
+
+build:
+  defaultVariants:
+    - [{ pkg: gcc/6.3 }]
+    - [{ pkg: gcc/9.3 }]
+  # in theory, this builds cross-platform and so we don't need
+  # to break it down with when clauses
+  # TODO: do we allow a single value instead of a list for
+  #       simplicity? Or does the deviation just make it more confusing
+  script:
+    - cmake -S ptex -B build
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=$PREFIX
+        -DCMAKE_PREFIX_PATH=$PREFIX
+        -DCMAKE_CXX_STANDARD=14
+    - cmake --build build --target install

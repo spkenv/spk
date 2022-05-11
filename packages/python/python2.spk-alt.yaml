@@ -1,0 +1,139 @@
+api: v1alpha1/package
+pkg: python/{{version}}
+
+options:
+  - var: os
+  - var: arch
+  - var: centos
+  - var: version
+
+  - pkg: gcc
+    atRuntime:
+      version: x.x
+      when: Requested
+
+  - pkg: stdfs
+
+  - pkg: bzip2
+    atRuntime: false
+
+  - when:
+      - var: debug/off
+        do:
+          - var: abi/cp27m
+            # these dependencies really need to be encoded here
+            # so that we improve chances of picking on-the-fly builds
+            # that actually work
+            choices: [cp27m, cp27mu]
+            atDownstreamRuntime: true
+
+      - var: debug/on
+        do:
+          - var: abi/cp27dm
+            # these dependencies really need to be encoded here
+            # so that we improve chances of picking on-the-fly builds
+            # that actually work
+            choices: [cp27dmu, cp27dm]
+            atDownstreamRuntime: true
+
+  - var: debug/off
+    choices: [on, off]
+
+source:
+  collect:
+    - git: https://github.com/python/cpython
+      ref: v2.7.5
+  test:
+    # include a --no-test flag for make-source
+    - script: test -f configure
+      when:
+        - var: os/linux
+
+build:
+  defaultVariants:
+    - [{ pkg: gcc/4.8 }, { var: abi/cp27m }]
+    - [{ pkg: gcc/4.8 }, { var: abi/cp27mu }]
+    - [{ pkg: gcc/6.3 }, { var: abi/cp27m }]
+    - [{ pkg: gcc/6.3 }, { var: abi/cp27mu }]
+
+  script:
+    - when: { os: linux }
+      do:
+        - DEBUG=""
+        # TODO: when can also support non-lists for single value
+        - { when: { var: debug/on }, do: DEBUG="--with-pydebug" }
+        # TODO: regular expressions for variable ranges?
+        - { when: { var: abi/cp27d?m }, do: UNICODE="--enable-unicode=ucs2" }
+        - { when: { var: abi/cp27d?mu }, do: UNICODE="--enable-unicode=ucs4" }
+        # on systems where python3 is the default, we can
+        # see syntax errors unless we ensure that 'python' runs python2
+        - echo "#!/bin/bash" > /spfs/bin/python
+        - echo 'exec python2 "$@"' >> /spfs/bin/python
+        - chmod +x /spfs/bin/python
+        - ./configure
+          --prefix=${PREFIX}
+          CC=$CC
+          CXX=$CXX
+          LDFLAGS='-Wl,--rpath=/spfs/lib,-L/spfs/lib'
+          PKG_CONFIG_PATH=/spfs/share/pkgconfig:/spfs/lib/pkgconfig
+          CPPFLAGS='-I/spfs/include/ncurses'
+          --with-ensurepip=no
+          --enable-shared
+          "$UNICODE"
+          $DEBUG
+        - make -j$(nproc)
+        - make install
+        # remove test files that are just bloat
+        - find /spfs/lib/python* -name "test" -type d | xargs -r rm -rv
+        - find /spfs/lib/python* -name "*_test" -type d | xargs -r rm -rv
+        - ln -sf python2 /spfs/bin/python
+        # do not package pyc files, spfs is best when pyc files are not generated at all
+        - find /spfs -type f -name "*.pyc" | xargs rm
+  test:
+    - when: { os: linux }
+      # TODO: include a --no-test flag for make-binary
+      # ... and warning when no tests are defined?
+      # TODO: no additional requirements allowed here because it's the build env
+      do:
+        # Verify bz2 support is available by importing and not getting a traceback
+        - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
+
+# dissolve the test section in favor of having tests near what they test
+# we also change the command line to run relevant tests in the relevant
+# commands by default, eg after make-source, and make-binary
+# TODO: what comes of the test command, then?
+# probably just for running install tests, I suppose
+
+package:
+  environment:
+    - set: PYTHONDONTWRITEBYTECODE
+      value: 1
+  components:
+    - name: run
+      files:
+        - /etc/
+        - /bin/
+        - /lib/
+        - "!/lib/pkgconfig"
+    - name: build
+      uses: [run]
+      files:
+        - /include/
+        - /lib/pkgconfig
+    - name: man
+      files:
+        - /share/man
+  test:
+    - when:
+        - var: os/linux
+      requirements:
+        - pkg: python-wheel
+      script:
+        # Verify we built a python with the requested ABI
+        - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel;
+          print(wheel.bdist_wheel.get_abi_tag())')
+        - |
+          if [ "$python_abi" != "$SPK_OPT_abi" ]; then
+            echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
+            exit 1
+          fi
