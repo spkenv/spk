@@ -1,12 +1,14 @@
 VERSION = $(shell cat spfs.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
+cargo_features_arg := $(if $(FEATURES),--features $(FEATURES))
+
 .PHONY: rpm debug test
 default: debug
 
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build --all
+	cargo build --all $(cargo_features_arg)
 
 lint:
 	cargo fmt --check
