@@ -2,17 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-///! Local file system storage of runtimes.
-use std::ffi::OsStr;
-use std::io::{BufReader, BufWriter, Write};
+///! Configuration and storage of runtimes.
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 
+use encoding::Encodable;
+use futures::{Stream, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncReadExt;
 
 use super::{csh_exp, startup_csh, startup_sh};
-use crate::encoding;
-use crate::{Error, Result};
+use crate::{encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -96,7 +98,7 @@ impl std::ops::DerefMut for OwnedRuntime {
 }
 
 impl OwnedRuntime {
-    pub fn upgrade(mut runtime: Runtime) -> Result<Self> {
+    pub async fn upgrade(mut runtime: Runtime) -> Result<Self> {
         let pid = std::process::id();
         if let Some(existing) = runtime.get_pid() {
             if existing == pid {
@@ -105,17 +107,17 @@ impl OwnedRuntime {
                 return Err("Runtime is already owned by another process".into());
             }
         }
-        runtime.set_pid(pid)?;
+        runtime.set_pid(pid).await?;
         Ok(Self(runtime))
     }
-}
 
-impl Drop for OwnedRuntime {
-    fn drop(&mut self) {
-        tracing::debug!("cleaning up runtime");
-        let _ = self.0.set_running(false);
-        if let Err(err) = self.0.delete() {
-            tracing::warn!(?err, "Failed to clean up runtime data")
+    /// Remove all data pertaining to this runtime.
+    pub async fn delete(self) -> Result<()> {
+        tracing::debug!("cleaning up runtime: {}", &self.name());
+        match self.0.storage.remove_runtime(self.name()).await {
+            Ok(()) => Ok(()),
+            Err(Error::UnknownRuntime(_)) => Ok(()),
+            Err(err) => Err(err),
         }
     }
 }
@@ -127,36 +129,25 @@ impl Drop for OwnedRuntime {
 #[derive(Debug)]
 pub struct Runtime {
     config: Config,
-    config_file: PathBuf,
-    root: PathBuf,
+    storage: Storage,
 }
 
 impl Runtime {
-    const CONFIG_FILE: &'static str = "config.json";
-
-    /// Create a runtime to represent the data under 'root'.
-    pub fn new<S: AsRef<Path>>(root: S) -> Result<Self> {
-        let root = std::fs::canonicalize(root)?;
-        let name = match root.file_name() {
-            None => return Err("Invalid runtime path, has no filename".into()),
-            Some(name) => match name.to_str() {
-                None => {
-                    return Err("Invalid runtime path, basename is not a valid utf-8 string".into())
-                }
-                Some(s) => s.to_string(),
-            },
-        };
-        makedirs_with_perms(&root, 0o777)?;
-
-        let mut rt = Self {
+    /// Create a runtime associated with the provided storage.
+    ///
+    /// The created runtime has not been saved and will
+    /// be forgotten if not otheriwse modified or saved.
+    fn new<S>(name: S, storage: Storage) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
             config: Config::new(name),
-            config_file: root.join(Self::CONFIG_FILE),
-            root,
-        };
-        rt.read_config()?;
-        Ok(rt)
+            storage,
+        }
     }
 
+    /// The name of this runtime which identifies it uniquely
     pub fn name(&self) -> &str {
         self.config.name.as_ref()
     }
@@ -165,13 +156,8 @@ impl Runtime {
         &self.config
     }
 
-    pub fn root(&self) -> &Path {
-        self.root.as_ref()
-    }
-
-    /// Return the identifier for this runtime.
-    pub fn reference(&self) -> &OsStr {
-        self.root.file_name().expect("runtime path has no filename")
+    pub fn storage(&self) -> &Storage {
+        &self.storage
     }
 
     /// Mark this runtime as editable or not.
@@ -179,10 +165,9 @@ impl Runtime {
     /// An editable runtime is mounted with working directories
     /// that allow changes to be made to the runtime filesystem and
     /// committed back as layers.
-    pub fn set_editable(&mut self, editable: bool) -> Result<()> {
-        self.read_config()?;
+    pub async fn set_editable(&mut self, editable: bool) -> Result<()> {
         self.config.editable = editable;
-        self.write_config()
+        self.write_config().await
     }
 
     /// Return true if this runtime is editable.
@@ -195,10 +180,9 @@ impl Runtime {
     }
 
     /// Mark this runtime as currently running or not.
-    pub fn set_running(&mut self, running: bool) -> Result<()> {
-        self.read_config()?;
+    pub async fn set_running(&mut self, running: bool) -> Result<()> {
         self.config.running = running;
-        self.write_config()
+        self.write_config().await
     }
 
     /// Return true if this runtime is currently running.
@@ -208,10 +192,9 @@ impl Runtime {
 
     /// Mark the process that owns this runtime, this should be the spfs
     /// init process under which the target process is directly running.
-    fn set_pid(&mut self, pid: u32) -> Result<()> {
-        self.read_config()?;
+    async fn set_pid(&mut self, pid: u32) -> Result<()> {
         self.config.pid = Some(pid);
-        self.write_config()
+        self.write_config().await
     }
 
     /// Return the pid of this runtime's init process, if any.
@@ -220,9 +203,9 @@ impl Runtime {
     }
 
     /// Reset the config for this runtime to its default state.
-    pub fn reset_stack(&mut self) -> Result<()> {
+    pub async fn reset_stack(&mut self) -> Result<()> {
         self.config.stack.truncate(0);
-        self.write_config()
+        self.write_config().await
     }
 
     pub fn reset_all(&self) -> Result<()> {
@@ -274,13 +257,6 @@ impl Runtime {
         }
     }
 
-    /// Remove all data pertaining to this runtime.
-    pub fn delete(&self) -> Result<()> {
-        tracing::debug!("cleaning up runtime: {:?}", &self.root.display());
-        std::fs::remove_dir_all(&self.root)?;
-        Ok(())
-    }
-
     /// Return this runtime's current object stack.
     pub fn get_stack(&self) -> &Vec<encoding::Digest> {
         &self.config.stack
@@ -291,7 +267,7 @@ impl Runtime {
     /// This will update the configuration of the runtime,
     /// and change the overlayfs options, but not update
     /// any currently running environment automatically.
-    pub fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
+    pub async fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
         let mut new_stack = Vec::with_capacity(self.config.stack.len() + 1);
         new_stack.push(*digest);
         for existing in self.config.stack.drain(..) {
@@ -304,11 +280,7 @@ impl Runtime {
             new_stack.push(existing);
         }
         self.config.stack = new_stack;
-        self.write_config()
-    }
-
-    pub fn get_config(&self) -> &Config {
-        &self.config
+        self.write_config().await
     }
 
     /// Write out the startup script data to disk, ensuring
@@ -333,149 +305,168 @@ impl Runtime {
 
     /// Modify the root directory where runtime data is stored
     #[cfg(test)]
-    pub fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    pub async fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.config.set_runtime_dir(path);
-        self.write_config()
+        self.write_config().await
     }
 
-    fn write_config(&self) -> Result<()> {
-        let mut file = BufWriter::new(
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(&self.config_file)?,
-        );
-        serde_json::to_writer(&mut file, &self.config)?;
-        file.flush()?;
-        file.get_ref().sync_all()?;
-        Ok(())
+    async fn write_config(&self) -> Result<()> {
+        self.storage.save_runtime(self).await
     }
-
-    fn read_config(&mut self) -> Result<&mut Config> {
-        match std::fs::File::open(&self.config_file) {
-            Ok(file) => {
-                let config = serde_json::from_reader(BufReader::new(file))?;
-                self.config = config;
-                Ok(&mut self.config)
-            }
-            Err(err) => {
-                if let std::io::ErrorKind::NotFound = err.kind() {
-                    self.write_config()?;
-                    Ok(&mut self.config)
-                } else {
-                    Err(err.into())
-                }
-            }
-        }
-    }
-}
-
-fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
-    if let Some(parent) = path.as_ref().parent() {
-        makedirs_with_perms(&parent, 0o777)?;
-    }
-    // the actual runtime dir is for this user only and is created
-    // with the normal permission mask
-    if let Err(err) = std::fs::create_dir(&path) {
-        match err.kind() {
-            std::io::ErrorKind::AlreadyExists => (),
-            _ => return Err(err.into()),
-        }
-    }
-    let runtime = Runtime::new(&path)?;
-    match makedirs_with_perms(&runtime.config.upper_dir, 0o777) {
-        Ok(_) => (),
-        Err(err) => {
-            if let Some(libc::EROFS) = err.raw_os_error() {
-                // this can fail if we try to establish a new runtime
-                // from a non-editable runtime but is not fatal. It will
-                // only become fatal if the mount fails for this runtime in spfs-enter
-                // so we defer to that point
-            } else {
-                return Err(err);
-            }
-        }
-    }
-    Ok(runtime)
 }
 
 /// Manages the on-disk storage of many runtimes.
+#[derive(Debug, Clone)]
 pub struct Storage {
-    root: PathBuf,
+    inner: Arc<storage::RepositoryHandle>,
 }
 
 impl Storage {
-    /// Initialize a new storage inside the given root directory.
-    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
-        makedirs_with_perms(&root, 0o777)?;
-        let root = std::fs::canonicalize(&root)?;
-        Ok(Self { root })
+    /// Initialize a new storage for the provided repository
+    ///
+    /// Runtime storage is expected to be backed by the same repository
+    /// that will be used to render and run the environment.
+    pub fn new<R: Into<Arc<storage::RepositoryHandle>>>(inner: R) -> Self {
+        Self {
+            inner: inner.into(),
+        }
     }
 
-    /// Remove a runtime forcefully, returning the removed runtime data.
-    pub fn remove_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
-        let runtime = self.read_runtime(reference.as_ref())?;
-        runtime.delete()?;
-        Ok(runtime)
+    /// The address of the underlying repository being used
+    pub fn address(&self) -> url::Url {
+        self.inner.address()
     }
 
-    /// Access a runtime in this storage.
+    /// Remove a runtime forcefully
+    ///
+    /// This can break environments that are currently being used, and
+    /// is generally not save to call directly. Instead, use [`OwnedRuntime::delete`].
+    pub async fn remove_runtime<S: AsRef<str>>(&self, name: S) -> Result<()> {
+        // a runtime with no data takes up very little space, so we
+        // remove the payload tag first because the other case is having
+        // a tagged payload but no associated metadata
+        let tags = &[RuntimeDataType::Payload, RuntimeDataType::Metadata]
+            .iter()
+            .map(|dt| runtime_tag(*dt, name.as_ref()))
+            .collect::<Result<Vec<_>>>()?;
+        for tag in tags {
+            match self.inner.remove_tag_stream(tag).await {
+                Ok(_) => {}
+                Err(Error::UnknownReference(_)) => {}
+                err => return err,
+            }
+        }
+        Ok(())
+    }
+
+    /// Access a runtime in this storage
     ///
     /// # Errors:
     /// - [`spfs::Error::UnknownRuntime`] if the named runtime does not exist
     /// - if there are filesystem errors while reading the runtime on disk
-    pub fn read_runtime<R: AsRef<Path>>(&self, reference: R) -> Result<Runtime> {
-        let runtime_dir = self.root.join(reference.as_ref());
-        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
-            Runtime::new(runtime_dir)
-        } else {
-            Err(Error::UnknownRuntime(
-                reference.as_ref().to_string_lossy().into(),
-            ))
-        }
-    }
-
-    /// Create a new runtime.
-    pub fn create_runtime(&self) -> Result<Runtime> {
-        let uuid = uuid::Uuid::new_v4().to_string();
-        let reference = OsStr::new(&uuid);
-        self.create_named_runtime(reference)
-    }
-
-    /// create a new runtime that is owned by this process and
-    /// will be deleted upon drop. This is useful mainly in testing.
-    pub fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
-        let rt = self.create_runtime()?;
-        OwnedRuntime::upgrade(rt)
-    }
-
-    pub fn create_named_runtime<R: AsRef<OsStr>>(&self, reference: R) -> Result<Runtime> {
-        let runtime_dir = self.root.join(reference.as_ref());
-        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
-            Err(format!("Runtime already exists: {:?}", reference.as_ref()).into())
-        } else {
-            ensure_runtime(runtime_dir)
-        }
-    }
-
-    /// Iterate through all currently stored runtimes.
-    pub fn iter_runtimes<'a>(&'a self) -> Box<dyn Iterator<Item = Result<Runtime>> + 'a> {
-        let read_dir_result = std::fs::read_dir(&self.root);
-        match read_dir_result {
-            Ok(read_dir) => {
-                let root = self.root.clone();
-                Box::new(read_dir.into_iter().map(move |dir| match dir {
-                    Ok(dir) => Runtime::new(root.join(dir.file_name())),
-                    Err(err) => Err(err.into()),
-                }))
+    pub async fn read_runtime<R: AsRef<str>>(&self, name: R) -> Result<Runtime> {
+        let tag_spec = runtime_tag(RuntimeDataType::Metadata, name.as_ref())?;
+        let digest = match self.inner.resolve_tag(&tag_spec).await {
+            Ok(tag) => tag.target,
+            Err(Error::UnknownReference(_)) => {
+                return Err(Error::UnknownRuntime(name.as_ref().to_string()))
             }
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
-                _ => Box::new(vec![Err(err.into())].into_iter()),
-            },
+            Err(err) => return Err(err),
+        };
+        let mut reader = self.inner.open_payload(digest).await?;
+        let mut data = String::new();
+        reader.read_to_string(&mut data).await?;
+        let config: Config = serde_json::from_str(&data)?;
+        Ok(Runtime {
+            config,
+            storage: self.clone(),
+        })
+    }
+
+    /// Create a new runtime
+    pub async fn create_runtime(&self) -> Result<Runtime> {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        self.create_named_runtime(uuid).await
+    }
+
+    /// Create a new runtime that is owned by this process and
+    /// will be deleted upon drop
+    #[cfg(test)]
+    pub async fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
+        let rt = self.create_runtime().await?;
+        OwnedRuntime::upgrade(rt).await
+    }
+
+    /// Create a new, empty runtime with a specific name
+    pub async fn create_named_runtime<S: Into<String>>(&self, name: S) -> Result<Runtime> {
+        let name = name.into();
+        let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
+        match self.inner.resolve_tag(&runtime_tag).await {
+            Ok(_) => return Err(Error::RuntimeExists(name)),
+            Err(Error::UnknownReference(_)) => {}
+            Err(err) => return Err(err),
+        }
+        let rt = Runtime::new(name, self.clone());
+        self.save_runtime(&rt).await?;
+        Ok(rt)
+    }
+
+    /// Save the state of the provided runtime for later retrieval
+    pub async fn save_runtime(&self, rt: &Runtime) -> Result<()> {
+        let payload_tag = runtime_tag(RuntimeDataType::Payload, rt.name())?;
+        let meta_tag = runtime_tag(RuntimeDataType::Metadata, rt.name())?;
+        let platform: graph::Object = graph::Platform::new(&mut rt.get_stack().iter())?.into();
+        let platform_digest = platform.digest()?;
+        let config_data = serde_json::to_string(&rt.config)?;
+        let (_, (config_digest, _)) = tokio::try_join!(
+            self.inner.write_object(&platform),
+            self.inner
+                .write_data(Box::pin(std::io::Cursor::new(config_data.into_bytes())))
+        )?;
+        tokio::try_join!(
+            self.inner.push_tag(&meta_tag, &config_digest),
+            self.inner.push_tag(&payload_tag, &platform_digest)
+        )?;
+        Ok(())
+    }
+
+    /// Iterate through all currently stored runtimes
+    pub async fn iter_runtimes(&self) -> Pin<Box<dyn Stream<Item = Result<Runtime>> + Send>> {
+        let storage = self.clone();
+        Box::pin(
+            self.inner
+                .ls_tags(relative_path::RelativePath::new("spfs/runtimes/meta"))
+                .and_then(move |name| {
+                    let storage = storage.clone();
+                    async move { storage.read_runtime(name).await }
+                }),
+        )
+    }
+}
+
+/// Specifies a type of runtime data being stored
+#[derive(Clone, Copy)]
+enum RuntimeDataType {
+    /// Runtime metadata is the actual configuration of the runtime
+    Metadata,
+    /// Runtime payload data identifies the spfs file data being used
+    Payload,
+}
+
+impl std::fmt::Display for RuntimeDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Metadata => "meta".fmt(f),
+            Self::Payload => "data".fmt(f),
         }
     }
+}
+
+fn runtime_tag<S: std::fmt::Display>(
+    data_type: RuntimeDataType,
+    name: S,
+) -> Result<tracking::TagSpec> {
+    tracking::TagSpec::parse(format!("spfs/runtimes/{data_type}/{name}"))
 }
 
 /// Recursively create the given directory with the appropriate permissions.
