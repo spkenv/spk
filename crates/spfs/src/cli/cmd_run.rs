@@ -39,10 +39,10 @@ pub struct CmdRun {
 impl CmdRun {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository().await?;
-        let runtimes = config.get_runtime_storage()?;
+        let runtimes = config.get_runtime_storage().await?;
         let mut runtime = match &self.name {
-            Some(name) => runtimes.create_named_runtime(name)?,
-            None => runtimes.create_runtime()?,
+            Some(name) => runtimes.create_named_runtime(name).await?,
+            None => runtimes.create_runtime().await?,
         };
         match self.reference.as_str() {
             "-" | "" => self.edit = true,
@@ -56,12 +56,12 @@ impl CmdRun {
                     }
 
                     let obj = repo.read_ref(target.as_str()).await?;
-                    runtime.push_digest(&obj.digest()?)?;
+                    runtime.push_digest(&obj.digest()?).await?;
                 }
             }
         }
 
-        runtime.set_editable(self.edit)?;
+        runtime.set_editable(self.edit).await?;
         tracing::debug!("resolving entry process");
         let (cmd, args) =
             spfs::build_command_for_runtime(&runtime, self.cmd.clone(), &mut self.args)?;
@@ -73,7 +73,7 @@ impl CmdRun {
             .map(|arg| std::ffi::CString::new(arg.as_bytes()).unwrap())
             .collect();
         args.insert(0, cmd.clone());
-        runtime.set_running(true)?;
+        runtime.set_running(true).await?;
         nix::unistd::execv(cmd.as_ref(), args.as_slice())?;
         Ok(0)
     }

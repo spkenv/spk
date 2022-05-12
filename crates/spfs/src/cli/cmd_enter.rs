@@ -25,8 +25,13 @@ pub struct CmdEnter {
     #[clap(short, long)]
     remount: bool,
 
-    /// The root directory of the spfs runtime being entered
-    runtime_root: String,
+    /// The address of the storage being used for runtimes
+    #[clap(long)]
+    runtime_storage: url::Url,
+
+    /// The name of the runtime being entered
+    #[clap(long)]
+    runtime: String,
 
     cmd: Option<OsString>,
     args: Vec<OsString>,
@@ -44,7 +49,9 @@ impl CmdEnter {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
+        let repo = spfs::open_repository(&self.runtime_storage).await?;
+        let storage = spfs::runtime::Storage::new(repo);
+        let runtime = storage.read_runtime(&self.runtime).await?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)

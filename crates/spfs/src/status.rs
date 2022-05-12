@@ -17,15 +17,15 @@ static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 /// - [`spfs::Error::RuntimeAlreadyEditable`]: if the active runtime is already editable
 /// - if there are issues remounting the filesystem
 pub async fn make_active_runtime_editable() -> Result<()> {
-    let mut rt = active_runtime()?;
+    let mut rt = active_runtime().await?;
     if rt.is_editable() {
         return Err(Error::RuntimeAlreadyEditable);
     }
 
-    rt.set_editable(true)?;
+    rt.set_editable(true).await?;
     match remount_runtime(&rt).await {
         Err(err) => {
-            rt.set_editable(false)?;
+            rt.set_editable(false).await?;
             Err(err)
         }
         Ok(_) => Ok(()),
@@ -69,11 +69,11 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
 /// - [`spfs::Error::UnkownRuntime`] if the environment references a
 ///   runtime that is not in the configured runtime storage
 /// - other issues loading the config or accessing the runtime data
-pub fn active_runtime() -> Result<runtime::Runtime> {
+pub async fn active_runtime() -> Result<runtime::Runtime> {
     let name = std::env::var(SPFS_RUNTIME).map_err(|_| Error::NoActiveRuntime)?;
     let config = get_config()?;
-    let storage = config.get_runtime_storage()?;
-    storage.read_runtime(name)
+    let storage = config.get_runtime_storage().await?;
+    storage.read_runtime(name).await
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).

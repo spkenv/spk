@@ -16,9 +16,13 @@ pub struct CmdInit {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
 
-    /// The root directory of the runtime being initialized
-    #[clap(long = "runtime-dir")]
-    runtime_root_dir: std::path::PathBuf,
+    /// The storage being used for runtimes
+    #[clap(long)]
+    runtime_storage: url::Url,
+
+    /// The name of the runtime being initialized
+    #[clap(long)]
+    runtime: String,
 
     /// The command to run after initialization
     #[clap(required = true)]
@@ -28,11 +32,15 @@ pub struct CmdInit {
 impl CmdInit {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         tracing::debug!("initializing runtime environment");
-        let runtime = spfs::runtime::Runtime::new(&self.runtime_root_dir)?;
+        let repo = spfs::open_repository(&self.runtime_storage).await?;
+        let storage = spfs::runtime::Storage::new(repo);
+        let runtime = storage.read_runtime(&self.runtime).await?;
         std::env::set_var("SPFS_RUNTIME", runtime.name());
-        let owned = spfs::runtime::OwnedRuntime::upgrade(runtime)?;
+        let owned = spfs::runtime::OwnedRuntime::upgrade(runtime).await?;
         let res = self.exec_runtime_command(&owned);
-        drop(owned);
+        if let Err(err) = owned.delete().await {
+            tracing::error!("failed to clean up runtime data: {err:?}")
+        }
         res
     }
 

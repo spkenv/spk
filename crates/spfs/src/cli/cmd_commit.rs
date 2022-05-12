@@ -55,7 +55,7 @@ impl CmdCommit {
         } else {
             // no path give, commit the current runtime
 
-            let mut runtime = spfs::active_runtime()?;
+            let mut runtime = spfs::active_runtime().await?;
 
             if !runtime.is_editable() {
                 tracing::error!("Active runtime is not editable, nothing to commmit");

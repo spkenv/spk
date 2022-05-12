@@ -58,7 +58,6 @@ impl Default for Filesystem {
 #[serde(default)]
 pub struct Storage {
     pub root: PathBuf,
-    pub runtimes: Option<PathBuf>,
 }
 
 impl Default for Storage {
@@ -66,17 +65,6 @@ impl Default for Storage {
         Self {
             root: expanduser::expanduser(DEFAULT_STORAGE_ROOT)
                 .unwrap_or_else(|_| PathBuf::from(FALLBACK_STORAGE_ROOT)),
-            runtimes: None,
-        }
-    }
-}
-
-impl Storage {
-    /// Return the path to the local runtime storage.
-    pub fn runtime_root(&self) -> PathBuf {
-        match &self.runtimes {
-            None => self.root.join("runtimes"),
-            Some(root) => root.clone(),
         }
     }
 }
@@ -225,8 +213,10 @@ impl Config {
     }
 
     /// Get the local runtime storage, as configured.
-    pub fn get_runtime_storage(&self) -> Result<runtime::Storage> {
-        runtime::Storage::new(self.storage.runtime_root())
+    pub async fn get_runtime_storage(&self) -> Result<runtime::Storage> {
+        Ok(runtime::Storage::new(storage::RepositoryHandle::from(
+            self.get_repository().await?,
+        )))
     }
 
     /// Get a remote repostory by name or address.

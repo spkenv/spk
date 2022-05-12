@@ -25,8 +25,10 @@ pub fn build_command_for_runtime(
         Some(spfs_init_exe) => {
             let mut spfs_args = vec![
                 spfs_init_exe.as_os_str().to_owned(),
-                "--runtime-dir".into(),
-                runtime.root().into(),
+                "--runtime-storage".into(),
+                runtime.storage().address().to_string().into(),
+                "--runtime".into(),
+                runtime.name().into(),
                 "--".into(),
                 command,
             ];
@@ -132,7 +134,14 @@ pub(crate) fn build_spfs_remount_command(
 
     Ok((
         exe.into(),
-        vec!["--remount".into(), rt.root().into(), "--".into()],
+        vec![
+            "--remount".into(),
+            "--runtime-storage".into(),
+            rt.storage().address().to_string().into(),
+            "--runtime".into(),
+            rt.name().into(),
+            "--".into(),
+        ],
     ))
 }
 
@@ -145,7 +154,13 @@ fn build_spfs_enter_command(
         Some(exe) => exe,
     };
 
-    let mut args = vec![rt.root().into(), "--".into()];
+    let mut args = vec![
+        "--runtime-storage".into(),
+        rt.storage().address().to_string().into(),
+        "--runtime".into(),
+        rt.name().into(),
+        "--".into(),
+    ];
     args.append(command);
     Ok((exe.into(), args))
 }

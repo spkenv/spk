@@ -5,13 +5,20 @@
 use rstest::rstest;
 
 use super::{commit_layer, commit_platform};
-use crate::{runtime, Error};
+use crate::Error;
 
 use crate::fixtures::*;
 #[rstest]
 #[tokio::test]
 async fn test_commit_empty(tmpdir: tempdir::TempDir) {
-    let mut rt = runtime::Runtime::new(tmpdir.path()).unwrap();
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FSRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = crate::runtime::Storage::new(repo);
+    let mut rt = storage.create_runtime().await.unwrap();
     if let Err(Error::NothingToCommit) = commit_layer(&mut rt).await {
         // ok
     } else {

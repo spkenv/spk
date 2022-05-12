@@ -26,16 +26,23 @@ pub struct CmdJoin {
 
 impl CmdJoin {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let storage = config.get_runtime_storage()?;
-        let rt = storage.read_runtime(&self.runtime)?;
-        spfs::env::join_runtime(&rt)?;
+        // because we are dealing with moveing to a new linux namespace, we must
+        // ensure that all code still operates in a single os thread
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            let storage = config.get_runtime_storage().await?;
+            let rt = storage.read_runtime(&self.runtime).await?;
+            spfs::env::join_runtime(&rt)?;
 
-        exec_runtime_command(self.cmd.clone())
+            exec_runtime_command(self.cmd.clone()).await
+        })
     }
 }
 
-fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
-    let rt = spfs::active_runtime()?;
+async fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
+    let rt = spfs::active_runtime().await?;
     if cmd.is_empty() || cmd[0] == *"" {
         cmd = spfs::build_interactive_shell_cmd(&rt)?;
         tracing::debug!("starting interactive shell environment");

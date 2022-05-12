@@ -9,10 +9,10 @@ use rstest::fixture;
 use tempdir::TempDir;
 
 pub enum TempRepo {
-    FS(spfs::storage::RepositoryHandle, TempDir),
-    Tar(spfs::storage::RepositoryHandle, TempDir),
+    FS(Arc<spfs::storage::RepositoryHandle>, TempDir),
+    Tar(Arc<spfs::storage::RepositoryHandle>, TempDir),
     Rpc {
-        repo: spfs::storage::RepositoryHandle,
+        repo: Arc<spfs::storage::RepositoryHandle>,
         grpc_join_handle: Option<tokio::task::JoinHandle<()>>,
         http_join_handle: Option<tokio::task::JoinHandle<()>>,
         grpc_shutdown: std::sync::mpsc::Sender<()>,
@@ -24,16 +24,6 @@ pub enum TempRepo {
 impl std::ops::Deref for TempRepo {
     type Target = spfs::storage::RepositoryHandle;
     fn deref(&self) -> &Self::Target {
-        match self {
-            Self::FS(r, _) => r,
-            Self::Tar(r, _) => r,
-            Self::Rpc { repo, .. } => repo,
-        }
-    }
-}
-
-impl std::ops::DerefMut for TempRepo {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Self::FS(r, _) => r,
             Self::Tar(r, _) => r,
@@ -117,18 +107,18 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .await
                 .unwrap()
                 .into();
-            TempRepo::FS(repo, tmpdir)
+            TempRepo::FS(std::sync::Arc::new(repo), tmpdir)
         }
         "tar" => {
             let repo = spfs::storage::tar::TarRepository::create(tmpdir.path().join("repo.tar"))
                 .await
                 .unwrap()
                 .into();
-            TempRepo::Tar(repo, tmpdir)
+            TempRepo::Tar(std::sync::Arc::new(repo), tmpdir)
         }
         #[cfg(feature = "server")]
         "rpc" => {
-            let repo = Arc::new(spfs::storage::RepositoryHandle::FS(
+            let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FS(
                 spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
                     .await
                     .unwrap(),
@@ -192,7 +182,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .unwrap()
                 .into();
             TempRepo::Rpc {
-                repo,
+                repo: std::sync::Arc::new(repo),
                 grpc_join_handle: Some(grpc_join_handle),
                 http_join_handle: Some(http_join_handle),
                 grpc_shutdown,

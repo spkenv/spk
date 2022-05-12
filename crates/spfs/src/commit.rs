@@ -22,8 +22,8 @@ pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer
         return Err(Error::NothingToCommit);
     }
     let layer = repo.create_layer(&graph::Manifest::from(&manifest)).await?;
-    runtime.push_digest(&layer.digest()?)?;
-    runtime.set_editable(false)?;
+    runtime.push_digest(&layer.digest()?).await?;
+    runtime.set_editable(false).await?;
     remount_runtime(runtime).await?;
     Ok(layer)
 }
