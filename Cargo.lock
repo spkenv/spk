@@ -2451,8 +2451,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.31.1"
-source = "git+https://github.com/imageworks/spfs?tag=v0.32.0#2724c1224a28d079121426cdf3696bbc94eecd09"
+version = "0.33.0"
+source = "git+https://github.com/imageworks/spfs?tag=v0.33.0#1d8f992473d913505d7d43c7b0f8632f0166ff2a"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -2480,7 +2480,6 @@ dependencies = [
  "reqwest 0.11.9",
  "ring",
  "semver 0.11.0",
- "sentry",
  "serde",
  "serde_derive",
  "serde_json",
@@ -2489,6 +2488,7 @@ dependencies = [
  "strum_macros",
  "tar",
  "tempdir",
+ "tempfile",
  "thiserror",
  "tokio 1.17.0",
  "tokio-stream",
@@ -2497,7 +2497,6 @@ dependencies = [
  "tonic-build",
  "tracing",
  "tracing-subscriber",
- "unicode_reader",
  "url",
  "uuid",
  "walkdir",
@@ -3091,16 +3090,6 @@ name = "unicode-xid"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
-
-[[package]]
-name = "unicode_reader"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68d43b506d20b459657e0f0fe3bf0fdbac65b61cbcc2bff842fc6614a8dc179"
-dependencies = [
- "smallvec",
- "unicode-segmentation",
-]
 
 [[package]]
 name = "untrusted"
