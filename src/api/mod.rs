@@ -16,6 +16,7 @@ mod meta;
 mod name;
 mod option;
 mod option_map;
+mod package;
 mod request;
 mod requirements_list;
 mod source_spec;
@@ -45,6 +46,7 @@ pub use name::{
 pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub(crate) use option_map::DIGEST_SIZE;
 pub use option_map::{host_options, OptionMap};
+pub use package::Package;
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
     RequestedBy, VarRequest,

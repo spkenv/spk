@@ -242,6 +242,12 @@ impl Spec {
     }
 }
 
+impl super::Package for Spec {
+    fn ident(&self) -> &Ident {
+        &self.pkg
+    }
+}
+
 impl<'de> Deserialize<'de> for Spec {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
