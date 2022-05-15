@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
+use spfs::config::RemoteSpecifier;
 
 #[macro_use]
 mod args;
@@ -27,7 +28,9 @@ pub struct CmdPush {
 impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_repository().await?.into();
-        let remote = config.get_remote(&self.remote).await?;
+        let remote = config
+            .get_remote(RemoteSpecifier::Name(&self.remote))
+            .await?;
         for reference in self.refs.iter() {
             spfs::sync_ref(reference, &repo, &remote).await?;
         }

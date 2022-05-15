@@ -7,6 +7,7 @@ use std::pin::Pin;
 use futures::Stream;
 use relative_path::RelativePath;
 
+use crate::config::RemoteSpecifier;
 use crate::graph;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
@@ -56,10 +57,12 @@ impl storage::FromConfig for ProxyRepository {
 
     async fn from_config(config: Self::Config) -> Result<Self> {
         let spfs_config = crate::Config::current()?;
-        let primary = spfs_config.get_remote(&config.primary).await?;
+        let primary = spfs_config
+            .get_remote(RemoteSpecifier::Name(&config.primary))
+            .await?;
         let mut secondary = Vec::with_capacity(config.secondary.len());
         for name in config.secondary.iter() {
-            secondary.push(spfs_config.get_remote(&name).await?)
+            secondary.push(spfs_config.get_remote(RemoteSpecifier::Name(&name)).await?)
         }
         Ok(Self { primary, secondary })
     }

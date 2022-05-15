@@ -4,6 +4,8 @@
 
 use rstest::rstest;
 
+use crate::config::RemoteSpecifier;
+
 use super::Config;
 
 #[rstest]
@@ -25,7 +27,7 @@ fn test_config_list_remote_names() {
 async fn test_config_get_remote_unknown() {
     let config = Config::default();
     config
-        .get_remote("unknown")
+        .get_remote(RemoteSpecifier::Name("unknown"))
         .await
         .expect_err("should fail to load unknown config");
 }
@@ -44,7 +46,7 @@ async fn test_config_get_remote() {
         &remote.to_string_lossy()
     ))
     .unwrap();
-    let repo = config.get_remote("origin").await;
+    let repo = config.get_remote(RemoteSpecifier::Name("origin")).await;
     assert!(repo.is_ok());
 }
 
