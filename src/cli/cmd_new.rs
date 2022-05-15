@@ -16,7 +16,7 @@ mod cmd_new_test;
 #[clap(visible_alias = "init")]
 pub struct New {
     /// The name of the new package to generate
-    name: spk::api::Name,
+    name: spk::api::PkgName,
 }
 
 impl Run for New {
@@ -30,7 +30,7 @@ impl Run for New {
     }
 }
 
-fn get_stub(name: &spk::api::Name) -> String {
+fn get_stub(name: &spk::api::PkgName) -> String {
     format!(
         r#"pkg: {name}/0.1.0
 

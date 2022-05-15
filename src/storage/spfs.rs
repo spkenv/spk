@@ -76,7 +76,7 @@ impl Repository for SPFSRepository {
         self.inner.address()
     }
 
-    fn list_packages(&self) -> Result<Vec<api::Name>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
         Handle::current().block_on(async {
             let path = relative_path::RelativePath::new("spk/spec");
             self.inner
@@ -93,7 +93,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn list_package_versions(&self, name: &api::Name) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
         Handle::current().block_on(async {
             let path = self.build_spec_tag(&name.clone().into());
             let versions: HashSet<_> = self

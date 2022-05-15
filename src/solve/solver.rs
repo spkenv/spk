@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Build, Component, Name, OptionMap, Request},
+    api::{self, Build, Component, OptionMap, PkgName, Request},
     solve::graph::StepBack,
     storage, Error, Result,
 };
@@ -82,7 +82,7 @@ impl Solver {
     fn get_iterator(
         &self,
         node: &mut Node,
-        package_name: &Name,
+        package_name: &PkgName,
     ) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
@@ -92,7 +92,7 @@ impl Solver {
         iterator
     }
 
-    fn make_iterator(&self, package_name: api::Name) -> Arc<Mutex<Box<dyn PackageIterator>>> {
+    fn make_iterator(&self, package_name: api::PkgName) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         debug_assert!(!self.repos.is_empty());
         Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
             package_name,

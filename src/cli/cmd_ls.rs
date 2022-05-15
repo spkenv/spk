@@ -60,7 +60,11 @@ impl Run for Ls {
         match &self.package {
             None => {
                 for (_repo_name, repo) in repos {
-                    results.extend(repo.list_packages()?.into_iter().map(spk::api::Name::into))
+                    results.extend(
+                        repo.list_packages()?
+                            .into_iter()
+                            .map(spk::api::PkgName::into),
+                    )
                 }
             }
             Some(package) if !package.contains('/') => {

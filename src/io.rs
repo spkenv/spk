@@ -36,7 +36,7 @@ pub fn format_options(options: &api::OptionMap) -> String {
 }
 
 /// Create a canonical string to describe the combined request for a package.
-pub fn format_request<'a, R>(name: &api::Name, requests: R) -> String
+pub fn format_request<'a, R>(name: &api::PkgName, requests: R) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {

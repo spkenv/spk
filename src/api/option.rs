@@ -7,7 +7,7 @@ use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    CompatRule, Compatibility, InclusionPolicy, Name, PkgRequest, PreReleasePolicy, Ranged,
+    CompatRule, Compatibility, InclusionPolicy, PkgName, PkgRequest, PreReleasePolicy, Ranged,
     Request, VarRequest, VersionRange,
 };
 use crate::{Error, Result};
@@ -356,7 +356,7 @@ impl<'de> Deserialize<'de> for VarOpt {
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
-    pub pkg: Name,
+    pub pkg: PkgName,
     pub default: String,
     pub prerelease_policy: PreReleasePolicy,
     pub required_compat: Option<CompatRule>,
@@ -364,7 +364,7 @@ pub struct PkgOpt {
 }
 
 impl PkgOpt {
-    pub fn new(name: Name) -> Result<Self> {
+    pub fn new(name: PkgName) -> Result<Self> {
         Ok(Self {
             pkg: name,
             default: String::default(),

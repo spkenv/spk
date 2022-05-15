@@ -9,7 +9,7 @@ use std::iter::FromIterator;
 use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::api::{self, Ident, InclusionPolicy, Name};
+use crate::api::{self, Ident, InclusionPolicy, PkgName};
 
 use super::errors::{self, GetMergedRequestError};
 use super::{
@@ -484,7 +484,7 @@ pub struct Node {
     outputs: HashSet<u64>,
     outputs_decisions: Vec<Decision>,
     pub state: Arc<State>,
-    iterators: HashMap<Name, Arc<Mutex<Box<dyn PackageIterator>>>>,
+    iterators: HashMap<PkgName, Arc<Mutex<Box<dyn PackageIterator>>>>,
 }
 
 impl Node {
@@ -504,7 +504,7 @@ impl Node {
 
     pub fn get_iterator(
         &self,
-        package_name: &Name,
+        package_name: &PkgName,
     ) -> Option<Arc<Mutex<Box<dyn PackageIterator>>>> {
         self.iterators.get(package_name).cloned()
     }
@@ -527,7 +527,7 @@ impl Node {
 
     pub fn set_iterator(
         &mut self,
-        package_name: api::Name,
+        package_name: api::PkgName,
         iterator: &Arc<Mutex<Box<dyn PackageIterator>>>,
     ) {
         if self.iterators.contains_key(&package_name) {
@@ -846,7 +846,7 @@ impl State {
 
     pub fn get_current_resolve(
         &self,
-        name: &Name,
+        name: &PkgName,
     ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
         // TODO: cache this
         for (spec, source) in &*self.packages {
@@ -862,7 +862,7 @@ impl State {
 
     pub fn get_merged_request(
         &self,
-        name: &Name,
+        name: &PkgName,
     ) -> errors::GetMergedRequestResult<api::PkgRequest> {
         // tests reveal this method is not safe to cache.
         let mut merged: Option<api::PkgRequest> = None;
@@ -893,7 +893,7 @@ impl State {
 
     pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
         // tests reveal this method is not safe to cache.
-        let packages: HashSet<&Name> = self
+        let packages: HashSet<&PkgName> = self
             .packages
             .iter()
             .map(|(spec, _)| &spec.pkg.name)

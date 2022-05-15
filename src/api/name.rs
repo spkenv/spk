@@ -25,9 +25,9 @@ impl InvalidNameError {
 
 /// A valid package name
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Name(String);
+pub struct PkgName(String);
 
-impl std::ops::Deref for Name {
+impl std::ops::Deref for PkgName {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
@@ -35,51 +35,51 @@ impl std::ops::Deref for Name {
     }
 }
 
-impl std::fmt::Display for Name {
+impl std::fmt::Display for PkgName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl AsRef<str> for Name {
+impl AsRef<str> for PkgName {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
-impl AsRef<std::path::Path> for Name {
+impl AsRef<std::path::Path> for PkgName {
     fn as_ref(&self) -> &std::path::Path {
         std::path::Path::new(&self.0)
     }
 }
 
-impl AsRef<std::ffi::OsStr> for Name {
+impl AsRef<std::ffi::OsStr> for PkgName {
     fn as_ref(&self) -> &std::ffi::OsStr {
         std::ffi::OsStr::new(&self.0)
     }
 }
 
-impl From<Name> for String {
-    fn from(n: Name) -> Self {
-        n.0
+impl From<PkgName> for String {
+    fn from(val: PkgName) -> Self {
+        val.0
     }
 }
 
-impl FromStr for Name {
+impl FromStr for PkgName {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         validate_name(s)?;
-        Ok(Name(s.to_string()))
+        Ok(PkgName(s.to_string()))
     }
 }
 
-impl TryFrom<String> for Name {
+impl TryFrom<String> for PkgName {
     type Error = crate::Error;
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         validate_name(&s)?;
-        Ok(Name(s))
+        Ok(PkgName(s))
     }
 }
 

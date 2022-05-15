@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     compat::API_STR, compat::BINARY_STR, parse_build, version_range::Ranged, Build, CompatRule,
-    Compatibility, Component, EqualsVersion, Ident, InvalidNameError, Name, Spec, Version,
+    Compatibility, Component, EqualsVersion, Ident, InvalidNameError, PkgName, Spec, Version,
     VersionFilter,
 };
 use crate::{Error, Result};
@@ -25,7 +25,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeIdent {
-    pub name: Name,
+    pub name: PkgName,
     pub components: HashSet<Component>,
     pub version: VersionFilter,
     pub build: Option<Build>,
@@ -279,7 +279,7 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     })
 }
 
-fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(Name, HashSet<Component>)> {
+fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(PkgName, HashSet<Component>)> {
     let source = source.as_ref();
     let mut components = HashSet::new();
 
@@ -499,12 +499,12 @@ impl VarRequest {
     }
 
     /// Return the name of the package that this var refers to (if any)
-    pub fn package(&self) -> Option<Name> {
+    pub fn package(&self) -> Option<PkgName> {
         if self.var.contains('.') {
             self.var
                 .split('.')
                 .next()
-                .map(Name::from_str)
+                .map(PkgName::from_str)
                 .and_then(Result::ok)
         } else {
             None

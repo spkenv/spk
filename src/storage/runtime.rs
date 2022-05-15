@@ -49,7 +49,7 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn list_packages(&self) -> Result<Vec<api::Name>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
@@ -59,11 +59,11 @@ impl Repository for RuntimeRepository {
                     None
                 }
             })
-            .filter_map(|e| api::Name::try_from(e).ok())
+            .filter_map(|e| api::PkgName::try_from(e).ok())
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::Name) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
         Ok(get_all_filenames(self.root.join(name))?
             .into_iter()
             .filter_map(|entry| {
