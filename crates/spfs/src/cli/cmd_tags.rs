@@ -26,10 +26,8 @@ pub struct CmdTags {
 
 impl CmdTags {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository().await?.into(),
-        };
+        let repo = config.get_remote_repository_or_local(&self.remote).await?;
+
         let mut tag_streams = repo.iter_tags();
         while let Some((tag_spec, tag)) = tag_streams.try_next().await? {
             let suffix = if self.short {

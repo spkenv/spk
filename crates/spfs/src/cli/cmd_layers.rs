@@ -25,10 +25,8 @@ pub struct CmdLayers {
 
 impl CmdLayers {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository().await?.into(),
-        };
+        let repo = config.get_remote_repository_or_local(&self.remote).await?;
+
         let mut layers = repo.iter_layers();
         while let Some(layer) = layers.next().await {
             let (digest, _) = layer?;

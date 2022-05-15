@@ -24,10 +24,7 @@ pub struct CmdTag {
 
 impl CmdTag {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository().await?.into(),
-        };
+        let repo = config.get_remote_repository_or_local(&self.remote).await?;
 
         let target = repo.read_ref(self.reference.as_str()).await?.digest()?;
         for tag in self.tags.iter() {

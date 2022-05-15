@@ -224,6 +224,23 @@ impl Config {
         storage::fs::FSRepository::create(&self.storage.root).await
     }
 
+    /// Get a remote repository by name, or the local repository.
+    ///
+    /// If `name` is defined, attempt to open the named remote
+    /// repository; otherwise open the local repository.
+    pub async fn get_remote_repository_or_local<S>(
+        &self,
+        name: &Option<S>,
+    ) -> Result<storage::RepositoryHandle>
+    where
+        S: AsRef<str>,
+    {
+        match name {
+            Some(name) => self.get_remote(name).await,
+            None => Ok(self.get_repository().await?.into()),
+        }
+    }
+
     /// Get the local runtime storage, as configured.
     pub fn get_runtime_storage(&self) -> Result<runtime::Storage> {
         runtime::Storage::new(self.storage.runtime_root())
