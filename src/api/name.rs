@@ -87,14 +87,16 @@ impl TryFrom<String> for PkgName {
 pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     if name.as_ref().len() < NAME_MIN_LEN {
         return Err(InvalidNameError::new_error(format!(
-            "Invalid package name, must be at least {NAME_MIN_LEN} characters, got {}",
-            name.as_ref().len()
+            "Invalid package name, must be at least {NAME_MIN_LEN} characters, got {} [{}]",
+            name.as_ref(),
+            name.as_ref().len(),
         )));
     }
     if name.as_ref().len() > NAME_MAX_LEN {
         return Err(InvalidNameError::new_error(format!(
-            "Invalid package name, must be no more than {NAME_MAX_LEN} characters, got {}",
-            name.as_ref().len()
+            "Invalid package name, must be no more than {NAME_MAX_LEN} characters, got {} [{}]",
+            name.as_ref(),
+            name.as_ref().len(),
         )));
     }
     let index = validate_source_str(&name, |c: char| {
