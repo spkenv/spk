@@ -161,12 +161,6 @@ impl RemoteConfig {
     }
 }
 
-#[derive(Debug)]
-pub enum RemoteSpecifier<S: AsRef<str>> {
-    Name(S),
-    Address(S),
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -220,11 +214,8 @@ impl Config {
 
     /// Open a connection to all remote repositories
     pub async fn list_remotes(&self) -> Result<Vec<storage::RepositoryHandle>> {
-        let futures: futures::stream::FuturesUnordered<_> = self
-            .remote
-            .keys()
-            .map(|s| self.get_remote(RemoteSpecifier::Name(s)))
-            .collect();
+        let futures: futures::stream::FuturesUnordered<_> =
+            self.remote.keys().map(|s| self.get_remote(s)).collect();
         futures.collect().await
     }
 
@@ -245,7 +236,7 @@ impl Config {
         S: AsRef<str>,
     {
         match name {
-            Some(name) => self.get_remote(RemoteSpecifier::Name(name)).await,
+            Some(name) => self.get_remote(name).await,
             None => Ok(self.get_repository().await?.into()),
         }
     }
@@ -255,49 +246,36 @@ impl Config {
         runtime::Storage::new(self.storage.runtime_root())
     }
 
-    /// Get a remote repository by name or address.
+    /// Get a remote repository by name.
     pub async fn get_remote<S: AsRef<str>>(
         &self,
-        specifier: RemoteSpecifier<S>,
+        remote_name: S,
     ) -> Result<storage::RepositoryHandle> {
-        let res = match specifier {
-            RemoteSpecifier::Name(name) => match self.remote.get(name.as_ref()) {
-                Some(Remote::Address(remote)) => {
-                    let config = RemoteConfig::from_address(remote.address.clone()).await?;
-                    tracing::debug!(?config, "opening repository");
-                    config.open().await
-                }
-                Some(Remote::Config(config)) => {
-                    tracing::debug!(?config, "opening repository");
-                    config.open().await
-                }
-                None => {
-                    return Err(format!(
-                        "No remote named '{name}' configured.",
-                        name = name.as_ref()
-                    )
-                    .into());
-                }
-            },
-            RemoteSpecifier::Address(address) => {
-                let addr = match url::Url::parse(address.as_ref()) {
-                    Ok(addr) => addr,
-                    Err(_) => url::Url::parse(format!("file:{}", address.as_ref()).as_str())?,
-                };
-                let config = RemoteConfig::from_address(addr).await?;
+        match self.remote.get(remote_name.as_ref()) {
+            Some(Remote::Address(remote)) => {
+                let config = RemoteConfig::from_address(remote.address.clone()).await?;
                 tracing::debug!(?config, "opening repository");
                 config.open().await
             }
-        };
-
-        match res {
-            Ok(repo) => Ok(repo),
-            err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
-            Err(err) => Err(crate::Error::FailedToOpenRepository {
+            Some(Remote::Config(config)) => {
+                tracing::debug!(?config, "opening repository");
+                config.open().await
+            }
+            None => {
+                return Err(format!(
+                    "No remote named '{name}' configured.",
+                    name = remote_name.as_ref()
+                )
+                .into());
+            }
+        }
+        .map_err(|err| match err {
+            err @ crate::Error::FailedToOpenRepository { .. } => err,
+            err => crate::Error::FailedToOpenRepository {
                 reason: String::from("error"),
                 source: Box::new(err),
-            }),
-        }
+            },
+        })
     }
 }
 

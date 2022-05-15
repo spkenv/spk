@@ -8,7 +8,7 @@ use itertools::Itertools;
 use tokio_stream::StreamExt;
 
 use super::config::get_config;
-use crate::{config::RemoteSpecifier, encoding, graph, runtime, storage, tracking, Error, Result};
+use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 use encoding::Encodable;
 use storage::{ManifestStorage, Repository};
 
@@ -78,7 +78,7 @@ pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::M
     let config = get_config()?;
     let mut repos: Vec<storage::RepositoryHandle> = vec![config.get_repository().await?.into()];
     for name in config.list_remote_names() {
-        match config.get_remote(RemoteSpecifier::Name(&name)).await {
+        match config.get_remote(&name).await {
             Ok(repo) => repos.push(repo),
             Err(err) => {
                 tracing::warn!(remote = ?name, "failed to load remote repository");

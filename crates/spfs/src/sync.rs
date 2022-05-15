@@ -5,7 +5,6 @@
 use tokio_stream::StreamExt;
 
 use super::config::get_config;
-use crate::config::RemoteSpecifier;
 use crate::prelude::*;
 use crate::{graph, storage, tracking, Error, Result};
 
@@ -26,7 +25,7 @@ pub async fn push_ref<R: AsRef<str>>(
     let local = config.get_repository().await?.into();
     let remote = match remote {
         Some(remote) => remote,
-        None => config.get_remote(RemoteSpecifier::Name("origin")).await?,
+        None => config.get_remote("origin").await?,
     };
     sync_ref(reference, &local, &remote).await
 }

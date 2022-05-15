@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rstest::{fixture, rstest};
 
 use super::{push_ref, sync_ref};
-use crate::config::{Config, RemoteSpecifier};
+use crate::config::Config;
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error};
 use storage::RepositoryHandle;
@@ -21,12 +21,7 @@ async fn test_push_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
     let (_handle, config) = config.await;
     match push_ref(
         "--test-unknown--",
-        Some(
-            config
-                .get_remote(RemoteSpecifier::Name("origin"))
-                .await
-                .unwrap(),
-        ),
+        Some(config.get_remote("origin").await.unwrap()),
     )
     .await
     {
@@ -37,12 +32,7 @@ async fn test_push_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
 
     match push_ref(
         encoding::Digest::default().to_string(),
-        Some(
-            config
-                .get_remote(RemoteSpecifier::Name("origin"))
-                .await
-                .unwrap(),
-        ),
+        Some(config.get_remote("origin").await.unwrap()),
     )
     .await
     {
@@ -63,10 +53,7 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
     let local = Arc::new(config.get_repository().await.unwrap().into());
-    let remote = config
-        .get_remote(RemoteSpecifier::Name("origin"))
-        .await
-        .unwrap();
+    let remote = config.get_remote("origin").await.unwrap();
     let manifest = crate::commit_dir(Arc::clone(&local), src_dir.as_path())
         .await
         .unwrap();
