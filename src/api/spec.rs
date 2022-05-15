@@ -81,6 +81,7 @@ impl Spec {
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
         self.build.resolve_all_options(Some(&self.pkg.name), given)
     }
+
     /// Check if this package spec satisfies the given request.
     pub fn satisfies_request(&self, request: Request) -> Compatibility {
         match request {
@@ -245,6 +246,30 @@ impl Spec {
 impl super::Package for Spec {
     fn ident(&self) -> &Ident {
         &self.pkg
+    }
+
+    fn compat(&self) -> &super::Compat {
+        &self.compat
+    }
+
+    fn options(&self) -> &Vec<super::Opt> {
+        &self.build.options
+    }
+
+    fn deprecated(&self) -> bool {
+        self.deprecated
+    }
+
+    fn embedded(&self) -> &super::EmbeddedPackagesList {
+        &self.install.embedded
+    }
+
+    fn components(&self) -> &super::ComponentSpecList {
+        &self.install.components
+    }
+
+    fn runtime_requirements(&self) -> &super::RequirementsList {
+        &self.install.requirements
     }
 }
 

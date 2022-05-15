@@ -4,12 +4,65 @@
 
 pub trait Package {
     /// The name of this package
-    fn name(&self) -> &super::Name {
+    fn name(&self) -> &super::PkgName {
         &self.ident().name
+    }
+
+    /// The version number of this package
+    fn version(&self) -> &super::Version {
+        &self.ident().version
     }
 
     /// The full identifier for this package
     ///
     /// This includes the version and optional build
     fn ident(&self) -> &super::Ident;
+
+    /// The compatibility guaranteed by this package's version
+    fn compat(&self) -> &super::Compat;
+
+    /// The input options for this package
+    fn options(&self) -> &Vec<super::Opt>;
+
+    /// Return true if this package has been deprecated
+    fn deprecated(&self) -> bool;
+
+    /// The packages that are embedded within this one
+    fn embedded(&self) -> &super::EmbeddedPackagesList;
+
+    /// The components defined by this package
+    fn components(&self) -> &super::ComponentSpecList;
+
+    /// Requests that must be met to use this package
+    fn runtime_requirements(&self) -> &super::RequirementsList;
+}
+
+impl<T: Package> Package for std::sync::Arc<T> {
+    fn ident(&self) -> &super::Ident {
+        (**self).ident()
+    }
+
+    fn compat(&self) -> &super::Compat {
+        (**self).compat()
+    }
+
+    fn deprecated(&self) -> bool {
+        (**self).deprecated()
+    }
+
+    fn options(&self) -> &Vec<super::Opt> {
+        (**self).options()
+    }
+
+    fn embedded(&self) -> &super::EmbeddedPackagesList {
+        (**self).embedded()
+    }
+
+    fn components(&self) -> &super::ComponentSpecList {
+        (**self).components()
+    }
+
+    fn runtime_requirements(&self) -> &super::RequirementsList {
+        (**self).runtime_requirements()
+    }
 }

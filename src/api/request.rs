@@ -15,8 +15,8 @@ use super::{
     compat::API_STR,
     compat::BINARY_STR,
     version_range::{self, Ranged},
-    Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName,
-    OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf, Spec, Version, VersionFilter,
+    Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, Opt, OptName,
+    OptNameBuf, Package, PkgName, PkgNameBuf, RepositoryNameBuf, Version, VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -220,19 +220,15 @@ impl RangeIdent {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        if spec.pkg.name != self.name {
+    pub fn is_satisfied_by(&self, spec: &dyn Package, required: CompatRule) -> Compatibility {
+        if spec.name() != &self.name {
             return Compatibility::Incompatible("different package names".into());
         }
 
         if !self.components.is_empty() && self.build != Some(Build::Source) {
-            let required_components = spec.install.components.resolve_uses(self.components.iter());
-            let available_components: HashSet<_> = spec
-                .install
-                .components
-                .iter()
-                .map(|c| c.name.clone())
-                .collect();
+            let required_components = spec.components().resolve_uses(self.components.iter());
+            let available_components: HashSet<_> =
+                spec.components().iter().map(|c| c.name.clone()).collect();
             let missing_components = required_components
                 .difference(&available_components)
                 .sorted()
@@ -258,10 +254,11 @@ impl RangeIdent {
             return c;
         }
 
-        if self.build.is_some() && self.build != spec.pkg.build {
+        if self.build.is_some() && self.build != spec.ident().build {
             return Compatibility::Incompatible(format!(
                 "requested build {:?} != {:?}",
-                self.build, spec.pkg.build
+                self.build,
+                spec.ident().build
             ));
         }
 
@@ -566,6 +563,49 @@ impl VarRequest {
         new.pin = false;
         new.value = value.into();
         Ok(new)
+    }
+
+    /// Check if this package spec satisfies the given var request.
+    pub fn is_satisfied_by(&self, spec: &dyn Package) -> Compatibility {
+        let opt_required = self.var.namespace() == Some(spec.name());
+        let mut opt: Option<&Opt> = None;
+        let request_name = &self.var;
+        for o in spec.options().iter() {
+            if request_name == o.full_name() {
+                opt = Some(o);
+                break;
+            }
+            if request_name == &o.full_name().with_namespace(spec.name()) {
+                opt = Some(o);
+                break;
+            }
+        }
+
+        match opt {
+            None => {
+                if opt_required {
+                    return Compatibility::Incompatible(format!(
+                        "Package does not define requested option: {}",
+                        self.var
+                    ));
+                }
+                Compatibility::Compatible
+            }
+            Some(Opt::Pkg(opt)) => opt.validate(Some(&self.value)),
+            Some(Opt::Var(opt)) => {
+                let exact = opt.get_value(Some(&self.value));
+                if exact.as_deref() != Some(&self.value) {
+                    Compatibility::Incompatible(format!(
+                        "Incompatible build option '{}': '{}' != '{}'",
+                        self.var,
+                        exact.unwrap_or_else(|| "None".to_string()),
+                        self.value
+                    ))
+                } else {
+                    Compatibility::Compatible
+                }
+            }
+        }
     }
 }
 
@@ -878,19 +918,18 @@ impl PkgRequest {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
-        if spec.deprecated {
+    pub fn is_satisfied_by(&self, spec: &dyn Package) -> Compatibility {
+        if spec.deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
-            if self.pkg.build.is_none() || self.pkg.build != spec.pkg.build {
+            if self.pkg.build.is_none() || self.pkg.build != spec.ident().build {
                 return Compatibility::Incompatible(
                     "Build is deprecated and was not specifically requested".to_string(),
                 );
             }
         }
 
-        if self.prerelease_policy == PreReleasePolicy::ExcludeAll
-            && !spec.pkg.version.pre.is_empty()
+        if self.prerelease_policy == PreReleasePolicy::ExcludeAll && !spec.version().pre.is_empty()
         {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }

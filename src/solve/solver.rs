@@ -353,7 +353,7 @@ impl Solver {
     fn validate(
         &self,
         node: &State,
-        spec: &api::Spec,
+        spec: &dyn api::Package,
         source: &PackageSource,
     ) -> Result<api::Compatibility> {
         for validator in self.validators.as_ref() {
