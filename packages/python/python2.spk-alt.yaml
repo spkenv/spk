@@ -10,7 +10,7 @@ options:
   - pkg: gcc
     atRuntime:
       version: x.x
-      when: Requested
+      whenRequested: true
 
   - pkg: stdfs
 
