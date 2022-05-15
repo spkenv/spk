@@ -11,8 +11,7 @@ options:
   - var: centos
   - pkg: stdfs
   - pkg: gcc/6.3
-    when: Requested
-      atRuntime: true
+    atRuntime: whenRequested
   - pkg: zlib
   - pkg: cmake/3.13
     atRuntime: false
