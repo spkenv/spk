@@ -52,7 +52,7 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let local = Arc::new(config.get_repository().await.unwrap().into());
+    let local = Arc::new(config.get_local_repository().await.unwrap().into());
     let remote = config.get_remote("origin").await.unwrap();
     let manifest = crate::commit_dir(Arc::clone(&local), src_dir.as_path())
         .await

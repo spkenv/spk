@@ -220,7 +220,7 @@ impl Config {
     }
 
     /// Get the local repository instance as configured.
-    pub async fn get_repository(&self) -> Result<storage::fs::FSRepository> {
+    pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
         storage::fs::FSRepository::create(&self.storage.root).await
     }
 
@@ -237,7 +237,7 @@ impl Config {
     {
         match name {
             Some(name) => self.get_remote(name).await,
-            None => Ok(self.get_repository().await?.into()),
+            None => Ok(self.get_local_repository().await?.into()),
         }
     }
 
