@@ -7,17 +7,17 @@ use std::os::unix::fs::PermissionsExt;
 use futures::TryStreamExt;
 use rstest::rstest;
 
-use super::{makedirs_with_perms, Config, Storage};
+use super::{makedirs_with_perms, Data, Storage};
 use crate::encoding;
 
 use crate::fixtures::*;
 
 #[rstest]
 fn test_config_serialization() {
-    let mut expected = Config::new("spfs-testing");
-    expected.stack = vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()];
+    let mut expected = Data::new("spfs-testing");
+    expected.status.stack = vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()];
     let data = serde_json::to_string_pretty(&expected).expect("failed to serialize config");
-    let actual: Config = serde_json::from_str(&data).expect("failed to deserialize config data");
+    let actual: Data = serde_json::from_str(&data).expect("failed to deserialize config data");
 
     assert_eq!(actual, expected);
 }
@@ -136,7 +136,7 @@ async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
         .await
         .expect("failed to create runtime in storage");
     let upper_dir = tmpdir.path().join("upper");
-    runtime.config.upper_dir = upper_dir.clone();
+    runtime.data.config.upper_dir = upper_dir.clone();
 
     ensure(upper_dir.join("file"), "file01");
     ensure(upper_dir.join("dir/file"), "file02");

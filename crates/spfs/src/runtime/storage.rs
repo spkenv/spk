@@ -23,11 +23,25 @@ mod storage_test;
 /// The location in spfs where shell files can be placed be sourced at startup
 pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 
-/// Stores the configuration of a single runtime.
+/// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct Config {
-    /// The name used to identify this runtime
-    pub name: String,
+pub struct Author {
+    pub user_name: String,
+    pub host_name: String,
+}
+
+impl Default for Author {
+    fn default() -> Self {
+        Self {
+            user_name: whoami::username(),
+            host_name: whoami::hostname(),
+        }
+    }
+}
+
+/// Information about the current state of a runtime
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct Status {
     /// The set of layers that are being used in this runtime
     pub stack: Vec<encoding::Digest>,
     /// Whether or not this runtime is editable
@@ -39,6 +53,11 @@ pub struct Config {
     /// This process is responsible for monitoring the usage
     /// of this runtime and cleaning it up when completed
     pub pid: Option<u32>,
+}
+
+/// Configuration parameters for the execution of a runtime
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct Config {
     /// The location of the overlayfs upper directory for this runtime
     pub upper_dir: PathBuf,
     /// The location of the startup script for sh-based shells
@@ -49,6 +68,12 @@ pub struct Config {
     pub csh_expect_file: PathBuf,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self::from_root(&Path::new(Self::RUNTIME_DIR))
+    }
+}
+
 impl Config {
     const RUNTIME_DIR: &'static str = "/tmp/spfs-runtime";
     const UPPER_DIR: &'static str = "upper";
@@ -56,29 +81,52 @@ impl Config {
     const CSH_STARTUP_FILE: &'static str = "startup.csh";
     const CSH_EXPECT_FILE: &'static str = "_csh.exp";
 
-    pub fn new<S: Into<String>>(name: S) -> Self {
-        let runtime_dir = Path::new(Self::RUNTIME_DIR);
+    fn from_root<P: AsRef<Path>>(root: P) -> Self {
+        let root = root.as_ref();
         Self {
-            name: name.into(),
-            stack: Vec::new(),
-            editable: false,
-            running: false,
-            pid: None,
-            upper_dir: runtime_dir.join(Self::UPPER_DIR),
-            sh_startup_file: runtime_dir.join(Self::SH_STARTUP_FILE),
-            csh_startup_file: runtime_dir.join(Self::CSH_STARTUP_FILE),
-            csh_expect_file: runtime_dir.join(Self::CSH_EXPECT_FILE),
+            upper_dir: root.join(Self::UPPER_DIR),
+            sh_startup_file: root.join(Self::SH_STARTUP_FILE),
+            csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
+            csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
         }
     }
 
-    /// Change the root directory being used for runtime data
     #[cfg(test)]
-    fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) {
+    fn set_root<P: AsRef<Path>>(&mut self, path: P) {
         let runtime_dir = path.as_ref();
         self.upper_dir = runtime_dir.join(Self::UPPER_DIR);
         self.sh_startup_file = runtime_dir.join(Self::SH_STARTUP_FILE);
         self.csh_startup_file = runtime_dir.join(Self::CSH_STARTUP_FILE);
         self.csh_expect_file = runtime_dir.join(Self::CSH_EXPECT_FILE);
+    }
+}
+
+/// Stores the complete information of a single runtime.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct Data {
+    /// The name used to identify this runtime
+    name: String,
+    /// Information about the source of this runtime
+    pub author: Author,
+    /// The current state of this runtime (may change over time)
+    pub status: Status,
+    /// Parameters for this runtime's execution (should not change over time)
+    pub config: Config,
+}
+
+impl Data {
+    pub fn new<S: Into<String>>(name: S) -> Self {
+        Self {
+            name: name.into(),
+            status: Default::default(),
+            author: Default::default(),
+            config: Default::default(),
+        }
+    }
+
+    /// The unique name used to identify this runtime
+    pub fn name(&self) -> &String {
+        &self.name
     }
 }
 
@@ -128,8 +176,22 @@ impl OwnedRuntime {
 /// envrionment, the contained stack of read-only filesystem layers.
 #[derive(Debug)]
 pub struct Runtime {
-    config: Config,
+    data: Data,
     storage: Storage,
+}
+
+impl std::ops::Deref for Runtime {
+    type Target = Data;
+
+    fn deref(&self) -> &Data {
+        &self.data
+    }
+}
+
+impl std::ops::DerefMut for Runtime {
+    fn deref_mut(&mut self) -> &mut Data {
+        &mut self.data
+    }
 }
 
 impl Runtime {
@@ -142,18 +204,18 @@ impl Runtime {
         S: Into<String>,
     {
         Self {
-            config: Config::new(name),
+            data: Data::new(name),
             storage,
         }
     }
 
     /// The name of this runtime which identifies it uniquely
     pub fn name(&self) -> &str {
-        self.config.name.as_ref()
+        self.name.as_ref()
     }
 
-    pub fn config(&self) -> &Config {
-        &self.config
+    pub fn data(&self) -> &Data {
+        &self.data
     }
 
     pub fn storage(&self) -> &Storage {
@@ -166,7 +228,7 @@ impl Runtime {
     /// that allow changes to be made to the runtime filesystem and
     /// committed back as layers.
     pub async fn set_editable(&mut self, editable: bool) -> Result<()> {
-        self.config.editable = editable;
+        self.status.editable = editable;
         self.write_config().await
     }
 
@@ -176,35 +238,35 @@ impl Runtime {
     /// that allow changes to be made to the runtime filesystem and
     /// committed back as layers.
     pub fn is_editable(&self) -> bool {
-        self.config.editable
+        self.status.editable
     }
 
     /// Mark this runtime as currently running or not.
     pub async fn set_running(&mut self, running: bool) -> Result<()> {
-        self.config.running = running;
+        self.status.running = running;
         self.write_config().await
     }
 
     /// Return true if this runtime is currently running.
     pub fn is_running(&self) -> bool {
-        self.config.running
+        self.status.running
     }
 
     /// Mark the process that owns this runtime, this should be the spfs
     /// init process under which the target process is directly running.
     async fn set_pid(&mut self, pid: u32) -> Result<()> {
-        self.config.pid = Some(pid);
+        self.status.pid = Some(pid);
         self.write_config().await
     }
 
     /// Return the pid of this runtime's init process, if any.
     pub fn get_pid(&self) -> Option<u32> {
-        self.config.pid
+        self.status.pid
     }
 
     /// Reset the config for this runtime to its default state.
     pub async fn reset_stack(&mut self) -> Result<()> {
-        self.config.stack.truncate(0);
+        self.status.stack.truncate(0);
         self.write_config().await
     }
 
@@ -259,7 +321,7 @@ impl Runtime {
 
     /// Return this runtime's current object stack.
     pub fn get_stack(&self) -> &Vec<encoding::Digest> {
-        &self.config.stack
+        &self.status.stack
     }
 
     /// Push an object id onto this runtime's stack.
@@ -268,9 +330,9 @@ impl Runtime {
     /// and change the overlayfs options, but not update
     /// any currently running environment automatically.
     pub async fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
-        let mut new_stack = Vec::with_capacity(self.config.stack.len() + 1);
+        let mut new_stack = Vec::with_capacity(self.status.stack.len() + 1);
         new_stack.push(*digest);
-        for existing in self.config.stack.drain(..) {
+        for existing in self.status.stack.drain(..) {
             // we do not want the same layer showing up twice, one for
             // efficiency and two it causes errors in overlayfs so promote
             // any existing instance to the new top of the stack
@@ -279,7 +341,7 @@ impl Runtime {
             }
             new_stack.push(existing);
         }
-        self.config.stack = new_stack;
+        self.status.stack = new_stack;
         self.write_config().await
     }
 
@@ -306,7 +368,7 @@ impl Runtime {
     /// Modify the root directory where runtime data is stored
     #[cfg(test)]
     pub async fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        self.config.set_runtime_dir(path);
+        self.config.set_root(path);
         self.write_config().await
     }
 
@@ -376,9 +438,9 @@ impl Storage {
         let mut reader = self.inner.open_payload(digest).await?;
         let mut data = String::new();
         reader.read_to_string(&mut data).await?;
-        let config: Config = serde_json::from_str(&data)?;
+        let config: Data = serde_json::from_str(&data)?;
         Ok(Runtime {
-            config,
+            data: config,
             storage: self.clone(),
         })
     }
@@ -417,7 +479,7 @@ impl Storage {
         let meta_tag = runtime_tag(RuntimeDataType::Metadata, rt.name())?;
         let platform: graph::Object = graph::Platform::new(&mut rt.get_stack().iter())?.into();
         let platform_digest = platform.digest()?;
-        let config_data = serde_json::to_string(&rt.config)?;
+        let config_data = serde_json::to_string(&rt.data)?;
         let (_, (config_digest, _)) = tokio::try_join!(
             self.inner.write_object(&platform),
             self.inner

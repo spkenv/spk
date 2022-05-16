@@ -15,9 +15,7 @@ mod commit_test;
 pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
     let config = get_config()?;
     let repo = config.get_repository().await?;
-    let manifest = repo
-        .commit_dir(runtime.config().upper_dir.as_path())
-        .await?;
+    let manifest = repo.commit_dir(runtime.config.upper_dir.as_path()).await?;
     if manifest.is_empty() {
         return Err(Error::NothingToCommit);
     }
