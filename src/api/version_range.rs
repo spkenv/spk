@@ -16,7 +16,7 @@ use itertools::Itertools;
 
 use crate::{Error, Result};
 
-use super::{parse_version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
+use super::{parse_version, version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
 
 #[cfg(test)]
 #[path = "./version_range_test.rs"]
@@ -52,12 +52,12 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     fn is_applicable(&self, other: &Version) -> Compatibility {
         if let Some(gt) = self.greater_or_equal_to() {
             if other < &gt {
-                return Compatibility::Incompatible("version too low".to_string());
+                return Compatibility::Incompatible(format!("version too low for >= {gt}"));
             }
         }
         if let Some(lt) = self.less_than() {
             if other >= &lt {
-                return Compatibility::Incompatible("version too high".to_string());
+                return Compatibility::Incompatible(format!("version too high for < {lt}"));
             }
         }
         Compatibility::Compatible
@@ -321,8 +321,12 @@ impl Ranged for WildcardRange {
             if let Some(a) = a {
                 if a != b {
                     return Compatibility::Incompatible(format!(
-                        "Out of range: {} [at pos {}]",
-                        self, i
+                        "Out of range: {} [at pos {} ({}): (range) {} != {} (version)]",
+                        self,
+                        i + 1,
+                        version::get_version_position_label(i),
+                        a,
+                        b
                     ));
                 }
             }

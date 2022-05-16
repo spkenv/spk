@@ -120,7 +120,7 @@ impl Spec {
                 let exact = opt.get_value(Some(&request.value));
                 if exact.as_deref() != Some(&request.value) {
                     Compatibility::Incompatible(format!(
-                        "Incompatible build option '{}': '{}' != '{}'",
+                        "Incompatible build option '{}': (has) '{}' != '{}' (requested)",
                         request.var,
                         exact.unwrap_or_else(|| "None".to_string()),
                         request.value

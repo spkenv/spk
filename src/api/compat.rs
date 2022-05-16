@@ -9,7 +9,7 @@ use std::str::FromStr;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::{Version, VERSION_SEP};
+use super::{version, Version, VERSION_SEP};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -338,9 +338,9 @@ impl Compat {
                 return Compatibility::Compatible;
             }
 
-            for (matches, optruleset, desc) in [
-                (pre_matches, &self.pre, "pre"),
-                (post_matches, &self.post, "post"),
+            for (matches, optruleset, desc, a, b) in [
+                (pre_matches, &self.pre, "pre", &base.pre, &other.pre),
+                (post_matches, &self.post, "post", &base.post, &other.post),
             ] {
                 if matches {
                     continue;
@@ -349,15 +349,24 @@ impl Compat {
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
                         return Compatibility::Incompatible(format!(
-                            "Not compatible with {} [{} at {}]",
-                            base, self, desc
+                            "Not compatible with {} [{} at {}: (compat) {} != {} (version)]",
+                            base,
+                            self,
+                            desc,
+                            a.to_string(),
+                            b.to_string()
                         ));
                     }
 
                     if !ruleset.0.contains(&required) {
                         return Compatibility::Incompatible(format!(
-                            "Not {:?} compatible with {} [{} at {}]",
-                            required, base, self, desc
+                            "Not {:?} compatible with {} [{} at {}: (compat) {} != {} (version)]",
+                            required,
+                            base,
+                            self,
+                            desc,
+                            a.to_string(),
+                            b.to_string()
                         ));
                     }
                 }
@@ -374,8 +383,13 @@ impl Compat {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
                         return Compatibility::Incompatible(format!(
-                            "Not compatible with {} [{} at pos {}]",
-                            base, self, i
+                            "Not compatible with {} [{} at pos {} ({}): (compat) {} != {} (version)]",
+                            base,
+                            self,
+                            i + 1,
+                            version::get_version_position_label(i),
+                            a,
+                            b
                         ));
                     }
                     _ => continue,
@@ -387,10 +401,16 @@ impl Compat {
                     (Some(a), Some(b)) if a == b => {
                         continue;
                     }
-                    (Some(_), Some(_)) => {
+                    (Some(a), Some(b)) => {
                         return Compatibility::Incompatible(format!(
-                            "Not {:?} compatible with {} [{} at pos {}]",
-                            required, base, self, i
+                            "Not {:?} compatible with {} [{} at pos {} ({}): (compat) {} != {} (version)]",
+                            required,
+                            base,
+                            self,
+                            i + 1,
+                            version::get_version_position_label(i),
+                            a,
+                            b,
                         ));
                     }
                     _ => continue,
@@ -400,8 +420,14 @@ impl Compat {
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
                     return Compatibility::Incompatible(format!(
-                        "Not {:?} compatible with {} [{} at pos {}]",
-                        required, base, self, i
+                        "Not {:?} compatible with {} [{} at pos {} ({}): (compat) {} > {} (version)]",
+                        required,
+                        base,
+                        self,
+                        i + 1,
+                        version::get_version_position_label(i),
+                        a,
+                        b
                     ));
                 }
                 _ => {
