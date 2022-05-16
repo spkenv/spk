@@ -87,7 +87,8 @@ impl ValidatorT for DeprecationValidator {
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
-const ONLY_BINARY_PACKAGES_ALLOWED: &str = "only binary packages are allowed";
+const ONLY_BINARY_PACKAGES_ALLOWED: &str =
+    "Skipping /src build, building from source is not-enabled";
 
 impl ValidatorT for BinaryOnlyValidator {
     fn validate(
