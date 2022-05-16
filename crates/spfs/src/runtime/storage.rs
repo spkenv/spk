@@ -53,6 +53,11 @@ pub struct Status {
     /// This process is responsible for monitoring the usage
     /// of this runtime and cleaning it up when completed
     pub pid: Option<u32>,
+    /// The primary command to be executed in this runtime
+    ///
+    /// An empty command signifies that this runtime is being
+    /// used to launch an interactive shell environment
+    pub command: Vec<String>,
 }
 
 /// Configuration parameters for the execution of a runtime

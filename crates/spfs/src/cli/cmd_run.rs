@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::ffi::OsString;
-
 use clap::Parser;
 
 use spfs::prelude::*;
@@ -32,8 +30,8 @@ pub struct CmdRun {
     /// Use '-' or an empty string to request an empty environment
     pub reference: String,
 
-    pub cmd: OsString,
-    pub args: Vec<OsString>,
+    pub cmd: String,
+    pub args: Vec<String>,
 }
 
 impl CmdRun {
@@ -61,10 +59,18 @@ impl CmdRun {
             }
         }
 
+        // NOTE: there is a reliance here on set_editable also
+        //       saving the changes made to the command field
+        runtime.status.command = vec![self.cmd.clone()];
+        runtime.status.command.extend(self.args.iter().cloned());
         runtime.set_editable(self.edit).await?;
+
         tracing::debug!("resolving entry process");
-        let (cmd, args) =
-            spfs::build_command_for_runtime(&runtime, self.cmd.clone(), &mut self.args)?;
+        let (cmd, args) = spfs::build_command_for_runtime(
+            &runtime,
+            self.cmd.clone().into(),
+            &mut self.args.iter().cloned().map(Into::into).collect(),
+        )?;
         tracing::trace!("{:?} {:?}", cmd, args);
         use std::os::unix::ffi::OsStrExt;
         let cmd = std::ffi::CString::new(cmd.as_bytes()).unwrap();
