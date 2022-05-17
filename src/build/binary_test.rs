@@ -78,7 +78,14 @@ fn test_build_workdir(tmpdir: tempdir::TempDir) {
         .unwrap();
 
     let out = std::fs::read_to_string(out_file).unwrap();
-    assert_eq!(out.trim(), &tmpdir.path().to_string_lossy());
+    assert_eq!(
+        out.trim(),
+        &tmpdir
+            .path()
+            .canonicalize()
+            .expect("tmpdir can be canonicalized")
+            .to_string_lossy()
+    );
 }
 
 #[rstest]
