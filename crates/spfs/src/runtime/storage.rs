@@ -377,7 +377,8 @@ impl Runtime {
         self.write_config().await
     }
 
-    async fn write_config(&self) -> Result<()> {
+    /// Save the current state of this runtime to the underlying storage
+    pub async fn write_config(&self) -> Result<()> {
         self.storage.save_runtime(self).await
     }
 }

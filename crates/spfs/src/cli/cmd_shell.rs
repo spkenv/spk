@@ -44,7 +44,7 @@ impl CmdShell {
             edit: self.edit,
             name: self.name.clone(),
             reference: self.reference.clone().unwrap_or_else(|| "".into()),
-            cmd: Default::default(),
+            command: Default::default(),
             args: Default::default(),
         };
         run_cmd.run(config).await

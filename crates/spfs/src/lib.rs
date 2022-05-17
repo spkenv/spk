@@ -39,7 +39,7 @@ pub use self::config::{
     get_config, load_config, open_repository, Config, RemoteAddress, RemoteConfig,
 };
 pub use bootstrap::{
-    build_command_for_runtime, build_interactive_shell_cmd, build_shell_initialized_command,
+    build_command_for_runtime, build_interactive_shell_command, build_shell_initialized_command,
 };
 pub use clean::{
     clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,

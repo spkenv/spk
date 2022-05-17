@@ -34,8 +34,16 @@ pub struct CmdEnter {
     runtime: String,
 
     /// The command to run after initialization
-    #[clap(required = true)]
-    cmd: Vec<OsString>,
+    ///
+    /// If not given, run an interactive shell environment
+    command: Option<OsString>,
+
+    /// Additional arguments to provide to the command
+    ///
+    /// In order to ensure that flags are passed as-is, place '--' before
+    /// specifying any flags that should be given to the subcommand:
+    ///   eg spfs enter <args> -- command --flag-for-command
+    args: Vec<OsString>,
 }
 
 impl CmdEnter {
@@ -59,14 +67,21 @@ impl CmdEnter {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
-            let owned = spfs::runtime::OwnedRuntime::upgrade(runtime).await?;
+            let mut owned = spfs::runtime::OwnedRuntime::upgrade(runtime).await?;
             tracing::debug!("initalizing runtime");
             spfs::initialize_runtime(&owned, config).await?;
 
             owned.ensure_startup_scripts()?;
+            owned.set_running(true).await?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             let res = self.exec_runtime_command(&owned);
+
+            // try to set the running to false to make this
+            // runtime easier to identify as safe to delete
+            // if the automatic cleanup fails. Any error
+            // here is unfortunate but not fatal.
+            let _ = owned.set_running(false).await;
             if let Err(err) = owned.delete().await {
                 tracing::error!("failed to clean up runtime data: {err:?}")
             }
@@ -75,18 +90,17 @@ impl CmdEnter {
     }
 
     fn exec_runtime_command(&mut self, rt: &spfs::runtime::OwnedRuntime) -> spfs::Result<i32> {
-        let mut cmd: Vec<_> = self.cmd.drain(..).collect();
-        if cmd.is_empty() || cmd[0] == *"" {
-            cmd = spfs::build_interactive_shell_cmd(rt)?;
-            tracing::debug!("starting interactive shell environment");
-        } else {
-            cmd =
-                spfs::build_shell_initialized_command(rt, cmd[0].clone(), &mut cmd[1..].to_vec())?;
-            tracing::debug!("executing runtime command");
-        }
-        tracing::debug!(?cmd);
-        let mut proc = std::process::Command::new(cmd[0].clone());
-        proc.args(&cmd[1..]);
+        let cmd = match self.command.take() {
+            Some(exe) if !exe.is_empty() => {
+                tracing::debug!("executing runtime command");
+                spfs::build_shell_initialized_command(rt, exe, self.args.drain(..))?
+            }
+            _ => {
+                tracing::debug!("starting interactive shell environment");
+                spfs::build_interactive_shell_command(rt)?
+            }
+        };
+        let mut proc = cmd.into_std();
         tracing::debug!("{:?}", proc);
         Ok(proc.status()?.code().unwrap_or(1))
     }

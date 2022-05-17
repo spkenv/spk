@@ -11,25 +11,52 @@ use crate::{runtime, Error, Result};
 #[path = "./bootstrap_test.rs"]
 mod bootstrap_test;
 
+/// A command to be executed
+pub struct Command {
+    pub executable: OsString,
+    pub args: Vec<OsString>,
+}
+
+impl Command {
+    /// Turns this command into a syncronusly runnable one
+    pub fn into_std(self) -> std::process::Command {
+        let mut cmd = std::process::Command::new(self.executable);
+        cmd.args(self.args);
+        cmd
+    }
+}
+
+impl std::fmt::Debug for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Command")
+            .field(&self.executable)
+            .field(&self.args)
+            .finish()
+    }
+}
+
 /// Construct a bootstrap command.
 ///
 /// The returned command properly calls through the relevant spfs
 /// binaries and runs the desired command in an existing runtime.
-pub fn build_command_for_runtime(
+pub fn build_command_for_runtime<E, A, S>(
     runtime: &runtime::Runtime,
-    command: OsString,
-    args: &mut Vec<OsString>,
-) -> Result<(OsString, Vec<OsString>)> {
-    let mut spfs_args = vec![command];
-    spfs_args.append(args);
-    build_spfs_enter_command(runtime, &mut spfs_args)
+    command: E,
+    args: A,
+) -> Result<Command>
+where
+    E: Into<OsString>,
+    A: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    build_spfs_enter_command(runtime, command, args)
 }
 
 /// Return a command that initializes and runs an interactive shell
 ///
 /// The returned command properly sets up and runs an interactive
 /// shell session in the current runtime.
-pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString>> {
+pub fn build_interactive_shell_command(rt: &runtime::Runtime) -> Result<Command> {
     let mut shell_path = std::path::PathBuf::from(
         std::env::var("SHELL").unwrap_or_else(|_| "<not-set>".to_string()),
     );
@@ -57,12 +84,14 @@ pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString
                 tracing::error!("'expect' command not found in PATH, falling back to bash");
             }
             Some(expect) => {
-                return Ok(vec![
-                    expect.as_os_str().to_owned(),
-                    rt.config.csh_expect_file.as_os_str().to_owned(),
-                    shell_path.into(),
-                    rt.config.csh_startup_file.as_os_str().to_owned(),
-                ]);
+                return Ok(Command {
+                    executable: expect.into(),
+                    args: vec![
+                        rt.config.csh_expect_file.clone().into(),
+                        shell_path.into(),
+                        rt.config.csh_startup_file.clone().into(),
+                    ],
+                });
             }
         }
     }
@@ -77,22 +106,29 @@ pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString
             shell_path = PathBuf::from("/usr/bin/bash");
         }
     }
-    Ok(vec![
-        shell_path.into(),
-        "--init-file".into(),
-        rt.config.sh_startup_file.as_os_str().to_owned(),
-    ])
+    Ok(Command {
+        executable: shell_path.into(),
+        args: vec![
+            "--init-file".into(),
+            rt.config.sh_startup_file.as_os_str().to_owned(),
+        ],
+    })
 }
 
 /// Construct a boostrapping command for initializing through the shell.
 ///
 /// The returned command properly calls through a shell which sets up
 /// the current runtime appropriately before calling the desired command.
-pub fn build_shell_initialized_command(
+pub fn build_shell_initialized_command<E, A, S>(
     runtime: &runtime::Runtime,
-    command: OsString,
-    args: &mut Vec<OsString>,
-) -> Result<Vec<OsString>> {
+    command: E,
+    args: A,
+) -> Result<Command>
+where
+    E: Into<OsString>,
+    A: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
     let desired_shell =
         std::env::var_os("SHELL").unwrap_or_else(|| which("bash").unwrap_or_default().into());
     let shell_name = std::path::Path::new(&desired_shell)
@@ -106,48 +142,57 @@ pub fn build_shell_initialized_command(
         _ => return Err(Error::NoSupportedShell),
     };
 
-    let mut cmd = vec![desired_shell, startup_file.into(), command];
-    cmd.append(args);
-    Ok(cmd)
+    let mut shell_args = vec![startup_file.into(), command.into()];
+    shell_args.extend(args.into_iter().map(Into::into));
+
+    Ok(Command {
+        executable: desired_shell,
+        args: shell_args,
+    })
 }
 
-pub(crate) fn build_spfs_remount_command(
-    rt: &runtime::Runtime,
-) -> Result<(OsString, Vec<OsString>)> {
+pub(crate) fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<Command> {
     let exe = match which_spfs("enter") {
         None => return Err(Error::MissingBinary("spfs-enter")),
         Some(exe) => exe,
     };
 
-    Ok((
-        exe.into(),
-        vec![
-            "--remount".into(),
-            "--runtime-storage".into(),
-            rt.storage().address().to_string().into(),
-            "--runtime".into(),
-            rt.name().into(),
-            "--".into(),
-        ],
-    ))
-}
-
-fn build_spfs_enter_command(
-    rt: &runtime::Runtime,
-    command: &mut Vec<OsString>,
-) -> Result<(OsString, Vec<OsString>)> {
-    let exe = match which_spfs("enter") {
-        None => return Err(Error::MissingBinary("spfs-enter")),
-        Some(exe) => exe,
-    };
-
-    let mut args = vec![
+    let args = vec![
+        "--remount".into(),
         "--runtime-storage".into(),
         rt.storage().address().to_string().into(),
         "--runtime".into(),
         rt.name().into(),
         "--".into(),
     ];
-    args.append(command);
-    Ok((exe.into(), args))
+    Ok(Command {
+        executable: exe.into(),
+        args,
+    })
+}
+
+fn build_spfs_enter_command<E, A, S>(rt: &runtime::Runtime, command: E, args: A) -> Result<Command>
+where
+    E: Into<OsString>,
+    A: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let exe = match which_spfs("enter") {
+        None => return Err(Error::MissingBinary("spfs-enter")),
+        Some(exe) => exe,
+    };
+
+    let mut enter_args = vec![
+        "--runtime-storage".into(),
+        rt.storage().address().to_string().into(),
+        "--runtime".into(),
+        rt.name().into(),
+        "--".into(),
+        command.into(),
+    ];
+    enter_args.extend(args.into_iter().map(Into::into));
+    Ok(Command {
+        executable: exe.into(),
+        args: enter_args,
+    })
 }

@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{build_interactive_shell_cmd, build_shell_initialized_command};
+use super::{build_interactive_shell_command, build_shell_initialized_command};
 use crate::{resolve::which, runtime};
 use std::{ffi::OsString, process::Command};
 
@@ -69,14 +69,8 @@ async fn test_shell_initialization_startup_scripts(
     std::fs::write(tmp_startup_dir.join(startup_script), startup_cmd).unwrap();
 
     std::env::set_var("SHELL", &shell_path);
-    let args = build_shell_initialized_command(
-        &rt,
-        OsString::from("printenv"),
-        &mut vec![OsString::from("TEST_VALUE")],
-    )
-    .unwrap();
-    let mut cmd = Command::new(args.get(0).unwrap());
-    cmd.args(args[1..].iter());
+    let cmd = build_shell_initialized_command(&rt, "printenv", vec!["TEST_VALUE"]).unwrap();
+    let mut cmd = cmd.into_std();
     setenv(&mut cmd);
     println!("{cmd:?}");
     let out = cmd.output().unwrap();
@@ -126,10 +120,8 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
     }
 
     std::env::set_var("SHELL", &shell_path);
-    let args =
-        build_shell_initialized_command(&rt, OsString::from("echo"), &mut Vec::new()).unwrap();
-    let mut cmd = Command::new(args.get(0).unwrap());
-    cmd.args(args[1..].iter());
+    let cmd = build_shell_initialized_command(&rt, "echo", Option::<OsString>::None).unwrap();
+    let mut cmd = cmd.into_std();
     setenv(&mut cmd);
     println!("{cmd:?}");
     let out = cmd.output().unwrap();
@@ -159,9 +151,12 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempdir::TempDir) {
     make_exe(&tmp_shell);
     make_exe(&tmpdir.path().join("expect")); // for tcsh
 
-    let cmd = build_interactive_shell_cmd(&rt).unwrap();
+    let cmd = build_interactive_shell_command(&rt).unwrap();
     let expected = tmp_shell.as_os_str().to_os_string();
-    assert!(cmd.contains(&expected), "should find shell in PATH");
+    assert!(
+        cmd.executable == expected || cmd.args.contains(&expected),
+        "should find shell in PATH"
+    );
 
     std::env::set_var("PATH", original_path);
     std::env::set_var("SHELL", original_shell);

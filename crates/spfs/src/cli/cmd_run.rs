@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::ffi::OsString;
+use std::os::unix::ffi::OsStrExt;
+
 use clap::Parser;
 
 use spfs::prelude::*;
@@ -30,8 +33,15 @@ pub struct CmdRun {
     /// Use '-' or an empty string to request an empty environment
     pub reference: String,
 
-    pub cmd: String,
-    pub args: Vec<String>,
+    /// The command to run in the environment
+    pub command: OsString,
+
+    /// Additional arguments to provide to the command
+    ///
+    /// In order to ensure that flags are passed as-is, place '--' before
+    /// specifying any flags that should be given to the subcommand:
+    ///   eg spfs enter <args> -- command --flag-for-command
+    pub args: Vec<OsString>,
 }
 
 impl CmdRun {
@@ -59,28 +69,25 @@ impl CmdRun {
             }
         }
 
-        // NOTE: there is a reliance here on set_editable also
-        //       saving the changes made to the command field
-        runtime.status.command = vec![self.cmd.clone()];
-        runtime.status.command.extend(self.args.iter().cloned());
-        runtime.set_editable(self.edit).await?;
+        runtime.status.command = vec![self.command.to_string_lossy().to_string()];
+        runtime
+            .status
+            .command
+            .extend(self.args.iter().map(|s| s.to_string_lossy().to_string()));
+        runtime.status.editable = self.edit;
+        runtime.write_config().await?;
 
         tracing::debug!("resolving entry process");
-        let (cmd, args) = spfs::build_command_for_runtime(
-            &runtime,
-            self.cmd.clone().into(),
-            &mut self.args.iter().cloned().map(Into::into).collect(),
-        )?;
-        tracing::trace!("{:?} {:?}", cmd, args);
-        use std::os::unix::ffi::OsStrExt;
-        let cmd = std::ffi::CString::new(cmd.as_bytes()).unwrap();
-        let mut args: Vec<_> = args
+        let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;
+        tracing::trace!(?cmd);
+        let exe = std::ffi::CString::new(cmd.executable.as_bytes()).unwrap();
+        let mut args: Vec<_> = cmd
+            .args
             .into_iter()
             .map(|arg| std::ffi::CString::new(arg.as_bytes()).unwrap())
             .collect();
-        args.insert(0, cmd.clone());
-        runtime.set_running(true).await?;
-        nix::unistd::execv(cmd.as_ref(), args.as_slice())?;
+        args.insert(0, exe.clone());
+        nix::unistd::execv(exe.as_ref(), args.as_slice())?;
         Ok(0)
     }
 }

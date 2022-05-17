@@ -34,9 +34,9 @@ pub async fn make_active_runtime_editable() -> Result<()> {
 
 /// Remount the given runtime as configured.
 pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
-    let (cmd, args) = bootstrap::build_spfs_remount_command(rt)?;
-    let mut cmd = tokio::process::Command::new(cmd);
-    cmd.args(&args);
+    let command = bootstrap::build_spfs_remount_command(rt)?;
+    let mut cmd = tokio::process::Command::new(command.executable);
+    cmd.args(command.args);
     tracing::debug!("{:?}", cmd);
     let res = cmd.status().await?;
     if res.code() != Some(0) {
