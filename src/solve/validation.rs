@@ -87,9 +87,6 @@ impl ValidatorT for DeprecationValidator {
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
-const ONLY_BINARY_PACKAGES_ALLOWED: &str =
-    "Skipping /src build, building from source is not-enabled";
-
 impl ValidatorT for BinaryOnlyValidator {
     fn validate(
         &self,
@@ -98,15 +95,17 @@ impl ValidatorT for BinaryOnlyValidator {
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.pkg.build.is_none() {
-            return Ok(api::Compatibility::Incompatible(
-                ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
-            ));
+            return Ok(api::Compatibility::Incompatible(format!(
+                "Skipping {}, it has no build, building from source is not enabled",
+                spec.pkg
+            )));
         }
         let request = state.get_merged_request(&spec.pkg.name)?;
         if spec.pkg.build == Some(Build::Source) && request.pkg.build != spec.pkg.build {
-            return Ok(api::Compatibility::Incompatible(
-                ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
-            ));
+            return Ok(api::Compatibility::Incompatible(format!(
+                "Skipping {} build, building from source is not enabled",
+                spec.pkg
+            )));
         }
         Ok(api::Compatibility::Compatible)
     }

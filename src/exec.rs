@@ -20,7 +20,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 // build doesn't exist in a repo.
                 let spec_options = resolved.spec.resolve_all_options(&solution.options());
                 return Err(Error::String(format!(
-                    "Solution includes package that needs building from /src: {} with these options: {}",
+                    "Solution includes package that needs building from source: {} with these options: {}",
                     resolved.spec.pkg,
                     io::format_options(&spec_options)
                 )));
