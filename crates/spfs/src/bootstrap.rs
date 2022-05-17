@@ -20,22 +20,9 @@ pub fn build_command_for_runtime(
     command: OsString,
     args: &mut Vec<OsString>,
 ) -> Result<(OsString, Vec<OsString>)> {
-    match which_spfs("init") {
-        None => Err(Error::MissingBinary("spfs-init")),
-        Some(spfs_init_exe) => {
-            let mut spfs_args = vec![
-                spfs_init_exe.as_os_str().to_owned(),
-                "--runtime-storage".into(),
-                runtime.storage().address().to_string().into(),
-                "--runtime".into(),
-                runtime.name().into(),
-                "--".into(),
-                command,
-            ];
-            spfs_args.append(args);
-            build_spfs_enter_command(runtime, &mut spfs_args)
-        }
-    }
+    let mut spfs_args = vec![command];
+    spfs_args.append(args);
+    build_spfs_enter_command(runtime, &mut spfs_args)
 }
 
 /// Return a command that initializes and runs an interactive shell

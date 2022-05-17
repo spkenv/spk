@@ -36,7 +36,6 @@ main!(Opt);
 #[clap(
     about,
     after_help = "EXTERNAL SUBCOMMANDS:\
-                  \n    init         run a command in the current spfs shell environment\
                   \n    run          run a command in an spfs environment\
                   \n    shell        create a new shell in an spfs environment\
                   \n    pull         pull one or more object to the local repository\

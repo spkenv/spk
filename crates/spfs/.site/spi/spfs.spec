@@ -45,7 +45,6 @@ done
 /usr/bin/spfs-shell
 /usr/bin/spfs-push
 /usr/bin/spfs-pull
-/usr/bin/spfs-init
 /usr/bin/spfs-server
 %caps(cap_chown,cap_fowner+ep) /usr/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/bin/spfs-join
