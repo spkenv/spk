@@ -24,6 +24,13 @@ impl Command {
         cmd.args(self.args);
         cmd
     }
+
+    /// Turns this command into an asynchonusly runnable one
+    pub fn into_tokio(self) -> tokio::process::Command {
+        let mut cmd = tokio::process::Command::new(self.executable);
+        cmd.args(self.args);
+        cmd
+    }
 }
 
 impl std::fmt::Debug for Command {

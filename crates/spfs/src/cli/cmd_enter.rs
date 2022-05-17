@@ -75,7 +75,22 @@ impl CmdEnter {
             owned.set_running(true).await?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
-            let res = self.exec_runtime_command(&owned);
+            let mut interrupt =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+            let mut quit = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::quit())?;
+
+            let mut child = self.exec_runtime_command(&owned).await?;
+            let res = loop {
+                tokio::select! {
+                    res = child.wait() => break res,
+                    // we explicitly catch and ignore signals related to interruption
+                    // assuming that the child process will receive them and act
+                    // accordingly. This is also to ensure that we never exit before
+                    // the child and forget to clean up the runtime data
+                    _ = interrupt.recv() => {},
+                    _ = quit.recv() => {},
+                }
+            };
 
             // try to set the running to false to make this
             // runtime easier to identify as safe to delete
@@ -85,11 +100,14 @@ impl CmdEnter {
             if let Err(err) = owned.delete().await {
                 tracing::error!("failed to clean up runtime data: {err:?}")
             }
-            res
+            Ok(res?.code().unwrap_or(1))
         }
     }
 
-    fn exec_runtime_command(&mut self, rt: &spfs::runtime::OwnedRuntime) -> spfs::Result<i32> {
+    async fn exec_runtime_command(
+        &mut self,
+        rt: &spfs::runtime::OwnedRuntime,
+    ) -> spfs::Result<tokio::process::Child> {
         let cmd = match self.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
@@ -100,8 +118,8 @@ impl CmdEnter {
                 spfs::build_interactive_shell_command(rt)?
             }
         };
-        let mut proc = cmd.into_std();
+        let mut proc = cmd.into_tokio();
         tracing::debug!("{:?}", proc);
-        Ok(proc.status()?.code().unwrap_or(1))
+        Ok(proc.spawn()?)
     }
 }
