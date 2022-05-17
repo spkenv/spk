@@ -55,16 +55,16 @@ impl Run for Install {
             .get_initial_state()
             .pkg_requests
             .iter()
-            .map(|r| r.pkg.name().to_string())
+            .map(|r| r.pkg.name.clone())
             .collect();
         let mut primary = Vec::new();
         let mut tertiary = Vec::new();
         for solved in solution.items() {
-            if requested.contains(solved.spec.pkg.name()) {
+            if requested.contains(&solved.spec.pkg.name) {
                 primary.push(solved.spec);
                 continue;
             }
-            if solution.get(solved.request.pkg.name()).is_none() {
+            if solution.get(&solved.request.pkg.name).is_none() {
                 tertiary.push(solved.spec)
             }
         }

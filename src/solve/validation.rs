@@ -73,7 +73,7 @@ impl ValidatorT for DeprecationValidator {
                 "package version is deprecated".to_owned(),
             ));
         }
-        let request = state.get_merged_request(spec.pkg.name())?;
+        let request = state.get_merged_request(&spec.pkg.name)?;
         if request.pkg.build == spec.pkg.build {
             return Ok(api::Compatibility::Compatible);
         }
@@ -101,7 +101,7 @@ impl ValidatorT for BinaryOnlyValidator {
                 ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
             ));
         }
-        let request = state.get_merged_request(spec.pkg.name())?;
+        let request = state.get_merged_request(&spec.pkg.name)?;
         if spec.pkg.build == Some(Build::Source) && request.pkg.build != spec.pkg.build {
             return Ok(api::Compatibility::Incompatible(
                 ONLY_BINARY_PACKAGES_ALLOWED.to_owned(),
@@ -143,7 +143,7 @@ impl EmbeddedPackageValidator {
         state: &graph::State,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};
-        let existing = match state.get_merged_request(embedded.pkg.name()) {
+        let existing = match state.get_merged_request(&embedded.pkg.name) {
             Ok(request) => request,
             Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             Err(err) => return Err(err.into()),
@@ -175,7 +175,7 @@ impl ValidatorT for OptionsValidator {
         let qualified_requests: HashSet<_> = requests
             .iter()
             .filter_map(|r| {
-                if Some(spec.pkg.name()) == r.package() {
+                if Some(&spec.pkg.name) == r.package().as_ref() {
                     Some(r.base_name().to_string())
                 } else {
                     None
@@ -212,7 +212,7 @@ impl ValidatorT for PkgRequestValidator {
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        let request = match state.get_merged_request(spec.pkg.name()) {
+        let request = match state.get_merged_request(&spec.pkg.name) {
             Ok(request) => request,
             // FIXME: This should only catch KeyError
             Err(_) => {
@@ -254,7 +254,7 @@ impl ValidatorT for ComponentsValidator {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::Spec(_) => spec.install.components.names(),
         };
-        let request = state.get_merged_request(spec.pkg.name())?;
+        let request = state.get_merged_request(&spec.pkg.name)?;
         let required_components = spec
             .install
             .components
@@ -336,7 +336,7 @@ impl PkgRequirementsValidator {
             _ => return Ok(Compatible),
         };
 
-        let existing = match state.get_merged_request(request.pkg.name()) {
+        let existing = match state.get_merged_request(&request.pkg.name) {
             Ok(request) => request,
             Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             // XXX: KeyError or ValueError still possible here?
@@ -353,7 +353,7 @@ impl PkgRequirementsValidator {
             Err(err) => return Err(err),
         };
 
-        let (resolved, provided_components) = match state.get_current_resolve(request.pkg.name()) {
+        let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
                 PackageSource::Spec(_) => (spec, spec.install.components.names()),
@@ -392,10 +392,7 @@ impl PkgRequirementsValidator {
                 if !&compat {
                     return Ok(Compatibility::Incompatible(format!(
                         "requires {}:{} which embeds {}, and {}",
-                        resolved.pkg.name(),
-                        component.name,
-                        embedded.pkg.name(),
-                        compat,
+                        resolved.pkg.name, component.name, embedded.pkg.name, compat,
                     )));
                 }
             }
@@ -413,8 +410,7 @@ impl PkgRequirementsValidator {
         if !&compat {
             return Ok(Incompatible(format!(
                 "conflicting requirement: '{}' {}",
-                request.pkg.name(),
-                compat
+                request.pkg.name, compat
             )));
         }
 
@@ -433,7 +429,7 @@ impl PkgRequirementsValidator {
                     .into_iter()
                     .map(api::Component::to_string)
                     .join("\n"),
-                request.pkg.name(),
+                request.pkg.name,
             )));
         }
 

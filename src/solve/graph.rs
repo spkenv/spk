@@ -9,7 +9,7 @@ use std::iter::FromIterator;
 use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::api::{self, Ident, InclusionPolicy};
+use crate::api::{self, Ident, InclusionPolicy, PkgName};
 
 use super::errors::{self, GetMergedRequestError};
 use super::{
@@ -241,11 +241,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         ))];
         // we need to check if this request will change a previously
         // resolved package (eg: by adding a new component with new requirements)
-        let (spec, _source) = match self.base.get_current_resolve(req.pkg.name()) {
+        let (spec, _source) = match self.base.get_current_resolve(&req.pkg.name) {
             Ok(e) => e,
             Err(_) => return changes,
         };
-        let existing = match self.base.get_merged_request(req.pkg.name()) {
+        let existing = match self.base.get_merged_request(&req.pkg.name) {
             Ok(r) => r,
             // the error case here should not be possible since we have
             // already found a resolved package...
@@ -294,13 +294,13 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     fn options_to_change(spec: &api::Spec) -> Change {
         let mut opts = api::OptionMap::default();
         opts.insert(
-            spec.pkg.name().to_owned(),
+            spec.pkg.name.to_string(),
             spec.compat.render(&spec.pkg.version),
         );
         for opt in &spec.build.options {
             let value = opt.get_value(None);
             if !value.is_empty() {
-                let name = opt.namespaced_name(spec.pkg.name());
+                let name = opt.namespaced_name(&spec.pkg.name);
                 opts.insert(name, value);
             }
         }
@@ -343,7 +343,7 @@ impl Graph {
                 None => {
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
                     for (name, iterator) in old_node.read().unwrap().iterators.iter() {
-                        new_node_lock.set_iterator(name, iterator)
+                        new_node_lock.set_iterator(name.clone(), iterator)
                     }
                 }
                 Some(node) => {
@@ -484,7 +484,7 @@ pub struct Node {
     outputs: HashSet<u64>,
     outputs_decisions: Vec<Decision>,
     pub state: Arc<State>,
-    iterators: HashMap<String, Arc<Mutex<Box<dyn PackageIterator>>>>,
+    iterators: HashMap<PkgName, Arc<Mutex<Box<dyn PackageIterator>>>>,
 }
 
 impl Node {
@@ -502,7 +502,10 @@ impl Node {
         Ok(())
     }
 
-    pub fn get_iterator(&self, package_name: &str) -> Option<Arc<Mutex<Box<dyn PackageIterator>>>> {
+    pub fn get_iterator(
+        &self,
+        package_name: &PkgName,
+    ) -> Option<Arc<Mutex<Box<dyn PackageIterator>>>> {
         self.iterators.get(package_name).cloned()
     }
 
@@ -524,14 +527,15 @@ impl Node {
 
     pub fn set_iterator(
         &mut self,
-        package_name: &str,
+        package_name: api::PkgName,
         iterator: &Arc<Mutex<Box<dyn PackageIterator>>>,
     ) {
-        if self.iterators.contains_key(package_name) {
-            panic!("iterator already exists [INTERNAL ERROR]");
+        if self.iterators.contains_key(&package_name) {
+            tracing::error!("iterator already exists [INTERNAL ERROR]");
+            debug_assert!(false, "iterator already exists [INTERNAL ERROR]");
         }
         self.iterators.insert(
-            package_name.to_owned(),
+            package_name,
             Arc::new(Mutex::new(iterator.lock().unwrap().clone())),
         );
     }
@@ -824,7 +828,7 @@ impl State {
         let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
         for (spec, source) in self.packages.iter() {
             let req = self
-                .get_merged_request(spec.pkg.name())
+                .get_merged_request(&spec.pkg.name)
                 .map_err(GraphError::RequestError)?;
             solution.add(&req, spec.clone(), source.clone());
         }
@@ -842,11 +846,11 @@ impl State {
 
     pub fn get_current_resolve(
         &self,
-        name: &str,
+        name: &PkgName,
     ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
         // TODO: cache this
         for (spec, source) in &*self.packages {
-            if spec.pkg.name() == name {
+            if spec.pkg.name == *name {
                 return Ok((spec, source));
             }
         }
@@ -858,20 +862,20 @@ impl State {
 
     pub fn get_merged_request(
         &self,
-        name: &str,
+        name: &PkgName,
     ) -> errors::GetMergedRequestResult<api::PkgRequest> {
         // tests reveal this method is not safe to cache.
         let mut merged: Option<api::PkgRequest> = None;
         for request in self.pkg_requests.iter() {
             match merged.as_mut() {
                 None => {
-                    if request.pkg.name() != name {
+                    if request.pkg.name != *name {
                         continue;
                     }
                     merged = Some(request.clone());
                 }
                 Some(merged) => {
-                    if request.pkg.name() != merged.pkg.name() {
+                    if request.pkg.name != merged.pkg.name {
                         continue;
                     }
                     merged.restrict(request)?;
@@ -889,19 +893,19 @@ impl State {
 
     pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
         // tests reveal this method is not safe to cache.
-        let packages: HashSet<&str> = self
+        let packages: HashSet<&PkgName> = self
             .packages
             .iter()
-            .map(|(spec, _)| spec.pkg.name())
+            .map(|(spec, _)| &spec.pkg.name)
             .collect();
         for request in self.pkg_requests.iter() {
-            if packages.contains(request.pkg.name()) {
+            if packages.contains(&request.pkg.name) {
                 continue;
             }
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
                 continue;
             }
-            return Ok(Some(self.get_merged_request(request.pkg.name())?));
+            return Ok(Some(self.get_merged_request(&request.pkg.name)?));
         }
 
         Ok(None)

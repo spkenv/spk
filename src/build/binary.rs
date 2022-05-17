@@ -207,7 +207,7 @@ impl BinaryPackageBuilder {
         let compat = self
             .spec
             .build
-            .validate_options(self.spec.pkg.name(), &self.all_options);
+            .validate_options(&self.spec.pkg.name, &self.all_options);
         if !&compat {
             return Err(Error::String(compat.to_string()));
         }
@@ -296,7 +296,7 @@ impl BinaryPackageBuilder {
         for opt in self.spec.build.options.iter() {
             match opt {
                 api::Opt::Pkg(opt) => {
-                    let given_value = opts.get(&opt.pkg).map(String::to_owned);
+                    let given_value = opts.get(opt.pkg.as_str()).map(String::to_owned);
                     let mut req = opt.to_request(given_value)?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
@@ -453,8 +453,8 @@ impl BinaryPackageBuilder {
             }
         }
 
-        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.pkg.name()));
-        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.pkg.name()));
+        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.pkg.name));
+        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.pkg.name));
         let mut csh_file = std::fs::File::create(startup_file_csh)?;
         let mut sh_file = std::fs::File::create(startup_file_sh)?;
         for op in ops {
@@ -469,7 +469,7 @@ impl BinaryPackageBuilder {
 pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
     let mut env = HashMap::with_capacity(8);
     env.insert("SPK_PKG".to_string(), spec.pkg.to_string());
-    env.insert("SPK_PKG_NAME".to_string(), spec.pkg.name().to_string());
+    env.insert("SPK_PKG_NAME".to_string(), spec.pkg.name.to_string());
     env.insert("SPK_PKG_VERSION".to_string(), spec.pkg.version.to_string());
     env.insert(
         "SPK_PKG_BUILD".to_string(),
@@ -562,12 +562,7 @@ fn split_manifest_by_component(
         }
         for node in manifest.walk() {
             if relevant_paths.contains(&node.path) {
-                tracing::debug!(
-                    "{}:{} collecting {:?}",
-                    pkg.name(),
-                    component.name,
-                    node.path
-                );
+                tracing::debug!("{}:{} collecting {:?}", pkg.name, component.name, node.path);
                 let mut entry = node.entry.clone();
                 if entry.is_dir() {
                     // we will be building back up any directory with

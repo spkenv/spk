@@ -395,7 +395,7 @@ where
 
     for path in find_packages()? {
         let spec = spk::api::read_spec_file(&path)?;
-        if spec.pkg.name() == package.as_ref() {
+        if spec.pkg.name.as_str() == package.as_ref() {
             return Ok(Found { path, spec });
         }
     }

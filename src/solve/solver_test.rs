@@ -208,7 +208,7 @@ macro_rules! assert_resolved {
         let names: std::collections::HashSet<_> = $solution
             .items()
             .into_iter()
-            .map(|s| s.spec.pkg.name().to_owned())
+            .map(|s| s.spec.pkg.name.to_string())
             .collect();
         let expected: std::collections::HashSet<_> = vec![
             $( $pkg.to_string() ),*

@@ -167,6 +167,42 @@ impl Display for VersionRange {
     }
 }
 
+impl std::str::FromStr for VersionRange {
+    type Err = Error;
+
+    fn from_str(rule_str: &str) -> Result<Self> {
+        if let Some(end) = rule_str.strip_prefix('^') {
+            SemverRange::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix('~') {
+            LowestSpecifiedRange::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix(">=") {
+            GreaterThanOrEqualToRange::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix("<=") {
+            LessThanOrEqualToRange::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix('>') {
+            GreaterThanRange::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix('<') {
+            LessThanRange::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix("==") {
+            let version = Version::from_str(end)?;
+            Ok(DoubleEqualsVersion::version_range(version))
+        } else if let Some(end) = rule_str.strip_prefix('=') {
+            let version = Version::from_str(end)?;
+            Ok(EqualsVersion::version_range(version))
+        } else if let Some(end) = rule_str.strip_prefix("!==") {
+            DoubleNotEqualsVersion::new_version_range(end)
+        } else if let Some(end) = rule_str.strip_prefix("!=") {
+            NotEqualsVersion::new_version_range(end)
+        } else if rule_str.contains('*') {
+            WildcardRange::new_version_range(rule_str)
+        } else if rule_str.is_empty() {
+            WildcardRange::new_version_range("*")
+        } else {
+            CompatRange::new_version_range(rule_str)
+        }
+    }
+}
+
 impl<T: Ranged> From<&T> for VersionRange {
     fn from(other: &T) -> Self {
         other.to_owned().into()
@@ -1027,38 +1063,13 @@ impl FromStr for VersionFilter {
             return Ok(out);
         }
         for rule_str in range.split(VERSION_RANGE_SEP) {
-            let rule = if rule_str.is_empty() {
+            if rule_str.is_empty() {
                 return Err(Error::String(format!(
                     "Empty segment not allowed in version range, got: {}",
                     range
                 )));
-            } else if let Some(end) = rule_str.strip_prefix('^') {
-                SemverRange::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix('~') {
-                LowestSpecifiedRange::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix(">=") {
-                GreaterThanOrEqualToRange::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix("<=") {
-                LessThanOrEqualToRange::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix('>') {
-                GreaterThanRange::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix('<') {
-                LessThanRange::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix("==") {
-                let version = Version::from_str(end)?;
-                DoubleEqualsVersion::version_range(version)
-            } else if let Some(end) = rule_str.strip_prefix('=') {
-                let version = Version::from_str(end)?;
-                EqualsVersion::version_range(version)
-            } else if let Some(end) = rule_str.strip_prefix("!==") {
-                DoubleNotEqualsVersion::new_version_range(end)?
-            } else if let Some(end) = rule_str.strip_prefix("!=") {
-                NotEqualsVersion::new_version_range(end)?
-            } else if rule_str.contains('*') {
-                WildcardRange::new_version_range(rule_str)?
-            } else {
-                CompatRange::new_version_range(rule_str)?
-            };
+            }
+            let rule = VersionRange::from_str(rule_str)?;
             out.rules.insert(rule);
         }
 

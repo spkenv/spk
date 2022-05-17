@@ -6,7 +6,7 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{parse_build, parse_version, validate_name, Build, InvalidNameError, Version};
+use super::{parse_build, parse_version, Build, InvalidNameError, PkgName, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -35,9 +35,9 @@ macro_rules! ident {
 /// The identifier is either a specific package or
 /// range of package versions/releases depending on the
 /// syntax and context
-#[derive(Clone, Hash, PartialEq, Eq, Default, Ord, PartialOrd)]
+#[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident {
-    name: String,
+    pub name: PkgName,
     pub version: Version,
     pub build: Option<Build>,
 }
@@ -91,17 +91,12 @@ impl Ident {
 }
 
 impl Ident {
-    pub fn new<S: AsRef<str>>(name: S) -> crate::Result<Self> {
-        validate_name(name.as_ref())?;
-        Ok(Self {
-            name: name.as_ref().to_string(),
-            ..Default::default()
-        })
-    }
-
-    /// The validated name portion of this identifier
-    pub fn name(&self) -> &str {
-        self.name.as_str()
+    pub fn new(name: PkgName) -> Self {
+        Self {
+            name,
+            version: Default::default(),
+            build: Default::default(),
+        }
     }
 
     /// A string containing the properly formatted name and version number
@@ -118,6 +113,12 @@ impl Ident {
                 }
             }
         }
+    }
+}
+
+impl From<PkgName> for Ident {
+    fn from(n: PkgName) -> Self {
+        Self::new(n)
     }
 }
 
@@ -162,7 +163,7 @@ impl FromStr for Ident {
             )));
         }
 
-        let mut ident = Self::new(name)?;
+        let mut ident = Self::new(name.parse()?);
         if let Some(version) = version {
             ident.version = parse_version(version)?;
         }

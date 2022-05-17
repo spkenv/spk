@@ -43,9 +43,8 @@ macro_rules! spec {
     }};
 }
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct Spec {
-    #[serde(default)]
     pub pkg: Ident,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
@@ -64,9 +63,23 @@ pub struct Spec {
 }
 
 impl Spec {
+    /// Create an empty spec for the identified package
+    pub fn new(ident: Ident) -> Self {
+        Self {
+            pkg: ident,
+            meta: Meta::default(),
+            compat: Compat::default(),
+            deprecated: bool::default(),
+            sources: Vec::new(),
+            build: BuildSpec::default(),
+            tests: Vec::new(),
+            install: InstallSpec::default(),
+        }
+    }
+
     /// Return the full set of resolved build options using the given ones.
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
-        self.build.resolve_all_options(Some(self.pkg.name()), given)
+        self.build.resolve_all_options(Some(&self.pkg.name), given)
     }
     /// Check if this package spec satisfies the given request.
     pub fn sastisfies_request(&self, request: Request) -> Compatibility {
@@ -78,7 +91,7 @@ impl Spec {
 
     /// Check if this package spec satisfies the given var request.
     pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.package() == Some(self.pkg.name());
+        let opt_required = request.package().as_ref() == Some(&self.pkg.name);
         let mut opt: Option<&Opt> = None;
         let request_name = &request.var;
         for o in self.build.options.iter() {
@@ -86,7 +99,7 @@ impl Spec {
                 opt = Some(o);
                 break;
             }
-            if request_name == &o.namespaced_name(self.pkg.name()) {
+            if request_name == &o.namespaced_name(&self.pkg.name) {
                 opt = Some(o);
                 break;
             }
@@ -121,11 +134,10 @@ impl Spec {
 
     /// Check if this package spec satisfies the given pkg request.
     pub fn satisfies_pkg_request(&self, request: &PkgRequest) -> Compatibility {
-        if request.pkg.name() != self.pkg.name() {
+        if request.pkg.name != self.pkg.name {
             return Compatibility::Incompatible(format!(
                 "different package name: {} != {}",
-                request.pkg.name(),
-                self.pkg.name()
+                request.pkg.name, self.pkg.name
             ));
         }
 
@@ -161,7 +173,7 @@ impl Spec {
     {
         let specs: HashMap<_, _> = resolved
             .into_iter()
-            .map(|s| (s.as_ref().pkg.name().to_string(), s))
+            .map(|s| (s.as_ref().pkg.name.clone(), s))
             .collect();
         for (dep_name, dep_spec) in specs.iter() {
             for opt in dep_spec.as_ref().build.options.iter() {
@@ -235,7 +247,6 @@ impl<'de> Deserialize<'de> for Spec {
     {
         #[derive(Deserialize)]
         struct SpecSchema {
-            #[serde(default)]
             pkg: Ident,
             #[serde(default)]
             meta: Meta,

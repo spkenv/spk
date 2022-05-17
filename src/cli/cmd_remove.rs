@@ -61,7 +61,7 @@ impl Run for Remove {
                 let versions = if name.contains('/') {
                     vec![pkg]
                 } else {
-                    repo.list_package_versions(name)?
+                    repo.list_package_versions(&pkg.name)?
                         .into_iter()
                         .map(|v| pkg.with_version(v))
                         .collect()

@@ -39,7 +39,7 @@ impl Run for Export {
             build = format!("_{b}");
         }
         let filename = self.filename.clone().unwrap_or_else(|| {
-            std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name(), pkg.version))
+            std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name, pkg.version))
         });
         let res = spk::storage::export_package(&pkg, &filename);
         if let Err(spk::Error::PackageNotFoundError(_)) = res {

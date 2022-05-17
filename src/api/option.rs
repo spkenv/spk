@@ -1,14 +1,14 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryFrom;
+use std::{convert::TryFrom, str::FromStr};
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    parse_ident_range, CompatRule, Compatibility, InclusionPolicy, PkgRequest, PreReleasePolicy,
-    Request, VarRequest,
+    CompatRule, Compatibility, InclusionPolicy, PkgName, PkgRequest, PreReleasePolicy, Ranged,
+    Request, VarRequest, VersionRange,
 };
 use crate::{Error, Result};
 
@@ -118,11 +118,11 @@ impl TryFrom<Request> for Opt {
                     .pkg
                     .to_string()
                     .chars()
-                    .skip(request.pkg.name().len())
+                    .skip(request.pkg.name.len())
                     .skip(1)
                     .collect();
                 Ok(Opt::Pkg(PkgOpt {
-                    pkg: request.pkg.name().to_owned(),
+                    pkg: request.pkg.name.clone(),
                     default,
                     prerelease_policy: request.prerelease_policy,
                     value: None,
@@ -356,7 +356,7 @@ impl<'de> Deserialize<'de> for VarOpt {
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PkgOpt {
-    pub pkg: String,
+    pub pkg: PkgName,
     pub default: String,
     pub prerelease_policy: PreReleasePolicy,
     pub required_compat: Option<CompatRule>,
@@ -364,10 +364,9 @@ pub struct PkgOpt {
 }
 
 impl PkgOpt {
-    pub fn new<S: AsRef<str>>(name: S) -> Result<Self> {
-        super::validate_name(name.as_ref())?;
+    pub fn new(name: PkgName) -> Result<Self> {
         Ok(Self {
-            pkg: name.as_ref().to_string(),
+            pkg: name,
             default: String::default(),
             prerelease_policy: PreReleasePolicy::default(),
             value: None,
@@ -386,8 +385,7 @@ impl PkgOpt {
     }
 
     pub fn set_value(&mut self, value: String) -> Result<()> {
-        let ident = format!("{}/{}", self.pkg, value);
-        if let Err(err) = parse_ident_range(ident) {
+        if let Err(err) = VersionRange::from_str(&value) {
             return Err(Error::wrap(
                 format!(
                     "Invalid value '{}' for option '{}', not a valid package request",
@@ -409,8 +407,11 @@ impl PkgOpt {
 
         // skip any default that might exist since
         // that does not represent a definitive range
-        let base = self.value.as_deref().unwrap_or_default();
-        let base_range = match parse_ident_range(format!("{}/{}", self.pkg, base)) {
+        let base = match &self.value {
+            None => return Compatibility::Compatible,
+            Some(v) => v,
+        };
+        let base_range = match VersionRange::from_str(base) {
             Err(err) => {
                 return Compatibility::Incompatible(format!(
                     "Invalid value '{}' for option '{}', not a valid package request: {}",
@@ -419,7 +420,7 @@ impl PkgOpt {
             }
             Ok(r) => r,
         };
-        match parse_ident_range(format!("{}/{}", self.pkg, value)) {
+        match VersionRange::from_str(value) {
             Err(err) => Compatibility::Incompatible(format!(
                 "Invalid value '{}' for option '{}', not a valid package request: {}",
                 value, self.pkg, err
@@ -431,7 +432,12 @@ impl PkgOpt {
     pub fn to_request(&self, given_value: Option<String>) -> Result<PkgRequest> {
         let value = self.get_value(given_value.as_deref()).unwrap_or_default();
         Ok(PkgRequest {
-            pkg: parse_ident_range(format!("{}/{}", self.pkg, value))?,
+            pkg: super::RangeIdent {
+                name: self.pkg.clone(),
+                version: value.parse()?,
+                components: Default::default(),
+                build: None,
+            },
             pin: None,
             prerelease_policy: self.prerelease_policy,
             inclusion_policy: InclusionPolicy::default(),
@@ -471,7 +477,7 @@ impl Serialize for PkgOpt {
         S: serde::ser::Serializer,
     {
         let mut out = PkgOptSchema {
-            pkg: self.pkg.clone(),
+            pkg: self.pkg.to_string(),
             prerelease_policy: self.prerelease_policy,
             value: self.value.clone().unwrap_or_default(),
             default: None,
@@ -490,21 +496,29 @@ impl<'de> Deserialize<'de> for PkgOpt {
         D: serde::Deserializer<'de>,
     {
         let data = PkgOptSchema::deserialize(deserializer)?;
+
+        let (pkg, default) = if let Some(default) = data.default {
+            // the default field is deprecated, but we support it for existing packages
+            (data.pkg.parse().map_err(serde::de::Error::custom)?, default)
+        } else {
+            let mut split = data.pkg.split('/');
+            (
+                split
+                    .next()
+                    .unwrap()
+                    .parse()
+                    .map_err(serde::de::Error::custom)?,
+                split.collect::<Vec<_>>().join(""),
+            )
+        };
+
         let mut out = PkgOpt {
-            pkg: data.pkg.clone(),
-            default: "".to_string(),
+            pkg,
+            default,
             prerelease_policy: data.prerelease_policy,
             value: None,
             required_compat: None,
         };
-        if let Some(default) = data.default {
-            // the default field is deprecated, but we support it for existing packages
-            out.default = default;
-        } else {
-            let mut split = data.pkg.split('/');
-            out.pkg = split.next().unwrap().to_string();
-            out.default = split.collect::<Vec<_>>().join("");
-        }
 
         if let Compatibility::Incompatible(err) = out.validate(Some(&out.default)) {
             return Err(serde::de::Error::custom(err));

@@ -60,13 +60,18 @@ impl Run for Ls {
         match &self.package {
             None => {
                 for (_repo_name, repo) in repos {
-                    results.extend(repo.list_packages()?)
+                    results.extend(
+                        repo.list_packages()?
+                            .into_iter()
+                            .map(spk::api::PkgName::into),
+                    )
                 }
             }
             Some(package) if !package.contains('/') => {
+                let name = package.parse()?;
                 for (_, repo) in repos {
                     results.extend(
-                        repo.list_package_versions(package)?
+                        repo.list_package_versions(&name)?
                             .iter()
                             .map(ToString::to_string),
                     );
@@ -99,11 +104,11 @@ impl Ls {
         for (index, (repo_name, repo)) in repos.iter().enumerate() {
             let num_packages = packages.len();
             match &self.package {
-                Some(package) => {
-                    packages.push((package.to_owned(), index));
-                }
                 None => {
                     packages.extend(repo.list_packages()?.into_iter().map(|p| (p, index)));
+                }
+                Some(package) => {
+                    packages.push((package.parse()?, index));
                 }
             };
             // Ignore this repo name if it didn't contribute any packages.
@@ -117,8 +122,8 @@ impl Ls {
             let mut versions = if package.contains('/') {
                 vec![spk::api::parse_ident(&package)?]
             } else {
-                let base = spk::api::Ident::new(&package)?;
-                repo.list_package_versions(&package)?
+                let base = spk::api::Ident::from(package);
+                repo.list_package_versions(&base.name)?
                     .into_iter()
                     .map(|v| base.with_version(v))
                     .collect()

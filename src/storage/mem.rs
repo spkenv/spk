@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use super::Repository;
+use crate::api::PkgName;
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
@@ -12,8 +13,8 @@ type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
 
 #[derive(Default, Clone, Debug)]
 pub struct MemRepository {
-    specs: Arc<RwLock<HashMap<String, HashMap<api::Version, api::Spec>>>>,
-    packages: Arc<RwLock<HashMap<String, HashMap<api::Version, BuildMap>>>>,
+    specs: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, api::Spec>>>>,
+    packages: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, BuildMap>>>>,
 }
 
 impl std::hash::Hash for MemRepository {
@@ -37,7 +38,7 @@ impl Repository for MemRepository {
             .expect("[INTERNAL ERROR] hex address should always create a valid url")
     }
 
-    fn list_packages(&self) -> Result<Vec<String>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
         Ok(self
             .specs
             .read()
@@ -47,7 +48,7 @@ impl Repository for MemRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &str) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
         if let Some(specs) = self.specs.read().unwrap().get(name) {
             Ok(specs.keys().map(|v| v.to_owned()).collect())
         } else {
@@ -56,7 +57,7 @@ impl Repository for MemRepository {
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        if let Some(versions) = self.packages.read().unwrap().get(pkg.name()) {
+        if let Some(versions) = self.packages.read().unwrap().get(&pkg.name) {
             if let Some(builds) = versions.get(&pkg.version) {
                 Ok(builds
                     .keys()
@@ -79,7 +80,7 @@ impl Repository for MemRepository {
             .packages
             .read()
             .unwrap()
-            .get(pkg.name())
+            .get(&pkg.name)
             .and_then(|versions| versions.get(&pkg.version))
             .and_then(|builds| builds.get(build))
             .map(|(_, build_map)| build_map)
@@ -93,7 +94,7 @@ impl Repository for MemRepository {
                 .specs
                 .read()
                 .unwrap()
-                .get(pkg.name())
+                .get(&pkg.name)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(&pkg.version)
                 .map(|s| s.to_owned())
@@ -102,7 +103,7 @@ impl Repository for MemRepository {
                 .packages
                 .read()
                 .unwrap()
-                .get(pkg.name())
+                .get(&pkg.name)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(&pkg.version)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
@@ -119,7 +120,7 @@ impl Repository for MemRepository {
                 .packages
                 .read()
                 .unwrap()
-                .get(pkg.name())
+                .get(&pkg.name)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(&pkg.version)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
@@ -131,7 +132,7 @@ impl Repository for MemRepository {
 
     fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
         let mut specs = self.specs.write().unwrap();
-        let versions = specs.entry(spec.pkg.name().to_string()).or_default();
+        let versions = specs.entry(spec.pkg.name.clone()).or_default();
         versions.remove(&spec.pkg.version);
         drop(specs); // this lock will be needed to publish
         self.publish_spec(spec)
@@ -145,7 +146,7 @@ impl Repository for MemRepository {
             )));
         }
         let mut specs = self.specs.write().unwrap();
-        let versions = specs.entry(spec.pkg.name().to_string()).or_default();
+        let versions = specs.entry(spec.pkg.name.clone()).or_default();
         if versions.contains_key(&spec.pkg.version) {
             Err(Error::VersionExistsError(spec.pkg))
         } else {
@@ -156,7 +157,7 @@ impl Repository for MemRepository {
 
     fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
         let mut specs = self.specs.write().unwrap();
-        let versions = match specs.get_mut(pkg.name()) {
+        let versions = match specs.get_mut(&pkg.name) {
             Some(v) => v,
             None => return Err(Error::PackageNotFoundError(pkg.clone())),
         };
@@ -179,7 +180,7 @@ impl Repository for MemRepository {
         };
 
         let mut packages = self.packages.write().unwrap();
-        let versions = packages.entry(spec.pkg.name().to_string()).or_default();
+        let versions = packages.entry(spec.pkg.name.clone()).or_default();
         let builds = versions.entry(spec.pkg.version.clone()).or_default();
 
         builds.insert(build, (spec, components));
@@ -198,7 +199,7 @@ impl Repository for MemRepository {
         };
 
         let mut packages = self.packages.write().unwrap();
-        let versions = match packages.get_mut(pkg.name()) {
+        let versions = match packages.get_mut(&pkg.name) {
             Some(v) => v,
             None => return Err(Error::PackageNotFoundError(pkg.clone())),
         };
