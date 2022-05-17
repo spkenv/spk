@@ -8,6 +8,8 @@ use colored::Colorize;
 
 use crate::{api, option_map, solve, Error, Result};
 
+pub const SHOW_INITIAL_REQUESTS_LEVEL: u32 = 1;
+
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name.bold().to_string();
     if !pkg.version.is_zero() || pkg.build.is_some() {
@@ -60,6 +62,43 @@ where
     }
     out.push('/');
     out.push_str(&versions.join(","));
+    out
+}
+
+/// Create a string to describe the internals of an initial (command
+/// line) request. This is used to help users see if they have
+/// requested what they think they wanted to request.
+pub fn format_initial_request(request: &api::Request) -> String {
+    let mut out = String::with_capacity(256);
+    out.push_str(&format!("{}", "Initial Request: ".to_string().blue()));
+
+    match request {
+        api::Request::Pkg(r) => {
+            out.push_str(&format!("{} (", format_request(r.pkg.name(), [r])));
+            out.push_str(&format!(
+                "PreReleasePolicy: {}, ",
+                r.prerelease_policy.to_string().cyan()
+            ));
+            out.push_str(&format!(
+                "InclusionPolicy: {}",
+                r.inclusion_policy.to_string().cyan()
+            ));
+            if let Some(pin) = &r.pin {
+                out.push_str(&format!(", fromBuildEnv: {}", pin.to_string().cyan()));
+            }
+            if let Some(rc) = r.required_compat {
+                let req_compat = format!("{:#}", rc);
+                out.push_str(&format!(", RequiredCompat: {}", req_compat.cyan()));
+            };
+            out.push(')');
+        }
+        api::Request::Var(r) => {
+            out.push_str(&format_options(
+                &option_map! {r.var.clone() => r.value.clone()},
+            ));
+            out.push_str(&format!(" fromBuildEnv: {}", r.pin.to_string().cyan()));
+        }
+    };
     out
 }
 

@@ -33,10 +33,13 @@ pub struct Render {
 impl Run for Render {
     fn run(&mut self) -> Result<i32> {
         let mut solver = self.solver.get_solver(&self.options)?;
-        for name in self
+        let requests = self
             .requests
-            .parse_requests(&self.packages, &self.options)?
-        {
+            .parse_requests(&self.packages, &self.options)?;
+        for name in requests {
+            if self.verbose > spk::io::SHOW_INITIAL_REQUESTS_LEVEL {
+                println!("{}", spk::io::format_initial_request(&name));
+            }
             solver.add_request(name);
         }
 
