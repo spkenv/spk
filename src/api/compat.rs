@@ -349,10 +349,7 @@ impl Compat {
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
                         return Compatibility::Incompatible(format!(
-                            "Not compatible with {} [{} at {}: (compat) {} != {} (version)]",
-                            base,
-                            self,
-                            desc,
+                            "Not compatible with {base} [{self} at {desc}: (compat) {} != {} (version)]",
                             a.to_string(),
                             b.to_string()
                         ));
