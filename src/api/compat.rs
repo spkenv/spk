@@ -357,11 +357,8 @@ impl Compat {
 
                     if !ruleset.0.contains(&required) {
                         return Compatibility::Incompatible(format!(
-                            "Not {:?} compatible with {} [{} at {}: (compat) {} != {} (version)]",
+                            "Not {:?} compatible with {base} [{self} at {desc}: (compat) {} != {} (version)]",
                             required,
-                            base,
-                            self,
-                            desc,
                             a.to_string(),
                             b.to_string()
                         ));
@@ -380,13 +377,9 @@ impl Compat {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
                         return Compatibility::Incompatible(format!(
-                            "Not compatible with {} [{} at pos {} ({}): (compat) {} != {} (version)]",
-                            base,
-                            self,
+                            "Not compatible with {base} [{self} at pos {} ({}): (compat) {a} != {b} (version)]",
                             i + 1,
                             version::get_version_position_label(i),
-                            a,
-                            b
                         ));
                     }
                     _ => continue,
@@ -400,14 +393,10 @@ impl Compat {
                     }
                     (Some(a), Some(b)) => {
                         return Compatibility::Incompatible(format!(
-                            "Not {:?} compatible with {} [{} at pos {} ({}): (compat) {} != {} (version)]",
+                            "Not {:?} compatible with {base} [{self} at pos {} ({}): (compat) {a} != {b} (version)]",
                             required,
-                            base,
-                            self,
                             i + 1,
                             version::get_version_position_label(i),
-                            a,
-                            b,
                         ));
                     }
                     _ => continue,
@@ -417,14 +406,10 @@ impl Compat {
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
                     return Compatibility::Incompatible(format!(
-                        "Not {:?} compatible with {} [{} at pos {} ({}): (compat) {} > {} (version)]",
+                        "Not {:?} compatible with {base} [{self} at pos {} ({}): (compat) {a} > {b} (version)]",
                         required,
-                        base,
-                        self,
                         i + 1,
                         version::get_version_position_label(i),
-                        a,
-                        b
                     ));
                 }
                 _ => {

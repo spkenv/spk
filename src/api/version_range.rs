@@ -321,12 +321,9 @@ impl Ranged for WildcardRange {
             if let Some(a) = a {
                 if a != b {
                     return Compatibility::Incompatible(format!(
-                        "Out of range: {} [at pos {} ({}): (range) {} != {} (version)]",
-                        self,
+                        "Out of range: {self} [at pos {} ({}): (range) {a} != {b} (version)]",
                         i + 1,
                         version::get_version_position_label(i),
-                        a,
-                        b
                     ));
                 }
             }
