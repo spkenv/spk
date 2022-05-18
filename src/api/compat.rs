@@ -349,18 +349,18 @@ impl Compat {
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
                         return Compatibility::Incompatible(format!(
-                            "Not compatible with {base} [{self} at {desc}: (compat) {} != {} (version)]",
-                            a.to_string(),
-                            b.to_string()
+                            "Not compatible with {base} [{self} at {desc}: has {}, requires {}]",
+                            b.to_string(),
+                            a.to_string()
                         ));
                     }
 
                     if !ruleset.0.contains(&required) {
                         return Compatibility::Incompatible(format!(
-                            "Not {:?} compatible with {base} [{self} at {desc}: (compat) {} != {} (version)]",
+                            "Not {:?} compatible with {base} [{self} at {desc}: has {}, requires {}]",
                             required,
-                            a.to_string(),
-                            b.to_string()
+                            b.to_string(),
+                            a.to_string()
                         ));
                     }
                 }
@@ -377,7 +377,7 @@ impl Compat {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
                         return Compatibility::Incompatible(format!(
-                            "Not compatible with {base} [{self} at pos {} ({}): (compat) {a} != {b} (version)]",
+                            "Not compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
                             i + 1,
                             version::get_version_position_label(i),
                         ));
@@ -393,7 +393,7 @@ impl Compat {
                     }
                     (Some(a), Some(b)) => {
                         return Compatibility::Incompatible(format!(
-                            "Not {:?} compatible with {base} [{self} at pos {} ({}): (compat) {a} != {b} (version)]",
+                            "Not {:?} compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
                             required,
                             i + 1,
                             version::get_version_position_label(i),
@@ -406,7 +406,7 @@ impl Compat {
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
                     return Compatibility::Incompatible(format!(
-                        "Not {:?} compatible with {base} [{self} at pos {} ({}): (compat) {a} > {b} (version)]",
+                        "Not {:?} compatible with {base} [{self} at pos {} ({}): (version) {b} < {a} (compat)]",
                         required,
                         i + 1,
                         version::get_version_position_label(i),

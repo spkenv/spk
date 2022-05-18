@@ -321,7 +321,7 @@ impl Ranged for WildcardRange {
             if let Some(a) = a {
                 if a != b {
                     return Compatibility::Incompatible(format!(
-                        "Out of range: {self} [at pos {} ({}): (range) {a} != {b} (version)]",
+                        "Out of range: {self} [at pos {} ({}): has {b}, requires {a}]",
                         i + 1,
                         version::get_version_position_label(i),
                     ));

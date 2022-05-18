@@ -96,7 +96,7 @@ impl ValidatorT for BinaryOnlyValidator {
     ) -> crate::Result<api::Compatibility> {
         if spec.pkg.build.is_none() {
             return Ok(api::Compatibility::Incompatible(format!(
-                "Skipping {}, it has no build, building from source is not enabled",
+                "Skipping {}, it has no builds, and building from source is not enabled",
                 spec.pkg
             )));
         }
