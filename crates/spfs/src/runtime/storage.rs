@@ -45,6 +45,10 @@ pub struct Status {
     /// The set of layers that are being used in this runtime
     pub stack: Vec<encoding::Digest>,
     /// Whether or not this runtime is editable
+    ///
+    /// An editable runtime is mounted with working directories
+    /// that allow changes to be made to the runtime filesystem and
+    /// committed back as layers.
     pub editable: bool,
     /// Whether of not this runtime is currently active
     pub running: bool,
@@ -227,61 +231,14 @@ impl Runtime {
         &self.storage
     }
 
-    /// Mark this runtime as editable or not.
-    ///
-    /// An editable runtime is mounted with working directories
-    /// that allow changes to be made to the runtime filesystem and
-    /// committed back as layers.
-    pub async fn set_editable(&mut self, editable: bool) -> Result<()> {
-        self.status.editable = editable;
-        self.write_config().await
-    }
-
-    /// Return true if this runtime is editable.
-    ///
-    /// An editable runtime is mounted with working directories
-    /// that allow changes to be made to the runtime filesystem and
-    /// committed back as layers.
-    pub fn is_editable(&self) -> bool {
-        self.status.editable
-    }
-
-    /// Mark this runtime as currently running or not.
-    pub async fn set_running(&mut self, running: bool) -> Result<()> {
-        self.status.running = running;
-        self.write_config().await
-    }
-
-    /// Return true if this runtime is currently running.
-    pub fn is_running(&self) -> bool {
-        self.status.running
-    }
-
-    /// Mark the process that owns this runtime, this should be the spfs
-    /// init process under which the target process is directly running.
-    async fn set_pid(&mut self, pid: u32) -> Result<()> {
-        self.status.pid = Some(pid);
-        self.write_config().await
-    }
-
-    /// Return the pid of this runtime's init process, if any.
-    pub fn get_pid(&self) -> Option<u32> {
-        self.status.pid
-    }
-
-    /// Reset the config for this runtime to its default state.
-    pub async fn reset_stack(&mut self) -> Result<()> {
-        self.status.stack.truncate(0);
-        self.write_config().await
-    }
-
+    /// Clear all working changes in this runtime's upper dir
     pub fn reset_all(&self) -> Result<()> {
         self.reset(&["*"])
     }
 
     /// Remove working changes from this runtime's upper dir.
     ///
-    /// If no paths are specified, reset all changes.
+    /// If no paths are specified, nothing is done.
     pub fn reset<S: AsRef<str>>(&self, paths: &[S]) -> Result<()> {
         let paths = paths
             .iter()
@@ -324,17 +281,12 @@ impl Runtime {
         }
     }
 
-    /// Return this runtime's current object stack.
-    pub fn get_stack(&self) -> &Vec<encoding::Digest> {
-        &self.status.stack
-    }
-
     /// Push an object id onto this runtime's stack.
     ///
     /// This will update the configuration of the runtime,
-    /// and change the overlayfs options, but not update
-    /// any currently running environment automatically.
-    pub async fn push_digest(&mut self, digest: &encoding::Digest) -> Result<()> {
+    /// and change the overlayfs options, but not save the runtime or
+    /// update any currently running environment.
+    pub fn push_digest(&mut self, digest: &encoding::Digest) {
         let mut new_stack = Vec::with_capacity(self.status.stack.len() + 1);
         new_stack.push(*digest);
         for existing in self.status.stack.drain(..) {
@@ -347,7 +299,6 @@ impl Runtime {
             new_stack.push(existing);
         }
         self.status.stack = new_stack;
-        self.write_config().await
     }
 
     /// Write out the startup script data to disk, ensuring
@@ -374,11 +325,18 @@ impl Runtime {
     #[cfg(test)]
     pub async fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.config.set_root(path);
-        self.write_config().await
+        self.save().await
+    }
+
+    /// Reload the state of this runtime from the underlying storage
+    pub async fn reload(&mut self) -> Result<()> {
+        let rt = self.storage.read_runtime(&self.name).await?;
+        self.data = rt.data;
+        Ok(())
     }
 
     /// Save the current state of this runtime to the underlying storage
-    pub async fn write_config(&self) -> Result<()> {
+    pub async fn save(&self) -> Result<()> {
         self.storage.save_runtime(self).await
     }
 }
@@ -483,7 +441,7 @@ impl Storage {
     pub async fn save_runtime(&self, rt: &Runtime) -> Result<()> {
         let payload_tag = runtime_tag(RuntimeDataType::Payload, rt.name())?;
         let meta_tag = runtime_tag(RuntimeDataType::Metadata, rt.name())?;
-        let platform: graph::Object = graph::Platform::new(&mut rt.get_stack().iter())?.into();
+        let platform: graph::Object = graph::Platform::new(&mut rt.status.stack.iter())?.into();
         let platform_digest = platform.digest()?;
         let config_data = serde_json::to_string(&rt.data)?;
         let (_, (config_digest, _)) = tokio::try_join!(

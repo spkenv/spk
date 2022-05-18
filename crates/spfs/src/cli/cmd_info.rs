@@ -139,10 +139,13 @@ impl CmdInfo {
 
         println!("{}", "Active Runtime:".green());
         println!(" {}: {}", "id:".bright_blue(), runtime.name());
-        println!(" {}: {}", "editable:".bright_blue(), runtime.is_editable());
+        println!(
+            " {}: {}",
+            "editable:".bright_blue(),
+            runtime.status.editable
+        );
         println!("{}", "stack".bright_blue());
-        let stack = runtime.get_stack();
-        for digest in stack {
+        for digest in runtime.status.stack.iter() {
             println!("  - {}", self.format_digest(*digest, repo).await?);
         }
         println!();

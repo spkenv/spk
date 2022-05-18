@@ -57,7 +57,7 @@ impl CmdCommit {
 
             let mut runtime = spfs::active_runtime().await?;
 
-            if !runtime.is_editable() {
+            if !runtime.status.editable {
                 tracing::error!("Active runtime is not editable, nothing to commmit");
                 return Ok(1);
             }

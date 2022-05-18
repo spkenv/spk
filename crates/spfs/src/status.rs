@@ -18,18 +18,13 @@ static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 /// - if there are issues remounting the filesystem
 pub async fn make_active_runtime_editable() -> Result<()> {
     let mut rt = active_runtime().await?;
-    if rt.is_editable() {
+    if rt.status.editable {
         return Err(Error::RuntimeAlreadyEditable);
     }
 
-    rt.set_editable(true).await?;
-    match remount_runtime(&rt).await {
-        Err(err) => {
-            rt.set_editable(false).await?;
-            Err(err)
-        }
-        Ok(_) => Ok(()),
-    }
+    rt.status.editable = true;
+    remount_runtime(&rt).await?;
+    rt.save().await
 }
 
 /// Remount the given runtime as configured.
@@ -53,8 +48,7 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
     let config = get_config()?;
     let repo = config.get_repository().await?;
 
-    let stack = rt.get_stack();
-    let layers = resolve_stack_to_layers(stack.iter(), None).await?;
+    let layers = resolve_stack_to_layers(rt.status.stack.iter(), None).await?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers.iter().rev() {
         manifest.update(&repo.read_manifest(layer.manifest).await?.unlock())
@@ -85,7 +79,7 @@ pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
     env::unmount_env()?;
-    env::mount_env(rt.is_editable(), &dirs)?;
+    env::mount_env(rt.status.editable, &dirs)?;
     env::mask_files(&manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
@@ -110,7 +104,7 @@ pub async fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Resul
     env::ensure_mount_targets_exist()?;
     env::mount_runtime(tmpfs_opts.as_deref())?;
     env::setup_runtime()?;
-    env::mount_env(rt.is_editable(), &dirs)?;
+    env::mount_env(rt.status.editable, &dirs)?;
     env::mask_files(&manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;

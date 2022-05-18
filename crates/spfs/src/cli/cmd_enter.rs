@@ -72,7 +72,6 @@ impl CmdEnter {
             spfs::initialize_runtime(&owned, config).await?;
 
             owned.ensure_startup_scripts()?;
-            owned.set_running(true).await?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             let mut interrupt =

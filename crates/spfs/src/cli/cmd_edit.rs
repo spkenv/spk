@@ -19,11 +19,11 @@ impl CmdEdit {
             tracing::info!("edit mode enabled");
         } else {
             let mut rt = spfs::active_runtime().await?;
-            rt.set_editable(false).await?;
+            rt.status.editable = false;
             if let Err(err) = spfs::remount_runtime(&rt).await {
-                rt.set_editable(true).await?;
                 return Err(err);
             }
+            rt.save().await?;
             tracing::info!("edit mode disabled");
         }
         Ok(0)

@@ -22,7 +22,7 @@ const NONE: Option<&str> = None;
 pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
     check_can_join()?;
 
-    let pid = match rt.get_pid() {
+    let pid = match rt.status.pid {
         None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
         Some(pid) => pid,
     };

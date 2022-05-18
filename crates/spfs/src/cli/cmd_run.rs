@@ -64,7 +64,7 @@ impl CmdRun {
                     }
 
                     let obj = repo.read_ref(target.as_str()).await?;
-                    runtime.push_digest(&obj.digest()?).await?;
+                    runtime.push_digest(&obj.digest()?);
                 }
             }
         }
@@ -75,7 +75,7 @@ impl CmdRun {
             .command
             .extend(self.args.iter().map(|s| s.to_string_lossy().to_string()));
         runtime.status.editable = self.edit;
-        runtime.write_config().await?;
+        runtime.save().await?;
 
         tracing::debug!("resolving entry process");
         let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;

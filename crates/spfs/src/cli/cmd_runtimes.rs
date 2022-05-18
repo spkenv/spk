@@ -22,9 +22,7 @@ impl CmdRuntimes {
             if !self.quiet {
                 message = format!(
                     "{message}\trunning={}\tpid={:?}\teditable={}",
-                    runtime.is_running(),
-                    runtime.get_pid(),
-                    runtime.is_editable()
+                    runtime.status.running, runtime.status.owner, runtime.status.editable
                 )
             }
             println!("{message}");

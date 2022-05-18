@@ -32,14 +32,14 @@ impl CmdReset {
         let repo = config.get_repository().await?;
         if let Some(reference) = &self.reference {
             runtime.reset::<&str>(&[])?;
-            runtime.reset_stack().await?;
+            runtime.status.stack.truncate(0);
             match reference.as_str() {
                 "" | "-" => self.edit = true,
                 _ => {
                     let env_spec = spfs::tracking::parse_env_spec(reference)?;
                     for target in env_spec.iter() {
                         let obj = repo.read_ref(target.to_string().as_ref()).await?;
-                        runtime.push_digest(&obj.digest()?).await?;
+                        runtime.push_digest(&obj.digest()?);
                     }
                 }
             }
@@ -49,9 +49,10 @@ impl CmdReset {
         }
 
         if self.edit {
-            runtime.set_editable(true).await?;
+            runtime.status.editable = true;
         }
 
+        runtime.save().await?;
         spfs::remount_runtime(&runtime).await?;
         Ok(0)
     }
