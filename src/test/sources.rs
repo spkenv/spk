@@ -124,13 +124,11 @@ impl PackageSourceTester {
             let source_pkg = self.spec.pkg.with_build(Some(api::Build::Source));
             let mut ident_range = api::RangeIdent::exact(&source_pkg, [api::Component::Source]);
             ident_range.components.insert(api::Component::Source);
-            let request = api::PkgRequest {
-                pkg: ident_range,
-                prerelease_policy: api::PreReleasePolicy::IncludeAll,
-                inclusion_policy: api::InclusionPolicy::Always,
-                pin: None,
-                required_compat: None,
-            };
+            let request =
+                api::PkgRequest::new(ident_range, api::RequestedBy::SourceTest(source_pkg))
+                    .with_prerelease(api::PreReleasePolicy::IncludeAll)
+                    .with_pin(None)
+                    .with_compat(None);
             solver.add_request(request.into());
         }
 

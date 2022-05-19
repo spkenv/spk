@@ -29,7 +29,8 @@ pub fn current_env() -> Result<solve::Solution> {
                 let spec = repo.read_spec(&pkg)?;
                 let components = repo.get_package(&spec.pkg)?;
                 let range_ident = api::RangeIdent::exact(&spec.pkg, components.keys().cloned());
-                let mut request = api::PkgRequest::new(range_ident);
+                let mut request =
+                    api::PkgRequest::new(range_ident, api::RequestedBy::CurrentEnvironment);
                 request.prerelease_policy = api::PreReleasePolicy::IncludeAll;
                 let repo = repo.clone();
                 solution.add(

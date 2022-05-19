@@ -237,6 +237,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             // then we must assume the default run component
             req.to_mut().pkg.components.insert(api::Component::Run);
         }
+
+        // Add the package that would make this request, into the request
+        req.to_mut()
+            .add_requester(api::RequestedBy::PackageBuild(self.spec.pkg.clone()));
+
         let mut changes = vec![Change::RequestPackage(RequestPackage::new(
             req.clone().into_owned(),
         ))];
@@ -281,7 +286,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             .flat_map(|embedded| {
                 [
                     Change::RequestPackage(RequestPackage::new(api::PkgRequest::from_ident(
-                        &embedded.pkg,
+                        embedded.pkg.clone(),
+                        api::RequestedBy::PackageBuild(self.spec.pkg.clone()),
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(
                         Arc::new(embedded.clone()),
@@ -899,6 +905,12 @@ impl State {
             .iter()
             .map(|(spec, _)| &spec.pkg.name)
             .collect();
+        // This checks all the requests from the start of the list
+        // each time its called. It looks for the first unsatisfied
+        // one - the first one not already in the packages list. It
+        // needs to do this for things like packages in multiple
+        // requests, embedded, and IfAlreadyPresent requests. But the
+        // order requests are looked at may not be as expected.
         for request in self.pkg_requests.iter() {
             if packages.contains(&request.pkg.name) {
                 continue;
