@@ -9,6 +9,7 @@ use nom::{
     bytes::complete::{is_not, tag, take_while1, take_while_m_n},
     character::complete::{char, digit1},
     combinator::{eof, fail, map, map_res, opt, peek, recognize},
+    error::{context, convert_error, VerboseError},
     multi::{many1, separated_list1},
     sequence::{pair, preceded, separated_pair, terminated},
     IResult,
@@ -193,28 +194,31 @@ impl FromStr for Ident {
             c.is_ascii_alphanumeric()
         }
 
-        fn package_name(input: &str) -> IResult<&str, &PkgName> {
-            map(
-                take_while_m_n(
-                    PkgName::MIN_LEN,
-                    PkgName::MAX_LEN,
-                    is_legal_package_name_chr,
+        fn package_name(input: &str) -> IResult<&str, &PkgName, VerboseError<&str>> {
+            context(
+                "package_name",
+                map(
+                    take_while_m_n(
+                        PkgName::MIN_LEN,
+                        PkgName::MAX_LEN,
+                        is_legal_package_name_chr,
+                    ),
+                    |s: &str| {
+                        // Safety: we only generate valid package names.
+                        unsafe { PkgName::from_str(s) }
+                    },
                 ),
-                |s: &str| {
-                    // Safety: we only generate valid package names.
-                    unsafe { PkgName::from_str(s) }
-                },
             )(input)
         }
 
-        fn package_ident(input: &str) -> IResult<&str, Ident> {
+        fn package_ident(input: &str) -> IResult<&str, Ident, VerboseError<&str>> {
             terminated(
                 map(package_name, |name| Ident::new(name.to_owned())),
                 peek(alt((tag("/"), eof))),
             )(input)
         }
 
-        fn package_name_and_not_version(input: &str) -> IResult<&str, Ident> {
+        fn package_name_and_not_version(input: &str) -> IResult<&str, Ident, VerboseError<&str>> {
             let (tail, ident) = package_ident(input)?;
             // To disambiguate cases like:
             //    111/222
@@ -241,7 +245,7 @@ impl FromStr for Ident {
 
         fn known_repository_name<'a>(
             known_repositories: &'a HashSet<&str>,
-        ) -> impl Fn(&str) -> IResult<&str, &str> + 'a {
+        ) -> impl Fn(&str) -> IResult<&str, &str, VerboseError<&str>> + 'a {
             move |input| {
                 let (input, name) = recognize(many1(is_not("/")))(input)?;
                 if known_repositories.contains(name) {
@@ -253,7 +257,7 @@ impl FromStr for Ident {
 
         fn repo_name<'a>(
             known_repositories: &'a HashSet<&'a str>,
-        ) -> impl Fn(&str) -> IResult<&str, &str> + 'a {
+        ) -> impl Fn(&str) -> IResult<&str, &str, VerboseError<&str>> + 'a {
             move |input| {
                 // To disambiguate cases like:
                 //    local/222
@@ -277,29 +281,32 @@ impl FromStr for Ident {
             }
         }
 
-        fn tag_name(input: &str) -> IResult<&str, &str> {
+        fn tag_name(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
             take_while1(is_legal_tag_name_chr)(input)
         }
 
-        fn ptag(input: &str) -> IResult<&str, (&str, &str)> {
+        fn ptag(input: &str) -> IResult<&str, (&str, &str), VerboseError<&str>> {
             separated_pair(tag_name, char('.'), digit1)(input)
         }
 
-        fn ptagset(input: &str) -> IResult<&str, Vec<(&str, &str)>> {
+        fn ptagset(input: &str) -> IResult<&str, Vec<(&str, &str)>, VerboseError<&str>> {
             separated_list1(char(','), ptag)(input)
         }
 
-        fn version_str(input: &str) -> IResult<&str, &str> {
-            recognize(pair(
-                separated_list1(char('.'), digit1),
-                pair(
-                    opt(preceded(char('-'), ptagset)),
-                    opt(preceded(char('+'), ptagset)),
-                ),
-            ))(input)
+        fn version_str(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
+            context(
+                "version_str",
+                recognize(pair(
+                    separated_list1(char('.'), digit1),
+                    pair(
+                        opt(preceded(char('-'), ptagset)),
+                        opt(preceded(char('+'), ptagset)),
+                    ),
+                )),
+            )(input)
         }
 
-        fn base32_build(input: &str) -> IResult<&str, &str> {
+        fn base32_build(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
             take_while_m_n(
                 super::option_map::DIGEST_SIZE,
                 super::option_map::DIGEST_SIZE,
@@ -307,7 +314,7 @@ impl FromStr for Ident {
             )(input)
         }
 
-        fn build(input: &str) -> IResult<&str, &str> {
+        fn build(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
             preceded(
                 char('/'),
                 alt((
@@ -318,17 +325,22 @@ impl FromStr for Ident {
             )(input)
         }
 
-        fn version_and_build(input: &str) -> IResult<&str, (Version, Option<Build>)> {
+        fn version_and_build(
+            input: &str,
+        ) -> IResult<&str, (Version, Option<Build>), VerboseError<&str>> {
             pair(
-                preceded(char('/'), map_res(version_str, parse_version)),
-                opt(map_res(build, parse_build)),
+                preceded(
+                    char('/'),
+                    context("parse_version", map_res(version_str, parse_version)),
+                ),
+                opt(context("parse_build", map_res(build, parse_build))),
             )(input)
         }
 
         fn ident<'a, 'b>(
             known_repositories: &'a HashSet<&str>,
             input: &'b str,
-        ) -> IResult<&'b str, Ident> {
+        ) -> IResult<&'b str, Ident, VerboseError<&'b str>> {
             let (input, repository_name) = opt(repo_name(known_repositories))(input)?;
             let (input, mut ident) = package_ident(input)?;
             if let Some(repository_name) = repository_name {
@@ -348,7 +360,12 @@ impl FromStr for Ident {
 
         ident(&known_repositories, source)
             .map(|(_, ident)| ident)
-            .map_err(|err| crate::Error::String(err.to_string()))
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::Error::String(convert_error(source, e))
+                }
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 
