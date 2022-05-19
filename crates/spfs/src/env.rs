@@ -87,13 +87,12 @@ pub fn enter_mount_namespace() -> Result<()> {
 }
 
 pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process::Child> {
-    let exe = match super::resolve::which("spfs") {
+    let exe = match super::resolve::which_spfs("monitor") {
         None => return Err(Error::MissingBinary("spfs")),
         Some(exe) => exe,
     };
 
     let mut cmd = tokio::process::Command::new(exe);
-    cmd.arg("monitor");
     cmd.arg("--runtime-storage");
     cmd.arg(rt.storage().address().as_str());
     cmd.arg("--runtime");

@@ -2,15 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use clap::Args;
+use clap::Parser;
 use tokio::signal::unix::{signal, SignalKind};
+
+#[macro_use]
+mod args;
+
+main!(CmdMonitor);
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
 /// There should be exactly one monitor for each runtime process and the monitor
 /// will clean up the runtime when all processes exit.
-#[derive(Debug, Args)]
+#[derive(Debug, Parser)]
 pub struct CmdMonitor {
+    #[clap(short, long, parse(from_occurrences))]
+    pub verbose: usize,
+
     /// The address of the storage being used for runtimes
     #[clap(long)]
     runtime_storage: url::Url,

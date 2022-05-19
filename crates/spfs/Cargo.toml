@@ -35,6 +35,9 @@ path = "src/cli/cmd_push.rs"
 name = "spfs-render"
 path = "src/cli/cmd_render.rs"
 [[bin]]
+name = "spfs-monitor"
+path = "src/cli/cmd_monitor.rs"
+[[bin]]
 name = "spfs-server"
 path = "src/cli/cmd_server.rs"
 required-features = ["server"]
