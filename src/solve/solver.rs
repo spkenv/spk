@@ -5,7 +5,10 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     mem::take,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex, RwLock,
+    },
 };
 
 use crate::{
@@ -36,6 +39,22 @@ pub struct Solver {
     repos: Vec<Arc<storage::RepositoryHandle>>,
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
+    // For counting the number of steps (forward) taken in a solve
+    number_of_steps: usize,
+    // For counting number of builds skipped for some reason
+    number_builds_skipped: usize,
+    // For counting the number of incompatible versions
+    number_incompat_versions: usize,
+    // For counting the number of incompatible builds
+    number_incompat_builds: usize,
+    // For counting the total number of builds expanded so far in
+    // the solve
+    number_total_builds: usize,
+    // For counting the number of StepBacks applied during the solve
+    number_of_steps_back: Arc<AtomicU64>,
+    // For accumulating the frequency of error messages generated
+    // during the solver. Used in end-of-solve stats or if the solve
+    // is interrupted by the user or timeout.
     error_frequency: HashMap<String, u64>,
 }
 
@@ -45,6 +64,12 @@ impl Default for Solver {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
             validators: Cow::from(validation::default_validators()),
+            number_of_steps: 0,
+            number_builds_skipped: 0,
+            number_incompat_versions: 0,
+            number_incompat_builds: 0,
+            number_total_builds: 0,
+            number_of_steps_back: Arc::new(AtomicU64::new(0)),
             error_frequency: HashMap::new(),
         }
     }
@@ -138,7 +163,7 @@ impl Solver {
         solver.solve_build_environment(spec)
     }
 
-    fn step_state(&self, node: &mut Node) -> Result<Option<Decision>> {
+    fn step_state(&mut self, node: &mut Node) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -146,11 +171,19 @@ impl Solver {
             return Ok(None);
         };
 
+        // This is a step forward in the solve
+        self.number_of_steps += 1;
+
         let iterator = self.get_iterator(node, &request.pkg.name);
         let mut iterator_lock = iterator.lock().unwrap();
         while let Some((pkg, builds)) = iterator_lock.next()? {
             let mut compat = request.is_version_applicable(&pkg.version);
             if !&compat {
+                // Count this version and its builds as incompatible
+                self.number_incompat_versions += 1;
+                self.number_incompat_builds += builds.lock().unwrap().len();
+
+                // Skip this version and move on the to next one
                 iterator_lock.set_builds(
                     &pkg.version,
                     Arc::new(Mutex::new(EmptyBuildIterator::new())),
@@ -174,6 +207,10 @@ impl Solver {
             };
 
             while let Some((mut spec, repo)) = builds.lock().unwrap().next()? {
+                // Now all this build to the total considered during
+                // this overall step
+                self.number_total_builds += 1;
+
                 let build_from_source = spec.pkg.build == Some(Build::Source)
                     && request.pkg.build != Some(Build::Source);
                 if build_from_source {
@@ -182,6 +219,7 @@ impl Solver {
                             spec.pkg.clone(),
                             "cannot build embedded source package",
                         )));
+                        self.number_builds_skipped += 1;
                         continue;
                     }
 
@@ -192,6 +230,7 @@ impl Solver {
                                 pkg,
                                 "cannot build from source, version spec not available",
                             )));
+                            self.number_builds_skipped += 1;
                             continue;
                         }
                         Err(err) => return Err(err),
@@ -204,6 +243,7 @@ impl Solver {
                         spec.pkg.clone(),
                         compat,
                     )));
+                    self.number_builds_skipped += 1;
                     continue;
                 }
 
@@ -222,6 +262,7 @@ impl Solver {
                                             &format!("cannot build package: {:?}", err),
                                         ),
                                     ));
+                                    self.number_builds_skipped += 1;
                                     continue;
                                 }
                             }
@@ -233,6 +274,7 @@ impl Solver {
                                 spec.pkg.clone(),
                                 &format!("cannot resolve build env: {:?}", err),
                             )));
+                            self.number_builds_skipped += 1;
                             continue;
                         }
                     }
@@ -269,6 +311,12 @@ impl Solver {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
         self.validators = Cow::from(validation::default_validators());
+        self.number_of_steps = 0;
+        self.number_builds_skipped = 0;
+        self.number_incompat_versions = 0;
+        self.number_incompat_builds = 0;
+        self.number_total_builds = 0;
+        self.number_of_steps_back.store(0, Ordering::SeqCst);
         self.error_frequency.clear();
     }
 
@@ -348,6 +396,36 @@ impl Solver {
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Change::SetOptions(graph::SetOptions::new(options)))
+    }
+
+    /// Get the number of steps (forward) taken in the solve
+    pub fn get_number_of_steps(&self) -> usize {
+        self.number_of_steps
+    }
+
+    /// Get the number of builds skipped during the solve
+    pub fn get_number_of_builds_skipped(&self) -> usize {
+        self.number_builds_skipped
+    }
+
+    /// Get the number of incompatible versions avoided during the solve
+    pub fn get_number_of_incompatible_versions(&self) -> usize {
+        self.number_incompat_versions
+    }
+
+    /// Get the number of incompatible builds avoided during the solve
+    pub fn get_number_of_incompatible_builds(&self) -> usize {
+        self.number_incompat_builds
+    }
+
+    /// Get the total number of builds examined during the solve
+    pub fn get_total_builds(&self) -> usize {
+        self.number_total_builds
+    }
+
+    /// Get the number of steps back taken during the solve
+    pub fn get_number_of_steps_back(&self) -> u64 {
+        self.number_of_steps_back.load(Ordering::SeqCst)
     }
 }
 
@@ -465,14 +543,22 @@ impl Iterator for SolverRuntime {
                         Some(n) => {
                             let n_lock = n.read().unwrap();
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(err.to_string(), &n_lock.state))
-                                    .as_decision(),
+                                Change::StepBack(StepBack::new(
+                                    err.to_string(),
+                                    &n_lock.state,
+                                    Arc::clone(&self.solver.number_of_steps_back),
+                                ))
+                                .as_decision(),
                             )
                         }
                         None => {
                             self.decision = Some(
-                                Change::StepBack(StepBack::new(err.to_string(), &DEAD_STATE))
-                                    .as_decision(),
+                                Change::StepBack(StepBack::new(
+                                    err.to_string(),
+                                    &DEAD_STATE,
+                                    Arc::clone(&self.solver.number_of_steps_back),
+                                ))
+                                .as_decision(),
                             )
                         }
                     }
@@ -494,12 +580,23 @@ impl Iterator for SolverRuntime {
                     Some(n) => {
                         let n_lock = n.read().unwrap();
                         self.decision = Some(
-                            Change::StepBack(StepBack::new(&cause, &n_lock.state)).as_decision(),
+                            Change::StepBack(StepBack::new(
+                                &cause,
+                                &n_lock.state,
+                                Arc::clone(&self.solver.number_of_steps_back),
+                            ))
+                            .as_decision(),
                         )
                     }
                     None => {
-                        self.decision =
-                            Some(Change::StepBack(StepBack::new(&cause, &DEAD_STATE)).as_decision())
+                        self.decision = Some(
+                            Change::StepBack(StepBack::new(
+                                &cause,
+                                &DEAD_STATE,
+                                Arc::clone(&self.solver.number_of_steps_back),
+                            ))
+                            .as_decision(),
+                        )
                     }
                 }
 

@@ -6,6 +6,7 @@ use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 
@@ -1023,17 +1024,22 @@ impl SkipPackageNote {
 pub struct StepBack {
     pub cause: String,
     pub destination: Arc<State>,
+    // For counting the number of StepBack apply() calls
+    global_counter: Arc<AtomicU64>,
 }
 
 impl StepBack {
-    pub fn new(cause: impl Into<String>, to: &Arc<State>) -> Self {
+    pub fn new(cause: impl Into<String>, to: &Arc<State>, global_counter: Arc<AtomicU64>) -> Self {
         StepBack {
             cause: cause.into(),
             destination: Arc::clone(to),
+            global_counter,
         }
     }
 
     pub fn apply(&self, _base: &State) -> Arc<State> {
+        // Increment the counter before restoring the state
+        self.global_counter.fetch_add(1, Ordering::SeqCst);
         Arc::clone(&self.destination)
     }
 }
