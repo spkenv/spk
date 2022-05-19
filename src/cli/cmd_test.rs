@@ -24,6 +24,10 @@ pub struct Test {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    time: bool,
+
     /// Test in the current directory, instead of the source package
     ///
     /// This is mostly relevant when testing source and build stages
@@ -71,7 +75,7 @@ impl Run for Test {
                 }
             };
 
-            let (spec, filename) = match flags::find_package_spec(&Some(name.clone()))? {
+            let (spec, filename) = match flags::find_package_spec(&Some(&name))? {
                 flags::FindPackageSpecResult::Found { path, spec } => (spec, path),
                 _ => {
                     let pkg = spk::api::parse_ident(&name)?;
@@ -139,6 +143,7 @@ impl Run for Test {
                         );
 
                         let verbose = self.verbose;
+                        let report_time = self.time;
                         match stage {
                             spk::api::TestStage::Sources => spk::test::PackageSourceTester::new(
                                 spec.clone(),
@@ -149,7 +154,7 @@ impl Run for Test {
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
                             .watch_environment_resolve(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose)
+                                spk::io::run_and_print_decisions(r, verbose, report_time)
                             })
                             .test()?,
 
@@ -171,10 +176,10 @@ impl Run for Test {
                                     }),
                             )
                             .with_source_resolver(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose)
+                                spk::io::run_and_print_decisions(r, verbose, report_time)
                             })
                             .with_build_resolver(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose)
+                                spk::io::run_and_print_decisions(r, verbose, report_time)
                             })
                             .test()?,
 
@@ -187,7 +192,7 @@ impl Run for Test {
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
                             .watch_environment_resolve(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose)
+                                spk::io::run_and_print_decisions(r, verbose, report_time)
                             })
                             .test()?,
                         }

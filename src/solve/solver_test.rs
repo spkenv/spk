@@ -243,7 +243,7 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::PackageNotFoundError(_))));
 }
 
@@ -256,7 +256,7 @@ fn test_solver_single_package_no_deps(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.pkg.version.to_string(), "1.0.0");
@@ -283,7 +283,7 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-b/1.1"));
 
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
     assert_resolved!(packages, "pkg-a", "1.2.1");
     assert_resolved!(packages, "pkg-b", "1.1.0");
@@ -311,7 +311,7 @@ fn test_solver_dependency_abi_compat(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-b/1.1"));
 
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
     assert_resolved!(packages, "pkg-a", "1.1.1");
     assert_resolved!(packages, "pkg-b", "1.1.0");
@@ -337,7 +337,7 @@ fn test_solver_dependency_incompatible(mut solver: Solver) {
     // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request(request!("maya/2019"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -367,7 +367,7 @@ fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
     // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
     solver.add_request(request!("maya/2019"));
 
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(packages, "my-plugin", "1.0.0");
     assert_resolved!(packages, "maya", "2019.0.0");
 }
@@ -395,7 +395,7 @@ fn test_solver_dependency_already_satisfied(mut solver: Solver) {
     );
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(packages, ["pkg-top", "dep-1", "dep-2"]);
     assert_resolved!(packages, "dep-1", "1.0.0");
@@ -429,7 +429,7 @@ fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
     );
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
     assert_resolved!(packages, "maya", "2019.0.0");
 }
@@ -461,7 +461,7 @@ fn test_solver_dependency_reiterate(mut solver: Solver) {
     );
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
-    let packages = io::run_and_print_resolve(&solver, 100).unwrap();
+    let packages = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
     assert_resolved!(packages, "maya", "2019.0.0");
 }
@@ -492,7 +492,7 @@ fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
     );
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
-    let result = io::run_and_print_resolve(&solver, 100);
+    let result = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(result, Err(Error::Solve(_))));
 }
 
@@ -511,7 +511,7 @@ fn test_solver_pre_release_config(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -523,7 +523,7 @@ fn test_solver_pre_release_config(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(request!({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"}));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
 }
 
@@ -548,7 +548,7 @@ fn test_solver_constraint_only(mut solver: Solver) {
     );
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert!(solution.get("python").is_none());
 }
@@ -580,7 +580,7 @@ fn test_solver_constraint_and_request(mut solver: Solver) {
     );
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "python", "3.7.3");
 }
@@ -622,7 +622,7 @@ fn test_solver_option_compatibility(mut solver: Solver) {
             }
             .into(),
         );
-        let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+        let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
         let resolved = solution.get("vnp3").unwrap();
         let opt = resolved.spec.build.options.get(0).unwrap();
@@ -667,7 +667,7 @@ fn test_solver_option_injection(mut solver: Solver) {
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     let mut opts = solution.options();
     assert_eq!(
@@ -722,7 +722,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     let resolved = solution.get("my-tool").unwrap();
     assert!(
@@ -737,7 +737,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
     solver.add_request(request!("my-tool"));
     solver.set_binary_only(true);
     // Should fail when binary-only is specified
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -773,7 +773,7 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
     solver.add_request(request!({"var": "gcc/6.3"}));
     solver.add_request(request!("my-tool"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -818,7 +818,7 @@ fn test_solver_build_from_source_dependency(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert!(
         solution.get("my-tool").unwrap().is_source_build(),
@@ -840,7 +840,7 @@ fn test_solver_deprecated_build(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -852,7 +852,7 @@ fn test_solver_deprecated_build(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(api::PkgRequest::from_ident(&deprecated_build).into());
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -873,7 +873,7 @@ fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -885,7 +885,7 @@ fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(api::PkgRequest::new(api::RangeIdent::exact(&deprecated.pkg, [])).into());
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -922,7 +922,7 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -945,7 +945,7 @@ fn test_solver_embedded_package_adds_request(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("maya"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
     assert_resolved!(solution, "qt", "5.12.6");
@@ -977,7 +977,7 @@ fn test_solver_embedded_package_solvable(mut solver: Solver) {
     solver.add_request(request!("qt"));
     solver.add_request(request!("maya"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "qt", "5.12.6");
     assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
@@ -1011,7 +1011,7 @@ fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -1046,7 +1046,7 @@ fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-lib"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "dep", "2.0.0");
 }
@@ -1079,7 +1079,7 @@ fn test_solver_embedded_request_invalidates(mut solver: Solver) {
     solver.add_request(request!("python"));
     solver.add_request(request!("my-lib"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -1097,14 +1097,14 @@ fn test_solver_unknown_package_options(mut solver: Solver) {
     solver.add_request(request!({"var": "my-lib.something/value"}));
     solver.add_request(request!("my-lib"));
 
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 
     // this time we don't request that option, and it should be ok
     solver.reset();
     solver.add_repository(repo);
     solver.add_request(request!("my-lib"));
-    io::run_and_print_resolve(&solver, 100).unwrap();
+    io::run_and_print_resolve(&solver, 100, false).unwrap();
 }
 
 #[rstest]
@@ -1140,7 +1140,7 @@ fn test_solver_var_requirements(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-app/2"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "my-app", "2.0.0");
     assert_resolved!(solution, "python", "3.7.3");
@@ -1150,7 +1150,7 @@ fn test_solver_var_requirements(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(request!("my-app/1"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "python", "2.7.5");
 }
@@ -1190,7 +1190,7 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
     // the addition of this app constrains the python.abi to 2.7
     solver.add_request(request!("my-app/1"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "my-app", "1.0.0");
     assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
@@ -1202,7 +1202,7 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
     // the addition of this app constrains the global abi to 2.7
     solver.add_request(request!("my-app/2"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "my-app", "2.0.0");
     assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
@@ -1241,7 +1241,7 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     // b is not affected and can still be resolved
     solver.add_request(request!("pkgb"));
 
-    io::run_and_print_resolve(&solver, 100).unwrap();
+    io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     solver.reset();
     solver.add_repository(repo.clone());
@@ -1250,7 +1250,7 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     solver.add_request(request!("pkgb"));
     // this time the explicit request will cause a failure
     solver.add_request(request!({"var": "build-dep/=1.0.0"}));
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
@@ -1289,7 +1289,7 @@ fn test_solver_components(mut solver: Solver) {
     solver.add_request(request!("pkga"));
     solver.add_request(request!("pkgb"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     let resolved = solution.get("python").unwrap().request.pkg.components;
     let expected = ["interpreter", "doc", "lib", "run"]
@@ -1325,7 +1325,7 @@ fn test_solver_all_component(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:all"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     let resolved = solution.get("python").unwrap();
     assert_eq!(resolved.request.pkg.components.len(), 1);
@@ -1380,7 +1380,7 @@ fn test_solver_component_availability(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:bin"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(
         solution,
@@ -1421,7 +1421,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("mypkg:build"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     solution.get("dep").expect("should exist");
     solution.get("depb").expect("should exist");
@@ -1431,7 +1431,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(request!("mypkg:run"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     solution.get("dep").expect("should exist");
     solution.get("depr").expect("should exist");
@@ -1465,7 +1465,7 @@ fn test_solver_component_requirements_extending(mut solver: Solver) {
     // has a new requirement on depc
     solver.add_request(request!("depb"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     solution.get("depc").expect("should exist");
 }
@@ -1510,7 +1510,7 @@ fn test_solver_component_embedded(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("downstream1"));
 
-    let solution = io::run_and_print_resolve(&solver, 100).unwrap();
+    let solution = io::run_and_print_resolve(&solver, 100, false).unwrap();
 
     assert_resolved!(solution, "dep-e1", build = Some(api::Build::Embedded));
 
@@ -1520,7 +1520,7 @@ fn test_solver_component_embedded(mut solver: Solver) {
 
     // should fail because the one embedded package
     // does not meet the requirements in downstream spec
-    let res = io::run_and_print_resolve(&solver, 100);
+    let res = io::run_and_print_resolve(&solver, 100, false);
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 

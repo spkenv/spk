@@ -27,6 +27,10 @@ pub struct Install {
     #[clap(long, short)]
     yes: bool,
 
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    time: bool,
+
     /// The packages to install
     #[clap(name = "PKG", required = true)]
     pub packages: Vec<String>,
@@ -48,7 +52,7 @@ impl Run for Install {
             solver.add_request(request);
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
+        let solution = spk::io::run_and_print_resolve(&solver, self.verbose, self.time)?;
 
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver

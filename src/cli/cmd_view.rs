@@ -22,6 +22,10 @@ pub struct View {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    time: bool,
+
     /// The package to show information about
     package: Option<String>,
 
@@ -50,7 +54,8 @@ impl Run for View {
         };
 
         let mut runtime = solver.run();
-        let solution = match runtime.solution() {
+        let solution = match spk::io::run_and_print_decisions(&mut runtime, self.verbose, self.time)
+        {
             Ok(s) => s,
             Err(err @ spk::Error::Solve(_)) => {
                 println!("{}", err.to_string().red());

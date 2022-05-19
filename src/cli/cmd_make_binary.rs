@@ -42,6 +42,10 @@ pub struct MakeBinary {
     /// Build only the specified variant, by index, if defined
     #[clap(long)]
     pub variant: Option<usize>,
+
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    pub time: bool,
 }
 
 impl Run for MakeBinary {
@@ -103,12 +107,17 @@ impl Run for MakeBinary {
                 tracing::info!("building variant {}", spk::io::format_options(&opts));
                 let mut builder = spk::build::BinaryPackageBuilder::from_spec(spec.clone());
                 let verbose = self.verbose;
+                let report_time = self.time;
                 builder
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(move |r| spk::io::run_and_print_decisions(r, verbose))
-                    .with_build_resolver(move |r| spk::io::run_and_print_decisions(r, verbose));
+                    .with_source_resolver(move |r| {
+                        spk::io::run_and_print_decisions(r, verbose, report_time)
+                    })
+                    .with_build_resolver(move |r| {
+                        spk::io::run_and_print_decisions(r, verbose, report_time)
+                    });
                 if self.here {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;

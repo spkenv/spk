@@ -22,6 +22,10 @@ pub struct Bake {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    pub time: bool,
+
     /// The requests to resolve and bake
     #[clap(name = "REQUESTS")]
     pub requested: Vec<String>,
@@ -55,6 +59,7 @@ impl Bake {
             requests: self.requests.clone(),
             options: self.options.clone(),
             verbose: self.verbose,
+            time: self.time,
             requested: self.requested.clone(),
             command: vec![exe, "bake".into()],
         };

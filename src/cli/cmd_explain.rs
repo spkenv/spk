@@ -22,6 +22,10 @@ pub struct Explain {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    time: bool,
+
     /// The requests to resolve
     #[clap(name = "REQUESTS", required = true)]
     pub requested: Vec<String>,
@@ -39,7 +43,7 @@ impl Run for Explain {
             solver.add_request(request)
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose + 1)?;
+        let solution = spk::io::run_and_print_resolve(&solver, self.verbose + 1, self.time)?;
 
         println!("{}", spk::io::format_solution(&solution, self.verbose + 1));
         Ok(0)

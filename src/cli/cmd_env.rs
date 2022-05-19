@@ -27,6 +27,10 @@ pub struct Env {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    /// If true, display solver time/stats after each solve
+    #[clap(short, long)]
+    pub time: bool,
+
     /// The requests to resolve and run
     #[clap(name = "REQUESTS")]
     pub requested: Vec<String>,
@@ -51,7 +55,7 @@ impl Run for Env {
             solver.add_request(request)
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
+        let solution = spk::io::run_and_print_resolve(&solver, self.verbose, self.time)?;
 
         if self.verbose > 0 {
             eprintln!("{}", spk::io::format_solution(&solution, self.verbose));
