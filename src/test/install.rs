@@ -119,13 +119,11 @@ impl PackageInstallTester {
         }
 
         let pkg = api::RangeIdent::exact(&self.spec.pkg, [api::Component::All]);
-        let request = api::PkgRequest {
-            pkg,
-            prerelease_policy: api::PreReleasePolicy::IncludeAll,
-            inclusion_policy: api::InclusionPolicy::Always,
-            pin: None,
-            required_compat: None,
-        };
+        let request =
+            api::PkgRequest::new(pkg, api::RequestedBy::InstallTest(self.spec.pkg.clone()))
+                .with_prerelease(api::PreReleasePolicy::IncludeAll)
+                .with_pin(None)
+                .with_compat(None);
         solver.add_request(request.into());
 
         let mut runtime = solver.run();

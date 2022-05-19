@@ -227,13 +227,12 @@ impl PackageBuildTester {
         }
 
         let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
-        let request = api::PkgRequest {
-            pkg: ident_range,
-            prerelease_policy: api::PreReleasePolicy::IncludeAll,
-            inclusion_policy: api::InclusionPolicy::Always,
-            pin: None,
-            required_compat: None,
-        };
+        let request =
+            api::PkgRequest::new(ident_range, api::RequestedBy::BuildTest(package.clone()))
+                .with_prerelease(api::PreReleasePolicy::IncludeAll)
+                .with_pin(None)
+                .with_compat(None);
+
         solver.add_request(request.into());
 
         let mut runtime = solver.run();

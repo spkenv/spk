@@ -56,6 +56,11 @@ pub struct Solver {
     // during the solver. Used in end-of-solve stats or if the solve
     // is interrupted by the user or timeout.
     error_frequency: HashMap<String, u64>,
+    // For counting the number of times packages are involved in
+    // blocked requests for other packages during the search. Used to
+    // highlight problem areas in a solve and help user home in on
+    // what might be causing issues.
+    problem_packages: HashMap<String, u64>,
 }
 
 impl Default for Solver {
@@ -71,6 +76,7 @@ impl Default for Solver {
             number_total_builds: 0,
             number_of_steps_back: Arc::new(AtomicU64::new(0)),
             error_frequency: HashMap::new(),
+            problem_packages: HashMap::new(),
         }
     }
 }
@@ -116,6 +122,17 @@ impl Solver {
     /// Get the error to frequency mapping
     pub fn error_frequency(&self) -> &HashMap<String, u64> {
         &self.error_frequency
+    }
+
+    /// Increment the number of occurrences of the given error message
+    pub fn increment_problem_package_count(&mut self, problem_package: String) {
+        let counter = self.problem_packages.entry(problem_package).or_insert(0);
+        *counter += 1;
+    }
+
+    /// Get the problem pacakges frequency mapping
+    pub fn problem_packages(&self) -> &HashMap<String, u64> {
+        &self.problem_packages
     }
 
     fn get_iterator(
@@ -318,6 +335,7 @@ impl Solver {
         self.number_total_builds = 0;
         self.number_of_steps_back.store(0, Ordering::SeqCst);
         self.error_frequency.clear();
+        self.problem_packages.clear();
     }
 
     /// Run this solver
@@ -374,7 +392,11 @@ impl Solver {
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(option.pkg.as_str());
-                let mut request = option.to_request(given.cloned())?;
+
+                let mut request = option.to_request(
+                    given.cloned(),
+                    api::RequestedBy::PackageBuild(spec.pkg.clone()),
+                )?;
                 // if no components were explicitly requested in a build option,
                 // then we inject the default for this context
                 if request.pkg.components.is_empty() {
@@ -574,7 +596,25 @@ impl Iterator for SolverRuntime {
         self.decision = match self.solver.step_state(&mut current_node_lock) {
             Ok(decision) => decision,
             Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
-                let cause = format!("could not satisfy '{}'", err.request.pkg);
+                // Add to problem package counts based on what made
+                // the request for the blocked package.
+                let requested_by = err.request.get_requesters();
+                for req in &requested_by {
+                    if let api::RequestedBy::PackageBuild(problem_package) = req {
+                        self.solver
+                            .increment_problem_package_count(problem_package.name.to_string())
+                    }
+                }
+
+                // Add the requirers to the output so where the
+                // requests came from is more visible to the user.
+                let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
+                let cause = format!(
+                    "could not satisfy '{}' as required by: {}",
+                    err.request.pkg,
+                    requirers.join(", ")
+                );
+                self.solver.increment_error_count(cause.clone());
 
                 match self.history.pop() {
                     Some(n) => {

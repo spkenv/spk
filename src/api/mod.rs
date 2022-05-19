@@ -40,7 +40,7 @@ pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub use option_map::{host_options, OptionMap};
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
-    VarRequest,
+    RequestedBy, VarRequest,
 };
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};

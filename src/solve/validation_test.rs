@@ -26,9 +26,15 @@ fn test_src_package_install_requests_are_not_considered() {
 
     let state = State::new(
         vec![
-            api::PkgRequest::from_ident(&ident!("my-pkg/1.0.0/src")),
-            api::PkgRequest::from_ident(&ident!("embedded/1.0.0")),
-            api::PkgRequest::from_ident(&ident!("dependency/1")),
+            api::PkgRequest::from_ident(
+                ident!("my-pkg/1.0.0/src"),
+                api::RequestedBy::SpkInternalTest,
+            ),
+            api::PkgRequest::from_ident(
+                ident!("embedded/1.0.0"),
+                api::RequestedBy::SpkInternalTest,
+            ),
+            api::PkgRequest::from_ident(ident!("dependency/1"), api::RequestedBy::SpkInternalTest),
         ],
         vec![],
         vec![],

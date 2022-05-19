@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::{
-    collections::HashSet,
+    collections::BTreeSet,
     convert::TryInto,
     fmt::{Display, Write},
     hash::Hash,
@@ -39,8 +39,8 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility;
 
     /// If applicable, return the broken down set of rules for this range
-    fn rules(&self) -> HashSet<VersionRange> {
-        let mut out = HashSet::with_capacity(1);
+    fn rules(&self) -> BTreeSet<VersionRange> {
+        let mut out = BTreeSet::new();
         out.insert(self.clone().into());
         out
     }
@@ -129,7 +129,7 @@ impl<T: Ranged> Ranged for &T {
 }
 
 /// Specifies a range of version numbers by inclusion or exclusion
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[enum_dispatch(Ranged)]
 pub enum VersionRange {
     Compat(CompatRange),
@@ -209,7 +209,7 @@ impl<T: Ranged> From<&T> for VersionRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct SemverRange {
     minimum: Version,
 }
@@ -257,7 +257,7 @@ impl Display for SemverRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct WildcardRange {
     specified: usize,
     parts: Vec<Option<u32>>,
@@ -352,7 +352,7 @@ impl Display for WildcardRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct LowestSpecifiedRange {
     specified: usize,
     base: Version,
@@ -405,7 +405,7 @@ impl Display for LowestSpecifiedRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct GreaterThanRange {
     bound: Version,
 }
@@ -448,7 +448,7 @@ impl Display for GreaterThanRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct LessThanRange {
     bound: Version,
 }
@@ -491,7 +491,7 @@ impl Display for LessThanRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct GreaterThanOrEqualToRange {
     bound: Version,
 }
@@ -534,7 +534,7 @@ impl Display for GreaterThanOrEqualToRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct LessThanOrEqualToRange {
     bound: Version,
 }
@@ -577,7 +577,7 @@ impl Display for LessThanOrEqualToRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct EqualsVersion {
     version: Version,
 }
@@ -644,7 +644,7 @@ impl Display for EqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct NotEqualsVersion {
     specified: usize,
     base: Version,
@@ -710,7 +710,7 @@ impl Display for NotEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct DoubleEqualsVersion {
     version: Version,
 }
@@ -772,7 +772,7 @@ impl Display for DoubleEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct DoubleNotEqualsVersion {
     specified: usize,
     base: Version,
@@ -838,7 +838,7 @@ impl Display for DoubleNotEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct CompatRange {
     base: Version,
     /// if unset, the required compatibility is based on the type
@@ -900,9 +900,9 @@ impl Display for CompatRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Default)]
 pub struct VersionFilter {
-    rules: HashSet<VersionRange>,
+    rules: BTreeSet<VersionRange>,
 }
 
 #[allow(clippy::derive_hash_xor_eq)]
@@ -1026,7 +1026,7 @@ impl Ranged for VersionFilter {
         Compatibility::Compatible
     }
 
-    fn rules(&self) -> HashSet<VersionRange> {
+    fn rules(&self) -> BTreeSet<VersionRange> {
         self.rules.clone()
     }
 }

@@ -170,11 +170,17 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     if solution.is_empty() {
         return "Nothing Installed".to_string();
     }
+
     let mut out = "Installed Packages:\n".to_string();
-    for req in solution.items() {
-        let mut installed = api::PkgRequest::from_ident(&req.spec.pkg);
+
+    let required_items = solution.items();
+    let number_of_packages = required_items.len();
+    for req in required_items {
+        let mut installed =
+            api::PkgRequest::from_ident(req.spec.pkg.clone(), api::RequestedBy::DoesNotMatter);
+
         if let solve::PackageSource::Repository { components, .. } = req.source {
-            let mut installed_components = req.request.pkg.components;
+            let mut installed_components = req.request.pkg.components.clone();
             if installed_components.remove(&api::Component::All) {
                 installed_components.extend(components.keys().cloned());
             }
@@ -192,12 +198,28 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             )
         ));
         if verbosity > 0 {
+            // Get all the things that requested this request
+            let requested_by: Vec<String> = req
+                .request
+                .get_requesters()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            out.push_str(&format!(" (required by {}) ", requested_by.join(", ")));
+
+            // TODO: should options be output on v > 1, or requesters
+            // on v > 1 instead of both on v > 0? I suspect requesters
+            // is more important for run env solves and options is
+            // more important for build env solves. Maybe have options
+            // to display each in this package listing,
+            // e.g. --show-requesters and --show-options?
             let options = req.spec.resolve_all_options(&api::OptionMap::default());
             out.push(' ');
             out.push_str(&format_options(&options));
         }
         out.push('\n');
     }
+    out.push_str(&format!(" Number of Packages: {}", number_of_packages));
     out
 }
 
@@ -240,6 +262,7 @@ fn get_request_change_label(level: usize) -> &'static str {
 pub fn format_change(
     change: &solve::graph::Change,
     format_settings: FormatChangeOptions,
+    state: Option<&solve::graph::State>,
 ) -> String {
     use solve::graph::Change::*;
     match change {
@@ -266,7 +289,45 @@ pub fn format_change(
             format!("{} {}", "BUILD".yellow(), format_ident(&c.spec.pkg))
         }
         SetPackage(c) => {
-            format!("{} {}", "RESOLVE".green(), format_ident(&c.spec.pkg))
+            if format_settings.verbosity > 0 {
+                // Work out who the requesters were, so this can show
+                // the resolved package and its requester(s)
+                let requested_by: Vec<String> = match state {
+                    Some(s) => match s.get_merged_request(&c.spec.pkg.name) {
+                        Ok(r) => r.get_requesters().iter().map(ToString::to_string).collect(),
+                        Err(_) => {
+                            // This happens with embedded requests
+                            // because they are requested and added in
+                            // the same state. Luckily we can use
+                            // their PackageSource::Spec data to
+                            // display what requested them.
+                            match &c.source {
+                                solve::PackageSource::Spec(rb) => {
+                                    vec![api::RequestedBy::PackageBuild(rb.pkg.clone()).to_string()]
+                                }
+                                _ => {
+                                    // Don't think this should happen
+                                    vec![api::RequestedBy::Unknown.to_string()]
+                                }
+                            }
+                        }
+                    },
+                    None => {
+                        vec![api::RequestedBy::NoState.to_string()]
+                    }
+                };
+
+                // Show the resolved package and its requester(s)
+                format!(
+                    "{} {}  (requested by {})",
+                    "RESOLVE".green(),
+                    format_ident(&c.spec.pkg),
+                    requested_by.join(", ")
+                )
+            } else {
+                // Just show the resolved package, don't show the requester(s)
+                format!("{} {}", "RESOLVE".green(), format_ident(&c.spec.pkg))
+            }
         }
         SetOptions(c) => {
             format!("{} {}", "ASSIGN".cyan(), format_options(&c.options))
@@ -378,9 +439,9 @@ where
                 return Some(Err(err));
             }
 
-            let decision = match self.inner.next() {
+            let (node, decision) = match self.inner.next() {
                 None => return None,
-                Some(Ok((_, d))) => d,
+                Some(Ok((n, d))) => (n, d),
                 Some(Err(err)) => return Some(Err(err)),
             };
 
@@ -426,7 +487,8 @@ where
                         FormatChangeOptions {
                             verbosity: self.verbosity,
                             level: self.level
-                        }
+                        },
+                        Some(&node.state)
                     )
                 ))
             }
@@ -713,6 +775,22 @@ impl DecisionFormatter {
             " Solver took {total_steps} steps total, at {:.3} steps/sec\n",
             total_steps as f64 / seconds,
         ));
+
+        // Show all problem packages mentioned in BLOCKED step backs,
+        // highest number of mentions first
+        let problem_packages = solver.problem_packages();
+        if !problem_packages.is_empty() {
+            out.push_str(" Solver encountered these problem requests:\n");
+
+            // Sort the problem packages by highest count ones first
+            let mut sorted_by_count: Vec<(&String, &u64)> = problem_packages.iter().collect();
+            sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
+            for (pkg, count) in sorted_by_count {
+                out.push_str(&format!("   {} ({} times)\n", pkg, count));
+            }
+        } else {
+            out.push_str(" Solver encountered no problem requests\n");
+        }
 
         // Show all errors sorted by highest to lowest frequency
         let errors = solver.error_frequency();

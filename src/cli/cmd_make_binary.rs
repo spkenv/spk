@@ -129,7 +129,10 @@ impl Run for MakeBinary {
                 tracing::info!("created {}", spk::io::format_ident(&out.pkg));
 
                 if self.env {
-                    let request = spk::api::PkgRequest::from_ident(&out.pkg);
+                    let request = spk::api::PkgRequest::from_ident(
+                        out.pkg,
+                        spk::api::RequestedBy::CommandLine,
+                    );
                     let mut cmd = std::process::Command::new("spk");
                     cmd.args(&["env", "--local-repo"])
                         .arg(request.pkg.to_string());

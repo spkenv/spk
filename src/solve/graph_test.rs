@@ -45,7 +45,8 @@ fn test_resolve_build_same_result() {
                 io::FormatChangeOptions {
                     verbosity: 100,
                     level: usize::MAX,
-                }
+                },
+                Some(&with_binary)
             )
         );
     }
@@ -58,7 +59,8 @@ fn test_resolve_build_same_result() {
                 io::FormatChangeOptions {
                     verbosity: 100,
                     level: usize::MAX,
-                }
+                },
+                Some(&with_build)
             )
         );
     }

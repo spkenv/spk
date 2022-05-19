@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{
     cmp::min,
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     fmt::{Display, Write},
     str::FromStr,
 };
@@ -405,12 +405,6 @@ impl From<PkgRequest> for Request {
     }
 }
 
-impl From<Ident> for Request {
-    fn from(pkg: Ident) -> Request {
-        Self::Pkg(pkg.into())
-    }
-}
-
 impl<'de> Deserialize<'de> for Request {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -562,8 +556,67 @@ impl Serialize for VarRequest {
     }
 }
 
+/// What made a PkgRequest, was it the command line, a test or a
+/// package build such as one resolved during a solve, or another
+/// package build resolved during a solve.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum RequestedBy {
+    /// From the command line
+    CommandLine,
+    /// A source package that made the request during a source build resolve
+    SourceBuild(Ident),
+    /// A package that made the request as part of a binary build env setup
+    BinaryBuild(Ident),
+    /// A source package that a made the request during a source test
+    SourceTest(Ident),
+    /// The source package that made the request during a build test
+    BuildTest(Ident),
+    /// The package that made the request to set up an install test
+    InstallTest(Ident),
+    /// The request was made for the current environment, so from a
+    /// previous spk solve which does not keep past requester data,
+    /// and there isn't anymore information
+    CurrentEnvironment,
+    /// Don't know where what made the request. This is used to cover
+    /// a potential error case that should not be possible, but might be.
+    Unknown,
+    /// For situations when a PkgRequest is created temporarily to use
+    /// some of its functionality as part of updating something else
+    /// and its "requested by" data is not used in its lifetime,
+    /// e.g. temp processing during i/o formatting.
+    DoesNotMatter,
+    /// For situations when there was no solver state data available
+    /// from which to work out what the original merged request was
+    /// that resulted in a SetPackage change. This is used to cover a
+    /// potential error case that should not be possible.
+    NoState,
+    /// For a request made during spk's automated (unit) test code
+    SpkInternalTest,
+    /// A package build that made the request, usually during a solve
+    PackageBuild(Ident),
+}
+
+impl std::fmt::Display for RequestedBy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RequestedBy::CommandLine => write!(f, "command line"),
+            RequestedBy::SourceBuild(ident) => write!(f, "{ident} source build"),
+            RequestedBy::BinaryBuild(ident) => write!(f, "{ident} binary build"),
+            RequestedBy::SourceTest(ident) => write!(f, "{ident} source test"),
+            RequestedBy::BuildTest(ident) => write!(f, "{ident} build test"),
+            RequestedBy::InstallTest(ident) => write!(f, "{ident} install test"),
+            RequestedBy::CurrentEnvironment => write!(f, "current environment"),
+            RequestedBy::Unknown => write!(f, "unknown"),
+            RequestedBy::DoesNotMatter => write!(f, "n/a"),
+            RequestedBy::NoState => write!(f, "no state? this should not happen?"),
+            RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
+            RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
+        }
+    }
+}
+
 /// A desired package and set of restrictions on how it's selected.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PkgRequest {
     pub pkg: RangeIdent,
     #[serde(
@@ -586,22 +639,104 @@ pub struct PkgRequest {
     pub pin: Option<String>,
     #[serde(skip)]
     pub required_compat: Option<CompatRule>,
+    /// This is BTreeMap to allow it to retain an ordering that
+    /// matches the pkg.version.rules order when multiple requests are
+    /// combined into a merged request during a solve. The key is a
+    /// String of a RangeIdent, from the pkg field or other
+    /// RangeIdents as requests are combined (via restrict()). The
+    /// entries are vectors because multiple things can make the same
+    /// request.
+    #[serde(skip)]
+    pub requested_by: BTreeMap<String, Vec<RequestedBy>>,
+}
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl std::hash::Hash for PkgRequest {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pkg.hash(state);
+        self.prerelease_policy.hash(state);
+        self.inclusion_policy.hash(state);
+        match &self.pin {
+            Some(p) => p.hash(state),
+            None => {}
+        };
+        self.required_compat.hash(state);
+        // The 'requested_by' field is not included in the hash
+        // because the source(s) of the request shouldn't affect the
+        // 'identity' of the request. This should help avoid State bloat.
+    }
 }
 
 impl PkgRequest {
-    pub fn new(pkg: RangeIdent) -> Self {
+    pub fn new(pkg: RangeIdent, requester: RequestedBy) -> Self {
+        let key = pkg.to_string();
         Self {
             pkg,
             prerelease_policy: PreReleasePolicy::ExcludeAll,
             inclusion_policy: InclusionPolicy::Always,
             pin: Default::default(),
             required_compat: Some(CompatRule::Binary),
+            requested_by: BTreeMap::from([(key, vec![requester])]),
         }
     }
 
+    // Sometimes a PkgRequest is created directly without using new()
+    // or from_ident() and without knowing what the requester is in
+    // the creating function, such as during deserialization
+    // (e.g. from parsing command line args, or reading it from the
+    // install requirements in build spec file ). This method must be
+    // used in those cases to add the requester after the PkgRequest has
+    // been created.
+    pub fn add_requester(&mut self, requester: RequestedBy) {
+        let key = self.pkg.to_string();
+        self.requested_by
+            .entry(key)
+            .or_insert(Vec::new())
+            .push(requester);
+    }
+
+    /// Return a list of the things that made this request (what that
+    /// requested it, what it was requested by)
+    pub fn get_requesters(&self) -> Vec<RequestedBy> {
+        // Get all the things that requested this request
+        let mut all_requested_by: Vec<RequestedBy> = Vec::new();
+        for request_list in self.requested_by.values() {
+            for r in request_list {
+                all_requested_by.push(r.clone());
+            }
+        }
+        all_requested_by
+    }
+
     // TODO: change parameter to `pkg: Ident`
-    pub fn from_ident(pkg: &Ident) -> Self {
-        Self::from(pkg.clone())
+    pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
+        let ri = RangeIdent {
+            name: pkg.name,
+            components: Default::default(),
+            version: VersionFilter::single(EqualsVersion::version_range(pkg.version.clone())),
+            build: pkg.build,
+        };
+        Self::new(ri, requester)
+    }
+
+    pub fn with_prerelease(mut self, prerelease_policy: PreReleasePolicy) -> Self {
+        self.prerelease_policy = prerelease_policy;
+        self
+    }
+
+    pub fn with_inclusion(mut self, inclusion_policy: InclusionPolicy) -> Self {
+        self.inclusion_policy = inclusion_policy;
+        self
+    }
+
+    pub fn with_pin(mut self, pin: Option<String>) -> Self {
+        self.pin = pin;
+        self
+    }
+
+    pub fn with_compat(mut self, required_compat: Option<CompatRule>) -> Self {
+        self.required_compat = required_compat;
+        self
     }
 
     fn rendered_to_pkgrequest(&self, rendered: Vec<char>) -> Result<PkgRequest> {
@@ -687,19 +822,17 @@ impl PkgRequest {
     pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
         self.prerelease_policy = min(self.prerelease_policy, other.prerelease_policy);
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
-        self.pkg.restrict(&other.pkg)
-    }
-}
-
-impl From<Ident> for PkgRequest {
-    fn from(pkg: Ident) -> PkgRequest {
-        let ri = RangeIdent {
-            name: pkg.name,
-            components: Default::default(),
-            version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
-            build: pkg.build,
-        };
-        PkgRequest::new(ri)
+        self.pkg.restrict(&other.pkg)?;
+        // Add the requesters from the other request to this one.
+        for (key, request_list) in &other.requested_by {
+            for requester in request_list {
+                self.requested_by
+                    .entry(key.clone())
+                    .or_insert(Vec::new())
+                    .push(requester.clone());
+            }
+        }
+        Ok(())
     }
 }
 
@@ -747,6 +880,7 @@ impl<'de> Deserialize<'de> for PkgRequest {
             inclusion_policy: unchecked.inclusion_policy,
             pin,
             required_compat: None,
+            requested_by: BTreeMap::new(),
         })
     }
 }
