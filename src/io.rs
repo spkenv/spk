@@ -74,7 +74,7 @@ pub fn format_initial_request(request: &api::Request) -> String {
 
     match request {
         api::Request::Pkg(r) => {
-            out.push_str(&format!("{} (", format_request(r.pkg.name(), [r])));
+            out.push_str(&format!("{} (", format_request(&r.pkg.name, [r])));
             out.push_str(&format!(
                 "PreReleasePolicy: {}, ",
                 r.prerelease_policy.to_string().cyan()
