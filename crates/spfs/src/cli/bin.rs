@@ -18,6 +18,7 @@ mod cmd_log;
 mod cmd_ls;
 mod cmd_ls_tags;
 mod cmd_migrate;
+mod cmd_monitor;
 mod cmd_platforms;
 mod cmd_read;
 mod cmd_reset;
@@ -72,6 +73,7 @@ pub enum Command {
     LsTags(cmd_ls_tags::CmdLsTags),
     Ls(cmd_ls::CmdLs),
     Migrate(cmd_migrate::CmdMigrate),
+    Monitor(cmd_monitor::CmdMonitor),
     Check(cmd_check::CmdCheck),
     Clean(cmd_clean::CmdClean),
     Read(cmd_read::CmdRead),
@@ -102,6 +104,7 @@ impl Opt {
             Command::LsTags(cmd) => cmd.run(config).await,
             Command::Ls(cmd) => cmd.run(config).await,
             Command::Migrate(cmd) => cmd.run(config).await,
+            Command::Monitor(cmd) => cmd.run(config).await,
             Command::Check(cmd) => cmd.run(config).await,
             Command::Clean(cmd) => cmd.run(config).await,
             Command::Read(cmd) => cmd.run(config).await,

@@ -10,6 +10,7 @@ use std::path::Path;
 use super::runtime;
 use crate::{Error, Result};
 
+static PROC_DIR: &str = "/proc";
 static SPFS_DIR: &str = "/spfs";
 static RUNTIME_DIR: &str = "/tmp/spfs-runtime";
 static RUNTIME_UPPER_DIR: &str = "/tmp/spfs-runtime/upper";
@@ -22,7 +23,7 @@ const NONE: Option<&str> = None;
 pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
     check_can_join()?;
 
-    let pid = match rt.status.pid {
+    let pid = match rt.status.owner {
         None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
         Some(pid) => pid,
     };
@@ -83,6 +84,86 @@ pub fn enter_mount_namespace() -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process::Child> {
+    let exe = match super::resolve::which("spfs") {
+        None => return Err(Error::MissingBinary("spfs")),
+        Some(exe) => exe,
+    };
+
+    let mut cmd = tokio::process::Command::new(exe);
+    cmd.arg("monitor");
+    cmd.arg("--runtime-storage");
+    cmd.arg(rt.storage().address().as_str());
+    cmd.arg("--runtime");
+    cmd.arg(rt.name());
+
+    Ok(cmd.spawn()?)
+}
+
+pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
+    let pid = match rt.status.owner {
+        None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
+        Some(pid) => pid,
+    };
+
+    let ns_path = std::path::Path::new(PROC_DIR)
+        .join(pid.to_string())
+        .join("ns/mnt");
+
+    tracing::debug!(?ns_path, "Getting process namespace");
+    let ns = match std::fs::read_link(&ns_path) {
+        Ok(ns) => ns,
+        Err(err) => {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime(rt.name().into())),
+                _ => Err(err.into()),
+            }
+        }
+    };
+
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        interval.tick().await;
+        match count_processes_in_mount_namespace(&ns).await {
+            // assume that are in the namespace as well so one process
+            // left is enough to call it completed
+            Ok(count) if count == 0 => break Ok(()),
+            Ok(_) => continue,
+            Err(err) => {
+                break Err(Error::String(format!(
+                    "Failed to check for remaining processes: {err}"
+                )))
+            }
+        }
+    }
+}
+
+async fn count_processes_in_mount_namespace(ns: &std::path::Path) -> Result<i64> {
+    let mut count = 0;
+
+    let mut read_dir = tokio::fs::read_dir(PROC_DIR).await?;
+    while let Some(entry) = read_dir.next_entry().await? {
+        let found = match tokio::fs::read_link(entry.path().join("ns/mnt")).await {
+            Ok(p) => p,
+            Err(err) => match err.raw_os_error() {
+                Some(libc::ENOENT) => continue,
+                Some(libc::ENOTDIR) => continue,
+                Some(libc::EACCES) => continue,
+                Some(libc::EPERM) => continue,
+                _ => {
+                    tracing::warn!(?err, "here");
+                    return Err(err.into());
+                }
+            },
+        };
+        if found == ns {
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 pub fn privatize_existing_mounts() -> Result<()> {

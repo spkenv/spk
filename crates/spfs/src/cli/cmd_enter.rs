@@ -5,6 +5,7 @@
 use std::ffi::OsString;
 
 use clap::Parser;
+use tokio::signal::unix::{signal, SignalKind};
 
 #[macro_use]
 mod args;
@@ -67,16 +68,25 @@ impl CmdEnter {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
-            let mut owned = spfs::runtime::OwnedRuntime::upgrade(runtime).await?;
+            let mut interrupt = signal(SignalKind::interrupt())?;
+            let mut quit = signal(SignalKind::quit())?;
+            let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
+
+            if let Err(err) = spfs::env::spawn_monitor_for_runtime(&owned) {
+                if let Err(err) = owned.delete().await {
+                    tracing::error!(
+                        ?err,
+                        "failed to cleanup runtime data after failure to start monitor"
+                    );
+                }
+                return Err(err);
+            }
+
             tracing::debug!("initalizing runtime");
             spfs::initialize_runtime(&owned, config).await?;
 
             owned.ensure_startup_scripts()?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
-
-            let mut interrupt =
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
-            let mut quit = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::quit())?;
 
             let mut child = self.exec_runtime_command(&owned).await?;
             let res = loop {
@@ -91,14 +101,6 @@ impl CmdEnter {
                 }
             };
 
-            // try to set the running to false to make this
-            // runtime easier to identify as safe to delete
-            // if the automatic cleanup fails. Any error
-            // here is unfortunate but not fatal.
-            let _ = owned.set_running(false).await;
-            if let Err(err) = owned.delete().await {
-                tracing::error!("failed to clean up runtime data: {err:?}")
-            }
             Ok(res?.code().unwrap_or(1))
         }
     }

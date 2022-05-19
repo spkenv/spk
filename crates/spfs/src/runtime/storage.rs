@@ -54,10 +54,15 @@ pub struct Status {
     pub running: bool,
     /// The id of the process that owns this runtime
     ///
+    /// This process was the original process spawned into
+    /// the runtime and was the purpose for the runtime's creation
+    pub owner: Option<u32>,
+    /// The id of the process that is monitoring this runtime
+    ///
     /// This process is responsible for monitoring the usage
     /// of this runtime and cleaning it up when completed
-    pub pid: Option<u32>,
-    /// The primary command to be executed in this runtime
+    pub monitor: Option<u32>,
+    /// The primary command that was executed in this runtime
     ///
     /// An empty command signifies that this runtime is being
     /// used to launch an interactive shell environment
@@ -155,16 +160,32 @@ impl std::ops::DerefMut for OwnedRuntime {
 }
 
 impl OwnedRuntime {
-    pub async fn upgrade(mut runtime: Runtime) -> Result<Self> {
+    pub async fn upgrade_as_owner(mut runtime: Runtime) -> Result<Self> {
         let pid = std::process::id();
-        if let Some(existing) = runtime.get_pid() {
-            if existing == pid {
-                return Err("Owned runtime was already instantiated in this process".into());
+        if let Some(existing) = &runtime.status.owner {
+            if existing == &pid {
+                return Err("Runtime was already upgraded by this process".into());
             } else {
                 return Err("Runtime is already owned by another process".into());
             }
         }
-        runtime.set_pid(pid).await?;
+        runtime.status.owner = Some(pid);
+        runtime.status.running = true;
+        runtime.save().await?;
+        Ok(Self(runtime))
+    }
+
+    pub async fn upgrade_as_monitor(mut runtime: Runtime) -> Result<Self> {
+        let pid = std::process::id();
+        if let Some(existing) = &runtime.status.monitor {
+            if existing == &pid {
+                return Err("Runtime was already upgraded by this process".into());
+            } else {
+                return Err("Runtime is already being monitored by another process".into());
+            }
+        }
+        runtime.status.monitor = Some(pid);
+        runtime.save().await?;
         Ok(Self(runtime))
     }
 
@@ -420,7 +441,7 @@ impl Storage {
     #[cfg(test)]
     pub async fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
         let rt = self.create_runtime().await?;
-        OwnedRuntime::upgrade(rt).await
+        OwnedRuntime::upgrade_as_owner(rt).await
     }
 
     /// Create a new, empty runtime with a specific name
