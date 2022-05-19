@@ -4,6 +4,7 @@
 
 //! Functions related to the setup and management of the spfs runtime environment
 //! and related system namespacing
+use std::collections::HashSet;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
@@ -107,45 +108,78 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         Some(pid) => pid,
     };
 
+    let mut monitor = cnproc::PidMonitor::new()
+        .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")))?;
+
+    let mut tracked_processes = HashSet::new();
+    let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();
+
+    // NOTE(rbottriell):
+    // scan for any processes that were already spawned before
+    // we had setup the monitoring socket
+    let current_pids = find_processes_in_shared_mount_namespace(pid).await?;
+    tracked_processes.extend(current_pids);
+
+    tokio::task::spawn_blocking(move || {
+        while let Some(event) = monitor.recv() {
+            if let Err(_err) = events_send.send(event) {
+                // the receiver has stopped listening, no need to continue
+                return;
+            }
+        }
+        tracing::warn!("monitor event stream ended unexpectedly");
+    });
+
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    while let Some(event) = events_recv.recv().await {
+        match event {
+            cnproc::PidEvent::Exec(_pid) => {
+                // exec is just one process turning into a new one, but
+                // the pid will remain the same and so we are not interested
+                // remember that launching a new process is a fork and then exec
+            }
+            cnproc::PidEvent::Fork { parent, pid } => {
+                if tracked_processes.contains(&(parent as u32)) {
+                    tracked_processes.insert(pid as u32);
+                    tracing::trace!(?tracked_processes, "runtime monitor");
+                }
+            }
+            cnproc::PidEvent::Exit(pid) => {
+                if tracked_processes.remove(&(pid as u32)) {
+                    tracing::trace!(?tracked_processes, "runtime monitor");
+                }
+                if tracked_processes.is_empty() {
+                    break;
+                }
+            }
+            cnproc::PidEvent::Coredump(_) => {}
+        }
+    }
+    Ok(())
+}
+
+async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u32>> {
     let ns_path = std::path::Path::new(PROC_DIR)
         .join(pid.to_string())
         .join("ns/mnt");
 
     tracing::debug!(?ns_path, "Getting process namespace");
-    let ns = match std::fs::read_link(&ns_path) {
-        Ok(ns) => ns,
-        Err(err) => {
-            return match err.kind() {
-                std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime(rt.name().into())),
-                _ => Err(err.into()),
-            }
-        }
-    };
-
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
-    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    loop {
-        interval.tick().await;
-        match count_processes_in_mount_namespace(&ns).await {
-            // assume that are in the namespace as well so one process
-            // left is enough to call it completed
-            Ok(count) if count == 0 => break Ok(()),
-            Ok(_) => continue,
-            Err(err) => {
-                break Err(Error::String(format!(
-                    "Failed to check for remaining processes: {err}"
-                )))
-            }
-        }
-    }
+    let ns = tokio::fs::read_link(&ns_path).await?;
+    find_processes_in_mount_namespace(&ns).await
 }
 
-async fn count_processes_in_mount_namespace(ns: &std::path::Path) -> Result<i64> {
-    let mut count = 0;
+async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashSet<u32>> {
+    let mut found_processes = HashSet::new();
 
     let mut read_dir = tokio::fs::read_dir(PROC_DIR).await?;
     while let Some(entry) = read_dir.next_entry().await? {
-        let found = match tokio::fs::read_link(entry.path().join("ns/mnt")).await {
+        let pid = match entry.file_name().to_str().map(|s| s.parse::<u32>()) {
+            Some(Ok(pid)) => pid,
+            // don't bother reading proc dirs that are not named with a valid pid
+            _ => continue,
+        };
+        let found_ns = match tokio::fs::read_link(entry.path().join("ns/mnt")).await {
             Ok(p) => p,
             Err(err) => match err.raw_os_error() {
                 Some(libc::ENOENT) => continue,
@@ -158,11 +192,11 @@ async fn count_processes_in_mount_namespace(ns: &std::path::Path) -> Result<i64>
                 }
             },
         };
-        if found == ns {
-            count += 1;
+        if found_ns == ns {
+            found_processes.insert(pid);
         }
     }
-    Ok(count)
+    Ok(found_processes)
 }
 
 pub fn privatize_existing_mounts() -> Result<()> {

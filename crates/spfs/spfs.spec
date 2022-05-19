@@ -42,7 +42,7 @@ done
 /usr/bin/spfs-push
 /usr/bin/spfs-pull
 /usr/bin/spfs-server
-/usr/bin/spfs-monitor
+%caps(cap_net_admin+ep) /usr/bin/spfs-monitor
 %caps(cap_chown,cap_fowner+ep) /usr/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/bin/spfs-join
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/bin/spfs-enter
