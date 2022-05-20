@@ -68,6 +68,7 @@ impl CmdEnter {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
+            let mut terminate = signal(SignalKind::terminate())?;
             let mut interrupt = signal(SignalKind::interrupt())?;
             let mut quit = signal(SignalKind::quit())?;
             let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
@@ -96,6 +97,7 @@ impl CmdEnter {
                     // assuming that the child process will receive them and act
                     // accordingly. This is also to ensure that we never exit before
                     // the child and forget to clean up the runtime data
+                    _ = terminate.recv() => {},
                     _ = interrupt.recv() => {},
                     _ = quit.recv() => {},
                 }

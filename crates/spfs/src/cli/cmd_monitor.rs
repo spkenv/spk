@@ -32,6 +32,7 @@ impl CmdMonitor {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         let mut interrupt = signal(SignalKind::interrupt())?;
         let mut quit = signal(SignalKind::quit())?;
+        let mut terminate = signal(SignalKind::terminate())?;
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
         let runtime = storage.read_runtime(&self.runtime).await?;
@@ -42,6 +43,7 @@ impl CmdMonitor {
             res = fut => res,
             // we explicitly catch any signal related to interruption
             // and will act by cleaning up the runtime early
+            _ = terminate.recv() => Err(spfs::Error::String("Terminate signal received, cleaning up runtime early".to_string())),
             _ = interrupt.recv() => Err(spfs::Error::String("Interrupt signal received, cleaning up runtime early".to_string())),
             _ = quit.recv() => Err(spfs::Error::String("Quit signal received, cleaning up runtime early".to_string())),
         };
