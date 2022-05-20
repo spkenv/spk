@@ -616,6 +616,15 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
                     msg.push_str("\n * ");
                     msg.push_str(err);
                 }
+                solve::Error::PackageNotFoundDuringSolve(request) => {
+                    let requirers: Vec<String> = request
+                        .get_requesters()
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect();
+                    msg.push_str("\n * ");
+                    msg.push_str(&format!("Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling", request.pkg, requirers.join(", ")));
+                }
             }
             match verbosity {
                 0 => {

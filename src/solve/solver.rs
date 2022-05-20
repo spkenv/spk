@@ -193,7 +193,21 @@ impl Solver {
 
         let iterator = self.get_iterator(node, &request.pkg.name);
         let mut iterator_lock = iterator.lock().unwrap();
-        while let Some((pkg, builds)) = iterator_lock.next()? {
+        loop {
+            let (pkg, builds) = match iterator_lock.next() {
+                Ok(Some((pkg, builds))) => (pkg, builds),
+                Ok(None) => break,
+                Err(Error::PackageNotFoundError(_)) => {
+                    // Intercept this error in this situation to
+                    // capture the request for the package that turned
+                    // out to be missing.
+                    return Err(Error::Solve(errors::Error::PackageNotFoundDuringSolve(
+                        request.clone(),
+                    )));
+                }
+                Err(e) => return Err(e),
+            };
+
             let mut compat = request.is_version_applicable(&pkg.version);
             if !&compat {
                 // Count this version and its builds as incompatible
@@ -523,6 +537,40 @@ impl SolverRuntime {
                 .map_err(|e| crate::Error::String(e.to_string()))
         }
     }
+
+    // Private helper function to generate step back decision from a node
+    // history.
+    //
+    fn take_a_step_back(
+        history: &mut Vec<Arc<RwLock<Node>>>,
+        decision: &mut Option<Decision>,
+        solver: &Solver,
+        message: &String,
+    ) {
+        match history.pop() {
+            Some(n) => {
+                let n_lock = n.read().unwrap();
+                *decision = Some(
+                    Change::StepBack(StepBack::new(
+                        message,
+                        &n_lock.state,
+                        Arc::clone(&solver.number_of_steps_back),
+                    ))
+                    .as_decision(),
+                )
+            }
+            None => {
+                *decision = Some(
+                    Change::StepBack(StepBack::new(
+                        message,
+                        &DEAD_STATE,
+                        Arc::clone(&solver.number_of_steps_back),
+                    ))
+                    .as_decision(),
+                )
+            }
+        }
+    }
 }
 
 impl Iterator for SolverRuntime {
@@ -561,29 +609,12 @@ impl Iterator for SolverRuntime {
             ) {
                 Ok(cn) => cn,
                 Err(err) => {
-                    match self.history.pop() {
-                        Some(n) => {
-                            let n_lock = n.read().unwrap();
-                            self.decision = Some(
-                                Change::StepBack(StepBack::new(
-                                    err.to_string(),
-                                    &n_lock.state,
-                                    Arc::clone(&self.solver.number_of_steps_back),
-                                ))
-                                .as_decision(),
-                            )
-                        }
-                        None => {
-                            self.decision = Some(
-                                Change::StepBack(StepBack::new(
-                                    err.to_string(),
-                                    &DEAD_STATE,
-                                    Arc::clone(&self.solver.number_of_steps_back),
-                                ))
-                                .as_decision(),
-                            )
-                        }
-                    }
+                    SolverRuntime::take_a_step_back(
+                        &mut self.history,
+                        &mut self.decision,
+                        &self.solver,
+                        &err.to_string(),
+                    );
                     return Some(Ok(to_yield));
                 }
             }
@@ -616,29 +647,12 @@ impl Iterator for SolverRuntime {
                 );
                 self.solver.increment_error_count(cause.clone());
 
-                match self.history.pop() {
-                    Some(n) => {
-                        let n_lock = n.read().unwrap();
-                        self.decision = Some(
-                            Change::StepBack(StepBack::new(
-                                &cause,
-                                &n_lock.state,
-                                Arc::clone(&self.solver.number_of_steps_back),
-                            ))
-                            .as_decision(),
-                        )
-                    }
-                    None => {
-                        self.decision = Some(
-                            Change::StepBack(StepBack::new(
-                                &cause,
-                                &DEAD_STATE,
-                                Arc::clone(&self.solver.number_of_steps_back),
-                            ))
-                            .as_decision(),
-                        )
-                    }
-                }
+                SolverRuntime::take_a_step_back(
+                    &mut self.history,
+                    &mut self.decision,
+                    &self.solver,
+                    &cause,
+                );
 
                 self.solver.increment_error_count(cause);
 
@@ -647,7 +661,53 @@ impl Iterator for SolverRuntime {
                 }
                 return Some(Ok(to_yield));
             }
-            Err(err) => return Some(Err(err)),
+            Err(crate::Error::Solve(errors::Error::PackageNotFoundDuringSolve(err_req))) => {
+                let requested_by = err_req.get_requesters();
+                for req in &requested_by {
+                    // Can't recover from a command line request for a
+                    // missing package.
+                    if let api::RequestedBy::CommandLine = req {
+                        return Some(Err(crate::Error::Solve(
+                            errors::Error::PackageNotFoundDuringSolve(err_req),
+                        )));
+                    }
+
+                    // Add to problem package counts based on what
+                    // made the request for the blocked package.
+                    if let api::RequestedBy::PackageBuild(problem_package) = req {
+                        self.solver
+                            .increment_problem_package_count(problem_package.name.to_string())
+                    };
+                }
+
+                let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
+                let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the package name's spelling", err_req.pkg, requirers.join(", "));
+
+                SolverRuntime::take_a_step_back(
+                    &mut self.history,
+                    &mut self.decision,
+                    &self.solver,
+                    &cause,
+                );
+
+                self.solver.increment_error_count(cause);
+
+                // This doesn't halt the solve because the missing
+                // package might only have been requested by one
+                // build. It may not be required in the next build the
+                // solver looks at. However, this kind of error
+                // usually occurs either because of command line
+                // request that was mistyped, or because a requirement
+                // was misspelt in a yaml file that was given on a
+                // command line. So the solver is likely to hit a dead
+                // end and halt fairly soon.
+                return Some(Ok(to_yield));
+            }
+            Err(err) => {
+                let cause = format!("{}", err);
+                self.solver.increment_error_count(cause);
+                return Some(Err(err));
+            }
         };
         self.history.push(current_node.clone());
         Some(Ok(to_yield))
