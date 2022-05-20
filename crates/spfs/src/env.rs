@@ -87,6 +87,10 @@ pub fn enter_mount_namespace() -> Result<()> {
     }
 }
 
+/// Run an spfs monitor for the provided runtime
+///
+/// The monitor command will spawn but immediately fail
+/// if there is already a monitor registered to this runtime
 pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process::Child> {
     let exe = match super::resolve::which_spfs("monitor") {
         None => return Err(Error::MissingBinary("spfs")),
@@ -102,6 +106,10 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     Ok(cmd.spawn()?)
 }
 
+/// When provided an active runtime, wait until all contained processes exit
+///
+/// This is a privileged operation that may fail with a permission
+/// issue if the calling process is not root or CAP_NET_ADMIN
 pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     let pid = match rt.status.owner {
         None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
