@@ -21,7 +21,7 @@ mod cmd_migrate;
 mod cmd_platforms;
 mod cmd_read;
 mod cmd_reset;
-mod cmd_runtimes;
+mod cmd_runtime;
 mod cmd_search;
 mod cmd_tag;
 mod cmd_tags;
@@ -62,7 +62,7 @@ pub enum Command {
     Reset(cmd_reset::CmdReset),
     Tag(cmd_tag::CmdTag),
     Untag(cmd_untag::CmdUntag),
-    Runtimes(cmd_runtimes::CmdRuntimes),
+    Runtime(cmd_runtime::CmdRuntime),
     Layers(cmd_layers::CmdLayers),
     Platforms(cmd_platforms::CmdPlatforms),
     Tags(cmd_tags::CmdTags),
@@ -92,7 +92,7 @@ impl Opt {
             Command::Reset(cmd) => cmd.run(config).await,
             Command::Tag(cmd) => cmd.run(config).await,
             Command::Untag(cmd) => cmd.run(config).await,
-            Command::Runtimes(cmd) => cmd.run(config).await,
+            Command::Runtime(cmd) => cmd.run(config).await,
             Command::Layers(cmd) => cmd.run(config).await,
             Command::Platforms(cmd) => cmd.run(config).await,
             Command::Tags(cmd) => cmd.run(config).await,
