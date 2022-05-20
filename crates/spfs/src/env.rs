@@ -124,13 +124,21 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
 
     // NOTE(rbottriell):
     // scan for any processes that were already spawned before
-    // we had setup the monitoring socket
+    // we had setup the monitoring socket, this will establish
+    // the initial set of parent processes that we can track the
+    // lineage of
+    // This explicitly happens AFTER setting up the monitor so that
+    // we will receive new of any new process created out of whatever
+    // we find in this scan
+    // BUG(rbottriell) There is still a race condition here where a
+    // child is created as we scan, and the parent exits before we
+    // are able to see it so we don't think the child is relevant
     let current_pids = find_processes_in_shared_mount_namespace(pid).await?;
     tracked_processes.extend(current_pids);
 
+    // it's possible that the runtime process(es)
+    // completed before we were even able to see them
     if tracked_processes.is_empty() {
-        // it's possible that the runtime process
-        // completed before we were even able to check on it
         return Ok(());
     }
 
@@ -149,8 +157,8 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     while let Some(event) = events_recv.recv().await {
         match event {
             cnproc::PidEvent::Exec(_pid) => {
-                // exec is just one process turning into a new one, but
-                // the pid will remain the same and so we are not interested
+                // exec is just one process turning into a new one with
+                // the pid remaining the same, so we are not interested...
                 // remember that launching a new process is a fork and then exec
             }
             cnproc::PidEvent::Fork { parent, pid } => {
@@ -173,6 +181,8 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     Ok(())
 }
 
+/// Identify the mount namespace of the provided process id, and
+/// then find other processes on this machine which share that namespace
 async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u32>> {
     let ns_path = std::path::Path::new(PROC_DIR)
         .join(pid.to_string())
@@ -183,6 +193,8 @@ async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u3
     find_processes_in_mount_namespace(&ns).await
 }
 
+/// Provided the namespace symlink content from /proc fs,
+/// scan for all processes that share the same namespace
 async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashSet<u32>> {
     let mut found_processes = HashSet::new();
 
