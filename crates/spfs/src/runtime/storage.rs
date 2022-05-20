@@ -28,6 +28,7 @@ pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 pub struct Author {
     pub user_name: String,
     pub host_name: String,
+    pub created: chrono::DateTime<chrono::Local>,
 }
 
 impl Default for Author {
@@ -35,6 +36,7 @@ impl Default for Author {
         Self {
             user_name: whoami::username(),
             host_name: whoami::hostname(),
+            created: chrono::Local::now(),
         }
     }
 }
