@@ -120,6 +120,12 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     let current_pids = find_processes_in_shared_mount_namespace(pid).await?;
     tracked_processes.extend(current_pids);
 
+    if tracked_processes.is_empty() {
+        // it's possible that the runtime process
+        // completed before we were even able to check on it
+        return Ok(());
+    }
+
     tokio::task::spawn_blocking(move || {
         while let Some(event) = monitor.recv() {
             if let Err(_err) = events_send.send(event) {
