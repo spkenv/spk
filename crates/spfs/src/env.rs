@@ -116,7 +116,10 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         Some(pid) => pid,
     };
 
-    let mut monitor = cnproc::PidMonitor::new()
+    // we could use our own pid here, but then when running in a container
+    // or pid namespace the process id would actually be wrong. Passing
+    // zero will get the kernel to determin our pid from its perspective
+    let mut monitor = cnproc::PidMonitor::from_id(0)
         .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")))?;
 
     let mut tracked_processes = HashSet::new();
