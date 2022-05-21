@@ -186,13 +186,23 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
 
 /// Identify the mount namespace of the provided process id, and
 /// then find other processes on this machine which share that namespace
+///
+/// If the provided process does not exist, an empty set is returned
 async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u32>> {
     let ns_path = std::path::Path::new(PROC_DIR)
         .join(pid.to_string())
         .join("ns/mnt");
 
     tracing::debug!(?ns_path, "Getting process namespace");
-    let ns = tokio::fs::read_link(&ns_path).await?;
+    let ns = match tokio::fs::read_link(&ns_path).await {
+        Ok(ns) => ns,
+        Err(err) => match err.kind() {
+            // it's possible that the runtime process already exited
+            // or was never started
+            std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
+            _ => return Err(err.into()),
+        },
+    };
     find_processes_in_mount_namespace(&ns).await
 }
 
