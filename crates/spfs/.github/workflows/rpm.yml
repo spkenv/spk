@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v2
       - run: echo RPM_NAME=$(rpmspec -q spfs.spec | head -n1) >> $GITHUB_ENV
@@ -23,6 +24,7 @@ jobs:
           path: dist/rpm/RPMS/x86_64/${{ env.RPM_NAME }}.rpm
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: build
     steps:
       - uses: actions/checkout@v2
