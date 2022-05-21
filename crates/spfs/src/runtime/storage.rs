@@ -23,6 +23,9 @@ mod storage_test;
 /// The location in spfs where shell files can be placed be sourced at startup
 pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 
+/// The environment variable that can be used to specify the runtime fs size
+static SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
+
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Author {
@@ -74,8 +77,34 @@ pub struct Status {
 /// Configuration parameters for the execution of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Config {
+    /// The location of the temporary filesystem holding the runtime
+    ///
+    /// A single set of configured paths can be used for runtime data
+    /// as long as they all share this common root, because the in-memory
+    /// filesystem will exist within the mount namespace for the runtime
+    ///
+    /// The temporary filesystem also ensures that the runtime leaves no
+    /// working data behind when exiting
+    pub runtime_dir: Option<PathBuf>,
+    /// The size of the temporary filesystem being mounted for runtime data
+    ///
+    /// Defaults to the value of SPFS_FILESYSTEM_TMPFS_SIZE. When empty,
+    /// tempfs limits itself to half of the RAM of the current
+    /// machine. This has no effect when the runtime_dir is not provided.
+    pub tmpfs_size: Option<String>,
     /// The location of the overlayfs upper directory for this runtime
     pub upper_dir: PathBuf,
+    /// The location of the overlayfs lower directory for this runtime
+    ///
+    /// This is the lowest directory in the stack of filesystem layers
+    /// and is usually empty. Especially in the case of an empty runtime
+    /// we still need at least one layer for overlayfs and this is it.
+    pub lower_dir: PathBuf,
+    /// The location of the overlayfs working directory for this runtime
+    ///
+    /// The filesystem uses this working directory as needed so it should not
+    /// be accessed or used by any other processes on the local machine
+    pub work_dir: PathBuf,
     /// The location of the startup script for sh-based shells
     pub sh_startup_file: PathBuf,
     /// The location of the startup script for csh-based shells
@@ -93,27 +122,39 @@ impl Default for Config {
 impl Config {
     const RUNTIME_DIR: &'static str = "/tmp/spfs-runtime";
     const UPPER_DIR: &'static str = "upper";
+    const LOWER_DIR: &'static str = "lower";
+    const WORK_DIR: &'static str = "work";
     const SH_STARTUP_FILE: &'static str = "startup.sh";
     const CSH_STARTUP_FILE: &'static str = "startup.csh";
     const CSH_EXPECT_FILE: &'static str = "_csh.exp";
 
-    fn from_root<P: AsRef<Path>>(root: P) -> Self {
-        let root = root.as_ref();
+    fn from_root<P: Into<PathBuf>>(root: P) -> Self {
+        let root = root.into();
+        let tmpfs_size = std::env::var(SPFS_FILESYSTEM_TMPFS_SIZE)
+            .ok()
+            .and_then(|v| if v.is_empty() { None } else { Some(v) });
         Self {
             upper_dir: root.join(Self::UPPER_DIR),
+            lower_dir: root.join(Self::LOWER_DIR),
+            work_dir: root.join(Self::WORK_DIR),
             sh_startup_file: root.join(Self::SH_STARTUP_FILE),
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
+            runtime_dir: Some(root),
+            tmpfs_size,
         }
     }
 
     #[cfg(test)]
-    fn set_root<P: AsRef<Path>>(&mut self, path: P) {
-        let runtime_dir = path.as_ref();
-        self.upper_dir = runtime_dir.join(Self::UPPER_DIR);
-        self.sh_startup_file = runtime_dir.join(Self::SH_STARTUP_FILE);
-        self.csh_startup_file = runtime_dir.join(Self::CSH_STARTUP_FILE);
-        self.csh_expect_file = runtime_dir.join(Self::CSH_EXPECT_FILE);
+    fn set_root<P: Into<PathBuf>>(&mut self, path: P) {
+        let root = path.into();
+        self.upper_dir = root.join(Self::UPPER_DIR);
+        self.lower_dir = root.join(Self::LOWER_DIR);
+        self.work_dir = root.join(Self::WORK_DIR);
+        self.sh_startup_file = root.join(Self::SH_STARTUP_FILE);
+        self.csh_startup_file = root.join(Self::CSH_STARTUP_FILE);
+        self.csh_expect_file = root.join(Self::CSH_EXPECT_FILE);
+        self.runtime_dir = Some(root);
     }
 }
 
@@ -344,9 +385,25 @@ impl Runtime {
         Ok(())
     }
 
+    pub async fn ensure_required_directories(&self) -> Result<()> {
+        let mut result = makedirs_with_perms(&self.config.lower_dir, 0o777);
+        if let Err(err) = result {
+            return Err(err.wrap(format!("Failed to create {:?}", self.config.lower_dir)));
+        }
+        result = makedirs_with_perms(&self.config.upper_dir, 0o777);
+        if let Err(err) = result {
+            return Err(err.wrap(format!("Failed to create {:?}", self.config.upper_dir)));
+        }
+        result = makedirs_with_perms(&self.config.work_dir, 0o777);
+        if let Err(err) = result {
+            return Err(err.wrap(format!("Failed to create {:?}", self.config.work_dir)));
+        }
+        Ok(())
+    }
+
     /// Modify the root directory where runtime data is stored
     #[cfg(test)]
-    pub async fn set_runtime_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    pub async fn set_runtime_dir<P: Into<PathBuf>>(&mut self, path: P) -> Result<()> {
         self.config.set_root(path);
         self.save().await
     }

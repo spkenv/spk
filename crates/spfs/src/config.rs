@@ -42,15 +42,11 @@ impl Default for User {
 #[serde(default)]
 pub struct Filesystem {
     pub max_layers: usize,
-    pub tmpfs_size: Option<String>,
 }
 
 impl Default for Filesystem {
     fn default() -> Self {
-        Self {
-            max_layers: 40,
-            tmpfs_size: None,
-        }
+        Self { max_layers: 40 }
     }
 }
 
@@ -305,9 +301,6 @@ pub fn load_config() -> Result<Config> {
     // name also includes an underscore
     if let Ok(v) = base.get_string("filesystem.max.layers") {
         builder = builder.set_override("filesystem.max_layers", v)?;
-    }
-    if let Ok(v) = base.get_string("filesystem.tmpfs.size") {
-        builder = builder.set_override("filesystem.tmpfs_size", v)?;
     }
 
     let config = builder.build()?;

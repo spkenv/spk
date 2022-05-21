@@ -60,7 +60,7 @@ impl CmdEnter {
         rt.block_on(self.run_async(config))
     }
 
-    pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run_async(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
         let runtime = storage.read_runtime(&self.runtime).await?;
@@ -84,7 +84,7 @@ impl CmdEnter {
             }
 
             tracing::debug!("initalizing runtime");
-            spfs::initialize_runtime(&owned, config).await?;
+            spfs::initialize_runtime(&owned).await?;
 
             owned.ensure_startup_scripts()?;
             std::env::set_var("SPFS_RUNTIME", owned.name());

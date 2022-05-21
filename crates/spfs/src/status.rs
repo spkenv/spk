@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::config::{get_config, Config};
+use super::config::get_config;
 use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers};
 use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};
 
@@ -79,33 +79,26 @@ pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
     env::unmount_env()?;
-    env::mount_env(rt.status.editable, &dirs)?;
-    env::mask_files(&manifest, original.uid)?;
+    env::mount_env(rt, &dirs)?;
+    env::mask_files(&rt.config, &manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
     Ok(())
 }
 
 /// Initialize the current runtime as rt.
-pub async fn initialize_runtime(rt: &runtime::Runtime, config: &Config) -> Result<()> {
+pub async fn initialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     let dirs = resolve_overlay_dirs(rt).await?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
-
-    let tmpfs_opts = config
-        .filesystem
-        .tmpfs_size
-        .as_ref()
-        .map(|size| format!("size={size}"));
-
     env::enter_mount_namespace()?;
     let original = env::become_root()?;
     env::privatize_existing_mounts()?;
-    env::ensure_mount_targets_exist()?;
-    env::mount_runtime(tmpfs_opts.as_deref())?;
-    env::setup_runtime()?;
-    env::mount_env(rt.status.editable, &dirs)?;
-    env::mask_files(&manifest, original.uid)?;
+    env::ensure_mount_targets_exist(&rt.config)?;
+    env::mount_runtime(&rt.config)?;
+    env::setup_runtime(rt).await?;
+    env::mount_env(rt, &dirs)?;
+    env::mask_files(&rt.config, &manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
     Ok(())

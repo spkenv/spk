@@ -13,10 +13,6 @@ use crate::{Error, Result};
 
 static PROC_DIR: &str = "/proc";
 static SPFS_DIR: &str = "/spfs";
-static RUNTIME_DIR: &str = "/tmp/spfs-runtime";
-static RUNTIME_UPPER_DIR: &str = "/tmp/spfs-runtime/upper";
-static RUNTIME_LOWER_DIR: &str = "/tmp/spfs-runtime/lower";
-static RUNTIME_WORK_DIR: &str = "/tmp/spfs-runtime/work";
 
 const NONE: Option<&str> = None;
 
@@ -263,15 +259,14 @@ pub fn privatize_existing_mounts() -> Result<()> {
     Ok(())
 }
 
-pub fn ensure_mount_targets_exist() -> Result<()> {
+pub fn ensure_mount_targets_exist(config: &runtime::Config) -> Result<()> {
     tracing::debug!("ensuring mount targets exist...");
-    let mut res = runtime::makedirs_with_perms(SPFS_DIR, 0o777);
-    if let Err(err) = res {
-        return Err(err.wrap(format!("Failed to create {SPFS_DIR}")));
-    }
-    res = runtime::makedirs_with_perms(RUNTIME_DIR, 0o777);
-    if let Err(err) = res {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_DIR}")));
+    runtime::makedirs_with_perms(SPFS_DIR, 0o777)
+        .map_err(|err| err.wrap(format!("Failed to create {SPFS_DIR}")))?;
+
+    if let Some(dir) = &config.runtime_dir {
+        runtime::makedirs_with_perms(dir, 0o777)
+            .map_err(|err| err.wrap(format!("Failed to create {dir:?}")))?
     }
     Ok(())
 }
@@ -310,61 +305,68 @@ pub fn become_root() -> Result<Uids> {
     })
 }
 
-pub fn mount_runtime(tmpfs_opts: Option<&str>) -> Result<()> {
+pub fn mount_runtime(config: &runtime::Config) -> Result<()> {
     use nix::mount::{mount, MsFlags};
+
+    let dir = match &config.runtime_dir {
+        Some(ref p) => p,
+        None => return Ok(()),
+    };
+
+    let tmpfs_opts = config
+        .tmpfs_size
+        .as_ref()
+        .map(|size| format!("size={size}"));
 
     tracing::debug!("mounting runtime...");
     let res = mount(
         NONE,
-        RUNTIME_DIR,
+        dir,
         Some("tmpfs"),
         MsFlags::MS_NOEXEC,
-        tmpfs_opts,
+        tmpfs_opts.as_deref(),
     );
     if let Err(err) = res {
-        Err(Error::wrap_nix(
-            err,
-            format!("Failed to mount {RUNTIME_DIR}"),
-        ))
+        Err(Error::wrap_nix(err, format!("Failed to mount {dir:?}")))
     } else {
         Ok(())
     }
 }
 
-pub fn unmount_runtime() -> Result<()> {
+pub fn unmount_runtime(config: &runtime::Config) -> Result<()> {
+    let dir = match &config.runtime_dir {
+        Some(ref p) => p,
+        None => return Ok(()),
+    };
+
     tracing::debug!("unmounting existing runtime...");
-    let result = nix::mount::umount(RUNTIME_DIR);
+    let result = nix::mount::umount(dir);
     if let Err(err) = result {
-        return Err(Error::wrap_nix(
-            err,
-            format!("Failed to unmount {RUNTIME_DIR}"),
-        ));
+        return Err(Error::wrap_nix(err, format!("Failed to unmount {dir:?}")));
     }
     Ok(())
 }
 
-pub fn setup_runtime() -> Result<()> {
+pub async fn setup_runtime(rt: &runtime::Runtime) -> Result<()> {
     tracing::debug!("setting up runtime...");
-    let mut result = runtime::makedirs_with_perms(RUNTIME_LOWER_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_LOWER_DIR}")));
-    }
-    result = runtime::makedirs_with_perms(RUNTIME_UPPER_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_UPPER_DIR}")));
-    }
-    result = runtime::makedirs_with_perms(RUNTIME_WORK_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_WORK_DIR}")));
-    }
-    Ok(())
+    rt.ensure_required_directories().await
 }
 
-pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid) -> Result<()> {
+pub fn mask_files(
+    config: &runtime::Config,
+    manifest: &super::tracking::Manifest,
+    owner: nix::unistd::Uid,
+) -> Result<()> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     tracing::debug!("masking deleted files...");
 
-    let nodes: Vec<_> = manifest.walk_abs(RUNTIME_UPPER_DIR).collect();
+    let prefix = config.upper_dir.to_str().ok_or_else(|| {
+        crate::Error::String(format!(
+            "configured runtime upper_dir has invalid characters: {:?}",
+            config.upper_dir
+        ))
+    })?;
+    let nodes: Vec<_> = manifest.walk_abs(&prefix).collect();
     for node in nodes.iter() {
         if !node.entry.kind.is_mask() {
             continue;
@@ -443,13 +445,20 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
     Ok(())
 }
 
-pub fn get_overlay_args<P: AsRef<Path>>(lowerdirs: impl IntoIterator<Item = P>) -> Result<String> {
-    let mut args = format!("lowerdir={RUNTIME_LOWER_DIR}");
-    for path in lowerdirs.into_iter() {
+pub fn get_overlay_args<P: AsRef<Path>>(
+    config: &runtime::Config,
+    lower_dirs: impl IntoIterator<Item = P>,
+) -> Result<String> {
+    let mut args = format!("lowerdir={}", config.lower_dir.display());
+    for path in lower_dirs.into_iter() {
         args = format!("{args}:{}", path.as_ref().to_string_lossy());
     }
 
-    args = format!("{args},upperdir={RUNTIME_UPPER_DIR},workdir={RUNTIME_WORK_DIR}");
+    args = format!(
+        "{args},upperdir={},workdir={}",
+        config.upper_dir.display(),
+        config.work_dir.display()
+    );
 
     match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE) {
         Err(_) => tracing::debug!("failed to get page size for checking arg length"),
@@ -464,19 +473,19 @@ pub fn get_overlay_args<P: AsRef<Path>>(lowerdirs: impl IntoIterator<Item = P>) 
 }
 
 pub fn mount_env<P: AsRef<Path>>(
-    editable: bool,
-    lowerdirs: impl IntoIterator<Item = P>,
+    rt: &runtime::Runtime,
+    lower_dirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
-    let mut overlay_args = get_overlay_args(lowerdirs)?;
-    if !editable {
+    let mut overlay_args = get_overlay_args(&rt.config, lower_dirs)?;
+    if !rt.status.editable {
         overlay_args = format!("ro,{overlay_args}");
     }
     tracing::debug!("/usr/bin/mount -t overlay -o {overlay_args} none {SPFS_DIR}");
-    // for some reason, the overlay mount process creates a bad filesytem if the
+    // for some reason, the overlay mount process creates a bad filesystem if the
     // mount command is called directly from this process. It may be some default
     // option or minor detail in how the standard mount command works - possibly related
-    // to this process eventually dropping provilieges, but that is uncertain right now
+    // to this process eventually dropping privileges, but that is uncertain right now
     let mut cmd = std::process::Command::new("mount");
     cmd.args(&["-t", "overlay"]);
     cmd.arg("-o");
