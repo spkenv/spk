@@ -19,15 +19,13 @@ async fn test_commit_empty(tmpdir: tempdir::TempDir) {
     );
     let storage = crate::runtime::Storage::new(repo);
     let mut rt = storage.create_runtime().await.unwrap();
-    if let Err(Error::NothingToCommit) = commit_layer(&mut rt).await {
-        // ok
-    } else {
-        panic!("expected nothing to commit")
+    match commit_layer(&mut rt).await {
+        Err(Error::NothingToCommit) => {}
+        res => panic!("expected nothing to commit, got {res:?}"),
     }
 
-    if let Err(Error::NothingToCommit) = commit_platform(&mut rt).await {
-        // ok
-    } else {
-        panic!("expected nothing to commit")
+    match commit_platform(&mut rt).await {
+        Err(Error::NothingToCommit) => {}
+        res => panic!("expected nothing to commit, got {res:?}"),
     }
 }
