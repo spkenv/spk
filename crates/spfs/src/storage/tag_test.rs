@@ -87,6 +87,9 @@ async fn test_tag_no_duplication(#[future] tmprepo: TempRepo) {
 
     assert_eq!(tag1, tag2);
 
+    tmprepo.insert_tag(&tag2).await.unwrap();
+    tmprepo.insert_tag(&tag1).await.unwrap();
+
     assert_eq!(
         tmprepo
             .read_tag(&spec)

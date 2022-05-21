@@ -165,7 +165,7 @@ impl TagStorage for FSRepository {
                         continue;
                     }
                     use std::cmp::Ordering::*;
-                    match next.time.cmp(&tag.time) {
+                    match next.cmp(tag) {
                         Less => {
                             tags.insert(0, tag.clone());
                             tags.insert(0, next);
@@ -175,14 +175,9 @@ impl TagStorage for FSRepository {
                             tags.insert(0, next);
                         }
                         Equal => {
-                            if tag.target > next.target {
-                                tags.insert(0, tag.clone());
-                                tags.insert(0, next);
-                            } else {
-                                tags.insert(0, next);
-                                tags.insert(0, tag.clone());
-                            }
-                            inserted = true;
+                            // this tag already exists in the stream,
+                            // and will be dropped
+                            return Ok(());
                         }
                     };
                 }

@@ -17,7 +17,6 @@ mod tag_test;
 /// Tag links a human name to a storage object at some point in time.
 ///
 /// Much like a commit, tags form a linked-list of entries to track history.
-/// Time should always be in UTC.
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Tag {
     org: Option<String>,
@@ -67,6 +66,38 @@ impl Tag {
         } else {
             self.name.clone()
         }
+    }
+}
+
+impl std::cmp::Ord for Tag {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.org.cmp(&other.org) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.name.cmp(&other.name) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.time.cmp(&other.time) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.target.cmp(&other.target) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.parent.cmp(&other.parent) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        self.user.cmp(&other.user)
+    }
+}
+
+impl std::cmp::PartialOrd for Tag {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
