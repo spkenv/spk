@@ -94,3 +94,7 @@ Objects are considered to be attached, and unremovable if they are reachable fro
 
 :point_right: | The pruning process will always prefer keeping a tag version over removing it when multiple keep/prune conditions apply to it. Check the default values for each setting if you expected more tags than were shown.
 :---: | :---
+
+## Temporary Filesystem Size
+
+The spfs runtime uses a temporary filesystem, which means that large sets of changes can run out of space because of RAM limitations. The size of this filesystem can be overridden using the `SPFS_FILESYSTEM_TMPFS_SIZE` variable (eg `SPFS_FILESYSTEM_TMPFS_SIZE=10G`). Note that specifying values close to or larger than the available memory on the system may cause deadlocks or system instability.
