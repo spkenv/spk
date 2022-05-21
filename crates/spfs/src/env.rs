@@ -98,6 +98,24 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     cmd.arg(rt.storage().address().as_str());
     cmd.arg("--runtime");
     cmd.arg(rt.name());
+    // the monitor process should be fully detached from any controlling
+    // terminal. Otherwise, using spfs run under output-capturing circumstances
+    // can cause the command to hang forever. Eg: output=$(spfs run - -- echo "hello")
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.stdin(std::process::Stdio::null());
+
+    unsafe {
+        // avoid creating zombie processes by moving the monitor
+        // into a separate process group
+        cmd.pre_exec(|| match nix::unistd::setsid() {
+            Ok(_pid) => Ok(()),
+            Err(err) => Err(match err.as_errno() {
+                Some(errno) => std::io::Error::from_raw_os_error(errno as i32),
+                None => std::io::Error::new(std::io::ErrorKind::Other, err),
+            }),
+        });
+    }
 
     Ok(cmd.spawn()?)
 }
