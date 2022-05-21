@@ -2,19 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::config::get_config;
 use super::status::remount_runtime;
-use crate::prelude::*;
-use crate::{graph, runtime, Error, Result};
+use crate::{graph, prelude::*, runtime, Error, Result};
 
 #[cfg(test)]
 #[path = "./commit_test.rs"]
 mod commit_test;
 
-/// Commit the working file changes of a runtime to a new layer.
-pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
-    let config = get_config()?;
-    let repo = config.get_repository().await?;
+/// Commit the working file changes of a runtime to a new layer in the provided repo.
+pub async fn commit_layer<R>(runtime: &mut runtime::Runtime, repo: &R) -> Result<graph::Layer>
+where
+    R: Repository + ?Sized,
+{
     let manifest = repo.commit_dir(runtime.config.upper_dir.as_path()).await?;
     if manifest.is_empty() {
         return Err(Error::NothingToCommit);
@@ -28,11 +27,11 @@ pub async fn commit_layer(runtime: &mut runtime::Runtime) -> Result<graph::Layer
 }
 
 /// Commit the full layer stack and working files to a new platform.
-pub async fn commit_platform(runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
-    let config = get_config()?;
-    let repo = config.get_repository().await?;
-
-    match commit_layer(runtime).await {
+pub async fn commit_platform<R>(runtime: &mut runtime::Runtime, repo: &R) -> Result<graph::Platform>
+where
+    R: Repository + ?Sized,
+{
+    match commit_layer(runtime, repo).await {
         Ok(_) | Err(Error::NothingToCommit) => (),
         Err(err) => return Err(err),
     }

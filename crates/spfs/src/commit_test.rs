@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 use rstest::rstest;
 
 use super::{commit_layer, commit_platform};
@@ -12,19 +14,19 @@ use crate::fixtures::*;
 #[tokio::test]
 async fn test_commit_empty(tmpdir: tempdir::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
-    let repo = crate::storage::RepositoryHandle::from(
+    let repo = Arc::new(crate::storage::RepositoryHandle::from(
         crate::storage::fs::FSRepository::create(root)
             .await
             .unwrap(),
-    );
-    let storage = crate::runtime::Storage::new(repo);
+    ));
+    let storage = crate::runtime::Storage::new(repo.clone());
     let mut rt = storage.create_runtime().await.unwrap();
-    match commit_layer(&mut rt).await {
+    match commit_layer(&mut rt, &**repo).await {
         Err(Error::NothingToCommit) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }
 
-    match commit_platform(&mut rt).await {
+    match commit_platform(&mut rt, &**repo).await {
         Err(Error::NothingToCommit) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }

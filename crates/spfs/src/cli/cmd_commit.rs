@@ -63,8 +63,8 @@ impl CmdCommit {
             }
 
             match self.kind.clone().unwrap_or_default().as_str() {
-                "layer" => spfs::commit_layer(&mut runtime).await?.into(),
-                "platform" => spfs::commit_platform(&mut runtime).await?.into(),
+                "layer" => spfs::commit_layer(&mut runtime, &*repo).await?.into(),
+                "platform" => spfs::commit_platform(&mut runtime, &*repo).await?.into(),
                 kind => {
                     tracing::error!("don't know how to commit a '{}'", kind);
                     return Ok(1);
