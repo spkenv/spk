@@ -267,7 +267,7 @@ where
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        self.compute_tree_node(path, &mut manifest.root).await?;
+        manifest.root = self.compute_tree_node(path, manifest.root).await?;
         Ok(manifest)
     }
 
@@ -275,30 +275,31 @@ where
     async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
         &mut self,
         dirname: P,
-        tree_node: &mut Entry,
-    ) -> Result<()> {
+        mut tree_node: Entry,
+    ) -> Result<Entry> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
         let mut read_dir = tokio::fs::read_dir(base).await?;
         // TODO: make this more parallel, if possible
         while let Some(dir_entry) = read_dir.next_entry().await? {
             let path = base.join(dir_entry.file_name());
-            let mut entry = Entry::default();
-            self.compute_node(path, &dir_entry, &mut entry).await?;
+            let entry = self
+                .compute_node(path, &dir_entry, Entry::default())
+                .await?;
             tree_node
                 .entries
                 .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
         }
         tree_node.size = tree_node.entries.len() as u64;
-        Ok(())
+        Ok(tree_node)
     }
 
     async fn compute_node<P: AsRef<std::path::Path> + Send>(
         &mut self,
         path: P,
         dir_entry: &DirEntry,
-        entry: &mut Entry,
-    ) -> Result<()> {
+        mut entry: Entry,
+    ) -> Result<Entry> {
         let stat_result = match tokio::fs::symlink_metadata(&path).await {
             Ok(r) => r,
             Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
@@ -310,7 +311,7 @@ where
                         // XXX: mode and size?
                         entry.kind = EntryKind::Mask;
                         entry.object = encoding::NULL_DIGEST.into();
-                        return Ok(());
+                        return Ok(entry);
                     }
                     _ => return Err(lstat_err.into()),
                 }
@@ -334,7 +335,7 @@ where
             entry.kind = EntryKind::Blob;
             entry.object = (self.hasher)(Box::pin(std::io::Cursor::new(link_target))).await?;
         } else if file_type.is_dir() {
-            self.compute_tree_node(path, entry).await?;
+            entry = self.compute_tree_node(path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
@@ -345,7 +346,7 @@ where
             let reader = tokio::io::BufReader::new(tokio::fs::File::open(path).await?);
             entry.object = (self.hasher)(Box::pin(reader)).await?;
         }
-        Ok(())
+        Ok(entry)
     }
 }
 
