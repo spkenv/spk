@@ -11,10 +11,9 @@ use std::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use super::compat::{API_STR, BINARY_STR};
+use super::version_range::{self, Ranged};
 use super::{
-    compat::API_STR,
-    compat::BINARY_STR,
-    version_range::{self, Ranged},
     Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, Opt, OptName,
     OptNameBuf, Package, PkgName, PkgNameBuf, RepositoryNameBuf, Version, VersionFilter,
 };

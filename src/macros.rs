@@ -104,15 +104,25 @@ macro_rules! make_build_and_components {
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let mut spec = make_spec!($spec);
         let mut components = std::collections::HashMap::<$crate::api::Component, spfs::encoding::Digest>::new();
-        let deps: Vec<&$crate::api::Spec> = std::vec![$(&$dep),*];
         if spec.pkg.is_source() {
             components.insert($crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
             (spec, components)
         } else {
+            use $crate::api::Package;
             let mut build_opts = $opts.clone();
+            #[allow(unused_mut)]
+            let mut solution = $crate::solve::Solution::new(Some(build_opts.clone()));
+            $(
+            let dep = Arc::new($dep.clone());
+            solution.add(
+                &$crate::api::PkgRequest::from_ident(spec.pkg.clone(), $crate::api::RequestedBy::SpkInternalTest),
+                Arc::clone(&dep),
+                crate::solve::PackageSource::Spec(dep)
+            );
+            )*
             let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
             build_opts.extend(&mut resolved_opts);
-            spec.update_for_build(&build_opts, deps)
+            spec = spec.update_for_build(&build_opts, &solution)
                 .expect("Failed to render build spec");
             let mut names = std::vec![$($component.to_string()),*];
             if names.is_empty() {

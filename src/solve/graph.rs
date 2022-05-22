@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
-use crate::api::{self, Ident, InclusionPolicy, OptNameBuf, PkgName, PkgNameBuf};
+use crate::api::{self, Ident, InclusionPolicy, OptNameBuf, Package, PkgName, PkgNameBuf};
 
 use super::errors::{self};
 use super::{
@@ -141,20 +141,18 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
-            let specs = build_env.items().into_iter().map(|s| s.spec);
             let options = build_env.options();
-            let mut spec = (*self.spec).clone();
-            spec.update_for_build(&options, specs)?;
+            let spec = self.spec.update_for_build(&options, build_env)?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
-                spec.clone(),
-                self.spec.clone(),
+                Arc::clone(&spec),
+                Arc::clone(&self.spec),
             ))));
 
-            changes.extend(self.requirements_to_changes(&self.spec.install.requirements));
-            changes.extend(self.components_to_changes(&self.spec.install.components));
-            changes.extend(self.embedded_to_changes(&self.spec.install.embedded));
+            changes.extend(self.requirements_to_changes(&spec.install.requirements));
+            changes.extend(self.components_to_changes(&spec.install.components));
+            changes.extend(self.embedded_to_changes(&spec.install.embedded));
             changes.push(Self::options_to_change(&spec));
 
             Ok(changes)

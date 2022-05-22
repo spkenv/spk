@@ -20,10 +20,7 @@ fn test_resolve_build_same_result() {
 
     let base = graph::State::default();
 
-    let mut build_spec = spec!({"pkg": "test/1.0.0"});
-    build_spec
-        .update_for_build(&option_map! {}, [] as [&api::Spec; 0])
-        .unwrap();
+    let build_spec = spec!({"pkg": "test/1.0.0/3I42H3S6"});
     let build_spec = Arc::new(build_spec);
     let source = solve::PackageSource::Spec(build_spec.clone());
 

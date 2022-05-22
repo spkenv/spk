@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-pub trait Package {
+use crate::Result;
+
+pub trait Package: Send {
     /// The name of this package
     fn name(&self) -> &super::PkgName {
         &self.ident().name
@@ -35,9 +37,17 @@ pub trait Package {
 
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> &super::RequirementsList;
+
+    /// Update this spec to represent a specific binary package build.
+    /// TODO: update to return a BuildSpec type
+    fn update_for_build(
+        &self,
+        options: &super::OptionMap,
+        build_env: &crate::solve::Solution,
+    ) -> Result<super::Spec>;
 }
 
-impl<T: Package> Package for std::sync::Arc<T> {
+impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     fn ident(&self) -> &super::Ident {
         (**self).ident()
     }
@@ -64,5 +74,13 @@ impl<T: Package> Package for std::sync::Arc<T> {
 
     fn runtime_requirements(&self) -> &super::RequirementsList {
         (**self).runtime_requirements()
+    }
+
+    fn update_for_build(
+        &self,
+        options: &super::OptionMap,
+        build_env: &crate::solve::Solution,
+    ) -> Result<super::Spec> {
+        (**self).update_for_build(options, build_env)
     }
 }

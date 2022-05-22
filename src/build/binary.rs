@@ -14,8 +14,8 @@ use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
-use crate::api::RangeIdent;
-use crate::solve::Solution;
+use crate::api::{Package, RangeIdent};
+use crate::solve::{Solution, Solver};
 use crate::{
     api, exec, solve,
     storage::{self, Repository},
@@ -76,7 +76,7 @@ pub struct BinaryPackageBuilder<'a> {
     spec: api::Spec,
     all_options: api::OptionMap,
     source: BuildSource,
-    solver: solve::Solver,
+    solver: Solver,
     source_resolver: crate::BoxedResolverCallback<'a>,
     build_resolver: crate::BoxedResolverCallback<'a>,
     last_solve_graph: Arc<tokio::sync::RwLock<solve::Graph>>,
@@ -95,7 +95,7 @@ impl<'a> BinaryPackageBuilder<'a> {
             source,
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
-            solver: solve::Solver::default(),
+            solver: Solver::default(),
             source_resolver: Box::new(crate::DefaultResolver {}),
             build_resolver: Box::new(crate::DefaultResolver {}),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(solve::Graph::new())),
@@ -238,8 +238,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         runtime.status.stack = stack;
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
-        let specs = solution.items().into_iter().map(|solved| solved.spec);
-        self.spec.update_for_build(&self.all_options, specs)?;
+        self.spec = self.spec.update_for_build(&self.all_options, &solution)?;
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.extend(self.all_options.to_environment());
         let components = self.build_and_commit_artifacts(env).await?;

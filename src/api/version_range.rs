@@ -38,9 +38,7 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
     /// Return true if the given package spec satisfies this version range with the given compatibility.
-    fn is_satisfied_by(&self, spec: &dyn Package, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
+    fn is_satisfied_by(&self, spec: &dyn Package, required: CompatRule) -> Compatibility;
 
     /// If applicable, return the broken down set of rules for this range
     fn rules(&self) -> BTreeSet<VersionRange> {

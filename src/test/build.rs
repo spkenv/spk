@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::{convert::TryInto, ffi::OsString};
 use thiserror::Error;
 
+use crate::api::Package;
 use crate::{
     api,
     build::{self, BuildSource},
@@ -172,8 +173,7 @@ impl<'a> PackageBuildTester<'a> {
         spfs::remount_runtime(&rt).await?;
 
         self.options.extend(solution.options());
-        let resolved = solution.items().into_iter().map(|r| r.spec);
-        self.spec.update_for_build(&self.options, resolved)?;
+        self.spec = self.spec.update_for_build(&self.options, &solution)?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(

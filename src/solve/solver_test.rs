@@ -657,7 +657,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
         !opts.contains_key(opt_name!("vnp3.special")),
         "should not define empty values"
     );
-    assert_eq!(opts.len(), 0, "expected no more options");
+    assert_eq!(opts.len(), 0, "expected no more options, got {opts}");
 }
 
 #[rstest]

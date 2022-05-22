@@ -167,80 +167,6 @@ impl Spec {
     pub async fn validate_build_changeset(&self) -> Result<()> {
         self.build.validation.validate_build_changeset(self).await
     }
-
-    /// Update this spec to represent a specific binary package build.
-    pub fn update_for_build<I, S>(&mut self, options: &OptionMap, resolved: I) -> Result<()>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<Spec>,
-    {
-        let specs: HashMap<_, _> = resolved
-            .into_iter()
-            .map(|s| (s.as_ref().pkg.name.clone(), s))
-            .collect();
-        for (dep_name, dep_spec) in specs.iter() {
-            for opt in dep_spec.as_ref().build.options.iter() {
-                if let Opt::Var(opt) = opt {
-                    if let Inheritance::Weak = opt.inheritance {
-                        continue;
-                    }
-                    let mut inherited_opt = opt.clone();
-                    if inherited_opt.var.namespace().is_none() {
-                        inherited_opt.var = inherited_opt.var.with_namespace(&dep_name);
-                    }
-                    inherited_opt.inheritance = Inheritance::Weak;
-                    if let Inheritance::Strong = opt.inheritance {
-                        let mut req = VarRequest::new(inherited_opt.var.clone());
-                        req.pin = true;
-                        self.install.upsert_requirement(Request::Var(req));
-                    }
-                    self.build.upsert_opt(Opt::Var(inherited_opt));
-                }
-            }
-        }
-
-        for e in self.install.embedded.iter() {
-            self.build
-                .options
-                .extend(e.build.options.clone().into_iter());
-        }
-
-        for opt in self.build.options.iter_mut() {
-            match opt {
-                Opt::Var(opt) => {
-                    opt.set_value(
-                        options
-                            .get(&opt.var)
-                            .map(String::to_owned)
-                            .or_else(|| opt.get_value(None))
-                            .unwrap_or_default(),
-                    )?;
-                    continue;
-                }
-                Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg);
-                    match spec {
-                        None => {
-                            return Err(Error::String(format!(
-                                "PkgOpt missing in resolved: {}",
-                                opt.pkg
-                            )));
-                        }
-                        Some(spec) => {
-                            let rendered = spec.as_ref().compat.render(&spec.as_ref().pkg.version);
-                            opt.set_value(rendered)?;
-                        }
-                    }
-                }
-            }
-        }
-
-        self.install
-            .render_all_pins(options, specs.iter().map(|(_, s)| &s.as_ref().pkg))?;
-        let digest = self.resolve_all_options(options).digest();
-        self.pkg.set_build(Some(Build::Digest(digest)));
-        Ok(())
-    }
 }
 
 impl super::Package for Spec {
@@ -270,6 +196,84 @@ impl super::Package for Spec {
 
     fn runtime_requirements(&self) -> &super::RequirementsList {
         &self.install.requirements
+    }
+
+    fn update_for_build(
+        &self,
+        options: &OptionMap,
+        build_env: &crate::solve::Solution,
+    ) -> Result<super::Spec> {
+        let mut updated = self.clone();
+        let specs: HashMap<_, _> = build_env
+            .items()
+            .into_iter()
+            .map(|s| (s.spec.name().to_owned(), s.spec))
+            .collect();
+        for (dep_name, dep_spec) in specs.iter() {
+            for opt in dep_spec.as_ref().build.options.iter() {
+                if let Opt::Var(opt) = opt {
+                    if let Inheritance::Weak = opt.inheritance {
+                        continue;
+                    }
+                    let mut inherited_opt = opt.clone();
+                    if inherited_opt.var.namespace().is_none() {
+                        inherited_opt.var = inherited_opt.var.with_namespace(&dep_name);
+                    }
+                    inherited_opt.inheritance = Inheritance::Weak;
+                    if let Inheritance::Strong = opt.inheritance {
+                        let mut req = VarRequest::new(inherited_opt.var.clone());
+                        req.pin = true;
+                        updated.install.upsert_requirement(Request::Var(req));
+                    }
+                    updated.build.upsert_opt(Opt::Var(inherited_opt));
+                }
+            }
+        }
+
+        for e in updated.install.embedded.iter() {
+            updated
+                .build
+                .options
+                .extend(e.build.options.clone().into_iter());
+        }
+
+        for opt in updated.build.options.iter_mut() {
+            match opt {
+                Opt::Var(opt) => {
+                    opt.set_value(
+                        options
+                            .get(&opt.var)
+                            .or_else(|| options.get(opt.var.without_namespace()))
+                            .map(String::to_owned)
+                            .or_else(|| opt.get_value(None))
+                            .unwrap_or_default(),
+                    )?;
+                    continue;
+                }
+                Opt::Pkg(opt) => {
+                    let spec = specs.get(&opt.pkg);
+                    match spec {
+                        None => {
+                            return Err(Error::String(format!(
+                                "PkgOpt missing in resolved: {}",
+                                opt.pkg
+                            )));
+                        }
+                        Some(spec) => {
+                            let rendered = spec.as_ref().compat.render(&spec.as_ref().pkg.version);
+                            opt.set_value(rendered)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        updated
+            .install
+            .render_all_pins(options, specs.iter().map(|(_, s)| &s.as_ref().pkg))?;
+        let digest = updated.resolve_all_options(options).digest();
+        updated.pkg.set_build(Some(Build::Digest(digest)));
+        Ok(updated)
     }
 }
 

@@ -54,18 +54,20 @@ impl BuildSpec {
     ) -> OptionMap {
         let mut resolved = OptionMap::default();
         for opt in self.options.iter() {
-            let name = opt.full_name();
+            let full_name = opt.full_name();
             let mut given_value: Option<&String> = None;
 
             if let Some(package_name) = package_name {
-                given_value = given.get(&name.with_default_namespace(package_name))
+                given_value = given.get(&full_name.with_default_namespace(package_name))
             }
             if given_value.is_none() {
-                given_value = given.get(name)
+                given_value = given
+                    .get(full_name)
+                    .or_else(|| given.get(full_name.without_namespace()))
             }
 
             let value = opt.get_value(given_value.map(String::as_ref));
-            resolved.insert(name.to_owned(), value);
+            resolved.insert(full_name.to_owned(), value);
         }
 
         resolved
@@ -81,7 +83,9 @@ impl BuildSpec {
         let given_options = given_options.package_options(&package_name);
         for option in self.options.iter() {
             let full_name = option.full_name();
-            let value = given_options.get(full_name).map(String::as_str);
+            let value = given_options
+                .get(full_name.without_namespace())
+                .map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
                 return Compatibility::Incompatible(format!(
@@ -89,7 +93,7 @@ impl BuildSpec {
                 ));
             }
 
-            must_exist.remove(full_name);
+            must_exist.remove(full_name.without_namespace());
         }
 
         if !must_exist.is_empty() {
