@@ -17,25 +17,25 @@ test $inner_count -eq 1
 assert_runtime_count 0
 
 # many runtimes at once
-spfs run - -- sleep 3 &
-spfs run - -- sleep 3 &
-spfs run - -- sleep 3 &
-spfs run - -- sleep 3 &
-sleep 1
-assert_runtime_count 4
-wait
-sleep 1
-assert_runtime_count 0
-
-# many runtimes launched recursively
-spfs run - -- spfs run - -- spfs run - -- spfs run - -- sleep 3 &
+spfs run - -- sleep 4 &
+spfs run - -- sleep 4 &
+spfs run - -- sleep 4 &
+spfs run - -- sleep 4 &
 sleep 2
 assert_runtime_count 4
 wait
-sleep 1
+sleep 2
+assert_runtime_count 0
+
+# many runtimes launched recursively
+spfs run - -- spfs run - -- spfs run - -- spfs run - -- sleep 4 &
+sleep 2
+assert_runtime_count 4
+wait
+sleep 2
 assert_runtime_count 0
 
 # fast runtime doesn't linger
 spfs run - :
-sleep 1
+sleep 2
 assert_runtime_count 0

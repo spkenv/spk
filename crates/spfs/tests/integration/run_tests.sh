@@ -16,6 +16,7 @@ for file in $(ls $DIR); do
   echo running test: $file
   echo "-----------------------------"
   bash -ex $DIR/$file
+  sleep 1
   if [[ $? -ne 0 ]]; then
     echo test failed: $file
     exit 1;
