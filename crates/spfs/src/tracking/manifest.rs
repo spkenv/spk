@@ -5,8 +5,9 @@
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
+use std::sync::Arc;
 
-use futures::Future;
+use futures::future::join_all;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use tokio::fs::DirEntry;
@@ -238,23 +239,41 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
+struct DigestFromAsyncReader {}
+
+#[tonic::async_trait]
+impl ManifestBuilderHasher for DigestFromAsyncReader {
+    async fn hasher(
+        &self,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+    ) -> Result<encoding::Digest> {
+        encoding::Digest::from_async_reader(reader).await
+    }
+}
+
 pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
-    let mut builder = ManifestBuilder::new(encoding::Digest::from_async_reader);
+    let builder = ManifestBuilder::new(DigestFromAsyncReader {});
     builder.compute_manifest(path).await
 }
 
-pub struct ManifestBuilder<H, F>
+#[async_trait::async_trait]
+pub trait ManifestBuilderHasher {
+    async fn hasher(
+        &self,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+    ) -> Result<encoding::Digest>;
+}
+
+pub struct ManifestBuilder<H>
 where
-    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>) -> F + Send,
-    F: Future<Output = Result<encoding::Digest>> + Send,
+    H: ManifestBuilderHasher + Send + Sync + 'static,
 {
     hasher: H,
 }
 
-impl<H, F> ManifestBuilder<H, F>
+impl<H> ManifestBuilder<H>
 where
-    H: FnMut(Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>) -> F + Send,
-    F: Future<Output = Result<encoding::Digest>> + Send,
+    H: ManifestBuilderHasher + Send + Sync + 'static,
 {
     pub fn new(hasher: H) -> Self {
         Self { hasher }
@@ -262,42 +281,54 @@ where
 
     /// Build a manifest that describes a directorie's contents.
     pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(
-        &mut self,
+        self,
         path: P,
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        manifest.root = self.compute_tree_node(path, manifest.root).await?;
+        manifest.root = Self::compute_tree_node(Arc::new(self), path, manifest.root).await?;
         Ok(manifest)
     }
 
     #[async_recursion::async_recursion]
     async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
-        &mut self,
+        mb: Arc<ManifestBuilder<H>>,
         dirname: P,
         mut tree_node: Entry,
     ) -> Result<Entry> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
         let mut read_dir = tokio::fs::read_dir(base).await?;
-        // TODO: make this more parallel, if possible
+        let mut futures = Vec::new();
         while let Some(dir_entry) = read_dir.next_entry().await? {
+            let dir_entry = Arc::new(dir_entry);
+            let mb = Arc::clone(&mb);
             let path = base.join(dir_entry.file_name());
-            let entry = self
-                .compute_node(path, &dir_entry, Entry::default())
-                .await?;
+            let entry = {
+                let dir_entry = Arc::clone(&dir_entry);
+                tokio::spawn(async move {
+                    (
+                        Arc::clone(&dir_entry),
+                        Self::compute_node(mb, path, dir_entry, Entry::default()).await,
+                    )
+                })
+            };
+            futures.push(entry);
+        }
+        for result in join_all(futures).await {
+            let (dir_entry, entry) = result?;
             tree_node
                 .entries
-                .insert(dir_entry.file_name().to_string_lossy().to_string(), entry);
+                .insert(dir_entry.file_name().to_string_lossy().to_string(), entry?);
         }
         tree_node.size = tree_node.entries.len() as u64;
         Ok(tree_node)
     }
 
     async fn compute_node<P: AsRef<std::path::Path> + Send>(
-        &mut self,
+        mb: Arc<ManifestBuilder<H>>,
         path: P,
-        dir_entry: &DirEntry,
+        dir_entry: Arc<DirEntry>,
         mut entry: Entry,
     ) -> Result<Entry> {
         let stat_result = match tokio::fs::symlink_metadata(&path).await {
@@ -333,9 +364,12 @@ where
                 })?
                 .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = (self.hasher)(Box::pin(std::io::Cursor::new(link_target))).await?;
+            entry.object = mb
+                .hasher
+                .hasher(Box::pin(std::io::Cursor::new(link_target)))
+                .await?;
         } else if file_type.is_dir() {
-            entry = self.compute_tree_node(path, entry).await?;
+            entry = Self::compute_tree_node(mb, path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
@@ -344,7 +378,7 @@ where
         } else {
             entry.kind = EntryKind::Blob;
             let reader = tokio::io::BufReader::new(tokio::fs::File::open(path).await?);
-            entry.object = (self.hasher)(Box::pin(reader)).await?;
+            entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
         }
         Ok(entry)
     }

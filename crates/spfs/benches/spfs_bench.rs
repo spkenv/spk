@@ -8,6 +8,7 @@ use spfs::prelude::*;
 use std::{
     fs::File,
     io::{BufWriter, Write},
+    sync::Arc,
     time::Duration,
 };
 use tempdir::TempDir;
@@ -38,11 +39,14 @@ pub fn commit_benchmark(c: &mut Criterion) {
 
     // Create an spfs repo to commit this path to.
     let repo_path = TempDir::new("spfs-test-repo-").expect("create a temp directory for spfs repo");
-    let repo = tokio_runtime
-        .block_on(spfs::storage::fs::FSRepository::create(
-            repo_path.path().join("repo"),
-        ))
-        .expect("create spfs repo");
+    let repo: Arc<RepositoryHandle> = Arc::new(
+        tokio_runtime
+            .block_on(spfs::storage::fs::FSRepository::create(
+                repo_path.path().join("repo"),
+            ))
+            .expect("create spfs repo")
+            .into(),
+    );
 
     let mut group = c.benchmark_group("spfs commit path");
     // use `Flat` because this is a long-running benchmark.
@@ -55,7 +59,7 @@ pub fn commit_benchmark(c: &mut Criterion) {
         .measurement_time(Duration::from_secs(200));
     group.bench_function("repo.commit_dir", |b| {
         b.to_async(&tokio_runtime)
-            .iter(|| repo.commit_dir(tempdir.path()))
+            .iter(|| spfs::commit_dir(Arc::clone(&repo), tempdir.path()))
     });
     group.finish();
 }

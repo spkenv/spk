@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 use rstest::{fixture, rstest};
 
 use super::{push_ref, sync_ref};
@@ -50,9 +52,11 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let local: RepositoryHandle = config.get_repository().await.unwrap().into();
+    let local = Arc::new(config.get_repository().await.unwrap().into());
     let remote = config.get_remote("origin").await.unwrap();
-    let manifest = local.commit_dir(src_dir.as_path()).await.unwrap();
+    let manifest = crate::commit_dir(Arc::clone(&local), src_dir.as_path())
+        .await
+        .unwrap();
     let layer = local
         .create_layer(&graph::Manifest::from(&manifest))
         .await
@@ -93,7 +97,9 @@ async fn test_sync_ref(
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let manifest = repo_a.commit_dir(src_dir.as_path()).await.unwrap();
+    let manifest = crate::commit_dir(repo_a.repo(), src_dir.as_path())
+        .await
+        .unwrap();
     let layer = repo_a
         .create_layer(&graph::Manifest::from(&manifest))
         .await
@@ -152,7 +158,9 @@ async fn test_sync_through_tar(
         .unwrap()
         .into();
 
-    let manifest = repo_a.commit_dir(src_dir.as_path()).await.unwrap();
+    let manifest = crate::commit_dir(repo_a.repo(), src_dir.as_path())
+        .await
+        .unwrap();
     let layer = repo_a
         .create_layer(&graph::Manifest::from(&manifest))
         .await
