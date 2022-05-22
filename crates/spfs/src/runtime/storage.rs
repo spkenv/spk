@@ -8,6 +8,7 @@ use std::io::{BufReader, BufWriter, Write};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
+use close_err::Closable;
 use serde::{Deserialize, Serialize};
 
 use super::{csh_exp, startup_csh, startup_sh};
@@ -282,7 +283,10 @@ impl Runtime {
         );
         serde_json::to_writer(&mut file, &self.config)?;
         file.flush()?;
-        file.get_ref().sync_all()?;
+        // This `into_inner` internally calls `flush_buf` but does not
+        // call `flush` on the inner `Writer`. The `flush` above does
+        // both.
+        file.into_inner().map_err(|err| err.into_error())?.close()?;
         Ok(())
     }
 
