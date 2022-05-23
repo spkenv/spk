@@ -54,7 +54,7 @@ impl BuildSpec {
     ) -> OptionMap {
         let mut resolved = OptionMap::default();
         for opt in self.options.iter() {
-            let name = opt.name();
+            let name = opt.full_name();
             let mut given_value: Option<&String> = None;
 
             if let Some(name) = &package_name {
@@ -65,7 +65,7 @@ impl BuildSpec {
             }
 
             let value = opt.get_value(given_value.map(String::as_ref));
-            resolved.insert(name.to_string(), value);
+            resolved.insert(name.to_owned(), value);
         }
 
         resolved
@@ -80,24 +80,23 @@ impl BuildSpec {
         let mut must_exist = given_options.package_options_without_global(&package_name);
         let given_options = given_options.package_options(&package_name);
         for option in self.options.iter() {
-            let value = given_options.get(option.name()).map(String::as_str);
+            let value = given_options.get(option.full_name()).map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
                 return Compatibility::Incompatible(format!(
                     "invalid value for {}: {}",
-                    option.name(),
+                    option.full_name(),
                     compat
                 ));
             }
 
-            must_exist.remove(option.name());
+            must_exist.remove(option.full_name());
         }
 
         if !must_exist.is_empty() {
-            let missing = must_exist.iter().collect::<Vec<_>>();
+            let missing = must_exist;
             return Compatibility::Incompatible(format!(
-                "Package does not define requested build options: {:?}",
-                missing
+                "Package does not define requested build options: {missing:?}",
             ));
         }
 
@@ -110,7 +109,7 @@ impl BuildSpec {
     /// otherwise the option is appended to the build options
     pub fn upsert_opt(&mut self, opt: Opt) {
         for other in self.options.iter_mut() {
-            if other.name() == opt.name() {
+            if other.full_name() == opt.full_name() {
                 let _ = std::mem::replace(other, opt);
                 return;
             }
@@ -183,14 +182,13 @@ impl<'de> BuildSpec {
         }
         let mut unique_options = HashSet::new();
         for opt in bs.options.iter() {
-            let name = opt.name();
-            if unique_options.contains(&name) {
+            if unique_options.contains(opt.full_name()) {
                 return Err(serde::de::Error::custom(format!(
                     "Build option specified more than once: {}",
-                    opt.name()
+                    opt.full_name()
                 )));
             }
-            unique_options.insert(name);
+            unique_options.insert(opt.full_name());
         }
         Ok(bs)
     }

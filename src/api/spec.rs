@@ -91,15 +91,17 @@ impl Spec {
 
     /// Check if this package spec satisfies the given var request.
     pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.package().as_ref() == Some(&self.pkg.name);
+        let opt_required = request.var.namespace() == Some(&self.pkg.name);
         let mut opt: Option<&Opt> = None;
-        let request_name = &request.var;
         for o in self.build.options.iter() {
-            if request_name == o.name() {
-                opt = Some(o);
-                break;
+            let is_same_base_name = request.var.base_name() == o.base_name();
+            if !is_same_base_name {
+                continue;
             }
-            if request_name == &o.namespaced_name(&self.pkg.name) {
+
+            let is_global = request.var.namespace().is_none();
+            let is_this_namespace = request.var.namespace() == Some(&*self.pkg.name);
+            if is_this_namespace || is_global {
                 opt = Some(o);
                 break;
             }
@@ -182,12 +184,12 @@ impl Spec {
                         continue;
                     }
                     let mut inherited_opt = opt.clone();
-                    if !inherited_opt.var.contains('.') {
-                        inherited_opt.var = format!("{}.{}", dep_name, opt.var);
+                    if inherited_opt.var.namespace().is_none() {
+                        inherited_opt.var = inherited_opt.var.with_namespace(&dep_name);
                     }
                     inherited_opt.inheritance = Inheritance::Weak;
                     if let Inheritance::Strong = opt.inheritance {
-                        let mut req = VarRequest::new(&inherited_opt.var);
+                        let mut req = VarRequest::new(inherited_opt.var.clone());
                         req.pin = true;
                         self.install.upsert_requirement(Request::Var(req));
                     }

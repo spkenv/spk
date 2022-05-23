@@ -7,7 +7,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use super::{parse_version_range, Ident, OptionMap, Ranged, Version};
+use super::{parse_version_range, Ident, OptNameBuf, OptionMap, Ranged, Version};
 
 use crate::Result;
 
@@ -124,7 +124,7 @@ impl BuildKey {
     /// for the matching build (pkg Ident). If not, it will make a
     /// strange build key that could be unrelated to the build. See
     /// SortedBuildIterator for more details.
-    pub fn new(pkg: &Ident, ordering: &Vec<String>, name_values: &OptionMap) -> BuildKey {
+    pub fn new(pkg: &Ident, ordering: &Vec<OptNameBuf>, name_values: &OptionMap) -> BuildKey {
         if pkg.is_source() {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;

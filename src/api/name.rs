@@ -31,6 +31,25 @@ macro_rules! pkg_name {
     };
 }
 
+/// Parse an option name from a string.
+///
+/// This will panic if the name is invalid,
+/// and should only be used for testing.
+///
+/// ```
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// opt_name!("my_option");
+/// opt_name!("python.abi");
+/// # }
+/// ```
+#[macro_export]
+macro_rules! opt_name {
+    ($name:literal) => {
+        $crate::api::OptName::new($name).unwrap()
+    };
+}
+
 /// Denotes that an invalid package name was given.
 #[derive(Debug, Error)]
 #[error("Invalid name: {message}")]
@@ -139,6 +158,12 @@ impl From<&PkgName> for PkgNameBuf {
     }
 }
 
+impl Borrow<OptName> for PkgNameBuf {
+    fn borrow(&self) -> &OptName {
+        self.as_opt_name()
+    }
+}
+
 /// A valid package name
 #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PkgName(str);
@@ -173,6 +198,11 @@ impl PkgName {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Interpret this package name as an option name
+    pub fn as_opt_name(&self) -> &OptName {
+        self.borrow()
     }
 }
 
@@ -211,6 +241,12 @@ impl AsRef<std::path::Path> for PkgName {
 impl AsRef<std::ffi::OsStr> for PkgName {
     fn as_ref(&self) -> &std::ffi::OsStr {
         std::ffi::OsStr::new(&self.0)
+    }
+}
+
+impl Borrow<OptName> for PkgName {
+    fn borrow(&self) -> &OptName {
+        OptName::from_str(&self.0)
     }
 }
 
@@ -266,6 +302,274 @@ fn validate_pkg_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
         );
         Err(InvalidNameError::new_error(format!(
             "Invalid package name at pos {}: {}",
+            index, err_str
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+/// An owned, mutable package name
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize)]
+pub struct OptNameBuf(String);
+
+impl std::ops::Deref for OptNameBuf {
+    type Target = OptName;
+
+    fn deref(&self) -> &Self::Target {
+        OptName::from_str(self.0.as_str())
+    }
+}
+
+impl AsRef<str> for OptNameBuf {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for OptNameBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl AsRef<std::path::Path> for OptNameBuf {
+    fn as_ref(&self) -> &std::path::Path {
+        std::path::Path::new(&self.0)
+    }
+}
+
+impl Borrow<String> for OptNameBuf {
+    fn borrow(&self) -> &String {
+        unsafe { &*(self as *const OptNameBuf as *const String) }
+    }
+}
+
+impl From<OptNameBuf> for String {
+    fn from(val: OptNameBuf) -> Self {
+        val.0
+    }
+}
+
+impl FromStr for OptNameBuf {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        OptName::new(s).map(ToOwned::to_owned)
+    }
+}
+
+impl TryFrom<&str> for OptNameBuf {
+    type Error = crate::Error;
+
+    fn try_from(s: &str) -> Result<Self> {
+        s.parse()
+    }
+}
+
+impl TryFrom<String> for OptNameBuf {
+    type Error = crate::Error;
+
+    fn try_from(s: String) -> Result<Self> {
+        // we trust that if it can be validated as an opt_name
+        // then it's a valid value to wrap
+        OptName::new(&s)?;
+        Ok(Self(s))
+    }
+}
+
+impl Borrow<OptName> for OptNameBuf {
+    fn borrow(&self) -> &OptName {
+        OptName::from_str(&self.0)
+    }
+}
+
+impl std::cmp::PartialEq<OptName> for OptNameBuf {
+    fn eq(&self, other: &OptName) -> bool {
+        &**self == other
+    }
+}
+
+impl From<&OptName> for OptNameBuf {
+    fn from(name: &OptName) -> Self {
+        name.to_owned()
+    }
+}
+
+/// A valid package name
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct OptName(str);
+
+impl OptName {
+    const SEP: char = '.';
+    const MIN_LEN: usize = 2;
+    const MAX_LEN: usize = 64;
+
+    /// Standard option used to identify the operating system
+    pub const fn os() -> &'static Self {
+        Self::from_str("os")
+    }
+
+    /// Standard option used to identify the target architecture
+    pub const fn arch() -> &'static Self {
+        Self::from_str("arch")
+    }
+
+    /// Standard option used to identify the os distribution
+    pub const fn distro() -> &'static Self {
+        Self::from_str("distro")
+    }
+
+    const fn from_str(inner: &str) -> &Self {
+        unsafe { &*(inner as *const str as *const OptName) }
+    }
+
+    pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&OptName> {
+        match s.as_ref().split_once(Self::SEP) {
+            Some((ns, opt)) => {
+                validate_pkg_name(ns)?;
+                validate_opt_name(opt)?;
+            }
+            None => {
+                validate_opt_name(s)?;
+            }
+        }
+        Ok(Self::from_str(s.as_ref()))
+    }
+
+    /// The non-namespace portion of this option
+    ///
+    /// ```
+    /// # #[macro_use] extern crate spk;
+    /// # fn main() {
+    /// assert_eq!(opt_name!("my_option").base_name(), "my_option");
+    /// assert_eq!(opt_name!("python.abi").base_name(), "abi");
+    /// # }
+    /// ```
+    pub fn base_name(&self) -> &str {
+        self.split_once(Self::SEP)
+            .map(|(_, n)| n)
+            .unwrap_or(&self.0)
+    }
+
+    /// The package namespace defined in this option, if any
+    pub fn namespace(&self) -> Option<&PkgName> {
+        self.0
+            .split_once(Self::SEP)
+            .map(|(ns, _)| PkgName::from_str(ns))
+    }
+
+    /// Return a copy of this option, replacing any namespace with the provided one
+    pub fn with_namespace<N: AsRef<PkgName>>(&self, ns: N) -> OptNameBuf {
+        OptNameBuf(format!("{}{}{}", ns.as_ref(), Self::SEP, self.base_name()))
+    }
+
+    /// Return an option with the same name but no associated namespace
+    pub fn without_namespace(&self) -> &OptName {
+        Self::from_str(self.base_name())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        false // names are not allowed to be empty
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl std::ops::Deref for OptName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for OptName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl AsRef<str> for OptName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<std::path::Path> for OptName {
+    fn as_ref(&self) -> &std::path::Path {
+        std::path::Path::new(&self.0)
+    }
+}
+
+impl AsRef<std::ffi::OsStr> for OptName {
+    fn as_ref(&self) -> &std::ffi::OsStr {
+        std::ffi::OsStr::new(&self.0)
+    }
+}
+
+impl ToOwned for OptName {
+    type Owned = OptNameBuf;
+
+    fn to_owned(&self) -> Self::Owned {
+        OptNameBuf(self.0.to_owned())
+    }
+}
+
+impl std::cmp::PartialEq<OptNameBuf> for OptName {
+    fn eq(&self, other: &OptNameBuf) -> bool {
+        self == &**other
+    }
+}
+
+impl std::cmp::PartialEq<str> for OptName {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+/// Ensure that the provided string is a valid option name.
+///
+/// This is for checking option names without any leading
+/// package specifier. Leading package names can be validated
+/// with [`validate_pkg_name`].
+fn validate_opt_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
+    if name.as_ref().len() < OptName::MIN_LEN {
+        return Err(InvalidNameError::new_error(format!(
+            "Invalid option name, must be at least {} characters, got {} [{}]",
+            OptName::MIN_LEN,
+            name.as_ref(),
+            name.as_ref().len(),
+        )));
+    }
+    if name.as_ref().len() > OptName::MAX_LEN {
+        return Err(InvalidNameError::new_error(format!(
+            "Invalid option name, must be no more than {} characters, got {} [{}]",
+            OptName::MAX_LEN,
+            name.as_ref(),
+            name.as_ref().len(),
+        )));
+    }
+    let index = validate_source_str(&name, |c: char| {
+        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'
+    });
+    if index > -1 {
+        let name = name.as_ref();
+        let index = index as usize;
+        let err_str = format!(
+            "{} > {} < {}",
+            &name[..index],
+            name.chars().nth(index).unwrap(),
+            &name[(index + 1)..]
+        );
+        Err(InvalidNameError::new_error(format!(
+            "Invalid option name at pos {}: {}",
             index, err_str
         )))
     } else {

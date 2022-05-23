@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::{BTreeMap, HashMap};
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::iter::FromIterator;
 use std::sync::Arc;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
 use sys_info;
+
+use super::{OptName, OptNameBuf, PkgName};
 
 #[cfg(test)]
 #[path = "./option_map_test.rs"]
@@ -37,10 +38,17 @@ type Digest = [char; DIGEST_SIZE];
 #[macro_export]
 macro_rules! option_map {
     ($($k:expr => $v:expr),* $(,)?) => {{
-        use $crate::api::OptionMap;
+        #[allow(unused_imports)]
+        use {
+            std::convert::TryFrom,
+            $crate::api::{OptionMap, OptNameBuf}
+        };
         #[allow(unused_mut)]
         let mut opts = OptionMap::default();
-        $(opts.insert($k.into(), $v.into());)*
+        $(opts.insert(
+            OptNameBuf::try_from($k).expect("invalid option name"),
+            $v.into()
+        );)*
         opts
     }};
 }
@@ -48,8 +56,8 @@ macro_rules! option_map {
 /// Detect and return the default options for the current host system.
 pub fn host_options() -> crate::Result<OptionMap> {
     let mut opts = OptionMap::default();
-    opts.insert("os".into(), std::env::consts::OS.into());
-    opts.insert("arch".into(), std::env::consts::ARCH.into());
+    opts.insert(OptName::os().to_owned(), std::env::consts::OS.into());
+    opts.insert(OptName::arch().to_owned(), std::env::consts::ARCH.into());
 
     let info = match sys_info::linux_os_release() {
         Ok(i) => i,
@@ -62,9 +70,16 @@ pub fn host_options() -> crate::Result<OptionMap> {
     };
 
     if let Some(id) = info.id {
-        opts.insert("distro".into(), id.clone());
-        if let Some(version_id) = info.version_id {
-            opts.insert(id, version_id);
+        opts.insert(OptName::distro().to_owned(), id.clone());
+        match OptNameBuf::try_from(id) {
+            Ok(id) => {
+                if let Some(version_id) = info.version_id {
+                    opts.insert(id, version_id);
+                }
+            }
+            Err(err) => {
+                tracing::warn!("Reported distro id is not a valid option name: {err}");
+            }
         }
     }
 
@@ -75,11 +90,11 @@ pub fn host_options() -> crate::Result<OptionMap> {
 #[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Ord, PartialOrd)]
 #[serde(transparent)]
 pub struct OptionMap {
-    options: BTreeMap<String, String>,
+    options: BTreeMap<OptNameBuf, String>,
 }
 
 impl std::ops::Deref for OptionMap {
-    type Target = BTreeMap<String, String>;
+    type Target = BTreeMap<OptNameBuf, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.options
@@ -92,16 +107,16 @@ impl std::ops::DerefMut for OptionMap {
     }
 }
 
-impl From<&Arc<BTreeMap<String, String>>> for OptionMap {
-    fn from(hm: &Arc<BTreeMap<String, String>>) -> Self {
+impl From<&Arc<BTreeMap<OptNameBuf, String>>> for OptionMap {
+    fn from(hm: &Arc<BTreeMap<OptNameBuf, String>>) -> Self {
         Self {
             options: (**hm).clone(),
         }
     }
 }
 
-impl FromIterator<(String, String)> for OptionMap {
-    fn from_iter<T: IntoIterator<Item = (String, String)>>(iter: T) -> Self {
+impl FromIterator<(OptNameBuf, String)> for OptionMap {
+    fn from_iter<T: IntoIterator<Item = (OptNameBuf, String)>>(iter: T) -> Self {
         Self {
             options: BTreeMap::from_iter(iter),
         }
@@ -122,8 +137,8 @@ impl std::fmt::Display for OptionMap {
 }
 
 impl IntoIterator for OptionMap {
-    type IntoIter = std::collections::btree_map::IntoIter<String, String>;
-    type Item = (String, String);
+    type IntoIter = std::collections::btree_map::IntoIter<OptNameBuf, String>;
+    type Item = (OptNameBuf, String);
 
     fn into_iter(self) -> Self::IntoIter {
         self.options.into_iter()
@@ -141,15 +156,13 @@ impl OptionMap {
         out
     }
 
-    fn items(&self) -> Vec<(String, String)> {
+    fn items(&self) -> Vec<(OptNameBuf, String)> {
         self.options
             .iter()
             .map(|(k, v)| (k.to_owned(), v.to_owned()))
             .collect()
     }
-}
 
-impl OptionMap {
     pub fn digest(&self) -> Digest {
         let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
         for (name, value) in self.items() {
@@ -182,19 +195,19 @@ impl OptionMap {
     }
 
     /// Return the set of options given for the specific named package.
-    pub fn package_options_without_global<S: AsRef<str>>(&self, name: S) -> Self {
-        let prefix = format!("{}.", name.as_ref());
+    pub fn package_options_without_global<S: AsRef<PkgName>>(&self, name: S) -> Self {
+        let pkg = name.as_ref();
         let mut options = OptionMap::default();
-        for (key, value) in self.iter() {
-            if let Some(key) = key.strip_prefix(prefix.as_str()) {
-                options.insert(key.to_string(), value.to_string());
+        for (name, value) in self.iter() {
+            if name.namespace() == Some(pkg) {
+                options.insert(name.without_namespace().to_owned(), value.clone());
             }
         }
         options
     }
 
     /// Return the set of options relevant to the named package.
-    pub fn package_options<S: AsRef<str>>(&self, name: S) -> Self {
+    pub fn package_options<S: AsRef<PkgName>>(&self, name: S) -> Self {
         let mut options = self.global_options();
         options.append(&mut self.package_options_without_global(name));
         options
@@ -230,7 +243,7 @@ impl<'de> Deserialize<'de> for OptionMap {
         };
         let mut options = OptionMap::default();
         for (name, value) in mapping.into_iter() {
-            let name = String::deserialize(name)
+            let name = OptNameBuf::deserialize(name)
                 .map_err(|err| serde::de::Error::custom(err.to_string()))?;
             let value = string_from_scalar(value)
                 .map_err(|err| serde::de::Error::custom(err.to_string()))?;

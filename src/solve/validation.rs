@@ -179,15 +179,15 @@ impl ValidatorT for OptionsValidator {
         let qualified_requests: HashSet<_> = requests
             .iter()
             .filter_map(|r| {
-                if Some(&spec.pkg.name) == r.package().as_ref() {
-                    Some(r.base_name().to_string())
+                if r.var.namespace() == Some(&spec.pkg.name) {
+                    Some(r.var.without_namespace())
                 } else {
                     None
                 }
             })
             .collect();
         for request in requests {
-            if request.package().is_none() && qualified_requests.contains(&request.var) {
+            if request.var.namespace().is_none() && qualified_requests.contains(&*request.var) {
                 // a qualified request was found that supersedes this one:
                 // eg: this is 'debug', but we have 'thispackage.debug'
                 continue;
@@ -461,9 +461,9 @@ impl ValidatorT for VarRequirementsValidator {
         for request in spec.install.requirements.iter() {
             if let api::Request::Var(request) = request {
                 for (name, value) in options.iter() {
-                    if *name != request.var
-                        && !name.ends_with(&[".", request.var.as_str()].concat())
-                    {
+                    let is_not_requested = *name != request.var;
+                    let is_not_same_base = request.var.base_name() != name.base_name();
+                    if is_not_requested && is_not_same_base {
                         continue;
                     }
                     if value.is_empty() {

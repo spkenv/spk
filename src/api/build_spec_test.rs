@@ -4,7 +4,7 @@
 use rstest::rstest;
 
 use super::BuildSpec;
-use crate::{api, option_map};
+use crate::{api, opt_name, option_map};
 
 #[rstest]
 fn test_variants_must_be_unique() {
@@ -49,17 +49,17 @@ fn test_resolve_all_options_package_option() {
     let name: api::PkgNameBuf = "my-pkg".parse().unwrap();
     let resolved = spec.resolve_all_options(Some(&name), &options);
     assert_eq!(
-        resolved.get("my-opt"),
+        resolved.get(opt_name!("my-opt")),
         Some(&"override".to_string()),
         "namespaced option should take precedence"
     );
     assert_eq!(
-        resolved.get("debug"),
+        resolved.get(opt_name!("debug")),
         Some(&"on".to_string()),
         "global opt should resolve if given"
     );
     assert_eq!(
-        resolved.get("python.abi"),
+        resolved.get(opt_name!("python.abi")),
         Some(&"cp27mu".to_string()),
         "opt for other package should exist"
     );

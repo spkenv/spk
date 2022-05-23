@@ -11,7 +11,7 @@ use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
-use crate::api::{self, Ident, InclusionPolicy, PkgName, PkgNameBuf};
+use crate::api::{self, Ident, InclusionPolicy, OptNameBuf, PkgName, PkgNameBuf};
 
 use super::errors::{self};
 use super::{
@@ -288,7 +288,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     fn options_to_change(spec: &api::Spec) -> Change {
         let mut opts = api::OptionMap::default();
         opts.insert(
-            spec.pkg.name.to_string(),
+            spec.pkg.name.as_opt_name().to_owned(),
             spec.compat.render(&spec.pkg.version),
         );
         for opt in &spec.build.options {
@@ -719,9 +719,9 @@ impl SetOptions {
         base: &State,
         new_options: I,
         update_existing_option_with_empty_value: bool,
-    ) -> BTreeMap<String, String>
+    ) -> BTreeMap<OptNameBuf, String>
     where
-        I: Iterator<Item = (&'i String, &'i String)>,
+        I: Iterator<Item = (&'i OptNameBuf, &'i String)>,
     {
         let mut options = (*base.options).clone();
         // Update base options with request options...
@@ -818,7 +818,7 @@ impl StateId {
         }
     }
 
-    fn options_hash(options: &BTreeMap<String, String>) -> u64 {
+    fn options_hash(options: &BTreeMap<OptNameBuf, String>) -> u64 {
         let mut hasher = DefaultHasher::new();
         options.hash(&mut hasher);
         hasher.finish()
@@ -854,7 +854,7 @@ impl StateId {
         (global_hasher.finish(), var_requests_membership)
     }
 
-    fn with_options(&self, options: &BTreeMap<String, String>) -> Self {
+    fn with_options(&self, options: &BTreeMap<OptNameBuf, String>) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
@@ -887,7 +887,7 @@ impl StateId {
     fn with_var_requests_and_options(
         &self,
         var_requests: &BTreeSet<api::VarRequest>,
-        options: &BTreeMap<String, String>,
+        options: &BTreeMap<OptNameBuf, String>,
     ) -> Self {
         let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
         Self::new(
@@ -942,7 +942,7 @@ pub struct State {
     pkg_requests: Arc<Vec<Arc<CachedHash<api::PkgRequest>>>>,
     var_requests: Arc<BTreeSet<api::VarRequest>>,
     packages: StatePackages,
-    options: Arc<BTreeMap<String, String>>,
+    options: Arc<BTreeMap<OptNameBuf, String>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<api::OptionMap>>,
     // How deep is this state?
@@ -954,7 +954,7 @@ impl State {
         pkg_requests: Vec<api::PkgRequest>,
         var_requests: Vec<api::VarRequest>,
         packages: Vec<(Arc<api::Spec>, PackageSource)>,
-        options: Vec<(String, String)>,
+        options: Vec<(api::OptNameBuf, String)>,
     ) -> Arc<Self> {
         // TODO: This pre-calculates the hash but there
         // may be states constructed where the id is
@@ -1106,7 +1106,7 @@ impl State {
         &self.packages
     }
 
-    fn with_options(&self, parent: &Self, options: BTreeMap<String, String>) -> Self {
+    fn with_options(&self, parent: &Self, options: BTreeMap<OptNameBuf, String>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
@@ -1163,7 +1163,7 @@ impl State {
         &self,
         parent: &Self,
         var_requests: Arc<BTreeSet<api::VarRequest>>,
-        options: BTreeMap<String, String>,
+        options: BTreeMap<OptNameBuf, String>,
     ) -> Self {
         let state_id = self
             .state_id

@@ -7,7 +7,7 @@ use rstest::rstest;
 
 use super::{default_validators, OptionsValidator, VarRequirementsValidator};
 use crate::solve::{graph::State, validation::ValidatorT};
-use crate::{api, fixtures::*, ident, solve, spec};
+use crate::{api, fixtures::*, ident, opt_name, solve, spec};
 
 #[rstest]
 fn test_src_package_install_requests_are_not_considered() {
@@ -40,7 +40,7 @@ fn test_src_package_install_requests_are_not_considered() {
         .collect(),
         vec![],
         vec![],
-        vec![("debug".to_string(), "off".to_string())],
+        vec![(opt_name!("debug").to_owned(), "off".to_string())],
     );
     for validator in validators {
         let msg = "Source package should be valid regardless of requirements";
@@ -62,7 +62,7 @@ fn test_empty_options_can_match_anything() {
         vec![],
         // this option is requested to be a specific value in the installed
         // spec file, but is empty so should not cause a conflict
-        vec![("python.abi".to_string(), "".to_string())],
+        vec![(opt_name!("python.abi").to_owned(), "".to_string())],
     );
 
     let spec = Arc::new(spec!(

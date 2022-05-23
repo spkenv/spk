@@ -57,7 +57,11 @@ impl PackageBuildTester {
         }
     }
 
-    pub fn with_option(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
+    pub fn with_option(
+        &mut self,
+        name: impl Into<api::OptNameBuf>,
+        value: impl Into<String>,
+    ) -> &mut Self {
         self.options.insert(name.into(), value.into());
         self
     }

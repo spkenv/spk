@@ -16,8 +16,8 @@ use super::{
     compat::BINARY_STR,
     parse_build,
     version_range::{self, Ranged},
-    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, PkgName,
-    PkgNameBuf, Spec, Version, VersionFilter,
+    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, OptName,
+    OptNameBuf, PkgName, PkgNameBuf, Spec, Version, VersionFilter,
 };
 use crate::{Error, Result};
 
@@ -412,16 +412,16 @@ impl Default for InclusionPolicy {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum Request {
-    Var(VarRequest),
     Pkg(PkgRequest),
+    Var(VarRequest),
 }
 
 impl Request {
-    /// Return the canonical name of this requirement."""
-    pub fn name(&self) -> String {
+    /// Return the canonical name of this request."""
+    pub fn name(&self) -> &OptName {
         match self {
-            Request::Var(r) => r.var.to_owned(),
-            Request::Pkg(r) => r.pkg.to_string(),
+            Request::Var(r) => &r.var,
+            Request::Pkg(r) => r.pkg.name.as_opt_name(),
         }
     }
 
@@ -478,7 +478,7 @@ impl<'de> Deserialize<'de> for Request {
 /// A set of restrictions placed on selected packages' build options.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct VarRequest {
-    pub var: String,
+    pub var: OptNameBuf,
     pub pin: bool,
     pub value: String,
 }
@@ -492,7 +492,7 @@ struct VarRequestSchema {
 
 impl VarRequest {
     /// Create a new empty request for the named variable
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new<S: Into<OptNameBuf>>(name: S) -> Self {
         Self {
             var: name.into(),
             pin: false,
@@ -503,7 +503,7 @@ impl VarRequest {
     /// Create a new request for the named variable at the specified value
     pub fn new_with_value<N, V>(name: N, value: V) -> Self
     where
-        N: Into<String>,
+        N: Into<OptNameBuf>,
         V: Into<String>,
     {
         Self {
@@ -526,25 +526,6 @@ impl VarRequest {
         new.value = value.into();
         Ok(new)
     }
-
-    /// The name of this variable without any package qualifier
-    pub fn base_name(&self) -> &str {
-        let index = self.var.find('.').map(|i| i + 1).unwrap_or_default();
-        &self.var[index..]
-    }
-
-    /// Return the name of the package that this var refers to (if any)
-    pub fn package(&self) -> Option<PkgNameBuf> {
-        if self.var.contains('.') {
-            self.var
-                .split('.')
-                .next()
-                .map(PkgNameBuf::from_str)
-                .and_then(Result::ok)
-        } else {
-            None
-        }
-    }
 }
 
 impl<'de> Deserialize<'de> for VarRequest {
@@ -552,32 +533,39 @@ impl<'de> Deserialize<'de> for VarRequest {
     where
         D: serde::Deserializer<'de>,
     {
-        let spec = VarRequestSchema::deserialize(deserializer)?;
+        let res = {
+            let spec = VarRequestSchema::deserialize(deserializer)?;
 
-        let mut parts = spec.var.splitn(2, '/');
-        let mut out = Self {
-            var: parts.next().unwrap().to_string(),
-            value: Default::default(),
-            pin: spec.pin,
+            let mut parts = spec.var.splitn(2, '/');
+            let mut out = Self {
+                var: parts
+                    .next()
+                    .unwrap()
+                    .parse()
+                    .map_err(serde::de::Error::custom)?,
+                value: Default::default(),
+                pin: spec.pin,
+            };
+            match (parts.next(), spec.pin) {
+                (Some(_), true) => {
+                    return Err(serde::de::Error::custom(format!(
+                        "var request {} cannot have value when fromBuildEnv is true",
+                        out.var
+                    )));
+                }
+                (Some(value), false) => out.value = value.to_string(),
+                (None, true) => (),
+                (None, false) => {
+                    return Err(serde::de::Error::custom(format!(
+                        "var request must be in the form name/value, got '{}'",
+                        spec.var
+                    )));
+                }
+            }
+
+            Ok(out)
         };
-        match (parts.next(), spec.pin) {
-            (Some(_), true) => {
-                return Err(serde::de::Error::custom(format!(
-                    "var request {} cannot have value when fromBuildEnv is true",
-                    out.var
-                )));
-            }
-            (Some(value), false) => out.value = value.to_string(),
-            (None, true) => (),
-            (None, false) => {
-                return Err(serde::de::Error::custom(format!(
-                    "var request must be in the form name/value, got '{}'",
-                    spec.var
-                )));
-            }
-        }
-
-        Ok(out)
+        res
     }
 }
 
@@ -586,7 +574,7 @@ impl Serialize for VarRequest {
     where
         S: serde::Serializer,
     {
-        let mut var = self.var.clone();
+        let mut var = self.var.to_string();
         if !self.value.is_empty() || !self.pin {
             // serialize an empty value if not pinning, otherwise it
             // wont be valid to load back in

@@ -1,14 +1,15 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{convert::TryFrom, str::FromStr};
+use std::convert::TryFrom;
+use std::str::FromStr;
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    CompatRule, Compatibility, InclusionPolicy, PkgNameBuf, PkgRequest, PreReleasePolicy, Ranged,
-    Request, RequestedBy, VarRequest, VersionRange,
+    CompatRule, Compatibility, InclusionPolicy, OptName, OptNameBuf, PkgName, PkgNameBuf,
+    PkgRequest, PreReleasePolicy, Ranged, Request, RequestedBy, VarRequest, VersionRange,
 };
 use crate::{Error, Result};
 
@@ -61,14 +62,31 @@ pub enum Opt {
 }
 
 impl Opt {
-    pub fn name(&self) -> &str {
+    /// The name of this option with any associated namespace
+    pub fn full_name(&self) -> &OptName {
         match self {
-            Self::Pkg(opt) => opt.pkg.as_str(),
+            Self::Pkg(opt) => opt.pkg.as_opt_name(),
             Self::Var(opt) => &opt.var,
         }
     }
 
-    pub fn namespaced_name<S: AsRef<str>>(&self, pkg: S) -> String {
+    /// The name of this option without any associated namespace
+    pub fn base_name(&self) -> &str {
+        match self {
+            Self::Pkg(opt) => opt.pkg.as_str(),
+            Self::Var(opt) => opt.var.base_name(),
+        }
+    }
+
+    /// The package namespace of this option, if any
+    pub fn namespace(&self) -> Option<&PkgName> {
+        match self {
+            Self::Pkg(opt) => Some(&opt.pkg),
+            Self::Var(opt) => opt.var.namespace(),
+        }
+    }
+
+    pub fn namespaced_name<S: AsRef<PkgName>>(&self, pkg: S) -> OptNameBuf {
         match self {
             Self::Pkg(opt) => opt.namespaced_name(pkg.as_ref()),
             Self::Var(opt) => opt.namespaced_name(pkg.as_ref()),
@@ -168,7 +186,7 @@ impl<'de> Deserialize<'de> for Opt {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VarOpt {
-    pub var: String,
+    pub var: OptNameBuf,
     pub default: String,
     pub choices: IndexSet<String>,
     pub inheritance: Inheritance,
@@ -221,21 +239,22 @@ impl PartialOrd for VarOpt {
 }
 
 impl VarOpt {
-    pub fn new<S: AsRef<str>>(var: S) -> Self {
-        Self {
-            var: var.as_ref().to_string(),
+    pub fn new<S: AsRef<str>>(var: S) -> Result<Self> {
+        Ok(Self {
+            var: var.as_ref().parse()?,
             default: String::default(),
             choices: IndexSet::default(),
             inheritance: Inheritance::default(),
             value: None,
-        }
+        })
     }
 
-    pub fn namespaced_name(&self, pkg: &str) -> String {
-        if self.var.contains('.') {
+    /// Return the namespaced name of this option
+    pub fn namespaced_name(&self, pkg: &PkgName) -> OptNameBuf {
+        if self.var.namespace().is_some() {
             self.var.clone()
         } else {
-            format!("{}.{}", pkg, self.var)
+            self.var.with_namespace(pkg)
         }
     }
 
@@ -328,9 +347,9 @@ struct VarOptSchema {
     #[serde(
         default,
         skip_serializing,
-        deserialize_with = "optional_string_from_scalar"
+        deserialize_with = "super::option_map::string_from_scalar"
     )]
-    default: Option<String>,
+    default: String,
 }
 
 impl Serialize for VarOpt {
@@ -339,11 +358,11 @@ impl Serialize for VarOpt {
         S: serde::ser::Serializer,
     {
         let mut out = VarOptSchema {
-            var: self.var.clone(),
+            var: self.var.to_string(),
             choices: self.choices.iter().map(String::to_owned).collect(),
             inheritance: self.inheritance,
             value: self.value.clone().unwrap_or_default(),
-            default: None,
+            default: String::new(),
         };
         if !self.default.is_empty() {
             out.var = format!("{}/{}", self.var, self.default);
@@ -358,26 +377,28 @@ impl<'de> Deserialize<'de> for VarOpt {
     where
         D: serde::Deserializer<'de>,
     {
-        let data = VarOptSchema::deserialize(deserializer)?;
+        let mut data = VarOptSchema::deserialize(deserializer)?;
+
+        if data.default.is_empty() {
+            let index = data.var.find('/');
+            if let Some(i) = index {
+                data.default = data.var[i + 1..].to_string();
+                data.var.truncate(i);
+            }
+        }
+
         let mut out = VarOpt {
-            var: data.var.clone(),
-            default: "".to_string(),
-            choices: data.choices.iter().map(String::to_owned).collect(),
+            var: data.var.parse().map_err(serde::de::Error::custom)?,
+            default: data.default,
+            choices: data.choices.into_iter().collect(),
             inheritance: data.inheritance,
             value: None,
         };
-        if let Some(default) = data.default {
-            // the default field is deprecated, but we support it for existing packages
-            out.default = default;
-        } else {
-            let mut split = data.var.split('/');
-            out.var = split.next().unwrap().to_string();
-            out.default = split.collect::<Vec<_>>().join("");
-        }
 
         if !data.value.is_empty() {
-            out.value = Some(data.value.to_owned());
+            out.value = Some(data.value);
         }
+
         Ok(out)
     }
 }
@@ -426,8 +447,8 @@ impl PkgOpt {
         Ok(())
     }
 
-    pub fn namespaced_name(&self, pkg: &str) -> String {
-        format!("{}.{}", pkg, self.pkg)
+    pub fn namespaced_name(&self, pkg: &PkgName) -> OptNameBuf {
+        self.pkg.as_opt_name().with_namespace(pkg)
     }
 
     pub fn validate(&self, value: Option<&str>) -> Compatibility {
