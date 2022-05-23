@@ -75,3 +75,27 @@ cargo build
 ./setcaps_debug.sh
 tests/integration/run_all.sh
 ```
+
+### Benchmarks
+
+Benchmark tests can be found in `benches/`. All benchmark tests can be run with `cargo bench`, but in order to successfully pass `criterion`-specific options to the `criterion`-based benchmarks, those types of benchmarks need to be filtered for.
+
+```sh
+cargo bench --bench spfs_bench
+```
+
+A common workflow as described [here](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html#baselines) is to record a baseline measurement to use as a reference to compare future measurements to.
+
+```sh
+git checkout master
+# Record baseline with name "master"
+cargo bench --bench spfs_bench -- --save-baseline master
+
+git checkout topic-branch
+# While iterating, this creates a new baseline called "new", and
+# will report on the change since the most recent "new".
+cargo bench --bench spfs_bench
+
+# Compare to "master"
+cargo bench --bench spfs_bench -- --load-baseline new --baseline master
+```
