@@ -77,7 +77,8 @@ impl Component {
     /// Parse a component name from a string, ensuring that it's valid
     pub fn parse<S: AsRef<str>>(source: S) -> Result<Self> {
         let source = source.as_ref();
-        super::validate_name(source)?;
+        // for now, components follow the same naming requirements as packages
+        let _ = super::PkgName::new(source)?;
         Ok(match source {
             "all" => Self::All,
             "run" => Self::Run,

@@ -32,7 +32,7 @@ impl Run for Search {
         let mut exit = 1;
         for (repo_name, repo) in repos.iter() {
             for name in repo.list_packages()? {
-                if !name.contains(&self.term) {
+                if !name.as_str().contains(&self.term) {
                     continue;
                 }
                 let mut ident = spk::api::parse_ident(&name)?;

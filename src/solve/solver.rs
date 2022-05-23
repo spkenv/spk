@@ -144,12 +144,12 @@ impl Solver {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
-        let iterator = self.make_iterator(package_name.clone());
-        Arc::make_mut(node).set_iterator(package_name.clone(), &iterator);
+        let iterator = self.make_iterator(package_name.to_owned());
+        Arc::make_mut(node).set_iterator(package_name.to_owned(), &iterator);
         iterator
     }
 
-    fn make_iterator(&self, package_name: api::PkgName) -> Arc<Mutex<Box<dyn PackageIterator>>> {
+    fn make_iterator(&self, package_name: api::PkgNameBuf) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         debug_assert!(!self.repos.is_empty());
         Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
             package_name,

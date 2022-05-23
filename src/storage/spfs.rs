@@ -151,7 +151,7 @@ std::thread_local! {
     > = RefCell::new(HashMap::new());
 
     static PACKAGE_VERSIONS_CACHE : CacheByAddress<
-        api::PkgName,
+        api::PkgNameBuf,
         CacheValue<Arc<Vec<Arc<api::Version>>>>
     > = RefCell::new(HashMap::new());
 
@@ -171,7 +171,7 @@ impl Repository for SPFSRepository {
         &self.address
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
         let path = relative_path::RelativePath::new("spk/spec");
         // XXX: infallible vs return type
         Ok(crate::HANDLE
@@ -198,7 +198,7 @@ impl Repository for SPFSRepository {
             }
         }
         let r: Result<Arc<_>> = crate::HANDLE.block_on(async {
-            let path = self.build_spec_tag(&name.clone().into());
+            let path = self.build_spec_tag(&name.to_owned().into());
             let versions: HashSet<_> = self
                 .ls_tags(&path)
                 .await
@@ -225,7 +225,7 @@ impl Repository for SPFSRepository {
         PACKAGE_VERSIONS_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(name.clone(), r.as_ref().map(|b| b.clone()).into())
+            hm.insert(name.to_owned(), r.as_ref().map(|b| b.clone()).into())
         });
         r
     }

@@ -37,7 +37,7 @@ pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
 pub use ident::{parse_ident, Ident};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
-pub use name::{validate_name, validate_tag_name, InvalidNameError, PkgName};
+pub use name::{validate_tag_name, InvalidNameError, PkgName, PkgNameBuf};
 pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub use option_map::{host_options, OptionMap};
 pub use request::{

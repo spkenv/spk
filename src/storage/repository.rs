@@ -29,7 +29,7 @@ pub trait Repository {
     fn address(&self) -> &url::Url;
 
     /// Return the set of known packages in this repo.
-    fn list_packages(&self) -> Result<Vec<api::PkgName>>;
+    fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>>;
 
     /// Return the set of versions available for the named package.
     fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>>;

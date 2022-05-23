@@ -114,7 +114,7 @@ fn test_request_default_component() {
         .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
         .apply(&base);
     let request = resolve_state
-        .get_merged_request(&"dependency".parse().unwrap())
+        .get_merged_request(api::PkgName::new("dependency").unwrap())
         .unwrap();
     assert!(
         request.pkg.components.contains(&api::Component::Run),
@@ -126,7 +126,7 @@ fn test_request_default_component() {
         .unwrap()
         .apply(&base);
     let request = build_state
-        .get_merged_request(&"dependency".parse().unwrap())
+        .get_merged_request(api::PkgName::new("dependency").unwrap())
         .unwrap();
     assert!(
         request.pkg.components.contains(&api::Component::Run),

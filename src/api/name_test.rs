@@ -13,5 +13,5 @@ use rstest::rstest;
 #[should_panic]
 #[case("name!!")] // no special characters
 fn test_name_validation(#[case] input: &str) {
-    super::validate_name(input).unwrap();
+    super::validate_pkg_name(input).unwrap();
 }
