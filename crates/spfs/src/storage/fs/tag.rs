@@ -365,7 +365,7 @@ impl std::fmt::Debug for TagIterState {
 }
 
 /// Using a series of states, the TagIter indexes
-/// a tag file asynchronusly, and then iterates backwards
+/// a tag file asynchronously, and then iterates backwards
 /// through each entry. This yields tags in a newest-first order
 /// starting with the latest version of tag
 ///

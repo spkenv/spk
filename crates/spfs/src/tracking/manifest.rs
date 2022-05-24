@@ -100,7 +100,7 @@ impl Manifest {
 
     /// Ensure that all levels of the given directory name exist.
     ///
-    /// Entries that do not exist are created with a resonable default
+    /// Entries that do not exist are created with a reasonable default
     /// file mode, but can and should be replaced by a new entry in the
     /// case where this is not desired.
     pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry> {
@@ -260,7 +260,7 @@ where
         Self { hasher }
     }
 
-    /// Build a manifest that describes a directorie's contents.
+    /// Build a manifest that describes a directory's contents.
     pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(
         &mut self,
         path: P,

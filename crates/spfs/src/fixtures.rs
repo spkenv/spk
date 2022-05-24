@@ -152,7 +152,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .add_service(payload_service.clone().into_srv())
                 .serve_with_incoming_shutdown(incoming, async move {
                     // use a blocking task to avoid locking up the whole server
-                    // with this very synchronus channel recv process
+                    // with this very synchronous channel recv process
                     tokio::task::spawn_blocking(move || {
                         grpc_shutdown_recv
                             .recv()
@@ -174,7 +174,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             };
             let http_future = http_server.with_graceful_shutdown(async {
                 // use a blocking task to avoid locking up the whole server
-                // with this very synchronus channel recv process
+                // with this very synchronous channel recv process
                 tokio::task::spawn_blocking(move || {
                     http_shutdown_recv
                         .recv()
