@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::future::join_all;
+use futures::stream::FuturesUnordered;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use tokio::fs::DirEntry;
@@ -299,7 +300,7 @@ where
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
         let mut read_dir = tokio::fs::read_dir(base).await?;
-        let mut futures = Vec::new();
+        let futures = FuturesUnordered::new();
         while let Some(dir_entry) = read_dir.next_entry().await? {
             let dir_entry = Arc::new(dir_entry);
             let mb = Arc::clone(&mb);
