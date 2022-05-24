@@ -20,6 +20,22 @@ pub const VERSION_SEP: &str = ".";
 pub const TAG_SET_SEP: &str = ",";
 pub const TAG_SEP: &str = ".";
 
+// Labels for the names of the components, or positions, in a version
+// number.
+pub const SENTINEL_LABEL: &str = "Tail";
+pub const POSITION_LABELS: &[&str] = &["Major", "Minor", "Patch"];
+
+/// Returns the name of the version component at the given position.
+///
+/// Position zero corresponds to 'Major', 1 to 'Minor' and so on.
+/// Positions beyond the known component range return 'Tail'.
+pub fn get_version_position_label(pos: usize) -> &'static str {
+    if pos >= POSITION_LABELS.len() {
+        return SENTINEL_LABEL;
+    }
+    POSITION_LABELS[pos]
+}
+
 /// Denotes that an invalid verison number was given.
 #[derive(Debug)]
 pub struct InvalidVersionError {

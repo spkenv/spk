@@ -15,9 +15,14 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
     for resolved in solution.items() {
         if let solve::PackageSource::Spec(ref source) = resolved.source {
             if source.pkg == resolved.spec.pkg.with_build(None) {
+                // The resolved solution includes a package that needs
+                // to be built with specific options because such a
+                // build doesn't exist in a repo.
+                let spec_options = resolved.spec.resolve_all_options(&solution.options());
                 return Err(Error::String(format!(
-                    "Solution includes package that needs building: {}",
-                    resolved.spec.pkg
+                    "Solution includes package that needs building from source: {} with these options: {}",
+                    resolved.spec.pkg,
+                    io::format_options(&spec_options)
                 )));
             }
         }
