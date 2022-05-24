@@ -192,7 +192,13 @@ impl Config {
 
     /// Get the local repository instance as configured.
     pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
-        storage::fs::FSRepository::create(&self.storage.root).await
+        // Temporary fix for giving pipelines on gitlab-ci isolated local repositories.
+        if let Ok(id) = std::env::var("CI_PIPELINE_ID") {
+            let isolated_path = self.storage.root.join("ci").join(format!("pipeline_{id}"));
+            storage::fs::FSRepository::create(&isolated_path).await
+        } else {
+            storage::fs::FSRepository::create(&self.storage.root).await
+        }
     }
 
     /// Get the local repository handle as configured.
