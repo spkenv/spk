@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use spfs::prelude::*;
 
 use std::{
@@ -49,14 +49,11 @@ pub fn commit_benchmark(c: &mut Criterion) {
     );
 
     let mut group = c.benchmark_group("spfs commit path");
-    // use `Flat` because this is a long-running benchmark.
-    group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(NUM_FILES as u64));
     group
         .significance_level(0.1)
-        .warm_up_time(Duration::from_secs(10))
-        .sample_size(10)
-        .measurement_time(Duration::from_secs(200));
+        .sample_size(20)
+        .measurement_time(Duration::from_secs(10));
     group.bench_function("repo.commit_dir", |b| {
         b.to_async(&tokio_runtime)
             .iter(|| spfs::commit_dir(Arc::clone(&repo), tempdir.path()))
