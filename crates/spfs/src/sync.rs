@@ -32,8 +32,8 @@ pub async fn push_ref<R: AsRef<str>>(
 
 /// Pull a reference to the local repository, searching all configured remotes.
 ///
-/// On linux the pull process can require special process privilleges, this function
-/// spawns a new process with those privilleges and should be used instead of the
+/// On linux the pull process can require special process privileges, this function
+/// spawns a new process with those privileges and should be used instead of the
 /// sync_reference under most circumstances.
 ///
 /// Args:

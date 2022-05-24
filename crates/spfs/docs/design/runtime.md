@@ -2,21 +2,21 @@
 
 Details on startup and runtime procedures.
 
-SpFS leverages linux namespaces in order to provide a per-process view of the `/spfs` filesystem. To render the fileystem itself, `overlayfs` is used.
+SpFS leverages linux namespaces in order to provide a per-process view of the `/spfs` filesystem. To render the filesystem itself, `overlayfs` is used.
 
 ### OverlayFS and Rendering Layers
 
-`overlayfs` is a filesytem that is built into the linux kernel. It allows multiple directories to be layered on top of each other and mounted as a single view. It also keeps a working layer at the very top to store all changes made to the filesystem, leaving all of the lower layers unchanged.
+`overlayfs` is a filesystem that is built into the linux kernel. It allows multiple directories to be layered on top of each other and mounted as a single view. It also keeps a working layer at the very top to store all changes made to the filesystem, leaving all of the lower layers unchanged.
 
-Since spfs layers are stored and identified by a hash of their contents, this immutability is a key feature to how the system works. In order to deduplicate and look up graph data quickly, spfs stores all file and object data on disk using their digest. `overlayfs`, however, requires that each layer be laid out in the filesytem as it would be viewed by the user. For this reason, there is an additional `ManifestViewer` trait that can be supported by repositories, which provides a local path to what is called a _rendered_ view of a manifest.
+Since spfs layers are stored and identified by a hash of their contents, this immutability is a key feature to how the system works. In order to deduplicate and look up graph data quickly, spfs stores all file and object data on disk using their digest. `overlayfs`, however, requires that each layer be laid out in the filesystem as it would be viewed by the user. For this reason, there is an additional `ManifestViewer` trait that can be supported by repositories, which provides a local path to what is called a _rendered_ view of a manifest.
 
-The current filesytem repository creates these renders by hard-linking objects into this tree. We cannot avoid using extra inodes for these renders but this way we do not bloat the disk usage.
+The current filesystem repository creates these renders by hard-linking objects into this tree. We cannot avoid using extra inodes for these renders but this way we do not bloat the disk usage.
 
 ### Runtime Structure
 
 The spfs runtime is set up to support the desired workflows for building, committing and reusing filesystem layers.
 
-In addition to all of the base filesytem layers, `overlayfs` requires a working directory in which to store any changes made to the filesytem. Because the `overlayfs` filesystem is run by root, it can create files in this directory which cannot be cleaned up by a normal user. For this reason, the working directory is placed into an in-memory `tmpfs` mount which will simply destroy anything in this working directory when it unmounts.
+In addition to all of the base filesystem layers, `overlayfs` requires a working directory in which to store any changes made to the filesystem. Because the `overlayfs` filesystem is run by root, it can create files in this directory which cannot be cleaned up by a normal user. For this reason, the working directory is placed into an in-memory `tmpfs` mount which will simply destroy anything in this working directory when it unmounts.
 
 To keep the `/spfs` and `tmpfs` mount separated per-process, they are both setup in a new linux namespace during the spfs startup/initialization process. This process requires special privileges, and so are handled by a separate `spfs-enter` binary that is installed with these capabilities attached.
 

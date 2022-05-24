@@ -320,10 +320,10 @@ pub fn mount_env<P: AsRef<Path>>(
         overlay_args = format!("ro,{overlay_args}");
     }
     tracing::debug!("/usr/bin/mount -t overlay -o {overlay_args} none {SPFS_DIR}");
-    // for some reason, the overlay mount process creates a bad filesytem if the
+    // for some reason, the overlay mount process creates a bad filesystem if the
     // mount command is called directly from this process. It may be some default
     // option or minor detail in how the standard mount command works - possibly related
-    // to this process eventually dropping provilieges, but that is uncertain right now
+    // to this process eventually dropping privileges, but that is uncertain right now
     let mut cmd = std::process::Command::new("mount");
     cmd.args(&["-t", "overlay"]);
     cmd.arg("-o");

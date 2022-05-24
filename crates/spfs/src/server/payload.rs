@@ -155,7 +155,7 @@ async fn handle_upload(
     let reader = body_to_reader(body);
     let (digest, size) = repo.write_data(reader).await.map_err(|err| {
         crate::Error::String(format!(
-            "An error occurred while spwaning a thread for this operation: {:?}",
+            "An error occurred while spawning a thread for this operation: {:?}",
             err
         ))
     })?;

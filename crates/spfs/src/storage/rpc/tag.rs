@@ -131,7 +131,7 @@ impl storage::TagStorage for super::RpcRepository {
         let request = proto::RemoveTagRequest {
             tag: Some(tag.into()),
         };
-        let _reponse = self
+        let _response = self
             .tag_client
             .clone()
             .remove_tag(request)

@@ -76,8 +76,8 @@ fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
     assert!(
-        storage.remove_runtime("non-existant").is_err(),
-        "should fail to remove non-existant runtime"
+        storage.remove_runtime("non-existent").is_err(),
+        "should fail to remove non-existent runtime"
     );
 
     let runtime = storage

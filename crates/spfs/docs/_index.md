@@ -112,7 +112,7 @@ spfs info my-platform
 
 ### Edit Mode
 
-By default, when you run a command or enter into a shell with an existing spfs id or tag, the entire `/spfs` filesytem will be read-only. This means that, regardless of the file permissions, you won't be able to add files, remove files, or modify files in any way. Any active runtime can be made editable using the `spfs edit` command, or by passing the `--edit` flag to the `spfs run` and `spfs shell` commands.
+By default, when you run a command or enter into a shell with an existing spfs id or tag, the entire `/spfs` filesystem will be read-only. This means that, regardless of the file permissions, you won't be able to add files, remove files, or modify files in any way. Any active runtime can be made editable using the `spfs edit` command, or by passing the `--edit` flag to the `spfs run` and `spfs shell` commands.
 
 In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is no way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
 

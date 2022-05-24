@@ -96,7 +96,7 @@ pub fn compute_diff(a: &Manifest, b: &Manifest) -> Vec<Diff> {
             match diff_path(a, b, &entry.path) {
                 Some(d) => changes.push(d),
                 None => tracing::debug!(
-                    "path was missing from both manifests during diff, this should be imporssible"
+                    "path was missing from both manifests during diff, this should be impossible"
                 ),
             }
         }
