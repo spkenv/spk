@@ -86,13 +86,6 @@ impl Opt {
         }
     }
 
-    pub fn namespaced_name<S: AsRef<PkgName>>(&self, pkg: S) -> OptNameBuf {
-        match self {
-            Self::Pkg(opt) => opt.namespaced_name(pkg.as_ref()),
-            Self::Var(opt) => opt.namespaced_name(pkg.as_ref()),
-        }
-    }
-
     pub fn validate(&self, value: Option<&str>) -> Compatibility {
         match self {
             Self::Pkg(opt) => opt.validate(value),
@@ -247,15 +240,6 @@ impl VarOpt {
             inheritance: Inheritance::default(),
             value: None,
         })
-    }
-
-    /// Return the namespaced name of this option
-    pub fn namespaced_name(&self, pkg: &PkgName) -> OptNameBuf {
-        if self.var.namespace().is_some() {
-            self.var.clone()
-        } else {
-            self.var.with_namespace(pkg)
-        }
     }
 
     pub fn get_value(&self, given: Option<&str>) -> Option<String> {
@@ -445,10 +429,6 @@ impl PkgOpt {
         }
         self.value = Some(value);
         Ok(())
-    }
-
-    pub fn namespaced_name(&self, pkg: &PkgName) -> OptNameBuf {
-        self.pkg.as_opt_name().with_namespace(pkg)
     }
 
     pub fn validate(&self, value: Option<&str>) -> Compatibility {

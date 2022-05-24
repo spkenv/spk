@@ -57,8 +57,8 @@ impl BuildSpec {
             let name = opt.full_name();
             let mut given_value: Option<&String> = None;
 
-            if let Some(name) = &package_name {
-                given_value = given.get(&opt.namespaced_name(name))
+            if let Some(package_name) = package_name {
+                given_value = given.get(&name.with_default_namespace(package_name))
             }
             if given_value.is_none() {
                 given_value = given.get(name)

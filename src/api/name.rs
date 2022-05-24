@@ -459,6 +459,16 @@ impl OptName {
             .map(|(ns, _)| PkgName::from_str(ns))
     }
 
+    /// Return a copy of this option, adding the provided namespace if there isn't already one set
+    pub fn with_default_namespace<N: AsRef<PkgName>>(&self, ns: N) -> OptNameBuf {
+        OptNameBuf(format!(
+            "{}{}{}",
+            self.namespace().unwrap_or_else(|| ns.as_ref()),
+            Self::SEP,
+            self.base_name()
+        ))
+    }
+
     /// Return a copy of this option, replacing any namespace with the provided one
     pub fn with_namespace<N: AsRef<PkgName>>(&self, ns: N) -> OptNameBuf {
         OptNameBuf(format!("{}{}{}", ns.as_ref(), Self::SEP, self.base_name()))
