@@ -39,7 +39,7 @@ pub trait PayloadStorage: Sync + Send {
         digest: encoding::Digest,
     ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>>;
 
-    /// Remove the payload idetified by the given digest.
+    /// Remove the payload identified by the given digest.
     ///
     /// Errors:
     /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage

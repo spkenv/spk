@@ -12,7 +12,7 @@ mod layer_test;
 /// Layers represent a logical collection of software artifacts.
 ///
 /// Layers are considered completely immutable, and are
-/// uniquely identifyable by the computed hash of all
+/// uniquely identifiable by the computed hash of all
 /// relevant file and metadata.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct Layer {

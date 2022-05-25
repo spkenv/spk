@@ -167,7 +167,7 @@ impl PartialDigest {
         use std::borrow::Cow;
 
         let mut partial = Cow::Borrowed(source.as_ref());
-        // BASE32 requires padding in mutliples of 8
+        // BASE32 requires padding in multiples of 8
         let missing = partial.len() % 8;
         if missing > 0 {
             partial = Cow::Owned(format!("{partial}{}", "=".repeat(missing)));

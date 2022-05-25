@@ -73,7 +73,7 @@ impl Drop for OwnedRuntime {
 /// Represents an active spfs session.
 ///
 /// The runtime contains the working files for a spfs
-/// envrionment, the contained stack of read-only filesystem layers.
+/// environment, the contained stack of read-only filesystem layers.
 #[derive(Debug)]
 pub struct Runtime {
     root: PathBuf,
@@ -444,7 +444,7 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
                 .to_path_buf(),
             _ => continue,
         };
-        // even though checking existance first is not
+        // even though checking existence first is not
         // needed, it is required to trigger the automounter
         // in cases when the desired path is in that location
         match std::fs::symlink_metadata(&path) {

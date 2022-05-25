@@ -40,7 +40,7 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
     let rendered_path = storage
         .render_manifest(&expected)
         .await
-        .expect("should successfully rener manfest");
+        .expect("should successfully render manifest");
     let actual = Manifest::from(&tracking::compute_manifest(rendered_path).await.unwrap());
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
 }

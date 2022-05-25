@@ -112,7 +112,7 @@ impl FSRepository {
             .walk_abs(&target_dir.as_ref().to_string_lossy())
             .collect();
         // we used to get CAP_FOWNER here, but with async
-        // it can no longer garentee anything useful
+        // it can no longer guarantee anything useful
         // (the process can happen in other threads, and
         // other code can run in the current thread)
         for node in entries.iter() {

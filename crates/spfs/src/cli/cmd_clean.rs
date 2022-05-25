@@ -80,7 +80,7 @@ impl CmdClean {
         match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo).await {
             Err(err) => Err(err),
             Ok(_) => {
-                tracing::info!("clean successfull");
+                tracing::info!("clean successful");
                 Ok(0)
             }
         }

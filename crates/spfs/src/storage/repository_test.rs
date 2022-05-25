@@ -27,7 +27,7 @@ async fn test_find_aliases(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
     tmprepo
-        .find_aliases("not-existant")
+        .find_aliases("not-existent")
         .await
         .expect_err("should error when ref is not found");
 
@@ -107,7 +107,7 @@ async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::T
     let src_dir = tmpdir.path().join("source");
     std::fs::create_dir_all(&src_dir).unwrap();
     std::os::unix::fs::symlink(
-        std::path::Path::new("nonexistant"),
+        std::path::Path::new("nonexistent"),
         src_dir.join("broken-link"),
     )
     .unwrap();

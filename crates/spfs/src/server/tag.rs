@@ -22,7 +22,7 @@ impl proto::tag_service_server::TagService for TagService {
         &self,
         request: Request<proto::LsTagsRequest>,
     ) -> std::result::Result<Response<proto::LsTagsResponse>, Status> {
-        tracing::trace!("recieve request");
+        tracing::trace!("receive request");
         let request = request.into_inner();
         let path = relative_path::RelativePath::new(&request.path);
         let entries: crate::Result<Vec<_>> = { self.repo.ls_tags(path).collect().await };

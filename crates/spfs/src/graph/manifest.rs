@@ -121,7 +121,7 @@ impl Manifest {
 
     /// Iterate all of the trees in this manifest.
     ///
-    /// Will panic if this menifest is internally inconsistent, though this
+    /// Will panic if this manifest is internally inconsistent, though this
     /// would point to a programming error or bug.
     pub fn list_trees(&self) -> Vec<&Tree> {
         let mut trees = vec![&self.root];

@@ -96,7 +96,7 @@ pub fn build_interactive_shell_cmd(rt: &runtime::Runtime) -> Result<Vec<OsString
     ])
 }
 
-/// Construct a boostrapping command for initializing through the shell.
+/// Construct a bootstrapping command for initializing through the shell.
 ///
 /// The returned command properly calls through a shell which sets up
 /// the current runtime appropriately before calling the desired command.

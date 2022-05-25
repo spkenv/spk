@@ -46,7 +46,7 @@ impl Tree {
         self.entries.len()
     }
 
-    ///Add an enry to this tree.
+    ///Add an entry to this tree.
     ///
     /// # Errors:
     /// - if an entry with the same name exists
