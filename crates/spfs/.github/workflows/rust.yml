@@ -21,5 +21,9 @@ jobs:
         run: make debug
       - name: Lint
         run: make lint
+      # For tests that need to run spfs-* binaries, install a
+      # debug build into /usr/bin
+      - name: Stage Binaries
+        run: make install-debug
       - name: Test
         run: make test
