@@ -35,16 +35,18 @@ impl ManifestViewer for FSRepository {
         was_render_completed(&rendered_dir)
     }
 
+    /// Return the path that the manifest would be rendered to.
+    async fn manifest_render_path(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
+        Self::manifest_render_path_from_store(manifest, self.get_render_storage()?).await
+    }
+
     /// Create a hard-linked rendering of the given file manifest.
     ///
     /// # Errors:
     /// - if any of the blobs in the manifest are not available in this repo.
     async fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
-        let renders = match &self.renders {
-            Some(renders) => renders,
-            None => return Err(Error::NoRenderStorage(self.address())),
-        };
-        let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
+        let renders = self.get_render_storage()?;
+        let rendered_dirpath = Self::manifest_render_path_from_store(manifest, renders).await?;
         if was_render_completed(&rendered_dirpath) {
             tracing::trace!(path = ?rendered_dirpath, "render already completed");
             return Ok(rendered_dirpath);
@@ -101,6 +103,20 @@ impl ManifestViewer for FSRepository {
 }
 
 impl FSRepository {
+    fn get_render_storage(&self) -> Result<&super::FSHashStore> {
+        match &self.renders {
+            Some(renders) => Ok(renders),
+            None => Err(Error::NoRenderStorage(self.address())),
+        }
+    }
+
+    async fn manifest_render_path_from_store(
+        manifest: &crate::graph::Manifest,
+        renders: &super::FSHashStore,
+    ) -> Result<PathBuf> {
+        Ok(renders.build_digest_path(&manifest.digest()?))
+    }
+
     pub async fn render_manifest_into_dir(
         &self,
         manifest: &crate::graph::Manifest,

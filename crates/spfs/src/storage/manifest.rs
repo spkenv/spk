@@ -53,6 +53,11 @@ pub trait ManifestViewer: Send + Sync {
     /// Returns true if the identified manifest has been rendered already
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool;
 
+    /// Returns what would be used as the local path to the root of the rendered manifest.
+    ///
+    /// This path does not necessarily exist or contain a valid render.
+    async fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf>;
+
     /// Create a rendered view of the given manifest on the local disk.
     ///
     /// Returns the local path to the root of the rendered manifest
