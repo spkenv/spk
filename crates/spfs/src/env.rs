@@ -460,19 +460,27 @@ pub fn mask_files(
     Ok(())
 }
 
-pub fn get_overlay_args<P: AsRef<Path>>(
+/// Get the overlayfs arguments for the given list of lower layer directories.
+///
+/// This returns an error if the arguments would exceed the legal size limit
+/// (if known).
+///
+/// `prefix` is prepended to the generated overlay args.
+pub fn get_overlay_args<S: AsRef<str>, P: AsRef<Path>>(
     config: &runtime::Config,
-    lower_dirs: impl IntoIterator<Item = P>,
+    prefix: Option<S>,
+    lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<String> {
     let mut args = format!("lowerdir={}", config.lower_dir.display());
-    for path in lower_dirs.into_iter() {
+    for path in lowerdirs.into_iter() {
         args = format!("{args}:{}", path.as_ref().to_string_lossy());
     }
 
     args = format!(
-        "{args},upperdir={},workdir={}",
+        "{prefix}{args},upperdir={},workdir={}",
         config.upper_dir.display(),
-        config.work_dir.display()
+        config.work_dir.display(),
+        prefix = prefix.as_ref().map(|s| s.as_ref()).unwrap_or("")
     );
 
     match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE) {
@@ -490,15 +498,15 @@ pub fn get_overlay_args<P: AsRef<Path>>(
     Ok(args)
 }
 
-pub fn mount_env<P: AsRef<Path>>(
+pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro,";
+
+pub fn mount_env<S: AsRef<str>, P: AsRef<Path>>(
     rt: &runtime::Runtime,
-    lower_dirs: impl IntoIterator<Item = P>,
+    overlay_option_prefix: Option<S>,
+    lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
-    let mut overlay_args = get_overlay_args(&rt.config, lower_dirs)?;
-    if !rt.status.editable {
-        overlay_args = format!("ro,{overlay_args}");
-    }
+    let overlay_args = get_overlay_args(&rt.config, overlay_option_prefix, lowerdirs)?;
     tracing::debug!("/usr/bin/mount -t overlay -o {overlay_args} none {SPFS_DIR}");
     // for some reason, the overlay mount process creates a bad filesystem if the
     // mount command is called directly from this process. It may be some default

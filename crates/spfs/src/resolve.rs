@@ -141,7 +141,10 @@ pub async fn compute_object_manifest(
 /// Compile the set of directories to be overlayed for a runtime.
 ///
 /// These are returned as a list, from bottom to top.
-pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
+pub async fn resolve_overlay_dirs(
+    runtime: &runtime::Runtime,
+    overlay_args_prefix: Option<&str>,
+) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
     let repo = config.get_local_repository().await?.into();
     let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
@@ -160,7 +163,8 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
             let rendered_dir = renders.manifest_render_path(manifest).await?;
             overlay_dirs.push(rendered_dir);
         }
-        if crate::env::get_overlay_args(&runtime.config, overlay_dirs).is_ok() {
+        if crate::env::get_overlay_args(&runtime.config, overlay_args_prefix, overlay_dirs).is_ok()
+        {
             break;
         }
         // Cut the number of layers in half...
