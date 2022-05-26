@@ -144,14 +144,31 @@ pub async fn compute_object_manifest(
 pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
     let repo = config.get_local_repository().await?.into();
-    let mut overlay_dirs = Vec::new();
     let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for layer in layers {
         manifests.push(repo.read_manifest(layer.manifest).await?);
     }
-    if manifests.len() > config.filesystem.max_layers {
-        let to_flatten = manifests.len() - config.filesystem.max_layers as usize;
+
+    let renders = repo.renders()?;
+
+    // Determine if layers need to be combined to stay within the length limits
+    // of mount args.
+    loop {
+        let mut overlay_dirs = Vec::with_capacity(manifests.len());
+        for manifest in &manifests {
+            let rendered_dir = renders.manifest_render_path(manifest).await?;
+            overlay_dirs.push(rendered_dir);
+        }
+        if crate::env::get_overlay_args(&runtime.config, overlay_dirs).is_ok() {
+            break;
+        }
+        // Cut the number of layers in half...
+        let to_flatten = manifests.len() / 2;
+        // Infinite loop protection.
+        if to_flatten <= 1 {
+            break;
+        }
         tracing::debug!("flattening {to_flatten} layers into one...");
         let mut manifest = tracking::Manifest::default();
         for next in manifests.drain(0..to_flatten) {
@@ -163,7 +180,6 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
         manifests.insert(0, manifest);
     }
 
-    let renders = repo.renders()?;
     let mut to_render = HashSet::new();
     for digest in manifests.iter().map(|m| m.digest().unwrap()) {
         if !renders.has_rendered_manifest(digest).await {
@@ -189,6 +205,7 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
                 .and_then(|r| r)?;
         }
     }
+    let mut overlay_dirs = Vec::with_capacity(manifests.len());
     for manifest in manifests {
         let rendered_dir = renders.render_manifest(&manifest).await?;
         overlay_dirs.push(rendered_dir);

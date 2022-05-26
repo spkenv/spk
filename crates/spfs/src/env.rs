@@ -480,7 +480,10 @@ pub fn get_overlay_args<P: AsRef<Path>>(
         Ok(None) => (),
         Ok(Some(size)) => {
             if args.as_bytes().len() as i64 > size - 1 {
-                return Err("Mount args would be too large for the kernel, reduce your config value for filesystem.max_layers".into());
+                return Err(
+                    "Mount args would be too large for the kernel; reduce the number of layers"
+                        .into(),
+                );
             }
         }
     };
