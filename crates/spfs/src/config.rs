@@ -261,13 +261,9 @@ impl Config {
                 tracing::debug!(?config, "opening repository");
                 config.open().await
             }
-            None => {
-                return Err(format!(
-                    "No remote named '{name}' configured.",
-                    name = remote_name.as_ref()
-                )
-                .into());
-            }
+            None => Err(crate::Error::UnknownRemoteName(
+                remote_name.as_ref().to_owned(),
+            )),
         }
         .map_err(|err| match err {
             err @ crate::Error::FailedToOpenRepository { .. } => err,

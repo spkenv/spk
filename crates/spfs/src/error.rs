@@ -54,6 +54,8 @@ pub enum Error {
         .source.to_string()
     )]
     FailedToOpenRepository { reason: String, source: Box<Self> },
+    #[error("No remote name '{0}' configured.")]
+    UnknownRemoteName(String),
 
     #[error("Nothing to commit, resulting filesystem would be empty")]
     NothingToCommit,
