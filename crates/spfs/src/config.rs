@@ -138,7 +138,7 @@ impl RemoteConfig {
     pub async fn from_str<S: AsRef<str>>(address: S) -> Result<Self> {
         let url = match url::Url::parse(address.as_ref()) {
             Ok(url) => url,
-            Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
+            Err(err) => return Err(err.into()),
         };
 
         Self::from_address(url).await

@@ -21,7 +21,7 @@ pub enum Error {
     JSON(#[from] serde_json::Error),
     #[error(transparent)]
     Config(#[from] config::ConfigError),
-    #[error(transparent)]
+    #[error("Invalid repository url: {0:?}")]
     InvalidRemoteUrl(#[from] url::ParseError),
     #[error("Invalid date time: {0:?}")]
     InvalidDateTime(#[from] chrono::ParseError),
