@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::Poll;
 
+use close_err::Closable;
 use futures::{Future, Stream};
 use tokio::io::AsyncWriteExt;
 
@@ -106,10 +107,10 @@ impl FSHashStore {
 
         let digest = hasher.digest();
         if let Err(err) = writer.flush().await {
-            return Err(Error::wrap_io(err, "Failed to finalize object write"));
+            return Err(Error::wrap_io(err, "Failed to flush object write"));
         }
-        if let Err(err) = writer.get_ref().sync_all().await {
-            return Err(Error::wrap_io(err, "Failed to sync object write"));
+        if let Err(err) = writer.into_inner().into_std().await.close() {
+            return Err(Error::wrap_io(err, "Failed to close object file"));
         }
 
         self.persist_object_with_digest(

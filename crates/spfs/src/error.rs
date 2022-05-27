@@ -31,6 +31,8 @@ pub enum Error {
     Utf8Error(#[from] Utf8Error),
     #[error("Error communicating with the server: {0:?}")]
     Tonic(#[from] tonic::Status),
+    #[error(transparent)]
+    TokioJoinError(#[from] tokio::task::JoinError),
 
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]

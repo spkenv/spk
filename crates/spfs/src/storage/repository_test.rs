@@ -6,10 +6,11 @@ use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
+use std::sync::Arc;
 
 use rstest::rstest;
 
-use super::{Ref, Repository};
+use super::Ref;
 use crate::graph::Manifest;
 use crate::storage::{fs, prelude::*};
 use crate::{encoding::Encodable, tracking::TagSpec};
@@ -31,7 +32,9 @@ async fn test_find_aliases(#[future] tmprepo: TempRepo) {
         .await
         .expect_err("should error when ref is not found");
 
-    let manifest = tmprepo.commit_dir("src/storage".as_ref()).await.unwrap();
+    let manifest = crate::commit_dir(tmprepo.repo(), "src/storage")
+        .await
+        .unwrap();
     let layer = tmprepo
         .create_layer(&Manifest::from(&manifest))
         .await
@@ -58,7 +61,12 @@ async fn test_find_aliases(#[future] tmprepo: TempRepo) {
 async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     init_logging();
     let dir = tmpdir.path();
-    let tmprepo = fs::FSRepository::create(dir.join("repo")).await.unwrap();
+    let tmprepo = Arc::new(
+        fs::FSRepository::create(dir.join("repo"))
+            .await
+            .unwrap()
+            .into(),
+    );
     let datafile_path = "dir1.0/dir2.0/file.txt";
     let symlink_path = "dir1.0/dir2.0/file2.txt";
 
@@ -69,10 +77,16 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
     std::os::unix::fs::symlink(&link_dest, &src_dir.join(symlink_path)).unwrap();
     std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444)).unwrap();
 
-    let manifest = tmprepo
-        .commit_dir(&src_dir)
+    let manifest = crate::commit_dir(Arc::clone(&tmprepo), &src_dir)
         .await
         .expect("failed to commit dir");
+
+    // Safety: tmprepo was created as an FSRepository
+    let tmprepo = match unsafe { &*Arc::into_raw(tmprepo) } {
+        RepositoryHandle::FS(fs) => fs,
+        _ => panic!("Unexpected tmprepo type!"),
+    };
+
     let rendered_dir = tmprepo
         .render_manifest(&Manifest::from(&manifest))
         .await
@@ -112,7 +126,7 @@ async fn test_commit_broken_link(#[future] tmprepo: TempRepo, tmpdir: tempdir::T
     )
     .unwrap();
 
-    let manifest = tmprepo.commit_dir(&src_dir).await.unwrap();
+    let manifest = crate::commit_dir(tmprepo.repo(), &src_dir).await.unwrap();
     assert!(manifest.get_path("broken-link").is_some());
 }
 
@@ -131,7 +145,7 @@ async fn test_commit_dir(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) 
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let manifest = Manifest::from(&tmprepo.commit_dir(&src_dir).await.unwrap());
-    let manifest2 = Manifest::from(&tmprepo.commit_dir(&src_dir).await.unwrap());
+    let manifest = Manifest::from(&crate::commit_dir(tmprepo.repo(), &src_dir).await.unwrap());
+    let manifest2 = Manifest::from(&crate::commit_dir(tmprepo.repo(), &src_dir).await.unwrap());
     assert_eq!(manifest, manifest2);
 }

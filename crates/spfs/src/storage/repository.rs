@@ -9,7 +9,7 @@ use tokio_stream::StreamExt;
 use super::ManifestViewer;
 use crate::{encoding, graph, tracking, Error, Result};
 use encoding::Encodable;
-use graph::{Blob, Manifest};
+use graph::Blob;
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -117,35 +117,6 @@ pub trait Repository:
         let blob = Blob::new(digest, size);
         self.write_object(&graph::Object::Blob(blob)).await?;
         Ok(digest)
-    }
-
-    /// Commit a local file system directory to this storage.
-    ///
-    /// This collects all files to store as blobs and maintains a
-    /// render of the manifest for use immediately.
-    async fn commit_dir(&self, path: &std::path::Path) -> Result<tracking::Manifest> {
-        let path = tokio::fs::canonicalize(path).await?;
-        let repo = std::sync::Arc::new(self);
-        let manifest = {
-            let mut builder =
-                tracking::ManifestBuilder::new(|reader| async { repo.commit_blob(reader).await });
-            tracing::info!("committing files");
-            builder.compute_manifest(path).await?
-        };
-
-        tracing::info!("writing manifest");
-        let storable = Manifest::from(&manifest);
-        repo.write_object(&graph::Object::Manifest(storable))
-            .await?;
-        for node in manifest.walk() {
-            if !node.entry.kind.is_blob() {
-                continue;
-            }
-            let blob = Blob::new(node.entry.object, node.entry.size);
-            repo.write_object(&graph::Object::Blob(blob)).await?;
-        }
-
-        Ok(manifest)
     }
 }
 
