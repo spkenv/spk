@@ -8,7 +8,7 @@ use crate::{encoding, storage, tracking, Result};
 
 /// Specifies how a digest should be formatted
 ///
-/// Some choices require access to the repostory that
+/// Some choices require access to the repository that
 /// the digest was loaded from in order to resolve further
 /// information
 pub enum DigestFormat<'repo> {
@@ -18,7 +18,7 @@ pub enum DigestFormat<'repo> {
 }
 
 impl<'repo> DigestFormat<'repo> {
-    /// The repostory handle contained in this enum, if any
+    /// The repository handle contained in this enum, if any
     pub fn repository(&self) -> Option<&'repo storage::RepositoryHandle> {
         match self {
             Self::Full => None,
@@ -56,7 +56,7 @@ pub async fn format_digest(digest: encoding::Digest, format: DigestFormat<'_>) -
             // with formatting what we do have
             Err(crate::Error::AmbiguousReference(_)) => Default::default(),
             // this hints at deeper data integrity issues in the repository,
-            // but that is not a good enought reason to bail out here
+            // but that is not a good enough reason to bail out here
             Err(crate::Error::UnknownObject(_)) => Default::default(),
             Err(err) => return Err(err),
         };

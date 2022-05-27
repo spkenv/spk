@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 use rstest::rstest;
 
 use super::was_render_completed;
 use crate::encoding::Encodable;
 use crate::graph::Manifest;
-use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage, Repository};
+use crate::storage::RepositoryHandle;
+use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage};
 use crate::tracking;
 
 use crate::fixtures::*;
@@ -40,7 +43,7 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
     let rendered_path = storage
         .render_manifest(&expected)
         .await
-        .expect("should successfully rener manfest");
+        .expect("should successfully render manifest");
     let actual = Manifest::from(&tracking::compute_manifest(rendered_path).await.unwrap());
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
 }
@@ -48,17 +51,28 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
-    let tmprepo = FSRepository::create(tmpdir.path().join("repo"))
-        .await
-        .unwrap();
+    let tmprepo = Arc::new(
+        FSRepository::create(tmpdir.path().join("repo"))
+            .await
+            .unwrap()
+            .into(),
+    );
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(src_dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let expected_manifest = tmprepo.commit_dir(&src_dir).await.unwrap();
+    let expected_manifest = crate::commit_dir(Arc::clone(&tmprepo), &src_dir)
+        .await
+        .unwrap();
     let manifest = Manifest::from(&expected_manifest);
+
+    // Safety: tmprepo was created as an FSRepository
+    let tmprepo = match unsafe { &*Arc::into_raw(tmprepo) } {
+        RepositoryHandle::FS(fs) => fs,
+        _ => panic!("Unexpected tmprepo type!"),
+    };
 
     let render = tmprepo
         .renders

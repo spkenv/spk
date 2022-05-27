@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use clap::Args;
 
@@ -39,13 +39,13 @@ pub struct CmdCommit {
 
 impl CmdCommit {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = match &self.remote {
+        let repo = Arc::new(match &self.remote {
             Some(remote) => config.get_remote(remote).await?,
             None => config.get_repository().await?.into(),
-        };
+        });
 
         let result: spfs::graph::Object = if let Some(path) = &self.path {
-            let manifest = repo.commit_dir(path).await?;
+            let manifest = spfs::commit_dir(Arc::clone(&repo), path).await?;
             if manifest.is_empty() {
                 return Err(spfs::Error::NothingToCommit);
             }
@@ -58,13 +58,17 @@ impl CmdCommit {
             let mut runtime = spfs::active_runtime().await?;
 
             if !runtime.status.editable {
-                tracing::error!("Active runtime is not editable, nothing to commmit");
+                tracing::error!("Active runtime is not editable, nothing to commit");
                 return Ok(1);
             }
 
             match self.kind.clone().unwrap_or_default().as_str() {
-                "layer" => spfs::commit_layer(&mut runtime, &*repo).await?.into(),
-                "platform" => spfs::commit_platform(&mut runtime, &*repo).await?.into(),
+                "layer" => spfs::commit_layer(&mut runtime, Arc::clone(&repo))
+                    .await?
+                    .into(),
+                "platform" => spfs::commit_platform(&mut runtime, Arc::clone(&repo))
+                    .await?
+                    .into(),
                 kind => {
                     tracing::error!("don't know how to commit a '{}'", kind);
                     return Ok(1);

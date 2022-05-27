@@ -60,6 +60,7 @@ async-recursion = "1.0"
 caps = "0.5.3"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.1.6", features = ["derive", "env"] }
+close-err = "1.0"
 cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0.0"
 config = "0.12.0"
@@ -117,5 +118,10 @@ thiserror = "1.0"
 tonic-build = "0.6.0"
 
 [dev-dependencies]
+criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
 rstest = { version = "0.12", default_features = false }
 serial_test = "0.5.1"
+
+[[bench]]
+name = "spfs_bench"
+harness = false

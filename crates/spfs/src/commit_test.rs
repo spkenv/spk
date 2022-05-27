@@ -22,12 +22,12 @@ async fn test_commit_empty(tmpdir: tempdir::TempDir) {
     let storage = crate::runtime::Storage::new(repo.clone());
     let mut rt = storage.create_runtime().await.unwrap();
     rt.ensure_required_directories().await.unwrap();
-    match commit_layer(&mut rt, &**repo).await {
+    match commit_layer(&mut rt, Arc::clone(&repo)).await {
         Err(Error::NothingToCommit) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }
 
-    match commit_platform(&mut rt, &**repo).await {
+    match commit_platform(&mut rt, Arc::clone(&repo)).await {
         Err(Error::NothingToCommit) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }

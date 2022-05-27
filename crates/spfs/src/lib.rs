@@ -45,7 +45,7 @@ pub use clean::{
     clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
     get_all_unattached_payloads, purge_objects,
 };
-pub use commit::{commit_layer, commit_platform};
+pub use commit::{commit_dir, commit_layer, commit_platform};
 pub use diff::diff;
 pub use encoding::Digest;
 pub use error::{Error, Result};

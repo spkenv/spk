@@ -12,6 +12,7 @@ use super::{
 use crate::encoding::Encodable;
 use crate::{graph, storage, tracking, Error};
 use std::collections::HashSet;
+use std::sync::Arc;
 use storage::prelude::*;
 
 use crate::fixtures::*;
@@ -75,7 +76,9 @@ async fn test_get_attached_unattached_objects_blob(
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
 
-    let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
+    let manifest = crate::commit_dir(tmprepo.repo(), data_dir.as_path())
+        .await
+        .unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
         .await
@@ -124,9 +127,13 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempdi
     ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
     ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
-    let manifest1 = tmprepo.commit_dir(data_dir_1.as_path()).await.unwrap();
+    let manifest1 = crate::commit_dir(tmprepo.repo(), data_dir_1.as_path())
+        .await
+        .unwrap();
 
-    let manifest2 = tmprepo.commit_dir(data_dir_2.as_path()).await.unwrap();
+    let manifest2 = crate::commit_dir(tmprepo.repo(), data_dir_2.as_path())
+        .await
+        .unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest2))
         .await
@@ -203,15 +210,20 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 #[rstest]
 #[tokio::test]
 async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir) {
-    let tmprepo = storage::fs::FSRepository::create(tmpdir.path())
-        .await
-        .unwrap();
+    let tmprepo = Arc::new(
+        storage::fs::FSRepository::create(tmpdir.path())
+            .await
+            .unwrap()
+            .into(),
+    );
 
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
     ensure(data_dir.join("dir/name.txt"), "john doe");
 
-    let manifest = tmprepo.commit_dir(data_dir.as_path()).await.unwrap();
+    let manifest = crate::commit_dir(Arc::clone(&tmprepo), data_dir.as_path())
+        .await
+        .unwrap();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
         .await
@@ -220,6 +232,12 @@ async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir) {
         .create_platform(vec![layer.digest().unwrap()])
         .await
         .unwrap();
+
+    // Safety: tmprepo was created as an FSRepository
+    let tmprepo = match unsafe { &*Arc::into_raw(tmprepo) } {
+        RepositoryHandle::FS(fs) => fs,
+        _ => panic!("Unexpected tmprepo type!"),
+    };
 
     tmprepo
         .render_manifest(&graph::Manifest::from(&manifest))

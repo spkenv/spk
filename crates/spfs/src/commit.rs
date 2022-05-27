@@ -2,19 +2,70 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::Arc;
+
 use super::status::remount_runtime;
-use crate::{graph, prelude::*, runtime, Error, Result};
+use crate::tracking::ManifestBuilderHasher;
+use crate::{encoding, graph, prelude::*, runtime, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./commit_test.rs"]
 mod commit_test;
 
-/// Commit the working file changes of a runtime to a new layer in the provided repo.
-pub async fn commit_layer<R>(runtime: &mut runtime::Runtime, repo: &R) -> Result<graph::Layer>
+struct CommitBlobHasher {
+    repo: Arc<RepositoryHandle>,
+}
+
+#[tonic::async_trait]
+impl ManifestBuilderHasher for CommitBlobHasher {
+    async fn hasher(
+        &self,
+        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+    ) -> Result<encoding::Digest> {
+        self.repo.commit_blob(reader).await
+    }
+}
+
+/// Commit a local file system directory to this storage.
+///
+/// This collects all files to store as blobs and maintains a
+/// render of the manifest for use immediately.
+pub async fn commit_dir<P>(repo: Arc<RepositoryHandle>, path: P) -> Result<tracking::Manifest>
 where
-    R: Repository + ?Sized,
+    P: AsRef<Path>,
 {
-    let manifest = repo.commit_dir(runtime.config.upper_dir.as_path()).await?;
+    let path = tokio::fs::canonicalize(path).await?;
+    let manifest = {
+        let builder = tracking::ManifestBuilder::new(CommitBlobHasher {
+            repo: Arc::clone(&repo),
+        });
+        tracing::info!("committing files");
+        builder.compute_manifest(path).await?
+    };
+
+    tracing::info!("writing manifest");
+    let storable = graph::Manifest::from(&manifest);
+    repo.write_object(&graph::Object::Manifest(storable))
+        .await?;
+    for node in manifest.walk() {
+        if !node.entry.kind.is_blob() {
+            continue;
+        }
+        let blob = graph::Blob::new(node.entry.object, node.entry.size);
+        repo.write_object(&graph::Object::Blob(blob)).await?;
+    }
+
+    Ok(manifest)
+}
+
+/// Commit the working file changes of a runtime to a new layer.
+pub async fn commit_layer(
+    runtime: &mut runtime::Runtime,
+    repo: Arc<RepositoryHandle>,
+) -> Result<graph::Layer> {
+    let manifest = commit_dir(Arc::clone(&repo), &runtime.config.upper_dir).await?;
     if manifest.is_empty() {
         return Err(Error::NothingToCommit);
     }
@@ -27,11 +78,11 @@ where
 }
 
 /// Commit the full layer stack and working files to a new platform.
-pub async fn commit_platform<R>(runtime: &mut runtime::Runtime, repo: &R) -> Result<graph::Platform>
-where
-    R: Repository + ?Sized,
-{
-    match commit_layer(runtime, repo).await {
+pub async fn commit_platform(
+    runtime: &mut runtime::Runtime,
+    repo: Arc<RepositoryHandle>,
+) -> Result<graph::Platform> {
+    match commit_layer(runtime, Arc::clone(&repo)).await {
         Ok(_) | Err(Error::NothingToCommit) => (),
         Err(err) => return Err(err),
     }

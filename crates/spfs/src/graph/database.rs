@@ -162,7 +162,7 @@ pub trait DatabaseView: Sync + Send {
     /// Return the shortened version of the given digest.
     ///
     /// By default this is an O(n) operation defined by the number of objects.
-    /// Other implemntations may provide better results.
+    /// Other implementations may provide better results.
     async fn get_shortened_digest(&self, digest: encoding::Digest) -> String {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
@@ -191,7 +191,7 @@ pub trait DatabaseView: Sync + Send {
     /// Resolve the complete object digest from a shortened one.
     ///
     /// By default this is an O(n) operation defined by the number of objects.
-    /// Other implemntations may provide better results.
+    /// Other implementations may provide better results.
     ///
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved

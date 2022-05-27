@@ -60,7 +60,7 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
 ///
 /// # Errors:
 /// - [`spfs::Error::NoActiveRuntime`] if there is no runtime detected
-/// - [`spfs::Error::UnkownRuntime`] if the environment references a
+/// - [`spfs::Error::UnknownRuntime`] if the environment references a
 ///   runtime that is not in the configured runtime storage
 /// - other issues loading the config or accessing the runtime data
 pub async fn active_runtime() -> Result<runtime::Runtime> {

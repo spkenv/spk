@@ -8,13 +8,15 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use encoding::Encodable;
 use futures::{Stream, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
 use super::{csh_exp, startup_csh, startup_sh};
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{
+    encoding::{self, Encodable},
+    graph, storage, tracking, Error, Result,
+};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -259,7 +261,7 @@ impl OwnedRuntime {
 /// Represents an active spfs session.
 ///
 /// The runtime contains the working files for a spfs
-/// envrionment, the contained stack of read-only filesystem layers.
+/// environment, the contained stack of read-only filesystem layers.
 #[derive(Debug)]
 pub struct Runtime {
     data: Data,
@@ -606,7 +608,7 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
                 .to_path_buf(),
             _ => continue,
         };
-        // even though checking existance first is not
+        // even though checking existence first is not
         // needed, it is required to trigger the automounter
         // in cases when the desired path is in that location
         match std::fs::symlink_metadata(&path) {

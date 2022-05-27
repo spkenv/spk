@@ -17,7 +17,7 @@ graf --> encoding[Hashing and Binary Encoding]
 
 ### Object Graph
 
-At the very heart of spfs is a directional acyclical graph (DAG) that contains and connects all of the filesytem data that spfs tracks. Each node in the graph is one of the core object types in spfs. Although the implementation supports any DAG structure, in practice, the objects are easier to picture in a tree structure:
+At the very heart of spfs is a directional acyclical graph (DAG) that contains and connects all of the filesystem data that spfs tracks. Each node in the graph is one of the core object types in spfs. Although the implementation supports any DAG structure, in practice, the objects are easier to picture in a tree structure:
 
 {{< mermaid >}}
 graph LR;
@@ -46,7 +46,7 @@ These digests are used throughout spfs to uniquely identify and refer to objects
 
 ### Object Tracking
 
-The spfs tracking module is concerned with populating object graphs from real filesytem data, providing human-friendly identification for important data within a graph, and comparing data stored within a graph.
+The spfs tracking module is concerned with populating object graphs from real filesystem data, providing human-friendly identification for important data within a graph, and comparing data stored within a graph.
 
 The most important concept introduced here is the `tag` which connects a human-readable name to an object in the graph. Tags are stored in a _stream_ which gives them a timestamped history.
 

@@ -7,6 +7,7 @@ use std::pin::Pin;
 
 use crate::graph::Object;
 use crate::{encoding, graph, Error, Result};
+use close_err::Closable;
 use encoding::{Decodable, Encodable};
 use futures::Stream;
 use graph::DatabaseView;
@@ -83,11 +84,11 @@ impl graph::Database for super::FSRepository {
         }
         if let Err(err) = writer.flush().await {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::wrap_io(err, "Failed to finalize object write"));
+            return Err(Error::wrap_io(err, "Failed to flush object write"));
         }
-        if let Err(err) = writer.get_ref().sync_all().await {
+        if let Err(err) = writer.into_inner().into_std().await.close() {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::wrap_io(err, "Failed to sync object write"));
+            return Err(Error::wrap_io(err, "Failed to close object file"));
         }
         self.objects.ensure_base_dir(&filepath)?;
         match tokio::fs::rename(&working_file, &filepath).await {

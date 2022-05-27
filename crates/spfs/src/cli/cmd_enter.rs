@@ -22,7 +22,7 @@ pub struct CmdEnter {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
 
-    /// Remount the overlay filesystem, don't enter a new namepace
+    /// Remount the overlay filesystem, don't enter a new namespace
     #[clap(short, long)]
     remount: bool,
 

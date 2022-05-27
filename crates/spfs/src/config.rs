@@ -215,7 +215,7 @@ impl Config {
         )))
     }
 
-    /// Get a remote repostory by name or address.
+    /// Get a remote repository by name or address.
     pub async fn get_remote<S: AsRef<str>>(
         &self,
         name_or_address: S,
@@ -268,7 +268,7 @@ pub fn get_config() -> Result<Arc<Config>> {
 
     // there is still a possible race condition here
     // where someone loads the config between the first check and
-    // aquiring this lock, but the redundant work is still
+    // acquiring this lock, but the redundant work is still
     // less than not having a cache at all
     let config = load_config()?;
     config.make_current()

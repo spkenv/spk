@@ -14,7 +14,7 @@ use crate::fixtures::*;
     case::rpc(tmprepo("rpc"))
 )]
 #[tokio::test]
-async fn test_object_existance(#[future] tmprepo: TempRepo) {
+async fn test_object_existence(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
     let digest = encoding::EMPTY_DIGEST.into();
     let obj = graph::Blob::new(digest, 0).into();

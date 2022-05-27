@@ -12,6 +12,7 @@ use std::{
     task::Poll,
 };
 
+use close_err::Closable;
 use futures::{Future, Stream};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
@@ -56,10 +57,10 @@ impl FSRepository {
         file.write_i64(size as i64).await?;
         tokio::io::copy(&mut buf.as_slice(), &mut file).await?;
         if let Err(err) = file.flush().await {
-            return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
+            return Err(Error::wrap_io(err, "Failed to flush tag data file"));
         }
-        if let Err(err) = file.get_ref().sync_all().await {
-            return Err(Error::wrap_io(err, "Failed to sync tag data file"));
+        if let Err(err) = file.into_inner().into_std().await.close() {
+            return Err(Error::wrap_io(err, "Failed to close tag data file"));
         }
 
         let perms = std::fs::Permissions::from_mode(0o777);
@@ -365,7 +366,7 @@ impl std::fmt::Debug for TagIterState {
 }
 
 /// Using a series of states, the TagIter indexes
-/// a tag file asynchronusly, and then iterates backwards
+/// a tag file asynchronously, and then iterates backwards
 /// through each entry. This yields tags in a newest-first order
 /// starting with the latest version of tag
 ///

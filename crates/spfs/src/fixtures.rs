@@ -21,6 +21,16 @@ pub enum TempRepo {
     },
 }
 
+impl TempRepo {
+    pub fn repo(&self) -> Arc<spfs::storage::RepositoryHandle> {
+        match self {
+            Self::FS(r, _) => Arc::clone(r),
+            Self::Tar(r, _) => Arc::clone(r),
+            Self::Rpc { repo, .. } => Arc::clone(repo),
+        }
+    }
+}
+
 impl std::ops::Deref for TempRepo {
     type Target = spfs::storage::RepositoryHandle;
     fn deref(&self) -> &Self::Target {
@@ -107,14 +117,14 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .await
                 .unwrap()
                 .into();
-            TempRepo::FS(std::sync::Arc::new(repo), tmpdir)
+            TempRepo::FS(Arc::new(repo), tmpdir)
         }
         "tar" => {
             let repo = spfs::storage::tar::TarRepository::create(tmpdir.path().join("repo.tar"))
                 .await
                 .unwrap()
                 .into();
-            TempRepo::Tar(std::sync::Arc::new(repo), tmpdir)
+            TempRepo::Tar(Arc::new(repo), tmpdir)
         }
         #[cfg(feature = "server")]
         "rpc" => {
@@ -142,7 +152,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .add_service(payload_service.clone().into_srv())
                 .serve_with_incoming_shutdown(incoming, async move {
                     // use a blocking task to avoid locking up the whole server
-                    // with this very synchronus channel recv process
+                    // with this very synchronous channel recv process
                     tokio::task::spawn_blocking(move || {
                         grpc_shutdown_recv
                             .recv()
@@ -164,7 +174,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             };
             let http_future = http_server.with_graceful_shutdown(async {
                 // use a blocking task to avoid locking up the whole server
-                // with this very synchronus channel recv process
+                // with this very synchronous channel recv process
                 tokio::task::spawn_blocking(move || {
                     http_shutdown_recv
                         .recv()
@@ -182,7 +192,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .unwrap()
                 .into();
             TempRepo::Rpc {
-                repo: std::sync::Arc::new(repo),
+                repo: Arc::new(repo),
                 grpc_join_handle: Some(grpc_join_handle),
                 http_join_handle: Some(http_join_handle),
                 grpc_shutdown,
