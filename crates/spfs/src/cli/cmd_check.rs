@@ -16,7 +16,7 @@ pub struct CmdCheck {
 
 impl CmdCheck {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_remote_repository_or_local(&self.remote).await?;
+        let repo = spfs::config::open_repository_from_string(config, &self.remote).await?;
 
         tracing::info!("walking repository...");
         let errors = match repo {

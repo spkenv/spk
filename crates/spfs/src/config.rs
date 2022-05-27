@@ -346,3 +346,57 @@ pub async fn open_repository<S: AsRef<str>>(
         }),
     }
 }
+
+/// Open a repository either by address or by configured name.
+///
+/// If `specifier` is `None`, return the configured local repository.
+///
+/// This function will try to interpret the given repository specifier
+/// as either a url or configured remote name. It is recommended to use
+/// an alternative function when the type of the specifier is known.
+///
+/// When the repository specifier is expected to be a configured
+/// repository, use `config::get_remote_repository_or_local` instead.
+///
+/// When the repository specifier is a url, use `open_repository` instead.
+pub async fn open_repository_from_string<S: AsRef<str>>(
+    config: &Config,
+    specifier: &Option<S>,
+) -> crate::Result<storage::RepositoryHandle> {
+    // Discovering that the given string is not a configured remote
+    // name is relatively cheap, so attempt to open a remote that
+    // way first.
+    let rh = config.get_remote_repository_or_local(specifier).await;
+
+    if let Err(crate::Error::FailedToOpenRepository { source, .. }) = &rh {
+        if let crate::Error::UnknownRemoteName(specifier) = &**source {
+            // In the event that provided specifier was not a recognized name,
+            // attempt to use it as an address instead.
+            let rh_as_address = open_repository(specifier).await;
+
+            // This might fail because the specifier was not a valid url.
+            if let Err(crate::Error::InvalidRemoteUrl(_)) = rh_as_address {
+                // If the specifier does not contain a '/' then it is more
+                // likely a bare name like "foo" and not intended to be
+                // treated as path on disk.
+                if !specifier.contains('/') {
+                    // Return the original error so the user sees something like
+                    // "foo" is an unknown remote, rather than an error about
+                    // parsing urls.
+                    return rh;
+                }
+
+                // As a convenience, try turning the specifier into a valid file url.
+                let address = format!("file:{}", specifier);
+                // User should see the error from this however this plays out.
+                return open_repository(address).await;
+            }
+
+            // Other errors apart from parsing the url should be shown to the user.
+            return rh_as_address;
+        }
+    }
+
+    // No fallbacks worked so return the original result.
+    rh
+}
