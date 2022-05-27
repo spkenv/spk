@@ -203,6 +203,12 @@ impl std::ops::DerefMut for OwnedRuntime {
 }
 
 impl OwnedRuntime {
+    /// Turn a runtime in to an owned runtime by associating the
+    /// current process to it as the runtime's owner.
+    ///
+    /// The owner of a runtime is the primary entry point, or target
+    /// command of the runtime. Only one process can own any given runtime
+    /// and an error will returned if the provided runtime is already associated.
     pub async fn upgrade_as_owner(mut runtime: Runtime) -> Result<Self> {
         let pid = std::process::id();
         if let Some(existing) = &runtime.status.owner {
@@ -218,6 +224,13 @@ impl OwnedRuntime {
         Ok(Self(runtime))
     }
 
+    /// Turn a runtime in to an owned runtime by associating the
+    /// current process to it as the runtime's monitor.
+    ///
+    /// The monitor of a runtime is the process which is responsible for identifying
+    /// when the runtime has completed and removing it from the storage. Only one
+    /// process can monitor any given runtime and an error will returned if the
+    /// provided runtime is already associated.
     pub async fn upgrade_as_monitor(mut runtime: Runtime) -> Result<Self> {
         let pid = std::process::id();
         if let Some(existing) = &runtime.status.monitor {
