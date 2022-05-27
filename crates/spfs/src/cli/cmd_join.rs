@@ -35,7 +35,7 @@ pub struct CmdJoin {
 
 impl CmdJoin {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        // because we are dealing with moveing to a new linux namespace, we must
+        // because we are dealing with moving to a new linux namespace, we must
         // ensure that all code still operates in a single os thread
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()

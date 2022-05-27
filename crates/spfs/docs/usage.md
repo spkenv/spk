@@ -47,7 +47,7 @@ spfs log my-layer
 
 Any two spfs file system states can be compared using the `spfs diff` command. With no arguments, this command works much like the `git status` command, showing the current set of active changes that have not been committed (if you are in an spfs runtime).
 
-## 
+##
 
 It's easy enough to pull and mount an spfs file tree, but sometimes it's not ideal to have to localize or sync the entire thing just to get a little bit of information or check the contents of a key file. SpFS provides 2 commands which allow for easy introspection of committed data without the need to enter into the environment itself.
 
@@ -97,4 +97,4 @@ Objects are considered to be attached, and unremovable if they are reachable fro
 
 ## Temporary Filesystem Size
 
-The spfs runtime uses a temporary filesystem, which means that large sets of changes can run out of space because of RAM limitations. The size of this filesystem can be overridden using the `SPFS_FILESYSTEM_TMPFS_SIZE` variable (eg `SPFS_FILESYSTEM_TMPFS_SIZE=10G`). Note that specifying values close to or larger than the available memory on the system may cause deadlocks or system instability.
+The spfs runtime uses a temporary, in-memory filesystem, which means that large sets of changes can run out of space because of RAM limitations. The size of this filesystem can be overridden using the `SPFS_FILESYSTEM_TMPFS_SIZE` variable (eg `SPFS_FILESYSTEM_TMPFS_SIZE=10G`). Note that specifying values close to or larger than the available memory on the system may cause deadlocks or system instability.

@@ -54,8 +54,8 @@ async fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
     let storage = Storage::new(repo);
 
     assert!(
-        storage.remove_runtime("non-existant").await.is_ok(),
-        "should be ok to remove non-existant runtime"
+        storage.remove_runtime("non-existent").await.is_ok(),
+        "should be ok to remove non-existent runtime"
     );
 
     let runtime = storage

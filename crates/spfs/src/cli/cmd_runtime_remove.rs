@@ -97,7 +97,7 @@ fn is_monitor_running(rt: &spfs::runtime::Runtime) -> bool {
 }
 
 fn is_process_running(pid: u32) -> bool {
-    // sending a null signall to the pid just allows us to check
+    // sending a null signal to the pid just allows us to check
     // if the process actually exists without affecting it
     let pid = nix::unistd::Pid::from_raw(pid as i32);
     nix::sys::signal::kill(pid, None).is_ok()

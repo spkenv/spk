@@ -271,7 +271,7 @@ impl Runtime {
     /// Create a runtime associated with the provided storage.
     ///
     /// The created runtime has not been saved and will
-    /// be forgotten if not otheriwse modified or saved.
+    /// be forgotten if not otherwise modified or saved.
     fn new<S>(name: S, storage: Storage) -> Self
     where
         S: Into<String>,
@@ -446,7 +446,7 @@ impl Storage {
     /// Remove a runtime forcefully
     ///
     /// This can break environments that are currently being used, and
-    /// is generally not save to call directly. Instead, use [`OwnedRuntime::delete`].
+    /// is generally not safe to call directly. Instead, use [`OwnedRuntime::delete`].
     pub async fn remove_runtime<S: AsRef<str>>(&self, name: S) -> Result<()> {
         // a runtime with no data takes up very little space, so we
         // remove the payload tag first because the other case is having

@@ -18,14 +18,14 @@ pub struct Command {
 }
 
 impl Command {
-    /// Turns this command into a syncronusly runnable one
+    /// Turns this command into a synchronously runnable one
     pub fn into_std(self) -> std::process::Command {
         let mut cmd = std::process::Command::new(self.executable);
         cmd.args(self.args);
         cmd
     }
 
-    /// Turns this command into an asynchonusly runnable one
+    /// Turns this command into an asynchronously runnable one
     pub fn into_tokio(self) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new(self.executable);
         cmd.args(self.args);

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
@@ -23,7 +23,7 @@ pub struct CmdMonitor {
     #[clap(long)]
     runtime_storage: url::Url,
 
-    /// The name of the runtime being entered
+    /// The name of the runtime being monitored
     #[clap(long)]
     runtime: String,
 }

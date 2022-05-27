@@ -132,7 +132,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
 
     // we could use our own pid here, but then when running in a container
     // or pid namespace the process id would actually be wrong. Passing
-    // zero will get the kernel to determin our pid from its perspective
+    // zero will get the kernel to determine our pid from its perspective
     let mut monitor = cnproc::PidMonitor::from_id(0)
         .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")))?;
 
@@ -145,7 +145,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // the initial set of parent processes that we can track the
     // lineage of
     // This explicitly happens AFTER setting up the monitor so that
-    // we will receive new of any new process created out of whatever
+    // we will receive news of any new process created out of whatever
     // we find in this scan
     // BUG(rbottriell) There is still a race condition here where a
     // child is created as we scan, and the parent exits before we
@@ -169,8 +169,6 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         tracing::warn!("monitor event stream ended unexpectedly");
     });
 
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
-    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     while let Some(event) = events_recv.recv().await {
         match event {
             cnproc::PidEvent::Exec(_pid) => {
@@ -240,7 +238,6 @@ async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashS
                 Some(libc::EACCES) => continue,
                 Some(libc::EPERM) => continue,
                 _ => {
-                    tracing::warn!(?err, "here");
                     return Err(err.into());
                 }
             },

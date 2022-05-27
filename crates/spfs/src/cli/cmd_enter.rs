@@ -83,7 +83,7 @@ impl CmdEnter {
                 return Err(err);
             }
 
-            tracing::debug!("initalizing runtime");
+            tracing::debug!("initializing runtime");
             spfs::initialize_runtime(&owned).await?;
 
             owned.ensure_startup_scripts()?;
