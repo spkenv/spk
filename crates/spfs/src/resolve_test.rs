@@ -59,7 +59,7 @@ async fn test_auto_merge_layers(tmpdir: tempdir::TempDir) {
         layers.push(layer);
     }
 
-    let storage = crate::runtime::Storage::new(repo);
+    let storage = crate::runtime::Storage::new(Arc::clone(&repo));
     let mut runtime = storage
         .create_owned_runtime()
         .await
@@ -68,7 +68,7 @@ async fn test_auto_merge_layers(tmpdir: tempdir::TempDir) {
         runtime.push_digest(&layer.digest().unwrap());
     }
 
-    let dirs = crate::resolve::resolve_overlay_dirs(&runtime, None)
+    let dirs = crate::resolve::resolve_overlay_dirs(&runtime, &*repo, None)
         .await
         .expect("resolve overlay dirs successfully");
 

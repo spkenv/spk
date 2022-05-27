@@ -143,11 +143,10 @@ pub async fn compute_object_manifest(
 /// These are returned as a list, from bottom to top.
 pub async fn resolve_overlay_dirs(
     runtime: &runtime::Runtime,
+    repo: &storage::RepositoryHandle,
     overlay_args_prefix: Option<&str>,
-) -> Result<Vec<std::path::PathBuf>> {
-    let config = get_config()?;
-    let repo = config.get_local_repository().await?.into();
-    let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
+) -> Result<Vec<graph::Manifest>> {
+    let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for layer in layers {
         manifests.push(repo.read_manifest(layer.manifest).await?);
@@ -183,6 +182,23 @@ pub async fn resolve_overlay_dirs(
         repo.write_object(&manifest.clone().into()).await?;
         manifests.insert(0, manifest);
     }
+
+    Ok(manifests)
+}
+
+/// Compile the set of directories to be overlayed for a runtime, and
+/// render them.
+///
+/// These are returned as a list, from bottom to top.
+pub async fn resolve_and_render_overlay_dirs(
+    runtime: &runtime::Runtime,
+    overlay_args_prefix: Option<&str>,
+) -> Result<Vec<std::path::PathBuf>> {
+    let config = get_config()?;
+    let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
+    let renders = repo.renders()?;
+
+    let manifests = resolve_overlay_dirs(runtime, &repo, overlay_args_prefix).await?;
 
     let mut to_render = HashSet::new();
     for digest in manifests.iter().map(|m| m.digest().unwrap()) {

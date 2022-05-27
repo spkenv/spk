@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use super::config::get_config;
-use super::resolve::{resolve_overlay_dirs, resolve_stack_to_layers};
+use super::resolve::{resolve_and_render_overlay_dirs, resolve_stack_to_layers};
 use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
@@ -77,7 +77,7 @@ pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     } else {
         None
     };
-    let dirs = resolve_overlay_dirs(rt, overlay_option_prefix).await?;
+    let dirs = resolve_and_render_overlay_dirs(rt, overlay_option_prefix).await?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
 
@@ -98,7 +98,7 @@ pub async fn initialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     } else {
         None
     };
-    let dirs = resolve_overlay_dirs(rt, overlay_option_prefix).await?;
+    let dirs = resolve_and_render_overlay_dirs(rt, overlay_option_prefix).await?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
     env::enter_mount_namespace()?;
