@@ -53,7 +53,7 @@ impl CmdMonitor {
         // if the automatic cleanup fails. Any error
         // here is unfortunate but not fatal.
         owned.status.running = false;
-        let _ = owned.save().await;
+        let _ = owned.save_state_to_storage().await;
         if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}")
         }

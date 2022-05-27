@@ -21,7 +21,7 @@ impl CmdEdit {
             let mut rt = spfs::active_runtime().await?;
             rt.status.editable = false;
             spfs::remount_runtime(&rt).await?;
-            rt.save().await?;
+            rt.save_state_to_storage().await?;
             tracing::info!("edit mode disabled");
         }
         Ok(0)

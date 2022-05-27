@@ -214,7 +214,7 @@ impl OwnedRuntime {
         }
         runtime.status.owner = Some(pid);
         runtime.status.running = true;
-        runtime.save().await?;
+        runtime.save_state_to_storage().await?;
         Ok(Self(runtime))
     }
 
@@ -228,7 +228,7 @@ impl OwnedRuntime {
             }
         }
         runtime.status.monitor = Some(pid);
-        runtime.save().await?;
+        runtime.save_state_to_storage().await?;
         Ok(Self(runtime))
     }
 
@@ -405,18 +405,18 @@ impl Runtime {
     #[cfg(test)]
     pub async fn set_runtime_dir<P: Into<PathBuf>>(&mut self, path: P) -> Result<()> {
         self.config.set_root(path);
-        self.save().await
+        self.save_state_to_storage().await
     }
 
     /// Reload the state of this runtime from the underlying storage
-    pub async fn reload(&mut self) -> Result<()> {
+    pub async fn reload_state_from_storage(&mut self) -> Result<()> {
         let rt = self.storage.read_runtime(&self.name).await?;
         self.data = rt.data;
         Ok(())
     }
 
     /// Save the current state of this runtime to the underlying storage
-    pub async fn save(&self) -> Result<()> {
+    pub async fn save_state_to_storage(&self) -> Result<()> {
         self.storage.save_runtime(self).await
     }
 }

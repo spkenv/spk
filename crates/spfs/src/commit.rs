@@ -21,7 +21,7 @@ where
     let layer = repo.create_layer(&graph::Manifest::from(&manifest)).await?;
     runtime.push_digest(&layer.digest()?);
     runtime.status.editable = false;
-    runtime.save().await?;
+    runtime.save_state_to_storage().await?;
     remount_runtime(runtime).await?;
     Ok(layer)
 }
@@ -36,7 +36,7 @@ where
         Err(err) => return Err(err),
     }
 
-    runtime.reload().await?;
+    runtime.reload_state_from_storage().await?;
     if runtime.status.stack.is_empty() {
         Err(Error::NothingToCommit)
     } else {

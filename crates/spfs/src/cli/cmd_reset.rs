@@ -52,7 +52,7 @@ impl CmdReset {
             runtime.status.editable = true;
         }
 
-        runtime.save().await?;
+        runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
         Ok(0)
     }

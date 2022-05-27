@@ -75,7 +75,7 @@ impl CmdRun {
             .command
             .extend(self.args.iter().map(|s| s.to_string_lossy().to_string()));
         runtime.status.editable = self.edit;
-        runtime.save().await?;
+        runtime.save_state_to_storage().await?;
 
         tracing::debug!("resolving entry process");
         let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;
