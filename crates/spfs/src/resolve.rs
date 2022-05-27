@@ -201,7 +201,8 @@ pub async fn resolve_and_render_overlay_dirs(
     let manifests = resolve_overlay_dirs(runtime, &repo, overlay_args_prefix).await?;
 
     let mut to_render = HashSet::new();
-    for digest in manifests.iter().map(|m| m.digest().unwrap()) {
+    for digest in manifests.iter().map(|m| m.digest()) {
+        let digest = digest?;
         if !renders.has_rendered_manifest(digest).await {
             to_render.insert(digest);
         }
