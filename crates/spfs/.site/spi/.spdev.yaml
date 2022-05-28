@@ -24,7 +24,7 @@ components:
     test:
       - export CENTOS_IMAGE=docker-local.artifactory.spimageworks.com/gitlab/spi/dev/infrastructure/api/docker/spi-centos/centos-7.9.2009
       - docker pull $CENTOS_IMAGE
-      - docker run --privileged --rm
+      - docker run --privileged --net host --rm
         -v $PWD/dist/rpm/RPMS/x86_64:/tmp/rpms
         -v $PWD/tests/integration:/tests
         $CENTOS_IMAGE

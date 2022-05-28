@@ -90,7 +90,7 @@ impl Manifest {
     }
 
     /// Same as walk(), but joins all entry paths to the given root.
-    pub fn walk_abs<P: AsRef<str>>(&self, root: P) -> ManifestWalker<'_> {
+    pub fn walk_abs<P: Into<RelativePathBuf>>(&self, root: P) -> ManifestWalker<'_> {
         self.walk().with_prefix(root)
     }
 
@@ -202,8 +202,8 @@ impl<'m> ManifestWalker<'m> {
         }
     }
 
-    fn with_prefix<P: AsRef<str>>(mut self, prefix: P) -> Self {
-        self.prefix = RelativePathBuf::from(prefix.as_ref());
+    fn with_prefix<P: Into<RelativePathBuf>>(mut self, prefix: P) -> Self {
+        self.prefix = prefix.into();
         self
     }
 }

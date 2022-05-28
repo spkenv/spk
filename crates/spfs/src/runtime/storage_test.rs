@@ -2,129 +2,136 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 
+use futures::TryStreamExt;
 use rstest::rstest;
 
-use super::{ensure_runtime, makedirs_with_perms, Config, Runtime, Storage};
+use super::{makedirs_with_perms, Data, Storage};
 use crate::encoding;
 
 use crate::fixtures::*;
 
 #[rstest]
 fn test_config_serialization() {
-    let expected = Config {
-        stack: vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()],
-        ..Default::default()
-    };
+    let mut expected = Data::new("spfs-testing");
+    expected.status.stack = vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()];
     let data = serde_json::to_string_pretty(&expected).expect("failed to serialize config");
-    let actual: Config = serde_json::from_str(&data).expect("failed to deserialize config data");
+    let actual: Data = serde_json::from_str(&data).expect("failed to deserialize config data");
 
     assert_eq!(actual, expected);
 }
 
 #[rstest]
-fn test_runtime_properties(tmpdir: tempdir::TempDir) {
-    let runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
-    assert_eq!(tmpdir.path().canonicalize().unwrap(), runtime.root());
-    assert_eq!(
-        runtime.config_file.file_name(),
-        Some(OsStr::new(Runtime::CONFIG_FILE))
+#[tokio::test]
+async fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FSRepository::create(root)
+            .await
+            .unwrap(),
     );
-}
-
-#[rstest]
-fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
-    let mut runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
-    let expected = Config {
-        name: runtime.name().to_string(),
-        ..Default::default()
-    };
-    assert_eq!(runtime.config, expected);
-    assert!(runtime.read_config().is_ok());
-    assert!(runtime.config_file.metadata().is_ok());
-}
-
-#[rstest]
-fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
-    let runtime = ensure_runtime(tmpdir.path().join("root")).expect("failed to ensure runtime");
-    assert!(runtime.root().metadata().is_ok(), "root should exist");
-    assert!(
-        runtime.upper_dir.metadata().is_ok(),
-        "upper_dir should exist"
-    );
-
-    ensure_runtime(runtime.root()).expect("failed to ensure runtime on second call");
-}
-
-#[rstest]
-fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
-    let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
+    let storage = Storage::new(repo);
 
     let runtime = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime in storage");
-    assert!(!runtime.reference().is_empty());
-    assert!(runtime.root().metadata().unwrap().file_type().is_dir());
+    assert!(!runtime.name().is_empty());
 
-    assert!(storage.create_named_runtime(runtime.reference()).is_err());
+    assert!(storage.create_named_runtime(runtime.name()).await.is_err());
 }
 
 #[rstest]
-fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
-    let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
-
-    assert!(
-        storage.remove_runtime("non-existent").is_err(),
-        "should fail to remove non-existent runtime"
+#[tokio::test]
+async fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FSRepository::create(root)
+            .await
+            .unwrap(),
     );
+    let storage = Storage::new(repo);
 
     let runtime = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime");
     storage
-        .remove_runtime(runtime.reference())
+        .remove_runtime(runtime.name())
+        .await
         .expect("should remove runtime properly");
 }
 
 #[rstest]
-fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
-    let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
+#[tokio::test]
+async fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FSRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = Storage::new(repo);
 
-    let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
-    let runtimes = runtimes.expect("unexpected error while listing runtimes");
+    let runtimes: Vec<_> = storage
+        .iter_runtimes()
+        .await
+        .try_collect()
+        .await
+        .expect("unexpected error while listing runtimes");
     assert_eq!(runtimes.len(), 0);
 
     let _rt1 = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime");
-    let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
-    let runtimes = runtimes.expect("unexpected error while listing runtimes");
+    let runtimes: Vec<_> = storage
+        .iter_runtimes()
+        .await
+        .try_collect()
+        .await
+        .expect("unexpected error while listing runtimes");
     assert_eq!(runtimes.len(), 1);
 
     let _rt2 = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime");
     let _rt3 = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime");
     let _rt4 = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime");
-    let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
-    let runtimes = runtimes.expect("unexpected error while listing runtimes");
+    let runtimes: Vec<_> = storage
+        .iter_runtimes()
+        .await
+        .try_collect()
+        .await
+        .expect("unexpected error while listing runtimes");
     assert_eq!(runtimes.len(), 4);
 }
 
 #[rstest]
-fn test_runtime_reset(tmpdir: tempdir::TempDir) {
-    let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
+#[tokio::test]
+async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FSRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = Storage::new(repo);
+
     let mut runtime = storage
         .create_owned_runtime()
+        .await
         .expect("failed to create runtime in storage");
     let upper_dir = tmpdir.path().join("upper");
-    runtime.upper_dir = upper_dir.clone();
+    runtime.data.config.upper_dir = upper_dir.clone();
 
     ensure(upper_dir.join("file"), "file01");
     ensure(upper_dir.join("dir/file"), "file02");

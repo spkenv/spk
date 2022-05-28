@@ -4,17 +4,15 @@
 
 //! Functions related to the setup and management of the spfs runtime environment
 //! and related system namespacing
+use std::collections::HashSet;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 use super::runtime;
 use crate::{Error, Result};
 
+static PROC_DIR: &str = "/proc";
 static SPFS_DIR: &str = "/spfs";
-static RUNTIME_DIR: &str = "/tmp/spfs-runtime";
-static RUNTIME_UPPER_DIR: &str = "/tmp/spfs-runtime/upper";
-static RUNTIME_LOWER_DIR: &str = "/tmp/spfs-runtime/lower";
-static RUNTIME_WORK_DIR: &str = "/tmp/spfs-runtime/work";
 
 const NONE: Option<&str> = None;
 
@@ -22,7 +20,7 @@ const NONE: Option<&str> = None;
 pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
     check_can_join()?;
 
-    let pid = match rt.get_pid() {
+    let pid = match rt.status.owner {
         None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
         Some(pid) => pid,
     };
@@ -85,6 +83,172 @@ pub fn enter_mount_namespace() -> Result<()> {
     }
 }
 
+/// Run an spfs monitor for the provided runtime
+///
+/// The monitor command will spawn but immediately fail
+/// if there is already a monitor registered to this runtime
+pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process::Child> {
+    let exe = match super::resolve::which_spfs("monitor") {
+        None => return Err(Error::MissingBinary("spfs")),
+        Some(exe) => exe,
+    };
+
+    let mut cmd = tokio::process::Command::new(exe);
+    cmd.arg("--runtime-storage");
+    cmd.arg(rt.storage().address().as_str());
+    cmd.arg("--runtime");
+    cmd.arg(rt.name());
+    // the monitor process should be fully detached from any controlling
+    // terminal. Otherwise, using spfs run under output-capturing circumstances
+    // can cause the command to hang forever. Eg: output=$(spfs run - -- echo "hello")
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.stdin(std::process::Stdio::null());
+
+    unsafe {
+        // avoid creating zombie processes by moving the monitor
+        // into a separate process group
+        cmd.pre_exec(|| match nix::unistd::setsid() {
+            Ok(_pid) => Ok(()),
+            Err(err) => Err(match err.as_errno() {
+                Some(errno) => std::io::Error::from_raw_os_error(errno as i32),
+                None => std::io::Error::new(std::io::ErrorKind::Other, err),
+            }),
+        });
+    }
+
+    Ok(cmd.spawn()?)
+}
+
+/// When provided an active runtime, wait until all contained processes exit
+///
+/// This is a privileged operation that may fail with a permission
+/// issue if the calling process is not root or CAP_NET_ADMIN
+pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
+    let pid = match rt.status.owner {
+        None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
+        Some(pid) => pid,
+    };
+
+    // we could use our own pid here, but then when running in a container
+    // or pid namespace the process id would actually be wrong. Passing
+    // zero will get the kernel to determine our pid from its perspective
+    let mut monitor = cnproc::PidMonitor::from_id(0)
+        .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")))?;
+
+    let mut tracked_processes = HashSet::new();
+    let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();
+
+    // NOTE(rbottriell):
+    // scan for any processes that were already spawned before
+    // we had setup the monitoring socket, this will establish
+    // the initial set of parent processes that we can track the
+    // lineage of
+    // This explicitly happens AFTER setting up the monitor so that
+    // we will receive news of any new process created out of whatever
+    // we find in this scan
+    // BUG(rbottriell) There is still a race condition here where a
+    // child is created as we scan, and the parent exits before we
+    // are able to see it so we don't think the child is relevant
+    let current_pids = find_processes_in_shared_mount_namespace(pid).await?;
+    tracked_processes.extend(current_pids);
+
+    // it's possible that the runtime process(es)
+    // completed before we were even able to see them
+    if tracked_processes.is_empty() {
+        return Ok(());
+    }
+
+    tokio::task::spawn_blocking(move || {
+        while let Some(event) = monitor.recv() {
+            if let Err(_err) = events_send.send(event) {
+                // the receiver has stopped listening, no need to continue
+                return;
+            }
+        }
+        tracing::warn!("monitor event stream ended unexpectedly");
+    });
+
+    while let Some(event) = events_recv.recv().await {
+        match event {
+            cnproc::PidEvent::Exec(_pid) => {
+                // exec is just one process turning into a new one with
+                // the pid remaining the same, so we are not interested...
+                // remember that launching a new process is a fork and then exec
+            }
+            cnproc::PidEvent::Fork { parent, pid } => {
+                if tracked_processes.contains(&(parent as u32)) {
+                    tracked_processes.insert(pid as u32);
+                    tracing::trace!(?tracked_processes, "runtime monitor");
+                }
+            }
+            cnproc::PidEvent::Exit(pid) => {
+                if tracked_processes.remove(&(pid as u32)) {
+                    tracing::trace!(?tracked_processes, "runtime monitor");
+                }
+                if tracked_processes.is_empty() {
+                    break;
+                }
+            }
+            cnproc::PidEvent::Coredump(_) => {}
+        }
+    }
+    Ok(())
+}
+
+/// Identify the mount namespace of the provided process id, and
+/// then find other processes on this machine which share that namespace
+///
+/// If the provided process does not exist, an empty set is returned
+async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u32>> {
+    let ns_path = std::path::Path::new(PROC_DIR)
+        .join(pid.to_string())
+        .join("ns/mnt");
+
+    tracing::debug!(?ns_path, "Getting process namespace");
+    let ns = match tokio::fs::read_link(&ns_path).await {
+        Ok(ns) => ns,
+        Err(err) => match err.kind() {
+            // it's possible that the runtime process already exited
+            // or was never started
+            std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
+            _ => return Err(err.into()),
+        },
+    };
+    find_processes_in_mount_namespace(&ns).await
+}
+
+/// Provided the namespace symlink content from /proc fs,
+/// scan for all processes that share the same namespace
+async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashSet<u32>> {
+    let mut found_processes = HashSet::new();
+
+    let mut read_dir = tokio::fs::read_dir(PROC_DIR).await?;
+    while let Some(entry) = read_dir.next_entry().await? {
+        let pid = match entry.file_name().to_str().map(|s| s.parse::<u32>()) {
+            Some(Ok(pid)) => pid,
+            // don't bother reading proc dirs that are not named with a valid pid
+            _ => continue,
+        };
+        let found_ns = match tokio::fs::read_link(entry.path().join("ns/mnt")).await {
+            Ok(p) => p,
+            Err(err) => match err.raw_os_error() {
+                Some(libc::ENOENT) => continue,
+                Some(libc::ENOTDIR) => continue,
+                Some(libc::EACCES) => continue,
+                Some(libc::EPERM) => continue,
+                _ => {
+                    return Err(err.into());
+                }
+            },
+        };
+        if found_ns == ns {
+            found_processes.insert(pid);
+        }
+    }
+    Ok(found_processes)
+}
+
 pub fn privatize_existing_mounts() -> Result<()> {
     use nix::mount::{mount, MsFlags};
 
@@ -110,15 +274,14 @@ pub fn privatize_existing_mounts() -> Result<()> {
     Ok(())
 }
 
-pub fn ensure_mount_targets_exist() -> Result<()> {
+pub fn ensure_mount_targets_exist(config: &runtime::Config) -> Result<()> {
     tracing::debug!("ensuring mount targets exist...");
-    let mut res = runtime::makedirs_with_perms(SPFS_DIR, 0o777);
-    if let Err(err) = res {
-        return Err(err.wrap(format!("Failed to create {SPFS_DIR}")));
-    }
-    res = runtime::makedirs_with_perms(RUNTIME_DIR, 0o777);
-    if let Err(err) = res {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_DIR}")));
+    runtime::makedirs_with_perms(SPFS_DIR, 0o777)
+        .map_err(|err| err.wrap(format!("Failed to create {SPFS_DIR}")))?;
+
+    if let Some(dir) = &config.runtime_dir {
+        runtime::makedirs_with_perms(dir, 0o777)
+            .map_err(|err| err.wrap(format!("Failed to create {dir:?}")))?
     }
     Ok(())
 }
@@ -157,61 +320,68 @@ pub fn become_root() -> Result<Uids> {
     })
 }
 
-pub fn mount_runtime(tmpfs_opts: Option<&str>) -> Result<()> {
+pub fn mount_runtime(config: &runtime::Config) -> Result<()> {
     use nix::mount::{mount, MsFlags};
+
+    let dir = match &config.runtime_dir {
+        Some(ref p) => p,
+        None => return Ok(()),
+    };
+
+    let tmpfs_opts = config
+        .tmpfs_size
+        .as_ref()
+        .map(|size| format!("size={size}"));
 
     tracing::debug!("mounting runtime...");
     let res = mount(
         NONE,
-        RUNTIME_DIR,
+        dir,
         Some("tmpfs"),
         MsFlags::MS_NOEXEC,
-        tmpfs_opts,
+        tmpfs_opts.as_deref(),
     );
     if let Err(err) = res {
-        Err(Error::wrap_nix(
-            err,
-            format!("Failed to mount {RUNTIME_DIR}"),
-        ))
+        Err(Error::wrap_nix(err, format!("Failed to mount {dir:?}")))
     } else {
         Ok(())
     }
 }
 
-pub fn unmount_runtime() -> Result<()> {
+pub fn unmount_runtime(config: &runtime::Config) -> Result<()> {
+    let dir = match &config.runtime_dir {
+        Some(ref p) => p,
+        None => return Ok(()),
+    };
+
     tracing::debug!("unmounting existing runtime...");
-    let result = nix::mount::umount(RUNTIME_DIR);
+    let result = nix::mount::umount(dir);
     if let Err(err) = result {
-        return Err(Error::wrap_nix(
-            err,
-            format!("Failed to unmount {RUNTIME_DIR}"),
-        ));
+        return Err(Error::wrap_nix(err, format!("Failed to unmount {dir:?}")));
     }
     Ok(())
 }
 
-pub fn setup_runtime() -> Result<()> {
+pub async fn setup_runtime(rt: &runtime::Runtime) -> Result<()> {
     tracing::debug!("setting up runtime...");
-    let mut result = runtime::makedirs_with_perms(RUNTIME_LOWER_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_LOWER_DIR}")));
-    }
-    result = runtime::makedirs_with_perms(RUNTIME_UPPER_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_UPPER_DIR}")));
-    }
-    result = runtime::makedirs_with_perms(RUNTIME_WORK_DIR, 0o777);
-    if let Err(err) = result {
-        return Err(err.wrap(format!("Failed to create {RUNTIME_WORK_DIR}")));
-    }
-    Ok(())
+    rt.ensure_required_directories().await
 }
 
-pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid) -> Result<()> {
+pub fn mask_files(
+    config: &runtime::Config,
+    manifest: &super::tracking::Manifest,
+    owner: nix::unistd::Uid,
+) -> Result<()> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     tracing::debug!("masking deleted files...");
 
-    let nodes: Vec<_> = manifest.walk_abs(RUNTIME_UPPER_DIR).collect();
+    let prefix = config.upper_dir.to_str().ok_or_else(|| {
+        crate::Error::String(format!(
+            "configured runtime upper_dir has invalid characters: {:?}",
+            config.upper_dir
+        ))
+    })?;
+    let nodes: Vec<_> = manifest.walk_abs(&prefix).collect();
     for node in nodes.iter() {
         if !node.entry.kind.is_mask() {
             continue;
@@ -290,13 +460,20 @@ pub fn mask_files(manifest: &super::tracking::Manifest, owner: nix::unistd::Uid)
     Ok(())
 }
 
-pub fn get_overlay_args<P: AsRef<Path>>(lowerdirs: impl IntoIterator<Item = P>) -> Result<String> {
-    let mut args = format!("lowerdir={RUNTIME_LOWER_DIR}");
-    for path in lowerdirs.into_iter() {
+pub fn get_overlay_args<P: AsRef<Path>>(
+    config: &runtime::Config,
+    lower_dirs: impl IntoIterator<Item = P>,
+) -> Result<String> {
+    let mut args = format!("lowerdir={}", config.lower_dir.display());
+    for path in lower_dirs.into_iter() {
         args = format!("{args}:{}", path.as_ref().to_string_lossy());
     }
 
-    args = format!("{args},upperdir={RUNTIME_UPPER_DIR},workdir={RUNTIME_WORK_DIR}");
+    args = format!(
+        "{args},upperdir={},workdir={}",
+        config.upper_dir.display(),
+        config.work_dir.display()
+    );
 
     match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE) {
         Err(_) => tracing::debug!("failed to get page size for checking arg length"),
@@ -311,12 +488,12 @@ pub fn get_overlay_args<P: AsRef<Path>>(lowerdirs: impl IntoIterator<Item = P>) 
 }
 
 pub fn mount_env<P: AsRef<Path>>(
-    editable: bool,
-    lowerdirs: impl IntoIterator<Item = P>,
+    rt: &runtime::Runtime,
+    lower_dirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
-    let mut overlay_args = get_overlay_args(lowerdirs)?;
-    if !editable {
+    let mut overlay_args = get_overlay_args(&rt.config, lower_dirs)?;
+    if !rt.status.editable {
         overlay_args = format!("ro,{overlay_args}");
     }
     tracing::debug!("/usr/bin/mount -t overlay -o {overlay_args} none {SPFS_DIR}");

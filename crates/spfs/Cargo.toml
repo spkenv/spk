@@ -32,11 +32,11 @@ path = "src/cli/cmd_pull.rs"
 name = "spfs-push"
 path = "src/cli/cmd_push.rs"
 [[bin]]
-name = "spfs-init"
-path = "src/cli/cmd_init.rs"
-[[bin]]
 name = "spfs-render"
 path = "src/cli/cmd_render.rs"
+[[bin]]
+name = "spfs-monitor"
+path = "src/cli/cmd_monitor.rs"
 [[bin]]
 name = "spfs-server"
 path = "src/cli/cmd_server.rs"
@@ -59,9 +59,10 @@ async-trait = "0.1.52"
 async-recursion = "1.0"
 async-stream = "0.3"
 caps = "0.5.3"
-chrono = "0.4.19"
-clap = { version = "3.1.6", features = ["derive"] }
+chrono = { version = "0.4.19", features = ["serde"] }
+clap = { version = "3.1.6", features = ["derive", "env"] }
 close-err = "1.0"
+cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0.0"
 config = "0.12.0"
 data-encoding = "2.3.0"

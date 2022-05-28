@@ -145,7 +145,7 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
     let config = get_config()?;
     let repo = config.get_local_repository().await?.into();
     let mut overlay_dirs = Vec::new();
-    let layers = resolve_stack_to_layers(runtime.get_stack().iter(), Some(&repo)).await?;
+    let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for layer in layers {
         manifests.push(repo.read_manifest(layer.manifest).await?);

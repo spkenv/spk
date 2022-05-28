@@ -52,16 +52,20 @@ impl CmdCommit {
         } else {
             // no path give, commit the current runtime
 
-            let mut runtime = spfs::active_runtime()?;
+            let mut runtime = spfs::active_runtime().await?;
 
-            if !runtime.is_editable() {
+            if !runtime.status.editable {
                 tracing::error!("Active runtime is not editable, nothing to commit");
                 return Ok(1);
             }
 
             match self.kind.clone().unwrap_or_default().as_str() {
-                "layer" => spfs::commit_layer(&mut runtime).await?.into(),
-                "platform" => spfs::commit_platform(&mut runtime).await?.into(),
+                "layer" => spfs::commit_layer(&mut runtime, Arc::clone(&repo))
+                    .await?
+                    .into(),
+                "platform" => spfs::commit_platform(&mut runtime, Arc::clone(&repo))
+                    .await?
+                    .into(),
                 kind => {
                     tracing::error!("don't know how to commit a '{}'", kind);
                     return Ok(1);

@@ -5,6 +5,7 @@
 use std::ffi::OsString;
 
 use clap::Parser;
+use tokio::signal::unix::{signal, SignalKind};
 
 #[macro_use]
 mod args;
@@ -25,15 +26,31 @@ pub struct CmdEnter {
     #[clap(short, long)]
     remount: bool,
 
-    /// The root directory of the spfs runtime being entered
-    runtime_root: String,
+    /// The address of the storage being used for runtimes
+    #[clap(long)]
+    runtime_storage: url::Url,
 
-    cmd: Option<OsString>,
+    /// The name of the runtime being entered
+    #[clap(long)]
+    runtime: String,
+
+    /// The command to run after initialization
+    ///
+    /// If not given, run an interactive shell environment
+    command: Option<OsString>,
+
+    /// Additional arguments to provide to the command
+    ///
+    /// In order to ensure that flags are passed as-is, place '--' before
+    /// specifying any flags that should be given to the subcommand:
+    ///   eg spfs enter <args> -- command --flag-for-command
     args: Vec<OsString>,
 }
 
 impl CmdEnter {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        // we need a single-threaded runtime in order to properly setup
+        // and enter the namespace of the runtime
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -43,29 +60,69 @@ impl CmdEnter {
         rt.block_on(self.run_async(config))
     }
 
-    pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let runtime = spfs::runtime::Runtime::new(&self.runtime_root)?;
+    pub async fn run_async(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = spfs::open_repository(&self.runtime_storage).await?;
+        let storage = spfs::runtime::Storage::new(repo);
+        let runtime = storage.read_runtime(&self.runtime).await?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
-            let cmd = match self.cmd.take() {
-                Some(cmd) => cmd,
-                None => return Err("command is required and was not given".into()),
-            };
-            spfs::initialize_runtime(&runtime, config).await?;
+            let mut terminate = signal(SignalKind::terminate())?;
+            let mut interrupt = signal(SignalKind::interrupt())?;
+            let mut quit = signal(SignalKind::quit())?;
+            let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
-            tracing::trace!("{:?} {:?}", cmd, self.args);
-            use std::os::unix::ffi::OsStrExt;
-            let cmd = std::ffi::CString::new(cmd.as_bytes()).unwrap();
-            let mut args: Vec<_> = self
-                .args
-                .iter()
-                .map(|arg| std::ffi::CString::new(arg.as_bytes()).unwrap())
-                .collect();
-            args.insert(0, cmd.clone());
-            nix::unistd::execv(cmd.as_ref(), args.as_slice())?;
-            Ok(0)
+            if let Err(err) = spfs::env::spawn_monitor_for_runtime(&owned) {
+                if let Err(err) = owned.delete().await {
+                    tracing::error!(
+                        ?err,
+                        "failed to cleanup runtime data after failure to start monitor"
+                    );
+                }
+                return Err(err);
+            }
+
+            tracing::debug!("initializing runtime");
+            spfs::initialize_runtime(&owned).await?;
+
+            owned.ensure_startup_scripts()?;
+            std::env::set_var("SPFS_RUNTIME", owned.name());
+
+            let mut child = self.exec_runtime_command(&owned).await?;
+            let res = loop {
+                tokio::select! {
+                    res = child.wait() => break res,
+                    // we explicitly catch and ignore signals related to interruption
+                    // assuming that the child process will receive them and act
+                    // accordingly. This is also to ensure that we never exit before
+                    // the child and forget to clean up the runtime data
+                    _ = terminate.recv() => {},
+                    _ = interrupt.recv() => {},
+                    _ = quit.recv() => {},
+                }
+            };
+
+            Ok(res?.code().unwrap_or(1))
         }
+    }
+
+    async fn exec_runtime_command(
+        &mut self,
+        rt: &spfs::runtime::OwnedRuntime,
+    ) -> spfs::Result<tokio::process::Child> {
+        let cmd = match self.command.take() {
+            Some(exe) if !exe.is_empty() => {
+                tracing::debug!("executing runtime command");
+                spfs::build_shell_initialized_command(rt, exe, self.args.drain(..))?
+            }
+            _ => {
+                tracing::debug!("starting interactive shell environment");
+                spfs::build_interactive_shell_command(rt)?
+            }
+        };
+        let mut proc = cmd.into_tokio();
+        tracing::debug!("{:?}", proc);
+        Ok(proc.spawn()?)
     }
 }

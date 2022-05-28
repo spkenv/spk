@@ -65,6 +65,8 @@ pub enum Error {
     RuntimeNotInitialized(String),
     #[error("Runtime does not exist: {0}")]
     UnknownRuntime(String),
+    #[error("Runtime already exists: {0}")]
+    RuntimeExists(String),
     #[error("Runtime is already editable")]
     RuntimeAlreadyEditable,
 

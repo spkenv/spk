@@ -25,6 +25,15 @@ pub enum EntryType {
     Tag(String),
 }
 
+impl AsRef<str> for EntryType {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Folder(s) => s,
+            Self::Tag(s) => s,
+        }
+    }
+}
+
 impl Display for EntryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {

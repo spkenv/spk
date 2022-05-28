@@ -20,31 +20,48 @@ pub struct CmdJoin {
     /// The name or id of the runtime to join
     runtime: String,
 
-    /// Optional command to run in the environment, spawns a shell if not given
-    cmd: Vec<OsString>,
+    /// The command to run after initialization
+    ///
+    /// If not given, run an interactive shell environment
+    command: Option<OsString>,
+
+    /// Additional arguments to provide to the command
+    ///
+    /// In order to ensure that flags are passed as-is, place '--' before
+    /// specifying any flags that should be given to the subcommand:
+    ///   eg spfs enter <args> -- command --flag-for-command
+    args: Vec<OsString>,
 }
 
 impl CmdJoin {
     pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let storage = config.get_runtime_storage()?;
-        let rt = storage.read_runtime(&self.runtime)?;
-        spfs::env::join_runtime(&rt)?;
+        // because we are dealing with moving to a new linux namespace, we must
+        // ensure that all code still operates in a single os thread
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            let storage = config.get_runtime_storage().await?;
+            let rt = storage.read_runtime(&self.runtime).await?;
+            spfs::env::join_runtime(&rt)?;
 
-        exec_runtime_command(self.cmd.clone())
+            self.exec_runtime_command(&rt).await
+        })
     }
-}
 
-fn exec_runtime_command(mut cmd: Vec<OsString>) -> Result<i32> {
-    if cmd.is_empty() || cmd[0] == *"" {
-        cmd = spfs::build_interactive_shell_cmd(&spfs::active_runtime()?)?;
-        tracing::debug!("starting interactive shell environment");
-    } else {
-        cmd = spfs::build_shell_initialized_command(cmd[0].clone(), &mut cmd[1..].to_vec())?;
-        tracing::debug!("executing runtime command");
+    async fn exec_runtime_command(&mut self, rt: &spfs::runtime::Runtime) -> Result<i32> {
+        let cmd = match self.command.take() {
+            Some(exe) if !exe.is_empty() => {
+                tracing::debug!("executing runtime command");
+                spfs::build_shell_initialized_command(rt, exe, self.args.drain(..))?
+            }
+            _ => {
+                tracing::debug!("starting interactive shell environment");
+                spfs::build_interactive_shell_command(rt)?
+            }
+        };
+        let mut proc = cmd.into_std();
+        tracing::debug!("{:?}", proc);
+        Ok(proc.status()?.code().unwrap_or(1))
     }
-    tracing::debug!(?cmd);
-    let mut proc = std::process::Command::new(cmd[0].clone());
-    proc.args(&cmd[1..]);
-    tracing::debug!("{:?}", proc);
-    Ok(proc.status()?.code().unwrap_or(1))
 }

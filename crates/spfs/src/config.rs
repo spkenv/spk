@@ -42,15 +42,11 @@ impl Default for User {
 #[serde(default)]
 pub struct Filesystem {
     pub max_layers: usize,
-    pub tmpfs_size: Option<String>,
 }
 
 impl Default for Filesystem {
     fn default() -> Self {
-        Self {
-            max_layers: 40,
-            tmpfs_size: None,
-        }
+        Self { max_layers: 40 }
     }
 }
 
@@ -58,7 +54,6 @@ impl Default for Filesystem {
 #[serde(default)]
 pub struct Storage {
     pub root: PathBuf,
-    pub runtimes: Option<PathBuf>,
 }
 
 impl Default for Storage {
@@ -66,17 +61,6 @@ impl Default for Storage {
         Self {
             root: expanduser::expanduser(DEFAULT_STORAGE_ROOT)
                 .unwrap_or_else(|_| PathBuf::from(FALLBACK_STORAGE_ROOT)),
-            runtimes: None,
-        }
-    }
-}
-
-impl Storage {
-    /// Return the path to the local runtime storage.
-    pub fn runtime_root(&self) -> PathBuf {
-        match &self.runtimes {
-            None => self.root.join("runtimes"),
-            Some(root) => root.clone(),
         }
     }
 }
@@ -242,8 +226,10 @@ impl Config {
     }
 
     /// Get the local runtime storage, as configured.
-    pub fn get_runtime_storage(&self) -> Result<runtime::Storage> {
-        runtime::Storage::new(self.storage.runtime_root())
+    pub async fn get_runtime_storage(&self) -> Result<runtime::Storage> {
+        Ok(runtime::Storage::new(storage::RepositoryHandle::from(
+            self.get_local_repository().await?,
+        )))
     }
 
     /// Get a remote repository by name.
@@ -323,9 +309,6 @@ pub fn load_config() -> Result<Config> {
     // name also includes an underscore
     if let Ok(v) = base.get_string("filesystem.max.layers") {
         builder = builder.set_override("filesystem.max_layers", v)?;
-    }
-    if let Ok(v) = base.get_string("filesystem.tmpfs.size") {
-        builder = builder.set_override("filesystem.tmpfs_size", v)?;
     }
 
     let config = builder.build()?;

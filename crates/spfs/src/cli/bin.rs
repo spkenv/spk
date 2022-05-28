@@ -21,7 +21,10 @@ mod cmd_migrate;
 mod cmd_platforms;
 mod cmd_read;
 mod cmd_reset;
-mod cmd_runtimes;
+mod cmd_runtime;
+mod cmd_runtime_info;
+mod cmd_runtime_list;
+mod cmd_runtime_remove;
 mod cmd_search;
 mod cmd_tag;
 mod cmd_tags;
@@ -36,13 +39,13 @@ main!(Opt);
 #[clap(
     about,
     after_help = "EXTERNAL SUBCOMMANDS:\
-                  \n    init         run a command in the current spfs shell environment\
                   \n    run          run a command in an spfs environment\
                   \n    shell        create a new shell in an spfs environment\
                   \n    pull         pull one or more object to the local repository\
                   \n    push         push one or more objects to a remote repository\
                   \n    render       render the contents of an environment or layer\
                   \n    server       run an spfs server (if installed)\
+                  \n    monitor      watch a runtime and clean it up when complete\
                   "
 )]
 pub struct Opt {
@@ -62,7 +65,7 @@ pub enum Command {
     Reset(cmd_reset::CmdReset),
     Tag(cmd_tag::CmdTag),
     Untag(cmd_untag::CmdUntag),
-    Runtimes(cmd_runtimes::CmdRuntimes),
+    Runtime(cmd_runtime::CmdRuntime),
     Layers(cmd_layers::CmdLayers),
     Platforms(cmd_platforms::CmdPlatforms),
     Tags(cmd_tags::CmdTags),
@@ -92,7 +95,7 @@ impl Opt {
             Command::Reset(cmd) => cmd.run(config).await,
             Command::Tag(cmd) => cmd.run(config).await,
             Command::Untag(cmd) => cmd.run(config).await,
-            Command::Runtimes(cmd) => cmd.run(config).await,
+            Command::Runtime(cmd) => cmd.run(config).await,
             Command::Layers(cmd) => cmd.run(config).await,
             Command::Platforms(cmd) => cmd.run(config).await,
             Command::Tags(cmd) => cmd.run(config).await,

@@ -17,7 +17,7 @@ pub async fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tra
     let base_manifest = match base {
         None => {
             tracing::debug!("computing runtime manifest as base");
-            let runtime = active_runtime()?;
+            let runtime = active_runtime().await?;
             compute_runtime_manifest(&runtime).await?
         }
         Some(base) => {

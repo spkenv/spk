@@ -132,18 +132,17 @@ impl CmdInfo {
 
     /// Display the status of the current runtime.
     async fn print_global_info(&self, repo: &spfs::storage::RepositoryHandle) -> spfs::Result<()> {
-        let runtime = spfs::active_runtime()?;
+        let runtime = spfs::active_runtime().await?;
 
         println!("{}", "Active Runtime:".green());
+        println!(" {}: {}", "id:".bright_blue(), runtime.name());
         println!(
             " {}: {}",
-            "id:".bright_blue(),
-            runtime.reference().to_string_lossy()
+            "editable:".bright_blue(),
+            runtime.status.editable
         );
-        println!(" {}: {}", "editable:".bright_blue(), runtime.is_editable());
         println!("{}", "stack".bright_blue());
-        let stack = runtime.get_stack();
-        for digest in stack {
+        for digest in runtime.status.stack.iter() {
             println!("  - {}", self.format_digest(*digest, repo).await?);
         }
         println!();

@@ -128,7 +128,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         }
         #[cfg(feature = "server")]
         "rpc" => {
-            let repo = Arc::new(spfs::storage::RepositoryHandle::FS(
+            let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FS(
                 spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
                     .await
                     .unwrap(),
