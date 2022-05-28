@@ -68,9 +68,13 @@ async fn test_auto_merge_layers(tmpdir: tempdir::TempDir) {
         runtime.push_digest(&layer.digest().unwrap());
     }
 
-    let dirs = crate::resolve::resolve_overlay_dirs(&runtime, &*repo, None)
-        .await
-        .expect("resolve overlay dirs successfully");
+    let dirs = crate::resolve::resolve_overlay_dirs(
+        &runtime,
+        &*repo,
+        &crate::env::OverlayMountOptions::default(),
+    )
+    .await
+    .expect("resolve overlay dirs successfully");
 
     assert!(
         dirs.len() < layers.len(),
