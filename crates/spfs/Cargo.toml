@@ -57,6 +57,7 @@ server = [
 [dependencies]
 async-trait = "0.1.52"
 async-recursion = "1.0"
+async-stream = "0.3"
 caps = "0.5.3"
 chrono = "0.4.19"
 clap = { version = "3.1.6", features = ["derive"] }

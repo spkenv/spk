@@ -2665,6 +2665,7 @@ name = "spfs"
 version = "0.33.0"
 dependencies = [
  "async-recursion",
+ "async-stream",
  "async-trait",
  "caps",
  "chrono",

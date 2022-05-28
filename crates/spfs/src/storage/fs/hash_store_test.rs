@@ -12,7 +12,7 @@ use crate::{fixtures::*, graph::DigestSearchCriteria, storage::fs::hash_store::P
 async fn test_hash_store_iter_states(tmpdir: tempdir::TempDir) {
     init_logging();
     let store = super::FSHashStore::open(tmpdir.path()).unwrap();
-    let mut stream = store.iter();
+    let mut stream = Box::pin(store.iter());
     while stream.next().await.is_some() {
         panic!("empty hash store should not yield any digests");
     }
@@ -52,7 +52,7 @@ async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
     */
     for starts_with in ["A", "AB", "ABC", "ABE", "BB", "DD"] {
         let mut matches = Vec::new();
-        let mut stream = store.find(DigestSearchCriteria::StartsWith(starts_with.into()));
+        let mut stream = Box::pin(store.find(DigestSearchCriteria::StartsWith(starts_with.into())));
         while let Some(Ok(v)) = stream.next().await {
             matches.push(v);
         }
