@@ -122,7 +122,7 @@ impl RemoteConfig {
     pub async fn from_str<S: AsRef<str>>(address: S) -> Result<Self> {
         let url = match url::Url::parse(address.as_ref()) {
             Ok(url) => url,
-            Err(err) => return Err(format!("invalid repository url: {:?}", err).into()),
+            Err(err) => return Err(err.into()),
         };
 
         Self::from_address(url).await
@@ -204,23 +204,40 @@ impl Config {
     }
 
     /// Get the local repository instance as configured.
-    pub async fn get_repository(&self) -> Result<storage::fs::FSRepository> {
+    pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
         storage::fs::FSRepository::create(&self.storage.root).await
+    }
+
+    /// Get a remote repository by name, or the local repository.
+    ///
+    /// If `name` is defined, attempt to open the named remote
+    /// repository; otherwise open the local repository.
+    pub async fn get_remote_repository_or_local<S>(
+        &self,
+        name: &Option<S>,
+    ) -> Result<storage::RepositoryHandle>
+    where
+        S: AsRef<str>,
+    {
+        match name {
+            Some(name) => self.get_remote(name).await,
+            None => Ok(self.get_local_repository().await?.into()),
+        }
     }
 
     /// Get the local runtime storage, as configured.
     pub async fn get_runtime_storage(&self) -> Result<runtime::Storage> {
         Ok(runtime::Storage::new(storage::RepositoryHandle::from(
-            self.get_repository().await?,
+            self.get_local_repository().await?,
         )))
     }
 
-    /// Get a remote repository by name or address.
+    /// Get a remote repository by name.
     pub async fn get_remote<S: AsRef<str>>(
         &self,
-        name_or_address: S,
+        remote_name: S,
     ) -> Result<storage::RepositoryHandle> {
-        let res = match self.remote.get(name_or_address.as_ref()) {
+        match self.remote.get(remote_name.as_ref()) {
             Some(Remote::Address(remote)) => {
                 let config = RemoteConfig::from_address(remote.address.clone()).await?;
                 tracing::debug!(?config, "opening repository");
@@ -230,26 +247,17 @@ impl Config {
                 tracing::debug!(?config, "opening repository");
                 config.open().await
             }
-            None => {
-                let addr = match url::Url::parse(name_or_address.as_ref()) {
-                    Ok(addr) => addr,
-                    Err(_) => {
-                        url::Url::parse(format!("file:{}", name_or_address.as_ref()).as_str())?
-                    }
-                };
-                let config = RemoteConfig::from_address(addr).await?;
-                tracing::debug!(?config, "opening repository");
-                config.open().await
-            }
-        };
-        match res {
-            Ok(repo) => Ok(repo),
-            err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
-            Err(err) => Err(crate::Error::FailedToOpenRepository {
+            None => Err(crate::Error::UnknownRemoteName(
+                remote_name.as_ref().to_owned(),
+            )),
+        }
+        .map_err(|err| match err {
+            err @ crate::Error::FailedToOpenRepository { .. } => err,
+            err => crate::Error::FailedToOpenRepository {
                 reason: String::from("error"),
                 source: Box::new(err),
-            }),
-        }
+            },
+        })
     }
 }
 
@@ -320,4 +328,58 @@ pub async fn open_repository<S: AsRef<str>>(
             source: Box::new(err),
         }),
     }
+}
+
+/// Open a repository either by address or by configured name.
+///
+/// If `specifier` is `None`, return the configured local repository.
+///
+/// This function will try to interpret the given repository specifier
+/// as either a url or configured remote name. It is recommended to use
+/// an alternative function when the type of the specifier is known.
+///
+/// When the repository specifier is expected to be a configured
+/// repository, use `config::get_remote_repository_or_local` instead.
+///
+/// When the repository specifier is a url, use `open_repository` instead.
+pub async fn open_repository_from_string<S: AsRef<str>>(
+    config: &Config,
+    specifier: &Option<S>,
+) -> crate::Result<storage::RepositoryHandle> {
+    // Discovering that the given string is not a configured remote
+    // name is relatively cheap, so attempt to open a remote that
+    // way first.
+    let rh = config.get_remote_repository_or_local(specifier).await;
+
+    if let Err(crate::Error::FailedToOpenRepository { source, .. }) = &rh {
+        if let crate::Error::UnknownRemoteName(specifier) = &**source {
+            // In the event that provided specifier was not a recognized name,
+            // attempt to use it as an address instead.
+            let rh_as_address = open_repository(specifier).await;
+
+            // This might fail because the specifier was not a valid url.
+            if let Err(crate::Error::InvalidRemoteUrl(_)) = rh_as_address {
+                // If the specifier does not contain a '/' then it is more
+                // likely a bare name like "foo" and not intended to be
+                // treated as path on disk.
+                if !specifier.contains('/') {
+                    // Return the original error so the user sees something like
+                    // "foo" is an unknown remote, rather than an error about
+                    // parsing urls.
+                    return rh;
+                }
+
+                // As a convenience, try turning the specifier into a valid file url.
+                let address = format!("file:{}", specifier);
+                // User should see the error from this however this plays out.
+                return open_repository(address).await;
+            }
+
+            // Other errors apart from parsing the url should be shown to the user.
+            return rh_as_address;
+        }
+    }
+
+    // No fallbacks worked so return the original result.
+    rh
 }

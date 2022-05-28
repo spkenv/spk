@@ -22,7 +22,7 @@ pub async fn push_ref<R: AsRef<str>>(
     remote: Option<storage::RepositoryHandle>,
 ) -> Result<graph::Object> {
     let config = get_config()?;
-    let local = config.get_repository().await?.into();
+    let local = config.get_local_repository().await?.into();
     let remote = match remote {
         Some(remote) => remote,
         None => config.get_remote("origin").await?,

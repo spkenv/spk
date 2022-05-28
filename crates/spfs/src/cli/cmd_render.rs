@@ -30,7 +30,7 @@ pub struct CmdRender {
 impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::new(&self.reference)?;
-        let repo = config.get_repository().await?;
+        let repo = config.get_local_repository().await?;
 
         for target in &env_spec.items {
             let target = target.to_string();
@@ -76,7 +76,7 @@ impl CmdRender {
         env_spec: spfs::tracking::EnvSpec,
         config: &spfs::Config,
     ) -> spfs::Result<std::path::PathBuf> {
-        let repo = config.get_repository().await?;
+        let repo = config.get_local_repository().await?;
         let renders = repo.renders()?;
         let mut digests = Vec::with_capacity(env_spec.items.len());
         for env_item in env_spec.items {

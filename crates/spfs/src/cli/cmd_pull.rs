@@ -28,7 +28,7 @@ pub struct CmdPull {
 
 impl CmdPull {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_repository().await?.into();
+        let repo = config.get_local_repository().await?.into();
         let remote = match &self.remote {
             None => config.get_remote("origin").await?,
             Some(remote) => config.get_remote(remote).await?,

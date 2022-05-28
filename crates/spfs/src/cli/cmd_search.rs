@@ -27,7 +27,7 @@ impl CmdSearch {
             };
             repos.push(remote);
         }
-        repos.insert(0, config.get_repository().await?.into());
+        repos.insert(0, config.get_local_repository().await?.into());
         for repo in repos.into_iter() {
             let mut tag_streams = repo.iter_tags();
             while let Some(tag) = tag_streams.next().await {

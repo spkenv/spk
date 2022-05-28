@@ -29,10 +29,7 @@ pub struct CmdUntag {
 
 impl CmdUntag {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = match &self.remote {
-            Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository().await?.into(),
-        };
+        let repo = spfs::config::open_repository_from_string(config, &self.remote).await?;
 
         let has_version = self.tag.contains('~') || self.latest;
         let mut tag = spfs::tracking::TagSpec::parse(&self.tag)?;

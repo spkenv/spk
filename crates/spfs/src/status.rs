@@ -46,7 +46,7 @@ pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
 /// The returned manifest DOES NOT include any active changes to the runtime.
 pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
     let config = get_config()?;
-    let repo = config.get_repository().await?;
+    let repo = config.get_local_repository().await?;
 
     let layers = resolve_stack_to_layers(rt.status.stack.iter(), None).await?;
     let mut manifest = tracking::Manifest::default();

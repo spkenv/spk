@@ -39,10 +39,7 @@ pub struct CmdCommit {
 
 impl CmdCommit {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = Arc::new(match &self.remote {
-            Some(remote) => config.get_remote(remote).await?,
-            None => config.get_repository().await?.into(),
-        });
+        let repo = Arc::new(config.get_remote_repository_or_local(&self.remote).await?);
 
         let result: spfs::graph::Object = if let Some(path) = &self.path {
             let manifest = spfs::commit_dir(Arc::clone(&repo), path).await?;
