@@ -168,20 +168,38 @@ pub(crate) async fn resolve_overlay_dirs(
             break;
         }
         // Cut the number of layers in half...
-        let to_flatten = manifests.len() / 2;
+        let mut to_flatten = manifests.len() / 2;
         // Infinite loop protection.
-        if to_flatten <= 1 {
-            break;
+        while to_flatten > 1 {
+            // How many layers to flatten together as a group. By grouping,
+            // the cost of flattening can be amortized compared to doing one
+            // layer at a time, while still allowing for a chance of reusing
+            // previously flattened layers.
+            //
+            //     A B C D E F G H I J K L M N O P ...
+            //     |---- A' -----|---- H' -----|
+            //
+            //     A B C D E F G H I J K L Q R S T ...
+            //     |---- A' -----|---- H'' ----|
+            //
+            // In the above example, both would produce the same `A'` flattened
+            // layer and its render could be reused.
+            const FLATTEN_GROUP_SIZE: usize = 7;
+
+            let flatten_group_length = to_flatten.min(FLATTEN_GROUP_SIZE);
+
+            tracing::debug!("flattening {flatten_group_length} layers into one...");
+            let mut manifest = tracking::Manifest::default();
+            for next in manifests.drain(0..flatten_group_length) {
+                manifest.update(&next.unlock());
+            }
+            let manifest = graph::Manifest::from(&manifest);
+            // store the newly created manifest so that the render process can read it back
+            repo.write_object(&manifest.clone().into()).await?;
+            manifests.insert(0, manifest);
+
+            to_flatten -= flatten_group_length;
         }
-        tracing::debug!("flattening {to_flatten} layers into one...");
-        let mut manifest = tracking::Manifest::default();
-        for next in manifests.drain(0..to_flatten) {
-            manifest.update(&next.unlock());
-        }
-        let manifest = graph::Manifest::from(&manifest);
-        // store the newly created manifest so that the render process can read it back
-        repo.write_object(&manifest.clone().into()).await?;
-        manifests.insert(0, manifest);
     }
 
     Ok(manifests)
