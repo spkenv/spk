@@ -159,7 +159,7 @@ pub(crate) async fn resolve_overlay_dirs(
     loop {
         let mut overlay_dirs = Vec::with_capacity(manifests.len());
         for manifest in &manifests {
-            let rendered_dir = renders.manifest_render_path(manifest).await?;
+            let rendered_dir = renders.manifest_render_path(manifest)?;
             overlay_dirs.push(rendered_dir);
         }
         if crate::env::get_overlay_args(&runtime.config, overlay_mount_options, overlay_dirs)
