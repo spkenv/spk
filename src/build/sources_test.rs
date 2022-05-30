@@ -74,14 +74,14 @@ async fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
     let file_source = api::LocalSource::new(source_file).set_subdir("local");
 
     let dest_dir = rt.tmpdir.path().join("dest");
-    let mut spec = api::Spec::new("test-pkg".parse().unwrap());
+    let mut spec = api::v0::Spec::new("test-pkg".parse().unwrap());
     spec.sources = vec![
         api::SourceSpec::Git(git_source),
         api::SourceSpec::Tar(tar_source),
         api::SourceSpec::Local(file_source),
         api::SourceSpec::Local(dir_source),
     ];
-    collect_sources(&spec, &dest_dir).unwrap();
+    collect_sources(&spec.into(), &dest_dir).unwrap();
     assert!(dest_dir.join("local").is_dir());
     assert!(dest_dir.join("git_repo").is_dir());
     assert!(dest_dir.join("archive/src").is_dir());
@@ -99,7 +99,7 @@ async fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
 #[tokio::test]
 async fn test_sources_environment(_tmpdir: tempdir::TempDir) {
     let rt = spfs_runtime().await;
-    let mut spec = crate::spec!({"pkg": "sources-test/0.1.0/src"});
+    let mut spec = crate::api::v0::Spec::new(crate::ident!("sources-test/0.1.0/src"));
     let expected = vec![
         "SPK_PKG=sources-test/0.1.0/src",
         "SPK_PKG_NAME=sources-test",
@@ -127,7 +127,7 @@ async fn test_sources_environment(_tmpdir: tempdir::TempDir) {
     ]);
     let dest_dir = rt.tmpdir.path().join("dest");
     spec.sources = vec![api::SourceSpec::Script(script_source)];
-    collect_sources(&spec, dest_dir).unwrap();
+    collect_sources(&spec.into(), dest_dir).unwrap();
 
     let actual = std::fs::read_to_string(out_file).unwrap();
     assert_eq!(

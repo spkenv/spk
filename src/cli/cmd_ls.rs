@@ -6,7 +6,8 @@ use std::{collections::BTreeSet, fmt::Write};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use spk::{api::PkgName, io::Format};
+use spk::api::{Package, PkgName};
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
@@ -121,13 +122,13 @@ impl Run for Ls {
                     // closer to the next Some(package) clause?
                     if self.deprecated {
                         // show deprecated versions
-                        if spec.deprecated {
+                        if spec.deprecated() {
                             results.push(format!("{version} {}", "DEPRECATED".red()));
                             continue;
                         }
                     } else {
                         // don't show deprecated versions
-                        if spec.deprecated {
+                        if spec.deprecated() {
                             continue;
                         }
                     }
@@ -153,7 +154,7 @@ impl Run for Ls {
                                 continue;
                             }
                         };
-                        if spec.deprecated && !self.deprecated {
+                        if spec.deprecated() && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
                         }
@@ -232,7 +233,7 @@ impl Ls {
                             continue;
                         }
                     };
-                    if spec.deprecated && !self.deprecated {
+                    if spec.deprecated() && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
                     }
@@ -258,7 +259,7 @@ impl Ls {
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
         let mut item = pkg.format_ident();
-        if spec.deprecated {
+        if spec.deprecated() {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }
 

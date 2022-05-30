@@ -87,9 +87,7 @@ pub struct BinaryPackageBuilder<'a> {
 impl<'a> BinaryPackageBuilder<'a> {
     /// Create a new builder that builds a binary package from the given spec
     pub fn from_spec(spec: api::Spec) -> Self {
-        let source =
-            BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)).into());
-
+        let source = BuildSource::SourcePackage(spec.ident().with_build(Some(api::Build::Source)));
         Self {
             spec,
             source,
@@ -214,10 +212,7 @@ impl<'a> BinaryPackageBuilder<'a> {
 
         let pkg_options = self.spec.resolve_all_options(&self.all_options);
         tracing::debug!("package options: {}", pkg_options);
-        let compat = self
-            .spec
-            .build
-            .validate_options(&self.spec.pkg.name, &self.all_options);
+        let compat = self.spec.validate_options(&self.all_options);
         if !&compat {
             return Err(Error::String(compat.to_string()));
         }
@@ -326,13 +321,13 @@ impl<'a> BinaryPackageBuilder<'a> {
     pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
         let opts = self.spec.resolve_all_options(&self.all_options);
         let mut requests = Vec::new();
-        for opt in self.spec.build.options.iter() {
+        for opt in self.spec.options().iter() {
             match opt {
                 api::Opt::Pkg(opt) => {
                     let given_value = opts.get(opt.pkg.as_opt_name()).map(String::to_owned);
                     let mut req = opt.to_request(
                         given_value,
-                        api::RequestedBy::BinaryBuild(self.spec.pkg.clone()),
+                        api::RequestedBy::BinaryBuild(self.spec.ident().clone()),
                     )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
@@ -368,7 +363,7 @@ impl<'a> BinaryPackageBuilder<'a> {
     {
         self.build_artifacts(env).await?;
 
-        let sources_dir = data_path(&self.spec.pkg.with_build(Some(api::Build::Source)));
+        let sources_dir = data_path(&self.spec.ident().with_build(Some(api::Build::Source)));
 
         let mut runtime = spfs::active_runtime().await?;
         let pattern = sources_dir.join("**").to_string();
@@ -382,7 +377,8 @@ impl<'a> BinaryPackageBuilder<'a> {
 
         tracing::info!("Validating package contents...");
         self.spec
-            .validate_build_changeset()
+            .validation()
+            .validate_build_changeset(&self.spec)
             .await
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
@@ -396,7 +392,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        let pkg = &self.spec.pkg;
+        let pkg = self.spec.ident();
         let metadata_dir = data_path(pkg).to_path(&self.prefix);
         let build_spec = build_spec_path(pkg).to_path(&self.prefix);
         let build_options = build_options_path(pkg).to_path(&self.prefix);
@@ -407,7 +403,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         {
             let mut writer = std::fs::File::create(&build_script)?;
             writer
-                .write_all(self.spec.build.script.join("\n").as_bytes())
+                .write_all(self.spec.build_script().as_bytes())
                 .map_err(|err| Error::String(format!("Failed to save build script: {}", err)))?;
             writer.sync_data()?;
         }
@@ -417,7 +413,7 @@ impl<'a> BinaryPackageBuilder<'a> {
                 .map_err(|err| Error::String(format!("Failed to save build options: {}", err)))?;
             writer.sync_data()?;
         }
-        for cmpt in self.spec.install.components.iter() {
+        for cmpt in self.spec.components().iter() {
             let marker_path = component_marker_path(pkg, &cmpt.name).to_path(&self.prefix);
             std::fs::File::create(marker_path)?;
         }
@@ -480,7 +476,7 @@ impl<'a> BinaryPackageBuilder<'a> {
     }
 
     fn generate_startup_scripts(&self) -> Result<()> {
-        let ops = &self.spec.install.environment;
+        let ops = self.spec.runtime_environment();
         if ops.is_empty() {
             return Ok(());
         }
@@ -493,8 +489,8 @@ impl<'a> BinaryPackageBuilder<'a> {
             }
         }
 
-        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.pkg.name));
-        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.pkg.name));
+        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.name()));
+        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.name()));
         let mut csh_file = std::fs::File::create(startup_file_csh)?;
         let mut sh_file = std::fs::File::create(startup_file_sh)?;
         for op in ops {
@@ -506,14 +502,14 @@ impl<'a> BinaryPackageBuilder<'a> {
 }
 
 /// Return the environment variables to be set for a build of the given package spec.
-pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
+pub fn get_package_build_env(spec: &impl Package) -> HashMap<String, String> {
     let mut env = HashMap::with_capacity(8);
-    env.insert("SPK_PKG".to_string(), spec.pkg.to_string());
-    env.insert("SPK_PKG_NAME".to_string(), spec.pkg.name.to_string());
-    env.insert("SPK_PKG_VERSION".to_string(), spec.pkg.version.to_string());
+    env.insert("SPK_PKG".to_string(), spec.ident().to_string());
+    env.insert("SPK_PKG_NAME".to_string(), spec.name().to_string());
+    env.insert("SPK_PKG_VERSION".to_string(), spec.version().to_string());
     env.insert(
         "SPK_PKG_BUILD".to_string(),
-        spec.pkg
+        spec.ident()
             .build
             .as_ref()
             .map(api::Build::to_string)
@@ -521,20 +517,19 @@ pub fn get_package_build_env(spec: &api::Spec) -> HashMap<String, String> {
     );
     env.insert(
         "SPK_PKG_VERSION_MAJOR".to_string(),
-        spec.pkg.version.major().to_string(),
+        spec.version().major().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_MINOR".to_string(),
-        spec.pkg.version.minor().to_string(),
+        spec.version().minor().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_PATCH".to_string(),
-        spec.pkg.version.patch().to_string(),
+        spec.version().patch().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_BASE".to_string(),
-        spec.pkg
-            .version
+        spec.version()
             .parts
             .iter()
             .map(u32::to_string)
@@ -552,7 +547,7 @@ pub async fn commit_component_layers(
     let repo = Arc::new(config.get_local_repository_handle().await?);
     let layer = spfs::commit_layer(runtime, Arc::clone(&repo)).await?;
     let manifest = repo.read_manifest(layer.manifest).await?.unlock();
-    let manifests = split_manifest_by_component(&spec.pkg, &manifest, &spec.install.components)?;
+    let manifests = split_manifest_by_component(spec.ident(), &manifest, spec.components())?;
     let mut committed = HashMap::with_capacity(manifests.len());
     for (component, manifest) in manifests {
         let manifest = spfs::graph::Manifest::from(&manifest);

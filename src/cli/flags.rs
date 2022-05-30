@@ -7,6 +7,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
+use spk::api::Package;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -171,7 +172,7 @@ impl Requests {
 
                 match stage {
                     spk::api::TestStage::Sources => {
-                        let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
+                        let ident = spec.ident().with_build(Some(spk::api::Build::Source));
                         idents.push(ident);
                         continue;
                     }
@@ -186,7 +187,7 @@ impl Requests {
             let path = std::path::Path::new(package);
             if path.is_file() {
                 let (_, spec) = find_package_spec(&Some(package))?.must_be_found();
-                idents.push(spec.pkg.clone());
+                idents.push(spec.ident().clone());
             } else {
                 idents.push(spk::api::parse_ident(package)?)
             }
@@ -243,7 +244,7 @@ impl Requests {
 
                 match stage {
                     spk::api::TestStage::Sources => {
-                        let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
+                        let ident = spec.ident().with_build(Some(spk::api::Build::Source));
                         out.push(
                             spk::api::PkgRequest::from_ident(
                                 ident,
@@ -263,13 +264,13 @@ impl Requests {
                         }
                     }
                     spk::api::TestStage::Install => {
-                        for request in spec.install.requirements.iter() {
+                        for request in spec.runtime_requirements().iter() {
                             let req = match request {
                                 v @ spk::api::Request::Var(_) => v.clone(),
                                 spk::api::Request::Pkg(r) => {
                                     let mut t = r.clone();
                                     t.add_requester(spk::api::RequestedBy::PackageBuild(
-                                        spec.pkg.clone(),
+                                        spec.ident().clone(),
                                     ));
                                     spk::api::Request::Pkg(t)
                                 }
@@ -430,7 +431,7 @@ where
 
     for path in find_packages()? {
         let spec = spk::api::read_spec_file(&path)?;
-        if spec.pkg.name.as_str() == package.as_ref() {
+        if spec.name().as_str() == package.as_ref() {
             return Ok(Found {
                 path,
                 spec: Arc::new(spec),

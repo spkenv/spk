@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use crate::{
-    api, build,
+    api::{self, Package},
+    build,
     io::{self, Format},
     solve, storage, Error, Result,
 };
@@ -18,16 +19,16 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
         if let solve::PackageSource::Spec(ref source) = resolved.source {
-            if source.pkg == resolved.spec.pkg.with_build(None) {
+            if source.ident() == &resolved.spec.ident().with_build(None) {
                 // The resolved solution includes a package that needs
                 // to be built with specific options because such a
                 // build doesn't exist in a repo.
                 let spec_options = resolved.spec.resolve_all_options(&solution.options());
                 return Err(Error::String(format!(
-                        "Solution includes package that needs building from source: {} with these options: {}",
-                        resolved.spec.pkg,
-                        io::format_options(&spec_options)
-                    )));
+                    "Solution includes package that needs building from source: {} with these options: {}",
+                    resolved.spec.ident(),
+                    io::format_options(&spec_options)
+                )));
             }
         }
 
@@ -52,8 +53,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
         }
         desired_components = resolved
             .spec
-            .install
-            .components
+            .components()
             .resolve_uses(desired_components.iter());
 
         for name in desired_components.into_iter() {
@@ -83,7 +83,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
                 "collecting {} of {} {}",
                 i + 1,
                 to_sync_count,
-                spec.pkg.format_ident(),
+                spec.ident().format_ident(),
             );
             let syncer = spfs::Syncer::new(repo, &local_repo)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
@@ -131,7 +131,7 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
 
         tracing::info!(
             "Building: {} for {}",
-            item.spec.pkg.format_ident(),
+            item.spec.ident().format_ident(),
             io::format_options(&options)
         );
         let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
@@ -139,7 +139,7 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
             .with_options(options.clone())
             .build()
             .await?;
-        let components = local_repo.get_package(&spec.pkg).await?;
+        let components = local_repo.get_package(spec.ident()).await?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,

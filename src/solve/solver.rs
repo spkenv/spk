@@ -16,7 +16,7 @@ use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
-    api::{self, Build, Component, OptionMap, PkgName, Request},
+    api::{self, Build, Component, OptionMap, Package, PkgName, Request},
     solve::graph::StepBack,
     storage, Error, Result,
 };
@@ -259,20 +259,19 @@ impl Solver {
                 // Try all the hash map values to check all repos.
                 for (spec, repo) in hm.values() {
                     let mut spec = Arc::clone(spec);
-
-                    let build_from_source = spec.pkg.build == Some(Build::Source)
+                    let build_from_source = spec.ident().build == Some(Build::Source)
                         && request.pkg.build != Some(Build::Source);
                     if build_from_source {
                         if let PackageSource::Spec(spec) = repo {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.pkg.clone(),
+                                spec.ident().clone(),
                                 "cannot build embedded source package",
                             )));
                             self.number_builds_skipped += 1;
                             continue;
                         }
 
-                        match repo.read_spec(&spec.pkg.with_build(None)).await {
+                        match repo.read_spec(&spec.ident().with_build(None)).await {
                             Ok(s) => spec = s,
                             Err(Error::PackageNotFoundError(pkg)) => {
                                 notes.push(Note::SkipPackageNote(
@@ -287,16 +286,10 @@ impl Solver {
                         }
                     }
 
-                    compat = self.validate(
-                        &node.state,
-                        &spec,
-                        // Go home, clippy, you're drunk.
-                        #[allow(clippy::needless_borrow)]
-                        &repo,
-                    )?;
+                    compat = self.validate(&node.state, &spec, &repo)?;
                     if !&compat {
                         notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                            spec.pkg.clone(),
+                            spec.ident().clone(),
                             compat,
                         )));
                         self.number_builds_skipped += 1;
@@ -314,8 +307,8 @@ impl Solver {
                                     Err(err) => {
                                         notes.push(Note::SkipPackageNote(
                                             SkipPackageNote::new_from_message(
-                                                spec.pkg.clone(),
-                                                format!("cannot build package: {err:?}"),
+                                                spec.ident().clone(),
+                                                format!("cannot build package: {err}"),
                                             ),
                                         ));
                                         self.number_builds_skipped += 1;
@@ -323,13 +316,12 @@ impl Solver {
                                     }
                                 }
                             }
-
                             // FIXME: This should only match `SolverError`
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.pkg.clone(),
-                                        format!("cannot resolve build env: {err:?}"),
+                                        spec.ident().clone(),
+                                        format!("cannot resolve build env: {err}"),
                                     ),
                                 ));
                                 self.number_builds_skipped += 1;
@@ -341,6 +333,7 @@ impl Solver {
                             .with_components(&request.pkg.components)
                             .resolve_package(repo.clone())
                     };
+
                     decision.add_notes(notes.iter().cloned());
                     return Ok(Some(decision));
                 }
@@ -433,13 +426,13 @@ impl Solver {
         let state = self.get_initial_state();
 
         let build_options = spec.resolve_all_options(state.get_option_map());
-        for option in &spec.build.options {
+        for option in spec.options() {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(option.pkg.as_opt_name());
 
                 let mut request = option.to_request(
                     given.cloned(),
-                    api::RequestedBy::PackageBuild(spec.pkg.clone()),
+                    api::RequestedBy::PackageBuild(spec.ident().clone()),
                 )?;
                 // if no components were explicitly requested in a build option,
                 // then we inject the default for this context

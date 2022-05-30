@@ -22,6 +22,7 @@ mod requirements_list;
 mod source_spec;
 mod spec;
 mod test_spec;
+pub mod v0;
 mod validation;
 mod validators;
 mod version;
@@ -46,7 +47,7 @@ pub use name::{
 pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub(crate) use option_map::DIGEST_SIZE;
 pub use option_map::{host_options, OptionMap};
-pub use package::Package;
+pub use package::{Package, Recipe};
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
     RequestedBy, VarRequest,

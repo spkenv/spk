@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use super::Repository;
-use crate::api::PkgNameBuf;
+use crate::api::{Package, PkgNameBuf};
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
@@ -177,18 +177,18 @@ impl Repository for MemRepository {
     }
 
     async fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        if spec.pkg.build.is_some() {
+        if spec.ident().build.is_some() {
             return Err(Error::String(format!(
                 "Spec must be published with no build, got {}",
-                spec.pkg
+                spec.ident()
             )));
         }
         let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.pkg.name.clone()).or_default();
-        if versions.contains_key(&spec.pkg.version) {
-            Err(Error::VersionExistsError(spec.pkg.clone()))
+        let versions = specs.entry(spec.name().to_owned()).or_default();
+        if versions.contains_key(spec.version()) {
+            Err(Error::VersionExistsError(spec.ident().clone()))
         } else {
-            versions.insert(spec.pkg.version.clone(), Arc::new(spec.clone()));
+            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
             Ok(())
         }
     }
@@ -207,7 +207,7 @@ impl Repository for MemRepository {
     }
 
     async fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        if let Some(api::Build::Embedded) = spec.pkg.build {
+        if let Some(api::Build::Embedded) = spec.ident().build {
             return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
             ));
@@ -216,14 +216,14 @@ impl Repository for MemRepository {
         // The spec could be for a build or a version. They are
         // handled differently because of where this repo stores each
         // kind of spec.
-        match &spec.pkg.build {
+        match &spec.ident().build {
             Some(b) => {
                 // A build spec, e.g. package/version/build. This will
                 // overwrite the build spec, but keep the build's
                 // current components, if any.
                 let mut packages = self.packages.write().await;
-                let versions = packages.entry(spec.pkg.name.clone()).or_default();
-                let builds = versions.entry(spec.pkg.version.clone()).or_default();
+                let versions = packages.entry(spec.name().to_owned()).or_default();
+                let builds = versions.entry(spec.version().clone()).or_default();
                 let components = match builds.get(b) {
                     Some(t) => t.1.clone(),
                     None => ComponentMap::default(),
@@ -237,8 +237,8 @@ impl Repository for MemRepository {
                 // the new one. It does not change the build specs, which
                 // are stored in the packages field
                 let mut specs = self.specs.write().await;
-                let versions = specs.entry(spec.pkg.name.clone()).or_default();
-                versions.remove(&spec.pkg.version);
+                let versions = specs.entry(spec.name().to_owned()).or_default();
+                versions.remove(spec.version());
                 drop(specs); // this lock will be needed to publish
                 self.publish_spec(spec).await
             }
@@ -246,19 +246,19 @@ impl Repository for MemRepository {
     }
 
     async fn publish_package(&self, spec: &api::Spec, components: ComponentMap) -> Result<()> {
-        let build = match &spec.pkg.build {
+        let build = match &spec.ident().build {
             Some(b) => b.to_owned(),
             None => {
                 return Err(Error::String(format!(
                     "Package must include a build in order to be published: {}",
-                    spec.pkg
+                    spec.ident()
                 )))
             }
         };
 
         let mut packages = self.packages.write().await;
-        let versions = packages.entry(spec.pkg.name.clone()).or_default();
-        let builds = versions.entry(spec.pkg.version.clone()).or_default();
+        let versions = packages.entry(spec.name().to_owned()).or_default();
+        let builds = versions.entry(spec.version().clone()).or_default();
 
         builds.insert(build, (spec.clone(), components));
         Ok(())

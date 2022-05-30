@@ -15,7 +15,7 @@ use std::{
 use super::solution::PackageSource;
 use crate::api::OptNameBuf;
 use crate::{
-    api::{self, BuildKey},
+    api::{self, BuildKey, Package},
     storage, Error, Result,
 };
 
@@ -317,7 +317,7 @@ impl BuildIterator for RepositoryBuildIterator {
                     "Published spec is corrupt (has no associated build), pkg={}",
                     build,
                 );
-                Arc::make_mut(&mut spec).pkg = spec.pkg.with_build(build.build.clone());
+                return self.next().await;
             }
 
             result.insert(
@@ -488,13 +488,13 @@ impl SortedBuildIterator {
         ordered_names: &Vec<OptNameBuf>,
         build_name_values: &HashMap<api::Ident, api::OptionMap>,
     ) -> BuildKey {
-        let build_id = &spec.pkg;
+        let build_id = spec.ident();
         let empty = api::OptionMap::default();
         let name_values = match build_name_values.get(build_id) {
             Some(nv) => nv,
             None => &empty,
         };
-        BuildKey::new(&spec.pkg, ordered_names, name_values)
+        BuildKey::new(spec.ident(), ordered_names, name_values)
     }
 
     /// Sorts builds by keys based on ordered build option names and
@@ -511,7 +511,7 @@ impl SortedBuildIterator {
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
             // that always puts them last in the build order.
-            if let Some(b) = &build.pkg.build {
+            if let Some(b) = &build.ident().build {
                 if b.is_source() {
                     continue;
                 }
@@ -559,7 +559,7 @@ impl SortedBuildIterator {
                 }
             }
 
-            build_name_values.insert(build.pkg.clone(), options_map);
+            build_name_values.insert(build.ident().clone(), options_map);
         }
 
         // Now that all the builds have been processed, pull out the
@@ -646,7 +646,7 @@ impl SortedBuildIterator {
                 .map(|(spec, _)| {
                     format!(
                         "{} = {} : {:?}",
-                        spec.pkg,
+                        spec.ident(),
                         SortedBuildIterator::make_option_values_build_key(
                             spec,
                             &ordered_names,

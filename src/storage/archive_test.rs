@@ -4,7 +4,7 @@
 use rstest::rstest;
 
 use super::{export_package, import_package};
-use crate::{build, fixtures::*};
+use crate::{api::Package, build, fixtures::*};
 
 #[rstest]
 #[tokio::test]
@@ -24,7 +24,7 @@ async fn test_archive_io() {
         .unwrap();
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    export_package(&spec.pkg, &filename)
+    export_package(spec.ident(), &filename)
         .await
         .expect("failed to export");
     let mut actual = Vec::new();
@@ -83,7 +83,7 @@ async fn test_archive_create_parents() {
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");
-    export_package(&spec.pkg, filename)
+    export_package(spec.ident(), filename)
         .await
         .expect("export should create dirs as needed");
 }

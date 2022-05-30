@@ -8,29 +8,177 @@ use spfs::encoding::EMPTY_DIGEST;
 
 use super::Solver;
 use crate::fixtures::*;
-use crate::{api, io, Error, Result};
+use crate::{
+    api::{self, Package},
+    io, Error, Result,
+};
 // macros
-use crate::{make_build, make_build_and_components, make_repo, opt_name, option_map, spec};
+use crate::{
+    make_build, make_build_and_components, make_build_and_components, make_repo, opt_name,
+    option_map, request, spec,
+};
 
 #[fixture]
 fn solver() -> Solver {
     Solver::default()
 }
 
-/// Creates a request from a literal range identifier, or json structure
-macro_rules! request {
-    ($req:literal) => {
-        crate::api::Request::Pkg(crate::api::PkgRequest::new(
-            crate::api::parse_ident_range($req).unwrap(),
-            api::RequestedBy::SpkInternalTest,
-        ))
-    };
-    ($req:tt) => {{
-        let value = serde_json::json!($req);
-        let req: crate::api::Request = serde_json::from_value(value).unwrap();
-        req
-    }};
-}
+// /// Creates a repository containing a set of provided package specs.
+// /// It will take care of publishing the spec, and creating a build for
+// /// each provided package so that it can be resolved.
+// ///
+// /// make_repo!({"pkg": "mypkg/1.0.0"});
+// /// make_repo!({"pkg": "mypkg/1.0.0"}, options = {"debug" => "off"});
+// macro_rules! make_repo {
+//     ( [ $( $spec:tt ),+ $(,)? ] ) => {{
+//         make_repo!([ $( $spec ),* ], options={})
+//     }};
+//     ( [ $( $spec:tt ),+ $(,)? ], options={ $($k:expr => $v:expr),* } ) => {{
+//         let options = crate::option_map!{$($k => $v),*};
+//         make_repo!([ $( $spec ),* ], options=options)
+//     }};
+//     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
+//         let repo = crate::storage::RepositoryHandle::new_mem();
+//         let _opts = $options;
+//         $(
+//             let (s, cmpts) = make_package!(repo, $spec, &_opts);
+//             repo.publish_package(s, cmpts).unwrap();
+//         )*
+//         repo
+//     }};
+// }
+
+// #[macro_export(local_inner_macros)]
+// macro_rules! make_package {
+//     ($repo:ident, ($build_spec:expr, $components:expr), $opts:expr) => {{
+//         ($build_spec, $components)
+//     }};
+//     ($repo:ident, $build_spec:ident, $opts:expr) => {{
+//         use $crate::api::PackageTemplate;
+//         let s = $build_spec.clone();
+//         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
+//             .components()
+//             .iter()
+//             .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
+//             .collect();
+//         (s, cmpts)
+//     }};
+//     ($repo:ident, $spec:tt, $opts:expr) => {{
+//         //use $crate::api::PackageTemplate;
+//         let json = serde_json::json!($spec);
+//         let mut spec: crate::api::v0::Spec =
+//             serde_json::from_value(json).expect("Invalid spec json");
+//         let build = spec.clone();
+//         spec.pkg.set_build(None);
+//         let build = $crate::api::Spec::V0Package(build);
+//         $repo.force_publish_spec(spec.into()).unwrap();
+//         make_build_and_components!(build, [], $opts, [])
+//     }};
+// }
+
+// /// Make a build of a package spec
+// ///
+// /// This macro at least takes a spec json or identifier, but can optionally
+// /// take two additional parameters:
+// ///     a list of dependencies used to make the build (eg [depa, depb])
+// ///     the options used to make the build (eg: {"debug" => "on"})
+// #[macro_export(local_inner_macros)]
+// macro_rules! make_build {
+//     ($spec:tt) => {
+//         make_build!($spec, [])
+//     };
+//     ($spec:tt, $deps:tt) => {
+//         make_build!($spec, $deps, {})
+//     };
+//     ($spec:tt, $deps:tt, $opts:tt) => {{
+//         let (spec, _) = make_build_and_components!($spec, $deps, $opts);
+//         spec
+//     }};
+// }
+
+// /// Given a spec and optional params, creates a publishable build and component map.
+// ///
+// /// This macro at least takes a spec json or identifier, but can optionally
+// /// take three additional parameters:
+// ///     a list of dependencies used to make the build (eg [depa, depb])
+// ///     the options used to make the build (eg: {"debug" => "on"})
+// ///     the list of component names to generate (eg: ["bin", "run"])
+// #[macro_export(local_inner_macros)]
+// macro_rules! make_build_and_components {
+//     ($spec:tt) => {
+//         make_build_and_components!($spec, [])
+//     };
+//     ($spec:tt, [$($dep:expr),*]) => {
+//         make_build_and_components!($spec, [$($dep),*], {})
+//     };
+//     ($spec:tt, [$($dep:expr),*], $opts:tt) => {
+//         make_build_and_components!($spec, [$($dep),*], $opts, [])
+//     };
+//     ($spec:tt, [$($dep:expr),*], { $($k:expr => $v:expr),* }, [$($component:expr),*]) => {{
+//         let opts = crate::option_map!{$($k => $v),*};
+//         make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
+//     }};
+//     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
+//         let mut spec = make_spec!($spec);
+//         let mut components = std::collections::HashMap::<crate::api::Component, spfs::encoding::Digest>::new();
+//         if spec.ident().is_source() {
+//             components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
+//             (spec, components)
+//         } else {
+//             let mut build_opts = $opts.clone();
+//             #[allow(unused_mut)]
+//             let mut solution = crate::solve::Solution::new(Some(build_opts.clone()));
+//             $(
+//             let dep = Arc::new($dep.clone());
+//             solution.add(
+//                 &crate::api::PkgRequest::from_ident(spec.ident()),
+//                 Arc::clone(&dep),
+//                 crate::solve::PackageSource::Spec(dep)
+//             );
+//             )*
+//             let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
+//             build_opts.extend(&mut resolved_opts);
+//             spec = spec.update_for_build(&build_opts, &solution)
+//                 .expect("Failed to render build spec");
+//             let mut names = std::vec![$($component.to_string()),*];
+//             if names.is_empty() {
+//                 names = spec.components().iter().map(|c| c.name.to_string()).collect();
+//             }
+//             for name in names {
+//                 let name = crate::api::Component::parse(name).expect("invalid component name");
+//                 components.insert(name, spfs::encoding::EMPTY_DIGEST.into());
+//             }
+//             (spec, components)
+//         }
+//     }}
+// }
+
+// /// Makes a package spec either from a raw json definition
+// /// or by cloning a given identifier
+// #[macro_export(local_inner_macros)]
+// macro_rules! make_spec {
+//     ($spec:ident) => {
+//         $spec.clone()
+//     };
+//     ($spec:tt) => {
+//         crate::spec!($spec)
+//     };
+// }
+
+// /// Creates a request from a literal range identifier, or json structure
+// macro_rules! request {
+//     ($req:literal) => {
+//         crate::api::Request::Pkg(crate::api::PkgRequest::new(
+//             crate::api::parse_ident_range($req).unwrap(),
+//             api::RequestedBy::SpkInternalTest,
+//         ))
+//     };
+//     ($req:tt) => {{
+//         let value = serde_json::json!($req);
+//         let req: crate::api::Request = serde_json::from_value(value).unwrap();
+//         req
+//     }};
+// }
 
 /// Asserts that a package exists in the solution at a specific version,
 /// or that the solution contains a specific set of packages by name.
@@ -45,20 +193,22 @@ macro_rules! assert_resolved {
         assert_resolved!($solution, $pkg, version = $version, $message)
     };
     ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
+        use $crate::api::PackageTemplate;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.pkg.version, $version, $message);
+        assert_eq!(*pkg.spec.version(), $version, $message);
     }};
 
     ($solution:ident, $pkg:literal, build = $build:expr) => {
         assert_resolved!($solution, $pkg, build = $build, "wrong package build was resolved")
     };
     ($solution:ident, $pkg:literal, build = $build:expr, $message:literal) => {{
+        use $crate::api::PackageTemplate;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.pkg.build, $build, $message);
+        assert_eq!(pkg.spec.ident().build, $build, $message);
     }};
 
     ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
@@ -82,7 +232,7 @@ macro_rules! assert_resolved {
         let names: std::collections::HashSet<_> = $solution
             .items()
             .into_iter()
-            .map(|s| s.spec.pkg.name.to_string())
+            .map(|s| s.spec.name().to_string())
             .collect();
         let expected: std::collections::HashSet<_> = vec![
             $( $pkg.to_string() ),*
@@ -114,7 +264,7 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
+    let mut spec = api::v0::Spec::new(crate::ident!("my-pkg/1.0.0"));
     spec.pkg
         .set_build(Some(api::Build::Digest(options.digest())));
 
@@ -122,7 +272,9 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec, components).await.unwrap();
+    repo.publish_package(&spec.into(), components)
+        .await
+        .unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
@@ -142,10 +294,7 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
 async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let repo = crate::storage::RepositoryHandle::new_mem();
 
-    let options = option_map! {};
-    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
-    spec.pkg
-        .set_build(Some(api::Build::Digest(options.digest())));
+    let spec = spec!({"pkg": "my-pkg/1.0.0/4OYMIQUY"});
 
     // publish package without publishing spec
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
@@ -153,7 +302,6 @@ async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
         .collect();
     repo.publish_package(&spec, components).await.unwrap();
 
-    solver.update_options(options);
     solver.add_repository(Arc::new(repo));
     // Create this one as requested by the command line, rather than the tests
     let req = crate::api::Request::Pkg(crate::api::PkgRequest::new(
@@ -184,9 +332,9 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
     let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
-    assert_eq!(&resolved.spec.pkg.version.to_string(), "1.0.0");
-    assert!(resolved.spec.pkg.build.is_some());
-    assert_ne!(resolved.spec.pkg.build, Some(api::Build::Source));
+    assert_eq!(&resolved.spec.version().to_string(), "1.0.0");
+    assert!(resolved.spec.ident().build.is_some());
+    assert_ne!(resolved.spec.ident().build, Some(api::Build::Source));
 }
 
 #[rstest]
@@ -589,7 +737,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
         let resolved = solution.get("vnp3").unwrap();
-        let opt = resolved.spec.build.options.get(0).unwrap();
+        let opt = resolved.spec.options().get(0).unwrap();
         let value = opt.get_value(None);
 
         // Check the first digit component of the pyver value
@@ -696,7 +844,7 @@ async fn test_solver_build_from_source(mut solver: Solver) {
     assert!(
         resolved.is_source_build(),
         "Should set unbuilt spec as source: {}",
-        resolved.spec.pkg
+        resolved.spec.ident()
     );
 
     solver.reset();
@@ -802,7 +950,7 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
 #[tokio::test]
 async fn test_solver_deprecated_build(mut solver: Solver) {
     let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
-    let deprecated_build = deprecated.pkg.clone();
+    let deprecated_build = deprecated.ident().clone();
     let repo = make_repo!([
         {"pkg": "my-pkg/0.9.0"},
         {"pkg": "my-pkg/1.0.0"},
@@ -839,8 +987,7 @@ async fn test_solver_deprecated_build(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_deprecated_version(mut solver: Solver) {
-    let mut deprecated = make_build!({"pkg": "my-pkg/1.0.0"});
-    deprecated.deprecated = true;
+    let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
     let repo = make_repo!(
         [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": true}, deprecated]
     );
@@ -861,7 +1008,7 @@ async fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(
         api::PkgRequest::new(
-            api::RangeIdent::equals(&deprecated.pkg, []),
+            api::RangeIdent::equals(deprecated.ident(), []),
             api::RequestedBy::SpkInternalTest,
         )
         .into(),
@@ -886,21 +1033,17 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
         [
             {
                 "pkg": "my-tool/1.2.0/src",
+                "deprecated": false,
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
             {
                 "pkg": "my-tool/1.2.0",
+                "deprecated": true,
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
     options = {"debug" => "off"}
     );
-    let mut spec = repo
-        .read_spec(&api::parse_ident("my-tool/1.2.0").unwrap())
-        .await
-        .unwrap();
-    Arc::make_mut(&mut spec).deprecated = true;
-    repo.force_publish_spec(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!({"var": "debug/on"}));
@@ -1400,10 +1543,24 @@ async fn test_solver_component_availability(mut solver: Solver) {
             ]
         },
     });
-    let mut spec372 = spec373.clone();
-    spec372.pkg = api::parse_ident("python/3.7.2").unwrap();
-    let mut spec371 = spec373.clone();
-    spec371.pkg = api::parse_ident("python/3.7.1").unwrap();
+    let spec372 = spec!({
+        "pkg": "python/3.7.2",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
+    });
+    let spec371 = spec!({
+        "pkg": "python/3.7.1",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
+    });
 
     // the first pkg has what we want on paper, but didn't actually publish
     // the components that we need (missing bin)

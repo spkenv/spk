@@ -7,7 +7,7 @@ use spfs::{encoding::EMPTY_DIGEST, prelude::*};
 
 use super::{BinaryPackageBuilder, BuildSource};
 use crate::{
-    api::{self},
+    api::{self, Package},
     build::SourcePackageBuilder,
     fixtures::*,
     opt_name,
@@ -95,14 +95,12 @@ fn test_var_with_build_assigns_build() {
 async fn test_build_workdir(tmpdir: tempdir::TempDir) {
     let rt = spfs_runtime().await;
     let out_file = tmpdir.path().join("out.log");
-    let mut spec = crate::spec!(
-        {"pkg": "test/1.0.0"}
-    );
+    let mut spec = crate::api::v0::Spec::new("test/1.0.0".parse().unwrap());
 
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    rt.tmprepo.publish_spec(&spec.clone().into()).await.unwrap();
     spec.build.script = vec![format!("echo $PWD > {:?}", out_file)];
 
-    BinaryPackageBuilder::from_spec(spec)
+    BinaryPackageBuilder::from_spec(spec.into())
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
         .build()
         .await
@@ -172,7 +170,7 @@ async fn test_build_package_options() {
 
     let build_options = rt
         .tmprepo
-        .read_spec(&spec.pkg)
+        .read_spec(spec.ident())
         .await
         .unwrap()
         .resolve_all_options(
@@ -220,8 +218,8 @@ async fn test_build_package_pinning() {
         .await
         .unwrap();
 
-    let spec = rt.tmprepo.read_spec(&spec.pkg).await.unwrap();
-    let req = spec.install.requirements.get(0).unwrap();
+    let spec = rt.tmprepo.read_spec(spec.ident()).await.unwrap();
+    let req = spec.runtime_requirements().get(0).unwrap();
     match req {
         api::Request::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");
@@ -302,13 +300,13 @@ async fn test_build_var_pinning() {
         .await
         .unwrap();
 
-    let spec = rt.tmprepo.read_spec(&spec.pkg).await.unwrap();
-    let top_req = spec.install.requirements.get(0).unwrap();
+    let spec = rt.tmprepo.read_spec(spec.ident()).await.unwrap();
+    let top_req = spec.runtime_requirements().get(0).unwrap();
     match top_req {
         api::Request::Var(r) => assert_eq!(&r.value, "topvalue"),
         _ => panic!("expected var request"),
     }
-    let depreq = spec.install.requirements.get(1).unwrap();
+    let depreq = spec.runtime_requirements().get(1).unwrap();
     match depreq {
         api::Request::Var(r) => assert_eq!(&r.value, "depvalue"),
         _ => panic!("expected var request"),
@@ -381,7 +379,7 @@ async fn test_build_package_source_cleanup() {
     let digest = *storage::local_repository()
         .await
         .unwrap()
-        .get_package(&pkg.pkg)
+        .get_package(pkg.ident())
         .await
         .unwrap()
         .get(&api::Component::Run)
@@ -445,8 +443,8 @@ async fn test_build_package_requirement_propagation() {
         .await
         .unwrap();
 
-    assert_eq!(top_pkg.build.options.len(), 2, "should get option added");
-    let opt = top_pkg.build.options.get(1).unwrap();
+    assert_eq!(top_pkg.options().len(), 2, "should get option added");
+    let opt = top_pkg.options().get(1).unwrap();
     match opt {
         api::Opt::Var(opt) => {
             assert_eq!(
@@ -463,11 +461,11 @@ async fn test_build_package_requirement_propagation() {
     }
 
     assert_eq!(
-        top_pkg.install.requirements.len(),
+        top_pkg.runtime_requirements().len(),
         1,
         "should get install requirement"
     );
-    let req = top_pkg.install.requirements.get(0).unwrap();
+    let req = top_pkg.runtime_requirements().get(0).unwrap();
     match req {
         api::Request::Var(req) => {
             assert_eq!(
@@ -532,8 +530,8 @@ async fn test_build_components_metadata() {
         .await
         .unwrap();
     let runtime_repo = storage::RepositoryHandle::new_runtime();
-    let published = rt.tmprepo.get_package(&spec.pkg).await.unwrap();
-    for component in spec.install.components.iter() {
+    let published = rt.tmprepo.get_package(spec.ident()).await.unwrap();
+    for component in spec.components().iter() {
         let digest = published.get(&component.name).unwrap();
         rt.runtime.reset_all().unwrap();
         rt.runtime.status.stack.clear();
@@ -542,7 +540,7 @@ async fn test_build_components_metadata() {
         spfs::remount_runtime(&rt.runtime).await.unwrap();
         // the package should be "available" no matter what
         // component is installed
-        let installed = runtime_repo.get_package(&spec.pkg).await.unwrap();
+        let installed = runtime_repo.get_package(spec.ident()).await.unwrap();
         let expected = vec![(component.name.clone(), *digest)]
             .into_iter()
             .collect();

@@ -32,7 +32,7 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
     where
         D: serde::Deserializer<'de>,
     {
-        let mut unchecked = Vec::<Spec>::deserialize(deserializer)?;
+        let mut unchecked = Vec::<super::v0::Spec>::deserialize(deserializer)?;
 
         let mut default_build_spec = BuildSpec::default();
         let mut default_install_spec = InstallSpec::default();
@@ -61,6 +61,8 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
             }
         }
 
-        Ok(EmbeddedPackagesList(unchecked))
+        Ok(EmbeddedPackagesList(
+            unchecked.into_iter().map(From::from).collect(),
+        ))
     }
 }

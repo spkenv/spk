@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use crate::{
-    api,
+    api::{self, Package},
     io::{self, Format},
     storage::{self, CachePolicy},
     with_cache_policy, Error, Result,
@@ -76,7 +76,7 @@ impl Publisher {
                 Err(Error::PackageNotFoundError(_)) => (),
                 Err(err) => return Err(err),
                 Ok(spec) => {
-                    tracing::info!("publishing spec: {}", spec.pkg.format_ident());
+                    tracing::info!("publishing spec: {}", spec.ident().format_ident());
                     if self.force {
                         self.to.force_publish_spec(&spec).await?;
                     } else {
@@ -104,7 +104,7 @@ impl Publisher {
             tracing::debug!("   loading package: {}", build.format_ident());
             let spec = self.from.read_spec(build).await?;
             let components = self.from.get_package(build).await?;
-            tracing::info!("publishing package: {}", spec.pkg.format_ident());
+            tracing::info!("publishing package: {}", spec.ident().format_ident());
             let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => {

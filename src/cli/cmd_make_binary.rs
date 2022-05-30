@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::api::Package;
 use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
@@ -113,18 +114,18 @@ impl Run for MakeBinary {
                 }
                 res => {
                     let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spec.pkg.format_ident());
+                    tracing::info!("saving spec file {}", spec.ident().format_ident());
                     spk::save_spec(&spec).await?;
                     spec
                 }
             };
 
-            tracing::info!("building binary package {}", spec.pkg.format_ident());
+            tracing::info!("building binary package {}", spec.ident().format_ident());
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
-                Some(index) => spec.build.variants.iter().skip(index).take(1),
-                None => spec.build.variants.iter().skip(0).take(usize::MAX),
+                Some(index) => spec.variants().iter().skip(index).take(1),
+                None => spec.variants().iter().skip(0).take(usize::MAX),
             };
 
             for variant in variants_to_build {
@@ -179,11 +180,11 @@ impl Run for MakeBinary {
                     Ok(out) => out,
                     Err(err) => return Err(err.into()),
                 };
-                tracing::info!("created {}", out.pkg.format_ident());
+                tracing::info!("created {}", out.ident().format_ident());
 
                 if self.env {
                     let request = spk::api::PkgRequest::from_ident(
-                        out.pkg,
+                        out.ident().clone(),
                         spk::api::RequestedBy::CommandLine,
                     );
                     let mut cmd = std::process::Command::new(crate::env::spk_exe());

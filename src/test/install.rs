@@ -5,7 +5,10 @@
 use std::{ffi::OsString, io::Write, path::PathBuf, sync::Arc};
 
 use super::TestError;
-use crate::{api, exec, solve, storage, Result};
+use crate::{
+    api::{self, Package},
+    exec, solve, storage, Result,
+};
 
 pub struct PackageInstallTester<'a> {
     prefix: PathBuf,
@@ -116,12 +119,14 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_repository(repo);
         }
 
-        let pkg = api::RangeIdent::equals(&self.spec.pkg, [api::Component::All]);
-        let request =
-            api::PkgRequest::new(pkg, api::RequestedBy::InstallTest(self.spec.pkg.clone()))
-                .with_prerelease(api::PreReleasePolicy::IncludeAll)
-                .with_pin(None)
-                .with_compat(None);
+        let pkg = api::RangeIdent::equals(&self.spec.ident(), [api::Component::All]);
+        let request = api::PkgRequest::new(
+            pkg,
+            api::RequestedBy::InstallTest(self.spec.ident().clone()),
+        )
+        .with_prerelease(api::PreReleasePolicy::IncludeAll)
+        .with_pin(None)
+        .with_compat(None);
         solver.add_request(request.into());
 
         let mut runtime = solver.run();

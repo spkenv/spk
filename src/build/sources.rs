@@ -11,7 +11,10 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{api, storage, Result};
+use crate::{
+    api::{self, Package},
+    storage, Result,
+};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -53,7 +56,12 @@ pub struct SourcePackageBuilder {
 
 impl SourcePackageBuilder {
     pub fn from_spec(mut spec: api::Spec) -> Self {
-        spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
+        match &mut spec {
+            // TODO: wrap this in a nicer api
+            api::Spec::V0Package(spec) => {
+                spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
+            }
+        }
         Self {
             spec,
             repo: None,
@@ -85,7 +93,7 @@ impl SourcePackageBuilder {
         // unexpectedly from some other repo.
         let pkg = self
             .spec
-            .pkg
+            .ident()
             .clone()
             .try_into_build_ident(repo.name().to_owned())?;
         let mut components = std::collections::HashMap::with_capacity(1);
@@ -105,7 +113,7 @@ impl SourcePackageBuilder {
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
+        let source_dir = data_path(self.spec.ident()).to_path(&self.prefix);
         collect_sources(&self.spec, &source_dir)?;
 
         tracing::info!("Validating source package contents...");
@@ -126,7 +134,7 @@ pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -
     std::fs::create_dir_all(&source_dir)?;
 
     let env = super::binary::get_package_build_env(spec);
-    for source in spec.sources.iter() {
+    for source in spec.sources().iter() {
         let target_dir = match source.subdir() {
             Some(subdir) => subdir.to_path(source_dir),
             None => source_dir.into(),

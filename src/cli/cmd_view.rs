@@ -6,6 +6,7 @@ use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
+use spk::api::Package;
 
 use super::{flags, CommandArgs, Run};
 
@@ -91,7 +92,7 @@ impl Run for View {
         };
 
         for item in solution.items() {
-            if item.spec.pkg.name == request.pkg.name {
+            if item.spec.name() == &request.pkg.name {
                 serde_yaml::to_writer(std::io::stdout(), &*item.spec)
                     .context("Failed to serialize loaded spec")?;
                 return Ok(0);
@@ -124,7 +125,7 @@ impl View {
             .context("find package spec")?
             .must_be_found();
 
-        for (index, variant) in spec.build.variants.iter().enumerate() {
+        for (index, variant) in spec.variants().iter().enumerate() {
             println!("{}: {}", index, variant);
         }
 

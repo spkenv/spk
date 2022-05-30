@@ -21,7 +21,8 @@ use spfs::{storage::EntryType, tracking};
 use tokio::io::AsyncReadExt;
 
 use super::{CachePolicy, Repository};
-use crate::{api, with_cache_policy, Error, Result};
+use crate::api::{self, Package};
+use crate::{with_cache_policy, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -357,17 +358,17 @@ impl Repository for SPFSRepository {
 
     async fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
         let spec = async {
-            if spec.pkg.build.is_some() {
+            if spec.ident().build.is_some() {
                 return Err(api::InvalidBuildError::new_error(
                     "Spec must be published with no build".to_string(),
                 ));
             }
-            let tag_path = self.build_spec_tag(&spec.pkg);
+            let tag_path = self.build_spec_tag(spec.ident());
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             if self.inner.has_tag(&tag_spec).await {
                 // BUG(rbottriell): this creates a race condition but is not super dangerous
                 // because of the non-destructive tag history
-                Err(Error::VersionExistsError(spec.pkg.clone()))
+                Err(Error::VersionExistsError(spec.ident().clone()))
             } else {
                 Ok(spec)
             }
@@ -390,12 +391,12 @@ impl Repository for SPFSRepository {
     }
 
     async fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        if let Some(api::Build::Embedded) = spec.pkg.build {
+        if let Some(api::Build::Embedded) = spec.ident().build {
             return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
             ));
         }
-        let tag_path = self.build_spec_tag(&spec.pkg);
+        let tag_path = self.build_spec_tag(spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
         let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
@@ -415,21 +416,20 @@ impl Repository for SPFSRepository {
     ) -> Result<()> {
         #[cfg(test)]
         if let Err(Error::PackageNotFoundError(pkg)) =
-            self.read_spec(&spec.pkg.with_build(None)).await
+            self.read_spec(&spec.ident().with_build(None)).await
         {
             return Err(Error::String(format!(
-                "[INTERNAL] version spec must be published before a specific build: {:?}",
-                pkg
+                "[INTERNAL] version spec must be published before a specific build: {pkg}",
             )));
         }
 
-        let tag_path = self.build_package_tag(&spec.pkg)?;
+        let tag_path = self.build_package_tag(spec.ident())?;
 
         // We will also publish the 'run' component in the old style
         // for compatibility with older versions of the spk command.
         // It's not perfect but at least the package will be visible
         let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
-        let legacy_component = if let Some(api::Build::Source) = spec.pkg.build {
+        let legacy_component = if let Some(api::Build::Source) = spec.ident().build {
             *components.get(&api::Component::Source).ok_or_else(|| {
                 Error::String("Package must have a source component to be published".to_string())
             })?

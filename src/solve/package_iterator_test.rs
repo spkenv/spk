@@ -8,7 +8,7 @@ use std::sync::Arc;
 use rstest::rstest;
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
-use crate::api::{self, PkgName};
+use crate::api::{self, Package, PkgName};
 use crate::{make_build, make_repo, option_map, spec};
 
 #[rstest]
@@ -183,12 +183,10 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
 
         for i in 0..sorted_builds.len() {
             let b = &sorted_builds[i];
-            let options = b
-                .build
-                .resolve_all_options(Some(pkg_name), &api::OptionMap::default());
+            let options = b.resolve_all_options(&api::OptionMap::default());
 
             for (n, v) in options.iter() {
-                println!("{} {} {}={}", i, b.pkg, n, v);
+                println!("{} {} {}={}", i, b.ident(), n, v);
                 let expected = &expected_order_by_options[i];
                 let expected_v = match expected.get(&(*n)[..]) {
                     Some(value) => {

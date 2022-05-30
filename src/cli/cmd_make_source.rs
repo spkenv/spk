@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::api::Package;
 use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
@@ -51,13 +52,13 @@ impl MakeSource {
                 }
                 res => {
                     let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spec.pkg.format_ident());
+                    tracing::info!("saving spec file {}", spec.ident().format_ident());
                     spk::save_spec(&spec).await?;
                     spec
                 }
             };
 
-            tracing::info!("collecting sources for {}", spec.pkg.format_ident());
+            tracing::info!("collecting sources for {}", spec.ident().format_ident());
             let out = spk::build::SourcePackageBuilder::from_spec((*spec).clone())
                 .build()
                 .await

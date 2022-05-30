@@ -44,7 +44,7 @@ pub struct PackageBuildTester<'a> {
 impl<'a> PackageBuildTester<'a> {
     pub fn new(spec: api::Spec, script: String) -> Self {
         let source =
-            BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)).into());
+            BuildSource::SourcePackage(spec.ident().with_build(Some(api::Build::Source)).into());
         Self {
             prefix: PathBuf::from("/spfs"),
             spec,

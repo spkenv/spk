@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use crate::api::{self, Build, Compatibility};
+use crate::api::{self, Build, Compatibility, Package};
 
 use super::{
     errors,
@@ -104,7 +104,7 @@ impl ValidatorT for BinaryOnlyValidator {
                 spec.ident()
             )));
         }
-        let request = state.get_merged_request(&spec.name())?;
+        let request = state.get_merged_request(spec.name())?;
         if spec.ident().build == Some(Build::Source) && request.pkg.build != spec.ident().build {
             return Ok(api::Compatibility::Incompatible(format!(
                 "Skipping {} build, building from source is not enabled",
@@ -147,7 +147,7 @@ impl EmbeddedPackageValidator {
         state: &graph::State,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};
-        let existing = match state.get_merged_request(&embedded.pkg.name) {
+        let existing = match state.get_merged_request(embedded.name()) {
             Ok(request) => request,
             Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             Err(err) => return Err(err.into()),
@@ -156,8 +156,8 @@ impl EmbeddedPackageValidator {
         let compat = existing.is_satisfied_by(embedded);
         if !&compat {
             return Ok(Incompatible(format!(
-                "embedded package '{}' is incompatible: {}",
-                embedded.pkg, compat
+                "embedded package '{}' is incompatible: {compat}",
+                embedded.ident(),
             )));
         }
         Ok(Compatible)
@@ -378,7 +378,7 @@ impl PkgRequirementsValidator {
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::Spec(_) => (spec, spec.install.components.names()),
+                PackageSource::Spec(_) => (spec, spec.components().names()),
             },
             Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => return Ok(Compatible),
         };
@@ -393,14 +393,12 @@ impl PkgRequirementsValidator {
         }
 
         let existing_components = resolved
-            .install
-            .components
+            .components()
             .resolve_uses(existing.pkg.components.iter());
         let required_components = resolved
-            .install
-            .components
+            .components()
             .resolve_uses(request.pkg.components.iter());
-        for component in resolved.install.components.iter() {
+        for component in resolved.components().iter() {
             if existing_components.contains(&component.name) {
                 continue;
             }
@@ -414,7 +412,10 @@ impl PkgRequirementsValidator {
                 if !&compat {
                     return Ok(Compatibility::Incompatible(format!(
                         "requires {}:{} which embeds {}, and {}",
-                        resolved.pkg.name, component.name, embedded.pkg.name, compat,
+                        resolved.name(),
+                        component.name,
+                        embedded.name(),
+                        compat,
                     )));
                 }
             }
@@ -428,7 +429,7 @@ impl PkgRequirementsValidator {
         provided_components: std::collections::HashSet<&api::Component>,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};
-        let compat = resolved.satisfies_pkg_request(request);
+        let compat = request.is_satisfied_by(&**resolved);
         if !&compat {
             return Ok(Incompatible(format!(
                 "conflicting requirement: '{}' {}",
@@ -437,8 +438,7 @@ impl PkgRequirementsValidator {
         }
 
         let required_components = resolved
-            .install
-            .components
+            .components()
             .resolve_uses(request.pkg.components.iter());
         let missing_components: Vec<_> = required_components
             .iter()

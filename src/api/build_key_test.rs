@@ -10,10 +10,9 @@ use super::{
     BuildKey, BuildKeyEntry, BuildKeyExpandedVersionRange, BuildKeyVersionNumber,
     BuildKeyVersionNumberPiece,
 };
-use crate::api::parse_ident;
 use crate::api::OptionMap;
-use crate::api::Spec;
-use crate::opt_name;
+use crate::api::Package;
+use crate::{opt_name, spec};
 
 // For making test case results
 fn make_tag_part(pieces: Vec<&str>) -> Option<Vec<BuildKeyVersionNumberPiece>> {
@@ -229,7 +228,7 @@ fn test_build_piece_ordering(#[case] values: Vec<&str>, #[case] expected: Vec<&s
 #[rstest]
 fn test_generating_build_key() {
     // Set up a binary package build spec
-    let a_build = Spec::new(parse_ident("testpackage/1.0.0/TESTTEST").unwrap());
+    let a_build = spec!({"pkg": "testpackage/1.0.0/TESTTEST"});
 
     // Set up some resolved build options
     let name1 = opt_name!("alib").to_owned();
@@ -254,7 +253,7 @@ fn test_generating_build_key() {
 
     // Generate the build's key based on the ordering of option names
     let ordering = vec![name1, name2, name3, name4, name5];
-    let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
+    let key = BuildKey::new(a_build.ident(), &ordering, &resolved_options);
 
     // Expected build key structure for this ordering and build options:
     // "alib", "somevalue", "notinthisbuild", "apkg", "versionbuild" build digest
@@ -318,7 +317,7 @@ fn test_generating_build_key() {
 #[rstest]
 fn test_generating_build_key_src_build() {
     // Set up a src package build spec
-    let a_build = Spec::new(parse_ident("testpackage/1.0.0/src").unwrap());
+    let a_build = spec!({"pkg": "testpackage/1.0.0/src"});
 
     // Set up some resolved build options
     let name1 = opt_name!("alib").to_owned();
@@ -341,7 +340,7 @@ fn test_generating_build_key_src_build() {
     // names. Note: because this is a source build it won't use any of
     // the ordering or option names in the key generation
     let ordering = vec![name1, name2, name3, name4];
-    let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
+    let key = BuildKey::new(a_build.ident(), &ordering, &resolved_options);
 
     // Expected build key structure
     let expected = BuildKey::Src;

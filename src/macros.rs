@@ -42,19 +42,21 @@ macro_rules! make_package {
     ($repo:ident, $build_spec:ident, $opts:expr) => {{
         let s = $build_spec.clone();
         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
-            .install
-            .components
+            .components()
             .iter()
             .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
             .collect();
         (s, cmpts)
     }};
     ($repo:ident, $spec:tt, $opts:expr) => {{
+        use $crate::api::PackageTemplate;
         let json = serde_json::json!($spec);
-        let mut spec: $crate::api::Spec = serde_json::from_value(json).expect("Invalid spec json");
+        let mut spec: $crate::api::v0::Spec =
+            serde_json::from_value(json).expect("Invalid spec json");
         let build = spec.clone();
         spec.pkg.set_build(None);
-        $repo.force_publish_spec(&spec).await.unwrap();
+        let build = $crate::api::Spec::V0Package(build);
+        $repo.force_publish_spec(&spec.into()).await.unwrap();
         make_build_and_components!(build, [], $opts, [])
     }};
 }
@@ -104,7 +106,7 @@ macro_rules! make_build_and_components {
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let mut spec = make_spec!($spec);
         let mut components = std::collections::HashMap::<$crate::api::Component, spfs::encoding::Digest>::new();
-        if spec.pkg.is_source() {
+        if spec.ident().is_source() {
             components.insert($crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
             (spec, components)
         } else {
@@ -115,9 +117,9 @@ macro_rules! make_build_and_components {
             $(
             let dep = Arc::new($dep.clone());
             solution.add(
-                &$crate::api::PkgRequest::from_ident(spec.pkg.clone(), $crate::api::RequestedBy::SpkInternalTest),
+                &$crate::api::PkgRequest::from_ident(spec.ident().clone(), $crate::api::RequestedBy::SpkInternalTest),
                 Arc::clone(&dep),
-                crate::solve::PackageSource::Spec(dep)
+                $crate::solve::PackageSource::Spec(dep)
             );
             )*
             let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
@@ -126,7 +128,7 @@ macro_rules! make_build_and_components {
                 .expect("Failed to render build spec");
             let mut names = std::vec![$($component.to_string()),*];
             if names.is_empty() {
-                names = spec.install.components.iter().map(|c| c.name.to_string()).collect();
+                names = spec.components().iter().map(|c| c.name.to_string()).collect();
             }
             for name in names {
                 let name = $crate::api::Component::parse(name).expect("invalid component name");
@@ -147,4 +149,20 @@ macro_rules! make_spec {
     ($spec:tt) => {
         $crate::spec!($spec)
     };
+}
+
+/// Creates a request from a literal range identifier, or json structure
+#[macro_export(local_inner_macros)]
+macro_rules! request {
+    ($req:literal) => {
+        $crate::api::Request::Pkg($crate::api::PkgRequest::new(
+            $crate::api::parse_ident_range($req).unwrap(),
+            api::RequestedBy::SpkInternalTest,
+        ))
+    };
+    ($req:tt) => {{
+        let value = serde_json::json!($req);
+        let req: $crate::api::Request = serde_json::from_value(value).unwrap();
+        req
+    }};
 }

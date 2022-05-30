@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Ident},
+    api::{self, Ident, Package},
     storage, Result,
 };
 
@@ -67,7 +67,7 @@ impl SolvedRequest {
     pub fn is_source_build(&self) -> bool {
         match &self.source {
             PackageSource::Repository { .. } => false,
-            PackageSource::Spec(spec) => spec.pkg == self.spec.pkg.with_build(None),
+            PackageSource::Spec(spec) => spec.ident() == &self.spec.ident().with_build(None),
         }
     }
 }
@@ -190,35 +190,34 @@ impl Solution {
 
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
         for (_request, (spec, _source)) in self.resolved.iter() {
-            out.insert(format!("SPK_PKG_{}", spec.pkg.name), spec.pkg.to_string());
+            out.insert(format!("SPK_PKG_{}", spec.name()), spec.ident().to_string());
             out.insert(
-                format!("SPK_PKG_{}_VERSION", spec.pkg.name),
-                spec.pkg.version.to_string(),
+                format!("SPK_PKG_{}_VERSION", spec.name()),
+                spec.version().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_BUILD", spec.pkg.name),
-                spec.pkg
+                format!("SPK_PKG_{}_BUILD", spec.name()),
+                spec.ident()
                     .build
                     .as_ref()
                     .map(|b| b.to_string())
                     .unwrap_or_else(|| "None".to_owned()),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MAJOR", spec.pkg.name),
-                spec.pkg.version.major().to_string(),
+                format!("SPK_PKG_{}_VERSION_MAJOR", spec.name()),
+                spec.version().major().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MINOR", spec.pkg.name),
-                spec.pkg.version.minor().to_string(),
+                format!("SPK_PKG_{}_VERSION_MINOR", spec.name()),
+                spec.version().minor().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_PATCH", spec.pkg.name),
-                spec.pkg.version.patch().to_string(),
+                format!("SPK_PKG_{}_VERSION_PATCH", spec.name()),
+                spec.version().patch().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_BASE", spec.pkg.name),
-                spec.pkg
-                    .version
+                format!("SPK_PKG_{}_VERSION_BASE", spec.name()),
+                spec.version()
                     .parts
                     .iter()
                     .map(|v| v.to_string())

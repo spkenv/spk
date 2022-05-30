@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use crate::{
-    api, solve,
+    api::{self, Package},
+    solve,
     storage::{self},
     Error, Result,
 };
@@ -27,7 +28,7 @@ pub async fn current_env() -> Result<solve::Solution> {
             let pkg = api::parse_ident(format!("{name}/{version}"))?;
             for pkg in repo.list_package_builds(&pkg).await? {
                 let spec = repo.read_spec(&pkg).await?;
-                let components = match repo.get_package(&spec.pkg).await {
+                let components = match repo.get_package(spec.ident()).await {
                     Ok(c) => c,
                     Err(Error::PackageNotFoundError(_)) => {
                         tracing::info!("Skipping missing build {pkg}; currently being built?");
@@ -35,7 +36,7 @@ pub async fn current_env() -> Result<solve::Solution> {
                     }
                     Err(err) => return Err(err),
                 };
-                let range_ident = api::RangeIdent::equals(&spec.pkg, components.keys().cloned());
+                let range_ident = api::RangeIdent::equals(spec.ident(), components.keys().cloned());
                 let mut request =
                     api::PkgRequest::new(range_ident, api::RequestedBy::CurrentEnvironment);
                 request.prerelease_policy = api::PreReleasePolicy::IncludeAll;

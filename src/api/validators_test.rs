@@ -6,14 +6,14 @@ use crate::api::validators::must_collect_all_files;
 
 #[test]
 fn test_validate_build_changeset_nothing() {
-    let spec = crate::api::Spec::new("test-pkg".parse().unwrap());
+    let spec = crate::api::v0::Spec::new("test-pkg".parse().unwrap());
     let res = must_install_something(&spec, &[], "/spfs");
     assert!(res.is_some())
 }
 
 #[test]
 fn test_validate_build_changeset_modified() {
-    let spec = crate::api::Spec::new("test-pkg".parse().unwrap());
+    let spec = crate::api::v0::Spec::new("test-pkg".parse().unwrap());
     let res = must_not_alter_existing_files(
         &spec,
         &vec![spfs::tracking::Diff {
@@ -27,7 +27,7 @@ fn test_validate_build_changeset_modified() {
 
 #[test]
 fn test_validate_build_changeset_collected() {
-    let mut spec = crate::api::Spec::new("test-pkg".parse().unwrap());
+    let mut spec = crate::api::v0::Spec::new("test-pkg".parse().unwrap());
     // the default components are added and collect all files,
     // so we remove them to ensure nothing is collected
     let _ = spec.install.components.drain(..);

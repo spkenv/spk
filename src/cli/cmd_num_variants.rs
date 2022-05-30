@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::api::Package;
 
 use super::{flags, CommandArgs, Run};
 
@@ -22,7 +23,7 @@ impl Run for NumVariants {
             .context("find package spec")?
             .must_be_found();
 
-        println!("{}", spec.build.variants.len());
+        println!("{}", spec.variants().len());
 
         Ok(0)
     }

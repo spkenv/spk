@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
+use spk::api::Package;
 
 use super::{flags, CommandArgs, Run};
 
@@ -103,8 +104,8 @@ impl Run for Test {
                 let mut tested = std::collections::HashSet::new();
 
                 let variants_to_test = match self.variant {
-                    Some(index) => spec.build.variants.iter().skip(index).take(1),
-                    None => spec.build.variants.iter().skip(0).take(usize::MAX),
+                    Some(index) => spec.variants().iter().skip(index).take(1),
+                    None => spec.variants().iter().skip(0).take(usize::MAX),
                 };
 
                 for variant in variants_to_test {
@@ -120,7 +121,7 @@ impl Run for Test {
                         continue;
                     }
 
-                    for (index, test) in spec.tests.iter().enumerate() {
+                    for (index, test) in spec.tests().iter().enumerate() {
                         if test.stage != stage {
                             continue;
                         }
@@ -183,7 +184,7 @@ impl Run for Test {
                                         .map(spk::build::BuildSource::LocalPath)
                                         .unwrap_or_else(|| {
                                             spk::build::BuildSource::SourcePackage(
-                                                spec.pkg
+                                                spec.ident()
                                                     .with_build(Some(spk::api::Build::Source))
                                                     .into(),
                                             )

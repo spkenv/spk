@@ -5,7 +5,10 @@
 use rstest::rstest;
 
 use super::Publisher;
-use crate::{api, fixtures::*};
+use crate::{
+    api::{self, Package},
+    fixtures::*,
+};
 
 #[rstest]
 #[tokio::test]
@@ -26,6 +29,9 @@ async fn test_publish_no_version_spec() {
 
     let destination = spfsrepo().await;
     let publisher = Publisher::new(rt.tmprepo.clone(), destination.repo.clone());
-    publisher.publish(&spec.pkg.with_build(None)).await.unwrap();
-    destination.get_package(&spec.pkg).await.unwrap();
+    publisher
+        .publish(&spec.ident().with_build(None))
+        .await
+        .unwrap();
+    destination.get_package(spec.ident()).await.unwrap();
 }
