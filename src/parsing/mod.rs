@@ -12,7 +12,7 @@ mod version_range;
 
 use nom::{
     character::complete::char,
-    combinator::opt,
+    combinator::{eof, fail, opt},
     error::{context, VerboseError},
     sequence::{pair, preceded},
     IResult, Parser,
@@ -28,6 +28,52 @@ use self::build::build;
 #[cfg(test)]
 #[path = "./parsing_test.rs"]
 mod parsing_test;
+
+/// Parse a package name.
+///
+/// Succeeds if the input can be parsed as a package name,
+/// and cannot be parsed as version or version and build.
+///
+/// This function is generic over the type of package-like and
+/// version-like expression that is expected.
+pub(crate) fn package_name_and_not_version<'i, I, V1, V2, B, F1, F2, F3>(
+    mut ident_parser: F1,
+    mut version_parser: F2,
+    mut version_and_build_parser: F3,
+) -> impl FnMut(&'i str) -> IResult<&'i str, I, VerboseError<&'i str>>
+where
+    F1: Parser<&'i str, I, VerboseError<&'i str>>,
+    F2: Parser<&'i str, V1, VerboseError<&'i str>>,
+    F3: Parser<&'i str, (V2, Option<B>), VerboseError<&'i str>>,
+{
+    move |input: &str| {
+        let (tail, ident) = ident_parser.parse(input)?;
+        // To disambiguate cases like:
+        //    111/222
+        // If "222" is a valid version string and is the end of input,
+        // return an Error here so that "111" will be treated as the
+        // package name instead of as a repository name.
+        let r = version_parser
+            .parse(input)
+            .and_then(|(input, _)| eof::<&str, _>(input));
+        if r.is_ok() {
+            return fail("could be version");
+        }
+        // To disambiguate cases like:
+        //    222/333/44444444
+        // If "333" is a valid version string and "44444444" is a
+        // valid build string and is the end of input, return an Error
+        // here so that "222" will be treated as the package name
+        // instead of as a repository name.
+        let r = version_and_build_parser
+            .parse(input)
+            .and_then(|(input, v_and_b)| eof(input).map(|(input, _)| (input, v_and_b)));
+        if let Ok((_, (_version, Some(_build)))) = r {
+            return fail("could be a build");
+        }
+        Ok((tail, ident))
+    }
+}
 
 /// Expect a version-like expression and optional build.
 ///
