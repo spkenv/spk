@@ -12,10 +12,11 @@ use proptest::{
 };
 
 use crate::api::{
-    Build, CompatRange, CompatRule, Component, DoubleEqualsVersion, DoubleNotEqualsVersion,
-    EqualsVersion, GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange,
-    LessThanRange, LowestSpecifiedRange, NotEqualsVersion, PkgNameBuf, RangeIdent, RepositoryName,
-    SemverRange, TagSet, Version, VersionFilter, VersionRange, WildcardRange,
+    parse_ident, Build, CompatRange, CompatRule, Component, DoubleEqualsVersion,
+    DoubleNotEqualsVersion, EqualsVersion, GreaterThanOrEqualToRange, GreaterThanRange,
+    LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, NotEqualsVersion, PkgNameBuf,
+    RangeIdent, RepositoryName, SemverRange, TagSet, Version, VersionFilter, VersionRange,
+    WildcardRange,
 };
 
 macro_rules! arb_version_range_struct {
@@ -98,6 +99,10 @@ prop_compose! {
             base,
         }
     }
+}
+
+fn arb_opt_version() -> impl Strategy<Value = Option<Version>> {
+    weighted(0.9, arb_version())
 }
 
 fn arb_opt_version_filter() -> impl Strategy<Value = Option<VersionFilter>> {
@@ -278,6 +283,32 @@ prop_compose! {
             specified: parts.len(),
             parts,
         }
+    }
+}
+
+proptest! {
+    #[test]
+    fn prop_test_parse_ident(
+            repo in arb_repo(),
+            name in arb_pkg_name(),
+            version in arb_opt_version(),
+            build in arb_build()) {
+        // If specifying a build, a version must also be specified.
+        prop_assume!(build.is_none() || version.is_some());
+        let ident = [
+            repo.as_ref().map(|r| r.0.to_owned()),
+            Some(name.clone().into_inner()),
+            version.as_ref().map(|v| v.to_string()),
+            build.as_ref().map(|b| b.to_string()),
+        ].iter().flatten().join("/");
+        let parsed = parse_ident(&ident).unwrap();
+        // XXX: This doesn't handle the ambiguous corner cases as checked
+        // by `test_parse_ident`; such inputs are very unlikely to be
+        // generated randomly here.
+        assert_eq!(parsed.repository_name, repo);
+        assert_eq!(parsed.name, name);
+        assert_eq!(parsed.version, version.unwrap_or_default());
+        assert_eq!(parsed.build, build);
     }
 }
 
