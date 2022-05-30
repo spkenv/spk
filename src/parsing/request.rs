@@ -42,10 +42,7 @@ fn package_name_and_not_version_filter(
     // valid build string and is the end of input, return an Error
     // here so that "222" will be treated as the package name
     // instead of as a repository name.
-    let prefixed = format!("/{}", input);
-    if let Ok((_, (_version, Some(_build)))) =
-        terminated(version_filter_and_build, eof)(prefixed.as_str())
-    {
+    if let Ok((_, (_version, Some(_build)))) = terminated(version_filter_and_build, eof)(input) {
         return fail("could be a build");
     }
     Ok((tail, ident))
@@ -83,9 +80,10 @@ pub(crate) fn range_ident<'a, 'b>(
 ) -> IResult<&'b str, RangeIdent, VerboseError<&'b str>> {
     let (input, repository_name) = opt(repo_name_in_range_ident(known_repositories))(input)?;
     let (input, (name, components)) = range_ident_pkg_name(input)?;
-    let (input, (version, build)) = map(opt(version_filter_and_build), |v_and_b| {
-        v_and_b.unwrap_or_default()
-    })(input)?;
+    let (input, (version, build)) = map(
+        opt(preceded(char('/'), version_filter_and_build)),
+        |v_and_b| v_and_b.unwrap_or_default(),
+    )(input)?;
     eof(input)?;
     Ok((
         "",
@@ -125,14 +123,11 @@ fn repo_name_in_range_ident<'a>(
     }
 }
 
-fn version_filter_and_build(
+pub(crate) fn version_filter_and_build(
     input: &str,
 ) -> IResult<&str, (VersionFilter, Option<Build>), VerboseError<&str>> {
     pair(
-        preceded(
-            char('/'),
-            context("parse_version_filter", range_ident_version_filter),
-        ),
+        context("parse_version_filter", range_ident_version_filter),
         opt(context("parse_build", build)),
     )(input)
 }
