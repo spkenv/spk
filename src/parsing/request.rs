@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::complete::tag,
     character::complete::char,
     combinator::{eof, map, opt, peek},
     error::{context, VerboseError},
@@ -15,12 +15,10 @@ use nom::{
     IResult,
 };
 
-use crate::api::{Build, Component, PkgName, RangeIdent, RepositoryName, VersionFilter};
+use crate::api::{Build, Component, PkgName, RangeIdent, VersionFilter};
 
 use super::{
-    component::components,
-    name::{is_legal_package_name_chr, known_repository_name, package_name, repository_name},
-    package_name_and_not_version, version_and_optional_build,
+    component::components, name::package_name, repo_name_in_ident, version_and_optional_build,
     version_range::version_range,
 };
 
@@ -54,7 +52,12 @@ pub(crate) fn range_ident<'a, 'b>(
     known_repositories: &'a HashSet<&str>,
     input: &'b str,
 ) -> IResult<&'b str, RangeIdent, VerboseError<&'b str>> {
-    let (input, repository_name) = opt(repo_name_in_range_ident(known_repositories))(input)?;
+    let (input, repository_name) = opt(repo_name_in_ident(
+        known_repositories,
+        range_ident_pkg_name,
+        range_ident_version_filter,
+        version_filter_and_build,
+    ))(input)?;
     let (input, (name, components)) = range_ident_pkg_name(input)?;
     let (input, (version, build)) = map(
         opt(preceded(char('/'), version_filter_and_build)),
@@ -71,36 +74,6 @@ pub(crate) fn range_ident<'a, 'b>(
             build,
         },
     ))
-}
-
-fn repo_name_in_range_ident<'a>(
-    known_repositories: &'a HashSet<&'a str>,
-) -> impl Fn(&str) -> IResult<&str, RepositoryName, VerboseError<&str>> + 'a {
-    move |input| {
-        // To disambiguate cases like:
-        //    local/222
-        // If "local" is a known repository name and "222" is a valid
-        // package name and the end of input, treat the first component
-        // as a repository name instead of a package name.
-        alt((
-            terminated(
-                terminated(known_repository_name(known_repositories), char('/')),
-                peek(terminated(take_while1(is_legal_package_name_chr), eof)),
-            ),
-            terminated(
-                terminated(repository_name, char('/')),
-                // Reject treating the consumed component as a repository name if the following
-                // components are more likely to mean the consumed component was actually a
-                // package name. This puts more emphasis on interpreting input the same as before
-                // repository names were added.
-                peek(package_name_and_not_version(
-                    range_ident_pkg_name,
-                    range_ident_version_filter,
-                    version_filter_and_build,
-                )),
-            ),
-        ))(input)
-    }
 }
 
 pub(crate) fn version_filter_and_build(
