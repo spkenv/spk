@@ -30,13 +30,16 @@ pub struct CmdRender {
 impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::new(&self.reference)?;
-        let repo = config.get_local_repository().await?;
+        let repo = config.get_local_repository_handle().await?;
 
         for target in &env_spec.items {
             let target = target.to_string();
             if !repo.has_ref(target.as_str()).await {
                 tracing::info!(reference = ?target, "pulling target ref");
-                spfs::pull_ref(target.as_str()).await?;
+                let origin = config.get_remote("origin").await?;
+                spfs::Syncer::new(&origin, &repo)
+                    .sync_ref(target.as_str())
+                    .await?;
             }
         }
 

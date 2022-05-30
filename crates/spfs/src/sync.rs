@@ -4,7 +4,6 @@
 
 use tokio_stream::StreamExt;
 
-use super::config::get_config;
 use crate::prelude::*;
 use crate::{graph, storage, tracking, Error, Result};
 
@@ -16,46 +15,6 @@ mod sync_test;
 /// connection and open file descriptor limits
 // TODO: load this from the config
 static MAX_CONCURRENT: usize = 256;
-
-pub async fn push_ref<R: AsRef<str>>(
-    reference: R,
-    remote: Option<storage::RepositoryHandle>,
-) -> Result<graph::Object> {
-    let config = get_config()?;
-    let local = config.get_local_repository().await?.into();
-    let remote = match remote {
-        Some(remote) => remote,
-        None => config.get_remote("origin").await?,
-    };
-    Syncer::new(&local, &remote).sync_ref(reference).await
-}
-
-/// Pull a reference to the local repository, searching all configured remotes.
-///
-/// On linux the pull process can require special process privileges, this function
-/// spawns a new process with those privileges and should be used instead of the
-/// sync_reference under most circumstances.
-///
-/// Args:
-/// - reference: The reference to localize
-///
-/// Errors:
-/// - If the remote reference could not be found
-pub async fn pull_ref<R: AsRef<str>>(reference: R) -> Result<()> {
-    let pull_cmd = match super::which_spfs("pull") {
-        Some(cmd) => cmd,
-        None => return Err(Error::MissingBinary("spfs-pull")),
-    };
-    let mut cmd = tokio::process::Command::new(pull_cmd);
-    cmd.arg(reference.as_ref());
-    tracing::debug!("{:?}", cmd);
-    let status = cmd.status().await?;
-    if let Some(0) = status.code() {
-        Ok(())
-    } else {
-        Err("pull failed".into())
-    }
-}
 
 /// Handles the syncing of data between repositories
 pub struct Syncer<'src, 'dst> {

@@ -46,7 +46,7 @@ pub struct CmdRun {
 
 impl CmdRun {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_local_repository().await?;
+        let repo = config.get_local_repository_handle().await?;
         let runtimes = config.get_runtime_storage().await?;
         let mut runtime = match &self.name {
             Some(name) => runtimes.create_named_runtime(name).await?,
@@ -60,7 +60,10 @@ impl CmdRun {
                     let target = target.to_string();
                     if self.pull || !repo.has_ref(target.as_str()).await {
                         tracing::info!(reference = ?target, "pulling target ref");
-                        spfs::pull_ref(target.as_str()).await?
+                        let origin = config.get_remote("origin").await?;
+                        spfs::Syncer::new(&origin, &repo)
+                            .sync_ref(target.as_str())
+                            .await?;
                     }
 
                     let obj = repo.read_ref(target.as_str()).await?;
