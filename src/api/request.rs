@@ -179,6 +179,24 @@ impl RangeIdent {
         other: &RangeIdent,
         mode: version_range::RestrictMode,
     ) -> Result<()> {
+        match (
+            self.repository_name.as_ref(),
+            other.repository_name.as_ref(),
+        ) {
+            (None, None) => {}                                 // okay
+            (Some(_), None) => {}                              // okay
+            (Some(ours), Some(theirs)) if ours == theirs => {} // okay
+            (None, rn @ Some(_)) => {
+                self.repository_name = rn.cloned();
+            }
+            (Some(ours), Some(theirs)) => {
+                return Err(Error::String(format!(
+                    "Incompatible request for package {} from differing repos: {ours} != {theirs}",
+                    self.name,
+                )))
+            }
+        };
+
         if let Err(err) = self.version.restrict(&other.version, mode) {
             return Err(Error::wrap(format!("[{}]", self.name), err));
         }
