@@ -18,7 +18,7 @@ use super::{
     Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName, OptNameBuf,
     PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
 };
-use crate::{Error, Result};
+use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -305,12 +305,7 @@ impl FromStr for RangeIdent {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> crate::Result<Self> {
-        // TODO: this list of possible names should come from reading
-        // the config file
-        let known_repositories: HashSet<&'static str> =
-            ["local", "origin"].iter().cloned().collect();
-
-        crate::parsing::range_ident(&known_repositories, s)
+        crate::parsing::range_ident(&KNOWN_REPOSITORY_NAMES, s)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => {

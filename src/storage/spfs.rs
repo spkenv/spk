@@ -13,6 +13,7 @@ use std::{
 
 use futures::StreamExt;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
@@ -27,6 +28,18 @@ mod spfs_test;
 
 const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
+
+pub(crate) static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    let mut known_repositories = HashSet::from(["local"]);
+    if let Ok(config) = spfs::get_config() {
+        for name in config.list_remote_names() {
+            // Leak these Strings; they require 'static lifetime.
+            let name = Box::leak(Box::new(name));
+            known_repositories.insert(name);
+        }
+    }
+    known_repositories
+});
 
 #[derive(Debug)]
 pub struct SPFSRepository {

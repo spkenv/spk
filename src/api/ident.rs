@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, convert::TryFrom, fmt::Write, str::FromStr};
+use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use nom::error::convert_error;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::parsing;
+use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES};
 
 use super::{Build, PkgNameBuf, Version};
 
@@ -183,12 +183,7 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
-        // TODO: this list of possible names should come from reading
-        // the config file
-        let known_repositories: HashSet<&'static str> =
-            ["local", "origin"].iter().cloned().collect();
-
-        parsing::ident(&known_repositories, source)
+        parsing::ident(&KNOWN_REPOSITORY_NAMES, source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => {
