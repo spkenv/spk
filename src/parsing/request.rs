@@ -18,9 +18,9 @@ use nom::{
 use crate::api::{Build, Component, PkgName, RangeIdent, RepositoryName, VersionFilter};
 
 use super::{
-    build::build,
     component::components,
     name::{is_legal_package_name_chr, known_repository_name, package_name, repository_name},
+    version_and_optional_build,
     version_range::version_range,
 };
 
@@ -126,8 +126,5 @@ fn repo_name_in_range_ident<'a>(
 pub(crate) fn version_filter_and_build(
     input: &str,
 ) -> IResult<&str, (VersionFilter, Option<Build>), VerboseError<&str>> {
-    pair(
-        context("parse_version_filter", range_ident_version_filter),
-        opt(preceded(char('/'), context("parse_build", build))),
-    )(input)
+    version_and_optional_build(context("parse_version_filter", range_ident_version_filter))(input)
 }

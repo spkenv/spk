@@ -10,16 +10,16 @@ use nom::{
     character::complete::char,
     combinator::{eof, fail, map, map_res, opt, peek},
     error::{context, VerboseError},
-    sequence::{pair, preceded, terminated},
+    sequence::{preceded, terminated},
     IResult,
 };
 
-use crate::api::{parse_build, parse_version, Build, Ident, RepositoryName, Version};
+use crate::api::{parse_version, Build, Ident, RepositoryName, Version};
 
 use super::{
-    build::build_str,
     name::{is_legal_package_name_chr, known_repository_name, package_name, repository_name},
     version::version_str,
+    version_and_optional_build,
 };
 
 pub(crate) fn ident<'a, 'b>(
@@ -29,7 +29,7 @@ pub(crate) fn ident<'a, 'b>(
     let (input, repository_name) = opt(repo_name_in_ident(known_repositories))(input)?;
     let (input, mut ident) = package_ident(input)?;
     ident.repository_name = repository_name;
-    let (input, version_and_build) = opt(version_and_build)(input)?;
+    let (input, version_and_build) = opt(preceded(char('/'), version_and_build))(input)?;
     eof(input)?;
     match version_and_build {
         Some(v_and_b) => {
@@ -64,10 +64,7 @@ fn package_name_and_not_version(input: &str) -> IResult<&str, Ident, VerboseErro
     // valid build string and is the end of input, return an Error
     // here so that "222" will be treated as the package name
     // instead of as a repository name.
-    let prefixed = format!("/{}", input);
-    if let Ok((_, (_version, Some(_build)))) =
-        dbg!(terminated(version_and_build, eof)(dbg!(prefixed.as_str())))
-    {
+    if let Ok((_, (_version, Some(_build)))) = terminated(version_and_build, eof)(input) {
         return fail("could be a build");
     }
     Ok((tail, ident))
@@ -100,14 +97,8 @@ fn repo_name_in_ident<'a>(
 }
 
 fn version_and_build(input: &str) -> IResult<&str, (Version, Option<Build>), VerboseError<&str>> {
-    pair(
-        preceded(
-            char('/'),
-            context("parse_version", map_res(version_str, parse_version)),
-        ),
-        opt(preceded(
-            char('/'),
-            context("parse_build", map_res(build_str, parse_build)),
-        )),
-    )(input)
+    version_and_optional_build(context(
+        "parse_version",
+        map_res(version_str, parse_version),
+    ))(input)
 }
