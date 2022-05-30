@@ -29,7 +29,9 @@ impl CmdPush {
         let repo = config.get_local_repository().await?.into();
         let remote = config.get_remote(&self.remote).await?;
         for reference in self.refs.iter() {
-            spfs::sync_ref(reference, &repo, &remote).await?;
+            spfs::Syncer::new(&repo, &remote)
+                .sync_ref(reference)
+                .await?;
         }
 
         Ok(0)

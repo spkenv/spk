@@ -35,7 +35,7 @@ impl CmdPull {
         };
 
         for reference in self.refs.iter() {
-            spfs::sync_ref(reference, &remote, &repo).await?;
+            spfs::Syncer::new(&remote, &repo).sync_ref(reference).await?;
         }
 
         Ok(0)

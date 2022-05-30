@@ -59,4 +59,4 @@ pub use status::{
     active_runtime, compute_runtime_manifest, initialize_runtime, make_active_runtime_editable,
     reinitialize_runtime, remount_runtime,
 };
-pub use sync::{pull_ref, push_ref, sync_object, sync_ref};
+pub use sync::{pull_ref, push_ref, Syncer};
