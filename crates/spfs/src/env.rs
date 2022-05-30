@@ -16,6 +16,24 @@ static SPFS_DIR: &str = "/spfs";
 
 const NONE: Option<&str> = None;
 
+/// A struct for holding the options that will be included
+/// in the overlayfs mount command when mounting an environment.
+#[derive(Default)]
+pub(crate) struct OverlayMountOptions {
+    pub(crate) read_only: bool,
+}
+
+impl OverlayMountOptions {
+    /// Return the options that should be included in the mount request.
+    pub(crate) fn options(&self) -> Vec<&str> {
+        if self.read_only {
+            vec![OVERLAY_ARGS_RO_PREFIX]
+        } else {
+            Vec::default()
+        }
+    }
+}
+
 /// Move this thread into the namespace of an existing runtime
 pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
     check_can_join()?;
@@ -460,42 +478,62 @@ pub fn mask_files(
     Ok(())
 }
 
-pub fn get_overlay_args<P: AsRef<Path>>(
+/// Get the overlayfs arguments for the given list of lower layer directories.
+///
+/// This returns an error if the arguments would exceed the legal size limit
+/// (if known).
+///
+/// `prefix` is prepended to the generated overlay args.
+pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     config: &runtime::Config,
-    lower_dirs: impl IntoIterator<Item = P>,
+    overlay_mount_options: &OverlayMountOptions,
+    lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<String> {
-    let mut args = format!("lowerdir={}", config.lower_dir.display());
-    for path in lower_dirs.into_iter() {
-        args = format!("{args}:{}", path.as_ref().to_string_lossy());
+    // Allocate a large buffer up front to avoid resizing/copying.
+    let mut args = String::with_capacity(4096);
+
+    for option in overlay_mount_options.options() {
+        args.push_str(option);
+        args.push(',');
     }
 
-    args = format!(
-        "{args},upperdir={},workdir={}",
-        config.upper_dir.display(),
-        config.work_dir.display()
-    );
+    args.push_str("lowerdir=");
+    args.push_str(&config.lower_dir.to_string_lossy());
+    for path in lowerdirs.into_iter() {
+        args.push(':');
+        args.push_str(&path.as_ref().to_string_lossy());
+    }
+
+    args.push_str(",upperdir=");
+    args.push_str(&config.upper_dir.to_string_lossy());
+
+    args.push_str(",workdir=");
+    args.push_str(&config.work_dir.to_string_lossy());
 
     match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE) {
         Err(_) => tracing::debug!("failed to get page size for checking arg length"),
         Ok(None) => (),
         Ok(Some(size)) => {
             if args.as_bytes().len() as i64 > size - 1 {
-                return Err("Mount args would be too large for the kernel, reduce your config value for filesystem.max_layers".into());
+                return Err(
+                    "Mount args would be too large for the kernel; reduce the number of layers"
+                        .into(),
+                );
             }
         }
     };
     Ok(args)
 }
 
-pub fn mount_env<P: AsRef<Path>>(
+pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
+
+pub(crate) fn mount_env<P: AsRef<Path>>(
     rt: &runtime::Runtime,
-    lower_dirs: impl IntoIterator<Item = P>,
+    overlay_mount_options: &OverlayMountOptions,
+    lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
-    let mut overlay_args = get_overlay_args(&rt.config, lower_dirs)?;
-    if !rt.status.editable {
-        overlay_args = format!("ro,{overlay_args}");
-    }
+    let overlay_args = get_overlay_args(&rt.config, overlay_mount_options, lowerdirs)?;
     tracing::debug!("/usr/bin/mount -t overlay -o {overlay_args} none {SPFS_DIR}");
     // for some reason, the overlay mount process creates a bad filesystem if the
     // mount command is called directly from this process. It may be some default

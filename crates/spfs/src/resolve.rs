@@ -141,31 +141,87 @@ pub async fn compute_object_manifest(
 /// Compile the set of directories to be overlayed for a runtime.
 ///
 /// These are returned as a list, from bottom to top.
-pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std::path::PathBuf>> {
-    let config = get_config()?;
-    let repo = config.get_local_repository().await?.into();
-    let mut overlay_dirs = Vec::new();
-    let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
+pub(crate) async fn resolve_overlay_dirs(
+    runtime: &runtime::Runtime,
+    repo: &storage::RepositoryHandle,
+    overlay_mount_options: &crate::env::OverlayMountOptions,
+) -> Result<Vec<graph::Manifest>> {
+    let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for layer in layers {
         manifests.push(repo.read_manifest(layer.manifest).await?);
     }
-    if manifests.len() > config.filesystem.max_layers {
-        let to_flatten = manifests.len() - config.filesystem.max_layers as usize;
-        tracing::debug!("flattening {to_flatten} layers into one...");
-        let mut manifest = tracking::Manifest::default();
-        for next in manifests.drain(0..to_flatten) {
-            manifest.update(&next.unlock());
-        }
-        let manifest = graph::Manifest::from(&manifest);
-        // store the newly created manifest so that the render process can read it back
-        repo.write_object(&manifest.clone().into()).await?;
-        manifests.insert(0, manifest);
-    }
 
     let renders = repo.renders()?;
+
+    // Determine if layers need to be combined to stay within the length limits
+    // of mount args.
+    loop {
+        let mut overlay_dirs = Vec::with_capacity(manifests.len());
+        for manifest in &manifests {
+            let rendered_dir = renders.manifest_render_path(manifest)?;
+            overlay_dirs.push(rendered_dir);
+        }
+        if crate::env::get_overlay_args(&runtime.config, overlay_mount_options, overlay_dirs)
+            .is_ok()
+        {
+            break;
+        }
+        // Cut the number of layers in half...
+        let mut to_flatten = manifests.len() / 2;
+        // Infinite loop protection.
+        while to_flatten > 1 {
+            // How many layers to flatten together as a group. By grouping,
+            // the cost of flattening can be amortized compared to doing one
+            // layer at a time, while still allowing for a chance of reusing
+            // previously flattened layers.
+            //
+            //     A B C D E F G H I J K L M N O P ...
+            //     |---- A' -----|---- H' -----|
+            //
+            //     A B C D E F G H I J K L Q R S T ...
+            //     |---- A' -----|---- H'' ----|
+            //
+            // In the above example, both would produce the same `A'` flattened
+            // layer and its render could be reused.
+            const FLATTEN_GROUP_SIZE: usize = 7;
+
+            let flatten_group_length = to_flatten.min(FLATTEN_GROUP_SIZE);
+
+            tracing::debug!("flattening {flatten_group_length} layers into one...");
+            let mut manifest = tracking::Manifest::default();
+            for next in manifests.drain(0..flatten_group_length) {
+                manifest.update(&next.unlock());
+            }
+            let manifest = graph::Manifest::from(&manifest);
+            // store the newly created manifest so that the render process can read it back
+            repo.write_object(&manifest.clone().into()).await?;
+            manifests.insert(0, manifest);
+
+            to_flatten -= flatten_group_length;
+        }
+    }
+
+    Ok(manifests)
+}
+
+/// Compile the set of directories to be overlayed for a runtime, and
+/// render them.
+///
+/// These are returned as a list, from bottom to top.
+pub(crate) async fn resolve_and_render_overlay_dirs(
+    runtime: &runtime::Runtime,
+    overlay_mount_options: &crate::env::OverlayMountOptions,
+) -> Result<Vec<std::path::PathBuf>> {
+    let config = get_config()?;
+    let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
+    let renders = repo.renders()?;
+
+    let manifests = resolve_overlay_dirs(runtime, &repo, overlay_mount_options).await?;
+
     let mut to_render = HashSet::new();
-    for digest in manifests.iter().map(|m| m.digest().unwrap()) {
+    for digest in manifests.iter().map(|m| m.digest()) {
+        let digest = digest?;
         if !renders.has_rendered_manifest(digest).await {
             to_render.insert(digest);
         }
@@ -189,6 +245,7 @@ pub async fn resolve_overlay_dirs(runtime: &runtime::Runtime) -> Result<Vec<std:
                 .and_then(|r| r)?;
         }
     }
+    let mut overlay_dirs = Vec::with_capacity(manifests.len());
     for manifest in manifests {
         let rendered_dir = renders.render_manifest(&manifest).await?;
         overlay_dirs.push(rendered_dir);

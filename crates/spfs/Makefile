@@ -3,7 +3,7 @@ SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 cargo_features_arg := $(if $(FEATURES),--features $(FEATURES))
 
-.PHONY: rpm debug release test install
+.PHONY: rpm debug release test install install-debug setcap copy-release copy-debug
 default: debug
 
 debug:
@@ -32,9 +32,19 @@ rpm:
 	  && docker cp $$CONTAINER:/root/rpmbuild/RPMS dist/rpm/ \
 	  && docker rm --force $$CONTAINER
 
-install: release
+install-debug: copy-debug setcap
+
+install: copy-release setcap
+
+copy-debug: debug
+	cd $(SOURCE_ROOT)
+	sudo cp target/debug/spfs* /usr/bin/
+
+copy-release: release
 	cd $(SOURCE_ROOT)
 	sudo cp target/release/spfs* /usr/bin/
+
+setcap:
 	sudo setcap 'cap_net_admin+ep' /usr/bin/spfs-monitor
 	sudo setcap 'cap_chown,cap_fowner+ep' /usr/bin/spfs-render
 	sudo setcap 'cap_sys_chroot,cap_sys_admin+e' /usr/bin/spfs-join

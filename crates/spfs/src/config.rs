@@ -40,18 +40,6 @@ impl Default for User {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
-pub struct Filesystem {
-    pub max_layers: usize,
-}
-
-impl Default for Filesystem {
-    fn default() -> Self {
-        Self { max_layers: 40 }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
 pub struct Storage {
     pub root: PathBuf,
 }
@@ -150,7 +138,6 @@ impl RemoteConfig {
 pub struct Config {
     pub user: User,
     pub storage: Storage,
-    pub filesystem: Filesystem,
     pub remote: std::collections::HashMap<String, Remote>,
 }
 
@@ -290,7 +277,7 @@ pub fn load_config() -> Result<Config> {
 
     let user_config = expanduser::expanduser("~/.config/spfs/spfs")?;
 
-    let mut builder = RawConfig::builder()
+    let config = RawConfig::builder()
         // for backwards compatibility we also support .conf as an ini extension
         .add_source(File::new("/etc/spfs.conf", Ini).required(false))
         // the system config can also be in any support format: toml, yaml, json, ini, etc
@@ -299,19 +286,8 @@ pub fn load_config() -> Result<Config> {
         .add_source(File::new(&format!("{}.conf", user_config.display()), Ini).required(false))
         // the user config can also be in any support format: toml, yaml, json, ini, etc
         .add_source(File::with_name(&format!("{}", user_config.display())).required(false))
-        .add_source(Environment::with_prefix("SPFS").separator("_"));
-
-    let base = builder.build_cloned()?;
-
-    // unfortunately, we need to load the config twice, because
-    // the initial one may load values from the environment and
-    // place them into the wrong structure if the target field
-    // name also includes an underscore
-    if let Ok(v) = base.get_string("filesystem.max.layers") {
-        builder = builder.set_override("filesystem.max_layers", v)?;
-    }
-
-    let config = builder.build()?;
+        .add_source(Environment::with_prefix("SPFS").separator("_"))
+        .build()?;
 
     Ok(Config::deserialize(config)?)
 }
