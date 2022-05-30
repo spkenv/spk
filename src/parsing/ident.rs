@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::char,
-    combinator::{eof, fail, map, map_res, opt, peek},
+    combinator::{eof, map, map_res, opt, peek},
     error::{context, VerboseError},
     sequence::{preceded, terminated},
     IResult,
@@ -18,6 +18,7 @@ use crate::api::{parse_version, Build, Ident, RepositoryName, Version};
 
 use super::{
     name::{is_legal_package_name_chr, known_repository_name, package_name, repository_name},
+    package_name_and_not_version,
     version::version_str,
     version_and_optional_build,
 };
@@ -48,28 +49,6 @@ fn package_ident(input: &str) -> IResult<&str, Ident, VerboseError<&str>> {
     )(input)
 }
 
-fn package_name_and_not_version(input: &str) -> IResult<&str, Ident, VerboseError<&str>> {
-    let (tail, ident) = package_ident(input)?;
-    // To disambiguate cases like:
-    //    111/222
-    // If "222" is a valid version string and is the end of input,
-    // return an Error here so that "111" will be treated as the
-    // package name instead of as a repository name.
-    if terminated(version_str, eof)(input).is_ok() {
-        return fail("could be version");
-    }
-    // To disambiguate cases like:
-    //    222/333/44444444
-    // If "333" is a valid version string and "44444444" is a
-    // valid build string and is the end of input, return an Error
-    // here so that "222" will be treated as the package name
-    // instead of as a repository name.
-    if let Ok((_, (_version, Some(_build)))) = terminated(version_and_build, eof)(input) {
-        return fail("could be a build");
-    }
-    Ok((tail, ident))
-}
-
 fn repo_name_in_ident<'a>(
     known_repositories: &'a HashSet<&'a str>,
 ) -> impl Fn(&str) -> IResult<&str, RepositoryName, VerboseError<&str>> + 'a {
@@ -90,7 +69,11 @@ fn repo_name_in_ident<'a>(
                 // components are more likely to mean the consumed component was actually a
                 // package name. This puts more emphasis on interpreting input the same as before
                 // repository names were added.
-                peek(package_name_and_not_version),
+                peek(package_name_and_not_version(
+                    package_ident,
+                    version_str,
+                    version_and_build,
+                )),
             ),
         ))(input)
     }
