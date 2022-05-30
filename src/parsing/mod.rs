@@ -11,7 +11,7 @@ mod version;
 mod version_range;
 
 pub(crate) use ident::ident;
-pub(crate) use request::range_ident;
+pub(crate) use request::{range_ident, version_filter_and_build};
 
 #[cfg(test)]
 #[path = "./parsing_test.rs"]

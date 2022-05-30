@@ -14,10 +14,9 @@ use serde::{Deserialize, Serialize};
 use super::{
     compat::API_STR,
     compat::BINARY_STR,
-    parse_build,
     version_range::{self, Ranged},
-    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, OptName,
-    OptNameBuf, PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
+    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName, OptNameBuf,
+    PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
 };
 use crate::{Error, Result};
 
@@ -355,56 +354,7 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// spk::api::parse_ident_range("maya/^2020.0").unwrap();
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
-    let mut parts = source.as_ref().split('/');
-    let name_and_components = parts.next().unwrap_or("");
-    let (name, components) = parse_name_and_components(name_and_components)?;
-    let version = parts.next().unwrap_or("");
-    let build = parts.next();
-
-    if parts.next().is_some() {
-        return Err(Error::String(format!(
-            "Too many tokens in range identifier: {}",
-            source.as_ref()
-        )));
-    }
-
-    Ok(RangeIdent {
-        // FIXME:
-        repository_name: None,
-        name,
-        components,
-        version: VersionFilter::from_str(version)?,
-        build: match build {
-            Some(b) => Some(parse_build(b)?),
-            None => None,
-        },
-    })
-}
-
-fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(PkgNameBuf, HashSet<Component>)> {
-    let source = source.as_ref();
-    let mut components = HashSet::new();
-
-    if let Some(delim) = source.find(':') {
-        let name = source[..delim].parse()?;
-        let remainder = &source[delim + 1..];
-        let cmpts = match remainder.starts_with('{') {
-            true if remainder.ends_with('}') => &remainder[1..remainder.len() - 1],
-            true => {
-                return Err(InvalidNameError::new_error(
-                    "missing or misplaced closing delimiter for component list: '}'".to_string(),
-                ))
-            }
-            false => remainder,
-        };
-
-        for cmpt in cmpts.split(',') {
-            components.insert(Component::parse(cmpt)?);
-        }
-        return Ok((name, components));
-    }
-
-    Ok((source.parse()?, components))
+    RangeIdent::from_str(source.as_ref())
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
