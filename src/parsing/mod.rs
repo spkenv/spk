@@ -10,20 +10,27 @@ mod request;
 mod version;
 mod version_range;
 
+use std::collections::HashSet;
+
 use nom::{
+    branch::alt,
+    bytes::complete::take_while1,
     character::complete::char,
-    combinator::{eof, fail, opt},
+    combinator::{eof, fail, opt, peek},
     error::{context, VerboseError},
-    sequence::{pair, preceded},
+    sequence::{pair, preceded, terminated},
     IResult, Parser,
 };
 
 pub(crate) use ident::ident;
 pub(crate) use request::{range_ident, version_filter_and_build};
 
-use crate::api::Build;
+use crate::api::{Build, RepositoryName};
 
-use self::build::build;
+use self::{
+    build::build,
+    name::{is_legal_package_name_chr, known_repository_name, repository_name},
+};
 
 #[cfg(test)]
 #[path = "./parsing_test.rs"]
@@ -36,7 +43,7 @@ mod parsing_test;
 ///
 /// This function is generic over the type of package-like and
 /// version-like expression that is expected.
-pub(crate) fn package_name_and_not_version<'i, I, V1, V2, B, F1, F2, F3>(
+fn package_name_and_not_version<'i, I, V1, V2, B, F1, F2, F3>(
     mut ident_parser: F1,
     mut version_parser: F2,
     mut version_and_build_parser: F3,
@@ -73,6 +80,56 @@ where
         }
         Ok((tail, ident))
     }
+}
+
+/// Expect a repository name in the context of an identity.
+///
+/// This parser expects that the repository name is followed by
+/// a '/' within the input, and fails if the input is more likely
+/// to be a package name, even if it might be a valid repository
+/// name.
+///
+/// This function is generic over the type of package-like and
+/// version-like expression that is expected.
+pub(crate) fn repo_name_in_ident<'a, 'i, I, V1, V2, B, F1, F2, F3>(
+    known_repositories: &'a HashSet<&'a str>,
+    ident_parser: F1,
+    version_parser: F2,
+    version_and_build_parser: F3,
+) -> impl FnMut(&'i str) -> IResult<&'i str, RepositoryName, VerboseError<&'i str>> + 'a
+where
+    'i: 'a,
+    I: 'a,
+    B: 'a,
+    V1: 'a,
+    V2: 'a,
+    F1: Parser<&'i str, I, VerboseError<&'i str>> + 'a,
+    F2: Parser<&'i str, V1, VerboseError<&'i str>> + 'a,
+    F3: Parser<&'i str, (V2, Option<B>), VerboseError<&'i str>> + 'a,
+{
+    // To disambiguate cases like:
+    //    local/222
+    // If "local" is a known repository name and "222" is a valid
+    // package name and the end of input, treat the first component
+    // as a repository name instead of a package name.
+    alt((
+        terminated(
+            terminated(known_repository_name(known_repositories), char('/')),
+            peek(terminated(take_while1(is_legal_package_name_chr), eof)),
+        ),
+        terminated(
+            terminated(repository_name, char('/')),
+            // Reject treating the consumed component as a repository name if the following
+            // components are more likely to mean the consumed component was actually a
+            // package name. This puts more emphasis on interpreting input the same as before
+            // repository names were added.
+            peek(package_name_and_not_version(
+                ident_parser,
+                version_parser,
+                version_and_build_parser,
+            )),
+        ),
+    ))
 }
 
 /// Expect a version-like expression and optional build.
