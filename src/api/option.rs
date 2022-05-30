@@ -418,21 +418,28 @@ impl PkgOpt {
     }
 
     pub fn set_value(&mut self, value: String) -> Result<()> {
-        if let Err(err) = VersionRange::from_str(&value) {
-            // Can this be parsed as a valid ident range instead?
-            // Example: `"1.0.0/QYB6QLCN"`
-            if super::parse_ident_range(format!("pkg-name/{}", &value)).is_err() {
-                // No; reject the value
-                return Err(Error::wrap(
-                    format!(
-                        "Invalid value '{}' for option '{}', not a valid package request",
-                        value, self.pkg
-                    ),
-                    err,
-                ));
+        if let Err(err) = nom::branch::alt((
+            nom::combinator::recognize(nom::combinator::all_consuming(
+                crate::parsing::version_filter_and_build,
+            )),
+            // empty string is okay in this position
+            nom::combinator::eof,
+        ))(value.as_str())
+        .map_err(|err| match err {
+            nom::Err::Error(e) | nom::Err::Failure(e) => {
+                crate::Error::String(nom::error::convert_error(value.as_str(), e))
             }
-            // else accept the value
+            nom::Err::Incomplete(_) => unreachable!(),
+        }) {
+            return Err(Error::wrap(
+                format!(
+                    "Invalid value '{}' for option '{}', not a valid package request",
+                    value, self.pkg
+                ),
+                err,
+            ));
         }
+        // else accept the value
         self.value = Some(value);
         Ok(())
     }
@@ -470,7 +477,12 @@ impl PkgOpt {
         requester: RequestedBy,
     ) -> Result<PkgRequest> {
         let value = self.get_value(given_value.as_deref()).unwrap_or_default();
-        let pkg = super::parse_ident_range(format!("{}/{}", self.pkg, value))?;
+        let ident_range = if value.is_empty() {
+            self.pkg.to_string()
+        } else {
+            format!("{}/{}", self.pkg, value)
+        };
+        let pkg = super::parse_ident_range(ident_range)?;
 
         let request = PkgRequest::new(pkg, requester)
             .with_prerelease(self.prerelease_policy)
