@@ -195,6 +195,11 @@ impl Config {
         storage::fs::FSRepository::create(&self.storage.root).await
     }
 
+    /// Get the local repository handle as configured.
+    pub async fn get_local_repository_handle(&self) -> Result<storage::RepositoryHandle> {
+        Ok(self.get_local_repository().await?.into())
+    }
+
     /// Get a remote repository by name, or the local repository.
     ///
     /// If `name` is defined, attempt to open the named remote
