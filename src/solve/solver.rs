@@ -256,84 +256,94 @@ impl Solver {
 
                 self.number_total_builds += 1;
 
-                // Pull an arbitrary spec out from the hashmap
-                let (_, (spec, repo)) = &hm.iter().next().expect("non-empty hashmap");
-                let mut spec = Arc::clone(spec);
+                // Try all the hash map values to check all repos.
+                for (spec, repo) in hm.values() {
+                    let mut spec = Arc::clone(spec);
 
-                let build_from_source = spec.pkg.build == Some(Build::Source)
-                    && request.pkg.build != Some(Build::Source);
-                if build_from_source {
-                    if let PackageSource::Spec(spec) = repo {
-                        notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                    let build_from_source = spec.pkg.build == Some(Build::Source)
+                        && request.pkg.build != Some(Build::Source);
+                    if build_from_source {
+                        if let PackageSource::Spec(spec) = repo {
+                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                                spec.pkg.clone(),
+                                "cannot build embedded source package",
+                            )));
+                            self.number_builds_skipped += 1;
+                            continue;
+                        }
+
+                        match repo.read_spec(&spec.pkg.with_build(None)).await {
+                            Ok(s) => spec = s,
+                            Err(Error::PackageNotFoundError(pkg)) => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        pkg,
+                                        "cannot build from source, version spec not available",
+                                    ),
+                                ));
+                                continue;
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    }
+
+                    compat = self.validate(
+                        &node.state,
+                        &spec,
+                        // Go home, clippy, you're drunk.
+                        #[allow(clippy::needless_borrow)]
+                        &repo,
+                    )?;
+                    if !&compat {
+                        notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                             spec.pkg.clone(),
-                            "cannot build embedded source package",
+                            compat,
                         )));
                         self.number_builds_skipped += 1;
                         continue;
                     }
 
-                    match repo.read_spec(&spec.pkg.with_build(None)).await {
-                        Ok(s) => spec = s,
-                        Err(Error::PackageNotFoundError(pkg)) => {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                pkg,
-                                "cannot build from source, version spec not available",
-                            )));
-                            self.number_builds_skipped += 1;
-                            continue;
-                        }
-                        Err(err) => return Err(err),
-                    }
-                }
-
-                compat = self.validate(&node.state, &spec, repo)?;
-                if !&compat {
-                    notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                        spec.pkg.clone(),
-                        compat,
-                    )));
-                    self.number_builds_skipped += 1;
-                    continue;
-                }
-
-                let mut decision = if build_from_source {
-                    match self.resolve_new_build(&spec, &node.state).await {
-                        Ok(build_env) => {
-                            match Decision::builder(spec.clone(), &node.state)
-                                .with_components(&request.pkg.components)
-                                .build_package(&build_env)
-                            {
-                                Ok(decision) => decision,
-                                Err(err) => {
-                                    notes.push(Note::SkipPackageNote(
-                                        SkipPackageNote::new_from_message(
-                                            spec.pkg.clone(),
-                                            &format!("cannot build package: {:?}", err),
-                                        ),
-                                    ));
-                                    self.number_builds_skipped += 1;
-                                    continue;
+                    let mut decision = if build_from_source {
+                        match self.resolve_new_build(&spec, &node.state).await {
+                            Ok(build_env) => {
+                                match Decision::builder(spec.clone(), &node.state)
+                                    .with_components(&request.pkg.components)
+                                    .build_package(&build_env)
+                                {
+                                    Ok(decision) => decision,
+                                    Err(err) => {
+                                        notes.push(Note::SkipPackageNote(
+                                            SkipPackageNote::new_from_message(
+                                                spec.pkg.clone(),
+                                                &format!("cannot build package: {:?}", err),
+                                            ),
+                                        ));
+                                        self.number_builds_skipped += 1;
+                                        continue;
+                                    }
                                 }
                             }
-                        }
 
-                        // FIXME: This should only match `SolverError`
-                        Err(err) => {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.pkg.clone(),
-                                &format!("cannot resolve build env: {:?}", err),
-                            )));
-                            self.number_builds_skipped += 1;
-                            continue;
+                            // FIXME: This should only match `SolverError`
+                            Err(err) => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        spec.pkg.clone(),
+                                        &format!("cannot resolve build env: {:?}", err),
+                                    ),
+                                ));
+                                self.number_builds_skipped += 1;
+                                continue;
+                            }
                         }
-                    }
-                } else {
-                    Decision::builder(spec, &node.state)
-                        .with_components(&request.pkg.components)
-                        .resolve_package(repo.clone())
-                };
-                decision.add_notes(notes.iter().cloned());
-                return Ok(Some(decision));
+                    } else {
+                        Decision::builder(spec, &node.state)
+                            .with_components(&request.pkg.components)
+                            .resolve_package(repo.clone())
+                    };
+                    decision.add_notes(notes.iter().cloned());
+                    return Ok(Some(decision));
+                }
             }
         }
 
