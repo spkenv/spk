@@ -9,6 +9,7 @@ mod repository;
 mod runtime;
 mod spfs;
 
+pub(crate) use self::spfs::KNOWN_REPOSITORY_NAMES;
 pub use self::spfs::{local_repository, remote_repository, SPFSRepository};
 pub use archive::{export_package, import_package};
 pub use handle::RepositoryHandle;
