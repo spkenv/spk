@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::char,
-    combinator::{eof, fail, map, opt, peek},
+    combinator::{eof, map, opt, peek},
     error::{context, VerboseError},
     multi::separated_list1,
     sequence::{pair, preceded, terminated},
@@ -20,33 +20,9 @@ use crate::api::{Build, Component, PkgName, RangeIdent, RepositoryName, VersionF
 use super::{
     component::components,
     name::{is_legal_package_name_chr, known_repository_name, package_name, repository_name},
-    version_and_optional_build,
+    package_name_and_not_version, version_and_optional_build,
     version_range::version_range,
 };
-
-fn package_name_and_not_version_filter(
-    input: &str,
-) -> IResult<&str, (&PkgName, HashSet<Component>), VerboseError<&str>> {
-    let (tail, ident) = range_ident_pkg_name(input)?;
-    // To disambiguate cases like:
-    //    111/222
-    // If "222" is a valid version string and is the end of input,
-    // return an Error here so that "111" will be treated as the
-    // package name instead of as a repository name.
-    if terminated(range_ident_version_filter, eof)(input).is_ok() {
-        return fail("could be version filter");
-    }
-    // To disambiguate cases like:
-    //    222/333/44444444
-    // If "333" is a valid version string and "44444444" is a
-    // valid build string and is the end of input, return an Error
-    // here so that "222" will be treated as the package name
-    // instead of as a repository name.
-    if let Ok((_, (_version, Some(_build)))) = terminated(version_filter_and_build, eof)(input) {
-        return fail("could be a build");
-    }
-    Ok((tail, ident))
-}
 
 fn range_ident_pkg_name(
     input: &str,
@@ -117,7 +93,11 @@ fn repo_name_in_range_ident<'a>(
                 // components are more likely to mean the consumed component was actually a
                 // package name. This puts more emphasis on interpreting input the same as before
                 // repository names were added.
-                peek(package_name_and_not_version_filter),
+                peek(package_name_and_not_version(
+                    range_ident_pkg_name,
+                    range_ident_version_filter,
+                    version_filter_and_build,
+                )),
             ),
         ))(input)
     }
