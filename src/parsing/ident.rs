@@ -105,6 +105,9 @@ fn version_and_build(input: &str) -> IResult<&str, (Version, Option<Build>), Ver
             char('/'),
             context("parse_version", map_res(version_str, parse_version)),
         ),
-        opt(context("parse_build", map_res(build_str, parse_build))),
+        opt(preceded(
+            char('/'),
+            context("parse_build", map_res(build_str, parse_build)),
+        )),
     )(input)
 }

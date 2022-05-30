@@ -128,6 +128,6 @@ pub(crate) fn version_filter_and_build(
 ) -> IResult<&str, (VersionFilter, Option<Build>), VerboseError<&str>> {
     pair(
         context("parse_version_filter", range_ident_version_filter),
-        opt(context("parse_build", build)),
+        opt(preceded(char('/'), context("parse_build", build))),
     )(input)
 }
