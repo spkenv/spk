@@ -7,10 +7,8 @@ use std::str::FromStr;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while_m_n},
-    character::complete::char,
     combinator::map_res,
     error::VerboseError,
-    sequence::preceded,
     IResult,
 };
 
@@ -29,14 +27,11 @@ pub(crate) fn build(input: &str) -> IResult<&str, Build, VerboseError<&str>> {
 }
 
 pub(crate) fn build_str(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
-    preceded(
-        char('/'),
-        alt((
-            tag(crate::api::SRC),
-            tag(crate::api::EMBEDDED),
-            base32_build,
-        )),
-    )(input)
+    alt((
+        tag(crate::api::SRC),
+        tag(crate::api::EMBEDDED),
+        base32_build,
+    ))(input)
 }
 
 #[inline]
