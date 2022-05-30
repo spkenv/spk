@@ -19,6 +19,11 @@ pub struct CmdPush {
     #[clap(long, short, default_value = "origin")]
     remote: String,
 
+    /// Forcefully sync all associated graph data even if it
+    /// already exists in the destination repo
+    #[clap(long)]
+    no_skip_existing: bool,
+
     /// The reference(s) to push
     #[clap(value_name = "REF", required = true)]
     refs: Vec<String>,
@@ -30,6 +35,8 @@ impl CmdPush {
         let remote = config.get_remote(&self.remote).await?;
         for reference in self.refs.iter() {
             spfs::Syncer::new(&repo, &remote)
+                .set_skip_existing_objects(!self.no_skip_existing)
+                .set_skip_existing_payloads(!self.no_skip_existing)
                 .sync_ref(reference)
                 .await?;
         }

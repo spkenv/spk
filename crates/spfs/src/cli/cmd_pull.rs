@@ -21,6 +21,11 @@ pub struct CmdPull {
     #[clap(long, short)]
     remote: Option<String>,
 
+    /// Forcefully sync all associated graph data even if it
+    /// already exists in the local repo
+    #[clap(long)]
+    no_skip_existing: bool,
+
     /// The reference(s) to pull/localize
     #[clap(value_name = "REF", required = true)]
     refs: Vec<String>,
@@ -36,6 +41,8 @@ impl CmdPull {
 
         for reference in self.refs.iter() {
             spfs::Syncer::new(&remote, &repo)
+                .set_skip_existing_objects(!self.no_skip_existing)
+                .set_skip_existing_payloads(!self.no_skip_existing)
                 .sync_ref(reference)
                 .await?;
         }

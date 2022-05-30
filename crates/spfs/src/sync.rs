@@ -20,6 +20,8 @@ static MAX_CONCURRENT: usize = 256;
 pub struct Syncer<'src, 'dst> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
+    skip_existing_objects: bool,
+    skip_existing_payloads: bool,
 }
 
 impl<'src, 'dst> Syncer<'src, 'dst> {
@@ -27,7 +29,39 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         src: &'src storage::RepositoryHandle,
         dest: &'dst storage::RepositoryHandle,
     ) -> Self {
-        Self { src, dest }
+        Self {
+            src,
+            dest,
+            skip_existing_objects: true,
+            skip_existing_payloads: true,
+        }
+    }
+
+    /// When true, do not sync any object that already exists in the destination repo.
+    ///
+    /// This is on by default, but can be disabled in order to repair a corrupt
+    /// repository that has some parent object but is missing one or more children.
+    ///
+    /// Setting this to true will also skip any existing payload.
+    pub fn set_skip_existing_objects(&mut self, skip_existing: bool) -> &mut Self {
+        self.skip_existing_objects = skip_existing;
+        if skip_existing {
+            self.skip_existing_payloads = true;
+        }
+        self
+    }
+
+    /// When true, do not sync any payload that already exists in the destination repo.
+    ///
+    /// This is on by default, but can be disabled in order to repair a corrupt
+    /// repository. Setting this to true, also means that existing objects will not
+    /// be skipped.
+    pub fn set_skip_existing_payloads(&mut self, skip_existing: bool) -> &mut Self {
+        self.skip_existing_payloads = skip_existing;
+        if !skip_existing {
+            self.skip_existing_objects = false;
+        }
+        self
     }
 
     pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<graph::Object> {
@@ -65,7 +99,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
     pub async fn sync_platform(&self, platform: &graph::Platform) -> Result<()> {
         let digest = platform.digest()?;
-        if self.dest.has_platform(digest).await {
+        if self.skip_existing_objects && self.dest.has_platform(digest).await {
             tracing::debug!(?digest, "platform already synced");
             return Ok(());
         }
@@ -82,7 +116,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
     pub async fn sync_layer(&self, layer: &graph::Layer) -> Result<()> {
         let layer_digest = layer.digest()?;
-        if self.dest.has_layer(layer_digest).await {
+        if self.skip_existing_objects && self.dest.has_layer(layer_digest).await {
             tracing::debug!(digest = ?layer_digest, "layer already synced");
             return Ok(());
         }
@@ -98,7 +132,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
     pub async fn sync_manifest(&self, manifest: &graph::Manifest) -> Result<()> {
         let manifest_digest = manifest.digest()?;
-        if self.dest.has_manifest(manifest_digest).await {
+        if self.skip_existing_objects && self.dest.has_manifest(manifest_digest).await {
             tracing::info!(digest = ?manifest_digest, "manifest already synced");
             return Ok(());
         }
@@ -175,17 +209,22 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     async fn sync_blob(&self, blob: &graph::Blob) -> Result<()> {
-        if self.dest.has_payload(blob.payload).await {
+        if self.skip_existing_objects && self.dest.has_blob(blob.digest()).await {
+            tracing::trace!(digest = ?blob.payload, "blob already synced");
+            return Ok(());
+        }
+        if self.skip_existing_payloads && self.dest.has_payload(blob.payload).await {
             tracing::trace!(digest = ?blob.payload, "blob payload already synced");
+            return Ok(());
         } else {
             let payload = self.src.open_payload(blob.payload).await?;
             tracing::debug!(digest = ?blob.payload, "syncing payload");
             let (digest, _) = self.dest.write_data(payload).await?;
             if digest != blob.payload {
                 return Err(Error::String(format!(
-                "Source repository provided blob that did not match the requested digest: wanted {}, got {digest}",
-                blob.payload,
-            )));
+                    "Source repository provided blob that did not match the requested digest: wanted {}, got {digest}",
+                    blob.payload,
+                )));
             }
         }
         self.dest.write_blob(blob.clone()).await?;
