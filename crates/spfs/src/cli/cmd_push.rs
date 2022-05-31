@@ -12,19 +12,20 @@ main!(CmdPush);
 /// Push one or more objects to a remote repository
 #[derive(Debug, Parser)]
 pub struct CmdPush {
+    #[clap(flatten)]
+    sync: args::Sync,
+
     #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    verbose: usize,
 
     /// The name or address of the remote server to push to
     #[clap(long, short, default_value = "origin")]
     remote: String,
 
-    /// Forcefully sync all associated graph data even if it
-    /// already exists in the destination repo
-    #[clap(long)]
-    no_skip_existing: bool,
-
     /// The reference(s) to push
+    ///
+    /// These can be individual tags or digests, or they may also
+    /// be a collection of items joined by a '+'
     #[clap(value_name = "REF", required = true)]
     refs: Vec<String>,
 }
@@ -34,15 +35,14 @@ impl CmdPush {
         let repo = config.get_local_repository().await?.into();
         let remote = config.get_remote(&self.remote).await?;
 
-        let mut summary = spfs::sync::SyncSummary::default();
-        for reference in self.refs.iter() {
-            summary += spfs::Syncer::new(&repo, &remote)
-                .set_skip_existing_objects(!self.no_skip_existing)
-                .set_skip_existing_payloads(!self.no_skip_existing)
-                .sync_ref(reference)
-                .await?
-                .summary();
-        }
+        let env_spec =
+            spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
+        let summary = self
+            .sync
+            .get_syncer(&remote, &repo)
+            .sync_env(env_spec)
+            .await?
+            .summary();
         tracing::info!("{}", spfs::io::format_sync_summary(&summary));
 
         Ok(0)

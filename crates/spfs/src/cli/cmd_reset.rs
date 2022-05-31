@@ -4,9 +4,14 @@
 
 use clap::Args;
 
+use super::args;
+
 /// Reset changes, or rebuild the entire spfs directory
 #[derive(Args, Debug)]
 pub struct CmdReset {
+    #[clap(flatten)]
+    sync: args::Sync,
+
     /// Mount the resulting runtime in edit mode
     ///
     /// Default to true if REF is empty or not given
@@ -37,7 +42,11 @@ impl CmdReset {
                 _ => {
                     let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
                     let origin = config.get_remote("origin").await?;
-                    let synced = spfs::Syncer::new(&origin, &repo).sync_env(env_spec).await?;
+                    let synced = self
+                        .sync
+                        .get_syncer(&origin, &repo)
+                        .sync_env(env_spec)
+                        .await?;
                     for item in synced.env.iter() {
                         let digest = item.resolve_digest(&*repo).await?;
                         runtime.push_digest(digest);

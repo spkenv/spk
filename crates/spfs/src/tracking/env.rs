@@ -12,7 +12,8 @@ use crate::{Error, Result};
 #[path = "./env_test.rs"]
 mod env_test;
 
-static ENV_SPEC_SEPARATOR: &str = "+";
+/// The pattern used to split components of an env spec string
+pub static ENV_SPEC_SEPARATOR: &str = "+";
 
 /// Specifies an spfs item that can appear in a runtime environment.
 #[derive(Debug, Clone, Eq, PartialEq)]

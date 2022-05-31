@@ -13,8 +13,11 @@ main!(CmdRender);
 
 #[derive(Debug, Parser)]
 pub struct CmdRender {
+    #[clap(flatten)]
+    sync: args::Sync,
+
     #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    verbose: usize,
 
     /// Allow re-rendering when the target directory is not empty
     #[clap(long = "allow-existing")]
@@ -33,7 +36,11 @@ impl CmdRender {
         let repo = config.get_local_repository_handle().await?;
         let origin = config.get_remote("origin").await?;
 
-        let synced = spfs::Syncer::new(&origin, &repo).sync_env(env_spec).await?;
+        let synced = self
+            .sync
+            .get_syncer(&origin, &repo)
+            .sync_env(env_spec)
+            .await?;
 
         let path = match &self.target {
             Some(target) => self.render_to_dir(synced.env, target).await?,
