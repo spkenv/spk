@@ -39,13 +39,16 @@ impl CmdPull {
             Some(remote) => config.get_remote(remote).await?,
         };
 
+        let mut summary = spfs::sync::SyncSummary::default();
         for reference in self.refs.iter() {
-            spfs::Syncer::new(&remote, &repo)
+            summary += spfs::Syncer::new(&remote, &repo)
                 .set_skip_existing_objects(!self.no_skip_existing)
                 .set_skip_existing_payloads(!self.no_skip_existing)
                 .sync_ref(reference)
-                .await?;
+                .await?
+                .summary();
         }
+        tracing::info!("{}", spfs::io::format_sync_summary(&summary));
 
         Ok(0)
     }

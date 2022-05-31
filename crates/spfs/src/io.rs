@@ -108,6 +108,24 @@ pub fn format_changes<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> St
     format_diffs(diffs.filter(|x| !x.mode.is_unchanged()))
 }
 
+/// Return a human-readable representation of the sync summary data.
+pub fn format_sync_summary(summary: &super::sync::SyncSummary) -> String {
+    let super::sync::SyncSummary {
+        skipped_objects,
+        synced_objects,
+        skipped_payloads,
+        synced_payloads,
+        synced_payload_bytes,
+    } = summary;
+
+    format!(
+        "synced {synced_objects} objects ({}) and {synced_payloads} payloads ({}) ({})",
+        format!("{skipped_objects} skipped").dimmed(),
+        format!("{skipped_payloads} skipped").dimmed(),
+        format_size(*synced_payload_bytes)
+    )
+}
+
 /// Return a human-readable file size in bytes.
 pub fn format_size(size: u64) -> String {
     let mut size = size as f64;

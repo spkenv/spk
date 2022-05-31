@@ -33,13 +33,17 @@ impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_local_repository().await?.into();
         let remote = config.get_remote(&self.remote).await?;
+
+        let mut summary = spfs::sync::SyncSummary::default();
         for reference in self.refs.iter() {
-            spfs::Syncer::new(&repo, &remote)
+            summary += spfs::Syncer::new(&repo, &remote)
                 .set_skip_existing_objects(!self.no_skip_existing)
                 .set_skip_existing_payloads(!self.no_skip_existing)
                 .sync_ref(reference)
-                .await?;
+                .await?
+                .summary();
         }
+        tracing::info!("{}", spfs::io::format_sync_summary(&summary));
 
         Ok(0)
     }
