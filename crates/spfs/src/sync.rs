@@ -4,7 +4,7 @@
 
 use tokio_stream::StreamExt;
 
-use crate::prelude::*;
+use crate::{encoding, prelude::*};
 use crate::{graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -64,7 +64,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         self
     }
 
-    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<graph::Object> {
+    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncObjectResult> {
         let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
             match self.src.resolve_tag(&tag).await {
                 Ok(tag) => Some(tag),
@@ -76,65 +76,67 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         };
 
         let obj = self.src.read_ref(reference.as_ref()).await?;
-        self.sync_object(&obj).await?;
+        let result = self.sync_object(obj).await?;
         if let Some(tag) = tag {
             tracing::debug!(tag = ?tag.path(), "syncing tag");
             self.dest.push_raw_tag(&tag).await?;
         }
         tracing::debug!(target = ?reference.as_ref(), "sync complete");
-        Ok(obj)
+        Ok(result)
     }
 
     #[async_recursion::async_recursion]
-    pub async fn sync_object<'a>(&self, obj: &'a graph::Object) -> Result<()> {
+    pub async fn sync_object(&self, obj: graph::Object) -> Result<SyncObjectResult> {
         use graph::Object;
         match obj {
-            Object::Layer(obj) => self.sync_layer(obj).await,
-            Object::Platform(obj) => self.sync_platform(obj).await,
-            Object::Blob(obj) => self.sync_blob(obj).await,
-            Object::Manifest(obj) => self.sync_manifest(obj).await,
-            Object::Mask | Object::Tree(_) => Ok(()),
+            Object::Layer(obj) => Ok(SyncObjectResult::Layer(self.sync_layer(obj).await?)),
+            Object::Platform(obj) => Ok(SyncObjectResult::Platform(self.sync_platform(obj).await?)),
+            Object::Blob(obj) => Ok(SyncObjectResult::Blob(self.sync_blob(obj).await?)),
+            Object::Manifest(obj) => Ok(SyncObjectResult::Manifest(self.sync_manifest(obj).await?)),
+            Object::Tree(obj) => Ok(SyncObjectResult::Tree(obj)),
+            Object::Mask => Ok(SyncObjectResult::Mask),
         }
     }
 
-    pub async fn sync_platform(&self, platform: &graph::Platform) -> Result<()> {
+    pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
         if self.skip_existing_objects && self.dest.has_platform(digest).await {
             tracing::debug!(?digest, "platform already synced");
-            return Ok(());
+            return Ok(SyncPlatformResult::Skipped);
         }
         tracing::info!(?digest, "syncing platform");
+        let mut results = Vec::with_capacity(platform.stack.len());
         for digest in &platform.stack {
             let obj = self.src.read_object(*digest).await?;
-            self.sync_object(&obj).await?;
+            results.push(self.sync_object(obj).await?);
         }
 
-        self.dest
-            .write_object(&graph::Object::Platform(platform.clone()))
-            .await
+        let platform = self.dest.create_platform(platform.stack).await?;
+
+        Ok(SyncPlatformResult::Synced { platform, results })
     }
 
-    pub async fn sync_layer(&self, layer: &graph::Layer) -> Result<()> {
+    pub async fn sync_layer(&self, layer: graph::Layer) -> Result<SyncLayerResult> {
         let layer_digest = layer.digest()?;
         if self.skip_existing_objects && self.dest.has_layer(layer_digest).await {
             tracing::debug!(digest = ?layer_digest, "layer already synced");
-            return Ok(());
+            return Ok(SyncLayerResult::Skipped);
         }
 
         tracing::info!(digest = ?layer_digest, "syncing layer");
         let manifest = self.src.read_manifest(layer.manifest).await?;
-        self.sync_manifest(&manifest).await?;
+        let result = self.sync_manifest(manifest).await?;
         self.dest
             .write_object(&graph::Object::Layer(layer.clone()))
             .await?;
-        Ok(())
+        Ok(SyncLayerResult::Synced { layer, result })
     }
 
-    pub async fn sync_manifest(&self, manifest: &graph::Manifest) -> Result<()> {
+    pub async fn sync_manifest(&self, manifest: graph::Manifest) -> Result<SyncManifestResult> {
         let manifest_digest = manifest.digest()?;
         if self.skip_existing_objects && self.dest.has_manifest(manifest_digest).await {
             tracing::info!(digest = ?manifest_digest, "manifest already synced");
-            return Ok(());
+            return Ok(SyncManifestResult::Skipped);
         }
 
         tracing::debug!(digest = ?manifest_digest, "syncing manifest");
@@ -155,79 +157,265 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         for entry in entries {
             futures.push(self.sync_entry(entry));
             while futures.len() >= MAX_CONCURRENT {
-                if let Some(res) = futures.next().await {
-                    let res = res.map_err(|err| {
-                        Error::String(format!("Sync task failed unexpectedly: {}", err))
-                    });
-                    if let Ok(Some(blob)) = &res {
-                        bar.inc(blob.size);
-                    }
+                if let Some(res) = futures.try_next().await? {
+                    bar.inc(res.summary().synced_payload_bytes);
                     results.push(res);
                 }
             }
         }
-        while let Some(res) = futures.next().await {
-            let res =
-                res.map_err(|err| Error::String(format!("Sync task failed unexpectedly: {}", err)));
-            if let Ok(Some(blob)) = &res {
-                bar.inc(blob.size);
-            }
+        while let Some(res) = futures.try_next().await? {
+            bar.inc(res.summary().synced_payload_bytes);
             results.push(res);
         }
         bar.finish();
 
-        let errors: Vec<_> = results
-            .into_iter()
-            .filter_map(|res| if let Err(err) = res { Some(err) } else { None })
-            .collect();
-
-        if !errors.is_empty() {
-            return Err(format!(
-                "{:?}, and {} more errors during sync",
-                errors[0],
-                errors.len() - 1
-            )
-            .into());
-        }
-
         self.dest
             .write_object(&graph::Object::Manifest(manifest.clone()))
             .await?;
-        Ok(())
+
+        Ok(SyncManifestResult::Synced { manifest, results })
     }
 
-    async fn sync_entry(&self, entry: graph::Entry) -> Result<Option<graph::Blob>> {
+    async fn sync_entry(&self, entry: graph::Entry) -> Result<SyncEntryResult> {
         if !entry.kind.is_blob() {
-            return Ok(None);
+            return Ok(SyncEntryResult::Skipped);
         }
         let blob = graph::Blob {
             payload: entry.object,
             size: entry.size,
         };
-        self.sync_blob(&blob).await?;
-        Ok(Some(blob))
+        let result = self.sync_blob(blob).await?;
+        Ok(SyncEntryResult::Synced { entry, result })
     }
 
-    async fn sync_blob(&self, blob: &graph::Blob) -> Result<()> {
+    async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
         if self.skip_existing_objects && self.dest.has_blob(blob.digest()).await {
             tracing::trace!(digest = ?blob.payload, "blob already synced");
-            return Ok(());
+            return Ok(SyncBlobResult::Skipped);
         }
-        if self.skip_existing_payloads && self.dest.has_payload(blob.payload).await {
-            tracing::trace!(digest = ?blob.payload, "blob payload already synced");
-            return Ok(());
-        } else {
-            let payload = self.src.open_payload(blob.payload).await?;
-            tracing::debug!(digest = ?blob.payload, "syncing payload");
-            let (digest, _) = self.dest.write_data(payload).await?;
-            if digest != blob.payload {
-                return Err(Error::String(format!(
-                    "Source repository provided blob that did not match the requested digest: wanted {}, got {digest}",
-                    blob.payload,
-                )));
+        let result = self.sync_payload(blob.payload).await?;
+        self.dest.write_blob(blob.clone()).await?;
+        Ok(SyncBlobResult::Synced { blob, result })
+    }
+
+    async fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+        if self.skip_existing_payloads && self.dest.has_payload(digest).await {
+            tracing::trace!(?digest, "blob payload already synced");
+            return Ok(SyncPayloadResult::Skipped);
+        }
+
+        let payload = self.src.open_payload(digest).await?;
+        tracing::debug!(?digest, "syncing payload");
+        let (created_digest, size) = self.dest.write_data(payload).await?;
+        if digest != created_digest {
+            return Err(Error::String(format!(
+                "Source repository provided blob that did not match the requested digest: wanted {digest}, got {created_digest}",
+            )));
+        }
+        Ok(SyncPayloadResult::Synced { size })
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct SyncSummary {
+    pub skipped_objects: usize,
+    pub synced_objects: usize,
+    pub skipped_payloads: usize,
+    pub synced_payloads: usize,
+    pub synced_payload_bytes: u64,
+}
+
+impl SyncSummary {
+    fn skipped_one_object() -> Self {
+        Self {
+            skipped_objects: 1,
+            ..Default::default()
+        }
+    }
+
+    fn synced_one_object() -> Self {
+        Self {
+            synced_objects: 1,
+            ..Default::default()
+        }
+    }
+}
+
+impl std::ops::AddAssign for SyncSummary {
+    fn add_assign(&mut self, rhs: Self) {
+        self.skipped_objects += rhs.skipped_objects;
+        self.synced_objects += rhs.synced_objects;
+        self.skipped_payloads += rhs.skipped_payloads;
+        self.synced_payloads += rhs.synced_payloads;
+        self.synced_payload_bytes += rhs.synced_payload_bytes;
+    }
+}
+
+impl std::iter::Sum<SyncSummary> for SyncSummary {
+    fn sum<I: Iterator<Item = SyncSummary>>(iter: I) -> Self {
+        iter.fold(Default::default(), |mut cur, next| {
+            cur += next;
+            cur
+        })
+    }
+}
+
+pub enum SyncObjectResult {
+    Platform(SyncPlatformResult),
+    Layer(SyncLayerResult),
+    Blob(SyncBlobResult),
+    Manifest(SyncManifestResult),
+    Tree(graph::Tree),
+    Mask,
+}
+
+impl SyncObjectResult {
+    pub fn summary(&self) -> SyncSummary {
+        use SyncObjectResult::*;
+        match self {
+            Platform(res) => res.summary(),
+            Layer(res) => res.summary(),
+            Blob(res) => res.summary(),
+            Manifest(res) => res.summary(),
+            Mask | Tree(_) => SyncSummary::default(),
+        }
+    }
+}
+
+pub enum SyncPlatformResult {
+    /// The platform did not need to be synced
+    Skipped,
+    /// The platform was at least partially synced
+    Synced {
+        platform: graph::Platform,
+        results: Vec<SyncObjectResult>,
+    },
+}
+
+impl SyncPlatformResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Synced { results, .. } => {
+                let mut summary = results.iter().map(|f| f.summary()).sum();
+                summary += SyncSummary::synced_one_object();
+                summary
             }
         }
-        self.dest.write_blob(blob.clone()).await?;
-        Ok(())
+    }
+}
+
+pub enum SyncLayerResult {
+    /// The layer did not need to be synced
+    Skipped,
+    /// The layer was synced
+    Synced {
+        layer: graph::Layer,
+        result: SyncManifestResult,
+    },
+}
+
+impl SyncLayerResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Synced { result, .. } => {
+                let mut summary = result.summary();
+                summary += SyncSummary::synced_one_object();
+                summary
+            }
+        }
+    }
+}
+
+pub enum SyncManifestResult {
+    /// The manifest did not need to be synced
+    Skipped,
+    /// The manifest was at least partially synced
+    Synced {
+        manifest: graph::Manifest,
+        results: Vec<SyncEntryResult>,
+    },
+}
+
+impl SyncManifestResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Synced { results, .. } => {
+                let mut summary = results.iter().map(|f| f.summary()).sum();
+                summary += SyncSummary::synced_one_object();
+                summary
+            }
+        }
+    }
+}
+
+pub enum SyncEntryResult {
+    /// The entry did not need to be synced
+    Skipped,
+    /// The entry was synced
+    Synced {
+        entry: graph::Entry,
+        result: SyncBlobResult,
+    },
+}
+
+impl SyncEntryResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Synced { result, .. } => {
+                let mut summary = result.summary();
+                summary += SyncSummary::synced_one_object();
+                summary
+            }
+        }
+    }
+}
+
+pub enum SyncBlobResult {
+    /// The blob did not need to be synced
+    Skipped,
+    /// The blob was synced
+    Synced {
+        blob: graph::Blob,
+        result: SyncPayloadResult,
+    },
+}
+
+impl SyncBlobResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Synced { result, .. } => {
+                let mut summary = result.summary();
+                summary += SyncSummary::synced_one_object();
+                summary
+            }
+        }
+    }
+}
+
+pub enum SyncPayloadResult {
+    /// The payload did not need to be synced
+    Skipped,
+    /// The payload was synced
+    Synced { size: u64 },
+}
+
+impl SyncPayloadResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary {
+                skipped_payloads: 1,
+                ..Default::default()
+            },
+            Self::Synced { size } => SyncSummary {
+                synced_payloads: 1,
+                synced_payload_bytes: *size,
+                ..Default::default()
+            },
+        }
     }
 }

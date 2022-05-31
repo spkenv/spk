@@ -29,7 +29,7 @@ pub mod runtime;
 pub mod server;
 mod status;
 pub mod storage;
-mod sync;
+pub mod sync;
 pub mod tracking;
 
 // re-exported to make downstream implementations easier
