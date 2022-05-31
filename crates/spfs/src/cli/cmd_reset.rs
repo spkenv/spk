@@ -36,7 +36,7 @@ impl CmdReset {
             match reference.as_str() {
                 "" | "-" => self.edit = true,
                 _ => {
-                    let env_spec = spfs::tracking::parse_env_spec(reference)?;
+                    let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
                     for target in env_spec.iter() {
                         let obj = repo.read_ref(target.to_string().as_ref()).await?;
                         runtime.push_digest(&obj.digest()?);

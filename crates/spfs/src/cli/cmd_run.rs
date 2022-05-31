@@ -55,8 +55,8 @@ impl CmdRun {
         match self.reference.as_str() {
             "-" | "" => self.edit = true,
             reference => {
-                let env_spec = spfs::tracking::parse_env_spec(reference)?;
-                for target in env_spec {
+                let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
+                for target in env_spec.iter() {
                     let target = target.to_string();
                     if self.pull || !repo.has_ref(target.as_str()).await {
                         tracing::info!(reference = ?target, "pulling target ref");

@@ -54,7 +54,7 @@ pub async fn render_into_directory(
 ) -> Result<()> {
     let repo = get_config()?.get_local_repository().await?;
     let mut stack = Vec::new();
-    for target in &env_spec.items {
+    for target in env_spec.iter() {
         let target = target.to_string();
         let obj = repo.read_ref(target.as_str()).await?;
         stack.push(obj.digest()?);
@@ -88,9 +88,9 @@ pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::M
         }
     }
 
-    let env = tracking::EnvSpec::new(reference.as_ref())?;
+    let env = tracking::EnvSpec::parse(reference)?;
     let mut full_manifest = tracking::Manifest::default();
-    for tag_spec in env.items {
+    for tag_spec in env.iter() {
         let mut item_manifest = None;
         for repo in repos.iter() {
             match repo.read_ref(&tag_spec.to_string()).await {

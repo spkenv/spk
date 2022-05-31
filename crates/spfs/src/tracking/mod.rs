@@ -8,7 +8,7 @@ pub use diff::{compute_diff, Diff, DiffMode};
 mod entry;
 pub use entry::{Entry, EntryKind};
 mod env;
-pub use env::{parse_env_spec, EnvSpec};
+pub use env::{EnvSpec, EnvSpecItem};
 mod manifest;
 pub use manifest::{compute_manifest, Manifest, ManifestBuilder, ManifestBuilderHasher};
 mod object;

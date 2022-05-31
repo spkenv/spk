@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::str::FromStr;
+
 use super::tag::TagSpec;
 use crate::encoding;
 use crate::{Error, Result};
@@ -12,10 +14,11 @@ mod env_test;
 
 static ENV_SPEC_SEPARATOR: &str = "+";
 
-/// One object specifier in an env spec
-#[derive(Debug)]
+/// Specifies an spfs item that can appear in a runtime environment.
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum EnvSpecItem {
     TagSpec(TagSpec),
+    PartialDigest(encoding::PartialDigest),
     Digest(encoding::Digest),
 }
 
@@ -23,23 +26,66 @@ impl std::fmt::Display for EnvSpecItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TagSpec(x) => x.fmt(f),
+            Self::PartialDigest(x) => x.fmt(f),
             Self::Digest(x) => x.fmt(f),
         }
     }
 }
 
+impl FromStr for EnvSpecItem {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        parse_env_spec_item(s)
+    }
+}
+
 /// Specifies a complete runtime environment that
 /// can be made up of multiple layers.
+///
+/// The env spec contains an non-empty, ordered set of references
+/// that make up this environment.
+///
+/// It can be easily parsed from a string containing
+/// tags and/or digests:
+///
+/// ```rust
+/// use spfs::tracking::EnvSpec;
+///
+/// let spec = EnvSpec::parse("sometag~1+my-other-tag").unwrap();
+/// let items: Vec<_> = spec.iter().map(ToString::to_string).collect();
+/// assert_eq!(items, vec!["sometag~1", "my-other-tag"]);
+///
+/// let spec = EnvSpec::parse("3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====+my-tag").unwrap();
+/// let items: Vec<_> = spec.iter().map(ToString::to_string).collect();
+/// assert_eq!(items, vec!["3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====", "my-tag"]);
+/// ```
 #[derive(Debug)]
 pub struct EnvSpec {
-    /// The ordered set of references that make up this environment.
-    pub items: Vec<EnvSpecItem>,
+    items: Vec<EnvSpecItem>,
 }
 
 impl EnvSpec {
-    pub fn new(spec: &str) -> Result<Self> {
+    /// Parse the provided string into an environment spec.
+    pub fn parse<S: AsRef<str>>(spec: S) -> Result<Self> {
+        Self::from_str(spec.as_ref())
+    }
+}
+
+impl std::ops::Deref for EnvSpec {
+    type Target = Vec<EnvSpecItem>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl FromStr for EnvSpec {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         Ok(Self {
-            items: parse_env_spec(spec)?,
+            items: parse_env_spec_items(s)?,
         })
     }
 }
@@ -60,25 +106,10 @@ impl std::string::ToString for EnvSpec {
 }
 
 /// Return the items identified in an environment spec string.
-///
-/// ```rust
-/// use spfs::tracking::parse_env_spec;
-/// let items = parse_env_spec("sometag~1+my-other-tag").unwrap();
-/// let items: Vec<_> = items.into_iter().map(|i| i.to_string()).collect();
-/// assert_eq!(items, vec!["sometag~1", "my-other-tag"]);
-/// let items = parse_env_spec("3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====+my-tag").unwrap();
-/// let items: Vec<_> = items.into_iter().map(|i| i.to_string()).collect();
-/// assert_eq!(items, vec!["3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====", "my-tag"]);
-/// ```
-pub fn parse_env_spec<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
+fn parse_env_spec_items<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
     let mut items = Vec::new();
     for layer in spec.as_ref().split(ENV_SPEC_SEPARATOR) {
-        if let Ok(digest) = encoding::parse_digest(layer) {
-            items.push(EnvSpecItem::Digest(digest));
-            continue;
-        }
-        let tag_spec = TagSpec::parse(layer)?;
-        items.push(EnvSpecItem::TagSpec(tag_spec));
+        items.push(parse_env_spec_item(layer)?);
     }
 
     if items.is_empty() {
@@ -86,4 +117,13 @@ pub fn parse_env_spec<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
     }
 
     Ok(items)
+}
+
+/// Parse the given string as an single environment spec item.
+fn parse_env_spec_item<S: AsRef<str>>(spec: S) -> Result<EnvSpecItem> {
+    let spec = spec.as_ref();
+    encoding::parse_digest(spec)
+        .map(EnvSpecItem::Digest)
+        .or_else(|_| encoding::PartialDigest::parse(spec).map(EnvSpecItem::PartialDigest))
+        .or_else(|_| TagSpec::parse(spec).map(EnvSpecItem::TagSpec))
 }

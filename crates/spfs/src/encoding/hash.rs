@@ -16,6 +16,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::binary;
 use crate::{Error, Result};
 
+#[cfg(test)]
+#[path = "./hash_test.rs"]
+mod hash_test;
+
 /// The Hasher calculates a [`Digest`] from the bytes written to it.
 ///
 /// A write-though target can optionally specified
@@ -160,6 +164,8 @@ impl Decodable for String {
     }
 }
 
+/// The first N bytes of a digest that may sill be unambiguous as a reference
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct PartialDigest(Vec<u8>);
 
 impl PartialDigest {
@@ -167,6 +173,10 @@ impl PartialDigest {
         use std::borrow::Cow;
 
         let mut partial = Cow::Borrowed(source.as_ref());
+        // an empty digest string is always ambiguous and not valid
+        if partial.len() == 0 {
+            return Err(Error::new("partial digest cannot be empty"));
+        }
         // BASE32 requires padding in multiples of 8
         let missing = partial.len() % 8;
         if missing > 0 {
