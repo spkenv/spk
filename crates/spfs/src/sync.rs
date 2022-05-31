@@ -64,25 +64,64 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         self
     }
 
-    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncObjectResult> {
-        let tag = if let Ok(tag) = tracking::TagSpec::parse(reference.as_ref()) {
-            match self.src.resolve_tag(&tag).await {
-                Ok(tag) => Some(tag),
-                Err(Error::UnknownReference(_)) => None,
-                Err(err) => return Err(err),
-            }
-        } else {
-            None
-        };
+    /// Sync the object(s) referenced by the given string.
+    ///
+    /// Any valid [`spfs::tracking::EnvSpec`] is accepted as a reference.
+    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncEnvResult> {
+        let env_spec = reference.as_ref().parse()?;
+        self.sync_env(env_spec).await
+    }
 
-        let obj = self.src.read_ref(reference.as_ref()).await?;
-        let result = self.sync_object(obj).await?;
-        if let Some(tag) = tag {
-            tracing::debug!(tag = ?tag.path(), "syncing tag");
-            self.dest.push_raw_tag(&tag).await?;
+    /// Sync all of the objects identified by the given env.
+    pub async fn sync_env(&self, env: tracking::EnvSpec) -> Result<SyncEnvResult> {
+        let mut results = Vec::with_capacity(env.len());
+        for item in env.iter().cloned() {
+            results.push(self.sync_env_item(item).await?);
         }
-        tracing::debug!(target = ?reference.as_ref(), "sync complete");
-        Ok(result)
+        Ok(SyncEnvResult { env, results })
+    }
+
+    /// Sync one environment item and any associated data.
+    pub async fn sync_env_item(&self, item: tracking::EnvSpecItem) -> Result<SyncEnvItemResult> {
+        match item {
+            tracking::EnvSpecItem::Digest(digest) => self
+                .sync_digest(digest)
+                .await
+                .map(SyncEnvItemResult::Object),
+            tracking::EnvSpecItem::PartialDigest(digest) => self
+                .sync_partial_digest(digest)
+                .await
+                .map(SyncEnvItemResult::Object),
+            tracking::EnvSpecItem::TagSpec(tag_spec) => {
+                self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)
+            }
+        }
+    }
+
+    /// Sync the identified tag instance and its target.
+    pub async fn sync_tag(&self, tag: tracking::TagSpec) -> Result<SyncTagResult> {
+        if self.dest.resolve_tag(&tag).await.is_ok() {
+            return Ok(SyncTagResult::Skipped);
+        }
+        let resolved = self.src.resolve_tag(&tag).await?;
+        let result = self.sync_digest(resolved.target).await?;
+        tracing::debug!(tag = ?tag.path(), "syncing tag");
+        self.dest.push_raw_tag(&resolved).await?;
+        Ok(SyncTagResult::Synced { tag, result })
+    }
+
+    pub async fn sync_partial_digest(
+        &self,
+        partial: encoding::PartialDigest,
+    ) -> Result<SyncObjectResult> {
+        let digest = self.src.resolve_full_digest(&partial).await?;
+        let obj = self.src.read_object(digest).await?;
+        self.sync_object(obj).await
+    }
+
+    pub async fn sync_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
+        let obj = self.src.read_object(digest).await?;
+        self.sync_object(obj).await
     }
 
     #[async_recursion::async_recursion]
@@ -218,6 +257,8 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
 #[derive(Default, Debug)]
 pub struct SyncSummary {
+    pub skipped_tags: usize,
+    pub synced_tags: usize,
     pub skipped_objects: usize,
     pub synced_objects: usize,
     pub skipped_payloads: usize,
@@ -243,6 +284,8 @@ impl SyncSummary {
 
 impl std::ops::AddAssign for SyncSummary {
     fn add_assign(&mut self, rhs: Self) {
+        self.skipped_tags += rhs.skipped_tags;
+        self.synced_tags += rhs.synced_tags;
         self.skipped_objects += rhs.skipped_objects;
         self.synced_objects += rhs.synced_objects;
         self.skipped_payloads += rhs.skipped_payloads;
@@ -257,6 +300,57 @@ impl std::iter::Sum<SyncSummary> for SyncSummary {
             cur += next;
             cur
         })
+    }
+}
+
+pub struct SyncEnvResult {
+    pub env: tracking::EnvSpec,
+    pub results: Vec<SyncEnvItemResult>,
+}
+
+impl SyncEnvResult {
+    pub fn summary(&self) -> SyncSummary {
+        self.results.iter().map(|r| r.summary()).sum()
+    }
+}
+
+pub enum SyncEnvItemResult {
+    Tag(SyncTagResult),
+    Object(SyncObjectResult),
+}
+
+impl SyncEnvItemResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Tag(r) => r.summary(),
+            Self::Object(r) => r.summary(),
+        }
+    }
+}
+
+pub enum SyncTagResult {
+    /// The tag did not need to be synced
+    Skipped,
+    /// The tag was synced
+    Synced {
+        tag: tracking::TagSpec,
+        result: SyncObjectResult,
+    },
+}
+
+impl SyncTagResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::Skipped => SyncSummary {
+                skipped_tags: 1,
+                ..Default::default()
+            },
+            Self::Synced { result, .. } => {
+                let mut summary = result.summary();
+                summary.synced_tags += 1;
+                summary
+            }
+        }
     }
 }
 
@@ -297,7 +391,7 @@ impl SyncPlatformResult {
         match self {
             Self::Skipped => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
-                let mut summary = results.iter().map(|f| f.summary()).sum();
+                let mut summary = results.iter().map(|r| r.summary()).sum();
                 summary += SyncSummary::synced_one_object();
                 summary
             }
@@ -343,7 +437,7 @@ impl SyncManifestResult {
         match self {
             Self::Skipped => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
-                let mut summary = results.iter().map(|f| f.summary()).sum();
+                let mut summary = results.iter().map(|r| r.summary()).sum();
                 summary += SyncSummary::synced_one_object();
                 summary
             }

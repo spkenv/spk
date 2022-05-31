@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use spfs::prelude::*;
 
 /// Reset changes, or rebuild the entire spfs directory
 #[derive(Args, Debug)]
@@ -29,7 +28,7 @@ pub struct CmdReset {
 impl CmdReset {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let mut runtime = spfs::active_runtime().await?;
-        let repo = config.get_local_repository().await?;
+        let repo = config.get_local_repository_handle().await?;
         if let Some(reference) = &self.reference {
             runtime.reset::<&str>(&[])?;
             runtime.status.stack.truncate(0);
@@ -37,9 +36,11 @@ impl CmdReset {
                 "" | "-" => self.edit = true,
                 _ => {
                     let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
-                    for target in env_spec.iter() {
-                        let obj = repo.read_ref(target.to_string().as_ref()).await?;
-                        runtime.push_digest(&obj.digest()?);
+                    let origin = config.get_remote("origin").await?;
+                    let synced = spfs::Syncer::new(&origin, &repo).sync_env(env_spec).await?;
+                    for item in synced.env.iter() {
+                        let digest = item.resolve_digest(&*repo).await?;
+                        runtime.push_digest(digest);
                     }
                 }
             }

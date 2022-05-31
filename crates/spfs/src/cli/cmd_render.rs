@@ -31,16 +31,13 @@ impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
         let repo = config.get_local_repository_handle().await?;
-                let origin = config.get_remote("origin").await?;
-                spfs::Syncer::new(&origin, &repo)
-                    .sync_ref(target.as_str())
-                    .await?;
-            }
-        }
+        let origin = config.get_remote("origin").await?;
+
+        let synced = spfs::Syncer::new(&origin, &repo).sync_env(env_spec).await?;
 
         let path = match &self.target {
-            Some(target) => self.render_to_dir(env_spec, target).await?,
-            None => self.render_to_repo(env_spec, config).await?,
+            Some(target) => self.render_to_dir(synced.env, target).await?,
+            None => self.render_to_repo(synced.env, config).await?,
         };
 
         tracing::info!("render completed successfully");
@@ -76,8 +73,8 @@ impl CmdRender {
     ) -> spfs::Result<std::path::PathBuf> {
         let repo = config.get_local_repository().await?;
         let renders = repo.renders()?;
-        let mut digests = Vec::with_capacity(env_spec.items.len());
-        for env_item in env_spec.items {
+        let mut digests = Vec::with_capacity(env_spec.len());
+        for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
             let digest = repo.resolve_ref(env_item.as_ref()).await?;
             digests.push(digest);

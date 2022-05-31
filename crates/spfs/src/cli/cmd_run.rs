@@ -7,8 +7,6 @@ use std::os::unix::ffi::OsStrExt;
 
 use clap::Parser;
 
-use spfs::prelude::*;
-
 /// Run a program in a configured spfs environment
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-run")]
@@ -56,18 +54,11 @@ impl CmdRun {
             "-" | "" => self.edit = true,
             reference => {
                 let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
-                for target in env_spec.iter() {
-                    let target = target.to_string();
-                    if self.pull || !repo.has_ref(target.as_str()).await {
-                        tracing::info!(reference = ?target, "pulling target ref");
-                        let origin = config.get_remote("origin").await?;
-                        spfs::Syncer::new(&origin, &repo)
-                            .sync_ref(target.as_str())
-                            .await?;
-                    }
-
-                    let obj = repo.read_ref(target.as_str()).await?;
-                    runtime.push_digest(&obj.digest()?);
+                let origin = config.get_remote("origin").await?;
+                let synced = spfs::Syncer::new(&origin, &repo).sync_env(env_spec).await?;
+                for item in synced.env.iter() {
+                    let digest = item.resolve_digest(&*repo).await?;
+                    runtime.push_digest(digest);
                 }
             }
         }

@@ -111,6 +111,8 @@ pub fn format_changes<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> St
 /// Return a human-readable representation of the sync summary data.
 pub fn format_sync_summary(summary: &super::sync::SyncSummary) -> String {
     let super::sync::SyncSummary {
+        skipped_tags,
+        synced_tags,
         skipped_objects,
         synced_objects,
         skipped_payloads,
@@ -119,7 +121,8 @@ pub fn format_sync_summary(summary: &super::sync::SyncSummary) -> String {
     } = summary;
 
     format!(
-        "synced {synced_objects} objects ({}) and {synced_payloads} payloads ({}) ({})",
+        "synced:\n\t{synced_tags} tags ({})\n\t{synced_objects} objects ({})\n\t{synced_payloads} payloads ({}) ({})",
+        format!("{skipped_tags} skipped").dimmed(),
         format!("{skipped_objects} skipped").dimmed(),
         format!("{skipped_payloads} skipped").dimmed(),
         format_size(*synced_payload_bytes)

@@ -22,6 +22,22 @@ pub enum EnvSpecItem {
     Digest(encoding::Digest),
 }
 
+impl EnvSpecItem {
+    /// Find the object digest for this item.
+    ///
+    /// Any necessary lookups are done using the provided repository
+    pub async fn resolve_digest<R>(&self, repo: &R) -> Result<encoding::Digest>
+    where
+        R: crate::storage::Repository + ?Sized,
+    {
+        match self {
+            Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
+            Self::PartialDigest(part) => repo.resolve_full_digest(part).await,
+            Self::Digest(digest) => Ok(*digest),
+        }
+    }
+}
+
 impl std::fmt::Display for EnvSpecItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
