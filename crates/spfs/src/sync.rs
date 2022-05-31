@@ -20,6 +20,7 @@ static MAX_CONCURRENT: usize = 256;
 pub struct Syncer<'src, 'dst> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
+    skip_existing_tags: bool,
     skip_existing_objects: bool,
     skip_existing_payloads: bool,
 }
@@ -32,9 +33,22 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Self {
             src,
             dest,
+            skip_existing_tags: true,
             skip_existing_objects: true,
             skip_existing_payloads: true,
         }
+    }
+
+    /// When true, do not sync any tag that already exists in the destination repo.
+    ///
+    /// This is on by default, but can be disabled in order to retrieve updated tag
+    /// information from the source repo.
+    pub fn set_skip_existing_tags(&mut self, skip_existing: bool) -> &mut Self {
+        self.skip_existing_tags = skip_existing;
+        if skip_existing {
+            self.skip_existing_payloads = true;
+        }
+        self
     }
 
     /// When true, do not sync any object that already exists in the destination repo.
@@ -100,7 +114,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
     /// Sync the identified tag instance and its target.
     pub async fn sync_tag(&self, tag: tracking::TagSpec) -> Result<SyncTagResult> {
-        if self.dest.resolve_tag(&tag).await.is_ok() {
+        if self.skip_existing_tags && self.dest.resolve_tag(&tag).await.is_ok() {
             return Ok(SyncTagResult::Skipped);
         }
         let resolved = self.src.resolve_tag(&tag).await?;
