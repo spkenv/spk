@@ -646,25 +646,16 @@ impl Drop for TagLock {
 /// will require getting the lock and can be used in its stead
 struct TagWorkingFile {
     original: PathBuf,
-    working: PathBuf,
     _lock: TagLock,
 }
 
 impl TagWorkingFile {
     /// Generate a new working file for the provided tag file
     ///
-    /// The working file can be used to write updates to the given tag file
-    /// atomically. The working file is ephemeral and not tied to the lifetime
-    /// of the instance of this structure.
     pub async fn new<P: Into<PathBuf>>(tag_file: P) -> Result<Self> {
         let original = tag_file.into();
         let _lock = TagLock::new(&original).await?;
-        let working = original.with_extension("tag.work");
-        Ok(Self {
-            original,
-            working,
-            _lock,
-        })
+        Ok(Self { original, _lock })
     }
 
     /// Write the tags to the underlying tag file via the working file.
@@ -672,17 +663,18 @@ impl TagWorkingFile {
     /// Writing 0 tags will result in the original file being removed
     /// rather than actually replacing it with an empty file.
     pub async fn write_tags(self, tags: &[tracking::Tag]) -> Result<()> {
+        let working = self.original.with_extension("tag.work");
         if tags.is_empty() {
             return Ok(tokio::fs::remove_file(self.original).await?);
         }
-        if let Err(err) = write_tags_to_path(&self.working, tags).await {
-            if let Err(err) = tokio::fs::remove_file(&self.working).await {
+        if let Err(err) = write_tags_to_path(&working, tags).await {
+            if let Err(err) = tokio::fs::remove_file(&working).await {
                 tracing::warn!("failed to clean up tag working file: {err}");
             }
             return Err(err);
         }
-        if let Err(err) = tokio::fs::rename(&self.working, &self.original).await {
-            if let Err(err) = tokio::fs::remove_file(&self.working).await {
+        if let Err(err) = tokio::fs::rename(&working, &self.original).await {
+            if let Err(err) = tokio::fs::remove_file(&working).await {
                 tracing::warn!("failed to clean up tag working file: {err}");
             }
             return Err(err.into());
