@@ -669,13 +669,13 @@ impl TagWorkingFile {
         }
         if let Err(err) = write_tags_to_path(&working, tags).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
-                tracing::warn!("failed to clean up tag working file: {err}");
+                tracing::warn!("failed to clean up tag working file after failing to write tags to path: {err}");
             }
             return Err(err);
         }
         if let Err(err) = tokio::fs::rename(&working, &self.original).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
-                tracing::warn!("failed to clean up tag working file: {err}");
+                tracing::warn!("failed to clean up tag working file after failing to finalize the working file: {err}");
             }
             return Err(err.into());
         }
