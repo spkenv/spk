@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
+
 use futures::stream::{FuturesUnordered, TryStreamExt};
-use tokio::sync::Semaphore;
+use tokio::sync::{RwLock, Semaphore};
 
 use crate::{encoding, prelude::*};
 use crate::{graph, storage, tracking, Error, Result};
@@ -22,6 +24,7 @@ pub struct Syncer<'src, 'dst, Reporter: SyncReporter = ConsoleSyncReporter> {
     skip_existing_payloads: bool,
     manifest_semaphore: Semaphore,
     payload_semaphore: Semaphore,
+    processed_digests: RwLock<HashSet<encoding::Digest>>,
 }
 
 impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
@@ -39,8 +42,9 @@ where
             skip_existing_tags: true,
             skip_existing_objects: true,
             skip_existing_payloads: true,
-            manifest_semaphore: Semaphore::new(50),
-            payload_semaphore: Semaphore::new(50),
+            manifest_semaphore: Semaphore::new(100),
+            payload_semaphore: Semaphore::new(100),
+            processed_digests: RwLock::new(HashSet::new()),
         }
     }
 
@@ -174,6 +178,12 @@ where
     }
 
     pub async fn sync_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
+        // don't write the digest here, as that is the reponsibility
+        // of the function that actually handles the data copying.
+        // a short-crituit is still nice when possible, though
+        if self.processed_digests.read().await.contains(&digest) {
+            return Ok(SyncObjectResult::Duplicate);
+        }
         let obj = self.src.read_object(digest).await?;
         self.sync_object(obj).await
     }
@@ -196,6 +206,9 @@ where
 
     pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
+        if !self.processed_digests.write().await.insert(digest) {
+            return Ok(SyncPlatformResult::Duplicate);
+        }
         if self.skip_existing_objects && self.dest.has_platform(digest).await {
             return Ok(SyncPlatformResult::Skipped);
         }
@@ -219,6 +232,9 @@ where
 
     pub async fn sync_layer(&self, layer: graph::Layer) -> Result<SyncLayerResult> {
         let layer_digest = layer.digest()?;
+        if !self.processed_digests.write().await.insert(layer_digest) {
+            return Ok(SyncLayerResult::Duplicate);
+        }
         if self.skip_existing_objects && self.dest.has_layer(layer_digest).await {
             return Ok(SyncLayerResult::Skipped);
         }
@@ -236,6 +252,9 @@ where
 
     pub async fn sync_manifest(&self, manifest: graph::Manifest) -> Result<SyncManifestResult> {
         let manifest_digest = manifest.digest()?;
+        if !self.processed_digests.write().await.insert(manifest_digest) {
+            return Ok(SyncManifestResult::Duplicate);
+        }
         if self.skip_existing_objects && self.dest.has_manifest(manifest_digest).await {
             return Ok(SyncManifestResult::Skipped);
         }
@@ -282,7 +301,13 @@ where
     }
 
     async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
-        if self.skip_existing_objects && self.dest.has_blob(blob.digest()).await {
+        let digest = blob.digest();
+        if self.processed_digests.read().await.contains(&digest) {
+            // do not insert here because blobs share a digest with payloads
+            // which should also must be visited at least once if needed
+            return Ok(SyncBlobResult::Duplicate);
+        }
+        if self.skip_existing_objects && self.dest.has_blob(digest).await {
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(&blob);
@@ -294,6 +319,9 @@ where
     }
 
     async fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+        if !self.processed_digests.write().await.insert(digest) {
+            return Ok(SyncPayloadResult::Duplicate);
+        }
         if self.skip_existing_payloads && self.dest.has_payload(digest).await {
             return Ok(SyncPayloadResult::Skipped);
         }
@@ -315,7 +343,7 @@ where
 
 /// Receives updates from a sync process to be reported.
 ///
-/// Unless the sync runs into errors, ever call to visit_* is
+/// Unless the sync runs into errors, every call to visit_* is
 /// followed up by a call to the corresponding synced_*.
 pub trait SyncReporter: Send + Sync {
     /// Called when an environment has been identified to sync
@@ -621,6 +649,7 @@ impl std::iter::Sum<SyncSummary> for SyncSummary {
     }
 }
 
+#[derive(Debug)]
 pub struct SyncEnvResult {
     pub env: tracking::EnvSpec,
     pub results: Vec<SyncEnvItemResult>,
@@ -632,6 +661,7 @@ impl SyncEnvResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncEnvItemResult {
     Tag(SyncTagResult),
     Object(SyncObjectResult),
@@ -646,9 +676,12 @@ impl SyncEnvItemResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncTagResult {
     /// The tag did not need to be synced
     Skipped,
+    /// The tag was already synced in this session
+    Duplicate,
     /// The tag was synced
     Synced {
         tag: tracking::TagSpec,
@@ -659,7 +692,7 @@ pub enum SyncTagResult {
 impl SyncTagResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary {
+            Self::Skipped | Self::Duplicate => SyncSummary {
                 skipped_tags: 1,
                 ..Default::default()
             },
@@ -672,7 +705,10 @@ impl SyncTagResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncObjectResult {
+    /// The object was already synced in this session
+    Duplicate,
     Platform(SyncPlatformResult),
     Layer(SyncLayerResult),
     Blob(SyncBlobResult),
@@ -685,6 +721,10 @@ impl SyncObjectResult {
     pub fn summary(&self) -> SyncSummary {
         use SyncObjectResult::*;
         match self {
+            Duplicate => SyncSummary {
+                skipped_objects: 1,
+                ..Default::default()
+            },
             Platform(res) => res.summary(),
             Layer(res) => res.summary(),
             Blob(res) => res.summary(),
@@ -694,9 +734,12 @@ impl SyncObjectResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncPlatformResult {
     /// The platform did not need to be synced
     Skipped,
+    /// The platform was already synced in this session
+    Duplicate,
     /// The platform was at least partially synced
     Synced {
         platform: graph::Platform,
@@ -707,7 +750,7 @@ pub enum SyncPlatformResult {
 impl SyncPlatformResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
                 let mut summary = results.iter().map(|r| r.summary()).sum();
                 summary += SyncSummary::synced_one_object();
@@ -717,9 +760,12 @@ impl SyncPlatformResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncLayerResult {
     /// The layer did not need to be synced
     Skipped,
+    /// The layer was already synced in this session
+    Duplicate,
     /// The layer was synced
     Synced {
         layer: graph::Layer,
@@ -730,7 +776,7 @@ pub enum SyncLayerResult {
 impl SyncLayerResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { result, .. } => {
                 let mut summary = result.summary();
                 summary += SyncSummary::synced_one_object();
@@ -740,9 +786,12 @@ impl SyncLayerResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncManifestResult {
     /// The manifest did not need to be synced
     Skipped,
+    /// The manifest was already synced in this session
+    Duplicate,
     /// The manifest was at least partially synced
     Synced {
         manifest: graph::Manifest,
@@ -753,7 +802,7 @@ pub enum SyncManifestResult {
 impl SyncManifestResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
                 let mut summary = results.iter().map(|r| r.summary()).sum();
                 summary += SyncSummary::synced_one_object();
@@ -763,9 +812,12 @@ impl SyncManifestResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncEntryResult {
     /// The entry did not need to be synced
     Skipped,
+    /// The entry was already synced in this session
+    Duplicate,
     /// The entry was synced
     Synced {
         entry: graph::Entry,
@@ -776,7 +828,7 @@ pub enum SyncEntryResult {
 impl SyncEntryResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Skipped | Self::Duplicate => SyncSummary::default(),
             Self::Synced { result, .. } => {
                 let mut summary = result.summary();
                 summary += SyncSummary::synced_one_object();
@@ -786,9 +838,12 @@ impl SyncEntryResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncBlobResult {
     /// The blob did not need to be synced
     Skipped,
+    /// The blob was already synced in this session
+    Duplicate,
     /// The blob was synced
     Synced {
         blob: graph::Blob,
@@ -799,7 +854,7 @@ pub enum SyncBlobResult {
 impl SyncBlobResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary::skipped_one_object(),
+            Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { result, .. } => {
                 let mut summary = result.summary();
                 summary += SyncSummary::synced_one_object();
@@ -809,9 +864,12 @@ impl SyncBlobResult {
     }
 }
 
+#[derive(Debug)]
 pub enum SyncPayloadResult {
     /// The payload did not need to be synced
     Skipped,
+    /// The payload was already synced in this session
+    Duplicate,
     /// The payload was synced
     Synced { size: u64 },
 }
@@ -819,7 +877,7 @@ pub enum SyncPayloadResult {
 impl SyncPayloadResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
-            Self::Skipped => SyncSummary {
+            Self::Skipped | Self::Duplicate => SyncSummary {
                 skipped_payloads: 1,
                 ..Default::default()
             },
