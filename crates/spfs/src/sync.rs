@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use tokio_stream::StreamExt;
+use futures::stream::{FuturesUnordered, TryStreamExt};
+use tokio::sync::Semaphore;
 
 use crate::{encoding, prelude::*};
 use crate::{graph, storage, tracking, Error, Result};
@@ -10,11 +11,6 @@ use crate::{graph, storage, tracking, Error, Result};
 #[cfg(test)]
 #[path = "./sync_test.rs"]
 mod sync_test;
-
-/// Limits the concurrency in sync operations to avoid
-/// connection and open file descriptor limits
-// TODO: load this from the config
-static MAX_CONCURRENT: usize = 256;
 
 /// Handles the syncing of data between repositories
 pub struct Syncer<'src, 'dst, Reporter: SyncReporter = ConsoleSyncReporter> {
@@ -24,6 +20,8 @@ pub struct Syncer<'src, 'dst, Reporter: SyncReporter = ConsoleSyncReporter> {
     skip_existing_tags: bool,
     skip_existing_objects: bool,
     skip_existing_payloads: bool,
+    manifest_semaphore: Semaphore,
+    payload_semaphore: Semaphore,
 }
 
 impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
@@ -41,6 +39,8 @@ where
             skip_existing_tags: true,
             skip_existing_objects: true,
             skip_existing_payloads: true,
+            manifest_semaphore: Semaphore::new(50),
+            payload_semaphore: Semaphore::new(50),
         }
     }
 
@@ -83,6 +83,24 @@ where
         self
     }
 
+    /// Set how many manifests/layers can be processed at once.
+    ///
+    /// The possible total concurrent sync tasks will be the
+    /// layer concurrency plus the payload concurrency.
+    pub fn with_max_concurrent_manifests(&mut self, concurrency: usize) -> &mut Self {
+        self.manifest_semaphore = Semaphore::new(concurrency);
+        self
+    }
+
+    /// Set how many payloads/files can be processed at once.
+    ///
+    /// The possible total concurrent sync tasks will be the
+    /// layer concurrency plus the payload concurrency.
+    pub fn with_max_payload_concurrency(&mut self, concurrency: usize) -> &mut Self {
+        self.payload_semaphore = Semaphore::new(concurrency);
+        self
+    }
+
     /// Report progress to the given instnace, replacing any existing one
     pub fn with_reporter(&mut self, reporter: Option<Reporter>) -> &mut Self {
         self.reporter = reporter;
@@ -100,9 +118,13 @@ where
     /// Sync all of the objects identified by the given env.
     pub async fn sync_env(&self, env: tracking::EnvSpec) -> Result<SyncEnvResult> {
         self.reporter.env_to_sync(&env);
-        let mut results = Vec::with_capacity(env.len());
+        let mut futures = FuturesUnordered::new();
         for item in env.iter().cloned() {
-            results.push(self.sync_env_item(item).await?);
+            futures.push(self.sync_env_item(item));
+        }
+        let mut results = Vec::with_capacity(env.len());
+        while let Some(result) = futures.try_next().await? {
+            results.push(result);
         }
         let res = SyncEnvResult { env, results };
         self.reporter.env_synced(&res);
@@ -179,10 +201,14 @@ where
             return Ok(SyncPlatformResult::Skipped);
         }
         self.reporter.platform_to_sync(&platform);
-        let mut results = Vec::with_capacity(platform.stack.len());
+
+        let mut futures = FuturesUnordered::new();
         for digest in &platform.stack {
-            let obj = self.src.read_object(*digest).await?;
-            results.push(self.sync_object(obj).await?);
+            futures.push(self.sync_digest(*digest));
+        }
+        let mut results = Vec::with_capacity(futures.len());
+        while let Some(result) = futures.try_next().await? {
+            results.push(result);
         }
 
         let platform = self.dest.create_platform(platform.stack).await?;
@@ -214,8 +240,8 @@ where
         if self.skip_existing_objects && self.dest.has_manifest(manifest_digest).await {
             return Ok(SyncManifestResult::Skipped);
         }
-
         self.reporter.manifest_to_sync(&manifest);
+        let _permit = self.manifest_semaphore.acquire().await;
 
         let entries: Vec<_> = manifest
             .list_entries()
@@ -224,14 +250,9 @@ where
             .filter(|e| e.kind.is_blob())
             .collect();
         let mut results = Vec::with_capacity(entries.len());
-        let mut futures = futures::stream::FuturesUnordered::new();
+        let mut futures = FuturesUnordered::new();
         for entry in entries {
             futures.push(self.sync_entry(entry));
-            while futures.len() >= MAX_CONCURRENT {
-                if let Some(res) = futures.try_next().await? {
-                    results.push(res);
-                }
-            }
         }
         while let Some(res) = futures.try_next().await? {
             results.push(res);
@@ -279,6 +300,7 @@ where
         }
 
         self.reporter.payload_to_sync(digest);
+        let _permit = self.payload_semaphore.acquire().await;
         let payload = self.src.open_payload(digest).await?;
         let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {

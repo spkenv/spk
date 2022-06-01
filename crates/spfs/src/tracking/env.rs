@@ -97,6 +97,16 @@ impl std::ops::Deref for EnvSpec {
     }
 }
 
+impl std::iter::IntoIterator for EnvSpec {
+    type Item = EnvSpecItem;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
 impl FromStr for EnvSpec {
     type Err = Error;
 
