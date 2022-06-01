@@ -10,13 +10,13 @@ pub static SPFS_LOG: &str = "SPFS_LOG";
 #[derive(Debug, Clone, clap::Args)]
 pub struct Sync {
     /// Sync the latest information for each tag even if it already exists
-    #[clap(short, long)]
+    #[clap(short, long, alias = "pull")]
     pub sync: bool,
 
     /// Forcefully sync all associated graph data even if it
     /// already exists
     #[clap(long)]
-    pub sync_all: bool,
+    pub resync: bool,
 }
 
 impl Sync {
@@ -29,10 +29,10 @@ impl Sync {
     ) -> spfs::Syncer<'src, 'dst> {
         let mut syncer = spfs::Syncer::new(src, dest);
         syncer
-            .set_skip_existing_objects(!self.sync_all)
-            .set_skip_existing_payloads(!self.sync_all)
-            .set_skip_existing_tags(!(self.sync || self.sync_all))
-            .with_reporter(Some(spfs::sync::ConsoleSyncReporter::default()));
+            .with_sync_existing_objects(self.resync)
+            .with_sync_existing_payloads(self.resync)
+            .with_sync_existing_tags(self.sync || self.resync)
+            .with_reporter(spfs::sync::ConsoleSyncReporter::default());
         syncer
     }
 }

@@ -44,40 +44,39 @@ where
         }
     }
 
-    /// When true, do not sync any tag that already exists in the destination repo.
+    /// When true, also sync any tag that already exists in the destination repo.
     ///
-    /// This is on by default, but can be disabled in order to retrieve updated tag
+    /// This is off by default, but can be enabled in order to retrieve updated tag
     /// information from the source repo.
-    pub fn set_skip_existing_tags(&mut self, skip_existing: bool) -> &mut Self {
-        self.skip_existing_tags = skip_existing;
-        if skip_existing {
+    pub fn with_sync_existing_tags(&mut self, sync_existing: bool) -> &mut Self {
+        self.skip_existing_tags = !sync_existing;
+        if !sync_existing {
             self.skip_existing_payloads = true;
         }
         self
     }
 
-    /// When true, do not sync any object that already exists in the destination repo.
+    /// When true, also sync any object that already exists in the destination repo.
     ///
-    /// This is on by default, but can be disabled in order to repair a corrupt
+    /// This is off by default, but can be enabled in order to repair a corrupt
     /// repository that has some parent object but is missing one or more children.
     ///
-    /// Setting this to true will also skip any existing payload.
-    pub fn set_skip_existing_objects(&mut self, skip_existing: bool) -> &mut Self {
-        self.skip_existing_objects = skip_existing;
-        if skip_existing {
+    /// Setting this to false will also disable [`Self::with_sync_existing_payload`].
+    pub fn with_sync_existing_objects(&mut self, sync_existing: bool) -> &mut Self {
+        self.skip_existing_objects = !sync_existing;
+        if !sync_existing {
             self.skip_existing_payloads = true;
         }
         self
     }
 
-    /// When true, do not sync any payload that already exists in the destination repo.
+    /// When true, also sync any payload that already exists in the destination repo.
     ///
-    /// This is on by default, but can be disabled in order to repair a corrupt
-    /// repository. Setting this to true, also means that existing objects will not
-    /// be skipped.
-    pub fn set_skip_existing_payloads(&mut self, skip_existing: bool) -> &mut Self {
-        self.skip_existing_payloads = skip_existing;
-        if !skip_existing {
+    /// This is off by default, but can be enabled in order to repair a corrupt
+    /// repository. Setting this to true, also implies [`Self::with_sync_existing_object`].
+    pub fn with_sync_existing_payloads(&mut self, sync_existing: bool) -> &mut Self {
+        self.skip_existing_payloads = !sync_existing;
+        if sync_existing {
             self.skip_existing_objects = false;
         }
         self
@@ -102,8 +101,8 @@ where
     }
 
     /// Report progress to the given instnace, replacing any existing one
-    pub fn with_reporter(&mut self, reporter: Option<Reporter>) -> &mut Self {
-        self.reporter = reporter;
+    pub fn with_reporter(&mut self, reporter: Reporter) -> &mut Self {
+        self.reporter = Some(reporter);
         self
     }
 
