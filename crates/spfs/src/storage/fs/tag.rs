@@ -653,8 +653,9 @@ struct TagWorkingFile {
 impl TagWorkingFile {
     /// Generate a new working file for the provided tag file
     ///
-    /// The file itself will not actually exist, as this process
-    /// is handled by the
+    /// The working file can be used to write updates to the given tag file
+    /// atomically. The working file is ephemeral and not tied to the lifetime
+    /// of the instance of this structure.
     pub async fn new<P: Into<PathBuf>>(tag_file: P) -> Result<Self> {
         let original = tag_file.into();
         let _lock = TagLock::new(&original).await?;
