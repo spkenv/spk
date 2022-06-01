@@ -533,29 +533,48 @@ impl<T: SyncReporter> SyncReporter for Option<T> {
 pub struct ConsoleSyncReporter {
     renderer: Option<std::thread::JoinHandle<()>>,
     manifests: indicatif::ProgressBar,
+    payloads: indicatif::ProgressBar,
     bytes: indicatif::ProgressBar,
 }
 
 impl Default for ConsoleSyncReporter {
     fn default() -> Self {
+        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        static PROGRESS_CHARS: &str = "=>-";
         let layers_style = indicatif::ProgressStyle::default_bar()
-            .template("      {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:7}")
-            .progress_chars("=>-");
+            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
         let payloads_style = indicatif::ProgressStyle::default_bar()
-            .template("      {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}")
-            .progress_chars("=>-");
+            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bytes_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
         let bars = indicatif::MultiProgress::new();
         let manifests = bars.add(
             indicatif::ProgressBar::new(0)
                 .with_style(layers_style)
                 .with_message("syncing layers"),
         );
-        let bytes = bars.add(
+        let payloads = bars.add(
             indicatif::ProgressBar::new(0)
                 .with_style(payloads_style)
                 .with_message("syncing payloads"),
         );
-        // the progress bar must be constantly updated from another thread
+        let bytes = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(bytes_style)
+                .with_message("syncing data"),
+        );
+        manifests.enable_steady_tick(100);
+        payloads.enable_steady_tick(100);
+        bytes.enable_steady_tick(100);
+        // the progress bar must be awaited from some thread
         // or nothing will be shown in the terminal
         let renderer = Some(std::thread::spawn(move || {
             if let Err(err) = bars.join() {
@@ -565,6 +584,7 @@ impl Default for ConsoleSyncReporter {
         Self {
             renderer,
             manifests,
+            payloads,
             bytes,
         }
     }
@@ -573,6 +593,7 @@ impl Default for ConsoleSyncReporter {
 impl Drop for ConsoleSyncReporter {
     fn drop(&mut self) {
         self.bytes.finish_and_clear();
+        self.payloads.finish_and_clear();
         self.manifests.finish_and_clear();
         if let Some(r) = self.renderer.take() {
             let _ = r.join();
@@ -581,34 +602,40 @@ impl Drop for ConsoleSyncReporter {
 }
 
 impl SyncReporter for ConsoleSyncReporter {
-    fn visit_manifest(&self, manifest: &graph::Manifest) {
-        let total_bytes = manifest
-            .list_entries()
-            .into_iter()
-            .cloned()
-            .filter(|e| e.kind.is_blob())
-            .fold(0, |cur, next| cur + next.size);
+    fn visit_manifest(&self, _manifest: &graph::Manifest) {
         self.manifests.inc_length(1);
-        self.bytes.inc_length(total_bytes);
     }
 
     fn synced_manifest(&self, _result: &SyncManifestResult) {
         self.manifests.inc(1);
     }
 
+    fn visit_blob(&self, blob: &graph::Blob) {
+        self.payloads.inc_length(1);
+        self.bytes.inc_length(blob.size);
+    }
+
     fn synced_blob(&self, result: &SyncBlobResult) {
+        self.payloads.inc(1);
         self.bytes.inc(result.summary().synced_payload_bytes);
     }
 }
 
 #[derive(Default, Debug)]
 pub struct SyncSummary {
+    /// The number of tags not synced because they already existed
     pub skipped_tags: usize,
+    /// The number of tags synced
     pub synced_tags: usize,
+    /// The number of objects not synced because they already existed
     pub skipped_objects: usize,
+    /// The number of objects synced
     pub synced_objects: usize,
+    /// The number of payloads not synced because they already existed
     pub skipped_payloads: usize,
+    /// The number of payloads synced
     pub synced_payloads: usize,
+    /// The total number of payload bytes synced
     pub synced_payload_bytes: u64,
 }
 
