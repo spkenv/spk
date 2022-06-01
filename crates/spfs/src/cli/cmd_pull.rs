@@ -40,7 +40,8 @@ impl CmdPull {
             Some(remote) => config.get_remote(remote).await?,
         };
 
-        let env_spec = spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
+        let env_spec =
+            spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
         let summary = self
             .sync
             .get_syncer(&remote, &repo)

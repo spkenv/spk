@@ -15,7 +15,7 @@ use crate::{graph, storage, tracking, Error, Result};
 mod sync_test;
 
 /// Handles the syncing of data between repositories
-pub struct Syncer<'src, 'dst, Reporter: SyncReporter = ConsoleSyncReporter> {
+pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
     reporter: Option<Reporter>,
@@ -25,6 +25,25 @@ pub struct Syncer<'src, 'dst, Reporter: SyncReporter = ConsoleSyncReporter> {
     manifest_semaphore: Semaphore,
     payload_semaphore: Semaphore,
     processed_digests: RwLock<HashSet<encoding::Digest>>,
+}
+
+impl<'src, 'dst> Syncer<'src, 'dst> {
+    pub fn new_silent(
+        src: &'src storage::RepositoryHandle,
+        dest: &'dst storage::RepositoryHandle,
+    ) -> Self {
+        Self {
+            src,
+            dest,
+            reporter: None,
+            skip_existing_tags: true,
+            skip_existing_objects: true,
+            skip_existing_payloads: true,
+            manifest_semaphore: Semaphore::new(100),
+            payload_semaphore: Semaphore::new(100),
+            processed_digests: RwLock::new(HashSet::new()),
+        }
+    }
 }
 
 impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
@@ -528,6 +547,9 @@ impl<T: SyncReporter> SyncReporter for Option<T> {
         }
     }
 }
+
+pub struct SilentSyncReporter {}
+impl SyncReporter for SilentSyncReporter {}
 
 /// Reports sync progress to an interactive console via progress bars
 pub struct ConsoleSyncReporter {

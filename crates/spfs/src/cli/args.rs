@@ -26,7 +26,7 @@ impl Sync {
         &self,
         src: &'src spfs::storage::RepositoryHandle,
         dest: &'dst spfs::storage::RepositoryHandle,
-    ) -> spfs::Syncer<'src, 'dst> {
+    ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
         let mut syncer = spfs::Syncer::new(src, dest);
         syncer
             .with_sync_existing_objects(self.resync)
