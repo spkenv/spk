@@ -17,15 +17,19 @@ mod sync_test;
 static MAX_CONCURRENT: usize = 256;
 
 /// Handles the syncing of data between repositories
-pub struct Syncer<'src, 'dst> {
+pub struct Syncer<'src, 'dst, Reporter: SyncReporter = ConsoleSyncReporter> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
+    reporter: Option<Reporter>,
     skip_existing_tags: bool,
     skip_existing_objects: bool,
     skip_existing_payloads: bool,
 }
 
-impl<'src, 'dst> Syncer<'src, 'dst> {
+impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
+where
+    Reporter: SyncReporter,
+{
     pub fn new(
         src: &'src storage::RepositoryHandle,
         dest: &'dst storage::RepositoryHandle,
@@ -33,6 +37,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Self {
             src,
             dest,
+            reporter: None,
             skip_existing_tags: true,
             skip_existing_objects: true,
             skip_existing_payloads: true,
@@ -78,6 +83,12 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         self
     }
 
+    /// Report progress to the given instnace, replacing any existing one
+    pub fn with_reporter(&mut self, reporter: Option<Reporter>) -> &mut Self {
+        self.reporter = reporter;
+        self
+    }
+
     /// Sync the object(s) referenced by the given string.
     ///
     /// Any valid [`spfs::tracking::EnvSpec`] is accepted as a reference.
@@ -88,28 +99,34 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
     /// Sync all of the objects identified by the given env.
     pub async fn sync_env(&self, env: tracking::EnvSpec) -> Result<SyncEnvResult> {
+        self.reporter.env_to_sync(&env);
         let mut results = Vec::with_capacity(env.len());
         for item in env.iter().cloned() {
             results.push(self.sync_env_item(item).await?);
         }
-        Ok(SyncEnvResult { env, results })
+        let res = SyncEnvResult { env, results };
+        self.reporter.env_synced(&res);
+        Ok(res)
     }
 
     /// Sync one environment item and any associated data.
     pub async fn sync_env_item(&self, item: tracking::EnvSpecItem) -> Result<SyncEnvItemResult> {
-        match item {
+        self.reporter.env_item_to_sync(&item);
+        let res = match item {
             tracking::EnvSpecItem::Digest(digest) => self
                 .sync_digest(digest)
                 .await
-                .map(SyncEnvItemResult::Object),
+                .map(SyncEnvItemResult::Object)?,
             tracking::EnvSpecItem::PartialDigest(digest) => self
                 .sync_partial_digest(digest)
                 .await
-                .map(SyncEnvItemResult::Object),
+                .map(SyncEnvItemResult::Object)?,
             tracking::EnvSpecItem::TagSpec(tag_spec) => {
-                self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)
+                self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
             }
-        }
+        };
+        self.reporter.env_item_synced(&res);
+        Ok(res)
     }
 
     /// Sync the identified tag instance and its target.
@@ -117,11 +134,13 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         if self.skip_existing_tags && self.dest.resolve_tag(&tag).await.is_ok() {
             return Ok(SyncTagResult::Skipped);
         }
+        self.reporter.tag_to_sync(&tag);
         let resolved = self.src.resolve_tag(&tag).await?;
         let result = self.sync_digest(resolved.target).await?;
-        tracing::debug!(tag = ?tag.path(), "syncing tag");
         self.dest.push_raw_tag(&resolved).await?;
-        Ok(SyncTagResult::Synced { tag, result })
+        let res = SyncTagResult::Synced { tag, result };
+        self.reporter.tag_synced(&res);
+        Ok(res)
     }
 
     pub async fn sync_partial_digest(
@@ -141,23 +160,25 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     #[async_recursion::async_recursion]
     pub async fn sync_object(&self, obj: graph::Object) -> Result<SyncObjectResult> {
         use graph::Object;
-        match obj {
-            Object::Layer(obj) => Ok(SyncObjectResult::Layer(self.sync_layer(obj).await?)),
-            Object::Platform(obj) => Ok(SyncObjectResult::Platform(self.sync_platform(obj).await?)),
-            Object::Blob(obj) => Ok(SyncObjectResult::Blob(self.sync_blob(obj).await?)),
-            Object::Manifest(obj) => Ok(SyncObjectResult::Manifest(self.sync_manifest(obj).await?)),
-            Object::Tree(obj) => Ok(SyncObjectResult::Tree(obj)),
-            Object::Mask => Ok(SyncObjectResult::Mask),
-        }
+        self.reporter.object_to_sync(&obj);
+        let res = match obj {
+            Object::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
+            Object::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
+            Object::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(obj).await?),
+            Object::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
+            Object::Tree(obj) => SyncObjectResult::Tree(obj),
+            Object::Mask => SyncObjectResult::Mask,
+        };
+        self.reporter.object_synced(&res);
+        Ok(res)
     }
 
     pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
         if self.skip_existing_objects && self.dest.has_platform(digest).await {
-            tracing::debug!(?digest, "platform already synced");
             return Ok(SyncPlatformResult::Skipped);
         }
-        tracing::info!(?digest, "syncing platform");
+        self.reporter.platform_to_sync(&platform);
         let mut results = Vec::with_capacity(platform.stack.len());
         for digest in &platform.stack {
             let obj = self.src.read_object(*digest).await?;
@@ -166,106 +187,364 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
         let platform = self.dest.create_platform(platform.stack).await?;
 
-        Ok(SyncPlatformResult::Synced { platform, results })
+        let res = SyncPlatformResult::Synced { platform, results };
+        self.reporter.platform_synced(&res);
+        Ok(res)
     }
 
     pub async fn sync_layer(&self, layer: graph::Layer) -> Result<SyncLayerResult> {
         let layer_digest = layer.digest()?;
         if self.skip_existing_objects && self.dest.has_layer(layer_digest).await {
-            tracing::debug!(digest = ?layer_digest, "layer already synced");
             return Ok(SyncLayerResult::Skipped);
         }
 
-        tracing::info!(digest = ?layer_digest, "syncing layer");
+        self.reporter.layer_to_sync(&layer);
         let manifest = self.src.read_manifest(layer.manifest).await?;
         let result = self.sync_manifest(manifest).await?;
         self.dest
             .write_object(&graph::Object::Layer(layer.clone()))
             .await?;
-        Ok(SyncLayerResult::Synced { layer, result })
+        let res = SyncLayerResult::Synced { layer, result };
+        self.reporter.layer_synced(&res);
+        Ok(res)
     }
 
     pub async fn sync_manifest(&self, manifest: graph::Manifest) -> Result<SyncManifestResult> {
         let manifest_digest = manifest.digest()?;
         if self.skip_existing_objects && self.dest.has_manifest(manifest_digest).await {
-            tracing::info!(digest = ?manifest_digest, "manifest already synced");
             return Ok(SyncManifestResult::Skipped);
         }
 
-        tracing::debug!(digest = ?manifest_digest, "syncing manifest");
+        self.reporter.manifest_to_sync(&manifest);
+
         let entries: Vec<_> = manifest
             .list_entries()
             .into_iter()
             .cloned()
             .filter(|e| e.kind.is_blob())
             .collect();
-        let style = indicatif::ProgressStyle::default_bar()
-            .template("      {msg} [{bar:40}] {bytes:>7}/{total_bytes:7}")
-            .progress_chars("=>-");
-        let total_bytes = entries.iter().fold(0, |c, e| c + e.size);
-        let bar = indicatif::ProgressBar::new(total_bytes).with_style(style);
-        bar.set_message("syncing manifest");
         let mut results = Vec::with_capacity(entries.len());
         let mut futures = futures::stream::FuturesUnordered::new();
         for entry in entries {
             futures.push(self.sync_entry(entry));
             while futures.len() >= MAX_CONCURRENT {
                 if let Some(res) = futures.try_next().await? {
-                    bar.inc(res.summary().synced_payload_bytes);
                     results.push(res);
                 }
             }
         }
         while let Some(res) = futures.try_next().await? {
-            bar.inc(res.summary().synced_payload_bytes);
             results.push(res);
         }
-        bar.finish();
 
         self.dest
             .write_object(&graph::Object::Manifest(manifest.clone()))
             .await?;
 
-        Ok(SyncManifestResult::Synced { manifest, results })
+        let res = SyncManifestResult::Synced { manifest, results };
+        self.reporter.manifest_synced(&res);
+        Ok(res)
     }
 
     async fn sync_entry(&self, entry: graph::Entry) -> Result<SyncEntryResult> {
         if !entry.kind.is_blob() {
             return Ok(SyncEntryResult::Skipped);
         }
+        self.reporter.entry_to_sync(&entry);
         let blob = graph::Blob {
             payload: entry.object,
             size: entry.size,
         };
         let result = self.sync_blob(blob).await?;
-        Ok(SyncEntryResult::Synced { entry, result })
+        let res = SyncEntryResult::Synced { entry, result };
+        self.reporter.entry_synced(&res);
+        Ok(res)
     }
 
     async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
         if self.skip_existing_objects && self.dest.has_blob(blob.digest()).await {
-            tracing::trace!(digest = ?blob.payload, "blob already synced");
             return Ok(SyncBlobResult::Skipped);
         }
+        self.reporter.blob_to_sync(&blob);
         let result = self.sync_payload(blob.payload).await?;
         self.dest.write_blob(blob.clone()).await?;
-        Ok(SyncBlobResult::Synced { blob, result })
+        let res = SyncBlobResult::Synced { blob, result };
+        self.reporter.blob_synced(&res);
+        Ok(res)
     }
 
     async fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
         if self.skip_existing_payloads && self.dest.has_payload(digest).await {
-            tracing::trace!(?digest, "blob payload already synced");
             return Ok(SyncPayloadResult::Skipped);
         }
 
+        self.reporter.payload_to_sync(digest);
         let payload = self.src.open_payload(digest).await?;
-        tracing::debug!(?digest, "syncing payload");
         let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided blob that did not match the requested digest: wanted {digest}, got {created_digest}",
             )));
         }
-        Ok(SyncPayloadResult::Synced { size })
+        let res = SyncPayloadResult::Synced { size };
+        self.reporter.payload_synced(&res);
+        Ok(res)
+    }
+}
+
+pub trait SyncReporter: Send + Sync {
+    /// Called when an environment has been identified to sync
+    fn env_to_sync(&self, _env: &tracking::EnvSpec) {}
+
+    /// Called when a environment has finished syncing
+    fn env_synced(&self, _result: &SyncEnvResult) {}
+
+    /// Called when an environment item has been identified to sync
+    fn env_item_to_sync(&self, _item: &tracking::EnvSpecItem) {}
+
+    /// Called when a environment item has finished syncing
+    fn env_item_synced(&self, _result: &SyncEnvItemResult) {}
+
+    /// Called when a tag has been identified to sync
+    fn tag_to_sync(&self, _tag: &tracking::TagSpec) {}
+
+    /// Called when a tag has finished syncing
+    fn tag_synced(&self, _result: &SyncTagResult) {}
+
+    /// Called when an object has been identified to sync
+    fn object_to_sync(&self, _obj: &graph::Object) {}
+
+    /// Called when a object has finished syncing
+    fn object_synced(&self, _result: &SyncObjectResult) {}
+
+    /// Called when a platform has been identified to sync
+    fn platform_to_sync(&self, _platform: &graph::Platform) {}
+
+    /// Called when a platform has finished syncing
+    fn platform_synced(&self, _result: &SyncPlatformResult) {}
+
+    /// Called when an environment has been identified to sync
+    fn layer_to_sync(&self, _layer: &graph::Layer) {}
+
+    /// Called when a layer has finished syncing
+    fn layer_synced(&self, _result: &SyncLayerResult) {}
+
+    /// Called when a manifest has been identified to sync
+    fn manifest_to_sync(&self, _manifest: &graph::Manifest) {}
+
+    /// Called when a manifest has finished syncing
+    fn manifest_synced(&self, _result: &SyncManifestResult) {}
+
+    /// Called when an entry has been identified to sync
+    fn entry_to_sync(&self, _entry: &graph::Entry) {}
+
+    /// Called when an entry has finished syncing
+    fn entry_synced(&self, _result: &SyncEntryResult) {}
+
+    /// Called when a blob has been identified to sync
+    fn blob_to_sync(&self, _blob: &graph::Blob) {}
+
+    /// Called when a blob has finished syncing
+    fn blob_synced(&self, _result: &SyncBlobResult) {}
+
+    /// Called when a payload has been identified to sync
+    fn payload_to_sync(&self, _digest: encoding::Digest) {}
+
+    /// Called when a payload has finished syncing
+    fn payload_synced(&self, _result: &SyncPayloadResult) {}
+}
+
+impl<T: SyncReporter> SyncReporter for Option<T> {
+    fn env_to_sync(&self, env: &tracking::EnvSpec) {
+        if let Some(ref r) = self {
+            r.env_to_sync(env)
+        }
+    }
+
+    fn env_synced(&self, result: &SyncEnvResult) {
+        if let Some(ref r) = self {
+            r.env_synced(result)
+        }
+    }
+
+    fn env_item_to_sync(&self, item: &tracking::EnvSpecItem) {
+        if let Some(ref r) = self {
+            r.env_item_to_sync(item)
+        }
+    }
+
+    fn env_item_synced(&self, result: &SyncEnvItemResult) {
+        if let Some(ref r) = self {
+            r.env_item_synced(result)
+        }
+    }
+
+    fn tag_to_sync(&self, tag: &tracking::TagSpec) {
+        if let Some(ref r) = self {
+            r.tag_to_sync(tag)
+        }
+    }
+
+    fn tag_synced(&self, result: &SyncTagResult) {
+        if let Some(ref r) = self {
+            r.tag_synced(result)
+        }
+    }
+
+    fn object_to_sync(&self, obj: &graph::Object) {
+        if let Some(ref r) = self {
+            r.object_to_sync(obj)
+        }
+    }
+
+    fn object_synced(&self, result: &SyncObjectResult) {
+        if let Some(ref r) = self {
+            r.object_synced(result)
+        }
+    }
+
+    fn platform_to_sync(&self, platform: &graph::Platform) {
+        if let Some(ref r) = self {
+            r.platform_to_sync(platform)
+        }
+    }
+
+    fn platform_synced(&self, result: &SyncPlatformResult) {
+        if let Some(ref r) = self {
+            r.platform_synced(result)
+        }
+    }
+
+    fn layer_to_sync(&self, layer: &graph::Layer) {
+        if let Some(ref r) = self {
+            r.layer_to_sync(layer)
+        }
+    }
+
+    fn layer_synced(&self, result: &SyncLayerResult) {
+        if let Some(ref r) = self {
+            r.layer_synced(result)
+        }
+    }
+
+    fn manifest_to_sync(&self, manifest: &graph::Manifest) {
+        if let Some(ref r) = self {
+            r.manifest_to_sync(manifest)
+        }
+    }
+
+    fn manifest_synced(&self, result: &SyncManifestResult) {
+        if let Some(ref r) = self {
+            r.manifest_synced(result)
+        }
+    }
+
+    fn entry_to_sync(&self, entry: &graph::Entry) {
+        if let Some(ref r) = self {
+            r.entry_to_sync(entry)
+        }
+    }
+
+    fn entry_synced(&self, result: &SyncEntryResult) {
+        if let Some(ref r) = self {
+            r.entry_synced(result)
+        }
+    }
+
+    fn blob_to_sync(&self, blob: &graph::Blob) {
+        if let Some(ref r) = self {
+            r.blob_to_sync(blob)
+        }
+    }
+
+    fn blob_synced(&self, result: &SyncBlobResult) {
+        if let Some(ref r) = self {
+            r.blob_synced(result)
+        }
+    }
+
+    fn payload_to_sync(&self, digest: encoding::Digest) {
+        if let Some(ref r) = self {
+            r.payload_to_sync(digest)
+        }
+    }
+
+    fn payload_synced(&self, result: &SyncPayloadResult) {
+        if let Some(ref r) = self {
+            r.payload_synced(result)
+        }
+    }
+}
+
+/// Reports sync progress to an interactive console via progress bars
+pub struct ConsoleSyncReporter {
+    renderer: Option<std::thread::JoinHandle<()>>,
+    manifests: indicatif::ProgressBar,
+    bytes: indicatif::ProgressBar,
+}
+
+impl Default for ConsoleSyncReporter {
+    fn default() -> Self {
+        let layers_style = indicatif::ProgressStyle::default_bar()
+            .template("      {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:7}")
+            .progress_chars("=>-");
+        let payloads_style = indicatif::ProgressStyle::default_bar()
+            .template("      {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}")
+            .progress_chars("=>-");
+        let bars = indicatif::MultiProgress::new();
+        let manifests = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(layers_style)
+                .with_message("syncing layers"),
+        );
+        let bytes = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(payloads_style)
+                .with_message("syncing payloads"),
+        );
+        // the progress bar must be constantly updated from another thread
+        // or nothing will be shown in the terminal
+        let renderer = Some(std::thread::spawn(move || {
+            if let Err(err) = bars.join() {
+                tracing::error!("Failed to render sync progress: {err}");
+            }
+        }));
+        Self {
+            renderer,
+            manifests,
+            bytes,
+        }
+    }
+}
+
+impl Drop for ConsoleSyncReporter {
+    fn drop(&mut self) {
+        self.bytes.finish_and_clear();
+        self.manifests.finish_and_clear();
+        if let Some(r) = self.renderer.take() {
+            let _ = r.join();
+        }
+    }
+}
+
+impl SyncReporter for ConsoleSyncReporter {
+    fn manifest_to_sync(&self, manifest: &graph::Manifest) {
+        let total_bytes = manifest
+            .list_entries()
+            .into_iter()
+            .cloned()
+            .filter(|e| e.kind.is_blob())
+            .fold(0, |cur, next| cur + next.size);
+        self.manifests.inc_length(1);
+        self.bytes.inc_length(total_bytes);
+    }
+
+    fn manifest_synced(&self, _result: &SyncManifestResult) {
+        self.manifests.inc(1);
+    }
+
+    fn blob_synced(&self, result: &SyncBlobResult) {
+        self.bytes.inc(result.summary().synced_payload_bytes);
     }
 }
 

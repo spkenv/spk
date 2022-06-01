@@ -9,14 +9,14 @@ pub static SPFS_LOG: &str = "SPFS_LOG";
 /// Command line flags for configuring sync operations
 #[derive(Debug, Clone, clap::Args)]
 pub struct Sync {
-    /// Try to pull the latest iteration of each tag even if it exists locally
+    /// Sync the latest information for each tag even if it already exists
     #[clap(short, long)]
-    pub pull: bool,
+    pub sync: bool,
 
     /// Forcefully sync all associated graph data even if it
-    /// already exists in the local repo
+    /// already exists
     #[clap(long)]
-    pub pull_all: bool,
+    pub sync_all: bool,
 }
 
 impl Sync {
@@ -29,9 +29,10 @@ impl Sync {
     ) -> spfs::Syncer<'src, 'dst> {
         let mut syncer = spfs::Syncer::new(src, dest);
         syncer
-            .set_skip_existing_objects(!self.pull_all)
-            .set_skip_existing_payloads(!self.pull_all)
-            .set_skip_existing_tags(!self.pull);
+            .set_skip_existing_objects(!self.sync_all)
+            .set_skip_existing_payloads(!self.sync_all)
+            .set_skip_existing_tags(!(self.sync || self.sync_all))
+            .with_reporter(Some(spfs::sync::ConsoleSyncReporter::default()));
         syncer
     }
 }
