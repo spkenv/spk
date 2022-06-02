@@ -37,9 +37,6 @@ impl Run for Render {
             .requests
             .parse_requests(&self.packages, &self.options)?;
         for name in requests {
-            if self.verbose > spk::io::SHOW_INITIAL_REQUESTS_LEVEL {
-                println!("{}", spk::io::format_initial_request(&name));
-            }
             solver.add_request(name);
         }
 

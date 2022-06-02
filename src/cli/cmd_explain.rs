@@ -36,9 +36,6 @@ impl Run for Explain {
             .requests
             .parse_requests(&self.requested, &self.options)?;
         for request in requests {
-            if self.verbose > spk::io::SHOW_INITIAL_REQUESTS_LEVEL {
-                println!("{}", spk::io::format_initial_request(&request));
-            }
             solver.add_request(request)
         }
 

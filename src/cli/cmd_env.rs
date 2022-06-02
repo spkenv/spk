@@ -48,10 +48,6 @@ impl Run for Env {
             .requests
             .parse_requests(&self.requested, &self.options)?;
         for request in requests {
-            if self.verbose > spk::io::SHOW_INITIAL_REQUESTS_LEVEL {
-                // Output on stderr like the formatted solution below
-                eprintln!("{}", spk::io::format_initial_request(&request));
-            }
             solver.add_request(request)
         }
 

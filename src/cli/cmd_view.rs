@@ -43,9 +43,6 @@ impl Run for View {
 
         let mut solver = self.solver.get_solver(&self.options)?;
         let request = self.requests.parse_request(&package, &self.options)?;
-        if self.verbose > spk::io::SHOW_INITIAL_REQUESTS_LEVEL {
-            println!("{}", spk::io::format_initial_request(&request));
-        }
         solver.add_request(request.clone());
         let request = match request {
             spk::api::Request::Pkg(pkg) => pkg,

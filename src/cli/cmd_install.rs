@@ -45,9 +45,6 @@ impl Run for Install {
             solver.add_request(solved.request.into());
         }
         for request in requests {
-            if self.verbose > spk::io::SHOW_INITIAL_REQUESTS_LEVEL {
-                println!("{}", spk::io::format_initial_request(&request));
-            }
             solver.add_request(request);
         }
 
