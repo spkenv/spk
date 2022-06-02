@@ -337,7 +337,7 @@ async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Resul
         return Err(Error::wrap_io(err, "Failed to sync tag data file"));
     }
 
-    let perms = std::fs::Permissions::from_mode(0o777);
+    let perms = std::fs::Permissions::from_mode(0o666);
     if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
         tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
     }
