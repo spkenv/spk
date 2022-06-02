@@ -40,13 +40,16 @@ impl CmdJoin {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
-        rt.block_on(async {
+        let res = rt.block_on(async {
             let storage = config.get_runtime_storage().await?;
             let rt = storage.read_runtime(&self.runtime).await?;
             spfs::env::join_runtime(&rt)?;
 
             self.exec_runtime_command(&rt).await
-        })
+        });
+        // do not block forever on drop because of any stuck blocking tasks
+        rt.shutdown_timeout(std::time::Duration::from_millis(250));
+        res
     }
 
     async fn exec_runtime_command(&mut self, rt: &spfs::runtime::Runtime) -> Result<i32> {
