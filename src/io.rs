@@ -464,17 +464,14 @@ pub fn run_and_print_decisions(
             Ok(message) => println!("{message}"),
             Err(e) => {
                 match e {
-                    Error::Solve(serr) => match serr {
-                        solve::Error::SolverInterrupted(mesg) => {
-                            // Note: the solution probably won't be
-                            // complete because of the interruption.
-                            let solve_time = start.elapsed();
-                            eprintln!("{}", mesg.yellow());
-                            eprintln!("{}", format_solve_stats(&runtime.solver, solve_time));
-                            return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
-                        }
-                        _ => return Err(Error::Solve(serr)),
-                    },
+                    Error::Solve(solve::Error::SolverInterrupted(mesg)) => {
+                        // Note: the solution probably won't be
+                        // complete because of the interruption.
+                        let solve_time = start.elapsed();
+                        eprintln!("{}", mesg.yellow());
+                        eprintln!("{}", format_solve_stats(&runtime.solver, solve_time));
+                        return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
+                    }
                     _ => return Err(e),
                 };
             }
