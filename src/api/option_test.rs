@@ -10,6 +10,14 @@ use super::{PkgOpt, VarOpt};
 #[case("{pkg: my-pkg}", "none", true)]
 #[case("{pkg: my-pkg}", "", false)]
 #[case("{pkg: my-pkg}", "1.0.0/QYB6QLCN", false)]
+#[case("{pkg: my-pkg}", "2", false)]
+#[case("{pkg: my-pkg}", "2.7", false)]
+#[case("{pkg: my-pkg}", "~2.7", false)]
+#[case("{pkg: my-pkg}", "2,<3", false)] // This should work but doesn't
+#[case("{pkg: my-pkg}", "2,3", false)] // This should work but doesn't
+#[case("{pkg: my-pkg}", "2.7,<3", false)] // This should work but doesn't
+#[case("{pkg: my-pkg}", "<3", false)]
+#[case("{pkg: my-pkg}", ">3", false)]
 fn test_pkg_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
     let mut opt: PkgOpt = serde_yaml::from_str(spec).unwrap();
     let res = opt.set_value(value.to_string());
