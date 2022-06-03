@@ -30,9 +30,10 @@ use super::{
     validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
 };
 
+// Public to allow other tests to use its macros
 #[cfg(test)]
 #[path = "./solver_test.rs"]
-mod solver_test;
+pub mod solver_test;
 
 #[derive(Clone)]
 pub struct Solver {

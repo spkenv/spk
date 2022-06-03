@@ -77,6 +77,13 @@ impl TagSet {
     pub fn is_empty(&self) -> bool {
         self.tags.keys().len() == 0
     }
+
+    /// Get a copy of the TagSet's tags mapping. Used in build key
+    /// piece generation.
+    // TODO: is the best way to do this?
+    pub fn get_tags(&self) -> &std::collections::BTreeMap<String, u32> {
+        &self.tags
+    }
 }
 
 impl ToString for TagSet {
