@@ -24,6 +24,7 @@ use nom::{
 
 pub(crate) use ident::ident;
 pub(crate) use request::{range_ident, version_filter_and_build};
+pub(crate) use version_range::version_range;
 
 use crate::api::{Build, RepositoryName};
 
