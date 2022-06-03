@@ -271,35 +271,14 @@ impl std::str::FromStr for VersionRange {
     type Err = Error;
 
     fn from_str(rule_str: &str) -> Result<Self> {
-        if let Some(end) = rule_str.strip_prefix('^') {
-            SemverRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix('~') {
-            LowestSpecifiedRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix(">=") {
-            GreaterThanOrEqualToRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix("<=") {
-            LessThanOrEqualToRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix('>') {
-            GreaterThanRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix('<') {
-            LessThanRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix("==") {
-            let version = Version::from_str(end)?;
-            Ok(DoubleEqualsVersion::version_range(version))
-        } else if let Some(end) = rule_str.strip_prefix('=') {
-            let version = Version::from_str(end)?;
-            Ok(EqualsVersion::version_range(version))
-        } else if let Some(end) = rule_str.strip_prefix("!==") {
-            DoubleNotEqualsVersion::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix("!=") {
-            NotEqualsVersion::new_version_range(end)
-        } else if rule_str.contains('*') {
-            WildcardRange::new_version_range(rule_str)
-        } else if rule_str.is_empty() {
-            WildcardRange::new_version_range("*")
-        } else {
-            CompatRange::new_version_range(rule_str)
-        }
+        nom::combinator::all_consuming(crate::parsing::version_range(false, false))(rule_str)
+            .map(|(_, vr)| vr)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::Error::String(nom::error::convert_error(rule_str, e))
+                }
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 
