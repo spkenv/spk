@@ -859,6 +859,22 @@ impl DecisionFormatter {
             total_steps as f64 / seconds,
         ));
 
+        // Show number of requests for same package from RequestPackage
+        // related counter
+        let num_reqs = solve::graph::REQUESTS_FOR_SAME_PACKAGE_COUNT.load(Ordering::SeqCst);
+        let mut requests = if num_reqs != 1 { "requests" } else { "request" };
+        out.push_str(&format!(
+            " Solver hit {num_reqs} {requests} for the same package\n"
+        ));
+
+        // Show number of duplicate (identical) requests from
+        // RequestPackage related counter
+        let num_dups = solve::graph::DUPLICATE_REQUESTS_COUNT.load(Ordering::SeqCst);
+        requests = if num_dups != 1 { "requests" } else { "request" };
+        out.push_str(&format!(
+            " Solver hit {num_dups} identical duplicate {requests}\n"
+        ));
+
         // Show all problem packages mentioned in BLOCKED step backs,
         // highest number of mentions first
         let problem_packages = solver.problem_packages();

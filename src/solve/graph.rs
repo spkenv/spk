@@ -560,6 +560,13 @@ pub struct RequestPackage {
     pub request: api::PkgRequest,
 }
 
+/// For counting requests for the same package, but not necessarily
+/// the same version, e.g. gcc/9 and gcc/6 are the same package.
+pub static REQUESTS_FOR_SAME_PACKAGE_COUNT: AtomicU64 = AtomicU64::new(0);
+/// For counting completely idential duplicate requests that appear,
+/// e.g. gcc/~9.3 and gcc/~9.3, but not gcc/6
+pub static DUPLICATE_REQUESTS_COUNT: AtomicU64 = AtomicU64::new(0);
+
 impl RequestPackage {
     pub fn new(request: api::PkgRequest) -> Self {
         RequestPackage { request }
@@ -568,7 +575,78 @@ impl RequestPackage {
     pub fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
-        let mut new_requests = (*base.pkg_requests).clone();
+        let mut new_requests = Vec::with_capacity(base.pkg_requests.len() + 1);
+        new_requests.extend(base.pkg_requests.iter().cloned());
+
+        // If the new request is for a package that there is already a
+        // request for, then we want the solver to look at resolving
+        // the requests for this package sooner rather than later.
+        // This is done by moving those requests to the front of the
+        // request list.
+        //
+        // It helps counter resolving delays for common packages
+        // caused by: 1) resolving a package with lots of dependencies
+        // many of which resolve to packages that have varying
+        // requests for the same lower-level package, and 2)
+        // IfAlreadyPresent requests. These situations can exacerbate
+        // the creation of merged requests with impossible to satify rules
+        // that result in large amounts of backtracking across many
+        // levels (20+) of the search.
+
+        // Set up flags for checking things during the sort, they will
+        // be used after the sort to add to stats counters.
+        let mut existing_request_for_package = false;
+        let mut duplicate_request = false;
+
+        // Move any requests for the same package to the front of the
+        // list by sorting based on whether a request is for the same
+        // package as the new request or not.
+        //
+        // This sort is stable, so existing requests for the package
+        // will remain in the same relative order as they were, as
+        // will requests for other packages.
+        new_requests.sort_by_cached_key(|req| -> i32 {
+            if req.pkg.name() == self.request.pkg.name() {
+                // There is already a request in the list for the same
+                // package as the new request's package.
+                existing_request_for_package = true;
+
+                // Check if the new request is a completely identical
+                // duplicate request.
+                if req.pkg == self.request.pkg {
+                    duplicate_request = true;
+                }
+
+                // It's the same package, move it towards the front
+                0
+            } else {
+                // It's a different package, leave it where it is
+                1
+            }
+        });
+
+        // Update the counters with what was found during the sort.
+        if existing_request_for_package {
+            REQUESTS_FOR_SAME_PACKAGE_COUNT.fetch_add(1, Ordering::SeqCst);
+        }
+        if duplicate_request {
+            DUPLICATE_REQUESTS_COUNT.fetch_add(1, Ordering::SeqCst);
+        }
+
+        // TODO: the larger the solve, the more likely there are to be
+        // multiple requests for the same package, could this run
+        // get_merged_request() on the request list and replace all
+        // the requests for the same package with a single merged
+        // request, instead of just adding the new request? This would
+        // shorten request request list, and keep it short, and remove
+        // the need to call get_merged_request() for each solver step.
+        // Not sure of the other ramifications, would have to test it.
+
+        // Add the new request to the end. This is ok because the
+        // other requests for this package are at the front of the
+        // list now. If this package needs resolving, this new request
+        // will be added to the merged request when this package is
+        // next selected by the solver.
         new_requests.push(self.request.clone());
         Arc::new(base.with_pkg_requests(new_requests))
     }

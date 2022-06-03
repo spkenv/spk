@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 mod build;
+mod build_key;
 mod build_spec;
 mod compat;
 mod component_spec;
@@ -26,6 +27,7 @@ mod version;
 mod version_range;
 
 pub use build::{parse_build, Build, InvalidBuildError};
+pub use build_key::BuildKey;
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use component_spec::{Component, ComponentSpec, FileMatcher};

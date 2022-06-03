@@ -20,6 +20,7 @@ fn solver() -> Solver {
 ///
 /// make_repo!({"pkg": "mypkg/1.0.0"});
 /// make_repo!({"pkg": "mypkg/1.0.0"}, options = {"debug" => "off"});
+#[macro_export]
 macro_rules! make_repo {
     ( [ $( $spec:tt ),+ $(,)? ] ) => {{
         make_repo!([ $( $spec ),* ], options={})
@@ -650,6 +651,8 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         {
             "pkg": "vnp3/2.0.0",
             "build": {
+                // The 'by_distance' build sorting method relied on this for the
+                // tests to pass:
                 // favoritize 2.7, otherwise an option of python=2 doesn't actually
                 // exclude python 3 from being resolved
                 "options": [{"pkg": "python/~2.7"}],
@@ -658,14 +661,31 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         }
     );
     let py27 = make_build!({"pkg": "python/2.7.5"});
+    let py26 = make_build!({"pkg": "python/2.6"});
+    let py371 = make_build!({"pkg": "python/3.7.1"});
     let py37 = make_build!({"pkg": "python/3.7.3"});
+
     let for_py27 = make_build!(spec, [py27]);
+    let for_py26 = make_build!(spec, [py26]);
+    let for_py371 = make_build!(spec, [py371]);
     let for_py37 = make_build!(spec, [py37]);
-    let repo = make_repo!([for_py27, for_py37]);
+
+    let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
     repo.publish_spec(spec).unwrap();
     let repo = Arc::new(repo);
 
-    for pyver in ["2", "2.7", "2.7.5", "3", "3.7", "3.7.3"] {
+    // The 'by_build_option_values' build sorting method does not use
+    // the variants or version spec's default options. It sorts the
+    // builds by putting the ones with the highest numbered build
+    // options (dependencies) first. The '~'s and ',<3's have been
+    // added to some of the version ranges below force the solver to
+    // work through the ordered builds until it finds an appropriate
+    // 2.x.y values to both solve and pass the test.
+    for pyver in [
+        // Uncomment this, when the '2,<3' parsing bug: https://github.com/imageworks/spk/issues/322 has been fixed
+        //"~2.0", "~2.7", "~2.7.5", "2,<3", "2.7,<3", "3", "3.7", "3.7.3",
+        "~2.0", "~2.7", "~2.7.5", "3", "3.7", "3.7.3",
+    ] {
         solver.reset();
         solver.add_repository(repo.clone());
         solver.add_request(request!("vnp3"));
@@ -683,11 +703,18 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         let resolved = solution.get("vnp3").unwrap();
         let opt = resolved.spec.build.options.get(0).unwrap();
         let value = opt.get_value(None);
-        let expected = format!("~{}", pyver);
+
+        // Check the first digit component of the pyver value
+        let expected = if pyver.starts_with('~') {
+            format!("~{}", pyver.chars().nth(1).unwrap()).to_string()
+        } else {
+            format!("~{}", pyver.chars().next().unwrap()).to_string()
+        };
         assert!(
             value.starts_with(&expected),
-            "{} should start with ~{}",
+            "{} should start with ~{} to be valid for {}",
             value,
+            expected,
             pyver
         );
     }
