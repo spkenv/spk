@@ -6,9 +6,9 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{char, one_of},
-    combinator::{cut, map, map_parser, map_res, recognize, rest},
+    combinator::{all_consuming, cut, eof, map, map_parser, map_res, recognize, rest},
     error::{context, VerboseError},
-    multi::{many1, separated_list0},
+    multi::{many1, separated_list0, separated_list1},
     sequence::preceded,
     FindToken, IResult,
 };
@@ -16,7 +16,8 @@ use nom::{
 use crate::api::{
     CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionRange, WildcardRange,
+    LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
+    WildcardRange,
 };
 
 use super::version::{version, version_str};
@@ -26,7 +27,7 @@ pub(crate) fn wildcard_range(
     fail_if_contains_star: bool,
 ) -> impl Fn(&str) -> IResult<&str, VersionRange, VerboseError<&str>> {
     move |input| {
-        let mut parser = map_res(
+        let mut parser = all_consuming(map_res(
             separated_list0(
                 tag("."),
                 alt((
@@ -50,7 +51,7 @@ pub(crate) fn wildcard_range(
                     }))
                 }
             },
-        );
+        ));
         if fail_if_contains_star && input.find_token('*') {
             // This `cut` is so if the input contains '*' but parsing
             // fails, this becomes a hard error instead of trying other
@@ -62,53 +63,72 @@ pub(crate) fn wildcard_range(
     }
 }
 
-pub(crate) fn version_range(input: &str) -> IResult<&str, VersionRange, VerboseError<&str>> {
-    context(
-        "version_range",
-        alt((
-            // Use `cut` for these that first match on an operator first,
-            // if the version fails to parse then it shouldn't continue to
-            // try the other options of the `alt` here.
-            map_res(preceded(char('^'), cut(version_str)), |s| {
-                SemverRange::new_version_range(s)
-            }),
-            map_res(preceded(char('~'), cut(version_str)), |s| {
-                LowestSpecifiedRange::new_version_range(s)
-            }),
-            map_res(preceded(tag(">="), cut(version_str)), |s| {
-                GreaterThanOrEqualToRange::new_version_range(s)
-            }),
-            map_res(preceded(tag("<="), cut(version_str)), |s| {
-                LessThanOrEqualToRange::new_version_range(s)
-            }),
-            map_res(preceded(char('>'), cut(version_str)), |s| {
-                GreaterThanRange::new_version_range(s)
-            }),
-            map_res(preceded(char('<'), cut(version_str)), |s| {
-                LessThanRange::new_version_range(s)
-            }),
-            map(preceded(tag("=="), cut(version)), |v| {
-                DoubleEqualsVersion::version_range(v)
-            }),
-            map(preceded(char('='), cut(version)), |v| {
-                EqualsVersion::version_range(v)
-            }),
-            map_res(preceded(tag("!=="), cut(version_str)), |s| {
-                DoubleNotEqualsVersion::new_version_range(s)
-            }),
-            map_res(preceded(tag("!="), cut(version_str)), |s| {
-                NotEqualsVersion::new_version_range(s)
-            }),
-            map_parser(
-                is_not(",/"),
-                alt((
-                    wildcard_range(true, true),
-                    context(
-                        "CompatRange::new_version_range",
-                        map_res(rest, CompatRange::new_version_range),
+pub(crate) fn version_range(
+    require_star: bool,
+    fail_if_contains_star: bool,
+) -> impl Fn(&str) -> IResult<&str, VersionRange, VerboseError<&str>> {
+    move |input: &str| {
+        context(
+            "version_range",
+            map(
+                separated_list1(
+                    tag(crate::api::VERSION_RANGE_SEP),
+                    map_parser(
+                        alt((is_not(crate::api::VERSION_RANGE_SEP), eof)),
+                        alt((
+                            // Use `cut` for these that first match on an operator first,
+                            // if the version fails to parse then it shouldn't continue to
+                            // try the other options of the `alt` here.
+                            map_res(preceded(char('^'), cut(version_str)), |s| {
+                                SemverRange::new_version_range(s)
+                            }),
+                            map_res(preceded(char('~'), cut(version_str)), |s| {
+                                LowestSpecifiedRange::new_version_range(s)
+                            }),
+                            map_res(preceded(tag(">="), cut(version_str)), |s| {
+                                GreaterThanOrEqualToRange::new_version_range(s)
+                            }),
+                            map_res(preceded(tag("<="), cut(version_str)), |s| {
+                                LessThanOrEqualToRange::new_version_range(s)
+                            }),
+                            map_res(preceded(char('>'), cut(version_str)), |s| {
+                                GreaterThanRange::new_version_range(s)
+                            }),
+                            map_res(preceded(char('<'), cut(version_str)), |s| {
+                                LessThanRange::new_version_range(s)
+                            }),
+                            map(preceded(tag("=="), cut(version)), |v| {
+                                DoubleEqualsVersion::version_range(v)
+                            }),
+                            map(preceded(char('='), cut(version)), |v| {
+                                EqualsVersion::version_range(v)
+                            }),
+                            map_res(preceded(tag("!=="), cut(version_str)), |s| {
+                                DoubleNotEqualsVersion::new_version_range(s)
+                            }),
+                            map_res(preceded(tag("!="), cut(version_str)), |s| {
+                                NotEqualsVersion::new_version_range(s)
+                            }),
+                            alt((
+                                wildcard_range(require_star, fail_if_contains_star),
+                                context(
+                                    "CompatRange::new_version_range",
+                                    map_res(rest, CompatRange::new_version_range),
+                                ),
+                            )),
+                        )),
                     ),
-                )),
+                ),
+                |mut version_range| {
+                    if version_range.len() == 1 {
+                        version_range.remove(0)
+                    } else {
+                        VersionRange::Filter(VersionFilter {
+                            rules: version_range.into_iter().collect(),
+                        })
+                    }
+                },
             ),
-        )),
-    )(input)
+        )(input)
+    }
 }

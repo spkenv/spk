@@ -6,11 +6,10 @@ use std::collections::HashSet;
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{is_not, tag},
     character::complete::char,
-    combinator::{eof, map, opt, peek},
+    combinator::{eof, map, map_parser, opt, peek},
     error::{context, VerboseError},
-    multi::separated_list1,
     sequence::{pair, preceded, terminated},
     IResult,
 };
@@ -39,12 +38,11 @@ fn range_ident_pkg_name(
 fn range_ident_version_filter(input: &str) -> IResult<&str, VersionFilter, VerboseError<&str>> {
     context(
         "range_ident_version_filter",
-        map(
-            separated_list1(tag(crate::api::VERSION_RANGE_SEP), version_range),
-            |v| VersionFilter {
+        map(map_parser(is_not("/"), version_range(true, true)), |v| {
+            VersionFilter {
                 rules: v.into_iter().collect(),
-            },
-        ),
+            }
+        }),
     )(input)
 }
 
