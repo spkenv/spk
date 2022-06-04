@@ -14,7 +14,7 @@ BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
 Requires: bash
-Requires: spfs >= 0.28.1
+Requires: spfs == 0.32.0
 
 %define debug_package %{nil}
 
