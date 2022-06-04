@@ -4,6 +4,7 @@
 use std::{
     cmp::{Ord, Ordering},
     convert::TryFrom,
+    fmt::Write,
     ops::{Deref, DerefMut},
     str::FromStr,
 };
@@ -300,6 +301,19 @@ impl Version {
         self.parts.get(2).copied().unwrap_or_default()
     }
 
+    /// Format just the pre- and post- release tags (if any).
+    pub(crate) fn format_tags(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if !self.pre.tags.is_empty() {
+            f.write_char('-')?;
+            f.write_str(&self.pre.to_string())?;
+        }
+        if !self.post.tags.is_empty() {
+            f.write_char('+')?;
+            f.write_str(&self.post.to_string())?;
+        }
+        Ok(())
+    }
+
     /// Build a new version number from any number of digits
     pub fn from_parts<P: IntoIterator<Item = u32>>(parts: P) -> Self {
         Version {
@@ -364,14 +378,8 @@ impl FromStr for Version {
 
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut base = self.base();
-        if !self.pre.tags.is_empty() {
-            base = format!("{}-{}", base, self.pre.to_string());
-        }
-        if !self.post.tags.is_empty() {
-            base = format!("{}+{}", base, self.post.to_string());
-        }
-        f.write_str(&base)
+        f.write_str(&self.base())?;
+        self.format_tags(f)
     }
 }
 
