@@ -36,7 +36,7 @@ impl Drop for RuntimeLock {
 #[derive(Debug, Eq, PartialEq)]
 pub enum RepoKind {
     Mem,
-    SPFS,
+    Spfs,
 }
 
 /// A temporary repository of some type for use in testing
@@ -92,7 +92,7 @@ pub fn tmprepo() -> storage::RepositoryHandle {
 /// for use in generating test data to sync around.
 #[fixture]
 pub async fn spfsrepo() -> TempRepo {
-    make_repo(RepoKind::SPFS).await
+    make_repo(RepoKind::Spfs).await
 }
 
 /// Create a temporary repository of the desired flavor
@@ -102,7 +102,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
     let tmpdir = tempdir::TempDir::new("spk-test-spfs-repo")
         .expect("failed to establish tmpdir for spfs runtime");
     let repo = match kind {
-        RepoKind::SPFS => {
+        RepoKind::Spfs => {
             let storage_root = tmpdir.path().join("repo");
             let spfs_repo = spfs::storage::fs::FSRepository::create(&storage_root)
                 .await
