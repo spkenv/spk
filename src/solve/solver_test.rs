@@ -1245,7 +1245,7 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
 
     solver.reset();
     solver.add_repository(repo.clone());
-    solver.add_repository(repo.clone());
+    solver.add_repository(repo);
     solver.add_request(request!("pkga"));
     solver.add_request(request!("pkgb"));
     // this time the explicit request will cause a failure

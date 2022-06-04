@@ -8,7 +8,7 @@ use crate::{api, fixtures::*, Error};
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_list_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -20,7 +20,7 @@ fn test_repo_list_empty(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -34,7 +34,7 @@ fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -47,7 +47,7 @@ fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -60,7 +60,7 @@ fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_get_package_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -73,7 +73,7 @@ fn test_repo_get_package_empty(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_publish_spec(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -95,7 +95,7 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_publish_package(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
@@ -119,7 +119,7 @@ fn test_repo_publish_package(#[case] repo: RepoKind) {
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::SPFS)]
+#[case::spfs(RepoKind::Spfs)]
 fn test_repo_remove_package(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));

@@ -384,7 +384,7 @@ fn test_build_package_requirement_propagation() {
         .with_target_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
-    let _base_pkg = BinaryPackageBuilder::from_spec(base_spec.clone())
+    let _base_pkg = BinaryPackageBuilder::from_spec(base_spec)
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
@@ -393,7 +393,7 @@ fn test_build_package_requirement_propagation() {
         .with_target_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
-    let top_pkg = BinaryPackageBuilder::from_spec(top_spec.clone())
+    let top_pkg = BinaryPackageBuilder::from_spec(top_spec)
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
@@ -479,7 +479,7 @@ fn test_build_components_metadata() {
         }
     );
     rt.tmprepo.publish_spec(spec.clone()).unwrap();
-    let spec = BinaryPackageBuilder::from_spec(spec.clone())
+    let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .build()
         .unwrap();

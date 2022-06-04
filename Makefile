@@ -22,7 +22,7 @@ clean: packages.clean
 lint: lint-rust
 lint-rust:
 	cargo fmt --check
-	cargo clippy -- -Dwarnings
+	cargo clippy --tests -- -Dwarnings
 
 .PHONY: format
 format:
