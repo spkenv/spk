@@ -40,7 +40,9 @@ jobs:
           github_token: ${{secrets.SPFS_PULL_PASSWORD}}
           workflow: rpm.yml
           workflow_conclusion: success
-          branch: master
+          # This branch should match the version of spfs being used
+          # in Cargo.toml.
+          branch: release-0.32.0
           name: Binary RPM
           path: deps
           repo: imageworks/spfs
