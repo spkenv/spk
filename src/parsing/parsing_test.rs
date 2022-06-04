@@ -119,7 +119,7 @@ prop_compose! {
 prop_compose! {
     // XXX: The tagset is limited to a maximum of one entry because of
     // the ambiguous use of commas to delimit both tags and version filters.
-    fn arb_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..1)) -> TagSet {
+    fn arb_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..=1)) -> TagSet {
         TagSet { tags }
     }
 }
