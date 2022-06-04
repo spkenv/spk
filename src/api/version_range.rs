@@ -725,13 +725,10 @@ pub struct NotEqualsVersion {
     pub(crate) base: Version,
 }
 
-impl NotEqualsVersion {
-    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
-        let range = Self {
-            specified: exclude.as_ref().split(VERSION_SEP).count(),
-            base: parse_version(exclude)?,
-        };
-        Ok(VersionRange::NotEquals(range))
+impl From<Version> for NotEqualsVersion {
+    fn from(base: Version) -> Self {
+        let specified = base.parts.len();
+        Self { specified, base }
     }
 }
 

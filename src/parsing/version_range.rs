@@ -165,10 +165,9 @@ where
                                 preceded(tag("!=="), cut(version_str)),
                                 DoubleNotEqualsVersion::new_version_range,
                             ),
-                            map_res(
-                                preceded(tag("!="), cut(version_str)),
-                                NotEqualsVersion::new_version_range,
-                            ),
+                            map(preceded(tag("!="), cut(version)), |v| {
+                                VersionRange::NotEquals(NotEqualsVersion::from(v))
+                            }),
                             alt((
                                 wildcard_range(require_star, fail_if_contains_star),
                                 context(
