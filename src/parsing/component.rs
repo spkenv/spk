@@ -9,7 +9,7 @@ use nom::{
     bytes::complete::{tag, take_while_m_n},
     character::complete::char,
     combinator::map,
-    error::VerboseError,
+    error::{ContextError, ParseError},
     multi::separated_list1,
     sequence::delimited,
     IResult,
@@ -19,7 +19,10 @@ use crate::api::{Component, PkgName};
 
 use super::name::is_legal_package_name_chr;
 
-pub(crate) fn component(input: &str) -> IResult<&str, Component, VerboseError<&str>> {
+pub(crate) fn component<'a, E>(input: &'a str) -> IResult<&'a str, Component, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     alt((
         map(tag("all"), |_| Component::All),
         map(tag("run"), |_| Component::Run),
@@ -36,7 +39,10 @@ pub(crate) fn component(input: &str) -> IResult<&str, Component, VerboseError<&s
     ))(input)
 }
 
-pub(crate) fn components(input: &str) -> IResult<&str, HashSet<Component>, VerboseError<&str>> {
+pub(crate) fn components<'a, E>(input: &'a str) -> IResult<&'a str, HashSet<Component>, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     alt((
         delimited(
             char('{'),

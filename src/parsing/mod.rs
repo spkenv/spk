@@ -17,7 +17,7 @@ use nom::{
     bytes::complete::take_while1,
     character::complete::char,
     combinator::{eof, fail, opt, peek},
-    error::{context, VerboseError},
+    error::{context, ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded, terminated},
     IResult, Parser,
 };
@@ -44,15 +44,16 @@ mod parsing_test;
 ///
 /// This function is generic over the type of package-like and
 /// version-like expression that is expected.
-fn package_name_and_not_version<'i, I, V1, V2, B, F1, F2, F3>(
+fn package_name_and_not_version<'i, I, V1, V2, B, F1, F2, F3, E>(
     mut ident_parser: F1,
     mut version_parser: F2,
     mut version_and_build_parser: F3,
-) -> impl FnMut(&'i str) -> IResult<&'i str, I, VerboseError<&'i str>>
+) -> impl FnMut(&'i str) -> IResult<&'i str, I, E>
 where
-    F1: Parser<&'i str, I, VerboseError<&'i str>>,
-    F2: Parser<&'i str, V1, VerboseError<&'i str>>,
-    F3: Parser<&'i str, (V2, Option<B>), VerboseError<&'i str>>,
+    F1: Parser<&'i str, I, E>,
+    F2: Parser<&'i str, V1, E>,
+    F3: Parser<&'i str, (V2, Option<B>), E>,
+    E: ParseError<&'i str> + ContextError<&'i str>,
 {
     move |input: &str| {
         let (tail, ident) = ident_parser.parse(input)?;
@@ -92,21 +93,22 @@ where
 ///
 /// This function is generic over the type of package-like and
 /// version-like expression that is expected.
-pub(crate) fn repo_name_in_ident<'a, 'i, I, V1, V2, B, F1, F2, F3>(
+pub(crate) fn repo_name_in_ident<'a, 'i, I, V1, V2, B, F1, F2, F3, E>(
     known_repositories: &'a HashSet<&'a str>,
     ident_parser: F1,
     version_parser: F2,
     version_and_build_parser: F3,
-) -> impl FnMut(&'i str) -> IResult<&'i str, RepositoryName, VerboseError<&'i str>> + 'a
+) -> impl FnMut(&'i str) -> IResult<&'i str, RepositoryName, E> + 'a
 where
     'i: 'a,
     I: 'a,
     B: 'a,
     V1: 'a,
     V2: 'a,
-    F1: Parser<&'i str, I, VerboseError<&'i str>> + 'a,
-    F2: Parser<&'i str, V1, VerboseError<&'i str>> + 'a,
-    F3: Parser<&'i str, (V2, Option<B>), VerboseError<&'i str>> + 'a,
+    F1: Parser<&'i str, I, E> + 'a,
+    F2: Parser<&'i str, V1, E> + 'a,
+    F3: Parser<&'i str, (V2, Option<B>), E> + 'a,
+    E: ParseError<&'i str> + ContextError<&'i str> + 'a,
 {
     // To disambiguate cases like:
     //    local/222
@@ -137,11 +139,14 @@ where
 ///
 /// This function is generic over the type of version-like expression
 /// that is expected.
-pub(crate) fn version_and_optional_build<'i, V, F>(
+pub(crate) fn version_and_optional_build<'i, V, F, E>(
     version_parser: F,
-) -> impl FnMut(&'i str) -> IResult<&'i str, (V, Option<Build>), VerboseError<&'i str>>
+) -> impl FnMut(&'i str) -> IResult<&'i str, (V, Option<Build>), E>
 where
-    F: Parser<&'i str, V, VerboseError<&'i str>>,
+    F: Parser<&'i str, V, E>,
+    E: ParseError<&'i str>
+        + ContextError<&'i str>
+        + FromExternalError<&'i str, crate::error::Error>,
 {
     pair(
         version_parser,

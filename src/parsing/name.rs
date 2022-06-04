@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use nom::{
     bytes::complete::{is_not, take_while1, take_while_m_n},
     combinator::{fail, map, recognize},
-    error::{context, VerboseError},
+    error::{context, ContextError, ParseError},
     multi::many1,
     IResult,
 };
@@ -29,9 +29,12 @@ pub(crate) fn is_legal_tag_name_chr(c: char) -> bool {
     c.is_ascii_alphanumeric()
 }
 
-pub(crate) fn known_repository_name<'a>(
+pub(crate) fn known_repository_name<'a, 'i, E>(
     known_repositories: &'a HashSet<&str>,
-) -> impl Fn(&str) -> IResult<&str, RepositoryName, VerboseError<&str>> + 'a {
+) -> impl Fn(&'i str) -> IResult<&'i str, RepositoryName, E> + 'a
+where
+    E: ParseError<&'i str> + ContextError<&'i str> + 'a,
+{
     move |input| {
         let (input, name) = recognize(many1(is_not("/")))(input)?;
         if known_repositories.contains(name) {
@@ -41,7 +44,10 @@ pub(crate) fn known_repository_name<'a>(
     }
 }
 
-pub(crate) fn package_name(input: &str) -> IResult<&str, &PkgName, VerboseError<&str>> {
+pub(crate) fn package_name<'a, E>(input: &'a str) -> IResult<&'a str, &PkgName, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     context(
         "package_name",
         map(
@@ -58,12 +64,18 @@ pub(crate) fn package_name(input: &str) -> IResult<&str, &PkgName, VerboseError<
     )(input)
 }
 
-pub(crate) fn repository_name(input: &str) -> IResult<&str, RepositoryName, VerboseError<&str>> {
+pub(crate) fn repository_name<'a, E>(input: &'a str) -> IResult<&'a str, RepositoryName, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     map(take_while1(is_legal_repo_name_chr), |s: &str| {
         RepositoryName(s.to_owned())
     })(input)
 }
 
-pub(crate) fn tag_name(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
+pub(crate) fn tag_name<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     take_while1(is_legal_tag_name_chr)(input)
 }
