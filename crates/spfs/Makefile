@@ -24,6 +24,13 @@ test:
 rpm:
 	cd $(SOURCE_ROOT)
 	docker build . \
+		--target build_env \
+		--cache-from build_env \
+		-f rpmbuild.Dockerfile \
+		--tag build_env
+	docker build . \
+		--target spfs_build \
+		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
 		--build-arg VERSION=$(VERSION) \
 		--tag spfs-rpm-builder
