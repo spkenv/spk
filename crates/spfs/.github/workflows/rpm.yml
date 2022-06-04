@@ -29,10 +29,23 @@ jobs:
         # Don't bother to compress the tar because the caching mechanism
         # includes compression.
         run: docker load -i ~/.images/build_env.tar
+      # Capture what ends up in /root/.cargo/registry (inside
+      # the rpmbuild container) to reduce what needs to be
+      # re-downloaded between builds.
+      - name: Cache cargo registry
+        id: cache-cargo-registry
+        uses: actions/cache@v3
+        env:
+          cache-name: cargo-registry
+        with:
+          path: .cache/cargo-registry
+          key: ${{ hashFiles('Cargo.lock') }}
       - run: echo RPM_NAME=$(rpmspec -q spfs.spec | head -n1) >> $GITHUB_ENV
       - run: echo Building ${{ env.RPM_NAME }}.rpm
       - name: build RPM package
-        run: make rpm
+        run: |
+          make rpm
+          sudo chown -R $(whoami) .cache
       # Export the build_env to be cached for the next run.
       # Even if it was found in the cache, this run might have
       # rebuilt it.

@@ -34,8 +34,10 @@ rpm:
 		-f rpmbuild.Dockerfile \
 		--build-arg VERSION=$(VERSION) \
 		--tag spfs-rpm-builder
+	mkdir -p .cache/cargo-registry
 	mkdir -p dist/rpm
 	docker run --rm \
+		-v `pwd`/.cache/cargo-registry:/root/.cargo/registry \
 		-v `pwd`/dist/rpm/RPMS:/root/rpmbuild/RPMS \
 		spfs-rpm-builder
 
