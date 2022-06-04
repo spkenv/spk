@@ -159,8 +159,8 @@ where
                             map_res(preceded(tag("!=="), cut(version_str)), |s| {
                                 DoubleNotEqualsVersion::new_version_range(s)
                             }),
-                            map_res(preceded(tag("!="), cut(version_str)), |s| {
-                                NotEqualsVersion::new_version_range(s)
+                            map(preceded(tag("!="), cut(version)), |v| {
+                                VersionRange::NotEquals(NotEqualsVersion::from(v))
                             }),
                             alt((
                                 wildcard_range(require_star, fail_if_contains_star),
