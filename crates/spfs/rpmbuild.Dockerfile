@@ -27,4 +27,4 @@ RUN yum-builddep -y /root/rpmbuild/SPECS/spfs.spec && yum clean all
 COPY . /source/spfs-$VERSION
 RUN tar -C /source -czvf /root/rpmbuild/SOURCES/v$VERSION.tar.gz .
 
-RUN rpmbuild -ba /root/rpmbuild/SPECS/spfs.spec
+ENTRYPOINT ["rpmbuild", "-ba", "/root/rpmbuild/SPECS/spfs.spec"]

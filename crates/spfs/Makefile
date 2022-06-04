@@ -35,9 +35,9 @@ rpm:
 		--build-arg VERSION=$(VERSION) \
 		--tag spfs-rpm-builder
 	mkdir -p dist/rpm
-	CONTAINER=$$(docker create spfs-rpm-builder) \
-	  && docker cp $$CONTAINER:/root/rpmbuild/RPMS dist/rpm/ \
-	  && docker rm --force $$CONTAINER
+	docker run --rm \
+		-v `pwd`/dist/rpm/RPMS:/root/rpmbuild/RPMS \
+		spfs-rpm-builder
 
 install: release
 	cd $(SOURCE_ROOT)
