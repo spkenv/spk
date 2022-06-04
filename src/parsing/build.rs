@@ -8,13 +8,16 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while_m_n},
     combinator::map_res,
-    error::VerboseError,
+    error::{ContextError, FromExternalError, ParseError},
     IResult,
 };
 
 use crate::api::Build;
 
-pub(crate) fn base32_build(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
+pub(crate) fn base32_build<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     take_while_m_n(
         crate::api::DIGEST_SIZE,
         crate::api::DIGEST_SIZE,
@@ -22,11 +25,19 @@ pub(crate) fn base32_build(input: &str) -> IResult<&str, &str, VerboseError<&str
     )(input)
 }
 
-pub(crate) fn build(input: &str) -> IResult<&str, Build, VerboseError<&str>> {
+pub(crate) fn build<'a, E>(input: &'a str) -> IResult<&'a str, Build, E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::error::Error>,
+{
     map_res(build_str, Build::from_str)(input)
 }
 
-pub(crate) fn build_str(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
+pub(crate) fn build_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     alt((
         tag(crate::api::SRC),
         tag(crate::api::EMBEDDED),

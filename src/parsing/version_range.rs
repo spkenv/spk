@@ -7,7 +7,7 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::{char, digit1},
     combinator::{all_consuming, cut, eof, map, map_parser, map_res, rest},
-    error::{context, VerboseError},
+    error::{context, ContextError, FromExternalError, ParseError},
     multi::{separated_list0, separated_list1},
     sequence::preceded,
     FindToken, IResult,
@@ -22,10 +22,16 @@ use crate::api::{
 
 use super::version::{version, version_str};
 
-pub(crate) fn wildcard_range(
+pub(crate) fn wildcard_range<'a, E>(
     require_star: bool,
     fail_if_contains_star: bool,
-) -> impl Fn(&str) -> IResult<&str, VersionRange, VerboseError<&str>> {
+) -> impl Fn(&'a str) -> IResult<&'a str, VersionRange, E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
+{
     move |input| {
         let mut parser = all_consuming(map_res(
             separated_list0(
@@ -61,10 +67,16 @@ pub(crate) fn wildcard_range(
     }
 }
 
-pub(crate) fn version_range(
+pub(crate) fn version_range<'a, E>(
     require_star: bool,
     fail_if_contains_star: bool,
-) -> impl Fn(&str) -> IResult<&str, VersionRange, VerboseError<&str>> {
+) -> impl Fn(&'a str) -> IResult<&'a str, VersionRange, E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
+{
     move |input: &str| {
         context(
             "version_range",

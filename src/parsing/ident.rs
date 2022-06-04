@@ -9,7 +9,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::char,
     combinator::{eof, map, map_res, opt, peek},
-    error::{context, VerboseError},
+    error::{context, ContextError, FromExternalError, ParseError},
     sequence::{preceded, terminated},
     IResult,
 };
@@ -20,10 +20,15 @@ use super::{
     name::package_name, repo_name_in_ident, version::version_str, version_and_optional_build,
 };
 
-pub(crate) fn ident<'a, 'b>(
+pub(crate) fn ident<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
     input: &'b str,
-) -> IResult<&'b str, Ident, VerboseError<&'b str>> {
+) -> IResult<&'b str, Ident, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>,
+{
     let (input, repository_name) = opt(repo_name_in_ident(
         known_repositories,
         package_ident,
@@ -44,14 +49,22 @@ pub(crate) fn ident<'a, 'b>(
     }
 }
 
-fn package_ident(input: &str) -> IResult<&str, Ident, VerboseError<&str>> {
+fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, Ident, E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     terminated(
         map(package_name, |name| Ident::new(name.to_owned())),
         peek(alt((tag("/"), eof))),
     )(input)
 }
 
-fn version_and_build(input: &str) -> IResult<&str, (Version, Option<Build>), VerboseError<&str>> {
+fn version_and_build<'a, E>(input: &'a str) -> IResult<&'a str, (Version, Option<Build>), E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::error::Error>,
+{
     version_and_optional_build(context(
         "parse_version",
         map_res(version_str, parse_version),

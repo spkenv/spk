@@ -9,7 +9,7 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::char,
     combinator::{eof, map, map_parser, opt, peek},
-    error::{context, VerboseError},
+    error::{context, ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded, terminated},
     IResult,
 };
@@ -21,9 +21,12 @@ use super::{
     version_range::version_range,
 };
 
-fn range_ident_pkg_name(
-    input: &str,
-) -> IResult<&str, (&PkgName, HashSet<Component>), VerboseError<&str>> {
+fn range_ident_pkg_name<'a, E>(
+    input: &'a str,
+) -> IResult<&'a str, (&PkgName, HashSet<Component>), E>
+where
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
     terminated(
         pair(
             package_name,
@@ -35,7 +38,13 @@ fn range_ident_pkg_name(
     )(input)
 }
 
-fn range_ident_version_filter(input: &str) -> IResult<&str, VersionFilter, VerboseError<&str>> {
+fn range_ident_version_filter<'a, E>(input: &'a str) -> IResult<&'a str, VersionFilter, E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
+{
     context(
         "range_ident_version_filter",
         map(map_parser(is_not("/"), version_range(true, true)), |v| {
@@ -46,10 +55,16 @@ fn range_ident_version_filter(input: &str) -> IResult<&str, VersionFilter, Verbo
     )(input)
 }
 
-pub(crate) fn range_ident<'a, 'b>(
+pub(crate) fn range_ident<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
     input: &'b str,
-) -> IResult<&'b str, RangeIdent, VerboseError<&'b str>> {
+) -> IResult<&'b str, RangeIdent, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>,
+{
     let (input, repository_name) = opt(repo_name_in_ident(
         known_repositories,
         range_ident_pkg_name,
@@ -74,8 +89,14 @@ pub(crate) fn range_ident<'a, 'b>(
     ))
 }
 
-pub(crate) fn version_filter_and_build(
-    input: &str,
-) -> IResult<&str, (VersionFilter, Option<Build>), VerboseError<&str>> {
+pub(crate) fn version_filter_and_build<'a, E>(
+    input: &'a str,
+) -> IResult<&'a str, (VersionFilter, Option<Build>), E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
+{
     version_and_optional_build(context("parse_version_filter", range_ident_version_filter))(input)
 }

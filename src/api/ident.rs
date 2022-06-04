@@ -183,7 +183,7 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
-        parsing::ident(&KNOWN_REPOSITORY_NAMES, source)
+        parsing::ident::<nom::error::VerboseError<_>>(&KNOWN_REPOSITORY_NAMES, source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => {
