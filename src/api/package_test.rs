@@ -8,7 +8,7 @@ use super::Package;
 use crate::{api::Spec, opt_name, option_map};
 
 #[rstest]
-fn test_resolve_all_options_package_option() {
+fn test_resolve_options_package_option() {
     let spec: Spec = serde_yaml::from_str(
         r#"{
             api: v0/package,
@@ -30,7 +30,7 @@ fn test_resolve_all_options_package_option() {
         "my-pkg.my-opt" => "override",
         "debug" => "on",
     };
-    let resolved = spec.resolve_all_options(&options);
+    let resolved = spec.resolve_options(&options);
     assert_eq!(
         resolved.get(opt_name!("my-opt")),
         Some(&"override".to_string()),

@@ -14,7 +14,7 @@ use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
-use crate::api::{Package, RangeIdent};
+use crate::api::{Named, Package, RangeIdent};
 use crate::solve::{Solution, Solver};
 use crate::{
     api, exec, solve,
@@ -210,7 +210,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         runtime.status.editable = true;
         runtime.status.stack.clear();
 
-        let pkg_options = self.spec.resolve_all_options(&self.all_options);
+        let pkg_options = self.spec.resolve_options(&self.all_options);
         tracing::debug!("package options: {}", pkg_options);
         let compat = self.spec.validate_options(&self.all_options);
         if !&compat {
@@ -319,7 +319,7 @@ impl<'a> BinaryPackageBuilder<'a> {
 
     /// List the requirements for the build environment.
     pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
-        let opts = self.spec.resolve_all_options(&self.all_options);
+        let opts = self.spec.resolve_options(&self.all_options);
         let mut requests = Vec::new();
         for opt in self.spec.options().iter() {
             match opt {
@@ -399,7 +399,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         let build_script = build_script_path(pkg).to_path(&self.prefix);
 
         std::fs::create_dir_all(&metadata_dir)?;
-        api::save_spec_file(&build_spec, &self.spec)?;
+        self.spec.to_file(&build_spec)?;
         {
             let mut writer = std::fs::File::create(&build_script)?;
             writer

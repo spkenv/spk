@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Ident, Package},
+    api::{self, Ident, Named, Package, Versioned},
     storage, Result,
 };
 

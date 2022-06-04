@@ -422,10 +422,10 @@ impl Solver {
     }
 
     /// Adds requests for all build requirements
-    pub fn configure_for_build_environment(&mut self, spec: &api::Spec) -> Result<()> {
+    pub fn configure_for_build_environment<T: api::Recipe>(&mut self, spec: &T) -> Result<()> {
         let state = self.get_initial_state();
 
-        let build_options = spec.resolve_all_options(state.get_option_map());
+        let build_options = spec.resolve_options(state.get_option_map())?;
         for option in spec.options() {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(option.pkg.as_opt_name());

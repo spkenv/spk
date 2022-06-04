@@ -918,7 +918,7 @@ impl PkgRequest {
 
     /// Return true if the given package spec satisfies this request.
     pub fn is_satisfied_by(&self, spec: &dyn Package) -> Compatibility {
-        if spec.deprecated() {
+        if spec.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
             if self.pkg.build.is_none() || self.pkg.build != spec.ident().build {
@@ -1024,6 +1024,6 @@ impl<'de> Deserialize<'de> for PkgRequest {
     }
 }
 
-pub(crate) fn is_false(value: &bool) -> bool {
+pub(super) fn is_false(value: &bool) -> bool {
     !*value
 }

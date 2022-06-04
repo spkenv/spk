@@ -312,7 +312,7 @@ impl BuildIterator for RepositoryBuildIterator {
                 Err(err) => return Err(err),
             };
 
-            if spec.pkg.build.is_none() {
+            if spec.ident().build.is_none() {
                 tracing::warn!(
                     "Published spec is corrupt (has no associated build), pkg={}",
                     build,
@@ -526,7 +526,7 @@ impl SortedBuildIterator {
             // later use when generating the build's key object. They
             // won't all be used in the key, but this saves having to
             // regenerate them.
-            let options_map = build.resolve_all_options(&api::OptionMap::default());
+            let options_map = build.option_values();
 
             // Work out which options will be used in the keys. This
             // is done for all builds before the first key is
@@ -652,7 +652,7 @@ impl SortedBuildIterator {
                             &ordered_names,
                             &build_name_values,
                         ),
-                        spec.resolve_all_options(&api::OptionMap::default()),
+                        spec.option_values(),
                     )
                 })
                 .collect::<Vec<String>>()

@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::{
     request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
-    Meta, Opt, OptionMap, PkgRequest, Request, SourceSpec, TestSpec, VarRequest,
+    Meta, Opt, OptionMap, Package, PkgRequest, Recipe, Request, SourceSpec, TestSpec, VarRequest,
 };
+use crate::api::{Named, Versioned};
 use crate::{api, Error, Result};
 
 #[cfg(test)]
@@ -158,7 +159,37 @@ impl Spec {
     }
 }
 
-impl api::Package for Spec {
+impl Named for Spec {
+    fn name(&self) -> &api::PkgName {
+        &self.pkg.name
+    }
+}
+
+impl Versioned for Spec {
+    fn version(&self) -> &api::Version {
+        &self.pkg.version
+    }
+}
+
+impl api::Deprecate for Spec {
+    fn is_deprecated(&self) -> bool {
+        self.deprecated
+    }
+}
+
+impl api::DeprecateMut for Spec {
+    fn deprecate(&mut self) -> Result<()> {
+        self.deprecated = true;
+        Ok(())
+    }
+
+    fn undeprecate(&mut self) -> Result<()> {
+        self.deprecated = false;
+        Ok(())
+    }
+}
+
+impl Package for Spec {
     fn ident(&self) -> &Ident {
         &self.pkg
     }
@@ -167,24 +198,22 @@ impl api::Package for Spec {
         &self.compat
     }
 
+    fn option_values(&self) -> api::OptionMap {
+        let mut opts = api::OptionMap::default();
+        for opt in self.build.options.iter() {
+            // we are assuming that this spec has been updated to represent
+            // a build and had all of the options pinned/resolved.
+            opts.insert(opt.full_name().to_owned(), opt.get_value(None));
+        }
+        opts
+    }
+
     fn options(&self) -> &Vec<api::Opt> {
         &self.build.options
     }
 
-    fn variants(&self) -> &Vec<OptionMap> {
-        &self.build.variants
-    }
-
     fn sources(&self) -> &Vec<api::SourceSpec> {
         &self.sources
-    }
-
-    fn tests(&self) -> &Vec<api::TestSpec> {
-        &self.tests
-    }
-
-    fn deprecated(&self) -> bool {
-        self.deprecated
     }
 
     fn embedded(&self) -> &api::EmbeddedPackagesList {
@@ -210,12 +239,80 @@ impl api::Package for Spec {
     fn build_script(&self) -> String {
         self.build.script.join("\n")
     }
+}
 
-    fn update_for_build(
+impl Recipe for Spec {
+    type Output = Self;
+
+    fn default_variants(&self) -> &Vec<OptionMap> {
+        &self.build.variants
+    }
+
+    fn resolve_options(&self, given: &api::OptionMap) -> Result<api::OptionMap> {
+        let mut resolved = api::OptionMap::default();
+        for opt in self.options().iter() {
+            let given_value = match opt.full_name().namespace() {
+                Some(_) => given
+                    .get(opt.full_name())
+                    .or_else(|| given.get(opt.full_name().without_namespace())),
+                None => given
+                    .get(&opt.full_name().with_namespace(self.name()))
+                    .or_else(|| given.get(opt.full_name())),
+            };
+            let value = opt.get_value(given_value.map(String::as_ref));
+            resolved.insert(opt.full_name().to_owned(), value);
+        }
+
+        let compat = self.validate_options(&resolved);
+        if !compat.is_ok() {
+            return Err(Error::String(compat.to_string()));
+        }
+        Ok(resolved)
+    }
+
+    fn get_build_requirements(&self, options: &api::OptionMap) -> Result<Vec<api::Request>> {
+        let mut requests = Vec::new();
+        for opt in self.options().iter() {
+            match opt {
+                api::Opt::Pkg(opt) => {
+                    let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
+                    let mut req = opt.to_request(given_value, api::RequestedBy::BinaryBuild)?;
+                    if req.pkg.components.is_empty() {
+                        // inject the default component for this context if needed
+                        req.pkg.components.insert(api::Component::Build);
+                    }
+                    requests.push(req.into());
+                }
+                api::Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    if let Some(value) = options.get(&opt.var) {
+                        if !value.is_empty() {
+                            requests.push(opt.to_request(Some(value)).into());
+                        }
+                    }
+                }
+            }
+        }
+        Ok(requests)
+    }
+
+    fn get_tests(&self, _options: &api::OptionMap) -> Result<Vec<api::TestSpec>> {
+        Ok(self.tests.clone())
+    }
+
+    fn generate_source_build(&self) -> Result<Self> {
+        // TODO: remove all things that would cause this to not resolve
+        //       after solver no longer treats source packages differently
+        Ok(self.clone())
+    }
+
+    fn generate_binary_build(
         &self,
         options: &OptionMap,
         build_env: &crate::solve::Solution,
-    ) -> Result<api::Spec> {
+    ) -> Result<Self> {
         let mut updated = self.clone();
         let specs: HashMap<_, _> = build_env
             .items()
@@ -284,9 +381,9 @@ impl api::Package for Spec {
         updated
             .install
             .render_all_pins(options, specs.iter().map(|(_, s)| s.as_ref().ident()))?;
-        let digest = updated.resolve_all_options(options).digest();
+        let digest = updated.resolve_options(options)?.digest();
         updated.pkg.set_build(Some(Build::Digest(digest)));
-        Ok(api::Spec::V0Package(updated))
+        Ok(updated)
     }
 }
 

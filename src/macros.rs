@@ -49,7 +49,7 @@ macro_rules! make_package {
         (s, cmpts)
     }};
     ($repo:ident, $spec:tt, $opts:expr) => {{
-        use $crate::api::PackageTemplate;
+        use $crate::api::Package;
         let json = serde_json::json!($spec);
         let mut spec: $crate::api::v0::Spec =
             serde_json::from_value(json).expect("Invalid spec json");
@@ -122,7 +122,7 @@ macro_rules! make_build_and_components {
                 $crate::solve::PackageSource::Spec(dep)
             );
             )*
-            let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
+            let mut resolved_opts = spec.resolve_options(&build_opts).into_iter();
             build_opts.extend(&mut resolved_opts);
             spec = spec.update_for_build(&build_opts, &solution)
                 .expect("Failed to render build spec");

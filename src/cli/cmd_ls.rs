@@ -272,7 +272,7 @@ impl Ls {
         // Based on the verbosity, display more details for the
         // package build.
         if self.verbose > 0 {
-            let options = spec.resolve_all_options(&spk::api::OptionMap::default());
+            let options = spec.resolve_options(&spk::api::OptionMap::default());
             item.push(' ');
             item.push_str(&spk::io::format_options(&options));
         }

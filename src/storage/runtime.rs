@@ -10,7 +10,10 @@ use std::{
 use spfs::prelude::*;
 
 use super::Repository;
-use crate::{api, Error, Result};
+use crate::{
+    api::{self, Template},
+    Error, Result,
+};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
@@ -170,7 +173,7 @@ impl Repository for RuntimeRepository {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
-        match api::read_spec_file(&path).map(Arc::new) {
+        match api::Spec::from_file(&path).map(Arc::new) {
             Err(Error::IO(err)) => {
                 if err.kind() == std::io::ErrorKind::NotFound {
                     Err(Error::PackageNotFoundError(pkg.clone()))

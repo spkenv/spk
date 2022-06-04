@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use super::Repository;
-use crate::api::{Package, PkgNameBuf};
+use crate::api::{Named, Package, PkgNameBuf, Versioned};
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;

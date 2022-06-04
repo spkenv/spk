@@ -13,7 +13,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
-use crate::api::{self, Ident, InclusionPolicy, OptNameBuf, Package, PkgName, PkgNameBuf};
+use crate::api::{
+    self, Ident, InclusionPolicy, Named, OptNameBuf, Package, PkgName, PkgNameBuf, Versioned,
+};
 
 use super::errors::{self};
 use super::{
@@ -142,7 +144,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             let mut changes = Vec::<Change>::new();
 
             let options = build_env.options();
-            let spec = self.spec.update_for_build(&options, build_env)?;
+            let spec = self.spec.generate_binary_build(&options, build_env)?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(

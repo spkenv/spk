@@ -54,7 +54,7 @@ fn solver() -> Solver {
 //         ($build_spec, $components)
 //     }};
 //     ($repo:ident, $build_spec:ident, $opts:expr) => {{
-//         use $crate::api::PackageTemplate;
+//         use $crate::api::Package;
 //         let s = $build_spec.clone();
 //         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
 //             .components()
@@ -64,7 +64,7 @@ fn solver() -> Solver {
 //         (s, cmpts)
 //     }};
 //     ($repo:ident, $spec:tt, $opts:expr) => {{
-//         //use $crate::api::PackageTemplate;
+//         //use $crate::api::Package;
 //         let json = serde_json::json!($spec);
 //         let mut spec: crate::api::v0::Spec =
 //             serde_json::from_value(json).expect("Invalid spec json");
@@ -136,7 +136,7 @@ fn solver() -> Solver {
 //                 crate::solve::PackageSource::Spec(dep)
 //             );
 //             )*
-//             let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
+//             let mut resolved_opts = spec.resolve_options(&build_opts).into_iter();
 //             build_opts.extend(&mut resolved_opts);
 //             spec = spec.update_for_build(&build_opts, &solution)
 //                 .expect("Failed to render build spec");
@@ -193,7 +193,7 @@ macro_rules! assert_resolved {
         assert_resolved!($solution, $pkg, version = $version, $message)
     };
     ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
-        use $crate::api::PackageTemplate;
+        use $crate::api::Package;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
@@ -204,7 +204,7 @@ macro_rules! assert_resolved {
         assert_resolved!($solution, $pkg, build = $build, "wrong package build was resolved")
     };
     ($solution:ident, $pkg:literal, build = $build:expr, $message:literal) => {{
-        use $crate::api::PackageTemplate;
+        use $crate::api::Package;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");

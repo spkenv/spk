@@ -20,7 +20,7 @@ use once_cell::sync::Lazy;
 use colored::Colorize;
 
 use crate::{
-    api::{self, Package},
+    api::{self, Named, Package},
     option_map, solve, Error, Result,
 };
 
@@ -247,7 +247,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
 
             if verbosity > 1 {
                 // Show the options for this request (build)
-                let options = req.spec.resolve_all_options(&api::OptionMap::default());
+                let options = req.spec.option_values();
                 out.push(' ');
                 out.push_str(&format_options(&options));
             }

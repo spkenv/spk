@@ -183,7 +183,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
 
         for i in 0..sorted_builds.len() {
             let b = &sorted_builds[i];
-            let options = b.resolve_all_options(&api::OptionMap::default());
+            let options = b.resolve_options(&api::OptionMap::default());
 
             for (n, v) in options.iter() {
                 println!("{} {} {}={}", i, b.ident(), n, v);

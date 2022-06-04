@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use crate::api::{self, Build, Compatibility, Package};
+use crate::api::{self, Build, Compatibility, Named, Package};
 
 use super::{
     errors,
@@ -69,7 +69,7 @@ impl ValidatorT for DeprecationValidator {
         spec: &dyn api::Package,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        if !spec.deprecated() {
+        if !spec.is_deprecated() {
             return Ok(api::Compatibility::Compatible);
         }
         if spec.ident().build.is_none() {

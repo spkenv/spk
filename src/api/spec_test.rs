@@ -15,7 +15,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempdir::TempDir) {
     file.write_all(b"{pkg: test-pkg}").unwrap();
     drop(file);
 
-    let spec = super::read_spec_file(&spec_file).unwrap();
+    let spec = super::read_recipe_file(&spec_file).unwrap();
     if let Some(super::SourceSpec::Local(local)) = spec.sources.get(0) {
         assert_eq!(local.path, spec_dir);
     } else {

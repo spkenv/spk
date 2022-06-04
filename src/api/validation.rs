@@ -6,7 +6,6 @@ use std::iter::FromIterator;
 
 use serde::{Deserialize, Serialize};
 
-use super::Spec;
 use crate::Result;
 
 #[cfg(test)]
@@ -25,7 +24,7 @@ impl Validator {
     /// Validate the set of changes to spfs according to this validator
     pub fn validate<P: AsRef<std::path::Path>>(
         &self,
-        spec: &Spec,
+        spec: &impl super::Package,
         diffs: &[spfs::tracking::Diff],
         prefix: P,
     ) -> Option<String> {
@@ -76,7 +75,7 @@ impl ValidationSpec {
     }
 
     /// Validate the current set of spfs changes as a build of this package
-    pub async fn validate_build_changeset(&self, spec: &Spec) -> Result<()> {
+    pub async fn validate_build_changeset(&self, package: &impl super::Package) -> Result<()> {
         static SPFS: &str = "/spfs";
 
         let mut diffs = spfs::diff(None, None).await?;
@@ -86,7 +85,7 @@ impl ValidationSpec {
         crate::build::reset_permissions(&mut diffs, SPFS)?;
 
         for validator in self.configured_validators().iter() {
-            if let Some(err) = validator.validate(spec, &diffs, SPFS) {
+            if let Some(err) = validator.validate(package, &diffs, SPFS) {
                 return Err(super::InvalidBuildError::new_error(format!(
                     "{:?}: {}",
                     validator, err

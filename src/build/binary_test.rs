@@ -173,7 +173,7 @@ async fn test_build_package_options() {
         .read_spec(spec.ident())
         .await
         .unwrap()
-        .resolve_all_options(
+        .resolve_options(
             // given value should be ignored after build
             &crate::option_map! {"dep" => "7"},
         );
