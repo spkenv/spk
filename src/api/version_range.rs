@@ -4,7 +4,7 @@
 
 use std::{
     collections::BTreeSet,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     fmt::{Display, Write},
     hash::Hash,
     ops::Sub,
@@ -461,19 +461,18 @@ pub struct LowestSpecifiedRange {
     pub(crate) base: Version,
 }
 
-impl LowestSpecifiedRange {
-    pub fn new_version_range<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
-        let range = Self {
-            specified: minimum.as_ref().split(VERSION_SEP).count(),
-            base: parse_version(minimum.as_ref())?,
-        };
-        if range.specified < 2 {
+impl TryFrom<Version> for LowestSpecifiedRange {
+    type Error = crate::Error;
+
+    fn try_from(base: Version) -> Result<Self> {
+        let specified = base.parts.len();
+        if specified < 2 {
             Err(Error::String(format!(
                 "Expected at least two digits in version range, got: {}",
-                minimum.as_ref()
+                base
             )))
         } else {
-            Ok(VersionRange::LowestSpecified(range))
+            Ok(Self { specified, base })
         }
     }
 }

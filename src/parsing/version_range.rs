@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::convert::TryFrom;
+
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
@@ -133,8 +135,8 @@ where
                             map_res(preceded(char('^'), cut(version_str)), |s| {
                                 SemverRange::new_version_range(s)
                             }),
-                            map_res(preceded(char('~'), cut(version_str)), |s| {
-                                LowestSpecifiedRange::new_version_range(s)
+                            map_res(preceded(char('~'), cut(version)), |v| {
+                                LowestSpecifiedRange::try_from(v).map(VersionRange::LowestSpecified)
                             }),
                             map_res(preceded(tag(">="), cut(version_str)), |s| {
                                 GreaterThanOrEqualToRange::new_version_range(s)
