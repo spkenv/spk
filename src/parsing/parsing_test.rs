@@ -293,13 +293,21 @@ proptest! {
             repo in arb_repo(),
             name in arb_pkg_name(),
             version in arb_opt_version(),
+            use_alternate_version in any::<bool>(),
             build in arb_build()) {
         // If specifying a build, a version must also be specified.
         prop_assume!(build.is_none() || version.is_some());
         let ident = [
             repo.as_ref().map(|r| r.0.to_owned()),
             Some(name.clone().into_inner()),
-            version.as_ref().map(|v| v.to_string()),
+            version.as_ref().map(|v| {
+                if use_alternate_version {
+                    format!("{:#}", v)
+                }
+                else {
+                    v.to_string()
+                }
+            }),
             build.as_ref().map(|b| b.to_string()),
         ].iter().flatten().join("/");
         let parsed = parse_ident(&ident);
@@ -322,6 +330,7 @@ proptest! {
             name in arb_pkg_name(),
             components in arb_components(),
             version in arb_opt_version_filter(),
+            use_alternate_version in any::<bool>(),
             build in arb_build()) {
         // If specifying a build, a version must also be specified.
         prop_assume!(build.is_none() || version.is_some());
@@ -340,7 +349,14 @@ proptest! {
         let ident = [
             repo.as_ref().map(|r| r.0.to_owned()),
             Some(name_and_component_str),
-            version.as_ref().map(|v| v.to_string()),
+            version.as_ref().map(|v| {
+                if use_alternate_version {
+                    format!("{:#}", v)
+                }
+                else {
+                    v.to_string()
+                }
+            }),
             build.as_ref().map(|b| b.to_string()),
         ].iter().flatten().join("/");
         let parsed = RangeIdent::from_str(&ident);
