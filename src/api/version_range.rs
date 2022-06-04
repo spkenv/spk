@@ -527,7 +527,8 @@ impl Display for LowestSpecifiedRange {
             .collect_vec()
             .join(VERSION_SEP);
         f.write_char('~')?;
-        f.write_str(&base_str)
+        f.write_str(&base_str)?;
+        self.base.format_tags(f)
     }
 }
 
@@ -802,7 +803,8 @@ impl Display for NotEqualsVersion {
             .collect_vec()
             .join(VERSION_SEP);
         f.write_str("!=")?;
-        f.write_str(&base_str)
+        f.write_str(&base_str)?;
+        self.base.format_tags(f)
     }
 }
 
@@ -919,7 +921,8 @@ impl Display for DoubleNotEqualsVersion {
             .collect_vec()
             .join(VERSION_SEP);
         f.write_str("!==")?;
-        f.write_str(&base_str)
+        f.write_str(&base_str)?;
+        self.base.format_tags(f)
     }
 }
 
