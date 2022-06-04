@@ -6,12 +6,7 @@ License: NONE
 URL: https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs
 Source0: https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs/-/archive/v%{version}/%{name}-v%{version}.tar.gz
 
-Requires: expect >= 5, expect < 6
-BuildRequires: rsync
 BuildRequires: gcc
-BuildRequires: gcc-c++
-BuildRequires: chrpath
-BuildRequires: libcap-devel
 BuildRequires: openssl-devel
 # Minimum version with parallel component support and relocatable .spdev.yaml
 BuildRequires: spdev >= 0.25.5
