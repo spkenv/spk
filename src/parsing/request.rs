@@ -21,6 +21,15 @@ use super::{
     version_range::version_range,
 };
 
+/// Parse a package name in the context of a range identity.
+///
+/// The package name must either be followed by a `/` or the end of input.
+///
+/// Examples:
+/// - `"package-name"`
+/// - `"package-name/"`
+/// - `"package-name:comp"`
+/// - `"package-name:{comp1,comp2}/"`
 fn range_ident_pkg_name<'a, E>(
     input: &'a str,
 ) -> IResult<&'a str, (&PkgName, HashSet<Component>), E>
@@ -38,6 +47,16 @@ where
     )(input)
 }
 
+/// Parse a version filter in the context of a range identity.
+///
+/// Normally an empty string is a valid version filter, but in this
+/// context it is not.
+///
+///   Legal: `"pkg-name/1.0/src"`
+///
+/// Illegal: `"pkg-name//src"`
+///
+/// See [version_range] for more details about parsing a version filter.
 fn range_ident_version_filter<'a, E>(input: &'a str) -> IResult<&'a str, VersionFilter, E>
 where
     E: ParseError<&'a str>
@@ -55,6 +74,16 @@ where
     )(input)
 }
 
+/// Parse a package range identity into a [`RangeIdent`].
+///
+/// `known_repositories` is used to disambiguate input that
+/// can be parsed in multiple ways. The first element of the
+/// identity is more likely to be interpreted as a repository
+/// name if it is a known repository name.
+///
+/// Like [`super::ident`], but the package name portion may
+/// name components, and the version portion is a version
+/// filter expression.
 pub(crate) fn range_ident<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
     input: &'b str,
@@ -89,6 +118,12 @@ where
     ))
 }
 
+/// Parse a version filter and optional build in the context of a
+/// range identity.
+///
+/// This function parses into [`VersionFilter`] and [`Build`] instances.
+///
+/// See [range_ident_version_filter] for details on valid inputs.
 pub(crate) fn version_filter_and_build<'a, E>(
     input: &'a str,
 ) -> IResult<&'a str, (VersionFilter, Option<Build>), E>

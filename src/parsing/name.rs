@@ -29,6 +29,13 @@ pub(crate) fn is_legal_tag_name_chr(c: char) -> bool {
     c.is_ascii_alphanumeric()
 }
 
+/// Parse a known repository name into a [`RepositoryName`].
+///
+/// This parser is for recognizing repository names that are
+/// present in `known_repositories`.
+///
+/// See [repository_name] for parsing arbitrary repository
+/// names.
 pub(crate) fn known_repository_name<'a, 'i, E>(
     known_repositories: &'a HashSet<&str>,
 ) -> impl Fn(&'i str) -> IResult<&'i str, RepositoryName, E> + 'a
@@ -44,6 +51,14 @@ where
     }
 }
 
+/// Parse a package name.
+///
+/// Examples:
+/// - `"pkg1"`
+/// - `"pkg-name"`
+///
+/// A package name must be at least [`NAME_MIN_LEN`] characters and
+/// no more than [`NAME_MAX_LEN`] characters.
 pub(crate) fn package_name<'a, E>(input: &'a str) -> IResult<&'a str, &PkgName, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
@@ -64,6 +79,11 @@ where
     )(input)
 }
 
+/// Parse a repository name.
+///
+/// Examples:
+/// - `"repo1"`
+/// - `"repo-name"`
 pub(crate) fn repository_name<'a, E>(input: &'a str) -> IResult<&'a str, RepositoryName, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
@@ -73,6 +93,14 @@ where
     })(input)
 }
 
+/// Parse a tag name.
+///
+/// A tag name refers to the string portion of a pre- or post-release
+/// on a [`crate::api::Version`].
+///
+/// Examples:
+/// - `"r"`
+/// - `"alpha1"`
 pub(crate) fn tag_name<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,

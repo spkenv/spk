@@ -20,6 +20,20 @@ use super::{
     name::package_name, repo_name_in_ident, version::version_str, version_and_optional_build,
 };
 
+/// Parse a package identity into an [`Ident`].
+///
+/// `known_repositories` is used to disambiguate input that
+/// can be parsed in multiple ways. The first element of the
+/// identity is more likely to be interpreted as a repository
+/// name if it is a known repository name.
+///
+/// Examples:
+/// - `"pkg-name"`
+/// - `"pkg-name/1.0"`
+/// - `"pkg-name/1.0/CU7ZWOIF"`
+/// - `"repo-name/pkg-name"`
+/// - `"repo-name/pkg-name/1.0"`
+/// - `"repo-name/pkg-name/1.0/CU7ZWOIF"`
 pub(crate) fn ident<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
     input: &'b str,
@@ -49,6 +63,13 @@ where
     }
 }
 
+/// Parse a package name in the context of an identity string into an [`Ident`].
+///
+/// The package name must either be followed by a `/` or the end of input.
+///
+/// Examples:
+/// - `"package-name"`
+/// - `"package-name/"`
 fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, Ident, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
@@ -59,6 +80,11 @@ where
     )(input)
 }
 
+/// Parse a version and optional build in the context of an identity string.
+///
+/// This function parses into [`Version`] and [`Build`] instances.
+///
+/// See [parse_version] for details on valid inputs.
 fn version_and_build<'a, E>(input: &'a str) -> IResult<&'a str, (Version, Option<Build>), E>
 where
     E: ParseError<&'a str>

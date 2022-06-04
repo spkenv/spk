@@ -19,6 +19,11 @@ use crate::api::{Component, PkgName};
 
 use super::name::is_legal_package_name_chr;
 
+/// Parse a component name into a [`Component`].
+///
+/// Examples:
+/// - `"all"`
+/// - `"legal-component-name"`
 pub(crate) fn component<'a, E>(input: &'a str) -> IResult<&'a str, Component, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
@@ -39,6 +44,14 @@ where
     ))(input)
 }
 
+/// Parse a component group expression into a [`HashSet<Component>`].
+///
+/// This may be either a bare component name or a set defined with
+/// `{}`.
+///
+/// Examples:
+/// - `"comp-name"`
+/// - `"{comp1,comp2}"`
 pub(crate) fn components<'a, E>(input: &'a str) -> IResult<&'a str, HashSet<Component>, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,

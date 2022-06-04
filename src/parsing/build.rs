@@ -14,6 +14,11 @@ use nom::{
 
 use crate::api::Build;
 
+/// Parse a base32 build.
+///
+/// Example: `"CU7ZWOIF"`
+///
+/// The input must be of length [`crate::api::DIGEST_SIZE`].
 pub(crate) fn base32_build<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
@@ -25,6 +30,9 @@ where
     )(input)
 }
 
+/// Parse a build into a [`Build`].
+///
+/// See [build_str] for examples of valid build strings.
 pub(crate) fn build<'a, E>(input: &'a str) -> IResult<&'a str, Build, E>
 where
     E: ParseError<&'a str>
@@ -34,6 +42,12 @@ where
     map_res(build_str, Build::from_str)(input)
 }
 
+/// Parse a build.
+///
+/// Examples:
+/// - `"src"`
+/// - `"embedded"`
+/// - `"CU7ZWOIF"`
 pub(crate) fn build_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
