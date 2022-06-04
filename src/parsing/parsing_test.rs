@@ -5,6 +5,7 @@
 use std::{collections::HashSet, str::FromStr};
 
 use itertools::Itertools;
+use nom::error::ErrorKind;
 use proptest::{
     collection::{btree_map, btree_set, hash_set, vec},
     option::weighted,
@@ -351,4 +352,20 @@ proptest! {
         assert_eq!(parsed.version, version.unwrap_or_default().flatten());
         assert_eq!(parsed.build, build);
     }
+}
+
+/// Invoke the `ident` parser without `VerboseError` for coverage.
+#[test]
+fn parse_range_ident_with_basic_errors() {
+    let empty = HashSet::new();
+    let r = crate::parsing::range_ident::<(_, ErrorKind)>(&empty, "pkg-name");
+    assert!(r.is_ok(), "{}", r.unwrap_err());
+}
+
+/// Invoke the `range_ident` parser without `VerboseError` for coverage.
+#[test]
+fn parse_ident_with_basic_errors() {
+    let empty = HashSet::new();
+    let r = crate::parsing::ident::<(_, ErrorKind)>(&empty, "pkg-name");
+    assert!(r.is_ok(), "{}", r.unwrap_err());
 }
