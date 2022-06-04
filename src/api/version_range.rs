@@ -18,7 +18,7 @@ use crate::{Error, Result};
 
 use self::intersection::{CombineWith, ValidRange};
 
-use super::{parse_version, version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
+use super::{version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
 
 mod intersection;
 
@@ -870,13 +870,10 @@ pub struct DoubleNotEqualsVersion {
     pub(crate) base: Version,
 }
 
-impl DoubleNotEqualsVersion {
-    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
-        let range = Self {
-            specified: exclude.as_ref().split(VERSION_SEP).count(),
-            base: parse_version(exclude)?,
-        };
-        Ok(VersionRange::DoubleNotEquals(range))
+impl From<Version> for DoubleNotEqualsVersion {
+    fn from(base: Version) -> Self {
+        let specified = base.parts.len();
+        Self { specified, base }
     }
 }
 
