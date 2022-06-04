@@ -22,6 +22,23 @@ use crate::api::{
 
 use super::version::{version, version_str};
 
+/// Parse a wildcard range into a [`VersionRange`].
+///
+/// If `require_star` is true, the input is only considered valid
+/// if it contains a `*` character. Otherwise, an empty string
+/// is a valid input and is interpreted as if the input was `"*"`.
+///
+/// If `fail_if_contains_star` is true, the parser will terminate
+/// with an "unrecoverable" failure instead of a normal error if
+/// the input contains a `*` character.
+///
+/// At most one wildcard is allowed.
+///
+/// Examples:
+/// - `""`
+/// - `"*"`
+/// - `"1.*"`
+/// - `"*.1"`
 pub(crate) fn wildcard_range<'a, E>(
     require_star: bool,
     fail_if_contains_star: bool,
@@ -67,6 +84,28 @@ where
     }
 }
 
+/// Parse a version filter into a [`VersionRange`].
+///
+/// A version filter is either a single expression or a comma-separated
+/// list of expressions.
+///
+/// Examples:
+/// - `"!=1.0"`
+/// - `"!==1.0"`
+/// - `"1.*"`
+/// - `"1.0"`
+/// - `"<1.0"`
+/// - `"<=1.0"`
+/// - `"=1.0"`
+/// - `"==1.0"`
+/// - `">1.0"`
+/// - `">=1.0"`
+/// - `"^1.0"`
+/// - `"~1.0"`
+/// - `">1.0,<2.0"`
+///
+/// See [wildcard_range] for an explanation of `require_star` and
+/// `fail_if_contains_star`.
 pub(crate) fn version_range<'a, E>(
     require_star: bool,
     fail_if_contains_star: bool,
