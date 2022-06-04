@@ -172,6 +172,12 @@ macro_rules! main {
                 Ok(rt) => rt,
             };
             let result = rt.block_on(opt.run(&config));
+            // we generally expect at this point that the command is complete
+            // and nothing else should be executing, but it's possible that
+            // we've launched long running tasks that are waiting for signals or
+            // events which will never come and so we don't want to block forever
+            // when the runtime is dropped.
+            rt.shutdown_timeout(std::time::Duration::from_millis(250));
 
             handle_result!(result)
         }

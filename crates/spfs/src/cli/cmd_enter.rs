@@ -57,7 +57,10 @@ impl CmdEnter {
             .map_err(|err| {
                 spfs::Error::String(format!("Failed to establish async runtime: {:?}", err))
             })?;
-        rt.block_on(self.run_async(config))
+        let res = rt.block_on(self.run_async(config));
+        // do not block forever on drop because of any stuck blocking tasks
+        rt.shutdown_timeout(std::time::Duration::from_millis(250));
+        res
     }
 
     pub async fn run_async(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {

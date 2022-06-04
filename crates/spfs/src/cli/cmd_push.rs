@@ -34,7 +34,7 @@ impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = config.get_local_repository().await?.into();
         let remote =
-            spfs::config::open_repository_from_string(&config, &Some(self.remote.clone())).await?;
+            spfs::config::open_repository_from_string(config, &Some(self.remote.clone())).await?;
 
         let env_spec =
             spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
