@@ -156,8 +156,8 @@ where
                             map(preceded(char('='), cut(version)), |v| {
                                 EqualsVersion::version_range(v)
                             }),
-                            map_res(preceded(tag("!=="), cut(version_str)), |s| {
-                                DoubleNotEqualsVersion::new_version_range(s)
+                            map(preceded(tag("!=="), cut(version)), |v| {
+                                VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::from(v))
                             }),
                             map(preceded(tag("!="), cut(version)), |v| {
                                 VersionRange::NotEquals(NotEqualsVersion::from(v))
