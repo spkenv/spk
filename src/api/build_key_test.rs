@@ -90,9 +90,9 @@ fn make_expanded_version_range_part(
 #[case("=1.2.3",             make_expanded_version_range_part("=1.2.3",             vec![1, 2, 3],                      true,  vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
 #[case("^1.2.3",             make_expanded_version_range_part("^1.2.3",             vec![2],                            false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
 // These ones appear in the function's comments
-#[case("~2.3.4-r.1",         make_expanded_version_range_part("~2.3.4-r.1",         vec![2, 3, 5],                      false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec!["r", "1"]))]
+#[case("~2.3.4-r.1",         make_expanded_version_range_part("~2.3.4-r.1",         vec![2, 4],                         false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec!["r", "1"]))]
 #[case("~2.3.4",             make_expanded_version_range_part("~2.3.4",             vec![2, 4],                         false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec![]))]
-#[case("~2.3.4+r.2",         make_expanded_version_range_part("~2.3.4+r.2",         vec![2, 3, 5],                      false, vec![], vec![], vec![2, 3, 4],    false, vec!["r", "2"],  vec![]))]
+#[case("~2.3.4+r.2",         make_expanded_version_range_part("~2.3.4+r.2",         vec![2, 4],                         false, vec![], vec![], vec![2, 3, 4],    false, vec!["r", "2"],  vec![]))]
 fn test_parse_value_to_build_key_extended_version_range(
     #[case] vrange: &str,
     #[case] expected: BuildKeyExpandedVersionRange,
@@ -190,13 +190,8 @@ fn test_parse_value_to_build_key_extended_version_range_invalid(
 #[rstest]
 #[case(vec!["~9.3.1", "~6.3.1", "~4.8.2"], vec!["~9.3.1", "~6.3.1", "~4.8.2"])]
 // Version ranges that include pre and post releases.
-// Note: the expected ordering puts ~1.2.3 first. That's because its
-// less_than() call returns '1.3.0' currently, whereas '~1.2.3+r2' and
-// '~1.2.3-r.1' return '1.2.4' from less_than(). spk seems to be
-// constraining version numbers that have tags to smaller ranges. If
-// this is a bug and it gets fixed, these tests will fail and need to
-// be updated.
-#[case(vec!["~1.2.3", "~1.2.3+r.2", "~1.2.3-r.3"], vec!["~1.2.3", "~1.2.3+r.2", "~1.2.3-r.3"])]
+// XXX: A pre-release should be smaller than a non-pre-release, right?
+#[case(vec!["~1.2.3", "~1.2.3+r.2", "~1.2.3-r.3"], vec!["~1.2.3+r.2", "~1.2.3-r.3", "~1.2.3"])]
 // This one needs the tie_breaker hash third entry in the tuple to
 // sort consistent between rust and python because because "1.2.3" and
 // ">=1.2.3" have identical keys up to the tie-breaker.
@@ -204,7 +199,8 @@ fn test_parse_value_to_build_key_extended_version_range_invalid(
 // These values are used in the function's comments. Note: this is
 // also a test that involves tags, see the comments the test 2 entries
 // back.
-#[case(vec!["~2.3.4-r.1", "~2.3.4", "~2.3.4+r.2"], vec!["~2.3.4", "~2.3.4+r.2", "~2.3.4-r.1"])]
+// XXX: A pre-release should be smaller than a non-pre-release, right?
+#[case(vec!["~2.3.4-r.1", "~2.3.4", "~2.3.4+r.2"], vec!["~2.3.4+r.2", "~2.3.4-r.1", "~2.3.4"])]
 fn test_build_piece_ordering(#[case] values: Vec<&str>, #[case] expected: Vec<&str>) {
     // Test all the permutations
     for perm in values.iter().permutations(values.len()) {
