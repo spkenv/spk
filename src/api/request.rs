@@ -305,12 +305,10 @@ impl FromStr for RangeIdent {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> crate::Result<Self> {
-        crate::parsing::range_ident::<nom::error::VerboseError<_>>(&KNOWN_REPOSITORY_NAMES, s)
+        crate::parsing::range_ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, s)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => {
-                    crate::Error::String(nom::error::convert_error(s, e))
-                }
+                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
                 nom::Err::Incomplete(_) => unreachable!(),
             })
     }
