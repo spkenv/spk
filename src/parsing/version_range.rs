@@ -126,7 +126,7 @@ where
                     tag(crate::api::VERSION_RANGE_SEP),
                     map_parser(
                         alt((is_not(crate::api::VERSION_RANGE_SEP), eof)),
-                        alt((
+                        all_consuming(alt((
                             // Use `cut` for these that first match on an operator first,
                             // if the version fails to parse then it shouldn't continue to
                             // try the other options of the `alt` here.
@@ -174,7 +174,7 @@ where
                                     map_res(rest, CompatRange::new_version_range),
                                 ),
                             )),
-                        )),
+                        ))),
                     ),
                 ),
                 |mut version_range| {

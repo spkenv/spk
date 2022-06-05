@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::char,
-    combinator::{eof, map, map_parser, opt, peek},
+    combinator::{all_consuming, eof, map, map_parser, opt, peek},
     error::{context, ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded, terminated},
     IResult,
@@ -66,11 +66,12 @@ where
 {
     context(
         "range_ident_version_filter",
-        map(map_parser(is_not("/"), version_range(true, true)), |v| {
-            VersionFilter {
+        map(
+            map_parser(is_not("/"), all_consuming(version_range(true, true))),
+            |v| VersionFilter {
                 rules: v.into_iter().collect(),
-            }
-        }),
+            },
+        ),
     )(input)
 }
 
