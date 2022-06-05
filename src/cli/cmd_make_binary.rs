@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
-use spk::api::Package;
+use futures::TryFutureExt;
 use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -90,8 +91,9 @@ impl Run for MakeBinary {
     async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
         #[rustfmt::skip]
-        let (_runtime, repos) = tokio::try_join!(
+        let (_runtime, local, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
+            spk::storage::local_repository().map_ok(spk::storage::RepositoryHandle::from).map_err(anyhow::Error::from),
             async { self.repos.get_repos(&["origin".to_string()]).await }
         )?;
         let repos = repos
@@ -105,27 +107,31 @@ impl Run for MakeBinary {
         }
 
         for package in packages {
-            let spec = match flags::find_package_spec(
+            let template = match flags::find_package_template(
                 &package.as_ref().map(|p| p.get_specifier().to_owned()),
             )? {
-                flags::FindPackageSpecResult::NotFound(name) => {
-                    // TODO:: load from given repos
-                    Arc::new(spk::api::read_spec_file(name)?)
+                flags::FindPackageTemplateResult::NotFound(name) => {
+                    Arc::new(spk::api::SpecTemplate::from_file(name.as_ref())?)
                 }
                 res => {
-                    let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spec.ident().format_ident());
-                    spk::save_spec(&spec).await?;
-                    spec
+                    let (_, template) = res.must_be_found();
+                    template
                 }
             };
 
-            tracing::info!("building binary package {}", spec.ident().format_ident());
+            tracing::info!("rendering template for {}", template.name());
+            let recipe = template.render(&options)?;
+            let ident = recipe.ident();
+
+            tracing::info!("saving package recipe for {}", ident.format_ident());
+            local.publish_recipe(&recipe).await?;
+
+            tracing::info!("building binary package(s) for {}", ident.format_ident());
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
-                Some(index) => spec.variants().iter().skip(index).take(1),
-                None => spec.variants().iter().skip(0).take(usize::MAX),
+                Some(index) => recipe.default_variants().iter().skip(index).take(1),
+                None => recipe.default_variants().iter().skip(0).take(usize::MAX),
             };
 
             for variant in variants_to_build {
@@ -155,7 +161,7 @@ impl Run for MakeBinary {
                     .with_header("Build Resolver ")
                     .build();
 
-                let mut builder = spk::build::BinaryPackageBuilder::from_spec((*spec).clone());
+                let mut builder = spk::build::BinaryPackageBuilder::from_recipe(recipe.clone());
                 builder
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
@@ -171,13 +177,13 @@ impl Run for MakeBinary {
                     // Use the source package `Ident` if the caller supplied one.
                     builder.with_source(spk::build::BuildSource::SourcePackage(ident.clone()));
                 }
-                let out = match builder.build().await {
+                let out = match builder.build_and_publish(&local).await {
                     Err(err @ spk::Error::Solve(_))
                     | Err(err @ spk::Error::PackageNotFoundError(_)) => {
                         tracing::error!("variant failed {}", spk::io::format_options(&opts));
                         return Err(err.into());
                     }
-                    Ok(out) => out,
+                    Ok((spec, _cmpts)) => spec,
                     Err(err) => return Err(err.into()),
                 };
                 tracing::info!("created {}", out.ident().format_ident());

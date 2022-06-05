@@ -8,7 +8,7 @@ mod package_test;
 
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
-pub trait Package: super::Named + super::Versioned + super::Deprecate + Send {
+pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + Send {
     /// The full identifier for this package
     ///
     /// This includes the version and optional build

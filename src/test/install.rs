@@ -119,7 +119,7 @@ impl<'a> PackageInstallTester<'a> {
         let pkg = api::RangeIdent::equals(&self.recipe.ident(), [api::Component::All]);
         let request = api::PkgRequest::new(
             pkg,
-            api::RequestedBy::InstallTest(self.spec.ident().clone()),
+            api::RequestedBy::InstallTest(self.recipe.ident().clone()),
         )
         .with_prerelease(api::PreReleasePolicy::IncludeAll)
         .with_pin(None)

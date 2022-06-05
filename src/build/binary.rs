@@ -13,7 +13,6 @@ use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
-use crate::api::Package;
 use crate::solve::Solution;
 use crate::{api, exec, solve, storage, Error, Result};
 use crate::{prelude::*, Solver};
@@ -87,7 +86,8 @@ where
 {
     /// Create a new builder that builds a binary package from the given recipe
     pub fn from_recipe(recipe: Recipe) -> Self {
-        let source = BuildSource::SourcePackage(recipe.ident().into_build(api::Build::Source));
+        let source =
+            BuildSource::SourcePackage(recipe.ident().into_build(api::Build::Source).into());
         Self {
             recipe,
             source,
@@ -203,7 +203,7 @@ where
         self.last_solve_graph.clone()
     }
 
-    pub fn build_and_publish<R>(
+    pub async fn build_and_publish<R, T>(
         &mut self,
         repo: &R,
     ) -> Result<(
@@ -211,10 +211,11 @@ where
         HashMap<api::Component, spfs::encoding::Digest>,
     )>
     where
-        R: storage::Repository<Recipe = Recipe> + ?Sized,
+        R: std::ops::Deref<Target = T>,
+        T: storage::Repository<Recipe = Recipe> + ?Sized,
     {
-        let (package, components) = self.build()?;
-        repo.publish_package(&package, &components)?;
+        let (package, components) = self.build().await?;
+        repo.publish_package(&package, &components).await?;
         Ok((package, components))
     }
 

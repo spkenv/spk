@@ -182,7 +182,12 @@ std::thread_local! {
         CacheValue<Arc<Vec<Arc<api::Version>>>>
     > = RefCell::new(HashMap::new());
 
-    static SPEC_CACHE : CacheByAddress<
+    static RECIPE_CACHE : CacheByAddress<
+        api::Ident,
+        CacheValue<Arc<api::SpecRecipe>>
+    > = RefCell::new(HashMap::new());
+
+    static PACKAGE_CACHE : CacheByAddress<
         api::Ident,
         CacheValue<Arc<api::Spec>>
     > = RefCell::new(HashMap::new());
@@ -198,7 +203,7 @@ impl Repository for SPFSRepository {
     type Recipe = api::SpecRecipe;
 
     fn address(&self) -> &url::Url {
-        self.inner.address()
+        &self.address
     }
 
     async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
@@ -310,13 +315,13 @@ impl Repository for SPFSRepository {
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         let address = self.address();
         if self.cached_result_permitted() {
-            let r =
-                SPEC_CACHE.with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            let r = RECIPE_CACHE
+                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
             if let Some(r) = r {
                 return r.into();
             }
         }
-        let r: Result<Arc<api::Spec>> = async {
+        let r: Result<Arc<api::SpecRecipe>> = async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
@@ -329,62 +334,7 @@ impl Repository for SPFSRepository {
                 .map(Arc::new)
         }
         .await;
-        SPEC_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
-        });
-        r
-    }
-
-    async fn get_package(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-        let package = self.lookup_package(pkg).await?;
-        let component_tags = package.into_components();
-        let mut components = HashMap::with_capacity(component_tags.len());
-        for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self
-                .inner
-                .resolve_tag(&tag_spec)
-                .await
-                .map_err(|err| match err {
-                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
-                    err => err.into(),
-                })?;
-            components.insert(name, tag.target);
-        }
-        Ok(components)
-    }
-
-    async fn read_package(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<<Self::Recipe as api::Recipe>::Output> {
-        // TODO: reduce duplicate code with read_recipe
-        let address = self.address();
-        if self.cached_result_permitted() {
-            let r =
-                SPEC_CACHE.with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
-            if let Some(r) = r {
-                return r.into();
-            }
-        }
-        let r: Result<Arc<api::Spec>> = async {
-            let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-            let tag = self.resolve_tag(pkg, &tag_spec).await?;
-
-            let mut reader = self.inner.open_payload(tag.target).await?;
-            let mut yaml = String::new();
-            reader.read_to_string(&mut yaml).await?;
-            serde_yaml::from_str(&yaml)
-                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-                .map(Arc::new)
-        }
-        .await;
-        SPEC_CACHE.with(|hm| {
+        RECIPE_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
@@ -413,6 +363,40 @@ impl Repository for SPFSRepository {
         Ok(components)
     }
 
+    async fn read_package(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
+        // TODO: reduce duplicate code with read_recipe
+        let address = self.address();
+        if self.cached_result_permitted() {
+            let r = PACKAGE_CACHE
+                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            if let Some(r) = r {
+                return r.into();
+            }
+        }
+        let r: Result<Arc<api::Spec>> = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+
+            let mut reader = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader.read_to_string(&mut yaml).await?;
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
+        }
+        .await;
+        PACKAGE_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+        });
+        r
+    }
+
     async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
         if spec.ident().build.is_some() {
             return Err(api::InvalidBuildError::new_error(
@@ -426,9 +410,8 @@ impl Repository for SPFSRepository {
             // because of the non-destructive tag history
             Err(Error::VersionExistsError(spec.ident().clone()))
         } else {
-            Ok(spec)
+            self.force_publish_recipe(spec).await
         }
-        self.force_publish_recipe(spec).await
     }
 
     async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {
@@ -450,7 +433,7 @@ impl Repository for SPFSRepository {
                 "Cannot publish embedded package".to_string(),
             ));
         }
-        let tag_path = self.build_spec_tag(spec.ident());
+        let tag_path = self.build_spec_tag(&spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
         let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
@@ -466,7 +449,7 @@ impl Repository for SPFSRepository {
     async fn publish_package(
         &self,
         spec: &api::Spec,
-        components: HashMap<api::Component, spfs::encoding::Digest>,
+        components: &HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         #[cfg(test)]
         if let Err(Error::PackageNotFoundError(pkg)) =
@@ -508,7 +491,7 @@ impl Repository for SPFSRepository {
             Ok(spec)
         };
 
-        self.force_publish_package(spec?).await?;
+        self.update_package(spec?).await?;
         Ok(())
     }
 
@@ -619,7 +602,7 @@ impl SPFSRepository {
         let address = self.address();
         LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         PACKAGE_VERSIONS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        RECIPE_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
     }
 

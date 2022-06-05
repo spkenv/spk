@@ -149,8 +149,10 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 Arc::clone(&*recipe),
             ))));
 
-            changes.extend(self.requirements_to_changes(spec.runtime_requirements()));
-            changes.extend(self.components_to_changes(spec.components()));
+            let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
+            changes
+                .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+            changes.extend(self.components_to_changes(spec.components(), &requested_by));
             changes.extend(self.embedded_to_changes(spec.embedded()));
             changes.push(Self::options_to_change(&spec));
 
@@ -176,8 +178,10 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 return changes;
             }
 
-            changes.extend(self.requirements_to_changes(spec.runtime_requirements()));
-            changes.extend(self.components_to_changes(spec.components()));
+            let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
+            changes
+                .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+            changes.extend(self.components_to_changes(spec.components(), &requested_by));
             changes.extend(self.embedded_to_changes(spec.embedded()));
             changes.push(Self::options_to_change(&spec));
 
@@ -190,17 +194,29 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         }
     }
 
-    fn requirements_to_changes(&self, requirements: &api::RequirementsList) -> Vec<Change> {
+    fn requirements_to_changes(
+        &self,
+        requirements: &api::RequirementsList,
+        requested_by: &api::RequestedBy,
+    ) -> Vec<Change> {
         requirements
             .iter()
             .flat_map(|req| match req {
-                api::Request::Pkg(req) => self.pkg_request_to_changes(req),
+                api::Request::Pkg(req) => {
+                    let mut req = req.clone();
+                    req.add_requester(requested_by.clone());
+                    self.pkg_request_to_changes(&req)
+                }
                 api::Request::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
             })
             .collect()
     }
 
-    fn components_to_changes(&self, components: &api::ComponentSpecList) -> Vec<Change> {
+    fn components_to_changes(
+        &self,
+        components: &api::ComponentSpecList,
+        requested_by: &api::RequestedBy,
+    ) -> Vec<Change> {
         let mut changes = vec![];
         let required = components.resolve_uses(self.components.iter().cloned());
         for component in components.iter() {
@@ -210,7 +226,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 // is buggy now
                 continue;
             }
-            changes.extend(self.requirements_to_changes(&component.requirements));
+            changes.extend(self.requirements_to_changes(&component.requirements, requested_by));
             changes.extend(self.embedded_to_changes(&component.embedded));
         }
         changes
@@ -226,10 +242,6 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 .components
                 .insert(api::Component::default_for_run());
         }
-
-        // Add the package that would make this request, into the request
-        req.to_mut()
-            .add_requester(api::RequestedBy::PackageBuild(self.spec.ident().clone()));
 
         let mut changes = vec![Change::RequestPackage(RequestPackage::new(
             req.clone().into_owned(),
@@ -260,7 +272,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             if !added_components.contains(&component.name) {
                 continue;
             }
-            changes.extend(self.requirements_to_changes(&component.requirements));
+            let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
+            changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
         }
         changes
     }
@@ -272,7 +285,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 [
                     Change::RequestPackage(RequestPackage::new(api::PkgRequest::from_ident(
                         embedded.ident().clone(),
-                        api::RequestedBy::PackageBuild(self.spec.ident().clone()),
+                        api::RequestedBy::Embedded,
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(
                         Arc::new(embedded.clone()),

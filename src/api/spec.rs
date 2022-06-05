@@ -31,7 +31,9 @@ impl Template for SpecTemplate {
         let filepath = path.canonicalize()?;
         let file = std::fs::File::open(&filepath)?;
 
-        let inner: serde_yaml::Mapping = serde_yaml::from_reader(file)?;
+        let inner: serde_yaml::Mapping = serde_yaml::from_reader(file).map_err(|err| {
+            Error::String(format!("Invalid yaml in template file {path:?}: {err}"))
+        })?;
 
         let pkg = inner
             .get(&serde_yaml::Value::String("pkg".to_string()))
@@ -65,13 +67,13 @@ impl Template for SpecTemplate {
             .create(true)
             .write(true)
             .open(&path)?;
-        serde_yaml::to_writer(file, &self)
+        serde_yaml::to_writer(file, &self.inner)
             .map_err(|err| Error::String(format!("Failed to save spec to file {path:?}: {err}")))
     }
 
     fn render(&self, _options: &super::OptionMap) -> Result<Self::Output> {
-        Ok(serde_yaml::from_value(self.inner.clone().into())
-            .map_err(|err| Error::String(format!("failed to parse rendered template: {err}"))))
+        serde_yaml::from_value(self.inner.clone().into())
+            .map_err(|err| Error::String(format!("failed to parse rendered template: {err}")))
     }
 }
 

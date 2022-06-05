@@ -15,7 +15,7 @@ use std::{
 use super::solution::PackageSource;
 use crate::api::OptNameBuf;
 use crate::{
-    api::{self, BuildKey, Package},
+    api::{self, BuildKey},
     prelude::*,
     storage, Error, Result,
 };
@@ -274,7 +274,7 @@ pub struct RepositoryBuildIterator {
         api::Ident,
         HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     )>,
-    recipe: Option<Arc<api::Spec>>,
+    recipe: Option<Arc<api::SpecRecipe>>,
 }
 
 #[async_trait::async_trait]
@@ -293,7 +293,7 @@ impl BuildIterator for RepositoryBuildIterator {
         let mut result = HashMap::new();
 
         for (repo_name, repo) in repos.iter() {
-            let mut spec = match repo.read_package(&build).await {
+            let spec = match repo.read_package(&build).await {
                 Ok(spec) => spec,
                 Err(Error::PackageNotFoundError(..)) => {
                     tracing::warn!("Repository listed build with no spec: {build} from {repo:?}",);

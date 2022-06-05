@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use clap::Args;
 use colored::Colorize;
 use futures::TryFutureExt;
-use spk::api::Package;
 use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 

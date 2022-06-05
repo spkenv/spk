@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
-use spk::api::Package;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -39,7 +39,8 @@ pub struct View {
 impl Run for View {
     async fn run(&mut self) -> Result<i32> {
         if self.variants {
-            return self.print_variants_info();
+            let options = self.options.get_options()?;
+            return self.print_variants_info(&options);
         }
 
         let package = match &self.package {
@@ -120,12 +121,13 @@ impl View {
         Ok(0)
     }
 
-    fn print_variants_info(&self) -> Result<i32> {
-        let (_, spec) = flags::find_package_spec(&self.package)
-            .context("find package spec")?
+    fn print_variants_info(&self, options: &spk::api::OptionMap) -> Result<i32> {
+        let (_, template) = flags::find_package_template(&self.package)
+            .context("find package template")?
             .must_be_found();
+        let recipe = template.render(options)?;
 
-        for (index, variant) in spec.variants().iter().enumerate() {
+        for (index, variant) in recipe.default_variants().iter().enumerate() {
             println!("{}: {}", index, variant);
         }
 

@@ -19,10 +19,7 @@ use once_cell::sync::Lazy;
 
 use colored::Colorize;
 
-use crate::{
-    api::{self, Named, Package},
-    option_map, solve, Error, Result,
-};
+use crate::{api, option_map, prelude::*, solve, Error, Result};
 
 static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     // Set up a ctrl-c handler to allow a solve to be interrupted
@@ -342,9 +339,12 @@ pub fn format_change(
                             // their PackageSource::Spec data to
                             // display what requested them.
                             match &c.source {
-                                solve::PackageSource::Spec(rb) => {
-                                    vec![api::RequestedBy::PackageBuild(rb.ident().clone())
+                                solve::PackageSource::BuildFromSource { recipe } => {
+                                    vec![api::RequestedBy::PackageBuild(recipe.ident().clone())
                                         .to_string()]
+                                }
+                                solve::PackageSource::Embedded => {
+                                    vec![api::RequestedBy::Embedded.to_string()]
                                 }
                                 _ => {
                                     // Don't think this should happen

@@ -16,7 +16,7 @@ use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
-    api::{self, Build, OptionMap, Package, PkgName, Request},
+    api::{self, Build, OptionMap, PkgName, Request},
     prelude::*,
     solve::graph::StepBack,
     storage, Error, Result,

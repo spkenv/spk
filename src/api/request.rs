@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 use super::compat::{API_STR, BINARY_STR};
 use super::version_range::{self, Ranged};
 use super::{
-    Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, Opt, OptName,
-    OptNameBuf, Package, PkgName, PkgNameBuf, RepositoryNameBuf, Version, VersionFilter,
+    Build, BuildIdent, CompatRule, Compatibility, Component, DoubleEqualsVersion, EqualsVersion,
+    Ident, Opt, OptName, OptNameBuf, Package, PkgName, PkgNameBuf, RepositoryNameBuf, Version,
+    VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -672,6 +673,8 @@ impl Serialize for VarRequest {
 pub enum RequestedBy {
     /// From the command line
     CommandLine,
+    /// Embedded in another package
+    Embedded,
     /// A source package that made the request during a source build resolve
     SourceBuild(Ident),
     /// A package that made the request as part of a binary build env setup
@@ -710,6 +713,7 @@ impl std::fmt::Display for RequestedBy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             RequestedBy::CommandLine => write!(f, "command line"),
+            RequestedBy::Embedded => write!(f, "embedded in another package"),
             RequestedBy::SourceBuild(ident) => write!(f, "{ident} source build"),
             RequestedBy::BinaryBuild(ident) => write!(f, "{ident} binary build"),
             RequestedBy::SourceTest(ident) => write!(f, "{ident} source test"),
@@ -827,13 +831,23 @@ impl PkgRequest {
         self.requested_by.values().flatten().cloned().collect()
     }
 
-    // TODO: change parameter to `pkg: Ident`
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
         let ri = RangeIdent {
             repository_name: None,
             name: pkg.name,
             components: Default::default(),
-            version: VersionFilter::single(EqualsVersion::version_range(pkg.version.clone())),
+            version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
+            build: pkg.build,
+        };
+        Self::new(ri, requester)
+    }
+
+    pub fn from_ident_exact(pkg: Ident, requester: RequestedBy) -> Self {
+        let ri = RangeIdent {
+            repository_name: None,
+            name: pkg.name,
+            components: Default::default(),
+            version: VersionFilter::single(DoubleEqualsVersion::version_range(pkg.version)),
             build: pkg.build,
         };
         Self::new(ri, requester)

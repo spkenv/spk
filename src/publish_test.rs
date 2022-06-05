@@ -15,7 +15,7 @@ use crate::{
 async fn test_publish_no_version_spec() {
     let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    rt.tmprepo.publish_recipe(spec).await.unwrap();
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
@@ -33,5 +33,5 @@ async fn test_publish_no_version_spec() {
         .publish(&spec.ident().with_build(None))
         .await
         .unwrap();
-    destination.get_package(spec.ident()).await.unwrap();
+    destination.read_components(spec.ident()).unwrap();
 }

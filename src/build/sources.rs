@@ -11,11 +11,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{
-    api::{self, Package},
-    prelude::*,
-    storage, Error, Result,
-};
+use crate::{api, prelude::*, storage, Error, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -62,15 +58,15 @@ impl<Recipe: api::Recipe> SourcePackageBuilder<Recipe> {
         }
     }
 
-    pub fn build_and_publish(
+    pub async fn build_and_publish(
         &self,
         repo: &impl storage::Repository<Recipe = Recipe>,
     ) -> Result<(
         Recipe::Output,
         HashMap<api::Component, spfs::encoding::Digest>,
     )> {
-        let (package, components) = self.build()?;
-        repo.publish_package(&package, &components)?;
+        let (package, components) = self.build().await?;
+        repo.publish_package(&package, &components).await?;
         Ok((package, components))
     }
 

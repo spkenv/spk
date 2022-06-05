@@ -4,12 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::{
-    api::{self, Package},
-    solve,
-    storage::{self},
-    Error, Result,
-};
+use crate::{api, prelude::*, solve, storage, Error, Result};
 
 /// Load the current environment from the spfs file system.
 pub async fn current_env() -> Result<solve::Solution> {

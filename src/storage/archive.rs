@@ -129,7 +129,7 @@ async fn copy_package(
         tracing::info!(%pkg, "exporting");
         let syncer = spfs::Syncer::new(&src_repo, &dst_repo)
             .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-        let desired = components.iter().map(|i| i.1).collect();
+        let desired = components.iter().map(|i| *i.1).collect();
         syncer.sync_env(desired).await?;
         dst_repo.publish_package(&spec, &components).await?;
         Ok(())

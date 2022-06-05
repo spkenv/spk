@@ -6,8 +6,9 @@ use std::{collections::BTreeSet, fmt::Write};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use spk::api::{Package, PkgName};
+use spk::api::PkgName;
 use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -108,8 +109,8 @@ impl Run for Ls {
                     name.push_str(&version.to_string());
 
                     let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = match repo.read_spec(&ident).await {
-                        Ok(spec) => spec,
+                    let recipe = match repo.read_recipe(&ident).await {
+                        Ok(recipe) => recipe,
                         Err(err) => {
                             tracing::warn!("Skipping {ident}: {err}");
                             continue;
@@ -122,15 +123,13 @@ impl Run for Ls {
                     // closer to the next Some(package) clause?
                     if self.deprecated {
                         // show deprecated versions
-                        if spec.deprecated() {
+                        if recipe.is_deprecated() {
                             results.push(format!("{version} {}", "DEPRECATED".red()));
                             continue;
                         }
-                    } else {
+                    } else if recipe.is_deprecated() {
                         // don't show deprecated versions
-                        if spec.deprecated() {
-                            continue;
-                        }
+                        continue;
                     }
                     results.push(version.to_string());
                 }
@@ -147,14 +146,14 @@ impl Run for Ls {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
-                        let spec = match repo.read_spec(&build).await {
+                        let spec = match repo.read_package(&build).await {
                             Ok(spec) => spec,
                             Err(err) => {
                                 tracing::warn!("Skipping {build}: {err}");
                                 continue;
                             }
                         };
-                        if spec.deprecated() && !self.deprecated {
+                        if spec.is_deprecated() && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
                         }
@@ -226,14 +225,14 @@ impl Ls {
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
-                    let spec = match repo.read_spec(&build).await {
+                    let spec = match repo.read_package(&build).await {
                         Ok(spec) => spec,
                         Err(err) => {
                             tracing::warn!("Skipping {build}: {err}");
                             continue;
                         }
                     };
-                    if spec.deprecated() && !self.deprecated {
+                    if spec.is_deprecated() && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
                     }
@@ -245,7 +244,7 @@ impl Ls {
                             width = max_repo_name_len + 2
                         );
                     }
-                    println!("{}", self.format_build(&build, &spec, repo).await?);
+                    println!("{}", self.format_build(&build, &*spec, repo).await?);
                 }
             }
         }
@@ -259,7 +258,7 @@ impl Ls {
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
         let mut item = pkg.format_ident();
-        if spec.deprecated() {
+        if spec.is_deprecated() {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }
 
@@ -272,13 +271,14 @@ impl Ls {
         // Based on the verbosity, display more details for the
         // package build.
         if self.verbose > 0 {
-            let options = spec.resolve_options(&spk::api::OptionMap::default());
+            let spec = repo.read_recipe(pkg).await?;
+            let options = spec.resolve_options(&spk::api::OptionMap::default())?;
             item.push(' ');
             item.push_str(&spk::io::format_options(&options));
         }
 
         if self.verbose > 1 || self.components {
-            let cmpts = repo.get_package(pkg).await?;
+            let cmpts = repo.read_components(pkg).await?;
             item.push(' ');
             item.push_str(&spk::io::format_components(cmpts.keys()));
         }

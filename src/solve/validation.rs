@@ -236,7 +236,7 @@ impl ValidatorT for PkgRequestValidator {
                     )));
                 }
                 PackageSource::Repository { .. } => {} // okay
-                PackageSource::Embedded { recipe } => {
+                PackageSource::Embedded => {
                     // TODO: from the right repo still?
                     return Ok(api::Compatibility::Incompatible(
                         "package did not come from requested repo (it was embedded in another)"

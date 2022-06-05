@@ -44,15 +44,18 @@ impl PackageSource {
 
 impl Ord for PackageSource {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        use PackageSource::*;
         match (self, other) {
-            (this @ PackageSource::Repository { .. }, other @ PackageSource::Repository { .. }) => {
+            (this @ Repository { .. }, other @ Repository { .. }) => this.cmp(other),
+            (Repository { .. }, BuildFromSource { .. } | Embedded) => Ordering::Less,
+            (BuildFromSource { .. } | Embedded, Repository { .. }) => Ordering::Greater,
+            (Embedded, Embedded) => Ordering::Equal,
+            (Embedded, BuildFromSource { .. }) => Ordering::Less,
+            (BuildFromSource { .. }, Embedded) => Ordering::Greater,
+            (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
                 this.cmp(other)
             }
-            (PackageSource::Repository { .. }, PackageSource::Spec(_)) => std::cmp::Ordering::Less,
-            (PackageSource::Spec(_), PackageSource::Repository { .. }) => {
-                std::cmp::Ordering::Greater
-            }
-            (PackageSource::Spec(this), PackageSource::Spec(other)) => this.cmp(other),
         }
     }
 }
@@ -165,7 +168,7 @@ impl Solution {
         for (_, source) in self.resolved.values() {
             if let PackageSource::Repository { repo, .. } = source {
                 let addr = repo.address();
-                if seen.contains(&addr) {
+                if seen.contains(addr) {
                     continue;
                 }
                 repos.push(repo.clone());

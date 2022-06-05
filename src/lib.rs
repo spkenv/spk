@@ -9,9 +9,9 @@ pub mod build;
 mod env;
 mod error;
 pub mod exec;
-mod global;
 pub mod io;
 pub(crate) mod parsing;
+pub mod prelude;
 mod publish;
 pub mod solve;
 pub mod storage;
@@ -21,7 +21,6 @@ pub mod test;
 pub mod fixtures;
 #[cfg(feature = "test-macros")]
 pub mod macros;
-pub mod prelude;
 
 pub use env::current_env;
 pub use error::{Error, Result};

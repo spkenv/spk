@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
-use spk::api::Package;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -79,15 +79,18 @@ impl Run for Test {
                 }
             };
 
-            let (spec, filename) = match flags::find_package_spec(&Some(&name))? {
-                flags::FindPackageSpecResult::Found { path, spec } => (spec, path),
+            let (recipe, filename) = match flags::find_package_template(&Some(name.clone()))? {
+                flags::FindPackageTemplateResult::Found { path, template } => {
+                    let recipe = template.render(&options)?;
+                    (Arc::new(recipe), path)
+                }
                 _ => {
                     let pkg = spk::api::parse_ident(&name)?;
                     let mut found = None;
                     for repo in repos.iter() {
-                        match repo.read_spec(&pkg).await {
-                            Ok(spec) => {
-                                found = Some((spec, std::path::PathBuf::from(&name)));
+                        match repo.read_recipe(&pkg).await {
+                            Ok(recipe) => {
+                                found = Some((recipe, std::path::PathBuf::from(&name)));
                                 break;
                             }
                             Err(spk::Error::PackageNotFoundError(_)) => continue,
@@ -104,8 +107,8 @@ impl Run for Test {
                 let mut tested = std::collections::HashSet::new();
 
                 let variants_to_test = match self.variant {
-                    Some(index) => spec.variants().iter().skip(index).take(1),
-                    None => spec.variants().iter().skip(0).take(usize::MAX),
+                    Some(index) => recipe.default_variants().iter().skip(index).take(1),
+                    None => recipe.default_variants().iter().skip(0).take(usize::MAX),
                 };
 
                 for variant in variants_to_test {
@@ -121,7 +124,7 @@ impl Run for Test {
                         continue;
                     }
 
-                    for (index, test) in spec.tests().iter().enumerate() {
+                    for (index, test) in recipe.get_tests(&opts)?.into_iter().enumerate() {
                         if test.stage != stage {
                             continue;
                         }
@@ -158,7 +161,7 @@ impl Run for Test {
                         match stage {
                             spk::api::TestStage::Sources => {
                                 spk::test::PackageSourceTester::new(
-                                    (*spec).clone(),
+                                    (*recipe).clone(),
                                     test.script.join("\n"),
                                 )
                                 .with_options(opts.clone())
@@ -172,7 +175,7 @@ impl Run for Test {
 
                             spk::api::TestStage::Build => {
                                 spk::test::PackageBuildTester::new(
-                                    (*spec).clone(),
+                                    (*recipe).clone(),
                                     test.script.join("\n"),
                                 )
                                 .with_options(opts.clone())
@@ -184,8 +187,9 @@ impl Run for Test {
                                         .map(spk::build::BuildSource::LocalPath)
                                         .unwrap_or_else(|| {
                                             spk::build::BuildSource::SourcePackage(
-                                                spec.ident()
-                                                    .with_build(Some(spk::api::Build::Source))
+                                                recipe
+                                                    .ident()
+                                                    .into_build(spk::api::Build::Source)
                                                     .into(),
                                             )
                                         }),
@@ -198,7 +202,7 @@ impl Run for Test {
 
                             spk::api::TestStage::Install => {
                                 spk::test::PackageInstallTester::new(
-                                    (*spec).clone(),
+                                    (*recipe).clone(),
                                     test.script.join("\n"),
                                 )
                                 .with_options(opts.clone())

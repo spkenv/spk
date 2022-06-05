@@ -4,8 +4,9 @@
 use std::sync::Arc;
 
 use crate::{
-    api::{self, Package},
+    api,
     io::{self, Format},
+    prelude::*,
     storage::{self, CachePolicy},
     with_cache_policy, Error, Result,
 };
@@ -122,7 +123,7 @@ impl Publisher {
                     ))
                 }
             }
-            self.to.publish_package(&spec, components).await?;
+            self.to.publish_package(&spec, &components).await?;
         }
 
         Ok(builds)

@@ -55,12 +55,6 @@ pub trait Repository: Sync {
     /// - PackageNotFoundError: If the package, or version does not exist
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>>;
 
-    /// Identify the payloads for the identified package's components.
-    async fn get_package(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
-
     /// Publish a package spec to this repository.
     ///
     /// The published recipe represents all builds of a single version.

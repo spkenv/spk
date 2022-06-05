@@ -135,19 +135,15 @@ impl Bake {
     /// Bake command can do nothing with.
     fn get_spfs_layer(&self, resolved: &SolvedRequest) -> spk::Result<String> {
         let spfs_layer = match &resolved.source {
-            PackageSource::Spec(s) => {
-                // The source of the resolved package is another
-                // package, not a repo.
-                if resolved.spec.ident().build.as_ref().unwrap().is_embedded() {
-                    // Embedded builds are provided by another package
-                    // in the solve, they don't have a layer of their
-                    // own so they can be skipped over.
-                    return Err(spk::Error::SkipEmbedded);
-                } else {
-                    // This is a /src build of a package, and bake
-                    // doesn't build packages from source
-                    return Err(spk::Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}, Provided by: {}", resolved.request.pkg, resolved.spec.ident(), s.ident())));
-                }
+            PackageSource::Embedded => {
+                // Embedded builds are provided by another package
+                // in the solve. They don't have a layer of their
+                // own so they can be skipped over.
+                return Err(spk::Error::SkipEmbedded);
+            }
+            PackageSource::BuildFromSource { .. } => {
+                // bake doesn't build packages from source
+                return Err(spk::Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}", resolved.request.pkg, resolved.spec.ident())));
             }
             PackageSource::Repository {
                 repo: _,

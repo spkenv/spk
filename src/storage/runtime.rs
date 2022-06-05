@@ -81,6 +81,10 @@ impl Repository for RuntimeRepository {
         &self.address
     }
 
+    fn name(&self) -> &api::RepositoryName {
+        &self.name
+    }
+
     async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
@@ -164,11 +168,7 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn name(&self) -> &api::RepositoryName {
-        &self.name
-    }
-
-    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Self::Recipe> {
+    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         return Err(Error::PackageNotFoundError(pkg.clone()));
     }
 
@@ -246,7 +246,9 @@ impl Repository for RuntimeRepository {
                 err.into()
             }
         })?;
-        Ok(serde_yaml::from_reader(&mut reader)?)
+        serde_yaml::from_reader(&mut reader)
+            .map(Arc::new)
+            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
     }
 
     async fn publish_package(

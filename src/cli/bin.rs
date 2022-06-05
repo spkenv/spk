@@ -139,7 +139,7 @@ pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
     Convert(cmd_convert::Convert),
-    Deprecate(cmd_deprecate::Deprecate),
+    Deprecate(cmd_deprecate::DeprecateCmd),
     Env(cmd_env::Env),
     Explain(cmd_explain::Explain),
     Export(cmd_export::Export),

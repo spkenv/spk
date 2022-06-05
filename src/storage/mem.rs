@@ -10,7 +10,7 @@ use crate::api::{Named, Package, PkgNameBuf, Versioned};
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
-type BuildMap<T> = HashMap<api::Build, (T, ComponentMap)>;
+type BuildMap<T> = HashMap<api::Build, (Arc<T>, ComponentMap)>;
 type SpecByVersion<T> = HashMap<api::Version, Arc<T>>;
 
 #[derive(Clone, Debug)]
@@ -27,7 +27,11 @@ where
     >,
 }
 
-impl MemRepository {
+impl<Recipe, Package> MemRepository<Recipe>
+where
+    Recipe: api::Recipe<Output = Package> + Send + Sync,
+    Package: api::Package + Send + Sync,
+{
     pub fn new() -> Self {
         let specs = Arc::default();
         // Using the address of `specs` because `self` doesn't exist yet.
@@ -49,10 +53,7 @@ where
     Package: api::Package + Send + Sync,
 {
     fn default() -> Self {
-        Self {
-            specs: Default::default(),
-            packages: Default::default(),
-        }
+        Self::new()
     }
 }
 
@@ -231,6 +232,27 @@ where
         }
     }
 
+    async fn read_package(
+        &self,
+        // TODO: use an ident type that must have a build
+        pkg: &api::Ident,
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
+        let build = pkg
+            .build
+            .as_ref()
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?;
+        self.packages
+            .read()
+            .await
+            .get(&pkg.name)
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+            .get(&pkg.version)
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+            .get(build)
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))
+            .map(|found| Arc::clone(&found.0))
+    }
+
     async fn publish_package(
         &self,
         spec: &<Self::Recipe as api::Recipe>::Output,
@@ -250,7 +272,7 @@ where
         let versions = packages.entry(spec.name().to_owned()).or_default();
         let builds = versions.entry(spec.version().clone()).or_default();
 
-        builds.insert(build, (spec.clone(), components.clone()));
+        builds.insert(build, (Arc::new(spec.clone()), components.clone()));
         Ok(())
     }
 
@@ -264,12 +286,12 @@ where
                 )))
             }
         };
-        let mut packages = self.packages.write().unwrap();
+        let mut packages = self.packages.write().await;
         let versions = packages.entry(spec.name().to_owned()).or_default();
         let builds = versions.entry(spec.version().clone()).or_default();
 
         match builds.get_mut(&build) {
-            Some(p) => p.0 = spec.clone(),
+            Some(p) => p.0 = Arc::new(spec.clone()),
             None => return Err(Error::PackageNotFoundError(spec.ident().clone())),
         }
         Ok(())

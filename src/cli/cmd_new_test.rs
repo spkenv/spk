@@ -9,5 +9,5 @@ fn test_template_is_valid() {
     let raw_spec = super::get_stub(&"my-package".parse().unwrap());
     let spec_file = tmpdir.path().join("file");
     std::fs::write(&spec_file, raw_spec).unwrap();
-    let _spec = spk::api::read_spec_file(&spec_file).unwrap();
+    let _spec = spk::api::read_recipe_file(&spec_file).unwrap();
 }

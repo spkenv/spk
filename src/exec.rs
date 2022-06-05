@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use crate::{
-    api::{self, Package},
-    build,
+    api, build,
     io::{self, Format},
+    prelude::*,
     solve, storage, Error, Result,
 };
 use spfs::encoding::Digest;
@@ -18,22 +18,22 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
-        if let solve::PackageSource::BuildFromSource { .. } = &resolved.source {
-            // The resolved solution includes a package that needs
-            // to be built with specific options because such a
-            // build doesn't exist in a repo.
-            let build_options = resolved.spec.option_values();
-            return Err(Error::String(format!(
-                    "Solution includes package that needs building from source: {} with these options: {}",
-                    resolved.spec.ident(),
-                    io::format_options(&build_options)
-                )));
-        }
-
         let (repo, components) = match resolved.source {
             solve::PackageSource::Repository { repo, components } => (repo, components),
-            solve::PackageSource::BuildFromSource { .. } => continue,
             solve::PackageSource::Embedded => continue,
+            solve::PackageSource::BuildFromSource { recipe } => {
+                // The resolved solution includes a package that needs
+                // to be built with specific options because such a
+                // build doesn't exist in a repo.
+                let spec_options = recipe
+                    .resolve_options(&solution.options())
+                    .unwrap_or_default();
+                return Err(Error::String(format!(
+                    "Solution includes package that needs building from source: {} with these options: {}",
+                    resolved.spec.ident(),
+                    io::format_options(&spec_options)
+                )));
+            }
         };
 
         if resolved.request.pkg.components.is_empty() {
@@ -84,7 +84,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
                 to_sync_count,
                 spec.ident().format_ident(),
             );
-            let syncer = spfs::Syncer::new(repo, &local_repo)
+            let syncer = spfs::Syncer::new(&repo, &local_repo)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
             syncer.sync_digest(digest).await?;
         }
@@ -133,16 +133,16 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
             item.spec.ident().format_ident(),
             io::format_options(&options)
         );
-        let (spec, components) = build::BinaryPackageBuilder::from_recipe((*recipe).clone())
+        let (package, components) = build::BinaryPackageBuilder::from_recipe((*recipe).clone())
             .with_repositories(repos.clone())
             .with_options(options.clone())
-            .build()
+            .build_and_publish(&*local_repo)
             .await?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,
         };
-        compiled_solution.add(&item.request, Arc::new(spec), source);
+        compiled_solution.add(&item.request, Arc::new(package), source);
     }
     Ok(compiled_solution)
 }
