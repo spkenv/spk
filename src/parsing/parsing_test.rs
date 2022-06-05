@@ -302,7 +302,9 @@ proptest! {
             version.as_ref().map(|v| v.to_string()),
             build.as_ref().map(|b| b.to_string()),
         ].iter().flatten().join("/");
-        let parsed = parse_ident(&ident).unwrap();
+        let parsed = parse_ident(&ident);
+        assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
+        let parsed = parsed.unwrap();
         // XXX: This doesn't handle the ambiguous corner cases as checked
         // by `test_parse_ident`; such inputs are very unlikely to be
         // generated randomly here.
@@ -349,7 +351,8 @@ proptest! {
         assert_eq!(parsed.components, components);
         // Must flatten the version_filter we generated to compare with
         // the parsed one, since the parsed one gets flattened too.
-        assert_eq!(parsed.version, version.unwrap_or_default().flatten());
+        let flattened = version.unwrap_or_default().flatten();
+        assert_eq!(parsed.version, flattened, "Parsing: `{}`\n  left: `{}`\n right: `{}`", ident, parsed.version, flattened);
         assert_eq!(parsed.build, build);
     }
 }
