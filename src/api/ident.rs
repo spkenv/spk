@@ -4,7 +4,6 @@
 
 use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
-use nom::error::convert_error;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES};
@@ -183,12 +182,10 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
-        parsing::ident::<nom::error::VerboseError<_>>(&KNOWN_REPOSITORY_NAMES, source)
+        parsing::ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => {
-                    crate::Error::String(convert_error(source, e))
-                }
+                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
                 nom::Err::Incomplete(_) => unreachable!(),
             })
     }

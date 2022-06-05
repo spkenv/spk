@@ -125,16 +125,25 @@ where
                 ),
                 // `permutation` returns results in the order of the parsers
                 // given, no matter the order of the input.
-                permutation((
-                    alt((
-                        preceded(char('-'), ptagset),
-                        map(eof, |_| TagSet::default()),
+                context(
+                    "pre- and post-tags",
+                    permutation((
+                        context(
+                            "optional pre-tag",
+                            alt((
+                                preceded(char('-'), ptagset),
+                                map(eof, |_| TagSet::default()),
+                            )),
+                        ),
+                        context(
+                            "optional post-tag",
+                            alt((
+                                preceded(char('+'), ptagset),
+                                map(eof, |_| TagSet::default()),
+                            )),
+                        ),
                     )),
-                    alt((
-                        preceded(char('+'), ptagset),
-                        map(eof, |_| TagSet::default()),
-                    )),
-                )),
+                ),
             ),
             |(parts, (pre, post))| Version {
                 parts: parts.into(),
@@ -169,10 +178,19 @@ where
         "version_str",
         recognize(pair(
             separated_list1(char('.'), digit1),
-            permutation((
-                alt((preceded(char('-'), recognize(ptagset_str)), eof)),
-                alt((preceded(char('+'), recognize(ptagset_str)), eof)),
-            )),
+            context(
+                "pre- and post-tags",
+                permutation((
+                    context(
+                        "optional pre-tag",
+                        alt((preceded(char('-'), recognize(ptagset_str)), eof)),
+                    ),
+                    context(
+                        "optional post-tag",
+                        alt((preceded(char('+'), recognize(ptagset_str)), eof)),
+                    ),
+                )),
+            ),
         )),
     )(input)
 }
