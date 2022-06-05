@@ -6,18 +6,21 @@ use std::collections::HashSet;
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{is_not, tag},
     character::complete::char,
-    combinator::{eof, map, map_res, opt, peek},
+    combinator::{eof, map, map_parser, opt, peek},
     error::{context, ContextError, FromExternalError, ParseError},
     sequence::{preceded, terminated},
     IResult,
 };
 
-use crate::api::{parse_version, Build, Ident, Version};
+use crate::api::{Build, Ident, Version};
 
 use super::{
-    name::package_name, repo_name_in_ident, version::version_str, version_and_optional_build,
+    name::package_name,
+    repo_name_in_ident,
+    version::{version, version_str},
+    version_and_optional_build,
 };
 
 /// Parse a package identity into an [`Ident`].
@@ -41,7 +44,8 @@ pub(crate) fn ident<'a, 'b, E>(
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
-        + FromExternalError<&'b str, crate::error::Error>,
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>,
 {
     let (input, repository_name) = opt(repo_name_in_ident(
         known_repositories,
@@ -89,10 +93,8 @@ fn version_and_build<'a, E>(input: &'a str) -> IResult<&'a str, (Version, Option
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>,
+        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
 {
-    version_and_optional_build(context(
-        "parse_version",
-        map_res(version_str, parse_version),
-    ))(input)
+    version_and_optional_build(context("parse_version", map_parser(is_not("/"), version)))(input)
 }
