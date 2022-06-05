@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use super::Repository;
+use crate::api;
+
+type Handle = dyn Repository<Recipe = api::SpecRecipe>;
 
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SPFSRepository),
-    Mem(super::MemRepository),
+    Mem(super::MemRepository<api::SpecRecipe>),
     Runtime(super::RuntimeRepository),
 }
 
@@ -37,7 +40,7 @@ impl RepositoryHandle {
         matches!(self, Self::Runtime(_))
     }
 
-    pub fn to_repo(self) -> Box<dyn Repository> {
+    pub fn to_repo(self) -> Box<Handle> {
         match self {
             Self::SPFS(repo) => Box::new(repo),
             Self::Mem(repo) => Box::new(repo),
@@ -47,7 +50,7 @@ impl RepositoryHandle {
 }
 
 impl std::ops::Deref for RepositoryHandle {
-    type Target = dyn Repository;
+    type Target = Handle;
 
     fn deref(&self) -> &Self::Target {
         match self {
@@ -74,8 +77,8 @@ impl From<super::SPFSRepository> for RepositoryHandle {
     }
 }
 
-impl From<super::MemRepository> for RepositoryHandle {
-    fn from(repo: super::MemRepository) -> Self {
+impl From<super::MemRepository<api::SpecRecipe>> for RepositoryHandle {
+    fn from(repo: super::MemRepository<api::SpecRecipe>) -> Self {
         RepositoryHandle::Mem(repo)
     }
 }

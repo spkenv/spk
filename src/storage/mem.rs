@@ -14,7 +14,7 @@ type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
 type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
 
 #[derive(Clone, Debug)]
-pub struct MemRepository {
+pub struct MemRepository<Recipe: crate::api::Recipe = api::Spec> {
     address: url::Url,
     name: api::RepositoryNameBuf,
     specs: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, SpecByVersion>>>,
@@ -43,7 +43,23 @@ impl Default for MemRepository {
     }
 }
 
-impl std::hash::Hash for MemRepository {
+impl<Recipe, Package> Default for MemRepository<Recipe>
+where
+    Recipe: api::Recipe<Output = Package>,
+    Package: api::Package,
+{
+    fn default() -> Self {
+        Self {
+            specs: Default::default(),
+            packages: Default::default(),
+        }
+    }
+}
+
+impl<Recipe> std::hash::Hash for MemRepository<Recipe>
+where
+    Recipe: api::Recipe,
+{
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         (self as *const _ as usize).hash(state)
     }
@@ -67,10 +83,16 @@ impl PartialEq for MemRepository {
     }
 }
 
-impl Eq for MemRepository {}
+impl<Recipe> Eq for MemRepository<Recipe> where Recipe: api::Recipe {}
 
 #[async_trait::async_trait]
-impl Repository for MemRepository {
+impl<Recipe> Repository for MemRepository<Recipe>
+where
+    Recipe: api::Recipe + Clone,
+    Recipe::Output: Clone,
+{
+    type Recipe = Recipe;
+
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -133,33 +155,18 @@ impl Repository for MemRepository {
     fn name(&self) -> &api::RepositoryName {
         self.name.as_ref()
     }
-
-    async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
-        match &pkg.build {
-            None => self
-                .specs
-                .read()
-                .await
-                .get(&pkg.name)
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-                .get(&pkg.version)
-                .map(Arc::clone)
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
-            Some(build) => self
-                .packages
-                .read()
-                .await
-                .get(&pkg.name)
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-                .get(&pkg.version)
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-                .get(build)
-                .map(|(b, _)| Arc::new(b.to_owned()))
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
-        }
+    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
+        self.specs
+            .read()
+            .await
+            .get(&pkg.name)
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+            .get(&pkg.version)
+            .map(Arc::clone)
+            .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))
     }
 
-    async fn get_package(&self, pkg: &api::Ident) -> Result<ComponentMap> {
+    async fn read_components(&self, pkg: &api::Ident) -> Result<ComponentMap> {
         match &pkg.build {
             None => Err(Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
@@ -176,7 +183,15 @@ impl Repository for MemRepository {
         }
     }
 
-    async fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
+    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
+        let mut specs = self.specs.write().await;
+        let versions = specs.entry(spec.name().to_owned()).or_default();
+        versions.remove(spec.version());
+        drop(specs); // this lock will be needed to publish
+        self.publish_recipe(spec).await
+    }
+
+    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
         if spec.ident().build.is_some() {
             return Err(Error::String(format!(
                 "Spec must be published with no build, got {}",
@@ -193,7 +208,7 @@ impl Repository for MemRepository {
         }
     }
 
-    async fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
+    async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {
         let mut specs = self.specs.write().await;
         let versions = match specs.get_mut(&pkg.name) {
             Some(v) => v,
@@ -206,46 +221,11 @@ impl Repository for MemRepository {
         }
     }
 
-    async fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        if let Some(api::Build::Embedded) = spec.ident().build {
-            return Err(api::InvalidBuildError::new_error(
-                "Cannot publish embedded package".to_string(),
-            ));
-        }
-
-        // The spec could be for a build or a version. They are
-        // handled differently because of where this repo stores each
-        // kind of spec.
-        match &spec.ident().build {
-            Some(b) => {
-                // A build spec, e.g. package/version/build. This will
-                // overwrite the build spec, but keep the build's
-                // current components, if any.
-                let mut packages = self.packages.write().await;
-                let versions = packages.entry(spec.name().to_owned()).or_default();
-                let builds = versions.entry(spec.version().clone()).or_default();
-                let components = match builds.get(b) {
-                    Some(t) => t.1.clone(),
-                    None => ComponentMap::default(),
-                };
-                drop(packages); // this lock will be needed to publish
-                self.publish_package(spec, components).await
-            }
-            None => {
-                // A version spec e.g. package/version. This will remove
-                // the existing version spec and use publish_spec to add
-                // the new one. It does not change the build specs, which
-                // are stored in the packages field
-                let mut specs = self.specs.write().await;
-                let versions = specs.entry(spec.name().to_owned()).or_default();
-                versions.remove(spec.version());
-                drop(specs); // this lock will be needed to publish
-                self.publish_spec(spec).await
-            }
-        }
-    }
-
-    async fn publish_package(&self, spec: &api::Spec, components: ComponentMap) -> Result<()> {
+    async fn publish_package(
+        &self,
+        spec: &<Self::Recipe as api::Recipe>::Output,
+        components: &ComponentMap,
+    ) -> Result<()> {
         let build = match &spec.ident().build {
             Some(b) => b.to_owned(),
             None => {
@@ -260,7 +240,28 @@ impl Repository for MemRepository {
         let versions = packages.entry(spec.name().to_owned()).or_default();
         let builds = versions.entry(spec.version().clone()).or_default();
 
-        builds.insert(build, (spec.clone(), components));
+        builds.insert(build, (spec.clone(), components.clone()));
+        Ok(())
+    }
+
+    async fn update_package(&self, spec: &<Self::Recipe as api::Recipe>::Output) -> Result<()> {
+        let build = match &spec.ident().build {
+            Some(b) => b.to_owned(),
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be updated: {}",
+                    spec.ident()
+                )))
+            }
+        };
+        let mut packages = self.packages.write().unwrap();
+        let versions = packages.entry(spec.name().to_owned()).or_default();
+        let builds = versions.entry(spec.version().clone()).or_default();
+
+        match builds.get_mut(&build) {
+            Some(p) => p.0 = spec.clone(),
+            None => return Err(Error::PackageNotFoundError(spec.ident().clone())),
+        }
         Ok(())
     }
 

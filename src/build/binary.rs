@@ -41,7 +41,7 @@ impl BuildError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSource {
     /// Identifies an existing source package to be resolved
-    SourcePackage(RangeIdent),
+    SourcePackage(api::RangeIdent),
     /// Specifies that the binary package should be built
     /// against a set of local files.
     ///
@@ -276,10 +276,10 @@ where
     async fn resolve_source_package(
         &mut self,
         options: &api::OptionMap,
-        package: RangeIdent,
+        package: api::RangeIdent,
     ) -> Result<Solution> {
         self.solver.reset();
-        self.solver.update_options(all_options.clone());
+        self.solver.update_options(options.clone());
 
         let local_repo =
             async { Ok::<_, crate::Error>(Arc::new(storage::local_repository().await?.into())) };

@@ -22,7 +22,7 @@ use tokio::io::AsyncReadExt;
 
 use super::{CachePolicy, Repository};
 use crate::api::{self, Package};
-use crate::{with_cache_policy, Error, Result};
+use crate::{prelude::*, with_cache_policy, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -195,8 +195,10 @@ std::thread_local! {
 
 #[async_trait::async_trait]
 impl Repository for SPFSRepository {
+    type Recipe = api::SpecRecipe;
+
     fn address(&self) -> &url::Url {
-        &self.address
+        self.inner.address()
     }
 
     async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
@@ -305,7 +307,7 @@ impl Repository for SPFSRepository {
         &self.name
     }
 
-    async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
+    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         let address = self.address();
         if self.cached_result_permitted() {
             let r =
@@ -356,28 +358,80 @@ impl Repository for SPFSRepository {
         Ok(components)
     }
 
-    async fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        let spec = async {
-            if spec.ident().build.is_some() {
-                return Err(api::InvalidBuildError::new_error(
-                    "Spec must be published with no build".to_string(),
-                ));
-            }
-            let tag_path = self.build_spec_tag(spec.ident());
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-            if self.inner.has_tag(&tag_spec).await {
-                // BUG(rbottriell): this creates a race condition but is not super dangerous
-                // because of the non-destructive tag history
-                Err(Error::VersionExistsError(spec.ident().clone()))
-            } else {
-                Ok(spec)
+    async fn read_package(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<<Self::Recipe as api::Recipe>::Output> {
+        // TODO: reduce duplicate code with read_recipe
+        let address = self.address();
+        if self.cached_result_permitted() {
+            let r =
+                SPEC_CACHE.with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            if let Some(r) = r {
+                return r.into();
             }
         }
-        .await?;
+        let r: Result<Arc<api::Spec>> = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+
+            let mut reader = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader.read_to_string(&mut yaml).await?;
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
+        }
+        .await;
+        SPEC_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+        });
+        r
+    }
+
+    async fn read_components(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        let package = self.lookup_package(pkg).await?;
+        let component_tags = package.into_components();
+        let mut components = HashMap::with_capacity(component_tags.len());
+        for (name, tag_spec) in component_tags.into_iter() {
+            let tag = self
+                .inner
+                .resolve_tag(&tag_spec)
+                .await
+                .map_err(|err| match err {
+                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+                    err => err.into(),
+                })?;
+            components.insert(name, tag.target);
+        }
+        Ok(components)
+    }
+
+    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
+        if spec.ident().build.is_some() {
+            return Err(api::InvalidBuildError::new_error(
+                "Spec must be published with no build".to_string(),
+            ));
+        }
+        let tag_path = self.build_spec_tag(&spec.ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        if self.inner.has_tag(&tag_spec).await {
+            // BUG(rbottriell): this creates a race condition but is not super dangerous
+            // because of the non-destructive tag history
+            Err(Error::VersionExistsError(spec.ident().clone()))
+        } else {
+            Ok(spec)
+        }
         self.force_publish_spec(spec).await
     }
 
-    async fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
+    async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec).await {
@@ -390,7 +444,7 @@ impl Repository for SPFSRepository {
         }
     }
 
-    async fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
+    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
         if let Some(api::Build::Embedded) = spec.ident().build {
             return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
@@ -416,7 +470,7 @@ impl Repository for SPFSRepository {
     ) -> Result<()> {
         #[cfg(test)]
         if let Err(Error::PackageNotFoundError(pkg)) =
-            self.read_spec(&spec.ident().with_build(None)).await
+            self.read_recipe(&spec.ident().with_build(None)).await
         {
             return Err(Error::String(format!(
                 "[INTERNAL] version spec must be published before a specific build: {pkg}",
@@ -454,7 +508,7 @@ impl Repository for SPFSRepository {
             Ok(spec)
         };
 
-        self.force_publish_spec(spec?).await?;
+        self.force_publish_package(spec?).await?;
         Ok(())
     }
 
@@ -717,7 +771,6 @@ impl SPFSRepository {
         // the "+" character is not a valid spfs tag character,
         // see above ^
         tag.push(pkg.to_string().replace('+', ".."));
-
         tag
     }
 

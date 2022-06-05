@@ -118,19 +118,19 @@ async fn copy_package(
     src_repo: &SPFSRepository,
     dst_repo: &SPFSRepository,
 ) -> Result<()> {
-    let spec = src_repo.read_spec(pkg).await?;
     if pkg.build.is_none() {
-        tracing::info!(%pkg, "exporting version spec");
-        dst_repo.publish_spec(&spec).await?;
-        return Ok(());
+        let spec = src_repo.read_recipe(pkg).await?;
+        tracing::info!(%pkg, "exporting");
+        dst_repo.publish_recipe(&spec).await?;
+        Ok(())
+    } else {
+        let spec = src_repo.read_package(pkg).await?;
+        let components = src_repo.read_components(pkg).await?;
+        tracing::info!(%pkg, "exporting");
+        let syncer = spfs::Syncer::new(&src_repo, &dst_repo);
+        let desired = components.iter().map(|i| i.1).collect();
+        syncer.sync_env(desired).await?;
+        dst_repo.publish_package(&spec, &components).await?;
+        Ok(())
     }
-
-    let components = src_repo.get_package(pkg).await?;
-    let env_spec = components.values().cloned().collect();
-    tracing::info!(%pkg, "exporting build");
-    let syncer = spfs::Syncer::new(src_repo, dst_repo)
-        .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-    syncer.sync_env(env_spec).await?;
-    dst_repo.publish_package(&spec, components).await?;
-    Ok(())
 }

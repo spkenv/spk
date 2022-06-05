@@ -16,7 +16,7 @@ async fn test_archive_io() {
             "build": {"script": "touch /spfs/file.txt"},
         }
     );
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
     let spec = build::BinaryPackageBuilder::from_spec(spec)
         .with_source(build::BuildSource::LocalPath(".".into()))
         .build()
@@ -76,7 +76,7 @@ async fn test_archive_create_parents() {
             "build": {"script": "touch /spfs/file.txt"},
         }
     );
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
     let spec = build::BinaryPackageBuilder::from_spec(spec)
         .with_source(build::BuildSource::LocalPath(".".into()))
         .build()
