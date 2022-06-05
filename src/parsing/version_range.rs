@@ -6,9 +6,9 @@ use std::convert::TryFrom;
 
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag},
+    bytes::complete::tag,
     character::complete::{char, digit1},
-    combinator::{all_consuming, cut, eof, map, map_parser, map_res, rest},
+    combinator::{all_consuming, cut, map, map_res, rest},
     error::{context, ContextError, FromExternalError, ParseError},
     multi::{separated_list0, separated_list1},
     sequence::preceded,
@@ -22,7 +22,10 @@ use crate::api::{
     WildcardRange,
 };
 
-use super::version::{version, version_str};
+use super::{
+    parse_until,
+    version::{version, version_str},
+};
 
 /// Parse a wildcard range into a [`VersionRange`].
 ///
@@ -124,9 +127,9 @@ where
             map(
                 separated_list1(
                     tag(crate::api::VERSION_RANGE_SEP),
-                    map_parser(
-                        alt((is_not(crate::api::VERSION_RANGE_SEP), eof)),
-                        all_consuming(alt((
+                    parse_until(
+                        crate::api::VERSION_RANGE_SEP,
+                        alt((
                             // Use `cut` for these that first match on an operator first,
                             // if the version fails to parse then it shouldn't continue to
                             // try the other options of the `alt` here.
@@ -174,7 +177,7 @@ where
                                     map_res(rest, CompatRange::new_version_range),
                                 ),
                             )),
-                        ))),
+                        )),
                     ),
                 ),
                 |mut version_range| {

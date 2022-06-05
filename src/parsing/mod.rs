@@ -14,9 +14,9 @@ use std::collections::HashSet;
 
 use nom::{
     branch::alt,
-    bytes::complete::take_while1,
+    bytes::complete::{is_not, take_while1},
     character::complete::char,
-    combinator::{eof, fail, opt, peek},
+    combinator::{all_consuming, eof, fail, opt, peek},
     error::{context, ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded, terminated},
     IResult, Parser,
@@ -92,7 +92,6 @@ where
 /// Unlike `is_not`, this parser does not fail if the input is empty;
 /// the inner parser is still allowed to attempt to parse the empty
 /// input.
-#[cfg(test)]
 pub(crate) fn parse_until<'a, 'b, F, O, E>(
     arr: &'b str,
     mut f: F,
@@ -101,8 +100,6 @@ where
     F: Parser<&'a str, O, E> + 'b,
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    use nom::bytes::complete::is_not;
-
     move |input: &str| {
         // Collect all the input up to the expected delimiter
         // or end of input.
@@ -187,6 +184,9 @@ where
 {
     pair(
         version_parser,
-        opt(preceded(char('/'), context("parse_build", build))),
+        opt(preceded(
+            char('/'),
+            all_consuming(context("parse_build", build)),
+        )),
     )
 }
