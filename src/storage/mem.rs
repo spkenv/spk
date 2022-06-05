@@ -5,13 +5,15 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use tokio::sync::RwLock;
+
 use super::Repository;
-use crate::api::{Named, Package, PkgNameBuf, Versioned};
-use crate::{api, Error, Result};
+use crate::{api, prelude::*, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
-type BuildMap<T> = HashMap<api::Build, (Arc<T>, ComponentMap)>;
-type SpecByVersion<T> = HashMap<api::Version, Arc<T>>;
+type PackageMap<T> = HashMap<api::PkgNameBuf, VersionMap<T>>;
+type VersionMap<T> = HashMap<api::Version, T>;
+type BuildMap<Package> = HashMap<api::Build, (Arc<Package>, ComponentMap)>;
 
 #[derive(Clone, Debug)]
 pub struct MemRepository<Recipe = api::SpecRecipe>
@@ -21,10 +23,8 @@ where
 {
     address: url::Url,
     name: api::RepositoryNameBuf,
-    specs: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, SpecByVersion<Recipe>>>>,
-    packages: Arc<
-        tokio::sync::RwLock<HashMap<PkgNameBuf, HashMap<api::Version, BuildMap<Recipe::Output>>>>,
-    >,
+    specs: Arc<RwLock<PackageMap<Arc<Recipe>>>>,
+    packages: Arc<RwLock<PackageMap<BuildMap<Recipe::Output>>>>,
 }
 
 impl<Recipe, Package> MemRepository<Recipe>
@@ -212,7 +212,7 @@ where
         let mut specs = self.specs.write().await;
         let versions = specs.entry(spec.name().to_owned()).or_default();
         if versions.contains_key(spec.version()) {
-            Err(Error::VersionExistsError(spec.ident().clone()))
+            Err(Error::VersionExistsError(spec.ident()))
         } else {
             versions.insert(spec.version().clone(), Arc::new(spec.clone()));
             Ok(())

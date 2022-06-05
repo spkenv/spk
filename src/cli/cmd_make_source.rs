@@ -74,7 +74,7 @@ impl MakeSource {
                 .await
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
-            idents.push(out);
+            idents.push(out.ident().clone());
         }
         Ok(idents)
     }

@@ -84,7 +84,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
                 to_sync_count,
                 spec.ident().format_ident(),
             );
-            let syncer = spfs::Syncer::new(&repo, &local_repo)
+            let syncer = spfs::Syncer::new(repo, &local_repo)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
             syncer.sync_digest(digest).await?;
         }

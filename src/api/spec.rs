@@ -14,7 +14,6 @@ use crate::{Error, Result};
 /// when provided with the necessary option values
 pub struct SpecTemplate {
     name: super::PkgNameBuf,
-    root: std::path::PathBuf,
     inner: serde_yaml::Mapping,
 }
 
@@ -51,12 +50,7 @@ impl Template for SpecTemplate {
             pkg.split('/').next().unwrap_or(pkg),
         )?;
 
-        Ok(Self {
-            name,
-            inner,
-            // every canonicalized file path should have a parent...
-            root: filepath.parent().map(ToOwned::to_owned).unwrap_or(filepath),
-        })
+        Ok(Self { name, inner })
     }
 
     /// Save this template to a file on disk

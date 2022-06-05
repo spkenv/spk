@@ -170,7 +170,7 @@ impl Requests {
         for package in packages {
             if package.contains('@') {
                 let (template, _, stage) = parse_stage_specifier(package)?;
-                let recipe = template.render(&options)?;
+                let recipe = template.render(options)?;
 
                 match stage {
                     spk::api::TestStage::Sources => {

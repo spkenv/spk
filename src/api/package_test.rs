@@ -4,7 +4,6 @@
 
 use rstest::rstest;
 
-use super::Package;
 use crate::{api::Spec, opt_name, option_map};
 
 #[rstest]

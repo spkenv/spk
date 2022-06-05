@@ -183,7 +183,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), &requested_by));
             changes.extend(self.embedded_to_changes(spec.embedded()));
-            changes.push(Self::options_to_change(&spec));
+            changes.push(Self::options_to_change(spec));
 
             changes
         };

@@ -11,7 +11,7 @@ use crate::fixtures::*;
 use crate::{
     api::{self, Package},
     fixtures::*,
-    io, io, Error, Error, Result,
+    io, Error, Error, Result,
 };
 // macros
 use crate::{

@@ -173,7 +173,7 @@ impl<'a> PackageBuildTester<'a> {
         spfs::remount_runtime(&rt).await?;
 
         self.options.extend(solution.options());
-        let spec = self
+        let _spec = self
             .recipe
             .generate_binary_build(&self.options, &solution)?;
 

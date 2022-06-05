@@ -169,7 +169,7 @@ impl Repository for RuntimeRepository {
     }
 
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
-        return Err(Error::PackageNotFoundError(pkg.clone()));
+        Err(Error::PackageNotFoundError(pkg.clone()))
     }
 
     async fn read_components(

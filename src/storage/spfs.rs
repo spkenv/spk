@@ -408,7 +408,7 @@ impl Repository for SPFSRepository {
         if self.inner.has_tag(&tag_spec).await {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
-            Err(Error::VersionExistsError(spec.ident().clone()))
+            Err(Error::VersionExistsError(spec.ident()))
         } else {
             self.force_publish_recipe(spec).await
         }
@@ -479,14 +479,14 @@ impl Repository for SPFSRepository {
             self.inner.push_tag(&legacy_tag, &legacy_component).await?;
 
             let components: std::result::Result<Vec<_>, _> = components
-                .into_iter()
+                .iter()
                 .map(|(name, digest)| {
                     spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
                         .map(|spec| (spec, digest))
                 })
                 .collect();
             for (tag_spec, digest) in components?.into_iter() {
-                self.inner.push_tag(&tag_spec, &digest).await?;
+                self.inner.push_tag(&tag_spec, digest).await?;
             }
             Ok(spec)
         };
