@@ -54,7 +54,7 @@ prop_compose! {
         Just(Component::Run),
         Just(Component::Build),
         Just(Component::Source),
-        arb_pkg_name().prop_map(|name| Component::Named(name.into_inner())),
+        arb_pkg_name().prop_filter("name can't be a reserved name", |name| !(name == "all" || name == "run" || name == "build" || name == "src")).prop_map(|name| Component::Named(name.into_inner())),
     ]) -> Component {
         component
     }
