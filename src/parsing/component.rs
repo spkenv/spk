@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while_m_n},
     character::complete::char,
-    combinator::{cut, map},
+    combinator::{all_consuming, cut, map},
     error::{context, ContextError, ParseError},
     multi::separated_list1,
     sequence::delimited,
@@ -31,10 +31,10 @@ where
     context(
         "component",
         alt((
-            map(tag("all"), |_| Component::All),
-            map(tag("run"), |_| Component::Run),
-            map(tag("build"), |_| Component::Build),
-            map(tag("src"), |_| Component::Source),
+            all_consuming(map(tag("all"), |_| Component::All)),
+            all_consuming(map(tag("run"), |_| Component::Run)),
+            all_consuming(map(tag("build"), |_| Component::Build)),
+            all_consuming(map(tag("src"), |_| Component::Source)),
             map(
                 context(
                     "valid component name character",
