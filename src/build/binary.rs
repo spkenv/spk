@@ -3,8 +3,6 @@
 // https://github.com/imageworks/spk
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
-use std::ffi::OsStr;
-use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,13 +12,10 @@ use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
-use crate::api::{Named, Package, RangeIdent};
-use crate::solve::{Solution, Solver};
-use crate::{
-    api, exec, solve,
-    storage::{self, Repository},
-    Error, Result,
-};
+use crate::api::Package;
+use crate::solve::{Solution, SolverRuntime};
+use crate::{api, exec, solve, storage, Error, Result};
+use crate::{prelude::*, Solver};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -71,10 +66,10 @@ pub enum BuildSource {
 ///     .unwrap();
 /// # }
 /// ```
-pub struct BinaryPackageBuilder<'a> {
+pub struct BinaryPackageBuilder<'a, Recipe: api::Recipe> {
     prefix: PathBuf,
-    spec: api::Spec,
-    all_options: api::OptionMap,
+    recipe: Recipe,
+    inputs: api::OptionMap,
     source: BuildSource,
     solver: Solver,
     source_resolver: crate::BoxedResolverCallback<'a>,
@@ -84,16 +79,20 @@ pub struct BinaryPackageBuilder<'a> {
     interactive: bool,
 }
 
-impl<'a> BinaryPackageBuilder<'a> {
-    /// Create a new builder that builds a binary package from the given spec
-    pub fn from_spec(spec: api::Spec) -> Self {
-        let source = BuildSource::SourcePackage(spec.ident().with_build(Some(api::Build::Source)));
+impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
+where
+    Recipe: api::Recipe,
+    Recipe::Output: serde::Serialize,
+{
+    /// Create a new builder that builds a binary package from the given recipe
+    pub fn from_recipe(recipe: Recipe) -> Self {
+        let source = BuildSource::SourcePackage(recipe.ident().into_build(api::Build::Source));
         Self {
-            spec,
+            recipe,
             source,
             prefix: PathBuf::from("/spfs"),
-            all_options: api::OptionMap::default(),
-            solver: Solver::default(),
+            inputs: api::OptionMap::default(),
+            solver: solve::Solver::default(),
             source_resolver: Box::new(crate::DefaultResolver {}),
             build_resolver: Box::new(crate::DefaultResolver {}),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(solve::Graph::new())),
@@ -122,7 +121,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         N: Into<api::OptNameBuf>,
         V: Into<String>,
     {
-        self.all_options.insert(name.into(), value.into());
+        self.inputs.insert(name.into(), value.into());
         self
     }
 
@@ -132,7 +131,7 @@ impl<'a> BinaryPackageBuilder<'a> {
     /// for the binary package, and may affect many aspect of the build
     /// environment and generated package.
     pub fn with_options(&mut self, options: api::OptionMap) -> &mut Self {
-        self.all_options.extend(options.into_iter());
+        self.inputs.extend(options.into_iter());
         self
     }
 
@@ -203,50 +202,84 @@ impl<'a> BinaryPackageBuilder<'a> {
         self.last_solve_graph.clone()
     }
 
+    pub fn build_and_publish<R>(
+        &mut self,
+        repo: &R,
+    ) -> Result<(
+        Recipe::Output,
+        HashMap<api::Component, spfs::encoding::Digest>,
+    )>
+    where
+        R: storage::Repository<Recipe = Recipe> + ?Sized,
+    {
+        let (package, components) = self.build()?;
+        repo.publish_package(&package, &components)?;
+        Ok((package, components))
+    }
+
     /// Build the requested binary package.
-    pub async fn build(&mut self) -> Result<api::Spec> {
+    ///
+    /// Returns the unpublished package defintion and set of component
+    /// layers collected in the local spfs repository.
+    pub async fn build(
+        &mut self,
+    ) -> Result<(
+        Recipe::Output,
+        HashMap<api::Component, spfs::encoding::Digest>,
+    )> {
         let mut runtime = spfs::active_runtime().await?;
+        runtime.set_editable(true)?;
         runtime.reset_all()?;
         runtime.status.editable = true;
         runtime.status.stack.clear();
 
-        let pkg_options = self.spec.resolve_options(&self.all_options);
-        tracing::debug!("package options: {}", pkg_options);
-        let compat = self.spec.validate_options(&self.all_options);
-        if !&compat {
-            return Err(Error::String(compat.to_string()));
-        }
-        self.all_options.extend(pkg_options);
+        tracing::debug!("input options: {}", self.inputs);
+        let build_options = self.recipe.resolve_options(&self.inputs)?;
+        tracing::debug!("build options: {}", build_options);
+        let mut all_options = self.inputs.clone();
+        all_options.extend(build_options.into_iter());
 
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             tracing::debug!("Resolving source package for build");
-            let solution = self.resolve_source_package(ident).await?;
+            let solution = self.resolve_source_package(&all_options, &ident).await?;
             stack.extend(exec::resolve_runtime_layers(&solution).await?)
         };
+
         tracing::debug!("Resolving build environment");
-        let solution = self.resolve_build_environment().await?;
-        let mut opts = solution.options();
-        std::mem::swap(&mut opts, &mut self.all_options);
-        self.all_options.extend(opts);
-        stack.extend(exec::resolve_runtime_layers(&solution).await?);
-        runtime.status.stack = stack;
-        runtime.save_state_to_storage().await?;
-        spfs::remount_runtime(&runtime).await?;
-        self.spec = self.spec.update_for_build(&self.all_options, &solution)?;
-        let mut env = solution.to_environment(Some(std::env::vars()));
-        env.extend(self.all_options.to_environment());
-        let components = self.build_and_commit_artifacts(env).await?;
-        storage::local_repository()
-            .await?
-            .publish_package(&self.spec, components)
-            .await?;
-        Ok(self.spec.clone())
+        let solution = self.resolve_build_environment(&all_options).await?;
+        {
+            // NOTE(rbottriell): I'm not a huge fan of this hack, we
+            // want to be able to use the final solver options to generate
+            // the final package build, but for some reason the solver breaks
+            // some of the values and we have tests that require the
+            // original options to be reapplied. It feels like this
+            // shouldn't be necessary but I've not been able to isolate what
+            // goes wrong when this is removed.
+            let mut opts = solution.options();
+            std::mem::swap(&mut opts, &mut all_options);
+            all_options.extend(opts);
+        }
+
+        stack.extend(exec::resolve_runtime_layers(&solution)?);
+        for digest in stack.into_iter() {
+            runtime.push_digest(&digest)?;
+        }
+        crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
+
+        let package = self.recipe.generate_binary_build(&all_options, &solution)?;
+        let components =
+            crate::HANDLE.block_on(self.build_and_commit_artifacts(&package, &all_options))?;
+        Ok((package, components))
     }
 
-    async fn resolve_source_package(&mut self, package: RangeIdent) -> Result<Solution> {
+    async fn resolve_source_package(
+        &mut self,
+        options: &api::OptionMap,
+        package: RangeIdent,
+    ) -> Result<Solution> {
         self.solver.reset();
-        self.solver.update_options(self.all_options.clone());
+        self.solver.update_options(all_options.clone());
 
         let local_repo =
             async { Ok::<_, crate::Error>(Arc::new(storage::local_repository().await?.into())) };
@@ -299,15 +332,15 @@ impl<'a> BinaryPackageBuilder<'a> {
         solution
     }
 
-    async fn resolve_build_environment(&mut self) -> Result<Solution> {
+    async fn resolve_build_environment(&mut self, options: &api::OptionMap) -> Result<Solution> {
         self.solver.reset();
-        self.solver.update_options(self.all_options.clone());
+        self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
         for repo in self.repos.iter().cloned() {
             self.solver.add_repository(repo);
         }
 
-        for request in self.get_build_requirements()? {
+        for request in self.recipe.get_build_requirements(options)? {
             self.solver.add_request(request);
         }
 
@@ -317,53 +350,19 @@ impl<'a> BinaryPackageBuilder<'a> {
         solution
     }
 
-    /// List the requirements for the build environment.
-    pub fn get_build_requirements(&self) -> Result<Vec<api::Request>> {
-        let opts = self.spec.resolve_options(&self.all_options);
-        let mut requests = Vec::new();
-        for opt in self.spec.options().iter() {
-            match opt {
-                api::Opt::Pkg(opt) => {
-                    let given_value = opts.get(opt.pkg.as_opt_name()).map(String::to_owned);
-                    let mut req = opt.to_request(
-                        given_value,
-                        api::RequestedBy::BinaryBuild(self.spec.ident().clone()),
-                    )?;
-                    if req.pkg.components.is_empty() {
-                        // inject the default component for this context if needed
-                        req.pkg
-                            .components
-                            .insert(api::Component::default_for_build());
-                    }
-                    requests.push(req.into());
-                }
-                api::Opt::Var(opt) => {
-                    // If no value was specified in the spec, there's
-                    // no need to turn that into a requirement to
-                    // find a var with an empty value.
-                    if let Some(value) = opts.get(&opt.var) {
-                        if !value.is_empty() {
-                            requests.push(opt.to_request(Some(value)).into());
-                        }
-                    }
-                }
-            }
-        }
-        Ok(requests)
-    }
-
-    async fn build_and_commit_artifacts<I, K, V>(
+    async fn build_and_commit_artifacts(
         &mut self,
-        env: I,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>
-    where
-        I: IntoIterator<Item = (K, V)>,
-        K: AsRef<OsStr>,
-        V: AsRef<OsStr>,
-    {
-        self.build_artifacts(env).await?;
+        package: &Recipe::Output,
+        options: &api::OptionMap,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        self.build_artifacts(package, options).await?;
 
-        let sources_dir = data_path(&self.spec.ident().with_build(Some(api::Build::Source)));
+        let source_ident = api::Ident {
+            name: self.recipe.name().to_owned(),
+            version: self.recipe.version().clone(),
+            build: Some(api::Build::Source),
+        };
+        let sources_dir = data_path(&source_ident);
 
         let mut runtime = spfs::active_runtime().await?;
         let pattern = sources_dir.join("**").to_string();
@@ -376,44 +375,46 @@ impl<'a> BinaryPackageBuilder<'a> {
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
-        self.spec
+        package
             .validation()
-            .validate_build_changeset(&self.spec)
+            .validate_build_changeset(package)
             .await
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
         tracing::info!("Committing package contents...");
-        commit_component_layers(&self.spec, &mut runtime).await
+        commit_component_layers(package, &mut runtime).await
     }
 
-    async fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
-    where
-        I: IntoIterator<Item = (K, V)>,
-        K: AsRef<OsStr>,
-        V: AsRef<OsStr>,
-    {
-        let pkg = self.spec.ident();
+    async fn build_artifacts(
+        &mut self,
+        package: &Recipe::Output,
+        options: &api::OptionMap,
+    ) -> Result<()> {
+        let pkg = package.ident();
         let metadata_dir = data_path(pkg).to_path(&self.prefix);
         let build_spec = build_spec_path(pkg).to_path(&self.prefix);
         let build_options = build_options_path(pkg).to_path(&self.prefix);
         let build_script = build_script_path(pkg).to_path(&self.prefix);
 
         std::fs::create_dir_all(&metadata_dir)?;
-        self.spec.to_file(&build_spec)?;
+        {
+            let mut writer = std::fs::File::create(&build_spec)?;
+            serde_yaml::to_writer(&mut writer, package)?;
+        }
         {
             let mut writer = std::fs::File::create(&build_script)?;
             writer
-                .write_all(self.spec.build_script().as_bytes())
+                .write_all(package.build_script().as_bytes())
                 .map_err(|err| Error::String(format!("Failed to save build script: {}", err)))?;
             writer.sync_data()?;
         }
         {
             let mut writer = std::fs::File::create(&build_options)?;
-            serde_json::to_writer_pretty(&mut writer, &self.all_options)
+            serde_json::to_writer_pretty(&mut writer, &options)
                 .map_err(|err| Error::String(format!("Failed to save build options: {}", err)))?;
             writer.sync_data()?;
         }
-        for cmpt in self.spec.components().iter() {
+        for cmpt in package.components().iter() {
             let marker_path = component_marker_path(pkg, &cmpt.name).to_path(&self.prefix);
             std::fs::File::create(marker_path)?;
         }
@@ -451,10 +452,11 @@ impl<'a> BinaryPackageBuilder<'a> {
             )?
         };
 
-        let mut cmd = cmd.into_std();
-        cmd.envs(env);
-        cmd.envs(self.all_options.to_environment());
-        cmd.envs(get_package_build_env(&self.spec));
+        let mut args = cmd.into_iter();
+        let mut cmd = std::process::Command::new(args.next().unwrap());
+        cmd.args(args);
+        cmd.envs(options.to_environment());
+        cmd.envs(get_package_build_env(package));
         cmd.env("PREFIX", &self.prefix);
         cmd.current_dir(&source_dir);
 
@@ -472,11 +474,11 @@ impl<'a> BinaryPackageBuilder<'a> {
                 )))
             }
         }
-        self.generate_startup_scripts()
+        self.generate_startup_scripts(package)
     }
 
-    fn generate_startup_scripts(&self) -> Result<()> {
-        let ops = self.spec.runtime_environment();
+    fn generate_startup_scripts(&self, package: &impl Package) -> Result<()> {
+        let ops = package.runtime_environment();
         if ops.is_empty() {
             return Ok(());
         }
@@ -489,8 +491,8 @@ impl<'a> BinaryPackageBuilder<'a> {
             }
         }
 
-        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", self.spec.name()));
-        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", self.spec.name()));
+        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", package.name()));
+        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", package.name()));
         let mut csh_file = std::fs::File::create(startup_file_csh)?;
         let mut sh_file = std::fs::File::create(startup_file_sh)?;
         for op in ops {
@@ -540,14 +542,14 @@ pub fn get_package_build_env(spec: &impl Package) -> HashMap<String, String> {
 }
 
 pub async fn commit_component_layers(
-    spec: &api::Spec,
+    package: &impl api::Package,
     runtime: &mut spfs::runtime::Runtime,
 ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);
     let layer = spfs::commit_layer(runtime, Arc::clone(&repo)).await?;
     let manifest = repo.read_manifest(layer.manifest).await?.unlock();
-    let manifests = split_manifest_by_component(spec.ident(), &manifest, spec.components())?;
+    let manifests = split_manifest_by_component(package.ident(), &manifest, package.components())?;
     let mut committed = HashMap::with_capacity(manifests.len());
     for (component, manifest) in manifests {
         let manifest = spfs::graph::Manifest::from(&manifest);

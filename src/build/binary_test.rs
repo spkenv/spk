@@ -524,7 +524,7 @@ async fn test_build_components_metadata() {
         }
     );
     rt.tmprepo.publish_spec(&spec).await.unwrap();
-    let spec = BinaryPackageBuilder::from_spec(spec)
+    let spec = BinaryPackageBuilder::from_spec(spec.clone())
         .with_source(BuildSource::LocalPath(".".into()))
         .build()
         .await
