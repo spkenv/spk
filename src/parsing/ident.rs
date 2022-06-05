@@ -5,12 +5,10 @@
 use std::collections::HashSet;
 
 use nom::{
-    branch::alt,
-    bytes::complete::{is_not, tag},
     character::complete::char,
-    combinator::{eof, map, map_parser, opt, peek},
+    combinator::{all_consuming, map, opt},
     error::{context, ContextError, FromExternalError, ParseError},
-    sequence::{preceded, terminated},
+    sequence::preceded,
     IResult,
 };
 
@@ -18,7 +16,7 @@ use crate::api::{Build, Ident, Version};
 
 use super::{
     name::package_name,
-    repo_name_in_ident,
+    parse_until, repo_name_in_ident,
     version::{version, version_str},
     version_and_optional_build,
 };
@@ -55,15 +53,17 @@ where
     ))(input)?;
     let (input, mut ident) = package_ident(input)?;
     ident.repository_name = repository_name;
-    let (input, version_and_build) = opt(preceded(char('/'), version_and_build))(input)?;
-    eof(input)?;
+    let (input, version_and_build) = all_consuming(context(
+        "ident version",
+        opt(preceded(char('/'), version_and_build)),
+    ))(input)?;
     match version_and_build {
         Some(v_and_b) => {
             ident.version = v_and_b.0;
             ident.build = v_and_b.1;
-            Ok(("", ident))
+            Ok((input, ident))
         }
-        None => Ok(("", ident)),
+        None => Ok((input, ident)),
     }
 }
 
@@ -78,10 +78,7 @@ fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, Ident, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    terminated(
-        map(package_name, |name| Ident::new(name.to_owned())),
-        peek(alt((tag("/"), eof))),
-    )(input)
+    parse_until("/", map(package_name, |name| Ident::new(name.to_owned())))(input)
 }
 
 /// Parse a version and optional build in the context of an identity string.
@@ -96,5 +93,5 @@ where
         + FromExternalError<&'a str, crate::error::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>,
 {
-    version_and_optional_build(context("parse_version", map_parser(is_not("/"), version)))(input)
+    version_and_optional_build(context("parse_version", parse_until("/", version)))(input)
 }

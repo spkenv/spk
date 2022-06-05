@@ -6,19 +6,18 @@ use std::collections::HashSet;
 
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag},
     character::complete::char,
-    combinator::{all_consuming, eof, map, map_parser, opt, peek},
+    combinator::{all_consuming, cut, eof, map, opt},
     error::{context, ContextError, FromExternalError, ParseError},
-    sequence::{pair, preceded, terminated},
+    sequence::{pair, preceded},
     IResult,
 };
 
 use crate::api::{Build, Component, PkgName, RangeIdent, VersionFilter};
 
 use super::{
-    component::components, name::package_name, repo_name_in_ident, version_and_optional_build,
-    version_range::version_range,
+    component::components, name::package_name, parse_until, repo_name_in_ident,
+    version_and_optional_build, version_range::version_range,
 };
 
 /// Parse a package name in the context of a range identity.
@@ -36,14 +35,18 @@ fn range_ident_pkg_name<'a, E>(
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    terminated(
+    parse_until(
+        "/",
         pair(
             package_name,
-            map(opt(preceded(char(':'), components)), |opt_components| {
-                opt_components.unwrap_or_default()
-            }),
+            map(
+                opt(preceded(
+                    char(':'),
+                    context("range ident package components", cut(components)),
+                )),
+                |opt_components| opt_components.unwrap_or_default(),
+            ),
         ),
-        peek(alt((tag("/"), eof))),
     )(input)
 }
 
@@ -66,12 +69,11 @@ where
 {
     context(
         "range_ident_version_filter",
-        map(
-            map_parser(is_not("/"), all_consuming(version_range(true, true))),
-            |v| VersionFilter {
+        map(parse_until("/", version_range(true, true)), |v| {
+            VersionFilter {
                 rules: v.into_iter().collect(),
-            },
-        ),
+            }
+        }),
     )(input)
 }
 
@@ -101,14 +103,17 @@ where
         range_ident_version_filter,
         version_filter_and_build,
     ))(input)?;
-    let (input, (name, components)) = range_ident_pkg_name(input)?;
-    let (input, (version, build)) = map(
-        opt(preceded(char('/'), version_filter_and_build)),
-        |v_and_b| v_and_b.unwrap_or_default(),
+    let (input, (name, components)) =
+        context("range ident package name", range_ident_pkg_name)(input)?;
+    let (input, (version, build)) = context(
+        "range ident version range",
+        alt((
+            map(eof, |_| (VersionFilter::default(), None)),
+            preceded(char('/'), all_consuming(version_filter_and_build)),
+        )),
     )(input)?;
-    eof(input)?;
     Ok((
-        "",
+        input,
         RangeIdent {
             repository_name,
             name: name.to_owned(),
