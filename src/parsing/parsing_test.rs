@@ -5,7 +5,7 @@
 use std::{collections::HashSet, str::FromStr};
 
 use itertools::Itertools;
-use nom::error::ErrorKind;
+use nom::{combinator::rest, error::ErrorKind};
 use proptest::{
     collection::{btree_map, btree_set, hash_set, vec},
     option::weighted,
@@ -387,4 +387,18 @@ fn parse_ident_with_basic_errors() {
     let empty = HashSet::new();
     let r = crate::parsing::ident::<(_, ErrorKind)>(&empty, "pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
+}
+
+#[test]
+fn test_parse_until() {
+    let (input, result) =
+        crate::parsing::parse_until::<_, _, (_, ErrorKind)>("p", rest)("my input").unwrap();
+    assert_eq!(input, "put");
+    assert_eq!(result, "my in");
+
+    // Empty input is not an error.
+    let (input, result) =
+        crate::parsing::parse_until::<_, _, (_, ErrorKind)>("p", rest)("").unwrap();
+    assert_eq!(input, "");
+    assert_eq!(result, "");
 }

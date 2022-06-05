@@ -84,6 +84,43 @@ where
     }
 }
 
+/// Apply a parser to input up to an expected character, or end of input.
+///
+/// Is similar to `map_parser(is_not(c), all_consuming(f))` but has a
+/// better error when there is unparsed input from the inner parser.
+///
+/// Unlike `is_not`, this parser does not fail if the input is empty;
+/// the inner parser is still allowed to attempt to parse the empty
+/// input.
+#[cfg(test)]
+pub(crate) fn parse_until<'a, 'b, F, O, E>(
+    arr: &'b str,
+    mut f: F,
+) -> impl FnMut(&'a str) -> IResult<&'a str, O, E> + 'b
+where
+    F: Parser<&'a str, O, E> + 'b,
+    E: ParseError<&'a str> + ContextError<&'a str>,
+{
+    use nom::bytes::complete::is_not;
+
+    move |input: &str| {
+        // Collect all the input up to the expected delimiter
+        // or end of input.
+        let (remaining, o) = if input.is_empty() {
+            ("", "")
+        } else {
+            is_not(arr)(input)?
+        };
+        let (leftover, o) = f.parse(o)?;
+        // There should be no leftover input; use `char` to
+        // mark the position of the first unexpected character.
+        if !leftover.is_empty() {
+            char(arr.chars().next().unwrap_or('?'))(leftover)?;
+        }
+        Ok((remaining, o))
+    }
+}
+
 /// Expect a repository name in the context of an identity.
 ///
 /// This parser expects that the repository name is followed by
