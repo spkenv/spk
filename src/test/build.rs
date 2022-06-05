@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::{convert::TryInto, ffi::OsString};
 use thiserror::Error;
 
-use crate::api::Package;
+use crate::prelude::*;
 use crate::{
     api,
     build::{self, BuildSource},
@@ -30,7 +30,7 @@ impl TestError {
 
 pub struct PackageBuildTester<'a> {
     prefix: PathBuf,
-    spec: api::Spec,
+    recipe: api::SpecRecipe,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
@@ -42,12 +42,12 @@ pub struct PackageBuildTester<'a> {
 }
 
 impl<'a> PackageBuildTester<'a> {
-    pub fn new(spec: api::Spec, script: String) -> Self {
+    pub fn new(recipe: api::SpecRecipe, script: String) -> Self {
         let source =
-            BuildSource::SourcePackage(spec.ident().with_build(Some(api::Build::Source)).into());
+            BuildSource::SourcePackage(recipe.ident().into_build(api::Build::Source).into());
         Self {
             prefix: PathBuf::from("/spfs"),
-            spec,
+            recipe,
             script,
             repos: Vec::new(),
             options: api::OptionMap::default(),
@@ -160,7 +160,7 @@ impl<'a> PackageBuildTester<'a> {
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
-        solver.configure_for_build_environment(&self.spec)?;
+        solver.configure_for_build_environment(&self.recipe)?;
         let mut runtime = solver.run();
         let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
@@ -173,7 +173,9 @@ impl<'a> PackageBuildTester<'a> {
         spfs::remount_runtime(&rt).await?;
 
         self.options.extend(solution.options());
-        self.spec = self.spec.update_for_build(&self.options, &solution)?;
+        let spec = self
+            .recipe
+            .generate_binary_build(&self.options, &solution)?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(

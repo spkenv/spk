@@ -5,14 +5,11 @@
 use std::{ffi::OsString, io::Write, path::PathBuf, sync::Arc};
 
 use super::TestError;
-use crate::{
-    api::{self, Package},
-    exec, solve, storage, Result,
-};
+use crate::{api, exec, prelude::*, solve, storage, Result};
 
 pub struct PackageInstallTester<'a> {
     prefix: PathBuf,
-    spec: api::Spec,
+    recipe: api::SpecRecipe,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
@@ -23,10 +20,10 @@ pub struct PackageInstallTester<'a> {
 }
 
 impl<'a> PackageInstallTester<'a> {
-    pub fn new(spec: api::Spec, script: String) -> Self {
+    pub fn new(recipe: api::SpecRecipe, script: String) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
-            spec,
+            recipe,
             script,
             repos: Vec::new(),
             options: api::OptionMap::default(),
@@ -119,7 +116,7 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_repository(repo);
         }
 
-        let pkg = api::RangeIdent::equals(&self.spec.ident(), [api::Component::All]);
+        let pkg = api::RangeIdent::equals(&self.recipe.ident(), [api::Component::All]);
         let request = api::PkgRequest::new(
             pkg,
             api::RequestedBy::InstallTest(self.spec.ident().clone()),
