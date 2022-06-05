@@ -428,7 +428,7 @@ impl Repository for SPFSRepository {
         } else {
             Ok(spec)
         }
-        self.force_publish_spec(spec).await
+        self.force_publish_recipe(spec).await
     }
 
     async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {

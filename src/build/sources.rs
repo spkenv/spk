@@ -101,7 +101,6 @@ impl<Recipe: api::Recipe> SourcePackageBuilder<Recipe> {
     ) -> Result<spfs::graph::Layer> {
         let repo = spfs::get_config()?.get_local_repository_handle().await?;
         let mut runtime = spfs::active_runtime().await?;
-        runtime.set_editable(true)?;
         runtime.reset_all()?;
         runtime.status.editable = true;
         runtime.status.stack.clear();

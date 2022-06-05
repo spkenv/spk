@@ -16,6 +16,7 @@ use super::solution::PackageSource;
 use crate::api::OptNameBuf;
 use crate::{
     api::{self, BuildKey, Package},
+    prelude::*,
     storage, Error, Result,
 };
 
@@ -52,7 +53,7 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
         false
     }
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>>;
-    async fn version_spec(&self) -> Option<Arc<api::Spec>>;
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>>;
     fn len(&self) -> usize;
 }
 
@@ -273,7 +274,7 @@ pub struct RepositoryBuildIterator {
         api::Ident,
         HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     )>,
-    spec: Option<Arc<api::Spec>>,
+    recipe: Option<Arc<api::Spec>>,
 }
 
 #[async_trait::async_trait]
@@ -292,31 +293,24 @@ impl BuildIterator for RepositoryBuildIterator {
         let mut result = HashMap::new();
 
         for (repo_name, repo) in repos.iter() {
-            let mut spec = match repo.read_spec(&build).await {
+            let mut spec = match repo.read_package(&build).await {
                 Ok(spec) => spec,
                 Err(Error::PackageNotFoundError(..)) => {
-                    tracing::warn!(
-                        "Repository listed build with no spec: {} from {:?}",
-                        build,
-                        repo
-                    );
+                    tracing::warn!("Repository listed build with no spec: {build} from {repo:?}",);
                     // Skip to next build
                     return self.next().await;
                 }
                 Err(err) => return Err(err),
             };
 
-            let components = match repo.get_package(&build).await {
+            let components = match repo.read_components(&build).await {
                 Ok(c) => c,
                 Err(Error::PackageNotFoundError(..)) => Default::default(),
                 Err(err) => return Err(err),
             };
 
             if spec.ident().build.is_none() {
-                tracing::warn!(
-                    "Published spec is corrupt (has no associated build), pkg={}",
-                    build,
-                );
+                tracing::warn!("Published spec is corrupt (has no associated build), pkg={build}",);
                 return self.next().await;
             }
 
@@ -335,8 +329,8 @@ impl BuildIterator for RepositoryBuildIterator {
         Ok(Some(result))
     }
 
-    async fn version_spec(&self) -> Option<Arc<api::Spec>> {
-        self.spec.clone()
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>> {
+        self.recipe.clone()
     }
 
     fn len(&self) -> usize {
@@ -354,7 +348,7 @@ impl RepositoryBuildIterator {
             HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
         > = HashMap::new();
 
-        let mut spec = None;
+        let mut recipe = None;
         for (repo_name, repo) in &repos {
             let builds = repo.list_package_builds(&pkg).await?;
             for build in builds {
@@ -370,8 +364,8 @@ impl RepositoryBuildIterator {
                     }
                 }
             }
-            if spec.is_none() {
-                spec = match repo.read_spec(&pkg).await {
+            if recipe.is_none() {
+                recipe = match repo.read_recipe(&pkg).await {
                     Ok(spec) => Some(spec),
                     Err(Error::PackageNotFoundError(..)) => None,
                     Err(err) => return Err(err),
@@ -387,7 +381,7 @@ impl RepositoryBuildIterator {
 
         Ok(RepositoryBuildIterator {
             builds: builds.into(),
-            spec,
+            recipe,
         })
     }
 }
@@ -405,7 +399,7 @@ impl BuildIterator for EmptyBuildIterator {
         Ok(None)
     }
 
-    async fn version_spec(&self) -> Option<Arc<api::Spec>> {
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>> {
         None
     }
 
@@ -440,8 +434,8 @@ impl BuildIterator for SortedBuildIterator {
         Ok(self.builds.pop_front())
     }
 
-    async fn version_spec(&self) -> Option<Arc<api::Spec>> {
-        self.source.lock().await.version_spec().await
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>> {
+        self.source.lock().await.recipe().await
     }
 
     fn len(&self) -> usize {

@@ -10,10 +10,7 @@ use std::{
 use spfs::prelude::*;
 
 use super::Repository;
-use crate::{
-    api::{self, Template},
-    Error, Result,
-};
+use crate::{api, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {

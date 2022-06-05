@@ -18,23 +18,22 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
-        if let solve::PackageSource::Spec(ref source) = resolved.source {
-            if source.ident() == &resolved.spec.ident().with_build(None) {
-                // The resolved solution includes a package that needs
-                // to be built with specific options because such a
-                // build doesn't exist in a repo.
-                let spec_options = resolved.spec.resolve_options(&solution.options());
-                return Err(Error::String(format!(
+        if let solve::PackageSource::BuildFromSource { .. } = &resolved.source {
+            // The resolved solution includes a package that needs
+            // to be built with specific options because such a
+            // build doesn't exist in a repo.
+            let build_options = resolved.spec.option_values();
+            return Err(Error::String(format!(
                     "Solution includes package that needs building from source: {} with these options: {}",
                     resolved.spec.ident(),
-                    io::format_options(&spec_options)
+                    io::format_options(&build_options)
                 )));
-            }
         }
 
         let (repo, components) = match resolved.source {
             solve::PackageSource::Repository { repo, components } => (repo, components),
-            solve::PackageSource::Spec(_) => continue,
+            solve::PackageSource::BuildFromSource { .. } => continue,
+            solve::PackageSource::Embedded => continue,
         };
 
         if resolved.request.pkg.components.is_empty() {
@@ -121,8 +120,8 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
     let options = solution.options();
     let mut compiled_solution = solve::Solution::new(Some(options.clone()));
     for item in solution.items() {
-        let source_spec = match item.source {
-            solve::PackageSource::Spec(spec) if item.is_source_build() => spec,
+        let recipe = match item.source {
+            solve::PackageSource::BuildFromSource { recipe } => recipe,
             source => {
                 compiled_solution.add(&item.request, item.spec, source);
                 continue;
@@ -134,12 +133,11 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
             item.spec.ident().format_ident(),
             io::format_options(&options)
         );
-        let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
+        let (spec, components) = build::BinaryPackageBuilder::from_recipe((*recipe).clone())
             .with_repositories(repos.clone())
             .with_options(options.clone())
             .build()
             .await?;
-        let components = local_repo.get_package(spec.ident()).await?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,

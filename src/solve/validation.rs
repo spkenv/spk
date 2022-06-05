@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use crate::api::{self, Build, Compatibility, Named, Package};
+use crate::api::{self, prelude::*, Build, Compatibility};
 
 use super::{
     errors,
@@ -236,7 +236,15 @@ impl ValidatorT for PkgRequestValidator {
                     )));
                 }
                 PackageSource::Repository { .. } => {} // okay
-                PackageSource::Spec(_) => {
+                PackageSource::Embedded { recipe } => {
+                    // TODO: from the right repo still?
+                    return Ok(api::Compatibility::Incompatible(
+                        "package did not come from requested repo (it was embedded in another)"
+                            .to_owned(),
+                    ));
+                }
+                PackageSource::BuildFromSource { .. } => {
+                    // TODO: from the right repo still?
                     return Ok(api::Compatibility::Incompatible(
                         "package did not come from requested repo (it comes from a spec)"
                             .to_owned(),
@@ -273,9 +281,11 @@ impl ValidatorT for ComponentsValidator {
             // (and provide a better error message)
             return Ok(Compatible);
         }
+        // TODO: move this match into a method on package source
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
-            PackageSource::Spec(_) => spec.components().names(),
+            PackageSource::BuildFromSource { .. } => spec.components().names(),
+            PackageSource::Embedded => spec.components().names(),
         };
         let request = state.get_merged_request(spec.name())?;
         let required_components = spec
@@ -378,7 +388,9 @@ impl PkgRequirementsValidator {
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::Spec(_) => (spec, spec.components().names()),
+                PackageSource::BuildFromSource { .. } | PackageSource::Embedded => {
+                    (spec, spec.components().names())
+                }
             },
             Err(errors::GetCurrentResolveError::PackageNotResolved(_)) => return Ok(Compatible),
         };

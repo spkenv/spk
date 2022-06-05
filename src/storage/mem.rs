@@ -10,15 +10,21 @@ use crate::api::{Named, Package, PkgNameBuf, Versioned};
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
-type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
-type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
+type BuildMap<T> = HashMap<api::Build, (T, ComponentMap)>;
+type SpecByVersion<T> = HashMap<api::Version, Arc<T>>;
 
 #[derive(Clone, Debug)]
-pub struct MemRepository<Recipe: crate::api::Recipe = api::Spec> {
+pub struct MemRepository<Recipe = api::SpecRecipe>
+where
+    Recipe: api::Recipe + Sync + Send,
+    Recipe::Output: Sync + Send,
+{
     address: url::Url,
     name: api::RepositoryNameBuf,
-    specs: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, SpecByVersion>>>,
-    packages: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, HashMap<api::Version, BuildMap>>>>,
+    specs: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, SpecByVersion<Recipe>>>>,
+    packages: Arc<
+        tokio::sync::RwLock<HashMap<PkgNameBuf, HashMap<api::Version, BuildMap<Recipe::Output>>>>,
+    >,
 }
 
 impl MemRepository {
@@ -37,16 +43,10 @@ impl MemRepository {
     }
 }
 
-impl Default for MemRepository {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<Recipe, Package> Default for MemRepository<Recipe>
 where
-    Recipe: api::Recipe<Output = Package>,
-    Package: api::Package,
+    Recipe: api::Recipe<Output = Package> + Send + Sync,
+    Package: api::Package + Send + Sync,
 {
     fn default() -> Self {
         Self {
@@ -58,7 +58,8 @@ where
 
 impl<Recipe> std::hash::Hash for MemRepository<Recipe>
 where
-    Recipe: api::Recipe,
+    Recipe: api::Recipe + Send + Sync,
+    Recipe::Output: Send + Sync,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         (self as *const _ as usize).hash(state)
@@ -77,19 +78,28 @@ impl PartialOrd for MemRepository {
     }
 }
 
-impl PartialEq for MemRepository {
+impl<Recipe> PartialEq for MemRepository<Recipe>
+where
+    Recipe: api::Recipe + Send + Sync,
+    Recipe::Output: Send + Sync,
+{
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
     }
 }
 
-impl<Recipe> Eq for MemRepository<Recipe> where Recipe: api::Recipe {}
+impl<Recipe> Eq for MemRepository<Recipe>
+where
+    Recipe: api::Recipe + Send + Sync,
+    Recipe::Output: Send + Sync,
+{
+}
 
 #[async_trait::async_trait]
 impl<Recipe> Repository for MemRepository<Recipe>
 where
-    Recipe: api::Recipe + Clone,
-    Recipe::Output: Clone,
+    Recipe: api::Recipe + Clone + Send + Sync,
+    Recipe::Output: Clone + Send + Sync,
 {
     type Recipe = Recipe;
 

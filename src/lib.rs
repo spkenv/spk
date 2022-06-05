@@ -21,11 +21,11 @@ pub mod test;
 pub mod fixtures;
 #[cfg(feature = "test-macros")]
 pub mod macros;
+pub mod prelude;
 
 pub use env::current_env;
 pub use error::{Error, Result};
 pub use exec::{build_required_packages, setup_current_runtime, setup_runtime};
-pub use global::{load_spec, save_spec};
 pub use publish::Publisher;
 pub use solve::{Solution, Solver};
 

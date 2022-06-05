@@ -13,9 +13,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
-use crate::api::{
-    self, Ident, InclusionPolicy, Named, OptNameBuf, Package, PkgName, PkgNameBuf, Versioned,
-};
+use crate::api::{self, Ident, InclusionPolicy, OptNameBuf, PkgName, PkgNameBuf};
+use crate::prelude::*;
 
 use super::errors::{self};
 use super::{
@@ -84,11 +83,8 @@ pub struct Decision {
 }
 
 impl Decision {
-    pub fn builder<'state>(
-        spec: Arc<api::Spec>,
-        base: &'state State,
-    ) -> DecisionBuilder<'state, 'static> {
-        DecisionBuilder::new(spec, base)
+    pub fn builder<'state>(base: &'state State) -> DecisionBuilder<'state, 'static> {
+        DecisionBuilder::new(base)
     }
 
     pub fn new(changes: Vec<Change>) -> Self {
@@ -113,15 +109,13 @@ impl Decision {
 
 pub struct DecisionBuilder<'state, 'cmpt> {
     base: &'state State,
-    spec: Arc<api::Spec>,
     components: HashSet<&'cmpt api::Component>,
 }
 
 impl<'state> DecisionBuilder<'state, 'static> {
-    pub fn new(spec: Arc<api::Spec>, base: &'state State) -> Self {
+    pub fn new(base: &'state State) -> Self {
         Self {
             base,
-            spec,
             components: HashSet::new(),
         }
     }
@@ -134,22 +128,25 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     ) -> DecisionBuilder<'state, 'a> {
         DecisionBuilder {
             components: components.into_iter().collect(),
-            spec: self.spec,
             base: self.base,
         }
     }
 
-    pub fn build_package(self, build_env: &Solution) -> crate::Result<Decision> {
+    pub fn build_package(
+        self,
+        recipe: &Arc<api::SpecRecipe>,
+        build_env: &Solution,
+    ) -> crate::Result<Decision> {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = Vec::<Change>::new();
 
             let options = build_env.options();
-            let spec = self.spec.generate_binary_build(&options, build_env)?;
+            let spec = recipe.generate_binary_build(&options, build_env)?;
             let spec = Arc::new(spec);
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
                 Arc::clone(&spec),
-                Arc::clone(&self.spec),
+                Arc::clone(&*recipe),
             ))));
 
             changes.extend(self.requirements_to_changes(spec.runtime_requirements()));
@@ -166,22 +163,23 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         })
     }
 
-    pub fn resolve_package(self, source: PackageSource) -> Decision {
+    pub fn resolve_package(self, spec: &Arc<api::Spec>, source: PackageSource) -> Decision {
         let generate_changes = || {
             let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
-                self.spec.clone(),
+                Arc::clone(spec),
                 source,
             )))];
 
             // installation options are not relevant for source packages
-            if self.spec.ident().is_source() {
+            if spec.ident().is_source() {
+                // TODO: let the package itself determine this
                 return changes;
             }
 
-            changes.extend(self.requirements_to_changes(self.spec.runtime_requirements()));
-            changes.extend(self.components_to_changes(self.spec.components()));
-            changes.extend(self.embedded_to_changes(self.spec.embedded()));
-            changes.push(Self::options_to_change(&self.spec));
+            changes.extend(self.requirements_to_changes(spec.runtime_requirements()));
+            changes.extend(self.components_to_changes(spec.components()));
+            changes.extend(self.embedded_to_changes(spec.embedded()));
+            changes.push(Self::options_to_change(&spec));
 
             changes
         };
@@ -204,12 +202,12 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
     fn components_to_changes(&self, components: &api::ComponentSpecList) -> Vec<Change> {
         let mut changes = vec![];
-        let required = self
-            .spec
-            .components()
-            .resolve_uses(self.components.iter().cloned());
+        let required = components.resolve_uses(self.components.iter().cloned());
         for component in components.iter() {
             if !required.contains(&component.name) {
+                // TODO: is this check still necessary? We used to get required
+                // using self.spec instead of components which might mean that this
+                // is buggy now
                 continue;
             }
             changes.extend(self.requirements_to_changes(&component.requirements));
@@ -278,7 +276,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(
                         Arc::new(embedded.clone()),
-                        PackageSource::Spec(self.spec.clone()),
+                        PackageSource::Embedded,
                     ))),
                 ]
             })
@@ -769,10 +767,10 @@ pub struct SetPackageBuild {
 }
 
 impl SetPackageBuild {
-    pub fn new(spec: Arc<api::Spec>, source: Arc<api::Spec>) -> Self {
+    pub fn new(spec: Arc<api::Spec>, recipe: Arc<api::SpecRecipe>) -> Self {
         SetPackageBuild {
             spec,
-            source: PackageSource::Spec(source),
+            source: PackageSource::BuildFromSource { recipe },
         }
     }
 

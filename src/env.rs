@@ -27,8 +27,8 @@ pub async fn current_env() -> Result<solve::Solution> {
         for version in repo.list_package_versions(&name).await?.iter() {
             let pkg = api::parse_ident(format!("{name}/{version}"))?;
             for pkg in repo.list_package_builds(&pkg).await? {
-                let spec = repo.read_spec(&pkg).await?;
-                let components = match repo.get_package(spec.ident()).await {
+                let spec = repo.read_package(&pkg).await?; // TODO: might not work during build now...
+                let components = match repo.read_components(spec.ident()).await {
                     Ok(c) => c,
                     Err(Error::PackageNotFoundError(_)) => {
                         tracing::info!("Skipping missing build {pkg}; currently being built?");

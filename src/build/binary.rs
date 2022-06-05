@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,7 +14,7 @@ use thiserror::Error;
 
 use super::env::data_path;
 use crate::api::Package;
-use crate::solve::{Solution, SolverRuntime};
+use crate::solve::Solution;
 use crate::{api, exec, solve, storage, Error, Result};
 use crate::{prelude::*, Solver};
 
@@ -228,7 +229,6 @@ where
         HashMap<api::Component, spfs::encoding::Digest>,
     )> {
         let mut runtime = spfs::active_runtime().await?;
-        runtime.set_editable(true)?;
         runtime.reset_all()?;
         runtime.status.editable = true;
         runtime.status.stack.clear();
@@ -239,11 +239,13 @@ where
         let mut all_options = self.inputs.clone();
         all_options.extend(build_options.into_iter());
 
-        let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             tracing::debug!("Resolving source package for build");
-            let solution = self.resolve_source_package(&all_options, &ident).await?;
-            stack.extend(exec::resolve_runtime_layers(&solution).await?)
+            let solution = self.resolve_source_package(&all_options, ident).await?;
+            runtime
+                .status
+                .stack
+                .extend(exec::resolve_runtime_layers(&solution).await?);
         };
 
         tracing::debug!("Resolving build environment");
@@ -261,11 +263,12 @@ where
             all_options.extend(opts);
         }
 
-        stack.extend(exec::resolve_runtime_layers(&solution)?);
-        for digest in stack.into_iter() {
-            runtime.push_digest(&digest)?;
-        }
-        crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
+        runtime
+            .status
+            .stack
+            .extend(exec::resolve_runtime_layers(&solution).await?);
+        runtime.save_state_to_storage().await?;
+        spfs::remount_runtime(&runtime).await?;
 
         let package = self.recipe.generate_binary_build(&all_options, &solution)?;
         let components =
@@ -399,7 +402,9 @@ where
         std::fs::create_dir_all(&metadata_dir)?;
         {
             let mut writer = std::fs::File::create(&build_spec)?;
-            serde_yaml::to_writer(&mut writer, package)?;
+            serde_yaml::to_writer(&mut writer, package)
+                .map_err(|err| Error::String(format!("Failed to save build spec: {}", err)))?;
+            writer.sync_data()?;
         }
         {
             let mut writer = std::fs::File::create(&build_script)?;
@@ -452,9 +457,7 @@ where
             )?
         };
 
-        let mut args = cmd.into_iter();
-        let mut cmd = std::process::Command::new(args.next().unwrap());
-        cmd.args(args);
+        let mut cmd = cmd.into_std();
         cmd.envs(options.to_environment());
         cmd.envs(get_package_build_env(package));
         cmd.env("PREFIX", &self.prefix);

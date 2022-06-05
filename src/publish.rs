@@ -71,16 +71,16 @@ impl Publisher {
     /// Publish the identified package as configured.
     pub async fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let builds = if pkg.build.is_none() {
-            tracing::info!("loading spec: {}", pkg.format_ident());
-            match self.from.read_spec(pkg).await {
+            tracing::info!("loading recipe: {}", pkg.format_ident());
+            match self.from.read_recipe(pkg).await {
                 Err(Error::PackageNotFoundError(_)) => (),
                 Err(err) => return Err(err),
-                Ok(spec) => {
-                    tracing::info!("publishing spec: {}", spec.ident().format_ident());
+                Ok(recipe) => {
+                    tracing::info!("publishing recipe: {}", recipe.ident().format_ident());
                     if self.force {
-                        self.to.force_publish_spec(&spec).await?;
+                        self.to.force_publish_recipe(&recipe).await?;
                     } else {
-                        self.to.publish_spec(&spec).await?;
+                        self.to.publish_recipe(&recipe).await?;
                     }
                 }
             }
@@ -102,8 +102,8 @@ impl Publisher {
             }
 
             tracing::debug!("   loading package: {}", build.format_ident());
-            let spec = self.from.read_spec(build).await?;
-            let components = self.from.get_package(build).await?;
+            let spec = self.from.read_package(build).await?;
+            let components = self.from.read_components(build).await?;
             tracing::info!("publishing package: {}", spec.ident().format_ident());
             let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {

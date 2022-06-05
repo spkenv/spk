@@ -7,8 +7,9 @@ use std::{
 };
 
 use crate::{
-    api::{self, Ident, Named, Package, Versioned},
-    storage, Result,
+    api::{self, Ident},
+    prelude::*,
+    storage, Error, Result,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -19,18 +20,24 @@ pub enum PackageSource {
         /// the components that can be used for this package from the repository
         components: HashMap<api::Component, spfs::encoding::Digest>,
     },
-    // A package comes from another spec if it is either an embedded
-    // package or represents a package to be built from source. In the
-    // latter case, this spec is the original source spec that should
-    // be used as the basis for the package build.
-    Spec(Arc<api::Spec>),
+    /// The package needs to be build from the given recipe.
+    BuildFromSource {
+        /// The recipe that this package is to be built from.
+        recipe: Arc<api::SpecRecipe>,
+    },
+    /// The package was embedded in another.
+    Embedded, // TODO: should this reference the source? (it makes the graph code uglier)
 }
 
 impl PackageSource {
-    pub async fn read_spec(&self, ident: &Ident) -> Result<Arc<api::Spec>> {
+    pub async fn read_recipe(&self, ident: &Ident) -> Result<Arc<api::SpecRecipe>> {
         match self {
-            PackageSource::Spec(s) => Ok(Arc::clone(s)),
-            PackageSource::Repository { repo, .. } => repo.read_spec(ident).await,
+            PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
+            PackageSource::Repository { repo, .. } => repo.read_recipe(ident).await,
+            PackageSource::Embedded => {
+                // TODO: what are the implications of this?
+                Err(Error::String("Embedded package has no recipe".into()))
+            }
         }
     }
 }
@@ -65,10 +72,7 @@ pub struct SolvedRequest {
 
 impl SolvedRequest {
     pub fn is_source_build(&self) -> bool {
-        match &self.source {
-            PackageSource::Repository { .. } => false,
-            PackageSource::Spec(spec) => spec.ident() == &self.spec.ident().with_build(None),
-        }
+        matches!(self.source, PackageSource::BuildFromSource { .. })
     }
 }
 
@@ -123,9 +127,7 @@ impl Solution {
     pub fn options(&self) -> api::OptionMap {
         self.options.clone()
     }
-}
 
-impl Solution {
     /// The number of packages in this solution
     #[inline]
     pub fn len(&self) -> usize {
