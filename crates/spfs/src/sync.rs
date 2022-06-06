@@ -76,7 +76,7 @@ pub async fn sync_ref<R: AsRef<str>>(
     sync_object(&obj, src, dest).await?;
     if let Some(tag) = tag {
         tracing::debug!(tag = ?tag.path(), "syncing tag");
-        dest.push_raw_tag(&tag).await?;
+        dest.insert_tag(&tag).await?;
     }
     tracing::debug!(target = ?reference.as_ref(), "sync complete");
     Ok(obj)
