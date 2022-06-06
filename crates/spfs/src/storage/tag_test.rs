@@ -248,63 +248,6 @@ async fn test_tag_ordering(#[future] tmprepo: TempRepo) {
     case::rpc(tmprepo("rpc"))
 )]
 #[tokio::test]
-async fn test_tag_ordering(#[future] tmprepo: TempRepo) {
-    init_logging();
-    let tmprepo = tmprepo.await;
-    let tag_name = "spi/stable/my_tag";
-
-    let spec = tracking::TagSpec::parse(tag_name).unwrap();
-    let tag = tracking::Tag::new(spec.org(), spec.name(), encoding::EMPTY_DIGEST.into()).unwrap();
-
-    for (i, utc) in [
-        Utc.ymd(1977, 5, 25).and_hms(0, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(2, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(4, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(12, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(4, 0, 0),
-    ]
-    .iter()
-    .enumerate()
-    {
-        let mut tag = tag.clone();
-        tag.time = *utc;
-        if i == 4 {
-            tag.target = encoding::NULL_DIGEST.into();
-        }
-        tmprepo.insert_tag(&tag).await.unwrap();
-        println!("\n");
-    }
-
-    let tags: Vec<_> = tmprepo
-        .read_tag(&spec)
-        .await
-        .unwrap()
-        .try_collect()
-        .await
-        .unwrap();
-    assert_eq!(tags.len(), 5);
-
-    let mut prev_tag = tags.first().unwrap();
-    for (i, tag) in tags.iter().enumerate() {
-        if i == 0 {
-            continue;
-        }
-        if tag.time == prev_tag.time {
-            assert!(prev_tag.target > tag.target);
-        } else {
-            assert!(prev_tag.time > tag.time);
-        }
-        prev_tag = tag;
-    }
-}
-
-#[rstest(
-    tmprepo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
-#[tokio::test]
 async fn test_rm_tags(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
