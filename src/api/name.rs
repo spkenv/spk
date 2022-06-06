@@ -288,9 +288,7 @@ fn validate_pkg_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.as_ref().len(),
         )));
     }
-    let index = validate_source_str(&name, |c: char| {
-        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'
-    });
+    let index = validate_source_str(&name, is_valid_pkg_name_char);
     if index > -1 {
         let name = name.as_ref();
         let index = index as usize;
@@ -307,6 +305,10 @@ fn validate_pkg_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     } else {
         Ok(())
     }
+}
+
+fn is_valid_pkg_name_char(c: char) -> bool {
+    c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'
 }
 
 /// An owned, mutable package name
@@ -566,9 +568,7 @@ fn validate_opt_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.as_ref().len(),
         )));
     }
-    let index = validate_source_str(&name, |c: char| {
-        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'
-    });
+    let index = validate_source_str(&name, is_valid_opt_name_char);
     if index > -1 {
         let name = name.as_ref();
         let index = index as usize;
@@ -585,6 +585,11 @@ fn validate_opt_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     } else {
         Ok(())
     }
+}
+
+fn is_valid_opt_name_char(c: char) -> bool {
+    // option names are a superset of all valid package names
+    is_valid_pkg_name_char(c) || c == '_'
 }
 
 /// Check if a name is a valid pre/post release tag name
