@@ -333,7 +333,7 @@ async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Resul
     if let Err(err) = file.flush().await {
         return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
     }
-    if let Err(err) = file.get_ref().sync_all().await {
+    if let Err(err) = file.into_inner().map_err(|err| err.into_error()).await.close() {
         return Err(Error::wrap_io(err, "Failed to sync tag data file"));
     }
 
