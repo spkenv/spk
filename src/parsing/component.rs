@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while_m_n},
+    bytes::complete::take_while_m_n,
     character::complete::char,
     combinator::{all_consuming, cut, map},
     error::{context, ContextError, ParseError},
@@ -14,6 +14,7 @@ use nom::{
     sequence::delimited,
     IResult,
 };
+use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::api::{Component, PkgName};
 
@@ -26,7 +27,7 @@ use super::{name::is_legal_package_name_chr, parse_until};
 /// - `"legal-component-name"`
 pub(crate) fn component<'a, E>(input: &'a str) -> IResult<&'a str, Component, E>
 where
-    E: ParseError<&'a str> + ContextError<&'a str>,
+    E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
     context(
         "component",
@@ -60,7 +61,7 @@ where
 /// - `"{comp1,comp2}"`
 pub(crate) fn components<'a, E>(input: &'a str) -> IResult<&'a str, HashSet<Component>, E>
 where
-    E: ParseError<&'a str> + ContextError<&'a str>,
+    E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
     alt((
         context(

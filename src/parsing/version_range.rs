@@ -6,7 +6,6 @@ use std::convert::TryFrom;
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
     character::complete::{char, digit1},
     combinator::{all_consuming, cut, map, map_res, rest},
     error::{context, ContextError, FromExternalError, ParseError},
@@ -14,6 +13,7 @@ use nom::{
     sequence::preceded,
     FindToken, IResult,
 };
+use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::api::{
     CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
@@ -52,7 +52,8 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
     move |input| {
         let mut parser = all_consuming(map_res(
@@ -119,7 +120,8 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
     move |input: &str| {
         context(
