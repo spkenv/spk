@@ -23,6 +23,7 @@ use nom::{
 };
 
 pub(crate) use ident::ident;
+use nom_supreme::tag::TagError;
 pub(crate) use request::{range_ident, version_filter_and_build};
 pub(crate) use version_range::version_range;
 
@@ -180,7 +181,8 @@ where
     F: Parser<&'i str, V, E>,
     E: ParseError<&'i str>
         + ContextError<&'i str>
-        + FromExternalError<&'i str, crate::error::Error>,
+        + FromExternalError<&'i str, crate::error::Error>
+        + TagError<&'i str, &'static str>,
 {
     pair(
         version_parser,

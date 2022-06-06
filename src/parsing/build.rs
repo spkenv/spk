@@ -6,11 +6,12 @@ use std::str::FromStr;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while_m_n},
+    bytes::complete::take_while_m_n,
     combinator::map_res,
     error::{ContextError, FromExternalError, ParseError},
     IResult,
 };
+use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::api::Build;
 
@@ -37,7 +38,8 @@ pub(crate) fn build<'a, E>(input: &'a str) -> IResult<&'a str, Build, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>,
+        + FromExternalError<&'a str, crate::error::Error>
+        + TagError<&'a str, &'static str>,
 {
     map_res(build_str, Build::from_str)(input)
 }
@@ -50,7 +52,7 @@ where
 /// - `"CU7ZWOIF"`
 pub(crate) fn build_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
-    E: ParseError<&'a str> + ContextError<&'a str>,
+    E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
     alt((
         tag(crate::api::SRC),

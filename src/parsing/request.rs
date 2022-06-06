@@ -12,6 +12,7 @@ use nom::{
     sequence::{pair, preceded},
     IResult,
 };
+use nom_supreme::tag::TagError;
 
 use crate::api::{Build, Component, PkgName, RangeIdent, VersionFilter};
 
@@ -33,7 +34,7 @@ fn range_ident_pkg_name<'a, E>(
     input: &'a str,
 ) -> IResult<&'a str, (&PkgName, HashSet<Component>), E>
 where
-    E: ParseError<&'a str> + ContextError<&'a str>,
+    E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
     parse_until(
         "/",
@@ -65,7 +66,8 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
     context(
         "range_ident_version_filter",
@@ -95,7 +97,8 @@ where
     E: ParseError<&'b str>
         + ContextError<&'b str>
         + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, std::num::ParseIntError>,
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
 {
     let (input, repository_name) = opt(repo_name_in_ident(
         known_repositories,
@@ -137,7 +140,8 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
     version_and_optional_build(context("parse_version_filter", range_ident_version_filter))(input)
 }
