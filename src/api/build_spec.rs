@@ -80,17 +80,16 @@ impl BuildSpec {
         let mut must_exist = given_options.package_options_without_global(&package_name);
         let given_options = given_options.package_options(&package_name);
         for option in self.options.iter() {
-            let value = given_options.get(option.full_name()).map(String::as_str);
+            let full_name = option.full_name();
+            let value = given_options.get(full_name).map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
                 return Compatibility::Incompatible(format!(
-                    "invalid value for {}: {}",
-                    option.full_name(),
-                    compat
+                    "invalid value for {full_name}: {compat}",
                 ));
             }
 
-            must_exist.remove(option.full_name());
+            must_exist.remove(full_name);
         }
 
         if !must_exist.is_empty() {
@@ -182,13 +181,13 @@ impl<'de> BuildSpec {
         }
         let mut unique_options = HashSet::new();
         for opt in bs.options.iter() {
-            if unique_options.contains(opt.full_name()) {
+            let full_name = opt.full_name();
+            if unique_options.contains(full_name) {
                 return Err(serde::de::Error::custom(format!(
-                    "Build option specified more than once: {}",
-                    opt.full_name()
+                    "Build option specified more than once: {full_name}",
                 )));
             }
-            unique_options.insert(opt.full_name());
+            unique_options.insert(full_name);
         }
         Ok(bs)
     }
