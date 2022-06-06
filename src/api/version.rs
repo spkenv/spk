@@ -303,27 +303,13 @@ impl Version {
 
     /// Format just the pre- and post- release tags (if any).
     pub(crate) fn format_tags(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // For testing purposes, use the `#` flag to control
-        // if the pre-release or the post-release come first.
-        // Either should be considered valid strings when parsing.
-        if f.alternate() {
-            if !self.post.tags.is_empty() {
-                f.write_char('+')?;
-                f.write_str(&self.post.to_string())?;
-            }
-            if !self.pre.tags.is_empty() {
-                f.write_char('-')?;
-                f.write_str(&self.pre.to_string())?;
-            }
-        } else {
-            if !self.pre.tags.is_empty() {
-                f.write_char('-')?;
-                f.write_str(&self.pre.to_string())?;
-            }
-            if !self.post.tags.is_empty() {
-                f.write_char('+')?;
-                f.write_str(&self.post.to_string())?;
-            }
+        if !self.pre.tags.is_empty() {
+            f.write_char('-')?;
+            f.write_str(&self.pre.to_string())?;
+        }
+        if !self.post.tags.is_empty() {
+            f.write_char('+')?;
+            f.write_str(&self.post.to_string())?;
         }
         Ok(())
     }
