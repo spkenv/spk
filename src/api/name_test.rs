@@ -14,6 +14,7 @@ use rstest::rstest;
 #[case("name!!")] // no special characters
 fn test_pkg_validation(#[case] input: &str) {
     super::validate_pkg_name(input).unwrap();
+    super::validate_opt_name(input).expect("all valid package names should be valid option names");
 }
 
 #[rstest]
