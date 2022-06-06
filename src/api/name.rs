@@ -404,8 +404,11 @@ pub struct OptName(str);
 
 impl OptName {
     const SEP: char = '.';
-    const MIN_LEN: usize = 2;
-    const MAX_LEN: usize = 64;
+    // all valid package names are assumed to/must be
+    // valid option names, so options are constrained
+    // by the same size limits
+    const MIN_LEN: usize = PkgName::MIN_LEN;
+    const MAX_LEN: usize = PkgName::MAX_LEN;
 
     /// Standard option used to identify the operating system
     pub const fn os() -> &'static Self {
