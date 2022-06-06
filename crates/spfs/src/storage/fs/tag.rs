@@ -331,9 +331,9 @@ async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Resul
         file.write_all_buf(&mut buf.as_slice()).await?;
     }
     if let Err(err) = file.flush().await {
-        return Err(Error::wrap_io(err, "Failed to finalize tag data file"));
+        return Err(Error::wrap_io(err, "Failed to flush tag data file"));
     }
-    if let Err(err) = file.into_inner().map_err(|err| err.into_error()).await.close() {
+    if let Err(err) = file.into_inner().into_std().await.close() {
         return Err(Error::wrap_io(err, "Failed to sync tag data file"));
     }
 
