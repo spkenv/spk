@@ -11,6 +11,7 @@ use nom::{
     sequence::preceded,
     IResult,
 };
+use nom_supreme::tag::TagError;
 
 use crate::api::{Build, Ident, Version};
 
@@ -43,7 +44,8 @@ where
     E: ParseError<&'b str>
         + ContextError<&'b str>
         + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, std::num::ParseIntError>,
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
 {
     let (input, repository_name) = opt(repo_name_in_ident(
         known_repositories,
@@ -91,7 +93,8 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
     version_and_optional_build(context("parse_version", parse_until("/", version)))(input)
 }
