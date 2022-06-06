@@ -5,9 +5,8 @@
 use std::collections::{BTreeMap, HashSet};
 
 use nom::{
-    branch::{alt, permutation},
     character::complete::{char, digit1},
-    combinator::{eof, map, map_res, recognize},
+    combinator::{map, map_res, opt, recognize},
     error::{context, ContextError, FromExternalError, ParseError},
     multi::separated_list1,
     sequence::{pair, preceded, separated_pair},
@@ -116,32 +115,15 @@ where
         map(
             pair(
                 separated_list1(char('.'), map_res(digit1, |n: &str| n.parse::<u32>())),
-                // `permutation` returns results in the order of the parsers
-                // given, no matter the order of the input.
-                context(
-                    "pre- and post-tags",
-                    permutation((
-                        context(
-                            "optional pre-tag",
-                            alt((
-                                preceded(char('-'), ptagset),
-                                map(eof, |_| TagSet::default()),
-                            )),
-                        ),
-                        context(
-                            "optional post-tag",
-                            alt((
-                                preceded(char('+'), ptagset),
-                                map(eof, |_| TagSet::default()),
-                            )),
-                        ),
-                    )),
+                pair(
+                    context("optional pre-tag", opt(preceded(char('-'), ptagset))),
+                    context("optional post-tag", opt(preceded(char('+'), ptagset))),
                 ),
             ),
             |(parts, (pre, post))| Version {
                 parts: parts.into(),
-                pre,
-                post,
+                pre: pre.unwrap_or_default(),
+                post: post.unwrap_or_default(),
             },
         ),
     )(input)
@@ -171,18 +153,15 @@ where
         "version_str",
         recognize(pair(
             separated_list1(char('.'), digit1),
-            context(
-                "pre- and post-tags",
-                permutation((
-                    context(
-                        "optional pre-tag",
-                        alt((preceded(char('-'), recognize(ptagset_str)), eof)),
-                    ),
-                    context(
-                        "optional post-tag",
-                        alt((preceded(char('+'), recognize(ptagset_str)), eof)),
-                    ),
-                )),
+            pair(
+                context(
+                    "optional pre-tag",
+                    opt(preceded(char('-'), recognize(ptagset_str))),
+                ),
+                context(
+                    "optional post-tag",
+                    opt(preceded(char('+'), recognize(ptagset_str))),
+                ),
             ),
         )),
     )(input)
