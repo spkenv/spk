@@ -120,8 +120,8 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
             .metadata()
             .unwrap()
             .mode()
-            & 0o777,
-        0o777
+            & 0o666,
+        0o666
     );
 }
 
