@@ -7,12 +7,7 @@ URL: https://github.com/imageworks/spfs
 Source0: https://github.com/imageworks/spfs/archive/refs/tags/v%{version}.tar.gz
 
 
-Requires: expect >= 5, expect < 6
-BuildRequires: rsync
 BuildRequires: gcc
-BuildRequires: gcc-c++
-BuildRequires: chrpath
-BuildRequires: libcap-devel
 BuildRequires: openssl-devel
 
 %define debug_package %{nil}

@@ -1,4 +1,6 @@
-.git/
-target/
-.vscode/
-prof/
+*
+!benches/
+!src/
+!Cargo.*
+!spfs.spec
+!*.rs
