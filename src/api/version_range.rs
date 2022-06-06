@@ -167,6 +167,15 @@ impl Display for VersionRange {
     }
 }
 
+impl IntoIterator for VersionRange {
+    type Item = VersionRange;
+    type IntoIter = std::collections::hash_set::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rules().into_iter()
+    }
+}
+
 impl std::str::FromStr for VersionRange {
     type Err = Error;
 
@@ -211,7 +220,7 @@ impl<T: Ranged> From<&T> for VersionRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SemverRange {
-    minimum: Version,
+    pub(crate) minimum: Version,
 }
 
 impl SemverRange {
@@ -259,8 +268,8 @@ impl Display for SemverRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WildcardRange {
-    specified: usize,
-    parts: Vec<Option<u32>>,
+    pub(crate) specified: usize,
+    pub(crate) parts: Vec<Option<u32>>,
 }
 
 impl WildcardRange {
@@ -354,8 +363,8 @@ impl Display for WildcardRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LowestSpecifiedRange {
-    specified: usize,
-    base: Version,
+    pub(crate) specified: usize,
+    pub(crate) base: Version,
 }
 
 impl LowestSpecifiedRange {
@@ -407,7 +416,7 @@ impl Display for LowestSpecifiedRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GreaterThanRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl GreaterThanRange {
@@ -450,7 +459,7 @@ impl Display for GreaterThanRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LessThanRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl LessThanRange {
@@ -493,7 +502,7 @@ impl Display for LessThanRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GreaterThanOrEqualToRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl GreaterThanOrEqualToRange {
@@ -536,7 +545,7 @@ impl Display for GreaterThanOrEqualToRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LessThanOrEqualToRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl LessThanOrEqualToRange {
@@ -579,7 +588,7 @@ impl Display for LessThanOrEqualToRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EqualsVersion {
-    version: Version,
+    pub(crate) version: Version,
 }
 
 impl EqualsVersion {
@@ -646,8 +655,8 @@ impl Display for EqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NotEqualsVersion {
-    specified: usize,
-    base: Version,
+    pub(crate) specified: usize,
+    pub(crate) base: Version,
 }
 
 impl NotEqualsVersion {
@@ -712,7 +721,7 @@ impl Display for NotEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DoubleEqualsVersion {
-    version: Version,
+    pub(crate) version: Version,
 }
 
 impl DoubleEqualsVersion {
@@ -774,8 +783,8 @@ impl Display for DoubleEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DoubleNotEqualsVersion {
-    specified: usize,
-    base: Version,
+    pub(crate) specified: usize,
+    pub(crate) base: Version,
 }
 
 impl DoubleNotEqualsVersion {
@@ -840,11 +849,11 @@ impl Display for DoubleNotEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompatRange {
-    base: Version,
+    pub(crate) base: Version,
     /// if unset, the required compatibility is based on the type
     /// of package being validated. Source packages require api
     /// compat and binary packages require binary compat.
-    required: Option<CompatRule>,
+    pub(crate) required: Option<CompatRule>,
 }
 
 impl CompatRange {
@@ -902,7 +911,7 @@ impl Display for CompatRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VersionFilter {
-    rules: HashSet<VersionRange>,
+    pub(crate) rules: HashSet<VersionRange>,
 }
 
 #[allow(clippy::derive_hash_xor_eq)]
@@ -929,6 +938,20 @@ impl VersionFilter {
             VersionRange::Filter(f) => !f.is_empty(),
             _ => true,
         })
+    }
+
+    /// Flatten this filter's rules to remove nested `VersionFilter`.
+    pub fn flatten(self) -> Self {
+        VersionFilter {
+            rules: self
+                .rules
+                .into_iter()
+                .flat_map(|r| match r {
+                    VersionRange::Filter(f) => VersionRange::Filter(f.flatten()),
+                    _ => r,
+                })
+                .collect(),
+        }
     }
 
     pub(crate) fn sorted_rules(&self) -> Vec<String> {

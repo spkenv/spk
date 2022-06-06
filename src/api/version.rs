@@ -51,7 +51,7 @@ impl InvalidVersionError {
 /// TagSet contains a set of pre or post release version tags
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct TagSet {
-    tags: std::collections::BTreeMap<String, u32>,
+    pub(crate) tags: std::collections::BTreeMap<String, u32>,
 }
 
 impl std::ops::Deref for TagSet {
