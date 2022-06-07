@@ -67,7 +67,7 @@ impl Run for View {
                     _v => {
                         let graph = runtime.graph();
                         let graph = graph.read().unwrap();
-                        for line in formatter.format_decisions(graph.walk().map(Ok)) {
+                        for line in formatter.formatted_decisions_iter(graph.walk().map(Ok)) {
                             println!("{}", line?);
                         }
                     }

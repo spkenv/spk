@@ -8,14 +8,26 @@ use std::{
     time::{Duration, Instant},
 };
 
+use once_cell::sync::Lazy;
+
 use colored::Colorize;
 
 use crate::{api, option_map, solve, Error, Result};
 
-/// TODO: find the best place for this. It's here for now because the
-/// ctrl-c handler is set up on cli/bin but that's not a module that is
-/// accessible from here. Maybe it should be in global or lib?
-pub static USER_CANCELED: AtomicBool = AtomicBool::new(false);
+static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
+    // Set up a ctrl-c handler to allow a solve to be interrupted
+    // gracefully by the user from the FormatterDecisionIter below
+    if let Err(err) = ctrlc::set_handler(|| {
+        USER_CANCELLED.store(true, Ordering::Relaxed);
+    }) {
+        eprintln!(
+            "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
+            err.to_string().red()
+        );
+    };
+    // Initialise the USER_CANCELLED value
+    AtomicBool::new(false)
+});
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name.bold().to_string();
@@ -251,7 +263,7 @@ where
 
     fn check_if_user_hit_ctrlc(&self) -> Result<()> {
         // Check if the solve has been interrupted by the user (via ctrl-c)
-        if USER_CANCELED.load(Ordering::Relaxed) {
+        if USER_CANCELLED.load(Ordering::Relaxed) {
             return Err(Error::Solve(solve::Error::SolverInterrupted(
                 "Solver interrupted by user ...".to_string(),
             )));
@@ -514,7 +526,7 @@ impl DecisionFormatter {
     ) -> Result<solve::Solution> {
         // Step through the solver runtime's decisions - this runs the solver
         let start = Instant::now();
-        for line in self.format_decisions(&mut runtime) {
+        for line in self.formatted_decisions_iter(&mut runtime) {
             match line {
                 Ok(message) => println!("{message}"),
                 Err(e) => {
@@ -534,7 +546,7 @@ impl DecisionFormatter {
         }
 
         // Note: this time includes the output time because the solver is
-        // run in the format_decisions() call above
+        // run in the iterator in the format_decisions_iter() loop above
         if self.settings.report_time {
             println!(
                 "{}",
@@ -547,7 +559,10 @@ impl DecisionFormatter {
 
     /// Given a sequence of decisions, returns an iterator
     ///
-    pub fn format_decisions<'a, I>(&self, decisions: I) -> FormattedDecisionsIter<I::IntoIter>
+    pub fn formatted_decisions_iter<'a, I>(
+        &self,
+        decisions: I,
+    ) -> FormattedDecisionsIter<I::IntoIter>
     where
         I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>> + 'a,
     {

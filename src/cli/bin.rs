@@ -3,8 +3,6 @@
 // https://github.com/imageworks/spk
 //! Main entry points and utilities for command line interface and interaction.
 
-use std::sync::atomic::Ordering;
-
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -96,15 +94,6 @@ pub enum Command {
 }
 
 fn main() {
-    // Set up a ctrl-c handler to allow the solver to be
-    // interrupted gracefully by the user.
-    if let Err(err) = ctrlc::set_handler(|| {
-        spk::io::USER_CANCELED.store(true, Ordering::Relaxed);
-    }) {
-        eprintln!("{}", err.to_string().red());
-        std::process::exit(2);
-    };
-
     let mut opts = Opt::parse();
     let code = match opts.run() {
         Ok(code) => code,
