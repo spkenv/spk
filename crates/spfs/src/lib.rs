@@ -4,6 +4,8 @@
 
 //! Filesystem isolation, capture and distribution.
 
+#![deny(unsafe_op_in_unsafe_fn)]
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
