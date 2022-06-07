@@ -20,7 +20,7 @@ pub struct CmdLsTags {
 
 impl CmdLsTags {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, &self.remote).await?;
+        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let path = relative_path::RelativePathBuf::from(&self.path);
         let mut names = repo.ls_tags(&path);

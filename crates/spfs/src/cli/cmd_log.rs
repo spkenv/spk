@@ -21,7 +21,7 @@ pub struct CmdLog {
 
 impl CmdLog {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, &self.remote).await?;
+        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let tag = spfs::tracking::TagSpec::parse(&self.tag)?;
         let mut tag_stream = repo.read_tag(&tag).await?.enumerate();

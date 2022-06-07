@@ -26,7 +26,7 @@ pub struct CmdWrite {
 
 impl CmdWrite {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, &self.remote).await?;
+        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let reader: std::pin::Pin<Box<dyn tokio::io::AsyncRead + Sync + Send>> = match &self.file {
             Some(file) => Box::pin(tokio::fs::File::open(file).await?),

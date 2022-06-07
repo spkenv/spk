@@ -34,7 +34,7 @@ impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let (repo, remote) = tokio::try_join!(
             config.get_local_repository_handle(),
-            spfs::config::open_repository_from_string(config, &Some(self.remote.clone())),
+            spfs::config::open_repository_from_string(config, Some(&self.remote)),
         )?;
 
         let env_spec =

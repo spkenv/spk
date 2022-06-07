@@ -25,7 +25,7 @@ pub struct CmdPlatforms {
 
 impl CmdPlatforms {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, &self.remote).await?;
+        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let mut platforms = repo.iter_platforms();
         while let Some(platform) = platforms.next().await {
