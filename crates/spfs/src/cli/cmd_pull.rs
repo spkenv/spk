@@ -34,8 +34,10 @@ pub struct CmdPull {
 
 impl CmdPull {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_local_repository_handle().await?;
-        let remote = spfs::config::open_repository_from_string(config, &self.remote).await?;
+        let (repo, remote) = tokio::try_join!(
+            config.get_local_repository_handle(),
+            spfs::config::open_repository_from_string(config, &self.remote)
+        )?;
 
         let env_spec =
             spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
