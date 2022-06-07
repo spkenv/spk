@@ -8,6 +8,9 @@ use std::collections::HashSet;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
+use futures::StreamExt;
+use tokio_stream::wrappers::IntervalStream;
+
 use super::runtime;
 use crate::{Error, Result};
 
@@ -173,12 +176,19 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // BUG(rbottriell) There is still a race condition here where a
     // child is created as we scan, and the parent exits before we
     // are able to see it so we don't think the child is relevant
-    let current_pids = find_processes_in_shared_mount_namespace(pid).await?;
+    let current_pids = match find_processes_in_shared_mount_namespace(pid).await {
+        Err(err) => {
+            tracing::error!(?err, "error while scanning active process tree");
+            return Err(err);
+        }
+        Ok(pids) => pids,
+    };
     tracked_processes.extend(current_pids);
 
     // it's possible that the runtime process(es)
     // completed before we were even able to see them
     if tracked_processes.is_empty() {
+        tracing::info!("no processes to track, monitor must exit");
         return Ok(());
     }
 
@@ -224,21 +234,45 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
 ///
 /// If the provided process does not exist, an empty set is returned
 async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u32>> {
+    const INITIAL_NS_READ_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(5);
+    const INITIAL_NS_READ_RETRY_COUNT: usize = 50;
+
     let ns_path = std::path::Path::new(PROC_DIR)
         .join(pid.to_string())
         .join("ns/mnt");
 
     tracing::debug!(?ns_path, "Getting process namespace");
-    let ns = match tokio::fs::read_link(&ns_path).await {
-        Ok(ns) => ns,
-        Err(err) => match err.kind() {
-            // it's possible that the runtime process already exited
-            // or was never started
-            std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
-            _ => return Err(err.into()),
-        },
-    };
-    find_processes_in_mount_namespace(&ns).await
+    let interval = tokio::time::interval(INITIAL_NS_READ_RETRY_DELAY);
+    let mut retries = IntervalStream::new(interval).take(INITIAL_NS_READ_RETRY_COUNT);
+    while retries.next().await.is_some() {
+        let ns = match tokio::fs::read_link(&ns_path).await {
+            Ok(ns) => ns,
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::PermissionDenied => {
+                    // NOTE(rbottriell): it's possible for the kernel to return
+                    // permission issues when the process has not yet fully been
+                    // established (maybe). It seems that when the monitor
+                    // process is too fast this can happen, but that trying again
+                    // a short time later succeeds just fine.
+                    continue;
+                }
+                std::io::ErrorKind::NotFound => {
+                    // it's possible that the runtime process already exited
+                    // or was never started
+                    tracing::debug!(
+                        ?ns_path,
+                        "runtime process appears to no longer exists or was never started"
+                    );
+                    return Ok(HashSet::new());
+                }
+                _ => return Err(err.into()),
+            },
+        };
+        return find_processes_in_mount_namespace(&ns).await;
+    }
+    Err(Error::String(
+        "Could not read runtime owner's namespace after several attempts".into(),
+    ))
 }
 
 /// Provided the namespace symlink content from /proc fs,
