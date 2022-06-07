@@ -6,6 +6,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
+use once_cell::sync::Lazy;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -462,5 +463,60 @@ impl Repositories {
             }
         }
         Ok(repos)
+    }
+}
+
+/// A solve has taken too long if it runs for more than this number of
+/// seconds and hasn't found a soluton. Setting this above zero will
+/// increase the verbosity every that many seconds the solve runs. If
+/// this is zero, the solver's verbosity will not increase during a
+/// solve.
+// TODO: this is probably too high, consider changing it to 10
+// seconds, and gettng this value from the spk config file, once there
+// is a config file.
+static TOO_LONG: Lazy<u64> = Lazy::new(|| {
+    std::env::var("SPK_SOLVE_TOO_LONG_SECONDS")
+        .unwrap_or_else(|_| String::from("30"))
+        .parse::<u64>()
+        .unwrap()
+});
+
+/// Maximum number of seconds to alow a solver to run before halting
+/// the solve. If this is zero, which is the default, the timeout is
+/// disabled and the solver will run to completion.
+// TODO: consider changing this to 5 mins, and gettng this value from
+// the spk config file, once there is a config file.
+static SOLVER_TIMEOUT: Lazy<u64> = Lazy::new(|| {
+    std::env::var("SPK_SOLVE_TIMEOUT")
+        .unwrap_or_else(|_| String::from("0"))
+        .parse::<u64>()
+        .unwrap()
+});
+
+#[derive(Args, Clone)]
+pub struct DecisionFormatterSettings {
+    /// If true, display solver time and stats after each solve
+    #[clap(short = 't', long)]
+    pub time: bool,
+
+    /// Increase the solver's verbosity every time this many seconds pass
+    #[clap(short, long, default_value_t = *TOO_LONG)]
+    pub increase_verbosity: u64,
+
+    /// Maximum number of seconds to let the solver run before halting the solve
+    #[clap(long, default_value_t = *SOLVER_TIMEOUT)]
+    pub timeout: u64,
+}
+
+impl DecisionFormatterSettings {
+    /// Get a decision formatter configured from the command line
+    /// options and their defaults.
+    pub fn get_formatter(&self, verbosity: u32) -> spk::io::DecisionFormatter {
+        spk::io::DecisionFormatterBuilder::new()
+            .with_verbosity(verbosity)
+            .with_time_and_stats(self.time)
+            .with_verbosity_increase_every(self.increase_verbosity)
+            .with_timeout(self.timeout)
+            .build()
     }
 }

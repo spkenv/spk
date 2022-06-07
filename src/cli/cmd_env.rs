@@ -27,9 +27,8 @@ pub struct Env {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
-    /// If true, display solver time/stats after each solve
-    #[clap(short, long)]
-    pub time: bool,
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The requests to resolve and run
     #[clap(name = "REQUESTS")]
@@ -55,7 +54,8 @@ impl Run for Env {
             solver.add_request(request)
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose, self.time)?;
+        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let solution = formatter.run_and_print_resolve(&solver)?;
 
         if self.verbose > 0 {
             eprintln!("{}", spk::io::format_solution(&solution, self.verbose));

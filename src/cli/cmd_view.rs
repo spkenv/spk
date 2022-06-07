@@ -22,9 +22,8 @@ pub struct View {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
-    /// If true, display solver time/stats after each solve
-    #[clap(short, long)]
-    time: bool,
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The package to show information about
     package: Option<String>,
@@ -54,8 +53,9 @@ impl Run for View {
         };
 
         let mut runtime = solver.run();
-        let solution = match spk::io::run_and_print_decisions(&mut runtime, self.verbose, self.time)
-        {
+
+        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let solution = match formatter.run_and_print_decisions(&mut runtime) {
             Ok(s) => s,
             Err(err @ spk::Error::Solve(_)) => {
                 println!("{}", err.to_string().red());
@@ -64,10 +64,10 @@ impl Run for View {
                     v if v < 2 => {
                         eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
                     }
-                    v => {
+                    _v => {
                         let graph = runtime.graph();
                         let graph = graph.read().unwrap();
-                        for line in spk::io::format_decisions(graph.walk().map(Ok), v) {
+                        for line in formatter.format_decisions(graph.walk().map(Ok)) {
                             println!("{}", line?);
                         }
                     }

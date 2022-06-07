@@ -22,9 +22,8 @@ pub struct Convert {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
-    /// If true, display solver time/stats after each solve
-    #[clap(short, long)]
-    pub time: bool,
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The converter to run
     converter: String,
@@ -50,7 +49,7 @@ impl Run for Convert {
             runtime: self.runtime.clone(),
             requests: self.requests.clone(),
             verbose: self.verbose,
-            time: self.time,
+            formatter_settings: self.formatter_settings.clone(),
             requested: vec![converter_package],
             command,
         };

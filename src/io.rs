@@ -9,7 +9,6 @@ use std::{
 };
 
 use colored::Colorize;
-use once_cell::sync::Lazy;
 
 use crate::{api, option_map, solve, Error, Result};
 
@@ -17,33 +16,6 @@ use crate::{api, option_map, solve, Error, Result};
 /// ctrl-c handler is set up on cli/bin but that's not a module that is
 /// accessible from here. Maybe it should be in global or lib?
 pub static USER_CANCELED: AtomicBool = AtomicBool::new(false);
-
-/// A solve has taken too long if it runs for more than this number of
-/// seconds and hasn't found a soluton
-// TODO: this is probably too high, consider changing this to about 10
-// secs? Once there's a spk config file, this should get its default
-// from that file.
-static TOO_LONG: Lazy<u64> = Lazy::new(|| {
-    std::env::var("SPK_SOLVE_TOO_LONG_SECONDS")
-        .unwrap_or_else(|_| String::from("30"))
-        .parse::<u64>()
-        .unwrap()
-});
-
-/// Number of times to allow TOO_LONG timeouts to increase the
-/// verbosity before just halting the solve so the problems so far,
-/// and stats, can be seen. Setting this to 0, the default, means
-/// don't ever halt the solver no matter how many TOO_LONG times have
-/// passed.
-// TODO: consider changing this to 20 (which is 10 mins assuming 30
-// secs intervals)? Once there's a spk config file, this should get
-// its default from that file.
-static MAX_TOO_LONG_COUNT: Lazy<u64> = Lazy::new(|| {
-    std::env::var("SPK_SOLVE_TOO_LONG_MAX_COUNT")
-        .unwrap_or_else(|_| String::from("0"))
-        .parse::<u64>()
-        .unwrap()
-});
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name.bold().to_string();
@@ -205,43 +177,36 @@ pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
     }
 }
 
-pub fn format_decisions<'a, I>(decisions: I, verbosity: u32) -> FormattedDecisionsIter<I::IntoIter>
-where
-    I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>> + 'a,
-{
-    FormattedDecisionsIter::new(decisions, verbosity)
-}
-
 pub struct FormattedDecisionsIter<I>
 where
     I: Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
 {
     inner: I,
     level: usize,
-    verbosity: u32,
     output_queue: VecDeque<String>,
-    // For too long and ctrlc interruption checks during solver steps
+    verbosity: u32,
+    // For "too long" and ctrl-c interruption checks during solver steps
     start: Instant,
-    too_long: Duration,
     too_long_counter: u64,
+    settings: DecisionFormatterSettings,
 }
 
 impl<I> FormattedDecisionsIter<I>
 where
     I: Iterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>>,
 {
-    pub fn new<T>(inner: T, verbosity: u32) -> Self
+    pub(crate) fn new<T>(inner: T, settings: DecisionFormatterSettings) -> Self
     where
         T: IntoIterator<IntoIter = I>,
     {
         Self {
             inner: inner.into_iter(),
             level: 0,
-            verbosity,
             output_queue: VecDeque::new(),
+            verbosity: settings.verbosity,
             start: Instant::now(),
-            too_long: Duration::from_secs(*TOO_LONG),
             too_long_counter: 0,
+            settings,
         }
     }
 
@@ -253,18 +218,20 @@ where
     }
 
     fn check_if_taking_too_long(&mut self) -> Result<()> {
-        if self.start.elapsed() > self.too_long {
+        if self.start.elapsed() > self.settings.too_long {
             self.too_long_counter += 1;
 
             // Check how many times this has increased the verbosity.
-            if *MAX_TOO_LONG_COUNT > 0 && self.too_long_counter >= *MAX_TOO_LONG_COUNT {
+            if self.settings.max_too_long_count > 0
+                && self.too_long_counter >= self.settings.max_too_long_count
+            {
                 // The verbosity has been increased too many times
                 // now. The solve has taken far too long, so stop it
                 // with an interruption error. This lets the caller
                 // show the issues and problem packages encountered up
                 // to this point to the user, which may help them see
                 // where the solve is bogged down.
-                return Err(Error::Solve(solve::Error::SolverInterrupted(format!("Solve is taking far too long, >{} secs.\nStopping. Please review the problems hit so far ...", *MAX_TOO_LONG_COUNT * *TOO_LONG))));
+                return Err(Error::Solve(solve::Error::SolverInterrupted(format!("Solve is taking far too long, > {} secs.\nStopping. Please review the problems hit so far ...", self.settings.max_too_long_count * self.settings.too_long.as_secs()))));
             }
 
             // The maximum number of increases hasn't been hit.
@@ -272,8 +239,8 @@ where
             if self.verbosity < u32::MAX {
                 self.verbosity += 1;
                 eprintln!(
-                    "Solve is taking too long, >{} secs. Increasing verbosity level to {}",
-                    self.too_long.as_secs(),
+                    "Solve is taking too long, > {} secs. Increasing verbosity level to {}",
+                    self.settings.too_long.as_secs(),
                     self.verbosity
                 );
             }
@@ -439,88 +406,193 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
     msg.red().to_string()
 }
 
-/// Run the solver to completion, printing each step to stdout
-/// as appropriate given a verbosity level.
-pub fn run_and_print_resolve(
-    solver: &solve::Solver,
+pub struct DecisionFormatterBuilder {
     verbosity: u32,
-    report_time: bool,
-) -> Result<solve::Solution> {
-    let mut runtime = solver.run();
-    run_and_print_decisions(&mut runtime, verbosity, report_time)
+    time: bool,
+    verbosity_increase_seconds: u64,
+    timeout: u64,
 }
 
-/// Run the solver runtime to completion, printing each step to stdout
-/// as appropriate given a verbosity level.
-pub fn run_and_print_decisions(
-    mut runtime: &mut solve::SolverRuntime,
-    verbosity: u32,
-    report_time: bool,
-) -> Result<solve::Solution> {
-    // Step through the solver runtime's decisions - this runs the solver
-    let start = Instant::now();
-    for line in format_decisions(&mut runtime, verbosity) {
-        match line {
-            Ok(message) => println!("{message}"),
-            Err(e) => {
-                match e {
-                    Error::Solve(solve::Error::SolverInterrupted(mesg)) => {
-                        // Note: the solution probably won't be
-                        // complete because of the interruption.
-                        let solve_time = start.elapsed();
-                        eprintln!("{}", mesg.yellow());
-                        eprintln!("{}", format_solve_stats(&runtime.solver, solve_time));
-                        return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
-                    }
-                    _ => return Err(e),
-                };
-            }
-        };
+impl Default for DecisionFormatterBuilder {
+    fn default() -> Self {
+        Self::new()
     }
-
-    // Note: this time includes the output time because the solver is
-    // run in the format_decisions() call above
-    if report_time {
-        println!("{}", format_solve_stats(&runtime.solver, start.elapsed()));
-    }
-
-    runtime.current_solution()
 }
 
-pub fn format_solve_stats(solver: &solve::Solver, solve_duration: Duration) -> String {
-    // Show how long this solve took
-    let mut out: String = " Solver took: ".to_string();
-    out.push_str(&format!(
-        "{} seconds\n",
-        solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9
-    ));
-
-    // TODO: Add more stats here
-
-    // Show all errors sorted by highest to lowest frequency
-    let errors = solver.error_frequency();
-    if !errors.is_empty() {
-        // TODO: there can be lots of low count problems, might want a
-        // minimum count cutoff, perhaps a couple of orders of
-        // magnitude below the highest count one, or just the top 20 errors?
-        out.push_str(" Solver hit these problems:");
-
-        // Get a reverse sorted list (by count/frequency) of the error
-        // messages
-        let mut sorted_by_count: Vec<(&String, &u64)> = errors.iter().collect();
-        sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
-
-        for (error_mesg, count) in sorted_by_count {
-            if error_mesg == "Exception: Branch already attempted" {
-                // Skip these, they don't help the user isolate the problem
-                continue;
-            }
-            let times = if *count > 1 { "times" } else { "time" };
-            out.push_str(&format!("\n   {count} {times} {error_mesg}"));
+impl DecisionFormatterBuilder {
+    pub fn new() -> Self {
+        Self {
+            verbosity: 0,
+            time: false,
+            verbosity_increase_seconds: 0,
+            timeout: 0,
         }
-    } else {
-        out.push_str(" Solver hit no problems");
     }
 
-    out
+    pub fn with_verbosity(&mut self, verbosity: u32) -> &mut Self {
+        self.verbosity = verbosity;
+        self
+    }
+
+    pub fn with_time_and_stats(&mut self, time: bool) -> &mut Self {
+        self.time = time;
+        self
+    }
+
+    pub fn with_verbosity_increase_every(&mut self, seconds: u64) -> &mut Self {
+        self.verbosity_increase_seconds = seconds;
+        self
+    }
+
+    pub fn with_timeout(&mut self, timeout: u64) -> &mut Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn build(&self) -> DecisionFormatter {
+        let too_long_seconds = if self.verbosity_increase_seconds == 0
+            || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
+        {
+            // If verbosity increases are not turned on, or are more
+            // than the timeout and the timeout is set, then set this
+            // to the timeout seconds. This will ensure max_count is
+            // set to 1 below, and that will mean the first time the
+            // "is it taking too long" check triggers will be at
+            // timeout seconds.
+            self.timeout
+        } else {
+            // Verbosity increases are turned on, and are less than the
+            // timeout value or the timeout is not set.
+            self.verbosity_increase_seconds
+        };
+
+        // Work out the correct maximum number of "is it taking too
+        // long" checks before stopping a solve
+        let max_too_long_checks = if self.timeout > 0 {
+            (self.timeout as f64 / too_long_seconds as f64).ceil() as u64
+        } else {
+            0
+        };
+
+        DecisionFormatter {
+            settings: DecisionFormatterSettings {
+                verbosity: self.verbosity,
+                report_time: self.time,
+                too_long: Duration::from_secs(too_long_seconds),
+                max_too_long_count: max_too_long_checks,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct DecisionFormatterSettings {
+    pub(crate) verbosity: u32,
+    pub(crate) report_time: bool,
+    pub(crate) too_long: Duration,
+    pub(crate) max_too_long_count: u64,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct DecisionFormatter {
+    pub(crate) settings: DecisionFormatterSettings,
+}
+
+impl DecisionFormatter {
+    /// Run the solver to completion, printing each step to stdout
+    /// as appropriate given a verbosity level.
+    pub fn run_and_print_resolve(&self, solver: &solve::Solver) -> Result<solve::Solution> {
+        let mut runtime = solver.run();
+        self.run_and_print_decisions(&mut runtime)
+    }
+
+    /// Run the solver runtime to completion, printing each step to stdout
+    /// as appropriate given a verbosity level.
+    pub fn run_and_print_decisions(
+        &self,
+        mut runtime: &mut solve::SolverRuntime,
+    ) -> Result<solve::Solution> {
+        // Step through the solver runtime's decisions - this runs the solver
+        let start = Instant::now();
+        for line in self.format_decisions(&mut runtime) {
+            match line {
+                Ok(message) => println!("{message}"),
+                Err(e) => {
+                    match e {
+                        Error::Solve(solve::Error::SolverInterrupted(mesg)) => {
+                            // Note: the solution probably won't be
+                            // complete because of the interruption.
+                            let solve_time = start.elapsed();
+                            eprintln!("{}", mesg.yellow());
+                            eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
+                            return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
+                        }
+                        _ => return Err(e),
+                    };
+                }
+            };
+        }
+
+        // Note: this time includes the output time because the solver is
+        // run in the format_decisions() call above
+        if self.settings.report_time {
+            println!(
+                "{}",
+                self.format_solve_stats(&runtime.solver, start.elapsed())
+            );
+        }
+
+        runtime.current_solution()
+    }
+
+    /// Given a sequence of decisions, returns an iterator
+    ///
+    pub fn format_decisions<'a, I>(&self, decisions: I) -> FormattedDecisionsIter<I::IntoIter>
+    where
+        I: IntoIterator<Item = Result<(solve::graph::Node, solve::graph::Decision)>> + 'a,
+    {
+        FormattedDecisionsIter::new(decisions, self.settings)
+    }
+
+    pub(crate) fn format_solve_stats(
+        &self,
+        solver: &solve::Solver,
+        solve_duration: Duration,
+    ) -> String {
+        // Show how long this solve took
+        let mut out: String = " Solver took: ".to_string();
+        out.push_str(&format!(
+            "{} seconds\n",
+            solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9
+        ));
+
+        // TODO: Add more stats here
+
+        // Show all errors sorted by highest to lowest frequency
+        let errors = solver.error_frequency();
+        if !errors.is_empty() {
+            // TODO: there can be lots of low count problems, might want a
+            // minimum count cutoff, perhaps a couple of orders of
+            // magnitude below the highest count one, or just the top 20 errors?
+            out.push_str(" Solver hit these problems:");
+
+            // Get a reverse sorted list (by count/frequency) of the error
+            // messages
+            let mut sorted_by_count: Vec<(&String, &u64)> = errors.iter().collect();
+            sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
+
+            for (error_mesg, count) in sorted_by_count {
+                if error_mesg == "Exception: Branch already attempted" {
+                    // Skip these, they don't help the user isolate the problem
+                    continue;
+                }
+                let times = if *count > 1 { "times" } else { "time" };
+                out.push_str(&format!("\n   {count} {times} {error_mesg}"));
+            }
+        } else {
+            out.push_str(" Solver hit no problems");
+        }
+
+        out
+    }
 }

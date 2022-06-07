@@ -41,9 +41,8 @@ pub struct Build {
     #[clap(long, hide = true)]
     variant: Option<usize>,
 
-    /// If true, display solver time/stats after each solve
-    #[clap(short, long)]
-    time: bool,
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 }
 
 /// Runs make-source and then make-binary
@@ -78,7 +77,7 @@ impl Run for Build {
                 env: self.env,
                 packages,
                 variant: self.variant,
-                time: self.time,
+                formatter_settings: self.formatter_settings.clone(),
             };
             let code = make_binary.run()?;
             if code != 0 {

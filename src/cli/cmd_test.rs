@@ -24,9 +24,8 @@ pub struct Test {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
-    /// If true, display solver time/stats after each solve
-    #[clap(short, long)]
-    time: bool,
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// Test in the current directory, instead of the source package
     ///
@@ -142,8 +141,7 @@ impl Run for Test {
                             spk::io::format_options(&opts)
                         );
 
-                        let verbose = self.verbose;
-                        let report_time = self.time;
+                        let formatter = self.formatter_settings.get_formatter(self.verbose);
                         match stage {
                             spk::api::TestStage::Sources => spk::test::PackageSourceTester::new(
                                 spec.clone(),
@@ -154,7 +152,7 @@ impl Run for Test {
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
                             .watch_environment_resolve(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose, report_time)
+                                formatter.run_and_print_decisions(r)
                             })
                             .test()?,
 
@@ -175,12 +173,8 @@ impl Run for Test {
                                         )
                                     }),
                             )
-                            .with_source_resolver(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose, report_time)
-                            })
-                            .with_build_resolver(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose, report_time)
-                            })
+                            .with_source_resolver(move |r| formatter.run_and_print_decisions(r))
+                            .with_build_resolver(move |r| formatter.run_and_print_decisions(r))
                             .test()?,
 
                             spk::api::TestStage::Install => spk::test::PackageInstallTester::new(
@@ -192,7 +186,7 @@ impl Run for Test {
                             .with_requirements(test.requirements.clone())
                             .with_source(source.clone())
                             .watch_environment_resolve(move |r| {
-                                spk::io::run_and_print_decisions(r, verbose, report_time)
+                                formatter.run_and_print_decisions(r)
                             })
                             .test()?,
                         }
