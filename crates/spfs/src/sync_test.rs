@@ -21,7 +21,7 @@ async fn test_sync_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
     let (_handle, config) = config.await;
     let local = config.get_local_repository().await.unwrap().into();
     let origin = config.get_remote("origin").await.unwrap();
-    let syncer = Syncer::new_silent(&local, &origin);
+    let syncer = Syncer::new(&local, &origin);
     match syncer.sync_ref("--test-unknown--").await {
         Err(Error::UnknownReference(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
@@ -63,7 +63,7 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
         .await
         .unwrap();
 
-    let syncer = Syncer::new_silent(&local, &remote);
+    let syncer = Syncer::new(&local, &remote);
     syncer.sync_ref(tag.to_string()).await.unwrap();
 
     assert!(remote.read_ref("testing").await.is_ok());
@@ -111,7 +111,7 @@ async fn test_sync_ref(
         .await
         .unwrap();
 
-    Syncer::new_silent(&repo_a, &repo_b)
+    Syncer::new(&repo_a, &repo_b)
         .sync_ref("testing")
         .await
         .expect("failed to sync ref");
@@ -120,7 +120,7 @@ async fn test_sync_ref(
     assert!(repo_b.has_platform(platform.digest().unwrap()).await);
     assert!(repo_b.has_layer(layer.digest().unwrap()).await);
 
-    Syncer::new_silent(&repo_b, &repo_a)
+    Syncer::new(&repo_b, &repo_a)
         .sync_ref("testing")
         .await
         .expect("failed to sync back");
@@ -174,7 +174,7 @@ async fn test_sync_through_tar(
         .await
         .unwrap();
 
-    Syncer::new_silent(&repo_a, &repo_tar)
+    Syncer::new(&repo_a, &repo_tar)
         .sync_ref("testing")
         .await
         .unwrap();
@@ -183,7 +183,7 @@ async fn test_sync_through_tar(
         .await
         .unwrap()
         .into();
-    Syncer::new_silent(&repo_tar, &repo_b)
+    Syncer::new(&repo_tar, &repo_b)
         .sync_ref("testing")
         .await
         .unwrap();

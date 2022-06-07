@@ -27,13 +27,11 @@ impl Sync {
         src: &'src spfs::storage::RepositoryHandle,
         dest: &'dst spfs::storage::RepositoryHandle,
     ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
-        let mut syncer = spfs::Syncer::new(src, dest);
-        syncer
+        spfs::Syncer::new(src, dest)
             .with_sync_existing_objects(self.resync)
             .with_sync_existing_payloads(self.resync)
             .with_sync_existing_tags(self.sync || self.resync)
-            .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-        syncer
+            .with_reporter(spfs::sync::ConsoleSyncReporter::default())
     }
 }
 

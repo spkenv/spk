@@ -18,7 +18,7 @@ mod sync_test;
 pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
-    reporter: Option<Reporter>,
+    reporter: Reporter,
     skip_existing_tags: bool,
     skip_existing_objects: bool,
     skip_existing_payloads: bool,
@@ -28,14 +28,14 @@ pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
 }
 
 impl<'src, 'dst> Syncer<'src, 'dst> {
-    pub fn new_silent(
+    pub fn new(
         src: &'src storage::RepositoryHandle,
         dest: &'dst storage::RepositoryHandle,
     ) -> Self {
         Self {
             src,
             dest,
-            reporter: None,
+            reporter: SilentSyncReporter::default(),
             skip_existing_tags: true,
             skip_existing_objects: true,
             skip_existing_payloads: true,
@@ -50,28 +50,11 @@ impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
 where
     Reporter: SyncReporter,
 {
-    pub fn new(
-        src: &'src storage::RepositoryHandle,
-        dest: &'dst storage::RepositoryHandle,
-    ) -> Self {
-        Self {
-            src,
-            dest,
-            reporter: None,
-            skip_existing_tags: true,
-            skip_existing_objects: true,
-            skip_existing_payloads: true,
-            manifest_semaphore: Semaphore::new(100),
-            payload_semaphore: Semaphore::new(100),
-            processed_digests: RwLock::new(HashSet::new()),
-        }
-    }
-
     /// When true, also sync any tag that already exists in the destination repo.
     ///
     /// This is off by default, but can be enabled in order to retrieve updated tag
     /// information from the source repo.
-    pub fn with_sync_existing_tags(&mut self, sync_existing: bool) -> &mut Self {
+    pub fn with_sync_existing_tags(mut self, sync_existing: bool) -> Self {
         self.skip_existing_tags = !sync_existing;
         if !sync_existing {
             self.skip_existing_payloads = true;
@@ -85,7 +68,7 @@ where
     /// repository that has some parent object but is missing one or more children.
     ///
     /// Setting this to false will also disable [`Self::with_sync_existing_payload`].
-    pub fn with_sync_existing_objects(&mut self, sync_existing: bool) -> &mut Self {
+    pub fn with_sync_existing_objects(mut self, sync_existing: bool) -> Self {
         self.skip_existing_objects = !sync_existing;
         if !sync_existing {
             self.skip_existing_payloads = true;
@@ -97,7 +80,7 @@ where
     ///
     /// This is off by default, but can be enabled in order to repair a corrupt
     /// repository. Setting this to true, also implies [`Self::with_sync_existing_object`].
-    pub fn with_sync_existing_payloads(&mut self, sync_existing: bool) -> &mut Self {
+    pub fn with_sync_existing_payloads(mut self, sync_existing: bool) -> Self {
         self.skip_existing_payloads = !sync_existing;
         if sync_existing {
             self.skip_existing_objects = false;
@@ -109,7 +92,7 @@ where
     ///
     /// The possible total concurrent sync tasks will be the
     /// layer concurrency plus the payload concurrency.
-    pub fn with_max_concurrent_manifests(&mut self, concurrency: usize) -> &mut Self {
+    pub fn with_max_concurrent_manifests(mut self, concurrency: usize) -> Self {
         self.manifest_semaphore = Semaphore::new(concurrency);
         self
     }
@@ -118,15 +101,27 @@ where
     ///
     /// The possible total concurrent sync tasks will be the
     /// layer concurrency plus the payload concurrency.
-    pub fn with_max_payload_concurrency(&mut self, concurrency: usize) -> &mut Self {
+    pub fn with_max_payload_concurrency(mut self, concurrency: usize) -> Self {
         self.payload_semaphore = Semaphore::new(concurrency);
         self
     }
 
     /// Report progress to the given instance, replacing any existing one
-    pub fn with_reporter(&mut self, reporter: Reporter) -> &mut Self {
-        self.reporter = Some(reporter);
-        self
+    pub fn with_reporter<R>(self, reporter: R) -> Syncer<'src, 'dst, R>
+    where
+        R: SyncReporter,
+    {
+        Syncer {
+            src: self.src,
+            dest: self.dest,
+            reporter,
+            skip_existing_tags: self.skip_existing_tags,
+            skip_existing_objects: self.skip_existing_objects,
+            skip_existing_payloads: self.skip_existing_payloads,
+            manifest_semaphore: self.manifest_semaphore,
+            payload_semaphore: self.payload_semaphore,
+            processed_digests: self.processed_digests,
+        }
     }
 
     /// Sync the object(s) referenced by the given string.
@@ -424,128 +419,6 @@ pub trait SyncReporter: Send + Sync {
 
     /// Called when a payload has finished syncing
     fn synced_payload(&self, _result: &SyncPayloadResult) {}
-}
-
-impl<T: SyncReporter> SyncReporter for Option<T> {
-    fn visit_env(&self, env: &tracking::EnvSpec) {
-        if let Some(ref r) = self {
-            r.visit_env(env)
-        }
-    }
-
-    fn synced_env(&self, result: &SyncEnvResult) {
-        if let Some(ref r) = self {
-            r.synced_env(result)
-        }
-    }
-
-    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
-        if let Some(ref r) = self {
-            r.visit_env_item(item)
-        }
-    }
-
-    fn synced_env_item(&self, result: &SyncEnvItemResult) {
-        if let Some(ref r) = self {
-            r.synced_env_item(result)
-        }
-    }
-
-    fn visit_tag(&self, tag: &tracking::TagSpec) {
-        if let Some(ref r) = self {
-            r.visit_tag(tag)
-        }
-    }
-
-    fn synced_tag(&self, result: &SyncTagResult) {
-        if let Some(ref r) = self {
-            r.synced_tag(result)
-        }
-    }
-
-    fn visit_object(&self, obj: &graph::Object) {
-        if let Some(ref r) = self {
-            r.visit_object(obj)
-        }
-    }
-
-    fn synced_object(&self, result: &SyncObjectResult) {
-        if let Some(ref r) = self {
-            r.synced_object(result)
-        }
-    }
-
-    fn visit_platform(&self, platform: &graph::Platform) {
-        if let Some(ref r) = self {
-            r.visit_platform(platform)
-        }
-    }
-
-    fn synced_platform(&self, result: &SyncPlatformResult) {
-        if let Some(ref r) = self {
-            r.synced_platform(result)
-        }
-    }
-
-    fn visit_layer(&self, layer: &graph::Layer) {
-        if let Some(ref r) = self {
-            r.visit_layer(layer)
-        }
-    }
-
-    fn synced_layer(&self, result: &SyncLayerResult) {
-        if let Some(ref r) = self {
-            r.synced_layer(result)
-        }
-    }
-
-    fn visit_manifest(&self, manifest: &graph::Manifest) {
-        if let Some(ref r) = self {
-            r.visit_manifest(manifest)
-        }
-    }
-
-    fn synced_manifest(&self, result: &SyncManifestResult) {
-        if let Some(ref r) = self {
-            r.synced_manifest(result)
-        }
-    }
-
-    fn visit_entry(&self, entry: &graph::Entry) {
-        if let Some(ref r) = self {
-            r.visit_entry(entry)
-        }
-    }
-
-    fn synced_entry(&self, result: &SyncEntryResult) {
-        if let Some(ref r) = self {
-            r.synced_entry(result)
-        }
-    }
-
-    fn visit_blob(&self, blob: &graph::Blob) {
-        if let Some(ref r) = self {
-            r.visit_blob(blob)
-        }
-    }
-
-    fn synced_blob(&self, result: &SyncBlobResult) {
-        if let Some(ref r) = self {
-            r.synced_blob(result)
-        }
-    }
-
-    fn visit_payload(&self, digest: encoding::Digest) {
-        if let Some(ref r) = self {
-            r.visit_payload(digest)
-        }
-    }
-
-    fn synced_payload(&self, result: &SyncPayloadResult) {
-        if let Some(ref r) = self {
-            r.synced_payload(result)
-        }
-    }
 }
 
 #[derive(Default)]
