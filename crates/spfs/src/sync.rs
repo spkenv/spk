@@ -334,19 +334,21 @@ where
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(&blob);
-        let result = unsafe {
-            // this function is unsafe to call unless the blob
-            // is synced with it, which we are doing here
-            self.sync_payload(blob.payload).await?
-        };
+        // Safety: sync_payload is unsafe to call unless the blob
+        // is synced with it, which is the purpose of this function.
+        let result = unsafe { self.sync_payload(blob.payload).await? };
         self.dest.write_blob(blob.clone()).await?;
         let res = SyncBlobResult::Synced { blob, result };
         self.reporter.synced_blob(&res);
         Ok(res)
     }
 
-    /// It is unsafe to call this sync function on it's own,
-    /// as any payload should be synced alongside it's
+    /// Sync a payload with the provided digest
+    ///
+    /// # Safety
+    ///
+    /// It is unsafe to call this sync function on its own,
+    /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
     async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
         if !self.processed_digests.write().await.insert(digest) {
