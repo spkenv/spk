@@ -158,7 +158,6 @@ impl TagStorage for FSRepository {
                 Ok(())
             }
             Err(Error::UnknownReference(_)) => {
-                tracing::warn!("Tag filepath does not exist create new one!");
                 tags.push(tag.clone());
                 Ok(())
             }
