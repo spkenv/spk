@@ -7,18 +7,17 @@ use std::os::unix::ffi::OsStrExt;
 
 use clap::Parser;
 
-use spfs::prelude::*;
+use super::args;
 
 /// Run a program in a configured spfs environment
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-run")]
 pub struct CmdRun {
+    #[clap(flatten)]
+    pub sync: args::Sync,
+
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
-
-    /// Try to pull the latest iteration of each tag even if it exists locally
-    #[clap(short, long)]
-    pub pull: bool,
 
     /// Mount the spfs filesystem in edit mode (true if REF is empty or not given)
     #[clap(short, long)]
@@ -46,7 +45,7 @@ pub struct CmdRun {
 
 impl CmdRun {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_local_repository().await?;
+        let repo = config.get_local_repository_handle().await?;
         let runtimes = config.get_runtime_storage().await?;
         let mut runtime = match &self.name {
             Some(name) => runtimes.create_named_runtime(name).await?,
@@ -55,16 +54,16 @@ impl CmdRun {
         match self.reference.as_str() {
             "-" | "" => self.edit = true,
             reference => {
-                let env_spec = spfs::tracking::parse_env_spec(reference)?;
-                for target in env_spec {
-                    let target = target.to_string();
-                    if self.pull || !repo.has_ref(target.as_str()).await {
-                        tracing::info!(reference = ?target, "pulling target ref");
-                        spfs::pull_ref(target.as_str()).await?
-                    }
-
-                    let obj = repo.read_ref(target.as_str()).await?;
-                    runtime.push_digest(&obj.digest()?);
+                let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
+                let origin = config.get_remote("origin").await?;
+                let synced = self
+                    .sync
+                    .get_syncer(&origin, &repo)
+                    .sync_env(env_spec)
+                    .await?;
+                for item in synced.env.iter() {
+                    let digest = item.resolve_digest(&*repo).await?;
+                    runtime.push_digest(digest);
                 }
             }
         }

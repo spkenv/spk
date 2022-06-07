@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use rstest::{fixture, rstest};
 
-use super::{push_ref, sync_ref};
+use super::Syncer;
 use crate::config::Config;
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error};
@@ -16,25 +16,21 @@ use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]
-async fn test_push_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
+async fn test_sync_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
     init_logging();
     let (_handle, config) = config.await;
-    match push_ref(
-        "--test-unknown--",
-        Some(config.get_remote("origin").await.unwrap()),
-    )
-    .await
-    {
+    let local = config.get_local_repository().await.unwrap().into();
+    let origin = config.get_remote("origin").await.unwrap();
+    let syncer = Syncer::new(&local, &origin);
+    match syncer.sync_ref("--test-unknown--").await {
         Err(Error::UnknownReference(_)) => (),
         Err(err) => panic!("expected unknown reference error, got {:?}", err),
         Ok(_) => panic!("expected unknown reference error, got success"),
     }
 
-    match push_ref(
-        encoding::Digest::default().to_string(),
-        Some(config.get_remote("origin").await.unwrap()),
-    )
-    .await
+    match syncer
+        .sync_ref(encoding::Digest::default().to_string())
+        .await
     {
         Err(Error::UnknownObject(_)) => (),
         Err(err) => panic!("expected unknown object error, got {:?}", err),
@@ -67,12 +63,13 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
         .await
         .unwrap();
 
-    sync_ref(tag.to_string(), &local, &remote).await.unwrap();
+    let syncer = Syncer::new(&local, &remote);
+    syncer.sync_ref(tag.to_string()).await.unwrap();
 
     assert!(remote.read_ref("testing").await.is_ok());
     assert!(remote.has_layer(layer.digest().unwrap()).await);
 
-    assert!(sync_ref(tag.to_string(), &local, &remote).await.is_ok());
+    assert!(syncer.sync_ref(tag.to_string()).await.is_ok());
 }
 
 #[rstest(
@@ -114,7 +111,8 @@ async fn test_sync_ref(
         .await
         .unwrap();
 
-    sync_ref("testing", &repo_a, &repo_b)
+    Syncer::new(&repo_a, &repo_b)
+        .sync_ref("testing")
         .await
         .expect("failed to sync ref");
 
@@ -122,7 +120,8 @@ async fn test_sync_ref(
     assert!(repo_b.has_platform(platform.digest().unwrap()).await);
     assert!(repo_b.has_layer(layer.digest().unwrap()).await);
 
-    sync_ref("testing", &repo_b, &repo_a)
+    Syncer::new(&repo_b, &repo_a)
+        .sync_ref("testing")
         .await
         .expect("failed to sync back");
 
@@ -175,13 +174,19 @@ async fn test_sync_through_tar(
         .await
         .unwrap();
 
-    sync_ref("testing", &repo_a, &repo_tar).await.unwrap();
+    Syncer::new(&repo_a, &repo_tar)
+        .sync_ref("testing")
+        .await
+        .unwrap();
     drop(repo_tar);
     let repo_tar = storage::tar::TarRepository::open(dir.join("repo.tar"))
         .await
         .unwrap()
         .into();
-    sync_ref("testing", &repo_tar, &repo_b).await.unwrap();
+    Syncer::new(&repo_tar, &repo_b)
+        .sync_ref("testing")
+        .await
+        .unwrap();
 
     assert!(repo_b.read_ref("testing").await.is_ok());
     assert!(repo_b.has_layer(layer.digest().unwrap()).await);

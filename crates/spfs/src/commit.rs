@@ -70,7 +70,7 @@ pub async fn commit_layer(
         return Err(Error::NothingToCommit);
     }
     let layer = repo.create_layer(&graph::Manifest::from(&manifest)).await?;
-    runtime.push_digest(&layer.digest()?);
+    runtime.push_digest(layer.digest()?);
     runtime.status.editable = false;
     runtime.save_state_to_storage().await?;
     remount_runtime(runtime).await?;

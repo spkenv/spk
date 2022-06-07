@@ -13,8 +13,11 @@ main!(CmdRender);
 
 #[derive(Debug, Parser)]
 pub struct CmdRender {
+    #[clap(flatten)]
+    sync: args::Sync,
+
     #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    verbose: usize,
 
     /// Allow re-rendering when the target directory is not empty
     #[clap(long = "allow-existing")]
@@ -29,20 +32,19 @@ pub struct CmdRender {
 
 impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let env_spec = spfs::tracking::EnvSpec::new(&self.reference)?;
-        let repo = config.get_local_repository().await?;
+        let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
+        let repo = config.get_local_repository_handle().await?;
+        let origin = config.get_remote("origin").await?;
 
-        for target in &env_spec.items {
-            let target = target.to_string();
-            if !repo.has_ref(target.as_str()).await {
-                tracing::info!(reference = ?target, "pulling target ref");
-                spfs::pull_ref(target.as_str()).await?;
-            }
-        }
+        let synced = self
+            .sync
+            .get_syncer(&origin, &repo)
+            .sync_env(env_spec)
+            .await?;
 
         let path = match &self.target {
-            Some(target) => self.render_to_dir(env_spec, target).await?,
-            None => self.render_to_repo(env_spec, config).await?,
+            Some(target) => self.render_to_dir(synced.env, target).await?,
+            None => self.render_to_repo(synced.env, config).await?,
         };
 
         tracing::info!("render completed successfully");
@@ -78,8 +80,8 @@ impl CmdRender {
     ) -> spfs::Result<std::path::PathBuf> {
         let repo = config.get_local_repository().await?;
         let renders = repo.renders()?;
-        let mut digests = Vec::with_capacity(env_spec.items.len());
-        for env_item in env_spec.items {
+        let mut digests = Vec::with_capacity(env_spec.len());
+        for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
             let digest = repo.resolve_ref(env_item.as_ref()).await?;
             digests.push(digest);

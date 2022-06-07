@@ -13,8 +13,8 @@ static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 /// Once modified, active changes can be committed
 ///
 /// Errors:
-/// - [`spfs::Error::NoActiveRuntime`]: if there is no active runtime
-/// - [`spfs::Error::RuntimeAlreadyEditable`]: if the active runtime is already editable
+/// - [`Error::NoActiveRuntime`]: if there is no active runtime
+/// - [`Error::RuntimeAlreadyEditable`]: if the active runtime is already editable
 /// - if there are issues remounting the filesystem
 pub async fn make_active_runtime_editable() -> Result<()> {
     let mut rt = active_runtime().await?;
@@ -59,8 +59,8 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
 /// Return the currently active runtime
 ///
 /// # Errors:
-/// - [`spfs::Error::NoActiveRuntime`] if there is no runtime detected
-/// - [`spfs::Error::UnknownRuntime`] if the environment references a
+/// - [`Error::NoActiveRuntime`] if there is no runtime detected
+/// - [`Error::UnknownRuntime`] if the environment references a
 ///   runtime that is not in the configured runtime storage
 /// - other issues loading the config or accessing the runtime data
 pub async fn active_runtime() -> Result<runtime::Runtime> {

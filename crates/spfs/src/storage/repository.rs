@@ -55,7 +55,7 @@ pub trait Repository:
     /// If supported, returns the type responsible for locally rendered manifests
     ///
     /// # Errors:
-    /// - [`NoRenderStorage`] - if this repository does not support manifest rendering
+    /// - [`Error::NoRenderStorage`] - if this repository does not support manifest rendering
     fn renders(&self) -> Result<Box<dyn ManifestViewer>> {
         Err(Error::NoRenderStorage(self.address()))
     }

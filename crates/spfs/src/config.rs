@@ -195,13 +195,18 @@ impl Config {
         storage::fs::FSRepository::create(&self.storage.root).await
     }
 
+    /// Get the local repository handle as configured.
+    pub async fn get_local_repository_handle(&self) -> Result<storage::RepositoryHandle> {
+        Ok(self.get_local_repository().await?.into())
+    }
+
     /// Get a remote repository by name, or the local repository.
     ///
     /// If `name` is defined, attempt to open the named remote
     /// repository; otherwise open the local repository.
     pub async fn get_remote_repository_or_local<S>(
         &self,
-        name: &Option<S>,
+        name: Option<S>,
     ) -> Result<storage::RepositoryHandle>
     where
         S: AsRef<str>,
@@ -320,7 +325,7 @@ pub async fn open_repository<S: AsRef<str>>(
 /// When the repository specifier is a url, use `open_repository` instead.
 pub async fn open_repository_from_string<S: AsRef<str>>(
     config: &Config,
-    specifier: &Option<S>,
+    specifier: Option<S>,
 ) -> crate::Result<storage::RepositoryHandle> {
     // Discovering that the given string is not a configured remote
     // name is relatively cheap, so attempt to open a remote that

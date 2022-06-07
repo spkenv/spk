@@ -365,14 +365,14 @@ impl Runtime {
     /// This will update the configuration of the runtime,
     /// and change the overlayfs options, but not save the runtime or
     /// update any currently running environment.
-    pub fn push_digest(&mut self, digest: &encoding::Digest) {
+    pub fn push_digest(&mut self, digest: encoding::Digest) {
         let mut new_stack = Vec::with_capacity(self.status.stack.len() + 1);
-        new_stack.push(*digest);
+        new_stack.push(digest);
         for existing in self.status.stack.drain(..) {
             // we do not want the same layer showing up twice, one for
             // efficiency and two it causes errors in overlayfs so promote
             // any existing instance to the new top of the stack
-            if &existing == digest {
+            if existing == digest {
                 continue;
             }
             new_stack.push(existing);
@@ -483,7 +483,7 @@ impl Storage {
     /// Access a runtime in this storage
     ///
     /// # Errors:
-    /// - [`spfs::Error::UnknownRuntime`] if the named runtime does not exist
+    /// - [`Error::UnknownRuntime`] if the named runtime does not exist
     /// - if there are filesystem errors while reading the runtime on disk
     pub async fn read_runtime<R: AsRef<str>>(&self, name: R) -> Result<Runtime> {
         let tag_spec = runtime_tag(RuntimeDataType::Metadata, name.as_ref())?;

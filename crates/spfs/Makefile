@@ -16,6 +16,7 @@ release:
 
 lint:
 	cargo fmt --check
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc -p spfs
 	cargo clippy --tests -- -Dwarnings
 
 test:

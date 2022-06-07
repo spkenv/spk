@@ -6,6 +6,40 @@ use tracing_subscriber::prelude::*;
 
 pub static SPFS_LOG: &str = "SPFS_LOG";
 
+/// Command line flags for configuring sync operations
+#[derive(Debug, Clone, clap::Args)]
+pub struct Sync {
+    /// Sync the latest information for each tag even if it already exists
+    #[clap(short, long, alias = "pull")]
+    pub sync: bool,
+
+    /// Forcefully sync all associated graph data even if it
+    /// already exists
+    #[clap(long)]
+    pub resync: bool,
+}
+
+impl Sync {
+    /// Construct a new syncer instance configured based on these flags
+    #[allow(dead_code)] // not all commands use this function but some do
+    pub fn get_syncer<'src, 'dst>(
+        &self,
+        src: &'src spfs::storage::RepositoryHandle,
+        dest: &'dst spfs::storage::RepositoryHandle,
+    ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
+        let policy = if self.resync {
+            spfs::sync::SyncPolicy::ResyncEverything
+        } else if self.sync {
+            spfs::sync::SyncPolicy::LatestTags
+        } else {
+            spfs::sync::SyncPolicy::default()
+        };
+        spfs::Syncer::new(src, dest)
+            .with_policy(policy)
+            .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+    }
+}
+
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() {
     use sentry::IntoDsn;

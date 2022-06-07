@@ -4,6 +4,8 @@
 
 //! Filesystem isolation, capture and distribution.
 
+#![deny(unsafe_op_in_unsafe_fn)]
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
@@ -29,7 +31,7 @@ pub mod runtime;
 pub mod server;
 mod status;
 pub mod storage;
-mod sync;
+pub mod sync;
 pub mod tracking;
 
 // re-exported to make downstream implementations easier
@@ -59,4 +61,4 @@ pub use status::{
     active_runtime, compute_runtime_manifest, initialize_runtime, make_active_runtime_editable,
     reinitialize_runtime, remount_runtime,
 };
-pub use sync::{pull_ref, push_ref, sync_object, sync_ref};
+pub use sync::Syncer;
