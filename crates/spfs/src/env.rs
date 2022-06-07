@@ -15,6 +15,7 @@ static PROC_DIR: &str = "/proc";
 static SPFS_DIR: &str = "/spfs";
 
 const NONE: Option<&str> = None;
+static SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
 
 /// A struct for holding the options that will be included
 /// in the overlayfs mount command when mounting an environment.
@@ -120,8 +121,12 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     // terminal. Otherwise, using spfs run under output-capturing circumstances
     // can cause the command to hang forever. Eg: output=$(spfs run - -- echo "hello")
     cmd.stdout(std::process::Stdio::null());
-    cmd.stderr(std::process::Stdio::null());
     cmd.stdin(std::process::Stdio::null());
+    // However, being able to see the logs is valuable when debugging, and so
+    // we add a switch to enable this if desired
+    if std::env::var(SPFS_MONITOR_FOREGROUND_LOGGING_VAR).is_err() {
+        cmd.stderr(std::process::Stdio::null());
+    }
 
     unsafe {
         // avoid creating zombie processes by moving the monitor
