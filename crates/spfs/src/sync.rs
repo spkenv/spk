@@ -274,6 +274,10 @@ where
         }
         self.reporter.visit_manifest(&manifest);
         let _permit = self.manifest_semaphore.acquire().await;
+        debug_assert!(
+            matches!(_permit, Ok(_)),
+            "We never close the semaphore and so should never see errors"
+        );
 
         let entries: Vec<_> = manifest
             .list_entries()
@@ -342,6 +346,10 @@ where
 
         self.reporter.visit_payload(digest);
         let _permit = self.payload_semaphore.acquire().await;
+        debug_assert!(
+            matches!(_permit, Ok(_)),
+            "We never close the semaphore and so should never see errors"
+        );
         let payload = self.src.open_payload(digest).await?;
         let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {
