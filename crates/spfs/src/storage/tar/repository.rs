@@ -225,8 +225,8 @@ impl TagStorage for TarRepository {
         self.repo.read_tag(tag).await
     }
 
-    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.push_raw_tag(tag).await?;
+    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        self.repo.insert_tag(tag).await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(())

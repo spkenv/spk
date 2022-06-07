@@ -25,13 +25,22 @@ test:
 rpm:
 	cd $(SOURCE_ROOT)
 	docker build . \
+		--target build_env \
+		--cache-from build_env \
+		-f rpmbuild.Dockerfile \
+		--tag build_env
+	docker build . \
+		--target spfs_build \
+		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
 		--build-arg VERSION=$(VERSION) \
 		--tag spfs-rpm-builder
+	mkdir -p .cache/cargo-registry
 	mkdir -p dist/rpm
-	CONTAINER=$$(docker create spfs-rpm-builder) \
-	  && docker cp $$CONTAINER:/root/rpmbuild/RPMS dist/rpm/ \
-	  && docker rm --force $$CONTAINER
+	docker run --rm \
+		-v `pwd`/.cache/cargo-registry:/root/.cargo/registry \
+		-v `pwd`/dist/rpm/RPMS:/root/rpmbuild/RPMS \
+		spfs-rpm-builder
 
 install-debug: copy-debug setcap
 

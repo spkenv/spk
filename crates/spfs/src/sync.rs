@@ -181,7 +181,7 @@ where
         self.reporter.visit_tag(&tag);
         let resolved = self.src.resolve_tag(&tag).await?;
         let result = self.sync_digest(resolved.target).await?;
-        self.dest.push_raw_tag(&resolved).await?;
+        self.dest.insert_tag(&resolved).await?;
         let res = SyncTagResult::Synced { tag, result };
         self.reporter.synced_tag(&res);
         Ok(res)

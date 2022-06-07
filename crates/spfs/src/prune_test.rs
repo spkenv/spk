@@ -33,8 +33,8 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
     .unwrap();
     new.parent = encoding::EMPTY_DIGEST.into();
     new.time = Utc.timestamp(30000, 0);
-    tmprepo.push_raw_tag(&old).await.unwrap();
-    tmprepo.push_raw_tag(&new).await.unwrap();
+    tmprepo.insert_tag(&old).await.unwrap();
+    tmprepo.insert_tag(&new).await.unwrap();
 
     let tags = get_prunable_tags(
         &tmprepo,
@@ -149,7 +149,7 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
             let digest = random_digest();
             let mut tag = tracking::Tag::new(Some("test".into()), "prune", digest).unwrap();
             tag.time = time;
-            tmprepo.push_raw_tag(&tag).await.unwrap();
+            tmprepo.insert_tag(&tag).await.unwrap();
             tags.insert(year, tag);
         }
         tags

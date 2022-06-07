@@ -35,40 +35,6 @@ impl FSRepository {
     fn tags_root(&self) -> PathBuf {
         self.root().join("tags")
     }
-
-    async fn push_raw_tag_without_lock(&self, tag: &tracking::Tag) -> Result<()> {
-        let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
-        let filepath = tag_spec.to_path(self.tags_root());
-
-        let mut buf = Vec::new();
-        tag.encode(&mut buf)?;
-        let size = buf.len();
-
-        crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
-
-        let mut file = tokio::io::BufWriter::new(
-            tokio::fs::OpenOptions::new()
-                .write(true)
-                .append(true)
-                .create(true)
-                .open(&filepath)
-                .await?,
-        );
-        file.write_i64(size as i64).await?;
-        tokio::io::copy(&mut buf.as_slice(), &mut file).await?;
-        if let Err(err) = file.flush().await {
-            return Err(Error::wrap_io(err, "Failed to flush tag data file"));
-        }
-        if let Err(err) = file.into_inner().into_std().await.close() {
-            return Err(Error::wrap_io(err, "Failed to close tag data file"));
-        }
-
-        let perms = std::fs::Permissions::from_mode(0o777);
-        if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
-            tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
-        }
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -152,12 +118,54 @@ impl TagStorage for FSRepository {
         }
     }
 
-    async fn push_raw_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
-        let _lock = TagLock::new(&filepath).await?;
-        self.push_raw_tag_without_lock(tag).await
+        let working_file = TagWorkingFile::new(&filepath).await?;
+
+        let mut tags: Vec<tracking::Tag> = vec![];
+        match self.read_tag(&tag_spec).await {
+            Ok(mut stream) => {
+                let mut inserted = false;
+                while let Some(next) = stream.next().await {
+                    let next = next?;
+                    if inserted {
+                        tags.insert(0, next);
+                        continue;
+                    }
+                    use std::cmp::Ordering::*;
+                    match next.cmp(tag) {
+                        Less => {
+                            tags.insert(0, tag.clone());
+                            tags.insert(0, next);
+                            inserted = true;
+                        }
+                        Greater => {
+                            tags.insert(0, next);
+                        }
+                        Equal => {
+                            // this tag already exists in the stream,
+                            // and will be dropped
+                            return Ok(());
+                        }
+                    };
+                }
+                if !inserted {
+                    // The target tag was not inserted so it needs to be appended to the end
+                    tags.insert(0, tag.clone());
+                }
+                Ok(())
+            }
+            Err(Error::UnknownReference(_)) => {
+                tracing::warn!("Tag filepath does not exist create new one!");
+                tags.push(tag.clone());
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }?;
+
+        working_file.write_tags(&tags).await
     }
 
     async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
@@ -205,34 +213,23 @@ impl TagStorage for FSRepository {
     async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
-        let _lock = TagLock::new(&filepath).await?;
-        let mut filtered = Vec::new();
-        let mut stream = self.read_tag(&tag_spec).await?;
-        while let Some(version) = stream.next().await {
-            let version = version?;
-            if &version != tag {
-                filtered.push(version);
+        let working_file = TagWorkingFile::new(&filepath).await?;
+
+        let mut tags: Vec<tracking::Tag> = vec![];
+        match self.read_tag(&tag_spec).await {
+            Ok(mut stream) => {
+                while let Some(next) = stream.next().await {
+                    let next = next?;
+                    if &next != tag {
+                        tags.insert(0, next);
+                    }
+                }
+                Ok(())
             }
-        }
-        let backup_path = &filepath.with_extension("tag.backup");
-        tokio::fs::rename(&filepath, &backup_path).await?;
-        let mut res = Ok(());
-        for version in filtered.iter().rev() {
-            // we are already holding the lock for this operation
-            if let Err(err) = self.push_raw_tag_without_lock(version).await {
-                res = Err(err);
-                break;
-            }
-        }
-        if let Err(err) = res {
-            tokio::fs::rename(&backup_path, &filepath).await?;
-            Err(err)
-        } else if let Err(err) = tokio::fs::remove_file(&backup_path).await {
-            tracing::warn!(?err, "failed to cleanup tag backup file");
-            Ok(())
-        } else {
-            Ok(())
-        }
+            Err(err) => Err(err),
+        }?;
+
+        working_file.write_tags(&tags).await
     }
 }
 
@@ -315,6 +312,37 @@ impl Stream for TagStreamIter {
 trait TagReader: AsyncRead + AsyncSeek + Send + Unpin {}
 
 impl TagReader for tokio::io::BufReader<tokio::fs::File> {}
+
+async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Result<()> {
+    crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
+    let mut file = tokio::io::BufWriter::new(
+        tokio::fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(&filepath)
+            .await?,
+    );
+
+    for tag in tags.iter() {
+        let buf = tag.encode_to_bytes()?;
+        let size = buf.len();
+        file.write_i64(size as i64).await?;
+        file.write_all_buf(&mut buf.as_slice()).await?;
+    }
+    if let Err(err) = file.flush().await {
+        return Err(Error::wrap_io(err, "Failed to flush tag data file"));
+    }
+    if let Err(err) = file.into_inner().into_std().await.close() {
+        return Err(Error::wrap_io(err, "Failed to sync tag data file"));
+    }
+
+    let perms = std::fs::Permissions::from_mode(0o666);
+    if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
+        tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
+    }
+    Ok(())
+}
 
 /// Return an iterator over all tags in the identified tag file
 ///
@@ -609,5 +637,48 @@ impl Drop for TagLock {
                 tracing::warn!(?err, path = ?self.0, "Failed to remove tag lock file");
             }
         }
+    }
+}
+
+/// Enables atomic tag file updates by writing to a working file and replacing the original
+///
+/// It is expected that the caller will not already hold the tag lock, as this instance
+/// will require getting the lock and can be used in its stead
+struct TagWorkingFile {
+    original: PathBuf,
+    _lock: TagLock,
+}
+
+impl TagWorkingFile {
+    /// Generate a new working file for the provided tag file
+    ///
+    pub async fn new<P: Into<PathBuf>>(tag_file: P) -> Result<Self> {
+        let original = tag_file.into();
+        let _lock = TagLock::new(&original).await?;
+        Ok(Self { original, _lock })
+    }
+
+    /// Write the tags to the underlying tag file via the working file.
+    ///
+    /// Writing 0 tags will result in the original file being removed
+    /// rather than actually replacing it with an empty file.
+    pub async fn write_tags(self, tags: &[tracking::Tag]) -> Result<()> {
+        let working = self.original.with_extension("tag.work");
+        if tags.is_empty() {
+            return Ok(tokio::fs::remove_file(self.original).await?);
+        }
+        if let Err(err) = write_tags_to_path(&working, tags).await {
+            if let Err(err) = tokio::fs::remove_file(&working).await {
+                tracing::warn!("failed to clean up tag working file after failing to write tags to path: {err}");
+            }
+            return Err(err);
+        }
+        if let Err(err) = tokio::fs::rename(&working, &self.original).await {
+            if let Err(err) = tokio::fs::remove_file(&working).await {
+                tracing::warn!("failed to clean up tag working file after failing to finalize the working file: {err}");
+            }
+            return Err(err.into());
+        }
+        Ok(())
     }
 }
