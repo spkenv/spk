@@ -123,7 +123,7 @@ where
         self
     }
 
-    /// Report progress to the given instnace, replacing any existing one
+    /// Report progress to the given instance, replacing any existing one
     pub fn with_reporter(&mut self, reporter: Reporter) -> &mut Self {
         self.reporter = Some(reporter);
         self
@@ -197,9 +197,9 @@ where
     }
 
     pub async fn sync_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
-        // don't write the digest here, as that is the reponsibility
+        // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
-        // a short-crituit is still nice when possible, though
+        // a short-circuit is still nice when possible, though
         if self.processed_digests.read().await.contains(&digest) {
             return Ok(SyncObjectResult::Duplicate);
         }
@@ -319,7 +319,7 @@ where
         Ok(res)
     }
 
-    async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
+    pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
         let digest = blob.digest();
         if self.processed_digests.read().await.contains(&digest) {
             // do not insert here because blobs share a digest with payloads
@@ -351,7 +351,7 @@ where
         let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {
             return Err(Error::String(format!(
-                "Source repository provided blob that did not match the requested digest: wanted {digest}, got {created_digest}",
+                "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}",
             )));
         }
         let res = SyncPayloadResult::Synced { size };
@@ -548,6 +548,7 @@ impl<T: SyncReporter> SyncReporter for Option<T> {
     }
 }
 
+#[derive(Default)]
 pub struct SilentSyncReporter {}
 impl SyncReporter for SilentSyncReporter {}
 

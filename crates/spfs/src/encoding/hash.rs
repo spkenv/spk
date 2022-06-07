@@ -164,7 +164,7 @@ impl Decodable for String {
     }
 }
 
-/// The first N bytes of a digest that may sill be unambiguous as a reference
+/// The first N bytes of a digest that may still be unambiguous as a reference
 #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct PartialDigest(Vec<u8>);
 
@@ -174,7 +174,7 @@ impl PartialDigest {
 
         let mut partial = Cow::Borrowed(source.as_ref());
         // an empty digest string is always ambiguous and not valid
-        if partial.len() == 0 {
+        if partial.is_empty() {
             return Err(Error::new("partial digest cannot be empty"));
         }
         // BASE32 requires padding in multiples of 8
