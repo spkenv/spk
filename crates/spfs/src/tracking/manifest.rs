@@ -7,8 +7,8 @@ use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::future::join_all;
 use futures::stream::FuturesUnordered;
+use futures::TryStreamExt;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use tokio::fs::DirEntry;
@@ -300,7 +300,7 @@ where
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
         let mut read_dir = tokio::fs::read_dir(base).await?;
-        let futures = FuturesUnordered::new();
+        let mut futures = FuturesUnordered::new();
         while let Some(dir_entry) = read_dir.next_entry().await? {
             let dir_entry = Arc::new(dir_entry);
             let mb = Arc::clone(&mb);
@@ -316,8 +316,7 @@ where
             };
             futures.push(entry);
         }
-        for result in join_all(futures).await {
-            let (dir_entry, entry) = result?;
+        while let Some((dir_entry, entry)) = futures.try_next().await? {
             tree_node
                 .entries
                 .insert(dir_entry.file_name().to_string_lossy().to_string(), entry?);
