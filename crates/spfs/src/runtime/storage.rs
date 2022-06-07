@@ -483,7 +483,7 @@ impl Storage {
     /// Access a runtime in this storage
     ///
     /// # Errors:
-    /// - [`spfs::Error::UnknownRuntime`] if the named runtime does not exist
+    /// - [`Error::UnknownRuntime`] if the named runtime does not exist
     /// - if there are filesystem errors while reading the runtime on disk
     pub async fn read_runtime<R: AsRef<str>>(&self, name: R) -> Result<Runtime> {
         let tag_spec = runtime_tag(RuntimeDataType::Metadata, name.as_ref())?;

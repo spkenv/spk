@@ -22,9 +22,9 @@ pub enum SyncPolicy {
     MissingDataOnly,
     /// Update any tags to the latest target from the source
     /// repository, even if they already exist in the destination.
-    /// Otherwise, follows the same semantics as [`Self::MissingDataTopDown`].
+    /// Otherwise, follows the same semantics as [`Self::MissingDataOnly`].
     LatestTags,
-    /// Same as [`Self::UpdateTags`], but also descend and re-copy
+    /// Same as [`Self::LatestTags`], but also descend and re-copy
     /// all object/graph data, even if it already exists in the
     /// destination. Payload data will still be skipped if it
     /// already exists.
@@ -131,7 +131,7 @@ where
 
     /// Sync the object(s) referenced by the given string.
     ///
-    /// Any valid [`spfs::tracking::EnvSpec`] is accepted as a reference.
+    /// Any valid [`crate::tracking::EnvSpec`] is accepted as a reference.
     pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncEnvResult> {
         let env_spec = reference.as_ref().parse()?;
         self.sync_env(env_spec).await

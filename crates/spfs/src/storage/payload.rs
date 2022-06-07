@@ -33,7 +33,7 @@ pub trait PayloadStorage: Sync + Send {
     /// Return a handle to the full content of a payload.
     ///
     /// # Errors:
-    /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
+    /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
     async fn open_payload(
         &self,
         digest: encoding::Digest,
@@ -42,7 +42,7 @@ pub trait PayloadStorage: Sync + Send {
     /// Remove the payload identified by the given digest.
     ///
     /// Errors:
-    /// - [`spfs::Error::UnknownObject`]: if the payload does not exist in this storage
+    /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()>;
 }
 

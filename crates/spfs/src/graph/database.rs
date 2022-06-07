@@ -139,7 +139,7 @@ pub trait DatabaseView: Sync + Send {
     /// Read information about the given object from the database.
     ///
     /// # Errors:
-    /// - [`spfs::Error::UnknownObject`]: if the object is not in this database
+    /// - [`Error::UnknownObject`]: if the object is not in this database
     async fn read_object(&self, digest: encoding::Digest) -> Result<Object>;
 
     /// Find the object digests in this database matching a search criteria.

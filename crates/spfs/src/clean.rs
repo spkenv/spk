@@ -29,7 +29,7 @@ pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<
 /// Remove the identified objects from the given repository.
 ///
 /// # Errors
-/// - [`spfs::Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
+/// - [`Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
 pub async fn purge_objects(
     objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
