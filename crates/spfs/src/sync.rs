@@ -14,14 +14,53 @@ use crate::{graph, storage, tracking, Error, Result};
 #[path = "./sync_test.rs"]
 mod sync_test;
 
+/// Methods for syncing data between repositories
+pub enum SyncPolicy {
+    /// Starting at the top-most requested item, sync and
+    /// descend only into objects that are missing in the
+    /// destination repo. (this is the default)
+    MissingDataOnly,
+    /// Update any tags to the latest target from the source
+    /// repository, even if they already exist in the destination.
+    /// Otherwise, follows the same semantics as [`Self::MissingDataTopDown`].
+    LatestTags,
+    /// Same as [`Self::UpdateTags`], but also descend and re-copy
+    /// all object/graph data, even if it already exists in the
+    /// destination. Payload data will still be skipped if it
+    /// already exists.
+    LatestTagsAndResyncObjects,
+    /// Update to the latest target of all tags, and sync all
+    /// object and payload data even if it already exists in
+    /// the destination.
+    ResyncEverything,
+}
+
+impl Default for SyncPolicy {
+    fn default() -> Self {
+        Self::MissingDataOnly
+    }
+}
+
+impl SyncPolicy {
+    fn check_existing_tags(&self) -> bool {
+        matches!(self, Self::MissingDataOnly)
+    }
+
+    fn check_existing_objects(&self) -> bool {
+        matches!(self, Self::MissingDataOnly | Self::LatestTags)
+    }
+
+    fn check_existing_payloads(&self) -> bool {
+        !matches!(self, Self::ResyncEverything)
+    }
+}
+
 /// Handles the syncing of data between repositories
 pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
     reporter: Reporter,
-    skip_existing_tags: bool,
-    skip_existing_objects: bool,
-    skip_existing_payloads: bool,
+    policy: SyncPolicy,
     manifest_semaphore: Semaphore,
     payload_semaphore: Semaphore,
     processed_digests: RwLock<HashSet<encoding::Digest>>,
@@ -36,9 +75,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             src,
             dest,
             reporter: SilentSyncReporter::default(),
-            skip_existing_tags: true,
-            skip_existing_objects: true,
-            skip_existing_payloads: true,
+            policy: SyncPolicy::default(),
             manifest_semaphore: Semaphore::new(100),
             payload_semaphore: Semaphore::new(100),
             processed_digests: RwLock::new(HashSet::new()),
@@ -50,41 +87,11 @@ impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
 where
     Reporter: SyncReporter,
 {
-    /// When true, also sync any tag that already exists in the destination repo.
-    ///
-    /// This is off by default, but can be enabled in order to retrieve updated tag
-    /// information from the source repo.
-    pub fn with_sync_existing_tags(mut self, sync_existing: bool) -> Self {
-        self.skip_existing_tags = !sync_existing;
-        if !sync_existing {
-            self.skip_existing_payloads = true;
-        }
-        self
-    }
-
-    /// When true, also sync any object that already exists in the destination repo.
-    ///
-    /// This is off by default, but can be enabled in order to repair a corrupt
-    /// repository that has some parent object but is missing one or more children.
-    ///
-    /// Setting this to false will also disable [`Self::with_sync_existing_payload`].
-    pub fn with_sync_existing_objects(mut self, sync_existing: bool) -> Self {
-        self.skip_existing_objects = !sync_existing;
-        if !sync_existing {
-            self.skip_existing_payloads = true;
-        }
-        self
-    }
-
-    /// When true, also sync any payload that already exists in the destination repo.
-    ///
-    /// This is off by default, but can be enabled in order to repair a corrupt
-    /// repository. Setting this to true, also implies [`Self::with_sync_existing_object`].
-    pub fn with_sync_existing_payloads(mut self, sync_existing: bool) -> Self {
-        self.skip_existing_payloads = !sync_existing;
-        if sync_existing {
-            self.skip_existing_objects = false;
-        }
+    /// Specifies how the Syncer should deal with different types of data
+    /// during the sync process, replacing any existing one.
+    /// See [`SyncPolicy`].
+    pub fn with_policy(mut self, policy: SyncPolicy) -> Self {
+        self.policy = policy;
         self
     }
 
@@ -115,9 +122,7 @@ where
             src: self.src,
             dest: self.dest,
             reporter,
-            skip_existing_tags: self.skip_existing_tags,
-            skip_existing_objects: self.skip_existing_objects,
-            skip_existing_payloads: self.skip_existing_payloads,
+            policy: self.policy,
             manifest_semaphore: self.manifest_semaphore,
             payload_semaphore: self.payload_semaphore,
             processed_digests: self.processed_digests,
@@ -170,7 +175,7 @@ where
 
     /// Sync the identified tag instance and its target.
     pub async fn sync_tag(&self, tag: tracking::TagSpec) -> Result<SyncTagResult> {
-        if self.skip_existing_tags && self.dest.resolve_tag(&tag).await.is_ok() {
+        if self.policy.check_existing_tags() && self.dest.resolve_tag(&tag).await.is_ok() {
             return Ok(SyncTagResult::Skipped);
         }
         self.reporter.visit_tag(&tag);
@@ -223,7 +228,7 @@ where
         if !self.processed_digests.write().await.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
         }
-        if self.skip_existing_objects && self.dest.has_platform(digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_platform(digest).await {
             return Ok(SyncPlatformResult::Skipped);
         }
         self.reporter.visit_platform(&platform);
@@ -249,7 +254,7 @@ where
         if !self.processed_digests.write().await.insert(layer_digest) {
             return Ok(SyncLayerResult::Duplicate);
         }
-        if self.skip_existing_objects && self.dest.has_layer(layer_digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_layer(layer_digest).await {
             return Ok(SyncLayerResult::Skipped);
         }
 
@@ -269,7 +274,7 @@ where
         if !self.processed_digests.write().await.insert(manifest_digest) {
             return Ok(SyncManifestResult::Duplicate);
         }
-        if self.skip_existing_objects && self.dest.has_manifest(manifest_digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_manifest(manifest_digest).await {
             return Ok(SyncManifestResult::Skipped);
         }
         self.reporter.visit_manifest(&manifest);
@@ -325,7 +330,7 @@ where
             // which should also must be visited at least once if needed
             return Ok(SyncBlobResult::Duplicate);
         }
-        if self.skip_existing_objects && self.dest.has_blob(digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_blob(digest).await {
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(&blob);
@@ -340,7 +345,7 @@ where
         if !self.processed_digests.write().await.insert(digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }
-        if self.skip_existing_payloads && self.dest.has_payload(digest).await {
+        if self.policy.check_existing_payloads() && self.dest.has_payload(digest).await {
             return Ok(SyncPayloadResult::Skipped);
         }
 

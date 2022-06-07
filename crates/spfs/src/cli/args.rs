@@ -27,10 +27,15 @@ impl Sync {
         src: &'src spfs::storage::RepositoryHandle,
         dest: &'dst spfs::storage::RepositoryHandle,
     ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
+        let policy = if self.resync {
+            spfs::sync::SyncPolicy::ResyncEverything
+        } else if self.sync {
+            spfs::sync::SyncPolicy::LatestTags
+        } else {
+            spfs::sync::SyncPolicy::default()
+        };
         spfs::Syncer::new(src, dest)
-            .with_sync_existing_objects(self.resync)
-            .with_sync_existing_payloads(self.resync)
-            .with_sync_existing_tags(self.sync || self.resync)
+            .with_policy(policy)
             .with_reporter(spfs::sync::ConsoleSyncReporter::default())
     }
 }
