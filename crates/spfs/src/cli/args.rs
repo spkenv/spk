@@ -4,7 +4,7 @@
 
 use tracing_subscriber::prelude::*;
 
-pub static SPFS_LOG: &str = "SPFS_LOG";
+pub const SPFS_LOG: &str = "SPFS_LOG";
 
 /// Command line flags for configuring sync operations
 #[derive(Debug, Clone, clap::Args)]

@@ -23,10 +23,10 @@ use crate::{
 mod storage_test;
 
 /// The location in spfs where shell files can be placed be sourced at startup
-pub static STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
+pub const STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 
 /// The environment variable that can be used to specify the runtime fs size
-static SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
+const SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
 
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

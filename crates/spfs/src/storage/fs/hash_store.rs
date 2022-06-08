@@ -19,7 +19,7 @@ use crate::{encoding, Error, Result};
 #[path = "./hash_store_test.rs"]
 mod hash_store_test;
 
-static WORK_DIRNAME: &str = "work";
+const WORK_DIRNAME: &str = "work";
 
 pub(crate) enum PersistableObject {
     #[cfg(test)]
