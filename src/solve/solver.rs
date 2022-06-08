@@ -33,7 +33,7 @@ use super::{
 // Public to allow other tests to use its macros
 #[cfg(test)]
 #[path = "./solver_test.rs"]
-pub mod solver_test;
+mod solver_test;
 
 #[derive(Clone)]
 pub struct Solver {
