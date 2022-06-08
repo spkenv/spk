@@ -8,11 +8,13 @@ use colored::Colorize;
 
 use crate::{api, option_map, solve, Error, Result};
 
-pub const SHOW_REQUEST_DETAILS_LEVEL: u32 = 1;
-// Equivalent to verbosity > 1 for initial requests
-pub const SHOW_INITIAL_REQUESTS_LEVEL: u32 = 100;
-// Equivalent to verbosity > 5 for initial requests
-pub const INITIAL_REQUESTS_FULL_VALUES_LEVEL: u32 = 105;
+// Show request fields that are non-default values at v > 1
+pub const SHOW_REQUEST_DETAILS: u32 = 1;
+// Show all request fields for initial requests at v > 5
+pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u32 = 5;
+
+// The level/depth for initial requests
+pub const INITIAL_REQUESTS_LEVEL: usize = 0;
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name.bold().to_string();
@@ -41,8 +43,27 @@ pub fn format_options(options: &api::OptionMap) -> String {
     format!("{{{}}}", formatted.join(", "))
 }
 
+/// Helper to hold values that affect the formatting of a request
+pub struct FormatRequestOptions {
+    verbosity: u32,
+    level: usize,
+}
+
+impl Default for FormatRequestOptions {
+    fn default() -> Self {
+        Self {
+            verbosity: 0,
+            level: usize::MAX,
+        }
+    }
+}
+
 /// Create a canonical string to describe the combined request for a package.
-pub fn format_request<'a, R>(name: &api::PkgName, requests: R, verbosity: u32) -> String
+pub fn format_request<'a, R>(
+    name: &api::PkgName,
+    requests: R,
+    format_options: FormatRequestOptions,
+) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
@@ -60,9 +81,12 @@ where
             None => "".to_string(),
         };
 
-        let details = if verbosity > SHOW_REQUEST_DETAILS_LEVEL {
+        let details = if format_options.verbosity > SHOW_REQUEST_DETAILS
+            || format_options.level == INITIAL_REQUESTS_LEVEL
+        {
             let mut differences = Vec::new();
-            let show_full_value = verbosity > INITIAL_REQUESTS_FULL_VALUES_LEVEL;
+            let show_full_value = format_options.level == INITIAL_REQUESTS_LEVEL
+                && format_options.verbosity > SHOW_INITIAL_REQUESTS_FULL_VALUES;
 
             if show_full_value || !req.prerelease_policy.is_default() {
                 differences.push(format!(
@@ -140,7 +164,11 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
         // outputting the internal details here.
         out.push_str(&format!(
             "  {}",
-            format_request(&req.spec.pkg.name, &[installed], 0)
+            format_request(
+                &req.spec.pkg.name,
+                &[installed],
+                FormatRequestOptions::default()
+            )
         ));
         if verbosity > 0 {
             let options = req.spec.resolve_all_options(&api::OptionMap::default());
@@ -180,30 +208,34 @@ pub fn change_is_relevant_at_verbosity(change: &solve::graph::Change, verbosity:
     verbosity >= relevant_level
 }
 
-fn get_request_change_label(verbosity: u32) -> &'static str {
-    if verbosity > SHOW_INITIAL_REQUESTS_LEVEL {
+fn get_request_change_label(level: usize) -> &'static str {
+    if level == INITIAL_REQUESTS_LEVEL {
         "INITIAL REQUEST"
     } else {
         "REQUEST"
     }
 }
 
-pub fn format_change(change: &solve::graph::Change, verbosity: u32) -> String {
+pub fn format_change(change: &solve::graph::Change, verbosity: u32, level: usize) -> String {
     use solve::graph::Change::*;
     match change {
         RequestPackage(c) => {
             format!(
                 "{} {}",
-                get_request_change_label(verbosity).blue(),
-                format_request(&c.request.pkg.name, [&c.request], verbosity)
+                get_request_change_label(level).blue(),
+                format_request(
+                    &c.request.pkg.name,
+                    [&c.request],
+                    FormatRequestOptions { verbosity, level }
+                )
             )
         }
         RequestVar(c) => {
             format!(
                 "{} {}{}",
-                get_request_change_label(verbosity).blue(),
+                get_request_change_label(level).blue(),
                 format_options(&option_map! {c.request.var.clone() => c.request.value.clone()}),
-                if verbosity > SHOW_REQUEST_DETAILS_LEVEL {
+                if verbosity > SHOW_REQUEST_DETAILS {
                     format!(" fromBuildEnv: {}", c.request.pin.to_string().cyan())
                 } else {
                     "".to_string()
@@ -285,16 +317,6 @@ where
                 }
             }
 
-            // This is used to increase the verbosity when the search
-            // depth is 0. It is part of showing the initial requests
-            // in detail. Verbosity also has to be set to > 1 for the
-            // initial requests to be shown.
-            let level_zero_adjustment: u32 = if self.level == 0 {
-                SHOW_INITIAL_REQUESTS_LEVEL
-            } else {
-                0
-            };
-
             let mut fill: &str;
             let mut level_change: i64 = 1;
             for change in decision.changes.iter() {
@@ -324,7 +346,7 @@ where
                 self.output_queue.push_back(format!(
                     "{} {}",
                     prefix,
-                    format_change(change, self.verbosity + level_zero_adjustment)
+                    format_change(change, self.verbosity, self.level)
                 ))
             }
             self.level = (self.level as i64 + level_change) as usize;
