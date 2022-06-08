@@ -53,6 +53,7 @@ server = [
     "tokio-util/io",
     "tokio-util/io-util",
 ]
+"runtime-compat-0.33" = []
 
 [dependencies]
 async-trait = "0.1.52"
