@@ -106,7 +106,7 @@ impl Manifest {
     /// file mode, but can and should be replaced by a new entry in the
     /// case where this is not desired.
     pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry> {
-        static TRIM_PAT: &[char] = &['/', '.'];
+        const TRIM_PAT: &[char] = &['/', '.'];
         let path = path.as_ref().trim_start_matches(TRIM_PAT);
         if path.is_empty() {
             return Err(nix::errno::Errno::EEXIST.into());
@@ -143,7 +143,7 @@ impl Manifest {
 
     pub fn mknod<P: AsRef<str>>(&mut self, path: P, new_entry: Entry) -> Result<&mut Entry> {
         use relative_path::Component;
-        static TRIM_PAT: &[char] = &['/', '.'];
+        const TRIM_PAT: &[char] = &['/', '.'];
 
         let path = path.as_ref().trim_start_matches(TRIM_PAT);
         if path.is_empty() {

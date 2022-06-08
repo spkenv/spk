@@ -15,8 +15,8 @@ use std::path::PathBuf;
 #[path = "./config_test.rs"]
 mod config_test;
 
-static DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
-static FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
+const DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
+const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
 lazy_static! {
     static ref CONFIG: RwLock<Option<Arc<Config>>> = RwLock::new(None);

@@ -14,11 +14,11 @@ use tokio_stream::wrappers::IntervalStream;
 use super::runtime;
 use crate::{Error, Result};
 
-static PROC_DIR: &str = "/proc";
-static SPFS_DIR: &str = "/spfs";
+const PROC_DIR: &str = "/proc";
+const SPFS_DIR: &str = "/spfs";
 
 const NONE: Option<&str> = None;
-static SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
+const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
 
 /// A struct for holding the options that will be included
 /// in the overlayfs mount command when mounting an environment.

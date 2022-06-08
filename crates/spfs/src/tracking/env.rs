@@ -13,7 +13,7 @@ use crate::{Error, Result};
 mod env_test;
 
 /// The pattern used to split components of an env spec string
-pub static ENV_SPEC_SEPARATOR: &str = "+";
+pub const ENV_SPEC_SEPARATOR: &str = "+";
 
 /// Specifies an spfs item that can appear in a runtime environment.
 #[derive(Debug, Clone, Eq, PartialEq)]
