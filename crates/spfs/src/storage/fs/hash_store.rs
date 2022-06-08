@@ -71,32 +71,44 @@ impl FSHashStore {
         try_stream! {
             let mut root = tokio::fs::read_dir(&root).await?;
             while let Some(entry) = root.next_entry().await? {
-                let entry_fn = entry.file_name().to_string_lossy().to_string();
-
-                if entry_fn == WORK_DIRNAME {
+                let entry_filename = entry.file_name();
+                let entry_filename = entry_filename.to_string_lossy();
+                if entry_filename == WORK_DIRNAME {
                     continue;
                 }
+
+                let entry_partial = match encoding::PartialDigest::parse(&entry_filename) {
+                    Err(err) => {
+                        tracing::debug!(
+                            ?err, "invalid digest directory in file storage",
+                        );
+                        continue;
+                    },
+                    Ok(partial) => partial,
+                };
+                let entry_bytes = entry_partial.as_slice();
 
                 match &search_criteria {
                     crate::graph::DigestSearchCriteria::StartsWith(bytes)
                         // If the directory name is shorter than the prefix, check that
                         // the prefix starts with the directory name.
-                        if entry_fn.len() < bytes.len() && !bytes.starts_with(entry_fn.as_bytes()) => {
+                        if entry_bytes.len() < bytes.len() && !bytes.starts_with(entry_bytes) => {
                             continue;
                         }
                     crate::graph::DigestSearchCriteria::StartsWith(bytes)
                         // If the directory name is longer than the prefix, check that
                         // the directory name starts with the prefix.
-                        if entry_fn.len() >= bytes.len() && !entry_fn.as_bytes().starts_with(bytes) => {
+                        if entry_bytes.len() >= bytes.len() && !entry_bytes.starts_with(bytes) => {
                             continue;
                         }
-                    _ => {}
+                    _ => {
+                    }
                 };
 
                 let mut subdir = match tokio::fs::read_dir(entry.path()).await {
                     Err(err) => match err.raw_os_error() {
                         Some(libc::ENOTDIR) => {
-                            tracing::debug!(?entry_fn, "found non-directory in hash storage");
+                            tracing::debug!(?entry_filename, "found non-directory in hash storage");
                             continue;
                         }
                         _ => Err(err)?,
@@ -104,17 +116,14 @@ impl FSHashStore {
                     Ok(subdir) => subdir,
                 };
                 while let Some(name) = subdir.next_entry().await? {
-                    let digest_str = format!("{}{}", &entry_fn, name.file_name().to_string_lossy());
-
-                    if matches!(
-                        &search_criteria,
-                        crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                            if !digest_str.as_bytes().starts_with(bytes.as_slice())) {
-                        continue;
-                    }
+                    let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
 
                     match encoding::parse_digest(&digest_str) {
-                        Ok(digest) => yield digest,
+                        Ok(digest) => match &search_criteria {
+                            crate::graph::DigestSearchCriteria::StartsWith(bytes) if digest.starts_with(bytes.as_slice()) => yield digest,
+                            crate::graph::DigestSearchCriteria::StartsWith(_) => continue,
+                            crate::graph::DigestSearchCriteria::All => yield digest,
+                        }
                         Err(err) => {
                             tracing::debug!(
                                 ?err, name = ?digest_str,
@@ -122,15 +131,6 @@ impl FSHashStore {
                             );
                         }
                     }
-                }
-
-                if matches!(
-                    &search_criteria,
-                    crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                        if bytes.starts_with(entry_fn.as_bytes())) {
-                    // After reading the contents of the subdirectory that matches
-                    // the search criteria, there are no more results.
-                    break;
                 }
             }
         }

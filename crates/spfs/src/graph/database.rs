@@ -4,7 +4,7 @@
 
 use std::{collections::VecDeque, pin::Pin, task::Poll};
 
-use futures::{Future, Stream, StreamExt};
+use futures::{Future, Stream, StreamExt, TryStreamExt};
 
 use super::Object;
 use crate::{encoding, Error, Result};
@@ -128,9 +128,10 @@ impl<'db> Stream for DatabaseIterator<'db> {
     }
 }
 
+#[derive(Debug)]
 pub enum DigestSearchCriteria {
     All,
-    StartsWith(Vec<u8>),
+    StartsWith(encoding::PartialDigest),
 }
 
 /// A read-only object database.
@@ -167,7 +168,9 @@ pub trait DatabaseView: Sync + Send {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
-        let mut digests = self.find_digests(DigestSearchCriteria::StartsWith(Vec::from(shortest)));
+        let mut digests = self.find_digests(DigestSearchCriteria::StartsWith(
+            encoding::PartialDigest::from(shortest),
+        ));
         while let Some(other) = digests.next().await {
             match other {
                 Err(_) => continue,
@@ -203,16 +206,12 @@ pub trait DatabaseView: Sync + Send {
         if let Some(digest) = partial.to_digest() {
             return Ok(digest);
         }
-        let mut options = Vec::new();
-        let mut digests = self.find_digests(crate::graph::DigestSearchCriteria::StartsWith(
-            partial.to_vec(),
-        ));
-        while let Some(digest) = digests.next().await {
-            let digest = digest?;
-            if &digest.as_bytes()[..partial.len()] == partial.as_slice() {
-                options.push(digest)
-            }
-        }
+        let options: Vec<_> = self
+            .find_digests(crate::graph::DigestSearchCriteria::StartsWith(
+                partial.clone(),
+            ))
+            .try_collect()
+            .await?;
 
         match options.len() {
             0 => Err(Error::UnknownReference(partial.to_string())),

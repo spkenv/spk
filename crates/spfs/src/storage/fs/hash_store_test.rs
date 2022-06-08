@@ -21,12 +21,10 @@ async fn test_hash_store_iter_states(tmpdir: tempdir::TempDir) {
 /// Produce a `Digest` with the desired string
 macro_rules! digest {
     ($digest:expr) => {
-        $crate::Digest::from_bytes(
-            &data_encoding::BASE32
-                .decode(format!("{:A<digest_size$}", $digest, digest_size = 56).as_bytes())
-                .expect("decode as base32")[..$crate::encoding::DIGEST_SIZE],
+        $crate::Digest::parse(
+            &format!("{:A<digest_size$}====", $digest, digest_size = 52)
         )
-        .expect("from_bytes")
+        .expect("valid digest")
     };
 }
 
@@ -50,9 +48,10 @@ async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
         .expect("ran");
     std::io::Write::write_all(&mut std::io::stdout(), &output.stdout).expect("write output");
     */
-    for starts_with in ["A", "AB", "ABC", "ABE", "BB", "DD"] {
+    for starts_with in ["AA", "AB", "ABCA", "ABEA", "BB", "DD"] {
         let mut matches = Vec::new();
-        let mut stream = Box::pin(store.find(DigestSearchCriteria::StartsWith(starts_with.into())));
+        let partial = crate::encoding::PartialDigest::parse(starts_with).expect("valid partial digest");
+        let mut stream = Box::pin(store.find(DigestSearchCriteria::StartsWith(partial)));
         while let Some(Ok(v)) = stream.next().await {
             matches.push(v);
         }
@@ -74,12 +73,8 @@ async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
                 original_matches
             );
         }
-        // `matches` should be empty after above loop.
-        assert!(
-            matches.is_empty(),
-            "Using StartsWith({}), got unexpected matches: {:?}",
-            starts_with,
-            matches
-        )
+        // we can't validate that everything has been removed because something like
+        // AA in base32 specifies a partial trailing byte and so is actually ambiguous
+        // with similar prefixes like AB and AD
     }
 }
