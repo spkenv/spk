@@ -27,7 +27,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn ensure_active_runtime(&self) -> Result<spfs::runtime::Runtime> {
         if self.no_runtime {
-            return Ok(spfs::active_runtime()?);
+            return Ok(spk::HANDLE.block_on(spfs::active_runtime())?);
         }
         self.relaunch_with_runtime()
     }

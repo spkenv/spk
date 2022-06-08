@@ -197,10 +197,10 @@ impl BinaryPackageBuilder {
 
     /// Build the requested binary package.
     pub fn build(&mut self) -> Result<api::Spec> {
-        let mut runtime = spfs::active_runtime()?;
-        runtime.set_editable(true)?;
+        let mut runtime = crate::HANDLE.block_on(spfs::active_runtime())?;
         runtime.reset_all()?;
-        runtime.reset_stack()?;
+        runtime.status.editable = true;
+        runtime.status.stack.clear();
 
         let pkg_options = self.spec.resolve_all_options(&self.all_options);
         tracing::debug!("package options: {}", pkg_options);
@@ -225,9 +225,8 @@ impl BinaryPackageBuilder {
         std::mem::swap(&mut opts, &mut self.all_options);
         self.all_options.extend(opts);
         stack.extend(exec::resolve_runtime_layers(&solution)?);
-        for digest in stack.into_iter() {
-            runtime.push_digest(&digest)?;
-        }
+        runtime.status.stack = stack;
+        crate::HANDLE.block_on(runtime.save_state_to_storage())?;
         crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
         let specs = solution.items().into_iter().map(|solved| solved.spec);
         self.spec.update_for_build(&self.all_options, specs)?;
@@ -328,17 +327,18 @@ impl BinaryPackageBuilder {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.build_artifacts(env)?;
+        self.build_artifacts(env).await?;
 
         let sources_dir = data_path(&self.spec.pkg.with_build(Some(api::Build::Source)));
 
-        let mut runtime = spfs::active_runtime()?;
+        let mut runtime = spfs::active_runtime().await?;
         let pattern = sources_dir.join("**").to_string();
         tracing::info!(
             "Purging all changes made to source directory: {}",
             sources_dir.to_path(&self.prefix).display()
         );
         runtime.reset(&[pattern])?;
+        runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
@@ -351,7 +351,7 @@ impl BinaryPackageBuilder {
         commit_component_layers(&self.spec, &mut runtime).await
     }
 
-    fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
+    async fn build_artifacts<I, K, V>(&mut self, env: I) -> Result<()>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<OsStr>,
@@ -393,8 +393,8 @@ impl BinaryPackageBuilder {
         // (eg in case the user's shell does not have startup scripts in
         //  the dependencies, is not supported by spfs, etc)
         std::env::set_var("SHELL", "bash");
+        let runtime = spfs::active_runtime().await?;
         let cmd = if self.interactive {
-            let runtime = spfs::active_runtime()?;
             println!("\nNow entering an interactive build shell");
             println!(" - your current directory will be set to the sources area");
             println!(" - build and install your artifacts into /spfs");
@@ -404,18 +404,17 @@ impl BinaryPackageBuilder {
             );
             println!(" - to cancel and discard this build, run `exit 1`");
             println!(" - to finalize and save the package, run `exit 0`");
-            spfs::build_interactive_shell_cmd(&runtime)?
+            spfs::build_interactive_shell_command(&runtime)?
         } else {
             use std::ffi::OsString;
             spfs::build_shell_initialized_command(
+                &runtime,
                 OsString::from("bash"),
-                &mut vec![OsString::from("-ex"), build_script.into_os_string()],
+                &[OsString::from("-ex"), build_script.into_os_string()],
             )?
         };
 
-        let mut args = cmd.into_iter();
-        let mut cmd = std::process::Command::new(args.next().unwrap());
-        cmd.args(args);
+        let mut cmd = cmd.into_std();
         cmd.envs(env);
         cmd.envs(self.all_options.to_environment());
         cmd.envs(get_package_build_env(&self.spec));
@@ -508,9 +507,9 @@ pub async fn commit_component_layers(
     spec: &api::Spec,
     runtime: &mut spfs::runtime::Runtime,
 ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-    let layer = spfs::commit_layer(runtime).await?;
     let config = spfs::get_config()?;
-    let repo = config.get_repository().await?;
+    let repo = Arc::new(config.get_local_repository_handle().await?);
+    let layer = spfs::commit_layer(runtime, Arc::clone(&repo)).await?;
     let manifest = repo.read_manifest(layer.manifest).await?.unlock();
     let manifests = split_manifest_by_component(&spec.pkg, &manifest, &spec.install.components)?;
     let mut committed = HashMap::with_capacity(manifests.len());

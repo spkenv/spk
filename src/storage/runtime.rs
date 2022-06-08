@@ -228,11 +228,10 @@ fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> 
 }
 
 async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
-    let runtime = spfs::active_runtime()?;
-    let repo = spfs::get_config()?.get_repository().await?.into();
+    let runtime = spfs::active_runtime().await?;
+    let repo = spfs::get_config()?.get_local_repository_handle().await?;
 
-    let stack = runtime.get_stack();
-    let layers = spfs::resolve_stack_to_layers(stack.iter(), Some(&repo)).await?;
+    let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
     for layer in layers.iter().rev() {
         let manifest = repo.read_manifest(layer.manifest).await?.unlock();
         if manifest.get_path(&path).is_some() {

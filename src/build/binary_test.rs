@@ -341,7 +341,9 @@ fn test_build_package_source_cleanup() {
         .get(&api::Component::Run)
         .unwrap();
     let config = spfs::get_config().unwrap();
-    let repo = crate::HANDLE.block_on(config.get_repository()).unwrap();
+    let repo = crate::HANDLE
+        .block_on(config.get_local_repository())
+        .unwrap();
     let layer = crate::HANDLE.block_on(repo.read_layer(digest)).unwrap();
     let manifest = crate::HANDLE
         .block_on(repo.read_manifest(layer.manifest))
@@ -488,8 +490,11 @@ fn test_build_components_metadata() {
     for component in spec.install.components.iter() {
         let digest = published.get(&component.name).unwrap();
         rt.runtime.reset_all().unwrap();
-        rt.runtime.reset_stack().unwrap();
-        rt.runtime.push_digest(digest).unwrap();
+        rt.runtime.status.stack.clear();
+        rt.runtime.push_digest(*digest);
+        crate::HANDLE
+            .block_on(rt.runtime.save_state_to_storage())
+            .unwrap();
         crate::HANDLE
             .block_on(spfs::remount_runtime(&rt.runtime))
             .unwrap();
