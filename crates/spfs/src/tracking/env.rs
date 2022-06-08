@@ -57,6 +57,24 @@ impl FromStr for EnvSpecItem {
     }
 }
 
+impl From<TagSpec> for EnvSpecItem {
+    fn from(item: TagSpec) -> Self {
+        Self::TagSpec(item)
+    }
+}
+
+impl From<encoding::PartialDigest> for EnvSpecItem {
+    fn from(item: encoding::PartialDigest) -> Self {
+        Self::PartialDigest(item)
+    }
+}
+
+impl From<encoding::Digest> for EnvSpecItem {
+    fn from(item: encoding::Digest) -> Self {
+        Self::Digest(item)
+    }
+}
+
 /// Specifies a complete runtime environment that
 /// can be made up of multiple layers.
 ///
@@ -77,7 +95,7 @@ impl FromStr for EnvSpecItem {
 /// let items: Vec<_> = spec.iter().map(ToString::to_string).collect();
 /// assert_eq!(items, vec!["3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====", "my-tag"]);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EnvSpec {
     items: Vec<EnvSpecItem>,
 }
@@ -94,6 +112,12 @@ impl std::ops::Deref for EnvSpec {
 
     fn deref(&self) -> &Self::Target {
         &self.items
+    }
+}
+
+impl std::ops::DerefMut for EnvSpec {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.items
     }
 }
 
@@ -117,11 +141,34 @@ impl FromStr for EnvSpec {
     }
 }
 
-impl From<encoding::Digest> for EnvSpec {
-    fn from(digest: encoding::Digest) -> Self {
+impl<I> From<I> for EnvSpec
+where
+    I: Into<EnvSpecItem>,
+{
+    fn from(item: I) -> Self {
         EnvSpec {
-            items: vec![EnvSpecItem::Digest(digest)],
+            items: vec![item.into()],
         }
+    }
+}
+
+impl<I: Into<EnvSpecItem>> std::iter::FromIterator<I> for EnvSpec {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = I>,
+    {
+        Self {
+            items: iter.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<I> std::iter::Extend<I> for EnvSpec
+where
+    I: Into<EnvSpecItem>,
+{
+    fn extend<T: IntoIterator<Item = I>>(&mut self, iter: T) {
+        self.items.extend(iter.into_iter().map(Into::into))
     }
 }
 
@@ -137,10 +184,6 @@ fn parse_env_spec_items<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
     let mut items = Vec::new();
     for layer in spec.as_ref().split(ENV_SPEC_SEPARATOR) {
         items.push(parse_env_spec_item(layer)?);
-    }
-
-    if items.is_empty() {
-        return Err(Error::new("must specify at least one digest or tag"));
     }
 
     Ok(items)
