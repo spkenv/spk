@@ -36,14 +36,31 @@ fn test_resolve_build_same_result() {
     let with_binary = resolve.apply(&base);
     let with_build = build.apply(&base);
 
-    let level = usize::MAX;
     println!("resolve");
     for change in resolve.changes.iter() {
-        println!("{}", io::format_change(change, 100, level));
+        println!(
+            "{}",
+            io::format_change(
+                change,
+                io::FormatChangeOptions {
+                    verbosity: 100,
+                    level: usize::MAX,
+                }
+            )
+        );
     }
     println!("build");
     for change in build.changes.iter() {
-        println!("{}", io::format_change(change, 100, level));
+        println!(
+            "{}",
+            io::format_change(
+                change,
+                io::FormatChangeOptions {
+                    verbosity: 100,
+                    level: usize::MAX,
+                }
+            )
+        );
     }
 
     assert_eq!(

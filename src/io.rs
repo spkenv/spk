@@ -44,12 +44,12 @@ pub fn format_options(options: &api::OptionMap) -> String {
 }
 
 /// Helper to hold values that affect the formatting of a request
-pub struct FormatRequestOptions {
-    verbosity: u32,
-    level: usize,
+pub struct FormatChangeOptions {
+    pub verbosity: u32,
+    pub level: usize,
 }
 
-impl Default for FormatRequestOptions {
+impl Default for FormatChangeOptions {
     fn default() -> Self {
         Self {
             verbosity: 0,
@@ -62,7 +62,7 @@ impl Default for FormatRequestOptions {
 pub fn format_request<'a, R>(
     name: &api::PkgName,
     requests: R,
-    format_options: FormatRequestOptions,
+    format_settings: FormatChangeOptions,
 ) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
@@ -81,12 +81,12 @@ where
             None => "".to_string(),
         };
 
-        let details = if format_options.verbosity > SHOW_REQUEST_DETAILS
-            || format_options.level == INITIAL_REQUESTS_LEVEL
+        let details = if format_settings.verbosity > SHOW_REQUEST_DETAILS
+            || format_settings.level == INITIAL_REQUESTS_LEVEL
         {
             let mut differences = Vec::new();
-            let show_full_value = format_options.level == INITIAL_REQUESTS_LEVEL
-                && format_options.verbosity > SHOW_INITIAL_REQUESTS_FULL_VALUES;
+            let show_full_value = format_settings.level == INITIAL_REQUESTS_LEVEL
+                && format_settings.verbosity > SHOW_INITIAL_REQUESTS_FULL_VALUES;
 
             if show_full_value || !req.prerelease_policy.is_default() {
                 differences.push(format!(
@@ -167,7 +167,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             format_request(
                 &req.spec.pkg.name,
                 &[installed],
-                FormatRequestOptions::default()
+                FormatChangeOptions::default()
             )
         ));
         if verbosity > 0 {
@@ -216,26 +216,25 @@ fn get_request_change_label(level: usize) -> &'static str {
     }
 }
 
-pub fn format_change(change: &solve::graph::Change, verbosity: u32, level: usize) -> String {
+pub fn format_change(
+    change: &solve::graph::Change,
+    format_settings: FormatChangeOptions,
+) -> String {
     use solve::graph::Change::*;
     match change {
         RequestPackage(c) => {
             format!(
                 "{} {}",
-                get_request_change_label(level).blue(),
-                format_request(
-                    &c.request.pkg.name,
-                    [&c.request],
-                    FormatRequestOptions { verbosity, level }
-                )
+                get_request_change_label(format_settings.level).blue(),
+                format_request(&c.request.pkg.name, [&c.request], format_settings)
             )
         }
         RequestVar(c) => {
             format!(
                 "{} {}{}",
-                get_request_change_label(level).blue(),
+                get_request_change_label(format_settings.level).blue(),
                 format_options(&option_map! {c.request.var.clone() => c.request.value.clone()}),
-                if verbosity > SHOW_REQUEST_DETAILS {
+                if format_settings.verbosity > SHOW_REQUEST_DETAILS {
                     format!(" fromBuildEnv: {}", c.request.pin.to_string().cyan())
                 } else {
                     "".to_string()
@@ -346,7 +345,13 @@ where
                 self.output_queue.push_back(format!(
                     "{} {}",
                     prefix,
-                    format_change(change, self.verbosity, self.level)
+                    format_change(
+                        change,
+                        FormatChangeOptions {
+                            verbosity: self.verbosity,
+                            level: self.level
+                        }
+                    )
                 ))
             }
             self.level = (self.level as i64 + level_change) as usize;
