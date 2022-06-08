@@ -171,20 +171,46 @@ pub struct PartialDigest(Vec<u8>);
 impl PartialDigest {
     pub fn parse<S: AsRef<str>>(source: S) -> Result<Self> {
         use std::borrow::Cow;
+        const PAD_TO_MULTIPLE: usize = 8;
 
         let mut partial = Cow::Borrowed(source.as_ref());
+
+        // the static BASE32 implementation rejects inputs which
+        // are not valid outputs, but that doesn't mean that we
+        // can't get valuable partial data from a set of characters
+        let mut spec = data_encoding::Specification::new();
+        spec.symbols.push_str("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
+        spec.padding = Some('=');
+        spec.check_trailing_bits = false;
+        let permissive_base32 = spec
+            .encoding()
+            .expect("hard-coded encoding should be valid");
+
         // an empty digest string is always ambiguous and not valid
         if partial.is_empty() {
             return Err(Error::new("partial digest cannot be empty"));
         }
-        // BASE32 requires padding in multiples of 8
-        let missing = partial.len() % 8;
-        if missing > 0 {
-            partial = Cow::Owned(format!("{partial}{}", "=".repeat(missing)));
+        // BASE32 requires padding in specific multiples
+        let trailing_character_count = partial.len() % PAD_TO_MULTIPLE;
+        if trailing_character_count > 0 {
+            partial = Cow::Owned(format!(
+                "{partial}{}",
+                "=".repeat(PAD_TO_MULTIPLE - trailing_character_count)
+            ));
         }
-        let decoded = BASE32
+        let decoded = permissive_base32
             .decode(partial.as_bytes())
-            .map_err(|err| Error::new(format!("invalid partial digest: {:?}", err)))?;
+            .map_err(|err| {
+                use data_encoding::DecodeKind::*;
+                let source = source.as_ref();
+                match err.kind {
+                    Padding => Error::new(format!(
+                        "invalid partial digest: len must be a multiple of 2, got '{source}'",
+                    )),
+                    _ => Error::new(format!("invalid partial digest: {err}, got '{source}'",)),
+                }
+            })?;
+
         Ok(Self(decoded))
     }
 
@@ -220,9 +246,27 @@ impl Display for PartialDigest {
     }
 }
 
+impl From<&[u8]> for PartialDigest {
+    fn from(bytes: &[u8]) -> Self {
+        Self(bytes.to_vec())
+    }
+}
+
+impl From<Vec<u8>> for PartialDigest {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+}
+
 impl AsRef<[u8]> for PartialDigest {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+
+impl From<PartialDigest> for Vec<u8> {
+    fn from(partial: PartialDigest) -> Self {
+        partial.0
     }
 }
 
@@ -243,6 +287,14 @@ impl AsRef<PartialDigest> for PartialDigest {
 /// Digest is the result of a hashing operation over binary data.
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub struct Digest([u8; DIGEST_SIZE]);
+
+impl std::ops::Deref for Digest {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0[..]
+    }
+}
 
 impl Default for Digest {
     fn default() -> Self {
