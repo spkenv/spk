@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-///! Configuration and storage of runtimes.
+///! Definition and persistent storage of runtimes.
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -432,6 +432,19 @@ impl Runtime {
 
     /// Save the current state of this runtime to the underlying storage
     pub async fn save_state_to_storage(&self) -> Result<()> {
+        #[cfg(feature = "runtime-compat-0.33")]
+        {
+            let config = crate::get_config()?;
+            // we are making an assumption here that no override was
+            // previously configured for the runtime storage location
+            let storage_root = config.storage.root.join("runtimes");
+            let storage = super::storage_033::Storage::new(storage_root)?;
+            let mut replica = storage.read_runtime(self.name()).or_else(|err| match err {
+                crate::Error::UnknownRuntime(_) => storage.create_named_runtime(self.name()),
+                _ => Err(err),
+            })?;
+            replica.replicate(self)?;
+        }
         self.storage.save_runtime(self).await
     }
 }

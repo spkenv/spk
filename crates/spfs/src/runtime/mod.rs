@@ -9,6 +9,8 @@ mod overlayfs;
 mod startup_csh;
 mod startup_sh;
 mod storage;
+#[cfg(feature = "runtime-compat-0.33")]
+pub mod storage_033;
 
 pub use overlayfs::is_removed_entry;
 pub use storage::{
