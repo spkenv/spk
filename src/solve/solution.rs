@@ -30,6 +30,10 @@ pub enum PackageSource {
 }
 
 impl PackageSource {
+    pub fn is_build_from_source(&self) -> bool {
+        matches!(self, Self::BuildFromSource { .. })
+    }
+
     pub async fn read_recipe(&self, ident: &Ident) -> Result<Arc<api::SpecRecipe>> {
         match self {
             PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
@@ -80,7 +84,7 @@ impl SolvedRequest {
 }
 
 /// Represents a set of resolved packages.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,

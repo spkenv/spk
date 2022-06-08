@@ -42,7 +42,7 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Re
         ),
     ))?;
 
-    // these are sorted to ensure that the version spec is published
+    // these are sorted to ensure that the recipe is published
     // before any build - it's only an error in testing, but still best practice
     let mut to_transfer = std::collections::BTreeSet::new();
     to_transfer.insert(pkg.clone());
@@ -127,7 +127,7 @@ async fn copy_package(
         let spec = src_repo.read_package(pkg).await?;
         let components = src_repo.read_components(pkg).await?;
         tracing::info!(%pkg, "exporting");
-        let syncer = spfs::Syncer::new(&src_repo, &dst_repo)
+        let syncer = spfs::Syncer::new(src_repo, dst_repo)
             .with_reporter(spfs::sync::ConsoleSyncReporter::default());
         let desired = components.iter().map(|i| *i.1).collect();
         syncer.sync_env(desired).await?;

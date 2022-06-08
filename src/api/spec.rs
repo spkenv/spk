@@ -10,6 +10,62 @@ use serde::{Deserialize, Serialize};
 use super::{Deprecate, DeprecateMut, Named, Package, Template, Versioned};
 use crate::{Error, Result};
 
+/// Create a spec recipe from a json structure.
+///
+/// This will panic if the given struct
+/// cannot be deserialized into a recipe.
+///
+/// ```
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// recipe!({
+///   "api": "v0/package",
+///   "pkg": "my-pkg/1.0.0",
+///   "build": {
+///     "options": [
+///       {"pkg": "dependency"}
+///     ]
+///   }
+/// });
+/// # }
+/// ```
+#[macro_export]
+macro_rules! recipe {
+    ($($spec:tt)+) => {{
+        let value = serde_json::json!($($spec)+);
+        let spec: $crate::api::SpecRecipe = serde_json::from_value(value).unwrap();
+        spec
+    }};
+}
+
+/// Create a spec from a json structure.
+///
+/// This will panic if the given struct
+/// cannot be deserialized into a spec.
+///
+/// ```
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// spec!({
+///   "api": "v0/package",
+///   "pkg": "my-pkg/1.0.0",
+///   "build": {
+///     "options": [
+///       {"pkg": "dependency"}
+///     ]
+///   }
+/// });
+/// # }
+/// ```
+#[macro_export]
+macro_rules! spec {
+    ($($spec:tt)+) => {{
+        let value = serde_json::json!($($spec)+);
+        let spec: $crate::api::Spec = serde_json::from_value(value).unwrap();
+        spec
+    }};
+}
+
 /// A generic, structured data object that can be turned into a recipe
 /// when provided with the necessary option values
 pub struct SpecTemplate {
@@ -164,7 +220,7 @@ impl<'de> Deserialize<'de> for SpecRecipe {
 ///
 /// All resolve-able types have a spec representation
 /// that can be serialized and deserialized from a
-/// [`spk::storage::Repository`].
+/// [`crate::storage::Repository`].
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Named, Versioned, Deprecate, DeprecateMut, Package)]

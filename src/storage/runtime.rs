@@ -61,7 +61,7 @@ impl RuntimeRepository {
 
     #[cfg(test)]
     pub fn new(root: std::path::PathBuf) -> Self {
-        // this function is not allowed outside of testing because get_package
+        // this function is not allowed outside of testing because read_components
         // makes assumptions about the runtime directory which cannot be
         // reasonably altered
         let address = Self::address_from_root(&root);

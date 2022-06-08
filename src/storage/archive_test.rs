@@ -10,16 +10,16 @@ use crate::{api::Package, build, fixtures::*};
 #[tokio::test]
 async fn test_archive_io() {
     let rt = spfs_runtime().await;
-    let spec = crate::spec!(
+    let spec = crate::recipe!(
         {
             "pkg": "spk-archive-test/0.0.1",
             "build": {"script": "touch /spfs/file.txt"},
         }
     );
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    let spec = build::BinaryPackageBuilder::from_spec(spec)
+    let (spec, _) = build::BinaryPackageBuilder::from_recipe(spec)
         .with_source(build::BuildSource::LocalPath(".".into()))
-        .build()
+        .build_and_publish(&*rt.tmprepo)
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("archive.spk");
@@ -70,16 +70,16 @@ async fn test_archive_io() {
 #[tokio::test]
 async fn test_archive_create_parents() {
     let rt = spfs_runtime().await;
-    let spec = crate::spec!(
+    let spec = crate::recipe!(
         {
             "pkg": "spk-archive-test/0.0.1",
             "build": {"script": "touch /spfs/file.txt"},
         }
     );
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    let spec = build::BinaryPackageBuilder::from_spec(spec)
+    let (spec, _) = build::BinaryPackageBuilder::from_recipe(spec)
         .with_source(build::BuildSource::LocalPath(".".into()))
-        .build()
+        .build_and_publish(&*rt.tmprepo)
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");

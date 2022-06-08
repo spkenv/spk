@@ -37,7 +37,7 @@ impl CollectionError {
 /// ```no_run
 /// # #[macro_use] extern crate spk;
 /// # async fn demo() {
-/// spk::build::SourcePackageBuilder::from_spec(spk::spec!({
+/// spk::build::SourcePackageBuilder::from_recipe(spk::recipe!({
 ///        "pkg": "my-pkg",
 ///     }))
 ///    .build()
@@ -58,13 +58,17 @@ impl<Recipe: api::Recipe> SourcePackageBuilder<Recipe> {
         }
     }
 
-    pub async fn build_and_publish(
-        &self,
-        repo: &impl storage::Repository<Recipe = Recipe>,
+    pub async fn build_and_publish<R, T>(
+        &mut self,
+        repo: &R,
     ) -> Result<(
         Recipe::Output,
         HashMap<api::Component, spfs::encoding::Digest>,
-    )> {
+    )>
+    where
+        R: std::ops::Deref<Target = T>,
+        T: storage::Repository<Recipe = Recipe> + ?Sized,
+    {
         let (package, components) = self.build().await?;
         repo.publish_package(&package, &components).await?;
         Ok((package, components))

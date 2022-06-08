@@ -314,6 +314,9 @@ impl Repository for SPFSRepository {
 
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         let address = self.address();
+        if pkg.build.is_some() {
+            return Err(format!("cannot read a recipe for a package build: {pkg}").into());
+        }
         if self.cached_result_permitted() {
             let r = RECIPE_CACHE
                 .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
@@ -429,9 +432,16 @@ impl Repository for SPFSRepository {
 
     async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
         if let Some(api::Build::Embedded) = spec.ident().build {
-            return Err(api::InvalidBuildError::new_error(
-                "Cannot publish embedded package".to_string(),
-            ));
+            return Err(api::InvalidBuildError::new_error(format!(
+                "Cannot publish embedded package: {}",
+                spec.ident()
+            )));
+        }
+        if spec.ident().build.is_some() {
+            return Err(api::InvalidBuildError::new_error(format!(
+                "Cannot publish recipe with associated build: {}",
+                spec.ident()
+            )));
         }
         let tag_path = self.build_spec_tag(&spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
@@ -456,7 +466,7 @@ impl Repository for SPFSRepository {
             self.read_recipe(&spec.ident().with_build(None)).await
         {
             return Err(Error::String(format!(
-                "[INTERNAL] version spec must be published before a specific build: {pkg}",
+                "[INTERNAL] recipe must be published before a specific build: {pkg}",
             )));
         }
 
@@ -475,23 +485,36 @@ impl Repository for SPFSRepository {
                 Error::String("Package must have a run component to be published".to_string())
             })?
         };
-        let spec: Result<&api::Spec> = {
-            self.inner.push_tag(&legacy_tag, &legacy_component).await?;
 
-            let components: std::result::Result<Vec<_>, _> = components
-                .iter()
-                .map(|(name, digest)| {
-                    spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
-                        .map(|spec| (spec, digest))
-                })
-                .collect();
-            for (tag_spec, digest) in components?.into_iter() {
-                self.inner.push_tag(&tag_spec, digest).await?;
-            }
-            Ok(spec)
-        };
+        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
 
-        self.update_package(spec?).await?;
+        let components: std::result::Result<Vec<_>, _> = components
+            .iter()
+            .map(|(name, digest)| {
+                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
+                    .map(|spec| (spec, digest))
+            })
+            .collect();
+        for (tag_spec, digest) in components?.into_iter() {
+            self.inner.push_tag(&tag_spec, digest).await?;
+        }
+
+        if let Some(api::Build::Embedded) = spec.ident().build {
+            return Err(api::InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            ));
+        }
+
+        // TODO: dedupe this part with force_publish_recipe
+        let tag_path = self.build_spec_tag(spec.ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+        let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
         Ok(())
     }
 
@@ -603,6 +626,7 @@ impl SPFSRepository {
         LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         PACKAGE_VERSIONS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         RECIPE_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        PACKAGE_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
     }
 

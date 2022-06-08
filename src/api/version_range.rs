@@ -53,11 +53,13 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// this cannot be fully determined without a complete package spec.
     fn is_applicable(&self, other: &Version) -> Compatibility {
         if let Some(gt) = self.greater_or_equal_to() {
+            println!("{gt}");
             if other < &gt {
                 return Compatibility::Incompatible(format!("version too low for >= {gt}"));
             }
         }
         if let Some(lt) = self.less_than() {
+            println!("{lt}");
             if other >= &lt {
                 return Compatibility::Incompatible(format!("version too high for < {lt}"));
             }
@@ -805,7 +807,10 @@ impl Ranged for EqualsVersion {
     }
 
     fn is_satisfied_by(&self, other: &dyn Package, _required: CompatRule) -> Compatibility {
-        let other = other.version();
+        self.is_applicable(other.version())
+    }
+
+    fn is_applicable(&self, other: &Version) -> Compatibility {
         if self.version.parts != other.parts {
             return Compatibility::Incompatible(format!("{} !! {} [not equal]", &other, self));
         }
@@ -933,7 +938,10 @@ impl Ranged for DoubleEqualsVersion {
     }
 
     fn is_satisfied_by(&self, other: &dyn Package, _required: CompatRule) -> Compatibility {
-        let other = other.version();
+        self.is_applicable(other.version())
+    }
+
+    fn is_applicable(&self, other: &Version) -> Compatibility {
         if self.version.parts != other.parts {
             return Compatibility::Incompatible(
                 format!("{other} !! {self} [not equal precisely]",),

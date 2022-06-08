@@ -5,22 +5,19 @@
 use rstest::rstest;
 
 use super::Publisher;
-use crate::{
-    api::{self, Package},
-    fixtures::*,
-};
+use crate::{api, fixtures::*, prelude::*};
 
 #[rstest]
 #[tokio::test]
 async fn test_publish_no_version_spec() {
     let rt = spfs_runtime().await;
-    let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    rt.tmprepo.publish_recipe(spec).await.unwrap();
+    let spec = crate::recipe!({"pkg": "my-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -33,5 +30,5 @@ async fn test_publish_no_version_spec() {
         .publish(&spec.ident().with_build(None))
         .await
         .unwrap();
-    destination.read_components(spec.ident()).unwrap();
+    destination.read_components(spec.ident()).await.unwrap();
 }

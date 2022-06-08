@@ -22,7 +22,7 @@ fn test_src_package_install_requests_are_not_considered() {
             },
         }
     ));
-    let source = solve::PackageSource::Spec(spec.clone());
+    let source = solve::PackageSource::Embedded;
 
     let state = State::new(
         vec![
@@ -71,7 +71,7 @@ fn test_empty_options_can_match_anything() {
             "install": {"requirements": [{"var": "python.abi/cp37m"}]},
         }
     ));
-    let source = solve::PackageSource::Spec(spec.clone());
+    let source = solve::PackageSource::Embedded; // TODO: ???
 
     assert!(
         validator.validate(&state, &*spec, &source).unwrap().is_ok(),
@@ -102,7 +102,7 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "on"}]},
         }
     ));
-    let source = solve::PackageSource::Spec(spec.clone());
+    let source = solve::PackageSource::Embedded; // TODO: ???
 
     let compat = validator.validate(&state, &*spec, &source).unwrap();
     assert!(
@@ -120,11 +120,11 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "off"}]},
         }
     ));
-    let source = solve::PackageSource::Spec(spec.clone());
+    let source = solve::PackageSource::Embedded; // TODO: ???
     let compat = validator.validate(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
-        "qualified var requests should superseded unqualified ones, got: {}",
+        "qualified var requests should supercede unqualified ones, got: {}",
         compat
     );
 }

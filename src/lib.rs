@@ -30,18 +30,6 @@ pub use solve::{Solution, Solver};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-lazy_static::lazy_static! {
-    pub static ref HANDLE: tokio::runtime::Handle = {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let handle = rt.handle().clone();
-        std::thread::spawn(move || rt.block_on(futures::future::pending::<()>()));
-        handle
-    };
-}
-
 #[async_trait::async_trait]
 pub trait ResolverCallback: Send + Sync {
     /// Run a solve using the given [`solve::SolverRuntime`],

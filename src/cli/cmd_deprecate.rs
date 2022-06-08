@@ -170,7 +170,7 @@ pub(crate) async fn change_deprecation_state(
                     Ok(recipe) => {
                         to_action.push((
                             DeprecationTarget::Recipe(recipe),
-                            repo_name.clone(),
+                            repo_name,
                             Arc::clone(repo),
                         ));
                         // It's a package version, so find and add its
@@ -216,7 +216,7 @@ pub(crate) async fn change_deprecation_state(
                     Ok(package) => {
                         to_action.push((
                             DeprecationTarget::Package(package),
-                            repo_name.clone(),
+                            repo_name,
                             Arc::clone(repo),
                         ));
                     }

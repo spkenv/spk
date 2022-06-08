@@ -7,7 +7,7 @@ use rstest::rstest;
 
 use super::DecisionBuilder;
 use crate::{
-    api, io, opt_name, option_map,
+    api, io, opt_name, option_map, recipe,
     solve::{self, graph},
     spec,
 };
@@ -20,14 +20,15 @@ fn test_resolve_build_same_result() {
 
     let base = graph::State::default();
 
+    let recipe = recipe!({"pkg": "test/1.0.0"});
+    let recipe = Arc::new(recipe);
     let build_spec = spec!({"pkg": "test/1.0.0/3I42H3S6"});
     let build_spec = Arc::new(build_spec);
-    let source = solve::PackageSource::Spec(build_spec.clone());
+    let source = solve::PackageSource::Embedded; // TODO: ???
 
-    let resolve =
-        solve::graph::Decision::builder(build_spec.clone(), &base).resolve_package(source);
-    let build = solve::graph::Decision::builder(build_spec, &base)
-        .build_package(&solve::Solution::new(None))
+    let resolve = solve::graph::Decision::builder(&base).resolve_package(&build_spec, source);
+    let build = solve::graph::Decision::builder(&base)
+        .build_package(&recipe, &solve::Solution::new(None))
         .unwrap();
 
     let with_binary = resolve.apply(&base);
@@ -97,19 +98,26 @@ fn test_empty_options_do_not_unset() {
 
 #[rstest]
 fn test_request_default_component() {
-    let spec = spec!({
-        "pkg": "parent",
+    let recipe = Arc::new(recipe!({
+        "pkg": "parent/1.0.0",
         "install": {
           "requirements": [
             {"pkg": "dependency/1.0.0"}
           ]
         }
-    });
-    let spec = std::sync::Arc::new(spec);
+    }));
+    let spec = Arc::new(spec!({
+        "pkg": "parent/1.0.0",
+        "install": {
+          "requirements": [
+            {"pkg": "dependency/1.0.0"}
+          ]
+        }
+    }));
     let base = std::sync::Arc::new(super::State::default());
 
-    let resolve_state = DecisionBuilder::new(spec.clone(), &base)
-        .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
+    let resolve_state = DecisionBuilder::new(&base)
+        .resolve_package(&spec, solve::solution::PackageSource::Embedded) // TODO: embedded???
         .apply(&base);
     let request = resolve_state
         .get_merged_request(api::PkgName::new("dependency").unwrap())
@@ -122,8 +130,8 @@ fn test_request_default_component() {
         "default component should be injected when none specified"
     );
 
-    let build_state = DecisionBuilder::new(spec, &base)
-        .build_package(&solve::solution::Solution::new(None))
+    let build_state = DecisionBuilder::new(&base)
+        .build_package(&recipe, &solve::solution::Solution::new(None))
         .unwrap()
         .apply(&base);
     let request = build_state

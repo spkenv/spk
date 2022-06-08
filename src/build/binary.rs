@@ -13,9 +13,9 @@ use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
+use crate::prelude::*;
 use crate::solve::Solution;
 use crate::{api, exec, solve, storage, Error, Result};
-use crate::{prelude::*, Solver};
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -56,7 +56,7 @@ pub enum BuildSource {
 /// ```no_run
 /// # #[macro_use] extern crate spk;
 /// # async fn demo() {
-/// spk::build::BinaryPackageBuilder::from_spec(spk::spec!({
+/// spk::build::BinaryPackageBuilder::from_recipe(spk::recipe!({
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
@@ -71,7 +71,8 @@ pub struct BinaryPackageBuilder<'a, Recipe: api::Recipe> {
     recipe: Recipe,
     inputs: api::OptionMap,
     source: BuildSource,
-    solver: Solver,
+    solver: solve::Solver,
+    environment: HashMap<String, String>,
     source_resolver: crate::BoxedResolverCallback<'a>,
     build_resolver: crate::BoxedResolverCallback<'a>,
     last_solve_graph: Arc<tokio::sync::RwLock<solve::Graph>>,
@@ -94,6 +95,7 @@ where
             prefix: PathBuf::from("/spfs"),
             inputs: api::OptionMap::default(),
             solver: solve::Solver::default(),
+            environment: Default::default(),
             source_resolver: Box::new(crate::DefaultResolver {}),
             build_resolver: Box::new(crate::DefaultResolver {}),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(solve::Graph::new())),
@@ -229,6 +231,7 @@ where
         Recipe::Output,
         HashMap<api::Component, spfs::encoding::Digest>,
     )> {
+        self.environment.clear();
         let mut runtime = spfs::active_runtime().await?;
         runtime.reset_all()?;
         runtime.status.editable = true;
@@ -251,11 +254,11 @@ where
 
         tracing::debug!("Resolving build environment");
         let solution = self.resolve_build_environment(&all_options).await?;
+        self.environment
+            .extend(solution.to_environment(Some(std::env::vars())));
+
+        let solution = self.resolve_build_environment(&all_options).await?;
         {
-            // NOTE(rbottriell): I'm not a huge fan of this hack, we
-            // want to be able to use the final solver options to generate
-            // the final package build, but for some reason the solver breaks
-            // some of the values and we have tests that require the
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
             // goes wrong when this is removed.
@@ -272,8 +275,9 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         let package = self.recipe.generate_binary_build(&all_options, &solution)?;
-        let components =
-            crate::HANDLE.block_on(self.build_and_commit_artifacts(&package, &all_options))?;
+        let components = self
+            .build_and_commit_artifacts(&package, &all_options)
+            .await?;
         Ok((package, components))
     }
 
@@ -459,6 +463,7 @@ where
         };
 
         let mut cmd = cmd.into_std();
+        cmd.envs(self.environment.drain());
         cmd.envs(options.to_environment());
         cmd.envs(get_package_build_env(package));
         cmd.env("PREFIX", &self.prefix);

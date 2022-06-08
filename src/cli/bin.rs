@@ -46,8 +46,6 @@ pub struct Opt {
 
 impl Opt {
     pub async fn run(&mut self) -> Result<i32> {
-        let _guard = spk::HANDLE.enter();
-
         #[cfg(feature = "sentry")]
         let _sentry_guard = env::configure_sentry();
 

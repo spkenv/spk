@@ -39,7 +39,7 @@ impl Run for MakeSource {
 impl MakeSource {
     pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::BuildIdent>> {
         let _runtime = self.runtime.ensure_active_runtime().await?;
-        let local = spk::storage::local_repository().await?;
+        let local: spk::storage::RepositoryHandle = spk::storage::local_repository().await?.into();
         let options = self.options.get_options()?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
@@ -74,7 +74,11 @@ impl MakeSource {
                 .await
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
-            idents.push(out.ident().clone());
+            idents.push(
+                out.ident()
+                    .clone()
+                    .try_into_build_ident(local.name().to_owned())?,
+            );
         }
         Ok(idents)
     }

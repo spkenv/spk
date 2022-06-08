@@ -16,33 +16,6 @@ use crate::{api, Error, Result};
 #[path = "./spec_test.rs"]
 mod spec_test;
 
-/// Create a spec from a json structure.
-///
-/// This will panic if the given struct
-/// cannot be deserialized into a spec.
-///
-/// ```
-/// # #[macro_use] extern crate spk;
-/// # fn main() {
-/// spec!({
-///   "pkg": "my-pkg/1.0.0",
-///   "build": {
-///     "options": [
-///       {"pkg": "dependency"}
-///     ]
-///   }
-/// });
-/// # }
-/// ```
-#[macro_export]
-macro_rules! spec {
-    ($($spec:tt)+) => {{
-        let value = serde_json::json!($($spec)+);
-        let spec: $crate::api::Spec = serde_json::from_value(value).unwrap();
-        spec
-    }};
-}
-
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct Spec {
     pub pkg: Ident,
@@ -308,7 +281,9 @@ impl Recipe for Spec {
     fn generate_source_build(&self) -> Result<Self> {
         // TODO: remove all things that would cause this to not resolve
         //       after solver no longer treats source packages differently
-        Ok(self.clone())
+        let mut source = self.clone();
+        source.pkg.set_build(Some(Build::Source));
+        Ok(source)
     }
 
     fn generate_binary_build(

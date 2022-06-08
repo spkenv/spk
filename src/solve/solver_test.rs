@@ -7,16 +7,11 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
 use super::Solver;
-use crate::fixtures::*;
-use crate::{
-    api::{self, Package},
-    fixtures::*,
-    io, Error, Error, Result,
-};
+use crate::{api, io, prelude::*, Error, Result};
+use crate::{fixtures::*, recipe};
 // macros
 use crate::{
-    make_build, make_build_and_components, make_build_and_components, make_repo, opt_name,
-    option_map, request, spec,
+    make_build, make_build_and_components, make_repo, opt_name, option_map, request, spec,
 };
 
 #[fixture]
@@ -116,7 +111,7 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec.into(), components)
+    repo.publish_package(&spec.into(), &components)
         .await
         .unwrap();
 
@@ -144,7 +139,7 @@ async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec, components).await.unwrap();
+    repo.publish_package(&spec, &components).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     // Create this one as requested by the command line, rather than the tests
@@ -527,7 +522,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     // - the options for each build are checked
     // - the resolved build must have used the option
 
-    let spec = spec!(
+    let spec = recipe!(
         {
             "pkg": "vnp3/2.0.0",
             "build": {
@@ -549,13 +544,12 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     let for_py26 = make_build!(spec, [py26]);
     let for_py371 = make_build!(spec, [py371]);
     let for_py37 = make_build!(spec, [py37]);
-
     let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
     repo.publish_recipe(&spec).await.unwrap();
     let repo = Arc::new(repo);
 
     // The 'by_build_option_values' build sorting method does not use
-    // the variants or version spec's default options. It sorts the
+    // the variants or recipe's default options. It sorts the
     // builds by putting the ones with the highest numbered build
     // options (dependencies) first. The '~'s and ',<3's have been
     // added to some of the version ranges below force the solver to
@@ -606,7 +600,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
     // test the options that are defined when a package is resolved
     // - options are namespaced and added to the environment
     init_logging();
-    let spec = spec!(
+    let spec = recipe!(
         {
             "pkg": "vnp3/2.0.0",
             "build": {
@@ -627,7 +621,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
     );
     let build = make_build!(spec, [pybuild]);
     let repo = make_repo!([build]);
-    repo.publish_recipe(spec).await.unwrap();
+    repo.publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
@@ -677,6 +671,7 @@ async fn test_solver_build_from_source(mut solver: Solver) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
+    solver.set_binary_only(false);
     // the new option value should disqualify the existing build
     // but a new one should be generated for this set of options
     solver.add_request(request!({"var": "debug/on"}));
@@ -781,6 +776,7 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
     solver.update_options(option_map! {"debug" => "on"});
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
+    solver.set_binary_only(false);
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
@@ -886,20 +882,24 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
-    options = {"debug" => "off"}
+        options = {"debug" => "off"}
     );
     let spec = repo
         .read_recipe(&api::parse_ident("my-tool/1.2.0").unwrap())
         .await
         .unwrap();
-    repo.force_publish_recipe(spec).await.unwrap();
+    repo.force_publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
     let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(matches!(res, Err(Error::Solve(_))));
+    match res {
+        Err(Error::Solve(_)) => {}
+        Err(err) => panic!("expected solve error, got {}", err),
+        _ => panic!("expected solve error, got successful solution"),
+    }
 }
 
 #[rstest]
@@ -1203,12 +1203,12 @@ async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     let dep_v1 = spec!({"pkg": "build-dep/1.0.0"});
     let dep_v2 = spec!({"pkg": "build-dep/2.0.0"});
 
-    let a_spec = spec!({
+    let a_spec = recipe!({
         "pkg": "pkga/1.0.0",
         "build": {"options": [{"pkg": "build-dep/=1.0.0"}, {"var": "debug/on"}]},
     });
 
-    let b_spec = spec!({
+    let b_spec = recipe!({
         "pkg": "pkgb/1.0.0",
         "build": {"options": [{"pkg": "build-dep/=2.0.0"}, {"var": "debug/off"}]},
     });
@@ -1383,7 +1383,7 @@ async fn test_solver_component_availability(mut solver: Solver) {
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
 
-    let spec373 = spec!({
+    let spec373 = recipe!({
         "pkg": "python/3.7.3",
         "install": {
             "components": [
@@ -1392,7 +1392,7 @@ async fn test_solver_component_availability(mut solver: Solver) {
             ]
         },
     });
-    let spec372 = spec!({
+    let spec372 = recipe!({
         "pkg": "python/3.7.2",
         "install": {
             "components": [
@@ -1401,7 +1401,7 @@ async fn test_solver_component_availability(mut solver: Solver) {
             ]
         },
     });
-    let spec371 = spec!({
+    let spec371 = recipe!({
         "pkg": "python/3.7.1",
         "install": {
             "components": [

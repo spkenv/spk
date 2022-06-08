@@ -81,7 +81,7 @@ async fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
         api::SourceSpec::Local(file_source),
         api::SourceSpec::Local(dir_source),
     ];
-    collect_sources(&spec.into(), &dest_dir).unwrap();
+    collect_sources(&api::Spec::from(spec), &dest_dir).unwrap();
     assert!(dest_dir.join("local").is_dir());
     assert!(dest_dir.join("git_repo").is_dir());
     assert!(dest_dir.join("archive/src").is_dir());
@@ -127,7 +127,7 @@ async fn test_sources_environment(_tmpdir: tempdir::TempDir) {
     ]);
     let dest_dir = rt.tmpdir.path().join("dest");
     spec.sources = vec![api::SourceSpec::Script(script_source)];
-    collect_sources(&spec.into(), dest_dir).unwrap();
+    collect_sources(&api::Spec::from(spec), dest_dir).unwrap();
 
     let actual = std::fs::read_to_string(out_file).unwrap();
     assert_eq!(

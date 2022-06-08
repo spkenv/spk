@@ -9,7 +9,7 @@ use rstest::rstest;
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
 use crate::api::{self, Package, PkgName};
-use crate::{make_build, make_repo, option_map, spec};
+use crate::{make_build, make_repo, option_map, recipe, spec};
 
 #[rstest]
 #[tokio::test]
@@ -18,7 +18,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
     // for build key generation and sorting coverage
 
     let package_name = "vnp3";
-    let build_spec = spec!(
+    let recipe = recipe!(
         {
             "pkg": "vnp3/2.0.0",
             "build": {
@@ -32,7 +32,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
             },
         }
     );
-    let alt_spec = spec!(
+    let alt_recipe = recipe!(
         {
             "pkg": "vnp3/2.0.0",
             "build": {
@@ -99,21 +99,21 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
     };
 
     // A package with the first spec
-    let build = make_build!(build_spec, [python2], options1);
+    let build = make_build!(recipe, [python2], options1);
     // A package with the first spec - with tuesday set to a
     // different value
-    let build_tuesday = make_build!(build_spec, [python2], options2);
+    let build_tuesday = make_build!(recipe, [python2], options2);
     // A package with the first spec - but cmake and zlib set
     // to a different types, and cheese added
-    let build_diff_types = make_build!(build_spec, [python2], options3);
+    let build_diff_types = make_build!(recipe, [python2], options3);
     // A first spec /src build package - no options that matter
     let src_build = make_build!(src_spec, [], options_s);
     // A package with the second spec - different dependencies,
     // some new options, and some overlapping options
-    let alt_build = make_build!(alt_spec, [gcc6], options_a);
+    let alt_build = make_build!(alt_recipe, [gcc6], options_a);
     // A different package with the second spec - higher gcc value
     // that the previous one
-    let alt_build_higher = make_build!(alt_spec, [gcc9], options_b);
+    let alt_build_higher = make_build!(alt_recipe, [gcc9], options_b);
 
     let repo = make_repo!([
         build,
@@ -123,7 +123,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
         alt_build,
         alt_build_higher,
     ]);
-    repo.publish_spec(&build_spec).await.unwrap();
+    repo.publish_recipe(&recipe).await.unwrap();
 
     // Set up a way of identifying the builds in the expected order.
     // Doing this by options because it's easier to see and update
@@ -183,7 +183,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
 
         for i in 0..sorted_builds.len() {
             let b = &sorted_builds[i];
-            let options = b.resolve_options(&api::OptionMap::default());
+            let options = b.option_values();
 
             for (n, v) in options.iter() {
                 println!("{} {} {}={}", i, b.ident(), n, v);

@@ -274,7 +274,7 @@ impl Solver {
                         }
                     }
 
-                    compat = self.validate(&node.state, &spec, &source)?;
+                    compat = self.validate(&node.state, &spec, source)?;
                     if !&compat {
                         notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                             spec.ident().clone(),
@@ -286,12 +286,21 @@ impl Solver {
 
                     let mut decision = if build_from_source {
                         let recipe = match source.read_recipe(spec.ident()).await {
+                            Ok(r) if r.is_deprecated() => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        pkg.clone(),
+                                        "cannot build from source, version is deprecated",
+                                    ),
+                                ));
+                                continue;
+                            }
                             Ok(r) => r,
                             Err(Error::PackageNotFoundError(pkg)) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
                                         pkg,
-                                        "cannot build from source, version spec not available",
+                                        "cannot build from source, recipe not available",
                                     ),
                                 ));
                                 continue;
