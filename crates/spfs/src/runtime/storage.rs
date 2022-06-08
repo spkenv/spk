@@ -251,7 +251,22 @@ impl OwnedRuntime {
     pub async fn delete(self) -> Result<()> {
         tracing::debug!("cleaning up runtime: {}", &self.name());
         match self.0.storage.remove_runtime(self.name()).await {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                #[cfg(feature = "runtime-compat-0.33")]
+                {
+                    let config = crate::get_config()?;
+                    let storage_root = config.storage.root.join("runtimes");
+                    let storage = super::storage_033::Storage::new(storage_root)?;
+                    match storage.remove_runtime(self.name()) {
+                        Err(crate::Error::UnknownRuntime(_)) => {}
+                        Err(err) => {
+                            tracing::warn!(?err, name=%self.name(), "failed to clean runtime from legacy storage")
+                        }
+                        Ok(_) => {}
+                    };
+                }
+                Ok(())
+            }
             Err(Error::UnknownRuntime(_)) => Ok(()),
             Err(err) => Err(err),
         }
