@@ -28,6 +28,7 @@ mod cmd_render;
 mod cmd_repo;
 mod cmd_search;
 mod cmd_test;
+mod cmd_undeprecate;
 mod cmd_version;
 mod cmd_view;
 pub mod env;
@@ -89,6 +90,7 @@ pub enum Command {
     Repo(cmd_repo::Repo),
     Search(cmd_search::Search),
     Test(cmd_test::Test),
+    Undeprecate(cmd_undeprecate::Undeprecate),
     Version(cmd_version::Version),
     View(cmd_view::View),
 }
