@@ -21,10 +21,8 @@ async fn test_hash_store_iter_states(tmpdir: tempdir::TempDir) {
 /// Produce a `Digest` with the desired string
 macro_rules! digest {
     ($digest:expr) => {
-        $crate::Digest::parse(
-            &format!("{:A<digest_size$}====", $digest, digest_size = 52)
-        )
-        .expect("valid digest")
+        $crate::Digest::parse(&format!("{:A<digest_size$}====", $digest, digest_size = 52))
+            .expect("valid digest")
     };
 }
 
@@ -50,7 +48,8 @@ async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
     */
     for starts_with in ["AA", "AB", "ABCA", "ABEA", "BB", "DD"] {
         let mut matches = Vec::new();
-        let partial = crate::encoding::PartialDigest::parse(starts_with).expect("valid partial digest");
+        let partial =
+            crate::encoding::PartialDigest::parse(starts_with).expect("valid partial digest");
         let mut stream = Box::pin(store.find(DigestSearchCriteria::StartsWith(partial)));
         while let Some(Ok(v)) = stream.next().await {
             matches.push(v);
