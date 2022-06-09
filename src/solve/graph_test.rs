@@ -38,11 +38,29 @@ fn test_resolve_build_same_result() {
 
     println!("resolve");
     for change in resolve.changes.iter() {
-        println!("{}", io::format_change(change, 100));
+        println!(
+            "{}",
+            io::format_change(
+                change,
+                io::FormatChangeOptions {
+                    verbosity: 100,
+                    level: usize::MAX,
+                }
+            )
+        );
     }
     println!("build");
     for change in build.changes.iter() {
-        println!("{}", io::format_change(change, 100));
+        println!(
+            "{}",
+            io::format_change(
+                change,
+                io::FormatChangeOptions {
+                    verbosity: 100,
+                    level: usize::MAX,
+                }
+            )
+        );
     }
 
     assert_eq!(
