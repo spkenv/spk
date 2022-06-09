@@ -61,25 +61,30 @@ impl Run for Ls {
             return self.list_recursively(repos);
         }
 
-        let mut results = BTreeSet::new();
+        let mut results = Vec::new();
         match &self.package {
             None => {
-                // List all the packages in the repo(s)
+                // List all the packages in the repo(s) - the set
+                // provides the sorting, but hides when a package is
+                // in multiple repos
+                // TODO: should this include the repo name in the output?
+                let mut set = BTreeSet::new();
                 for (_repo_name, repo) in repos {
-                    results.extend(
+                    set.extend(
                         repo.list_packages()?
                             .into_iter()
                             .map(spk::api::PkgName::into),
                     )
                 }
+                results = set.into_iter().collect();
             }
             Some(package) if !package.contains('/') => {
                 // Given a package name, list all the versions of the package
-                let name = PkgName::from_str(package)?;
+                let pkgname = PkgName::from_str(package)?;
                 let mut versions = Vec::new();
                 for (index, (_, repo)) in repos.iter().enumerate() {
                     versions.extend(
-                        repo.list_package_versions(&name)?
+                        repo.list_package_versions(&pkgname)?
                             .into_iter()
                             .map(|v| (v, index)),
                     );
@@ -87,6 +92,7 @@ impl Run for Ls {
 
                 versions.sort_by_key(|v| v.0.clone());
                 versions.reverse();
+
                 // Add the sorted versions to the results, in the
                 // appropriate format, and after any filtering
                 for (version, repo_index) in versions {
@@ -102,12 +108,12 @@ impl Run for Ls {
 
                     // TODO: tempted to swap this over to call
                     // format_build, which would add the package name
-                    // and more, but also simplify this closer to the
-                    // next Some(package) clause?
+                    // and more, but also simplify this bringing it
+                    // closer to the next Some(package) clause?
                     if self.deprecated {
                         // show deprecated versions
                         if spec.deprecated {
-                            results.insert(format!("{version} {}", "DEPRECATED".red()));
+                            results.push(format!("{version} {}", "DEPRECATED".red()));
                             continue;
                         }
                     } else {
@@ -116,10 +122,14 @@ impl Run for Ls {
                             continue;
                         }
                     }
-                    results.insert(version.to_string());
+                    results.push(version.to_string());
                 }
             }
             Some(package) => {
+                // Like the None clause, the set provides the sorting
+                // but hides when a build is in multiple repos
+                // TODO: should this include the repo name in the output?
+                let mut set = BTreeSet::new();
                 // Given a package version (or build), list all its builds
                 let pkg = spk::api::parse_ident(package)?;
                 for (_, repo) in repos {
@@ -132,9 +142,10 @@ impl Run for Ls {
                             // Hide deprecated packages by default
                             continue;
                         }
-                        results.insert(self.format_build(&build, &spec, &repo)?);
+                        set.insert(self.format_build(&build, &spec, &repo)?);
                     }
                 }
+                results = set.into_iter().collect();
             }
         }
 
