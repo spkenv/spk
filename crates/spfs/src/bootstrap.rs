@@ -222,7 +222,7 @@ impl Shell {
 /// to whatever it can find listed in /etc/shells
 fn find_best_shell() -> Result<Shell> {
     let mut desired = None;
-    if let Some(name) = std::env::var("SHELL").ok() {
+    if let Ok(name) = std::env::var("SHELL") {
         if Path::new(&name).is_absolute() {
             desired = Some(PathBuf::from(name));
         } else {
@@ -245,7 +245,7 @@ fn find_best_shell() -> Result<Shell> {
     }
 
     if let Ok(shells) = std::fs::read_to_string("/etc/shells") {
-        for candidate in shells.split("\n") {
+        for candidate in shells.split('\n') {
             let path = Path::new(candidate.trim());
             if let Ok(shell) = Shell::from_path(path) {
                 return Ok(shell);
