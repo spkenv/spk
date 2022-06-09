@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use futures::TryStreamExt;
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
@@ -47,13 +48,13 @@ async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
     std::io::Write::write_all(&mut std::io::stdout(), &output.stdout).expect("write output");
     */
     for starts_with in ["AA", "AB", "ABCA", "ABEA", "BB", "DD"] {
-        let mut matches = Vec::new();
         let partial =
             crate::encoding::PartialDigest::parse(starts_with).expect("valid partial digest");
-        let mut stream = Box::pin(store.find(DigestSearchCriteria::StartsWith(partial)));
-        while let Some(Ok(v)) = stream.next().await {
-            matches.push(v);
-        }
+        let mut matches: Vec<_> = store
+            .find(DigestSearchCriteria::StartsWith(partial))
+            .try_collect()
+            .await
+            .expect("should not fail to search");
         let original_matches = matches.clone();
         for control in content {
             if !control.starts_with(starts_with) {
@@ -72,8 +73,16 @@ async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
                 original_matches
             );
         }
-        // we can't validate that everything has been removed because something like
-        // AA in base32 specifies a partial trailing byte and so is actually ambiguous
-        // with similar prefixes like AB and AD
+        // because of base32 putting partial bytes into the final
+        // character, we can't be certain that the last character
+        // will be matched exactly
+        let unambiguous_query = &starts_with[..starts_with.len() - 1];
+        matches.retain(|el| !el.to_string().starts_with(unambiguous_query));
+        assert!(
+            matches.is_empty(),
+            "Using StartsWith({}), got unexpected matches: {:?}",
+            starts_with,
+            matches
+        )
     }
 }
