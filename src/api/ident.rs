@@ -101,7 +101,7 @@ impl Ident {
 
     /// A string containing the properly formatted name and version number
     ///
-    /// This is the same as [`Ident::to_string`] when the build is None.
+    /// This is the same as [`ToString::to_string`] when the build is None.
     pub fn version_and_build(&self) -> Option<String> {
         match &self.build {
             Some(build) => Some(format!("{}/{}", self.version, build.digest())),
