@@ -191,8 +191,25 @@ where
         &self,
         partial: encoding::PartialDigest,
     ) -> Result<SyncObjectResult> {
-        let digest = self.src.resolve_full_digest(&partial).await?;
-        let obj = self.src.read_object(digest).await?;
+        let mut res = self.src.resolve_full_digest(&partial).await;
+        res = match res {
+            Err(err) if self.policy.check_existing_objects() => {
+                // there is a chance that this digest points to an existing object in
+                // dest, which we don't want to fail on unless requested. In theory,
+                // there is a bug here where the digest resolves to something different
+                // in the destination than we expected, but being able to recover is a
+                // much more useful behavior when not forcefully re-syncing as opposed
+                // to avoiding this case because it allows the Syncer to be run inline
+                // on environments without checking what is or is not in the destination
+                // first
+                self.dest
+                    .resolve_full_digest(&partial)
+                    .await
+                    .map_err(|_| err)
+            }
+            res => res,
+        };
+        let obj = self.read_object_with_fallback(res?).await?;
         self.sync_object(obj).await
     }
 
@@ -203,7 +220,7 @@ where
         if self.processed_digests.read().await.contains(&digest) {
             return Ok(SyncObjectResult::Duplicate);
         }
-        let obj = self.src.read_object(digest).await?;
+        let obj = self.read_object_with_fallback(digest).await?;
         self.sync_object(obj).await
     }
 
@@ -374,6 +391,19 @@ where
         let res = SyncPayloadResult::Synced { size };
         self.reporter.synced_payload(&res);
         Ok(res)
+    }
+
+    async fn read_object_with_fallback(&self, digest: encoding::Digest) -> Result<graph::Object> {
+        let res = self.src.read_object(digest).await;
+        match res {
+            Err(err) if self.policy.check_existing_objects() => {
+                // since objects are unique by digest, we can recover
+                // by reading the object from our destination repository
+                // on the chance that it exists
+                self.dest.read_object(digest).await.map_err(|_| err)
+            }
+            res => res,
+        }
     }
 }
 
