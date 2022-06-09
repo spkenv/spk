@@ -137,6 +137,75 @@ async fn test_sync_ref(
     case::rpc(tmprepo("rpc"), tmprepo("rpc"))
 )]
 #[tokio::test]
+async fn test_sync_missing_from_source(
+    #[future] repo_a: TempRepo,
+    #[future] repo_b: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
+    init_logging();
+    let repo_a = repo_a.await;
+    let repo_b = repo_b.await;
+
+    // when sync targets exist in the destination already
+    // and we are not forcefully re-syncing, the syncer
+    // should not fail no matter what type of target is being synced
+    //
+    // this ensures that callers don't need to pre-check
+    // all of their targets, allowing that logic to live
+    // in the syncer (DRY)
+
+    let src_dir = tmpdir.path().join("source");
+    ensure(src_dir.join("dir/file.txt"), "hello");
+    ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
+    ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
+
+    let manifest = crate::commit_dir(repo_b.repo(), src_dir.as_path())
+        .await
+        .unwrap();
+    let layer = repo_b
+        .create_layer(&graph::Manifest::from(&manifest))
+        .await
+        .unwrap();
+    let platform = repo_b
+        .create_platform(vec![layer.digest().unwrap()])
+        .await
+        .unwrap();
+    let tag = tracking::TagSpec::parse("testing").unwrap();
+    repo_b
+        .push_tag(&tag, &platform.digest().unwrap())
+        .await
+        .unwrap();
+
+    let syncer = Syncer::new(&repo_a, &repo_b);
+
+    let platform_digest = platform.digest().unwrap();
+    let partial = platform_digest[..10].into();
+    syncer
+        .sync_digest(platform_digest)
+        .await
+        .expect("Should not fail when object is already in destination");
+    syncer
+        .sync_partial_digest(partial)
+        .await
+        .expect("Should not fail when object is already in destination");
+    syncer
+        .sync_env(tag.into())
+        .await
+        .expect("Should not fail when object is already in destination");
+    syncer
+        .sync_env(platform_digest.into())
+        .await
+        .expect("Should not fail when object is already in destination");
+}
+
+#[rstest(
+    repo_a,
+    repo_b,
+    case::fs(tmprepo("fs"), tmprepo("fs")),
+    case::tar(tmprepo("tar"), tmprepo("tar")),
+    case::rpc(tmprepo("rpc"), tmprepo("rpc"))
+)]
+#[tokio::test]
 async fn test_sync_through_tar(
     #[future] repo_a: TempRepo,
     #[future] repo_b: TempRepo,
