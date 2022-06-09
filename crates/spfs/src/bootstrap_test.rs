@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{build_interactive_shell_command, build_shell_initialized_command};
+use super::build_shell_initialized_command;
 use crate::{resolve::which, runtime};
 use std::{ffi::OsString, process::Command};
 
@@ -133,30 +133,18 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
 #[serial_test::serial] // env manipulation must be reliable
 async fn test_find_alternate_bash(shell: &str, tmpdir: tempdir::TempDir) {
     init_logging();
-    let root = tmpdir.path().to_string_lossy().to_string();
-    let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FSRepository::create(root)
-            .await
-            .unwrap(),
-    );
-    let storage = runtime::Storage::new(repo);
     let original_path = std::env::var("PATH").unwrap_or_default();
     let original_shell = std::env::var("SHELL").unwrap_or_default();
     std::env::set_var("PATH", tmpdir.path());
     std::env::set_var("SHELL", shell);
 
-    let rt = storage.create_owned_runtime().await.unwrap();
-
     let tmp_shell = tmpdir.path().join(shell);
     make_exe(&tmp_shell);
     make_exe(&tmpdir.path().join("expect")); // for tcsh
 
-    let cmd = build_interactive_shell_command(&rt).unwrap();
+    let found = super::find_best_shell().expect("should find a shell");
     let expected = tmp_shell.as_os_str().to_os_string();
-    assert!(
-        cmd.executable == expected || cmd.args.contains(&expected),
-        "should find shell in PATH"
-    );
+    assert!(found.executable() == expected, "should find shell in PATH");
 
     std::env::set_var("PATH", original_path);
     std::env::set_var("SHELL", original_shell);
