@@ -573,12 +573,13 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
     let overlay_args = get_overlay_args(&rt.config, overlay_mount_options, lowerdirs)?;
-    tracing::debug!("/usr/bin/mount -t overlay -o {overlay_args} none {SPFS_DIR}");
+    let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
+    tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
     // for some reason, the overlay mount process creates a bad filesystem if the
     // mount command is called directly from this process. It may be some default
     // option or minor detail in how the standard mount command works - possibly related
     // to this process eventually dropping privileges, but that is uncertain right now
-    let mut cmd = std::process::Command::new("mount");
+    let mut cmd = std::process::Command::new(mount);
     cmd.args(&["-t", "overlay"]);
     cmd.arg("-o");
     cmd.arg(overlay_args);
