@@ -57,7 +57,7 @@ prop_compose! {
         "run[a-z]+".prop_map(Component::Named),
         "build[a-z]+".prop_map(Component::Named),
         "src[a-z]+".prop_map(Component::Named),
-        arb_pkg_name().prop_filter("name can't be a reserved name", |name| !(name == "all" || name == "run" || name == "build" || name == "src")).prop_map(|name| Component::Named(name.into_inner())),
+        arb_pkg_legal_name().prop_filter("name can't be a reserved name", |name| !(name == "all" || name == "run" || name == "build" || name == "src")).prop_map(|name| Component::Named(name.into_inner())),
     ]) -> Component {
         component
     }
@@ -85,10 +85,31 @@ prop_compose! {
 
 prop_compose! {
     // These name length limits come from PkgName::MIN_LEN and PkgName::MAX_LEN
-    fn arb_pkg_name()(name in "[a-z-]{2,64}") -> PkgNameBuf {
+    fn arb_pkg_legal_name()(name in "[a-z-]{2,64}") -> PkgNameBuf {
         // Safety: We only generate names that are valid.
         unsafe { PkgNameBuf::from_string(name) }
     }
+}
+
+fn arb_pkg_illegal_name() -> impl Strategy<Value = &'static str> {
+    prop_oneof![
+        // Names that start with hyphens
+        Just("--"),
+        // Too short
+        Just("a"),
+        // Uppercase
+        Just("MixedCase"),
+        // Symbols other than hyphens
+        Just("not+legal"),
+    ]
+}
+
+// May generate an illegal name.
+fn arb_pkg_name() -> impl Strategy<Value = (String, bool)> {
+    prop_oneof![
+        9 => arb_pkg_legal_name().prop_map(|name| (name.to_string(), true)),
+        1 => arb_pkg_illegal_name().prop_map(|name| (name.to_string(), false))
+    ]
 }
 
 prop_compose! {
@@ -106,7 +127,7 @@ fn arb_opt_version_filter() -> impl Strategy<Value = Option<VersionFilter>> {
 }
 
 prop_compose! {
-    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_name().prop_map(|name| name.into_inner())])) -> Option<RepositoryName> {
+    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_legal_name().prop_map(|name| name.into_inner())])) -> Option<RepositoryName> {
         name.map(RepositoryName)
     }
 }
@@ -320,29 +341,34 @@ proptest! {
     #[test]
     fn prop_test_parse_ident(
             repo in arb_repo(),
-            name in arb_pkg_name(),
+            (name, name_is_legal) in arb_pkg_name(),
             version in arb_opt_version(),
             build in arb_build()) {
         // If specifying a build, a version must also be specified.
         prop_assume!(build.is_none() || version.is_some());
         let ident = [
             repo.as_ref().map(|r| r.0.to_owned()),
-            Some(name.clone().into_inner()),
+            Some(name.clone()),
             version.as_ref().map(|v| {
                 v.to_string()
             }),
             build.as_ref().map(|b| b.to_string()),
         ].iter().flatten().join("/");
         let parsed = parse_ident(&ident);
-        assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
-        let parsed = parsed.unwrap();
-        // XXX: This doesn't handle the ambiguous corner cases as checked
-        // by `test_parse_ident`; such inputs are very unlikely to be
-        // generated randomly here.
-        assert_eq!(parsed.repository_name, repo);
-        assert_eq!(parsed.name, name);
-        assert_eq!(parsed.version, version.unwrap_or_default());
-        assert_eq!(parsed.build, build);
+        if name_is_legal {
+            assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
+            let parsed = parsed.unwrap();
+            // XXX: This doesn't handle the ambiguous corner cases as checked
+            // by `test_parse_ident`; such inputs are very unlikely to be
+            // generated randomly here.
+            assert_eq!(parsed.repository_name, repo);
+            assert_eq!(parsed.name.as_str(), name);
+            assert_eq!(parsed.version, version.unwrap_or_default());
+            assert_eq!(parsed.build, build);
+        }
+        else {
+            assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);
+        }
     }
 }
 
@@ -350,7 +376,7 @@ proptest! {
     #[test]
     fn prop_test_parse_range_ident(
             repo in arb_repo(),
-            name in arb_pkg_name(),
+            (name, name_is_legal) in arb_pkg_name(),
             components in arb_components(),
             version in arb_opt_version_filter(),
             build in arb_build()) {
@@ -359,7 +385,7 @@ proptest! {
 
         let name_and_component_str =
             match components.len() {
-                0 => name.clone().into_inner(),
+                0 => name.clone(),
                 1 => format!("{name}:{component}", component = components.iter().next().unwrap()),
                 _ => format!("{name}:{{{components}}}", components = components.iter().join(","))
             };
@@ -377,16 +403,21 @@ proptest! {
             build.as_ref().map(|b| b.to_string()),
         ].iter().flatten().join("/");
         let parsed = RangeIdent::from_str(&ident);
-        assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
-        let parsed = parsed.unwrap();
-        assert_eq!(parsed.repository_name, repo);
-        assert_eq!(parsed.name, name);
-        assert_eq!(parsed.components, components);
-        // Must flatten the version_filter we generated to compare with
-        // the parsed one, since the parsed one gets flattened too.
-        let flattened = version.unwrap_or_default().flatten();
-        assert_eq!(parsed.version, flattened, "Parsing: `{}`\n  left: `{}`\n right: `{}`", ident, parsed.version, flattened);
-        assert_eq!(parsed.build, build);
+        if name_is_legal {
+            assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
+            let parsed = parsed.unwrap();
+            assert_eq!(parsed.repository_name, repo);
+            assert_eq!(parsed.name.as_str(), name);
+            assert_eq!(parsed.components, components);
+            // Must flatten the version_filter we generated to compare with
+            // the parsed one, since the parsed one gets flattened too.
+            let flattened = version.unwrap_or_default().flatten();
+            assert_eq!(parsed.version, flattened, "Parsing: `{}`\n  left: `{}`\n right: `{}`", ident, parsed.version, flattened);
+            assert_eq!(parsed.build, build);
+        }
+        else {
+            assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);
+        }
     }
 }
 
