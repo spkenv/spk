@@ -318,6 +318,12 @@ fn validate_pkg_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
             name.as_ref().len(),
         )));
     }
+    if let Some('-') = name.as_ref().chars().next() {
+        return Err(InvalidNameError::new_error(format!(
+            "Invalid package name, must begin with a letter and not a hyphen, got {}",
+            name.as_ref()
+        )));
+    }
     let index = validate_source_str(&name, is_valid_pkg_name_char);
     if index > -1 {
         let name = name.as_ref();
