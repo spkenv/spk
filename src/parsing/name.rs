@@ -16,7 +16,7 @@ use crate::api::{PkgName, RepositoryName};
 
 #[inline]
 pub(crate) fn is_legal_package_name_chr(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '-'
+    c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'
 }
 
 #[inline]
