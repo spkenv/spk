@@ -132,6 +132,18 @@ impl FSHashStore {
                         }
                     }
                 }
+
+                if let crate::graph::DigestSearchCriteria::StartsWith(partial) = &search_criteria {
+                    let encoded = partial.to_string();
+                    // we can't trust that the encoded partial digest
+                    // references a single subdirectory unless it encodes
+                    // to more characters than the filename, because base 32
+                    // may encode partial data to the final character
+                    let must_be_in_this_folder = encoded.len() > entry_filename.len();
+                    if must_be_in_this_folder && encoded.starts_with(entry_filename.as_ref()) {
+                        break;
+                    }
+                }
             }
         }
     }
