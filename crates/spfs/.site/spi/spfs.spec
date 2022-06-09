@@ -23,7 +23,8 @@ Filesystem isolation, capture, and distribution.
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
-dev env -- cargo build --release --verbose --all --features "sentry, runtime-compat-0.33"
+dev env -- cargo build --release --verbose --all \
+    --features "gitlab-ci-local-repo-isolation, sentry, runtime-compat-0.33"
 
 %install
 mkdir -p %{buildroot}/usr/bin

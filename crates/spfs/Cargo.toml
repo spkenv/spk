@@ -44,6 +44,10 @@ required-features = ["server"]
 
 [features]
 default = ["server"]
+
+# If enabled, will create the "local" repository in a subdirectory
+# of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
+gitlab-ci-local-repo-isolation = []
 sentry = ["dep:sentry"]
 server = [
     "tokio/signal",
