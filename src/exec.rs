@@ -100,8 +100,10 @@ pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
 pub fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &solve::Solution) -> Result<()> {
     let stack = resolve_runtime_layers(solution)?;
     rt.status.stack = stack;
-    crate::HANDLE.block_on(rt.save_state_to_storage())?;
-    crate::HANDLE.block_on(spfs::remount_runtime(rt))?;
+    crate::HANDLE.block_on(async {
+        rt.save_state_to_storage().await?;
+        spfs::remount_runtime(rt).await
+    })?;
     Ok(())
 }
 

@@ -29,8 +29,12 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
         .map(std::fs::create_dir_all)
         .unwrap_or_else(|| Ok(()))?;
 
-    let local_repo = crate::HANDLE.block_on(super::local_repository())?;
-    let remote_repo = crate::HANDLE.block_on(super::remote_repository("origin"))?;
+    let (local_repo, remote_repo) = crate::HANDLE.block_on(async {
+        tokio::try_join!(
+            super::local_repository(),
+            super::remote_repository("origin"),
+        )
+    })?;
     let mut target_repo = super::SPFSRepository::from(spfs::storage::RepositoryHandle::from(
         crate::HANDLE.block_on(spfs::storage::tar::TarRepository::create(&filename))?,
     ));

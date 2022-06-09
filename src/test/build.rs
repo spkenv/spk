@@ -161,8 +161,10 @@ impl PackageBuildTester {
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(layer);
         }
-        crate::HANDLE.block_on(rt.save_state_to_storage())?;
-        crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
+        crate::HANDLE.block_on(async {
+            rt.save_state_to_storage().await?;
+            spfs::remount_runtime(&rt).await
+        })?;
 
         self.options.extend(solution.options());
         let resolved = solution.items().into_iter().map(|r| r.spec);

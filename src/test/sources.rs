@@ -141,8 +141,10 @@ impl PackageSourceTester {
         for layer in exec::resolve_runtime_layers(&solution)? {
             rt.push_digest(layer);
         }
-        crate::HANDLE.block_on(rt.save_state_to_storage())?;
-        crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
+        crate::HANDLE.block_on(async {
+            rt.save_state_to_storage().await?;
+            spfs::remount_runtime(&rt).await
+        })?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(

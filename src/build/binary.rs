@@ -226,8 +226,10 @@ impl BinaryPackageBuilder {
         self.all_options.extend(opts);
         stack.extend(exec::resolve_runtime_layers(&solution)?);
         runtime.status.stack = stack;
-        crate::HANDLE.block_on(runtime.save_state_to_storage())?;
-        crate::HANDLE.block_on(spfs::remount_runtime(&runtime))?;
+        crate::HANDLE.block_on(async {
+            runtime.save_state_to_storage().await?;
+            spfs::remount_runtime(&runtime).await
+        })?;
         let specs = solution.items().into_iter().map(|solved| solved.spec);
         self.spec.update_for_build(&self.all_options, specs)?;
         let env = std::env::vars();
