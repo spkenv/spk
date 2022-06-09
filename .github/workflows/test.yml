@@ -55,5 +55,6 @@ jobs:
           -e CI
           --rm
           --privileged
+          --net host
           -v $PWD:/source
           centos:7 bash -ex /source/.github/scripts/unittests.sh
