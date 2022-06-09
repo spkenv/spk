@@ -92,7 +92,7 @@ prop_compose! {
 
 prop_compose! {
     // These name length limits come from PkgName::MIN_LEN and PkgName::MAX_LEN
-    fn arb_pkg_legal_name()(name in "[a-z-]{2,64}") -> PkgNameBuf {
+    fn arb_pkg_legal_name()(name in "[a-z][a-z-]{1,63}") -> PkgNameBuf {
         // Safety: We only generate names that are valid.
         unsafe { PkgNameBuf::from_string(name) }
     }
