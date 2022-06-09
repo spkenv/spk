@@ -140,7 +140,7 @@ where
         std::env::var_os("SHELL").unwrap_or_else(|| which("bash").unwrap_or_default().into());
     let shell_name = std::path::Path::new(&desired_shell)
         .file_name()
-        .unwrap_or_else(|| OsStr::new("bash"))
+        .unwrap_or_default()
         .to_string_lossy()
         .to_string();
     let startup_file = match shell_name.as_str() {
@@ -203,3 +203,6 @@ where
         args: enter_args,
     })
 }
+
+// fn find shell
+// /etc/shells
