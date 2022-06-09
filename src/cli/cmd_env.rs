@@ -41,7 +41,7 @@ pub struct Env {
 
 impl Run for Env {
     fn run(&mut self) -> Result<i32> {
-        self.runtime.ensure_active_runtime()?;
+        let mut rt = self.runtime.ensure_active_runtime()?;
 
         let mut solver = self.solver.get_solver(&self.options)?;
         let requests = self
@@ -58,7 +58,7 @@ impl Run for Env {
         }
 
         let solution = spk::build_required_packages(&solution)?;
-        spk::setup_current_runtime(&solution)?;
+        spk::setup_runtime(&mut rt, &solution)?;
         let env = solution.to_environment(Some(std::env::vars()));
         let _: Vec<_> = std::env::vars()
             .map(|(k, _)| k)
@@ -68,19 +68,14 @@ impl Run for Env {
             std::env::set_var(name, value);
         }
 
-        let mut command = if self.command.is_empty() {
-            let rt = spfs::active_runtime()?;
-            spfs::build_interactive_shell_cmd(&rt)?
+        let command = if self.command.is_empty() {
+            spfs::build_interactive_shell_command(&rt)?
         } else {
-            let cmd = std::ffi::OsString::from(self.command.get(0).unwrap());
-            let mut args = self.command[1..]
-                .iter()
-                .map(std::ffi::OsString::from)
-                .collect();
-            spfs::build_shell_initialized_command(cmd, &mut args)?
+            let cmd = self.command.get(0).unwrap();
+            let args = &self.command[1..];
+            spfs::build_shell_initialized_command(&rt, cmd, args)?
         };
-        let exe = command.drain(..1).next().unwrap();
-        self.run_command(exe, command)
+        self.run_command(command.executable, command.args)
     }
 }
 

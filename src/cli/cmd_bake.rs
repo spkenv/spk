@@ -30,9 +30,8 @@ pub struct Bake {
 impl Run for Bake {
     fn run(&mut self) -> Result<i32> {
         if self.requested.is_empty() {
-            let rt = spfs::active_runtime()?;
-            let layers = rt.get_stack();
-            for layer in layers.iter() {
+            let rt = spk::HANDLE.block_on(spfs::active_runtime())?;
+            for layer in rt.status.stack.iter() {
                 println!("{layer}");
             }
             Ok(0)

@@ -97,12 +97,17 @@ impl Publisher {
             let spec = self.from.read_spec(build)?;
             let components = self.from.get_package(build)?;
             tracing::info!("publishing package: {}", io::format_ident(&spec.pkg));
+            let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => {
-                    for (name, digest) in components.iter() {
-                        tracing::debug!(" syncing component: {}", io::format_components([name]));
-                        crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), src, dest))?;
-                    }
+                    tracing::debug!(
+                        " syncing components: {}",
+                        io::format_components(components.keys())
+                    );
+                    let syncer = spfs::Syncer::new(src, dest)
+                        .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+                    let future = syncer.sync_env(env_spec);
+                    crate::HANDLE.block_on(future)?;
                 }
                 _ => {
                     return Err(Error::String(

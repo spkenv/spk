@@ -12,7 +12,7 @@ use crate::{
 
 /// Load the current environment from the spfs file system.
 pub fn current_env() -> Result<solve::Solution> {
-    match spfs::active_runtime() {
+    match crate::HANDLE.block_on(spfs::active_runtime()) {
         Err(spfs::Error::NoActiveRuntime) => {
             return Err(Error::NoEnvironment);
         }
