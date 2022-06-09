@@ -146,6 +146,13 @@ impl graph::DatabaseView for TarRepository {
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
         self.repo.walk_objects(root)
     }
+
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<encoding::Digest> {
+        self.repo.resolve_full_digest(partial).await
+    }
 }
 
 #[async_trait::async_trait]

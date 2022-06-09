@@ -359,9 +359,11 @@ impl From<graph::DigestSearchCriteria> for super::DigestSearchCriteria {
                 graph::DigestSearchCriteria::All => super::digest_search_criteria::Criteria::All(
                     super::digest_search_criteria::All {},
                 ),
-                graph::DigestSearchCriteria::StartsWith(b) => {
+                graph::DigestSearchCriteria::StartsWith(partial) => {
                     super::digest_search_criteria::Criteria::StartsWith(
-                        super::digest_search_criteria::StartsWith { bytes: b },
+                        super::digest_search_criteria::StartsWith {
+                            bytes: partial.into(),
+                        },
                     )
                 }
             }),
@@ -378,7 +380,7 @@ impl TryFrom<super::DigestSearchCriteria> for graph::DigestSearchCriteria {
                     Ok(graph::DigestSearchCriteria::All)
                 }
                 super::digest_search_criteria::Criteria::StartsWith(bytes) => {
-                    Ok(graph::DigestSearchCriteria::StartsWith(bytes.bytes))
+                    Ok(graph::DigestSearchCriteria::StartsWith(bytes.bytes.into()))
                 }
             },
             None => Err("Unknown criteria kind".into()),
