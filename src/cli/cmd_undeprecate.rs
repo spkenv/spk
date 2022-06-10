@@ -9,6 +9,10 @@ use crate::cmd_deprecate::{change_deprecation_state, ChangeAction};
 
 use super::{flags, Run};
 
+#[cfg(test)]
+#[path = "./cmd_undeprecate_test.rs"]
+mod cmd_undeprecate_test;
+
 /// Undeprecate (restore) packages in a repository.
 ///
 /// Undeprecated package builds can be resolved normally. They will
