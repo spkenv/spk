@@ -103,10 +103,10 @@ impl PackageSourceTester {
     /// Execute the source package test as configured.
     pub fn test(&mut self) -> Result<()> {
         let _guard = crate::HANDLE.enter();
-        let mut rt = spfs::active_runtime()?;
-        rt.set_editable(true)?;
+        let mut rt = crate::HANDLE.block_on(spfs::active_runtime())?;
         rt.reset_all()?;
-        rt.reset_stack()?;
+        rt.status.editable = true;
+        rt.status.stack.clear();
 
         let mut solver = solve::Solver::default();
         solver.set_binary_only(true);
@@ -139,9 +139,12 @@ impl PackageSourceTester {
         let solution = (self.env_resolver)(&mut runtime)?;
 
         for layer in exec::resolve_runtime_layers(&solution)? {
-            rt.push_digest(&layer)?;
+            rt.push_digest(layer);
         }
-        crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
+        crate::HANDLE.block_on(async {
+            rt.save_state_to_storage().await?;
+            spfs::remount_runtime(&rt).await
+        })?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(
@@ -167,16 +170,13 @@ impl PackageSourceTester {
         script_file.sync_data()?;
         // TODO: this should be more easily configurable on the spfs side
         std::env::set_var("SHELL", "bash");
-        let args = spfs::build_shell_initialized_command(
+        let cmd = spfs::build_shell_initialized_command(
+            &rt,
             OsString::from("bash"),
-            &mut vec![OsString::from("-ex"), script_path.into_os_string()],
+            &[OsString::from("-ex"), script_path.into_os_string()],
         )?;
-        let mut cmd = std::process::Command::new(args.get(0).unwrap());
-        let status = cmd
-            .args(&args[1..])
-            .envs(env)
-            .current_dir(source_dir)
-            .status()?;
+        let mut cmd = cmd.into_std();
+        let status = cmd.envs(env).current_dir(source_dir).status()?;
         if !status.success() {
             Err(TestError::new_error(format!(
                 "Test script returned non-zero exit status: {}",

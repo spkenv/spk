@@ -81,7 +81,10 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 to_sync_count,
                 io::format_ident(&spec.pkg),
             );
-            crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), repo, &local_repo))?;
+            let syncer = spfs::Syncer::new(repo, &local_repo)
+                .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+            let future = syncer.sync_digest(digest);
+            crate::HANDLE.block_on(future)?;
         }
     }
 
@@ -90,13 +93,17 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 
 /// Modify the active spfs runtime to include exactly the packages in the given solution.
 pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
-    let mut rt = spfs::active_runtime()?;
+    let mut rt = crate::HANDLE.block_on(spfs::active_runtime())?;
+    setup_runtime(&mut rt, solution)
+}
+
+pub fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &solve::Solution) -> Result<()> {
     let stack = resolve_runtime_layers(solution)?;
-    rt.reset_stack()?;
-    for digest in stack {
-        rt.push_digest(&digest)?;
-    }
-    crate::HANDLE.block_on(spfs::remount_runtime(&rt))?;
+    rt.status.stack = stack;
+    crate::HANDLE.block_on(async {
+        rt.save_state_to_storage().await?;
+        spfs::remount_runtime(rt).await
+    })?;
     Ok(())
 }
 

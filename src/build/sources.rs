@@ -86,10 +86,13 @@ impl SourcePackageBuilder {
 
     /// Collect sources for the given spec and commit them into an spfs layer.
     async fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
-        let mut runtime = spfs::active_runtime()?;
-        runtime.set_editable(true)?;
+        let mut runtime = spfs::active_runtime().await?;
+        let config = spfs::get_config()?;
+        let repo = config.get_local_repository_handle().await?;
         runtime.reset_all()?;
-        runtime.reset_stack()?;
+        runtime.status.editable = true;
+        runtime.status.stack.clear();
+        runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
         let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
@@ -103,7 +106,7 @@ impl SourcePackageBuilder {
         )?;
 
         tracing::info!("Committing source package contents...");
-        Ok(spfs::commit_layer(&mut runtime).await?)
+        Ok(spfs::commit_layer(&mut runtime, repo.into()).await?)
     }
 }
 

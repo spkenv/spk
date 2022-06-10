@@ -29,8 +29,12 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
         .map(std::fs::create_dir_all)
         .unwrap_or_else(|| Ok(()))?;
 
-    let local_repo = crate::HANDLE.block_on(super::local_repository())?;
-    let remote_repo = crate::HANDLE.block_on(super::remote_repository("origin"))?;
+    let (local_repo, remote_repo) = crate::HANDLE.block_on(async {
+        tokio::try_join!(
+            super::local_repository(),
+            super::remote_repository("origin"),
+        )
+    })?;
     let mut target_repo = super::SPFSRepository::from(spfs::storage::RepositoryHandle::from(
         crate::HANDLE.block_on(spfs::storage::tar::TarRepository::create(&filename))?,
     ));
@@ -73,19 +77,24 @@ pub fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Result<(
     Ok(())
 }
 
-pub async fn import_package<P: AsRef<Path>>(filename: P) -> Result<()> {
+pub async fn import_package<P: AsRef<Path>>(filename: P) -> Result<spfs::sync::SyncEnvResult> {
     let tar_repo: spfs::storage::RepositoryHandle =
-        spfs::storage::tar::TarRepository::open(filename)
+        spfs::storage::tar::TarRepository::open(filename.as_ref())
             .await?
             .into();
     let local_repo = super::local_repository().await?;
 
-    let mut stream = tar_repo.iter_tags();
-    while let Some((tag, _)) = stream.try_next().await? {
-        tracing::info!(?tag, "importing");
-        spfs::sync_ref(tag.to_string(), &tar_repo, &local_repo).await?;
-    }
-    Ok(())
+    let env_spec = tar_repo
+        .iter_tags()
+        .map_ok(|(spec, _)| spec)
+        .try_collect()
+        .await?;
+    tracing::info!(archive = ?filename.as_ref(), "importing");
+    let result = spfs::Syncer::new(&tar_repo, &local_repo)
+        .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+        .sync_env(env_spec)
+        .await?;
+    Ok(result)
 }
 
 fn copy_package(
@@ -95,16 +104,18 @@ fn copy_package(
 ) -> Result<()> {
     let spec = src_repo.read_spec(pkg)?;
     if pkg.build.is_none() {
-        tracing::info!(%pkg, "exporting");
+        tracing::info!(%pkg, "exporting version spec");
         dst_repo.publish_spec(spec)?;
         return Ok(());
     }
 
     let components = src_repo.get_package(pkg)?;
-    tracing::info!(%pkg, "exporting");
-    for (_name, digest) in components.iter() {
-        crate::HANDLE.block_on(spfs::sync_ref(digest.to_string(), src_repo, dst_repo))?;
-    }
+    let env_spec = components.values().cloned().collect();
+    tracing::info!(%pkg, "exporting build");
+    let syncer = spfs::Syncer::new(src_repo, dst_repo)
+        .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+    let future = syncer.sync_env(env_spec);
+    let _result = crate::HANDLE.block_on(future)?;
     dst_repo.publish_package(spec, components)?;
     Ok(())
 }

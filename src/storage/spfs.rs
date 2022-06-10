@@ -379,7 +379,7 @@ impl Repository for SPFSRepository {
                         new_tag.time = tag.time;
                         new_tag.user = tag.user;
 
-                        crate::HANDLE.block_on(self.push_raw_tag(&new_tag))?;
+                        crate::HANDLE.block_on(self.insert_tag(&new_tag))?;
                     }
                 }
             }
@@ -539,7 +539,7 @@ impl StoredPackage {
 /// Return the local packages repository used for development.
 pub async fn local_repository() -> Result<SPFSRepository> {
     let config = spfs::get_config()?;
-    let repo = config.get_repository().await?;
+    let repo = config.get_local_repository().await?;
     Ok(SPFSRepository { inner: repo.into() })
 }
 

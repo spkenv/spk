@@ -29,6 +29,14 @@ static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     AtomicBool::new(false)
 });
 
+// Show request fields that are non-default values at v > 1
+pub const SHOW_REQUEST_DETAILS: u32 = 1;
+// Show all request fields for initial requests at v > 5
+pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u32 = 5;
+
+// The level/depth for initial requests
+pub const INITIAL_REQUESTS_LEVEL: usize = 0;
+
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name.bold().to_string();
     if !pkg.version.is_zero() || pkg.build.is_some() {
@@ -56,12 +64,32 @@ pub fn format_options(options: &api::OptionMap) -> String {
     format!("{{{}}}", formatted.join(", "))
 }
 
+/// Helper to hold values that affect the formatting of a request
+pub struct FormatChangeOptions {
+    pub verbosity: u32,
+    pub level: usize,
+}
+
+impl Default for FormatChangeOptions {
+    fn default() -> Self {
+        Self {
+            verbosity: 0,
+            level: usize::MAX,
+        }
+    }
+}
+
 /// Create a canonical string to describe the combined request for a package.
-pub fn format_request<'a, R>(name: &api::PkgName, requests: R) -> String
+pub fn format_request<'a, R>(
+    name: &api::PkgName,
+    requests: R,
+    format_settings: FormatChangeOptions,
+) -> String
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
     let mut out = name.bold().to_string();
+
     let mut versions = Vec::new();
     let mut components = std::collections::HashSet::new();
     for req in requests.into_iter() {
@@ -73,9 +101,47 @@ where
             Some(ref b) => format!("/{}", format_build(b)),
             None => "".to_string(),
         };
-        versions.push(format!("{}{}", version.bright_blue(), build));
+
+        let details = if format_settings.verbosity > SHOW_REQUEST_DETAILS
+            || format_settings.level == INITIAL_REQUESTS_LEVEL
+        {
+            let mut differences = Vec::new();
+            let show_full_value = format_settings.level == INITIAL_REQUESTS_LEVEL
+                && format_settings.verbosity > SHOW_INITIAL_REQUESTS_FULL_VALUES;
+
+            if show_full_value || !req.prerelease_policy.is_default() {
+                differences.push(format!(
+                    "PreReleasePolicy: {}",
+                    req.prerelease_policy.to_string().cyan()
+                ));
+            }
+            if show_full_value || !req.inclusion_policy.is_default() {
+                differences.push(format!(
+                    "InclusionPolicy: {}",
+                    req.inclusion_policy.to_string().cyan()
+                ));
+            }
+            if let Some(pin) = &req.pin {
+                differences.push(format!("fromBuildEnv: {}", pin.to_string().cyan()));
+            }
+            if let Some(rc) = req.required_compat {
+                let req_compat = format!("{:#}", rc);
+                differences.push(format!("RequiredCompat: {}", req_compat.cyan()));
+            };
+
+            if differences.is_empty() {
+                "".to_string()
+            } else {
+                format!(" ({})", differences.join(", "))
+            }
+        } else {
+            "".to_string()
+        };
+
+        versions.push(format!("{}{}{}", version.bright_blue(), build, details));
         components.extend(&mut req.pkg.components.iter().cloned());
     }
+
     if !components.is_empty() {
         out.push_str(&format!(":{}", format_components(&components).dimmed()));
     }
@@ -115,9 +181,15 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             installed.pkg.components = installed_components;
         }
 
+        // Pass zero verbosity to format_request() to stop it
+        // outputting the internal details here.
         out.push_str(&format!(
             "  {}",
-            format_request(&req.spec.pkg.name, &[installed])
+            format_request(
+                &req.spec.pkg.name,
+                &[installed],
+                FormatChangeOptions::default()
+            )
         ));
         if verbosity > 0 {
             let options = req.spec.resolve_all_options(&api::OptionMap::default());
@@ -157,21 +229,37 @@ pub fn change_is_relevant_at_verbosity(change: &solve::graph::Change, verbosity:
     verbosity >= relevant_level
 }
 
-pub fn format_change(change: &solve::graph::Change, _verbosity: u32) -> String {
+fn get_request_change_label(level: usize) -> &'static str {
+    if level == INITIAL_REQUESTS_LEVEL {
+        "INITIAL REQUEST"
+    } else {
+        "REQUEST"
+    }
+}
+
+pub fn format_change(
+    change: &solve::graph::Change,
+    format_settings: FormatChangeOptions,
+) -> String {
     use solve::graph::Change::*;
     match change {
         RequestPackage(c) => {
             format!(
                 "{} {}",
-                "REQUEST".blue(),
-                format_request(&c.request.pkg.name, [&c.request])
+                get_request_change_label(format_settings.level).blue(),
+                format_request(&c.request.pkg.name, [&c.request], format_settings)
             )
         }
         RequestVar(c) => {
             format!(
-                "{} {}",
-                "REQUEST".blue(),
-                format_options(&option_map! {c.request.var.clone() => c.request.value.clone()})
+                "{} {}{}",
+                get_request_change_label(format_settings.level).blue(),
+                format_options(&option_map! {c.request.var.clone() => c.request.value.clone()}),
+                if format_settings.verbosity > SHOW_REQUEST_DETAILS {
+                    format!(" fromBuildEnv: {}", c.request.pin.to_string().cyan())
+                } else {
+                    "".to_string()
+                }
             )
         }
         SetPackageBuild(c) => {
@@ -333,7 +421,13 @@ where
                 self.output_queue.push_back(format!(
                     "{} {}",
                     prefix,
-                    format_change(change, self.verbosity)
+                    format_change(
+                        change,
+                        FormatChangeOptions {
+                            verbosity: self.verbosity,
+                            level: self.level
+                        }
+                    )
                 ))
             }
             self.level = (self.level as i64 + level_change) as usize;

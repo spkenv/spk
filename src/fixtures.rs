@@ -2,28 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 use rstest::fixture;
-use spfs::{prelude::*, runtime};
+use spfs::prelude::*;
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate::storage;
 
 lazy_static::lazy_static! {
-    static ref SPFS_RUNTIME_LOCK: Mutex<runtime::Runtime> = Mutex::new(spfs::active_runtime().expect("Tests must be run in an spfs runtime"));
+    static ref SPFS_RUNTIME_LOCK: Mutex<()> = Mutex::new(());
 }
 
 pub struct RuntimeLock {
     original_config: spfs::Config,
-    pub runtime: MutexGuard<'static, spfs::runtime::Runtime>,
+    _guard: MutexGuard<'static, ()>,
+    pub runtime: spfs::runtime::Runtime,
     pub tmprepo: Arc<storage::RepositoryHandle>,
     pub tmpdir: tempdir::TempDir,
 }
 
 impl Drop for RuntimeLock {
     fn drop(&mut self) {
-        std::env::remove_var("SPFS_STORAGE_RUNTIMES");
         std::env::remove_var("SPFS_STORAGE_ROOT");
         self.original_config
             .clone()
@@ -141,7 +142,10 @@ pub async fn spfs_runtime() -> RuntimeLock {
 
     // because these tests are all async, anything that is interacting
     // with spfs must be forced to run one-at-a-time
-    let mut runtime = SPFS_RUNTIME_LOCK.lock().await;
+    let _guard = SPFS_RUNTIME_LOCK.lock().await;
+    let mut runtime = spfs::active_runtime()
+        .await
+        .expect("Test must be executed in an active spfs runtime (spfs run - -- cargo test)");
 
     let original_config = spfs::get_config()
         .expect("failed to get original spfs config")
@@ -152,31 +156,44 @@ pub async fn spfs_runtime() -> RuntimeLock {
     let storage_root = tmprepo.tmpdir.path().join("repo");
 
     let mut new_config = original_config.clone();
-    // preserve the runtime root in case it was inferred in the original one
-    let runtimes_root = original_config.storage.runtime_root();
-    std::env::set_var("SPFS_STORAGE_RUNTIMES", &runtimes_root);
-    new_config.storage.runtimes = Some(runtimes_root);
     // update the config to use our temp dir for local storage
     std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
     new_config.storage.root = storage_root;
 
-    new_config
+    let config = new_config
         .make_current()
         .expect("failed to update spfs config for test");
 
-    runtime
-        .reset_stack()
-        .expect("Failed to reset runtime stack");
-    runtime
+    // since the runtime is likely stored in the currently
+    // configured local repo, we need to save a repesentation of
+    // it in the newly configured tmp storage
+    let runtime_storage = config
+        .get_runtime_storage()
+        .await
+        .expect("Failed to load temporary runtime storage");
+    let mut replica = runtime_storage
+        .create_named_runtime(runtime.name())
+        .await
+        .expect("Failed to replicate runtime for test");
+    std::mem::swap(runtime.deref_mut(), replica.deref_mut());
+    drop(runtime);
+
+    replica.status.stack.clear();
+    replica
         .reset_all()
         .expect("Failed to reset runtime changes");
-    spfs::remount_runtime(&runtime)
+    replica
+        .save_state_to_storage()
+        .await
+        .expect("Failed to clean up active runtime state");
+    spfs::remount_runtime(&replica)
         .await
         .expect("failed to reset runtime for test");
 
     RuntimeLock {
         original_config,
-        runtime,
+        _guard,
+        runtime: replica,
         tmpdir: tmprepo.tmpdir,
         tmprepo: tmprepo.repo,
     }

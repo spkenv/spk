@@ -42,8 +42,12 @@ pub struct Publish {
 
 impl Run for Publish {
     fn run(&mut self) -> Result<i32> {
-        let source = spk::HANDLE.block_on(spk::storage::local_repository())?;
-        let target = spk::HANDLE.block_on(spk::storage::remote_repository(&self.target_repo))?;
+        let (source, target) = spk::HANDLE.block_on(async {
+            tokio::try_join!(
+                spk::storage::local_repository(),
+                spk::storage::remote_repository(&self.target_repo)
+            )
+        })?;
 
         let publisher = spk::Publisher::new(Arc::new(source.into()), Arc::new(target.into()))
             .skip_source_packages(self.no_source)

@@ -36,10 +36,10 @@ pub struct Render {
 impl Run for Render {
     fn run(&mut self) -> Result<i32> {
         let mut solver = self.solver.get_solver(&self.options)?;
-        for name in self
+        let requests = self
             .requests
-            .parse_requests(&self.packages, &self.options)?
-        {
+            .parse_requests(&self.packages, &self.options)?;
+        for name in requests {
             solver.add_request(name);
         }
 
@@ -60,7 +60,7 @@ impl Run for Render {
         let path = self.target.canonicalize()?;
         tracing::info!("Rendering into dir: {path:?}");
         let items: Vec<String> = stack.iter().map(ToString::to_string).collect();
-        let env_spec = spfs::tracking::EnvSpec::new(items.join("+").as_ref())?;
+        let env_spec = items.join("+").parse()?;
         spk::HANDLE.block_on(spfs::render_into_directory(&env_spec, &path))?;
         tracing::info!("Render completed: {path:?}");
         Ok(0)

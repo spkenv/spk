@@ -16,4 +16,8 @@ sed -i 's|$HOME|/root|' /root/.bashrc
 yum-builddep -y spk.spec > /dev/null 2>&1
 
 sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" /source/Cargo.toml
+
+# there needs to be an origin configured even if it's not read from
+# during testing (for commands that us the syncer type as a no-op)
+export SPFS_REMOTE_origin_ADDRESS=file:///tmp/spfs-origin?create=true
 make test
