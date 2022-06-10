@@ -670,12 +670,49 @@ impl DecisionFormatter {
     ) -> String {
         // Show how long this solve took
         let mut out: String = " Solver took: ".to_string();
+        let seconds = solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9;
+        out.push_str(&format!("{seconds} seconds\n"));
+
+        // Show numbers of incompatible versions and builds from the solver
+        let num_vers = solver.get_number_of_incompatible_versions();
+        let versions = if num_vers != 1 { "versions" } else { "version" };
+        let num_builds = solver.get_number_of_incompatible_builds();
+        let builds = if num_builds != 1 { "builds" } else { "build" };
         out.push_str(&format!(
-            "{} seconds\n",
-            solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9
+            " Solver skipped {num_vers} incompatible {versions} (total of {num_builds} {builds})\n",
         ));
 
-        // TODO: Add more stats here
+        // Show the number of package builds skipped
+        out.push_str(&format!(
+            " Solver tried and discarded {} package builds\n",
+            solver.get_number_of_builds_skipped()
+        ));
+
+        // Show the number of package builds considered in total
+        out.push_str(&format!(
+            " Solver considered {} package builds in total, at {:.3} builds/sec\n",
+            solver.get_total_builds(),
+            solver.get_total_builds() as f64 / seconds
+        ));
+
+        // Grab number of steps from the solver
+        let num_steps = solver.get_number_of_steps();
+        let steps = if num_steps != 1 { "steps" } else { "step" };
+        out.push_str(&format!(" Solver took {num_steps} {steps} (resolves)\n"));
+
+        // Show the number of steps back from the solver
+        let num_steps_back = solver.get_number_of_steps_back();
+        let steps = if num_steps_back != 1 { "steps" } else { "step" };
+        out.push_str(&format!(
+            " Solver took {num_steps_back} {steps} back (unresolves)\n",
+        ));
+
+        // Show total number of steps and steps per second
+        let total_steps = num_steps as u64 + num_steps_back;
+        out.push_str(&format!(
+            " Solver took {total_steps} steps total, at {:.3} steps/sec\n",
+            total_steps as f64 / seconds,
+        ));
 
         // Show all errors sorted by highest to lowest frequency
         let errors = solver.error_frequency();

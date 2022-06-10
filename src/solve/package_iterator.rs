@@ -20,6 +20,7 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     }
     fn next(&mut self) -> crate::Result<Option<(Arc<api::Spec>, PackageSource)>>;
     fn version_spec(&self) -> Option<Arc<api::Spec>>;
+    fn len(&self) -> usize;
 }
 
 dyn_clone::clone_trait_object!(BuildIterator);
@@ -246,6 +247,10 @@ impl BuildIterator for RepositoryBuildIterator {
     fn version_spec(&self) -> Option<Arc<api::Spec>> {
         self.spec.clone()
     }
+
+    fn len(&self) -> usize {
+        self.builds.len()
+    }
 }
 
 impl RepositoryBuildIterator {
@@ -284,6 +289,10 @@ impl BuildIterator for EmptyBuildIterator {
     fn version_spec(&self) -> Option<Arc<api::Spec>> {
         None
     }
+
+    fn len(&self) -> usize {
+        0
+    }
 }
 
 impl EmptyBuildIterator {
@@ -314,6 +323,10 @@ impl BuildIterator for SortedBuildIterator {
 
     fn version_spec(&self) -> Option<Arc<api::Spec>> {
         self.source.lock().unwrap().version_spec()
+    }
+
+    fn len(&self) -> usize {
+        self.builds.len()
     }
 }
 
