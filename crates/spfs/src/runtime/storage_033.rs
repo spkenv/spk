@@ -278,7 +278,7 @@ impl Runtime {
         self.config.running = future.status.running;
         self.config.stack = future.status.stack.clone();
         self.config.name = future.name().to_string();
-        self.config.pid = future.status.owner.clone();
+        self.config.pid = future.status.owner;
         self.write_config()
     }
 

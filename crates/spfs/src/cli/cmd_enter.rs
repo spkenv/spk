@@ -27,11 +27,16 @@ pub struct CmdEnter {
     remount: bool,
 
     /// The address of the storage being used for runtimes
+    ///
+    /// Defaults to the current configured local repository.
     #[clap(long)]
-    runtime_storage: url::Url,
+    runtime_storage: Option<url::Url>,
 
     /// The name of the runtime being entered
     #[clap(long)]
+    #[cfg(feature = "runtime-compat-0.33")]
+    runtime: Option<String>,
+    #[cfg(not(feature = "runtime-compat-0.33"))]
     runtime: String,
 
     /// The command to run after initialization
@@ -63,10 +68,14 @@ impl CmdEnter {
         res
     }
 
-    pub async fn run_async(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = spfs::open_repository(&self.runtime_storage).await?;
+    pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = match &self.runtime_storage {
+            Some(address) => spfs::open_repository(address).await?,
+            None => config.get_local_repository_handle().await?,
+        };
         let storage = spfs::runtime::Storage::new(repo);
-        let runtime = storage.read_runtime(&self.runtime).await?;
+        let name = self.runtime_name()?;
+        let runtime = storage.read_runtime(&name).await?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
@@ -108,6 +117,28 @@ impl CmdEnter {
 
             Ok(res?.code().unwrap_or(1))
         }
+    }
+
+    #[cfg(not(feature = "runtime-compat-0.33"))]
+    fn runtime_name(&self) -> spfs::Result<&String> {
+        Ok(&self.runtime)
+    }
+
+    #[cfg(feature = "runtime-compat-0.33")]
+    fn runtime_name(&mut self) -> spfs::Result<&String> {
+        if self.runtime.is_none() {
+            let name = self
+                .command
+                .take()
+                .ok_or_else(|| spfs::Error::new("Target runtime name must be provided"))?
+                .to_string_lossy()
+                .to_string();
+            if !self.args.is_empty() {
+                self.command = Some(self.args.remove(0))
+            }
+            self.runtime = Some(name);
+        }
+        Ok(self.runtime.as_ref().unwrap())
     }
 
     async fn exec_runtime_command(
