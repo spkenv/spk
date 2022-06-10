@@ -136,7 +136,12 @@ impl CmdEnter {
             if !self.args.is_empty() {
                 self.command = Some(self.args.remove(0))
             }
-            self.runtime = Some(name);
+            // Handle old-style invocation where the runtime argument is
+            // a path on disk rather than a bare uuid name.
+            self.runtime = Some(match name.rsplit_once('/') {
+                Some((_, name)) => name.to_owned(),
+                None => name,
+            });
         }
         Ok(self.runtime.as_ref().unwrap())
     }
