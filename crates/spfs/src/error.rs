@@ -63,8 +63,11 @@ pub enum Error {
     NoActiveRuntime,
     #[error("Runtime has not been initialized: {0}")]
     RuntimeNotInitialized(String),
-    #[error("Runtime does not exist: {0}")]
-    UnknownRuntime(String),
+    #[error(
+        "Runtime does not exist: {message}: {}",
+        .source.to_string()
+    )]
+    UnknownRuntime { message: String, source: Box<Self> },
     #[error("Runtime already exists: {0}")]
     RuntimeExists(String),
     #[error("Runtime is already editable")]

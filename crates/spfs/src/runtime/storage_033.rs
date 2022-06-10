@@ -385,12 +385,12 @@ impl Storage {
     /// - if there are filesystem errors while reading the runtime on disk
     pub fn read_runtime<R: AsRef<Path>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
-        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
-            Runtime::new(runtime_dir)
-        } else {
-            Err(Error::UnknownRuntime(
-                reference.as_ref().to_string_lossy().into(),
-            ))
+        match std::fs::symlink_metadata(&runtime_dir) {
+            Ok(_) => Runtime::new(runtime_dir),
+            Err(err) => Err(Error::UnknownRuntime {
+                message: reference.as_ref().to_string_lossy().into(),
+                source: Box::new(err.into()),
+            }),
         }
     }
 

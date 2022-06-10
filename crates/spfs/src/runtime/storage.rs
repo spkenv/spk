@@ -258,7 +258,7 @@ impl OwnedRuntime {
                     let storage_root = config.storage.root.join("runtimes");
                     let storage = super::storage_033::Storage::new(storage_root)?;
                     match storage.remove_runtime(self.name()) {
-                        Err(crate::Error::UnknownRuntime(_)) => {}
+                        Err(crate::Error::UnknownRuntime { .. }) => {}
                         Err(err) => {
                             tracing::warn!(?err, name=%self.name(), "failed to clean runtime from legacy storage")
                         }
@@ -267,7 +267,7 @@ impl OwnedRuntime {
                 }
                 Ok(())
             }
-            Err(Error::UnknownRuntime(_)) => Ok(()),
+            Err(Error::UnknownRuntime { .. }) => Ok(()),
             Err(err) => Err(err),
         }
     }
@@ -455,7 +455,7 @@ impl Runtime {
             let storage_root = config.storage.root.join("runtimes");
             let storage = super::storage_033::Storage::new(storage_root)?;
             let mut replica = storage.read_runtime(self.name()).or_else(|err| match err {
-                crate::Error::UnknownRuntime(_) => storage.create_named_runtime(self.name()),
+                crate::Error::UnknownRuntime { .. } => storage.create_named_runtime(self.name()),
                 _ => Err(err),
             })?;
             replica.replicate(self)?;
@@ -517,8 +517,11 @@ impl Storage {
         let tag_spec = runtime_tag(RuntimeDataType::Metadata, name.as_ref())?;
         let digest = match self.inner.resolve_tag(&tag_spec).await {
             Ok(tag) => tag.target,
-            Err(Error::UnknownReference(_)) => {
-                return Err(Error::UnknownRuntime(name.as_ref().to_string()))
+            Err(err @ Error::UnknownReference(_)) => {
+                return Err(Error::UnknownRuntime {
+                    message: name.as_ref().to_string(),
+                    source: Box::new(err),
+                });
             }
             Err(err) => return Err(err),
         };
