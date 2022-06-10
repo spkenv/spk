@@ -22,6 +22,9 @@ pub struct Convert {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
+
     /// The converter to run
     converter: String,
 
@@ -46,6 +49,7 @@ impl Run for Convert {
             runtime: self.runtime.clone(),
             requests: self.requests.clone(),
             verbose: self.verbose,
+            formatter_settings: self.formatter_settings.clone(),
             requested: vec![converter_package],
             command,
         };

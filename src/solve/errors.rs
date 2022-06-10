@@ -12,6 +12,7 @@ pub enum Error {
     FailedToResolve(super::Graph),
     Graph(GraphError),
     OutOfOptions(OutOfOptions),
+    SolverInterrupted(String),
 }
 
 impl From<Error> for crate::Error {

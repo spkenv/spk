@@ -22,6 +22,9 @@ pub struct Explain {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
+
     /// The requests to resolve
     #[clap(name = "REQUESTS", required = true)]
     pub requested: Vec<String>,
@@ -39,7 +42,8 @@ impl Run for Explain {
             solver.add_request(request)
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose + 1)?;
+        let formatter = self.formatter_settings.get_formatter(self.verbose + 1);
+        let solution = formatter.run_and_print_resolve(&solver)?;
 
         println!("{}", spk::io::format_solution(&solution, self.verbose + 1));
         Ok(0)

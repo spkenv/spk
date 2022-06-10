@@ -27,6 +27,9 @@ pub struct Install {
     #[clap(long, short)]
     yes: bool,
 
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
+
     /// The packages to install
     #[clap(name = "PKG", required = true)]
     pub packages: Vec<String>,
@@ -48,7 +51,8 @@ impl Run for Install {
             solver.add_request(request);
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
+        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let solution = formatter.run_and_print_resolve(&solver)?;
 
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver

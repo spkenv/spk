@@ -21,6 +21,9 @@ pub struct Render {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
+
     /// The packages to resolve and render
     #[clap(name = "PKG", required = true)]
     packages: Vec<String>,
@@ -40,7 +43,8 @@ impl Run for Render {
             solver.add_request(name);
         }
 
-        let solution = spk::io::run_and_print_resolve(&solver, self.verbose)?;
+        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let solution = formatter.run_and_print_resolve(&solver)?;
 
         let solution = spk::build_required_packages(&solution)?;
         let stack = spk::exec::resolve_runtime_layers(&solution)?;

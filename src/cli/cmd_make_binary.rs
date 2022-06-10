@@ -42,6 +42,9 @@ pub struct MakeBinary {
     /// Build only the specified variant, by index, if defined
     #[clap(long)]
     pub variant: Option<usize>,
+
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 }
 
 impl Run for MakeBinary {
@@ -101,14 +104,14 @@ impl Run for MakeBinary {
                 }
 
                 tracing::info!("building variant {}", spk::io::format_options(&opts));
+                let formatter = self.formatter_settings.get_formatter(self.verbose);
                 let mut builder = spk::build::BinaryPackageBuilder::from_spec(spec.clone());
-                let verbose = self.verbose;
                 builder
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(move |r| spk::io::run_and_print_decisions(r, verbose))
-                    .with_build_resolver(move |r| spk::io::run_and_print_decisions(r, verbose));
+                    .with_source_resolver(move |r| formatter.run_and_print_decisions(r))
+                    .with_build_resolver(move |r| formatter.run_and_print_decisions(r));
                 if self.here {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;

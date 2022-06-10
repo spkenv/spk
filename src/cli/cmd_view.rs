@@ -22,6 +22,9 @@ pub struct View {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
+
     /// The package to show information about
     package: Option<String>,
 
@@ -50,7 +53,9 @@ impl Run for View {
         };
 
         let mut runtime = solver.run();
-        let solution = match runtime.solution() {
+
+        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let solution = match formatter.run_and_print_decisions(&mut runtime) {
             Ok(s) => s,
             Err(err @ spk::Error::Solve(_)) => {
                 println!("{}", err.to_string().red());
@@ -59,10 +64,10 @@ impl Run for View {
                     v if v < 2 => {
                         eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
                     }
-                    v => {
+                    _v => {
                         let graph = runtime.graph();
                         let graph = graph.read().unwrap();
-                        for line in spk::io::format_decisions(graph.walk().map(Ok), v) {
+                        for line in formatter.formatted_decisions_iter(graph.walk().map(Ok)) {
                             println!("{}", line?);
                         }
                     }

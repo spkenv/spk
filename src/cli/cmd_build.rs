@@ -40,6 +40,9 @@ pub struct Build {
     /// Build only the specified variant, by index, if defined
     #[clap(long, hide = true)]
     variant: Option<usize>,
+
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
 }
 
 /// Runs make-source and then make-binary
@@ -74,6 +77,7 @@ impl Run for Build {
                 env: self.env,
                 packages,
                 variant: self.variant,
+                formatter_settings: self.formatter_settings.clone(),
             };
             let code = make_binary.run()?;
             if code != 0 {

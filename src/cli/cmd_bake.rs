@@ -22,6 +22,9 @@ pub struct Bake {
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
+    #[clap(flatten)]
+    pub formatter_settings: flags::DecisionFormatterSettings,
+
     /// The requests to resolve and bake
     #[clap(name = "REQUESTS")]
     pub requested: Vec<String>,
@@ -54,6 +57,7 @@ impl Bake {
             requests: self.requests.clone(),
             options: self.options.clone(),
             verbose: self.verbose,
+            formatter_settings: self.formatter_settings.clone(),
             requested: self.requested.clone(),
             command: vec![exe, "bake".into()],
         };

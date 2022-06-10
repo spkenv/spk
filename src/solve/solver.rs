@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{
     borrow::Cow,
+    collections::HashMap,
     mem::take,
     sync::{Arc, Mutex, RwLock},
 };
@@ -35,6 +36,7 @@ pub struct Solver {
     repos: Vec<Arc<storage::RepositoryHandle>>,
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
+    error_frequency: HashMap<String, u64>,
 }
 
 impl Default for Solver {
@@ -43,6 +45,7 @@ impl Default for Solver {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
             validators: Cow::from(validation::default_validators()),
+            error_frequency: HashMap::new(),
         }
     }
 }
@@ -77,6 +80,17 @@ impl Solver {
             state = Some(change.apply(&state.unwrap_or_else(else_closure)))
         }
         state.unwrap_or_else(else_closure)
+    }
+
+    /// Increment the number of occurrences of the given error message
+    pub fn increment_error_count(&mut self, error_message: String) {
+        let counter = self.error_frequency.entry(error_message).or_insert(0);
+        *counter += 1;
+    }
+
+    /// Get the error to frequency mapping
+    pub fn error_frequency(&self) -> &HashMap<String, u64> {
+        &self.error_frequency
     }
 
     fn get_iterator(
@@ -255,6 +269,7 @@ impl Solver {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
         self.validators = Cow::from(validation::default_validators());
+        self.error_frequency.clear();
     }
 
     /// Run this solver
@@ -338,7 +353,7 @@ impl Solver {
 
 #[must_use = "The solver runtime does nothing unless iterated to completion"]
 pub struct SolverRuntime {
-    solver: Solver,
+    pub solver: Solver,
     graph: Arc<RwLock<Graph>>,
     history: Vec<Arc<RwLock<Node>>>,
     current_node: Option<Arc<RwLock<Node>>>,
@@ -473,27 +488,23 @@ impl Iterator for SolverRuntime {
         self.decision = match self.solver.step_state(&mut current_node_lock) {
             Ok(decision) => decision,
             Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
+                let cause = format!("could not satisfy '{}'", err.request.pkg);
+
                 match self.history.pop() {
                     Some(n) => {
                         let n_lock = n.read().unwrap();
                         self.decision = Some(
-                            Change::StepBack(StepBack::new(
-                                &format!("could not satisfy '{}'", err.request.pkg),
-                                &n_lock.state,
-                            ))
-                            .as_decision(),
+                            Change::StepBack(StepBack::new(&cause, &n_lock.state)).as_decision(),
                         )
                     }
                     None => {
-                        self.decision = Some(
-                            Change::StepBack(StepBack::new(
-                                &format!("could not satisfy '{}'", err.request.pkg),
-                                &DEAD_STATE,
-                            ))
-                            .as_decision(),
-                        )
+                        self.decision =
+                            Some(Change::StepBack(StepBack::new(&cause, &DEAD_STATE)).as_decision())
                     }
                 }
+
+                self.solver.increment_error_count(cause);
+
                 if let Some(d) = self.decision.as_mut() {
                     d.add_notes(err.notes.iter().cloned())
                 }
