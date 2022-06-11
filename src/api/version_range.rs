@@ -36,7 +36,9 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
     /// Return true if the given package spec satisfies this version range with the given compatibility.
-    fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility;
+    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
+        self.is_applicable(&spec.pkg.version)
+    }
 
     /// If applicable, return the broken down set of rules for this range
     fn rules(&self) -> BTreeSet<VersionRange> {
@@ -244,10 +246,6 @@ impl Ranged for SemverRange {
         }
         Some(Version::from(parts))
     }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
 }
 
 impl Display for SemverRange {
@@ -331,10 +329,6 @@ impl Ranged for WildcardRange {
 
         Compatibility::Compatible
     }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
 }
 
 impl Display for WildcardRange {
@@ -387,10 +381,6 @@ impl Ranged for LowestSpecifiedRange {
         }
         Some(Version::from_parts(parts.clone()))
     }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
 }
 
 impl Display for LowestSpecifiedRange {
@@ -427,10 +417,6 @@ impl Ranged for GreaterThanRange {
 
     fn less_than(&self) -> Option<Version> {
         None
-    }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
@@ -472,10 +458,6 @@ impl Ranged for LessThanRange {
         Some(self.bound.clone())
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
-
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version >= &self.bound {
             return Compatibility::Incompatible(format!("Not {} [too high]", self));
@@ -515,10 +497,6 @@ impl Ranged for GreaterThanOrEqualToRange {
         None
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
-
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version < &self.bound {
             return Compatibility::Incompatible(format!("Not {} [too low]", self));
@@ -556,10 +534,6 @@ impl Ranged for LessThanOrEqualToRange {
 
     fn less_than(&self) -> Option<Version> {
         None
-    }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
@@ -607,30 +581,27 @@ impl Ranged for EqualsVersion {
         Some(Version::from(parts))
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        if self.version.parts != spec.pkg.version.parts {
-            return Compatibility::Incompatible(format!(
-                "{} !! {} [not equal]",
-                &spec.pkg.version, self
-            ));
+    fn is_applicable(&self, other: &Version) -> Compatibility {
+        if self.version.parts != other.parts {
+            return Compatibility::Incompatible(format!("{} !! {} [not equal]", &other, self));
         }
 
-        if self.version.pre != spec.pkg.version.pre {
+        if self.version.pre != other.pre {
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal @ prerelease]",
-                &spec.pkg.version, self
+                &other, self
             ));
         }
         // each post release tag must be exact if specified
         for (name, value) in self.version.post.iter() {
-            if let Some(v) = spec.pkg.version.post.get(name) {
+            if let Some(v) = other.post.get(name) {
                 if v == value {
                     continue;
                 }
             }
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal @ postrelease]",
-                &spec.pkg.version, self
+                &other, self
             ));
         }
         Compatibility::Compatible
@@ -689,10 +660,6 @@ impl Ranged for NotEqualsVersion {
 
         Compatibility::Incompatible(format!("excluded [{}]", self))
     }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
 }
 
 impl Display for NotEqualsVersion {
@@ -740,25 +707,25 @@ impl Ranged for DoubleEqualsVersion {
         Some(Version::from(parts))
     }
 
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        if self.version.parts != spec.pkg.version.parts {
+    fn is_applicable(&self, other: &Version) -> Compatibility {
+        if self.version.parts != other.parts {
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal precisely]",
-                &spec.pkg.version, self
+                &other, self
             ));
         }
 
-        if self.version.pre != spec.pkg.version.pre {
+        if self.version.pre != other.pre {
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal precisely @ prerelease]",
-                &spec.pkg.version, self
+                &other, self
             ));
         }
         // post release tags must match exactly
-        if self.version.post != spec.pkg.version.post {
+        if self.version.post != other.post {
             return Compatibility::Incompatible(format!(
                 "{} !! {} [not equal precisely @ postrelease]",
-                &spec.pkg.version, self
+                &other, self
             ));
         }
         Compatibility::Compatible
@@ -817,10 +784,6 @@ impl Ranged for DoubleNotEqualsVersion {
 
         Compatibility::Incompatible(format!("excluded precisely [{}]", self))
     }
-
-    fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
-        self.is_applicable(&spec.pkg.version)
-    }
 }
 
 impl Display for DoubleNotEqualsVersion {
@@ -874,6 +837,7 @@ impl Ranged for CompatRange {
     }
 
     fn is_satisfied_by(&self, spec: &Spec, mut required: CompatRule) -> Compatibility {
+        // XXX: Should this custom logic be in `is_applicable` instead?
         if let Some(r) = self.required {
             required = r;
         }
@@ -988,6 +952,7 @@ impl Ranged for VersionFilter {
 
     /// Return true if the given package spec satisfies this version range.
     fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
+        // XXX: Could this custom logic be handled by `is_applicable` instead?
         for rule in self.rules.iter() {
             let compat = rule.is_satisfied_by(spec, required);
             if !compat.is_ok() {
