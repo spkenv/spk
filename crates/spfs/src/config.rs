@@ -192,7 +192,23 @@ impl Config {
 
     /// Get the local repository instance as configured.
     pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
-        storage::fs::FSRepository::create(&self.storage.root).await
+        // Possibly use a different path for the local repository, depending
+        // on enabled features.
+        #[allow(unused_mut)]
+        let mut use_ci_isolated_storage_path: Option<PathBuf> = None;
+
+        #[cfg(feature = "gitlab-ci-local-repo-isolation")]
+        if let Ok(id) = std::env::var("CI_PIPELINE_ID") {
+            use_ci_isolated_storage_path =
+                Some(self.storage.root.join("ci").join(format!("pipeline_{id}")));
+        }
+
+        storage::fs::FSRepository::create(
+            use_ci_isolated_storage_path
+                .as_ref()
+                .unwrap_or(&self.storage.root),
+        )
+        .await
     }
 
     /// Get the local repository handle as configured.
