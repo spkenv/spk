@@ -204,10 +204,11 @@ pub fn set_last_migration<P: AsRef<Path>>(root: P, version: Option<semver::Versi
     };
     let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref())?;
     // This file can be read only. It will be replaced by a new file
-    // if the contents need to be changed.
+    // if the contents need to be changed. But for interop with older
+    // versions of spfs that need to write to it, enable write.
     temp_version_file
         .as_file()
-        .set_permissions(Permissions::from_mode(0o444))?;
+        .set_permissions(Permissions::from_mode(0o666))?;
     temp_version_file.write_all(version.to_string().as_bytes())?;
     temp_version_file.flush()?;
     temp_version_file
