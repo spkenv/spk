@@ -139,3 +139,33 @@ fn test_version_range_is_satisfied(
 
     assert_eq!(actual.is_ok(), expected, "{} -> {:?}", range, actual);
 }
+
+#[rstest]
+#[case("!=1.2.0", "=1.1.9", true)]
+#[case("!=1.2.0", "=1.2.0", false)]
+#[case("!=1.2.0", "=1.2.1", true)]
+#[case("<1.2", "<1.2", true)]
+#[case("<1.2", "<1.3", true)]
+#[case("<1.2", "=1.1", true)]
+#[case("<1.2", "=1.2", false)]
+#[case("<1.2", "=1.2.0.1", false)]
+#[case("<1.2", "=1.3", false)]
+#[case("<=1.2", "=1.2", true)]
+#[case("<=1.2", "=1.3", false)]
+#[case("=1.2", "=1.1", false)]
+#[case(">1.0", "<2.0", true)]
+#[case(">1.0", "=1.0", false)]
+#[case(">1.0", "=2.0", true)]
+#[case(">1.0", ">2.0", true)]
+#[case(">=1.0", "=1.0", true)]
+#[case(">=1.0", ">=2.0", true)]
+#[case(">=1.2", "=1.1", false)]
+#[case("~1.2.0", "=1.2.1", true)]
+fn test_intersects(#[case] range1: &str, #[case] range2: &str, #[case] expected: bool) {
+    let a = parse_version_range(range1).unwrap();
+    let b = parse_version_range(range2).unwrap();
+    let c = a.intersects(&b);
+    assert_eq!(!&c, !expected, "a:{} + b:{} == {:?}", a, b, c);
+    let c = b.intersects(&a);
+    assert_eq!(!&c, !expected, "b:{} + a:{} == {:?}", b, a, c);
+}
