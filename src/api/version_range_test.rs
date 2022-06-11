@@ -53,6 +53,7 @@ fn test_parse_version_range_tilde() {
 #[case("!=1.0", "1.1.0", true)]
 #[case("=1.0.0", "1.0.0", true)]
 #[case("=1.0.0", "1.0.0+r.1", true)]
+#[case("==1.0.0", "1.0.0+r.1", false)]
 #[case("=1.0.0+r.2", "1.0.0+r.1", false)]
 fn test_version_range_is_applicable(
     #[case] range: &str,
@@ -63,7 +64,14 @@ fn test_version_range_is_applicable(
     let v = parse_version(version).unwrap();
     let actual = vr.is_applicable(&v);
 
-    assert_eq!(actual.is_ok(), expected, "{}", actual);
+    assert_eq!(
+        actual.is_ok(),
+        expected,
+        "\"{}\".is_applicable({}) {}",
+        range,
+        version,
+        actual
+    );
 }
 
 #[rstest]
