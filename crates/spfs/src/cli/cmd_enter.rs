@@ -69,12 +69,14 @@ impl CmdEnter {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        // Get the name before getting the storage; getting the name has some
+        // fallback logic to handle old-style command line args.
+        let name = self.runtime_name()?.to_owned();
         let repo = match &self.runtime_storage {
             Some(address) => spfs::open_repository(address).await?,
             None => config.get_local_repository_handle().await?,
         };
         let storage = spfs::runtime::Storage::new(repo);
-        let name = self.runtime_name()?;
         let runtime = storage.read_runtime(&name).await?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime).await?;
@@ -126,6 +128,8 @@ impl CmdEnter {
 
     #[cfg(feature = "runtime-compat-0.33")]
     fn runtime_name(&mut self) -> spfs::Result<&String> {
+        use std::str::FromStr;
+
         if self.runtime.is_none() {
             let name = self
                 .command
@@ -138,9 +142,14 @@ impl CmdEnter {
             }
             // Handle old-style invocation where the runtime argument is
             // a path on disk rather than a bare uuid name.
-            self.runtime = Some(match name.rsplit_once('/') {
-                Some((_, name)) => name.to_owned(),
-                None => name,
+            // In the form "<storage path>/runtimes/<name>".
+            self.runtime = Some(match *name.rsplitn(3, '/').collect::<Vec<_>>().as_slice() {
+                [name, _, storage] => {
+                    self.runtime_storage =
+                        Some(url::Url::from_str(&format!("file://{}", storage))?);
+                    name.to_owned()
+                }
+                _ => name,
             });
         }
         Ok(self.runtime.as_ref().unwrap())
