@@ -331,7 +331,7 @@ impl Ranged for WildcardRange {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        for (i, (a, b)) in self.parts.iter().zip(version.parts.iter()).enumerate() {
+        for (i, (a, b)) in self.parts.iter().zip(&*version.parts).enumerate() {
             if let Some(a) = a {
                 if a != b {
                     return Compatibility::Incompatible(format!(
@@ -411,7 +411,7 @@ impl Display for LowestSpecifiedRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GreaterThanRange {
     bound: Version,
 }
@@ -428,7 +428,7 @@ impl GreaterThanRange {
 
 impl Ranged for GreaterThanRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
-        Some(self.bound.clone())
+        Some(self.bound.clone().plus_epsilon())
     }
 
     fn less_than(&self) -> Option<Version> {
@@ -489,7 +489,7 @@ impl Display for LessThanRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GreaterThanOrEqualToRange {
     bound: Version,
 }
@@ -549,7 +549,7 @@ impl Ranged for LessThanOrEqualToRange {
     }
 
     fn less_than(&self) -> Option<Version> {
-        None
+        Some(self.bound.clone().plus_epsilon())
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
@@ -590,11 +590,7 @@ impl Ranged for EqualsVersion {
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self.version.parts.clone();
-        if let Some(last) = parts.last_mut() {
-            *last += 1;
-        }
-        Some(Version::from(parts))
+        Some(self.version.clone().plus_epsilon())
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
@@ -649,11 +645,11 @@ impl NotEqualsVersion {
 
 impl Ranged for NotEqualsVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
-        None
+        Some(self.base.clone().plus_epsilon())
     }
 
     fn less_than(&self) -> Option<Version> {
-        None
+        Some(self.base.clone())
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
@@ -716,11 +712,7 @@ impl Ranged for DoubleEqualsVersion {
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self.version.parts.clone();
-        if let Some(last) = parts.last_mut() {
-            *last += 1;
-        }
-        Some(Version::from(parts))
+        Some(self.version.clone().plus_epsilon())
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
@@ -773,11 +765,11 @@ impl DoubleNotEqualsVersion {
 
 impl Ranged for DoubleNotEqualsVersion {
     fn greater_or_equal_to(&self) -> Option<Version> {
-        None
+        Some(self.base.clone().plus_epsilon())
     }
 
     fn less_than(&self) -> Option<Version> {
-        None
+        Some(self.base.clone())
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {

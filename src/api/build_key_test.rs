@@ -31,12 +31,15 @@ fn make_tag_part(pieces: Vec<&str>) -> Option<Vec<BuildKeyVersionNumberPiece>> {
 }
 
 // For making test case results
+#[allow(clippy::too_many_arguments)]
 fn make_expanded_version_range_part(
     version: &str,
     max_digits: Vec<u32>,
+    max_plus_epsilon: bool,
     max_post: Vec<&str>,
     max_pre: Vec<&str>,
     min_digits: Vec<u32>,
+    min_plus_epsilon: bool,
     min_post: Vec<&str>,
     min_pre: Vec<&str>,
 ) -> BuildKeyExpandedVersionRange {
@@ -51,6 +54,7 @@ fn make_expanded_version_range_part(
                 .iter()
                 .map(|n| BuildKeyVersionNumberPiece::Number(*n))
                 .collect::<Vec<BuildKeyVersionNumberPiece>>(),
+            plus_epsilon: max_plus_epsilon,
             posttag: post_max,
             pretag: pre_max,
         },
@@ -59,6 +63,7 @@ fn make_expanded_version_range_part(
                 .iter()
                 .map(|n| BuildKeyVersionNumberPiece::Number(*n))
                 .collect::<Vec<BuildKeyVersionNumberPiece>>(),
+            plus_epsilon: min_plus_epsilon,
             posttag: post_min,
             pretag: pre_min,
         },
@@ -66,26 +71,27 @@ fn make_expanded_version_range_part(
     }
 }
 
+#[rustfmt::skip]
 #[rstest]
-#[case("1.2.3", make_expanded_version_range_part( "1.2.3", vec![u32::MAX, u32::MAX, u32::MAX], vec![], vec![], vec![1, 2, 3], vec![], vec![]))]
-#[case("1.2.3.4", make_expanded_version_range_part("1.2.3.4", vec![u32::MAX, u32::MAX, u32::MAX], vec![], vec![], vec![1, 2, 3, 4], vec![], vec![]))]
-#[case("1.2.3-r.1", make_expanded_version_range_part("1.2.3-r.1", vec![u32::MAX, u32::MAX, u32::MAX], vec![], vec![], vec![1, 2, 3], vec![], vec!["r", "1"]))]
-#[case("1.2.3+r.2", make_expanded_version_range_part("1.2.3+r.2", vec![u32::MAX, u32::MAX, u32::MAX], vec![], vec![], vec![1, 2, 3], vec!["r","2"], vec![]))]
-#[case("1.2.3-a.4+r.6",make_expanded_version_range_part("1.2.3-a.4+r.6", vec![u32::MAX, u32::MAX, u32::MAX], vec![], vec![], vec![1, 2, 3], vec!["r","6"], vec!["a","4"]))]
-#[case("~1.2.3",make_expanded_version_range_part("~1.2.3", vec![1, 3], vec![], vec![], vec![1, 2, 3], vec![], vec![]))]
-#[case("~1.2.3.1",make_expanded_version_range_part("~1.2.3.1", vec![1, 2, 4], vec![], vec![], vec![1, 2, 3, 1], vec![], vec![]))]
-#[case(">=1.2.3",make_expanded_version_range_part(">=1.2.3", vec![u32::MAX, u32::MAX, u32::MAX], vec![], vec![], vec![1, 2, 3], vec![], vec![]))]
-#[case(">=1.2.3,<1.2.5",make_expanded_version_range_part(">=1.2.3,<1.2.5", vec![1, 2, 5], vec![], vec![], vec![1, 2, 3], vec![], vec![]))]
-#[case(">=1.2.3+r.2,<1.2.5",make_expanded_version_range_part(">=1.2.3+r.2,<1.2.5", vec![1, 2, 5], vec![], vec![], vec![1, 2, 3], vec!["r", "2"], vec![]))]
-#[case(">=2.3.4.1,<2.3.5",make_expanded_version_range_part(">=2.3.4.1,<2.3.5", vec![2, 3, 5], vec![], vec![], vec![2, 3, 4, 1], vec![], vec![]))]
-#[case("1.*",make_expanded_version_range_part("1.*", vec![2], vec![], vec![], vec![1,0], vec![], vec![]))]
-#[case("<1.2.3",make_expanded_version_range_part("<1.2.3", vec![1, 2, 3], vec![], vec![], vec![0,0,0], vec![], vec![]))]
-#[case("=1.2.3",make_expanded_version_range_part("=1.2.3", vec![1, 2, 4], vec![], vec![], vec![1, 2, 3], vec![], vec![]))]
-#[case("^1.2.3",make_expanded_version_range_part("^1.2.3", vec![2], vec![], vec![], vec![1, 2, 3], vec![], vec![]))]
+#[case("1.2.3",              make_expanded_version_range_part("1.2.3",              vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
+#[case("1.2.3.4",            make_expanded_version_range_part("1.2.3.4",            vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![1, 2, 3, 4], false, vec![],          vec![]))]
+#[case("1.2.3-r.1",          make_expanded_version_range_part("1.2.3-r.1",          vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec!["r", "1"]))]
+#[case("1.2.3+r.2",          make_expanded_version_range_part("1.2.3+r.2",          vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![1, 2, 3],    false, vec!["r", "2"],  vec![]))]
+#[case("1.2.3-a.4+r.6",      make_expanded_version_range_part("1.2.3-a.4+r.6",      vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![1, 2, 3],    false, vec!["r", "6"],  vec!["a", "4"]))]
+#[case("~1.2.3",             make_expanded_version_range_part("~1.2.3",             vec![1, 3],                         false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
+#[case("~1.2.3.1",           make_expanded_version_range_part("~1.2.3.1",           vec![1, 2, 4],                      false, vec![], vec![], vec![1, 2, 3, 1], false, vec![],          vec![]))]
+#[case(">=1.2.3",            make_expanded_version_range_part(">=1.2.3",            vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
+#[case(">=1.2.3,<1.2.5",     make_expanded_version_range_part(">=1.2.3,<1.2.5",     vec![1, 2, 5],                      false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
+#[case(">=1.2.3+r.2,<1.2.5", make_expanded_version_range_part(">=1.2.3+r.2,<1.2.5", vec![1, 2, 5],                      false, vec![], vec![], vec![1, 2, 3],    false, vec!["r", "2"],  vec![]))]
+#[case(">=2.3.4.1,<2.3.5",   make_expanded_version_range_part(">=2.3.4.1,<2.3.5",   vec![2, 3, 5],                      false, vec![], vec![], vec![2, 3, 4, 1], false, vec![],          vec![]))]
+#[case("1.*",                make_expanded_version_range_part("1.*",                vec![2],                            false, vec![], vec![], vec![1, 0],       false, vec![],          vec![]))]
+#[case("<1.2.3",             make_expanded_version_range_part("<1.2.3",             vec![1, 2, 3],                      false, vec![], vec![], vec![0, 0, 0],    false, vec![],          vec![]))]
+#[case("=1.2.3",             make_expanded_version_range_part("=1.2.3",             vec![1, 2, 3],                      true,  vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
+#[case("^1.2.3",             make_expanded_version_range_part("^1.2.3",             vec![2],                            false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
 // These ones appear in the function's comments
-#[case("~2.3.4-r.1", make_expanded_version_range_part("~2.3.4-r.1", vec![2, 3, 5], vec![], vec![], vec![2, 3, 4], vec![], vec!["r", "1"]))]
-#[case("~2.3.4",make_expanded_version_range_part("~2.3.4", vec![2, 4], vec![], vec![], vec![2, 3, 4], vec![], vec![]))]
-#[case("~2.3.4+r.2",make_expanded_version_range_part("~2.3.4+r.2", vec![2, 3, 5], vec![], vec![], vec![2, 3, 4], vec!["r", "2"], vec![]))]
+#[case("~2.3.4-r.1",         make_expanded_version_range_part("~2.3.4-r.1",         vec![2, 3, 5],                      false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec!["r", "1"]))]
+#[case("~2.3.4",             make_expanded_version_range_part("~2.3.4",             vec![2, 4],                         false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec![]))]
+#[case("~2.3.4+r.2",         make_expanded_version_range_part("~2.3.4+r.2",         vec![2, 3, 5],                      false, vec![], vec![], vec![2, 3, 4],    false, vec!["r", "2"],  vec![]))]
 fn test_parse_value_to_build_key_extended_version_range(
     #[case] vrange: &str,
     #[case] expected: BuildKeyExpandedVersionRange,
@@ -104,11 +110,13 @@ fn test_parse_value_to_build_key_extended_version_range(
        BuildKeyExpandedVersionRange {
            max: BuildKeyVersionNumber {
                digits: vec![],
+               plus_epsilon: false,
                posttag: Some(vec![]),
                pretag: Some(vec![]),
            },
            min: BuildKeyVersionNumber {
                digits: vec![],
+               plus_epsilon: false,
                posttag: Some(vec![]),
                pretag: Some(vec![]),
            },
@@ -201,9 +209,11 @@ fn test_generating_build_key() {
         BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
             "1.2.3",
             vec![u32::MAX, u32::MAX, u32::MAX],
+            false,
             vec![],
             vec![],
             vec![1, 2, 3],
+            false,
             vec![],
             vec![],
         )),
@@ -215,9 +225,11 @@ fn test_generating_build_key() {
         BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
             ">1",
             vec![u32::MAX, u32::MAX, u32::MAX],
+            false,
             vec![],
             vec![],
             vec![1],
+            true,
             vec![],
             vec![],
         )),

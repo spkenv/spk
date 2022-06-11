@@ -366,6 +366,8 @@ impl BuildKeyExpandedVersionRange {
 struct BuildKeyVersionNumber {
     /// The major, minor, patch, and tail digits, e.g. [6, 4, 0]
     digits: Vec<BuildKeyVersionNumberPiece>,
+    /// If the version in `digits` should be treated as infinitesimally larger
+    plus_epsilon: bool,
     /// Any post-release tag pieces, e.g. Some(['r', 1]) or None
     posttag: Option<Vec<BuildKeyVersionNumberPiece>>,
     /// Any pre-release tag pieces, e.g. Some(['r', 2]) or None
@@ -457,6 +459,7 @@ impl BuildKeyVersionNumber {
         // first as the most important, then post tags, with pre tags last
         BuildKeyVersionNumber {
             digits,
+            plus_epsilon: v.parts.plus_epsilon,
             posttag,
             pretag,
         }
