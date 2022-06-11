@@ -16,7 +16,11 @@ use itertools::Itertools;
 
 use crate::{Error, Result};
 
+use self::intersection::{CombineWith, ValidRange};
+
 use super::{parse_version, version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
+
+mod intersection;
 
 #[cfg(test)]
 #[path = "./version_range_test.rs"]
@@ -92,29 +96,41 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     }
 
     fn intersects(&self, other: impl Ranged) -> Compatibility {
+        let mut self_valid_range = ValidRange::Total;
+        let mut other_valid_range = ValidRange::Total;
+
         let self_lower = self.greater_or_equal_to();
+        if let Some(greater_than_or_equal_to) = &self_lower {
+            self_valid_range.combine_with(std::ops::RangeFrom {
+                start: greater_than_or_equal_to,
+            });
+        }
+
         let self_upper = self.less_than();
+        if let Some(less_than) = &self_upper {
+            self_valid_range.combine_with(std::ops::RangeTo { end: less_than });
+        }
+
         let other_lower = other.greater_or_equal_to();
+        if let Some(greater_than_or_equal_to) = &other_lower {
+            other_valid_range.combine_with(std::ops::RangeFrom {
+                start: greater_than_or_equal_to,
+            });
+        }
+
         let other_upper = other.less_than();
-
-        if let (Some(self_upper), Some(other_lower)) = (self_upper, other_lower) {
-            if self_upper < other_lower {
-                return Compatibility::Incompatible(format!(
-                    "{} does not intersect with {}, all versions too high",
-                    other, self
-                ));
-            }
-        }
-        if let (Some(self_lower), Some(other_upper)) = (self_lower, other_upper) {
-            if self_lower > other_upper {
-                return Compatibility::Incompatible(format!(
-                    "{} does not intersect with {}, all versions too low",
-                    other, self
-                ));
-            }
+        if let Some(less_than) = &other_upper {
+            other_valid_range.combine_with(std::ops::RangeTo { end: less_than });
         }
 
-        Compatibility::Compatible
+        if self_valid_range.intersects(&other_valid_range) {
+            Compatibility::Compatible
+        } else {
+            Compatibility::Incompatible(format!(
+                "{} does not intersect with {}",
+                self_valid_range, other_valid_range
+            ))
+        }
     }
 }
 
