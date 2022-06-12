@@ -3,9 +3,22 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::parse_version_range;
+use proptest::{
+    collection::{btree_map, vec},
+    option::weighted,
+    prelude::*,
+};
+
+use super::{
+    parse_version_range, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
+    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
+    NotEqualsVersion,
+};
 use crate::{
-    api::{parse_version, version_range::Ranged, Spec},
+    api::{
+        parse_version, version::VersionParts, version_range::Ranged, CompatRange, CompatRule, Spec,
+        TagSet, Version, VersionRange,
+    },
     spec,
 };
 
@@ -168,4 +181,153 @@ fn test_intersects(#[case] range1: &str, #[case] range2: &str, #[case] expected:
     assert_eq!(!&c, !expected, "a:{} + b:{} == {:?}", a, b, c);
     let c = b.intersects(&a);
     assert_eq!(!&c, !expected, "b:{} + a:{} == {:?}", b, a, c);
+}
+
+prop_compose! {
+    // XXX: The tagset is limited to a maximum of one entry because of
+    // the ambiguous use of commas to delimit both tags and version filters.
+    fn arb_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..=1)) -> TagSet {
+        TagSet { tags }
+    }
+}
+
+fn arb_version() -> impl Strategy<Value = Version> {
+    arb_version_min_len(1)
+}
+
+fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
+    (
+        vec(any::<u32>(), min_len..min_len.max(10)),
+        arb_tagset(),
+        arb_tagset(),
+    )
+        .prop_map(|(parts, pre, post)| Version {
+            parts: VersionParts {
+                parts,
+                plus_epsilon: false,
+            },
+            pre,
+            post,
+        })
+}
+
+prop_compose! {
+    // CompatRule::None intentionally not included in this list.
+    fn arb_compat_rule()(cr in prop_oneof![Just(CompatRule::API), Just(CompatRule::Binary)]) -> CompatRule {
+        cr
+    }
+}
+
+fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = VersionRange> {
+    prop_oneof![
+        // Compat: the same version
+        (weighted(0.33, arb_compat_rule()), Just(version.clone()))
+            .prop_map(|(required, base)| { VersionRange::Compat(CompatRange { base, required }) }),
+        // DoubleEquals: the same version
+        Just(VersionRange::DoubleEquals(DoubleEqualsVersion {
+            version: version.clone()
+        })),
+        // DoubleNotEquals: an arbitrary version that isn't equal
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "not the same version",
+                |(other_version, version)| other_version != version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::DoubleNotEquals(DoubleNotEqualsVersion {
+                    specified: other_version.parts.len(),
+                    base: other_version,
+                })
+            }),
+        // Equals: the same version
+        Just(VersionRange::Equals(EqualsVersion {
+            version: version.clone()
+        })),
+        // Filter: skipping for now
+        // GreaterThan: an arbitrary version that is <=
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a less than or equal version",
+                |(other_version, version)| other_version <= version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::GreaterThan(GreaterThanRange {
+                    bound: other_version,
+                })
+            }),
+        // GreaterThanOrEqualTo: an arbitrary version that is <
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a less than version",
+                |(other_version, version)| other_version < version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::GreaterThanOrEqualTo(GreaterThanOrEqualToRange {
+                    bound: other_version,
+                })
+            }),
+        // LesserThan: an arbitrary version that is >=
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a greater than or equal version",
+                |(other_version, version)| other_version >= version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::LessThan(LessThanRange {
+                    bound: other_version,
+                })
+            }),
+        // LessThanOrEqualTo: an arbitrary version that is >
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a greater than version",
+                |(other_version, version)| other_version > version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::LessThanOrEqualTo(LessThanOrEqualToRange {
+                    bound: other_version,
+                })
+            }),
+        // LowestSpecified: skipping for now
+        // NotEquals: an arbitrary version that isn't equal
+        (arb_version(), Just(version))
+            .prop_filter(
+                "not the same version",
+                |(other_version, version)| other_version != version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::NotEquals(NotEqualsVersion {
+                    specified: other_version.parts.len(),
+                    base: other_version,
+                })
+            }),
+        // Semver: skipping for now
+        // Wildcard: skipping for now
+    ]
+}
+
+fn arb_pair_of_intersecting_ranges() -> impl Strategy<Value = (Version, VersionRange, VersionRange)>
+{
+    arb_version().prop_flat_map(|version| {
+        (
+            arb_range_that_includes_version(version.clone()),
+            arb_range_that_includes_version(version.clone()),
+        )
+            .prop_map(move |(r1, r2)| (version.clone(), r1, r2))
+    })
+}
+
+proptest! {
+    /// Generate an arbitrary version and two arbitrary ranges
+    /// that the version belongs to. Therefore, the two ranges
+    /// are expected to intersect.
+    #[test]
+    fn prop_test_range_intersect(
+            pair in arb_pair_of_intersecting_ranges()) {
+        let (version, a, b) = pair;
+        let c = a.intersects(&b);
+        assert!(c.is_ok(), "{} -- a:{} + b:{} == {:?}", version, a, b, c);
+        let c = b.intersects(&a);
+        assert!(c.is_ok(), "{} -- b:{} + a:{} == {:?}", version, b, a, c);
+    }
 }
