@@ -12,7 +12,7 @@ use proptest::{
 use super::{
     parse_version_range, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    NotEqualsVersion,
+    NotEqualsVersion, WildcardRange,
 };
 use crate::{
     api::{
@@ -218,6 +218,26 @@ prop_compose! {
     }
 }
 
+fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
+    (Just(version.clone()), 0..version.parts.len()).prop_map(|(version, index_to_wildcard)| {
+        VersionRange::Wildcard(WildcardRange {
+            specified: version.parts.len(),
+            parts: version
+                .parts
+                .iter()
+                .enumerate()
+                .map(|(index, num)| {
+                    if index == index_to_wildcard {
+                        None
+                    } else {
+                        Some(*num)
+                    }
+                })
+                .collect::<Vec<_>>(),
+        })
+    })
+}
+
 fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = VersionRange> {
     prop_oneof![
         // Compat: the same version
@@ -290,7 +310,7 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
             }),
         // LowestSpecified: skipping for now
         // NotEquals: an arbitrary version that isn't equal
-        (arb_version(), Just(version))
+        (arb_version(), Just(version.clone()))
             .prop_filter(
                 "not the same version",
                 |(other_version, version)| other_version != version
@@ -302,7 +322,8 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 })
             }),
         // Semver: skipping for now
-        // Wildcard: skipping for now
+        // Wildcard: turn one of the version digits into a wildcard
+        arb_wildcard_range_from_version(version),
     ]
 }
 
@@ -326,8 +347,8 @@ proptest! {
             pair in arb_pair_of_intersecting_ranges()) {
         let (version, a, b) = pair;
         let c = a.intersects(&b);
-        assert!(c.is_ok(), "{} -- a:{} + b:{} == {:?}", version, a, b, c);
+        prop_assert!(c.is_ok(), "{} -- a:{} + b:{} == {:?}", version, a, b, c);
         let c = b.intersects(&a);
-        assert!(c.is_ok(), "{} -- b:{} + a:{} == {:?}", version, b, a, c);
+        prop_assert!(c.is_ok(), "{} -- b:{} + a:{} == {:?}", version, b, a, c);
     }
 }

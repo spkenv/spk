@@ -311,6 +311,11 @@ impl WildcardRange {
 
 impl Ranged for WildcardRange {
     fn greater_or_equal_to(&self) -> Option<Version> {
+        // The placement of the wildcard dictates the floor version.
+        //
+        // *.2.3 -> >= 0.2.3
+        // 1.*.3 -> >= 1.0.3
+        // 1.2.* -> >= 1.2.0
         let parts = self
             .parts
             .clone()
@@ -321,13 +326,40 @@ impl Ranged for WildcardRange {
     }
 
     fn less_than(&self) -> Option<Version> {
-        let mut parts = self.parts.clone().into_iter().flatten().collect_vec();
-        if let Some(last) = parts.last_mut() {
-            *last += 1;
-        } else {
-            return None;
+        // The placement of the wildcard dictates the ceiling version.
+        //
+        // *.2.3 -> [no limit]
+        // 1.*.3 -> <2.0
+        // 1.2.* -> <1.3
+        let mut parts = self.parts.iter().peekable();
+        let mut new_parts = Vec::with_capacity(self.parts.len());
+        while let Some(x) = parts.next() {
+            match (x, parts.peek()) {
+                (None, None) => break,
+                (None, Some(_)) => {
+                    // Currently on the wildcard and there are more items;
+                    // make this element a 0 and stop.
+                    // This is like the second case in the example above.
+                    new_parts.push(0);
+                    break;
+                }
+                (Some(element_before_wildcard), Some(None)) => {
+                    // The next element is the wildcard; increase the
+                    // current element by one. This is like the second
+                    // and third case in the example above.
+                    new_parts.push(*element_before_wildcard + 1);
+                }
+                (Some(x), _) => {
+                    // Haven't found the wildcard yet.
+                    new_parts.push(*x);
+                }
+            }
         }
-        Some(Version::from_parts(parts.into_iter()))
+        if new_parts.is_empty() {
+            None
+        } else {
+            Some(Version::from_parts(new_parts.into_iter()))
+        }
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
