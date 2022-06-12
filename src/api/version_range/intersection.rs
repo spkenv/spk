@@ -148,14 +148,14 @@ pub(crate) trait CombineWith<Rhs> {
     /// Step 1, "combine" with ..3    : YYYNNNNNNN
     /// Step 2, "combine" with 5..    : YYYNNNYYYY
     /// ```
-    fn combine_with(&mut self, rhs: Rhs);
+    fn restrict(&mut self, rhs: Rhs);
 }
 
 impl<'a, 'b> CombineWith<std::ops::RangeFrom<&'a Version>> for ValidRange<'b>
 where
     'a: 'b,
 {
-    fn combine_with(&mut self, rhs: std::ops::RangeFrom<&'a Version>) {
+    fn restrict(&mut self, rhs: std::ops::RangeFrom<&'a Version>) {
         *self = match self {
             ValidRange::Total => ValidRange::Range(LimitedValidRange::RangeFrom(rhs.start)),
             ValidRange::Range(LimitedValidRange::RangeFrom(lhs)) => {
@@ -176,13 +176,13 @@ where
             }
             ValidRange::Range(LimitedValidRange::Range(..)) => {
                 // It is not possible to have a Range on the lhs because
-                // the algorithm doesn't call `combine_with` more than
+                // the algorithm doesn't call `restrict` more than
                 // twice on a given value.
                 unreachable!();
             }
             ValidRange::Pair(..) => {
                 // It is not possible to have a Pair on the lhs because
-                // the algorithm doesn't call `combine_with` more than
+                // the algorithm doesn't call `restrict` more than
                 // twice on a given value.
                 unreachable!()
             }
@@ -194,7 +194,7 @@ impl<'a, 'b> CombineWith<std::ops::RangeTo<&'a Version>> for ValidRange<'b>
 where
     'a: 'b,
 {
-    fn combine_with(&mut self, rhs: std::ops::RangeTo<&'a Version>) {
+    fn restrict(&mut self, rhs: std::ops::RangeTo<&'a Version>) {
         *self = match self {
             ValidRange::Total => ValidRange::Range(LimitedValidRange::RangeTo(rhs.end)),
             ValidRange::Range(LimitedValidRange::RangeFrom(lhs)) => {
@@ -215,13 +215,13 @@ where
             }
             ValidRange::Range(LimitedValidRange::Range(..)) => {
                 // It is not possible to have a Range on the lhs because
-                // the algorithm doesn't call `combine_with` more than
+                // the algorithm doesn't call `restrict` more than
                 // twice on a given value.
                 unreachable!();
             }
             ValidRange::Pair(..) => {
                 // It is not possible to have a Pair on the lhs because
-                // the algorithm doesn't call `combine_with` more than
+                // the algorithm doesn't call `restrict` more than
                 // twice on a given value.
                 unreachable!()
             }

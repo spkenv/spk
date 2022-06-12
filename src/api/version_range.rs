@@ -101,26 +101,26 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
 
         let self_lower = self.greater_or_equal_to();
         if let Some(greater_than_or_equal_to) = &self_lower {
-            self_valid_range.combine_with(std::ops::RangeFrom {
+            self_valid_range.restrict(std::ops::RangeFrom {
                 start: greater_than_or_equal_to,
             });
         }
 
         let self_upper = self.less_than();
         if let Some(less_than) = &self_upper {
-            self_valid_range.combine_with(std::ops::RangeTo { end: less_than });
+            self_valid_range.restrict(std::ops::RangeTo { end: less_than });
         }
 
         let other_lower = other.greater_or_equal_to();
         if let Some(greater_than_or_equal_to) = &other_lower {
-            other_valid_range.combine_with(std::ops::RangeFrom {
+            other_valid_range.restrict(std::ops::RangeFrom {
                 start: greater_than_or_equal_to,
             });
         }
 
         let other_upper = other.less_than();
         if let Some(less_than) = &other_upper {
-            other_valid_range.combine_with(std::ops::RangeTo { end: less_than });
+            other_valid_range.restrict(std::ops::RangeTo { end: less_than });
         }
 
         if self_valid_range.intersects(&other_valid_range) {
