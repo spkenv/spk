@@ -12,7 +12,7 @@ use proptest::{
 use super::{
     parse_version_range, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    NotEqualsVersion, WildcardRange,
+    LowestSpecifiedRange, NotEqualsVersion, WildcardRange,
 };
 use crate::{
     api::{
@@ -192,7 +192,9 @@ prop_compose! {
 }
 
 fn arb_version() -> impl Strategy<Value = Version> {
-    arb_version_min_len(1)
+    // Generate a minimum of two version elements to accommodate
+    // `LowestSpecifiedRange`'s requirements.
+    arb_version_min_len(2)
 }
 
 fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
@@ -216,6 +218,58 @@ prop_compose! {
     fn arb_compat_rule()(cr in prop_oneof![Just(CompatRule::API), Just(CompatRule::Binary)]) -> CompatRule {
         cr
     }
+}
+
+fn arb_lowest_specified_range_from_version(
+    version: Version,
+) -> impl Strategy<Value = VersionRange> {
+    // A version like 1.2.3 will be valid in the following expressions:
+    //   - ~1.0
+    //   - ~1.1
+    //   - ~1.2
+    //   - ~1.2.0
+    //   - ~1.2.1
+    //   - ~1.2.2
+    //   - ~1.2.3
+    //
+    // The numbers have to match the original numbers, except the last
+    // element specified, which may be <= the origin number
+    (Just(version.clone()), 2..=version.parts.len()).prop_flat_map(
+        |(version, parts_to_generate)| {
+            // Generate what number to use in the last position.
+            (
+                Just(version.clone()),
+                Just(parts_to_generate),
+                0..=(*version.parts.get(parts_to_generate - 1).unwrap()),
+            )
+                .prop_map(|(version, parts_to_generate, last_element_value)| {
+                    VersionRange::LowestSpecified(LowestSpecifiedRange {
+                        specified: parts_to_generate,
+                        base: Version {
+                            parts: version
+                                .parts
+                                .iter()
+                                .take(parts_to_generate)
+                                .enumerate()
+                                .map(|(index, num)| {
+                                    if index == parts_to_generate - 1 {
+                                        last_element_value
+                                    } else {
+                                        *num
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
+                            // Retain pre and post from original version because
+                            // if the original has pre it might be smaller than
+                            // the smallest value we generated without it.
+                            pre: version.pre,
+                            post: version.post,
+                        },
+                    })
+                })
+        },
+    )
 }
 
 fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
@@ -308,7 +362,8 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                     bound: other_version,
                 })
             }),
-        // LowestSpecified: skipping for now
+        // LowestSpecified: transform version digits
+        arb_lowest_specified_range_from_version(version.clone()),
         // NotEquals: an arbitrary version that isn't equal
         (arb_version(), Just(version.clone()))
             .prop_filter(
