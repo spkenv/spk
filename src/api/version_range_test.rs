@@ -12,7 +12,7 @@ use proptest::{
 use super::{
     parse_version_range, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, WildcardRange,
+    LowestSpecifiedRange, NotEqualsVersion, SemverRange, WildcardRange,
 };
 use crate::{
     api::{
@@ -272,6 +272,69 @@ fn arb_lowest_specified_range_from_version(
     )
 }
 
+fn arb_semver_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
+    // A version like 2.3.4 will be valid in the following expressions:
+    //   - ^2
+    //   - ^2.0
+    //   - ^2.1
+    //   - ^2.2
+    //   - ^2.3
+    //   - ^2.0.0
+    //   - ^2.1.0
+    //   - ^2.2.0
+    //   - ^2.3.0
+    //   - ^2.3.1
+    //   - ^2.3.2
+    //   - ^2.3.3
+    //   - ^2.3.4
+    //
+    // The left-most non-zero digit must match the original number,
+    // and the remaining elements must be <= the original numbers.
+    (Just(version.clone()), 1..=version.parts.len()).prop_flat_map(
+        |(version, parts_to_generate)| {
+            // Generate what numbers to use in each position.
+            let ranges = version
+                .parts
+                .iter()
+                .take(parts_to_generate)
+                .map(|num| 0..=*num)
+                .collect::<Vec<_>>();
+
+            (Just(version), Just(parts_to_generate), ranges).prop_map(
+                |(version, parts_to_generate, values_to_use)| {
+                    let mut found_non_zero = false;
+                    VersionRange::Semver(SemverRange {
+                        minimum: Version {
+                            parts: version
+                                .parts
+                                .iter()
+                                .take(parts_to_generate)
+                                .zip(values_to_use.iter())
+                                .map(|(actual_number, proposed_number)| {
+                                    if !found_non_zero && *actual_number == 0 {
+                                        found_non_zero = true;
+                                        *actual_number
+                                    } else if !found_non_zero {
+                                        *actual_number
+                                    } else {
+                                        *proposed_number
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
+                            // Retain pre and post from original version because
+                            // if the original has pre it might be smaller than
+                            // the smallest value we generated without it.
+                            pre: version.pre,
+                            post: version.post,
+                        },
+                    })
+                },
+            )
+        },
+    )
+}
+
 fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
     (Just(version.clone()), 0..version.parts.len()).prop_map(|(version, index_to_wildcard)| {
         VersionRange::Wildcard(WildcardRange {
@@ -376,7 +439,8 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                     base: other_version,
                 })
             }),
-        // Semver: skipping for now
+        // Semver: transform version digits
+        arb_semver_range_from_version(version.clone()),
         // Wildcard: turn one of the version digits into a wildcard
         arb_wildcard_range_from_version(version),
     ]
