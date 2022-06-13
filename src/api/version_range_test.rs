@@ -496,6 +496,14 @@ proptest! {
 #[case(">=1.0,<=3.0", "=2.0", true)]
 #[case("~1.2.3", ">1.2", false)]
 #[case("~1.2.3", ">1.2.4", false)]
+#[case("API:1.2.3", "Binary:1.2.3", true)] // increasing strictness
+#[case("Binary:1.2.3", "API:1.2.3", false)] // decreasing strictness
+#[case("1.2.3", "API:1.2.3", true)] // increasing strictness
+#[case("1.2.3", "Binary:1.2.3", true)] // increasing strictness
+#[case("API:1.2.3", "1.2.3", false)] // decreasing strictness
+#[case("Binary:1.2.3", "1.2.3", false)] // decreasing strictness
+#[case(">1.0", "Binary:1.2.3", true)] // increasing strictness; narrowing range
+#[case(">2.0", "Binary:1.2.3", false)] // increasing strictness; widening range
 fn test_contains(#[case] range1: &str, #[case] range2: &str, #[case] expected: bool) {
     let a = parse_version_range(range1).unwrap();
     let b = parse_version_range(range2).unwrap();

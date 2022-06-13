@@ -72,6 +72,12 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// Test that the set of all valid versions in self is a superset of
     /// all valid versions in other.
     fn contains(&self, other: impl Ranged) -> Compatibility {
+        if self.get_compat_rule() > other.get_compat_rule() {
+            return Compatibility::Incompatible(format!(
+                "{self} has stronger compatibility requirements than {other}"
+            ));
+        }
+
         let self_lower = self.greater_or_equal_to();
         let self_upper = self.less_than();
         let other_lower = other.greater_or_equal_to();
@@ -135,6 +141,11 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         self.intersects(other)
     }
 
+    fn get_compat_rule(&self) -> Option<CompatRule> {
+        // Most types don't have a `CompatRule`
+        None
+    }
+
     fn intersects(&self, other: impl Ranged) -> Compatibility {
         let mut self_valid_range = ValidRange::Total;
         let mut other_valid_range = ValidRange::Total;
@@ -177,6 +188,9 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
 impl<T: Ranged> Ranged for &T {
     fn contains(&self, other: impl Ranged) -> Compatibility {
         Ranged::contains(*self, other)
+    }
+    fn get_compat_rule(&self) -> Option<CompatRule> {
+        Ranged::get_compat_rule(*self)
     }
     fn greater_or_equal_to(&self) -> Option<Version> {
         Ranged::greater_or_equal_to(*self)
@@ -920,6 +934,10 @@ impl CompatRange {
 }
 
 impl Ranged for CompatRange {
+    fn get_compat_rule(&self) -> Option<CompatRule> {
+        self.required
+    }
+
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.base.clone())
     }
