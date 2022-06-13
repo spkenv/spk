@@ -175,14 +175,26 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
 }
 
 impl<T: Ranged> Ranged for &T {
+    fn contains(&self, other: impl Ranged) -> Compatibility {
+        Ranged::contains(*self, other)
+    }
     fn greater_or_equal_to(&self) -> Option<Version> {
         Ranged::greater_or_equal_to(*self)
     }
     fn less_than(&self) -> Option<Version> {
         Ranged::less_than(*self)
     }
+    fn intersects(&self, other: impl Ranged) -> Compatibility {
+        Ranged::intersects(*self, other)
+    }
+    fn is_applicable(&self, other: &Version) -> Compatibility {
+        Ranged::is_applicable(*self, other)
+    }
     fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
         Ranged::is_satisfied_by(*self, spec, required)
+    }
+    fn rules(&self) -> BTreeSet<VersionRange> {
+        Ranged::rules(*self)
     }
 }
 
