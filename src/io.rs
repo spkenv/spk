@@ -445,6 +445,59 @@ where
                 Some(Err(err)) => return Some(Err(err)),
             };
 
+            if self.verbosity > 5 {
+                // Show the state's package requests and resolved
+                // packages. This does not use indentation to make
+                // this "State ...:" debugging output stand out from
+                // the other changes.
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    "State Requests:".yellow(),
+                    node.state
+                        .get_pkg_requests()
+                        .iter()
+                        .map(|r| format_request(
+                            &r.pkg.name,
+                            [r],
+                            FormatChangeOptions {
+                                verbosity: self.verbosity,
+                                level: self.level
+                            },
+                        ))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ));
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    "State Resolved:".yellow(),
+                    node.state
+                        .get_resolved_packages()
+                        .iter()
+                        .map(|p| format_ident(&(*p).0.pkg))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ));
+            }
+
+            if self.verbosity > 9 {
+                // Show the state's var requests and resolved options
+                self.output_queue.push_back(format!(
+                    "{} {:?}",
+                    "State  VarReqs:".yellow(),
+                    node.state
+                        .get_var_requests()
+                        .iter()
+                        .map(|v| format!("{}: {}", v.var, v.value))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ));
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    "State  Options:".yellow(),
+                    format_options(&node.state.get_option_map())
+                ));
+            }
+
             if self.verbosity > 1 {
                 let fill: String = ".".repeat(self.level);
                 for note in decision.notes.iter() {
@@ -478,19 +531,43 @@ where
                     continue;
                 }
 
-                let prefix: String = fill.repeat(self.level);
-                self.output_queue.push_back(format!(
-                    "{} {}",
-                    prefix,
-                    format_change(
-                        change,
-                        FormatChangeOptions {
-                            verbosity: self.verbosity,
-                            level: self.level
-                        },
-                        Some(&node.state)
-                    )
-                ))
+                if self.verbosity > 2 && self.level > 5 {
+                    // Add level number into the lines to save having
+                    // to count the indentation fill characters when
+                    // dealing with larger numbers of decision levels.
+                    let level_text = self.level.to_string();
+                    // The +1 is for the space after 'level_text' in the string
+                    let prefix_width = level_text.len() + 1;
+                    let prefix = fill.repeat(self.level - prefix_width);
+                    self.output_queue.push_back(format!(
+                        "{} {} {}",
+                        level_text,
+                        prefix,
+                        format_change(
+                            change,
+                            FormatChangeOptions {
+                                verbosity: self.verbosity,
+                                level: self.level
+                            },
+                            Some(&node.state)
+                        )
+                    ));
+                } else {
+                    // Just use the fill prefix
+                    let prefix: String = fill.repeat(self.level);
+                    self.output_queue.push_back(format!(
+                        "{} {}",
+                        prefix,
+                        format_change(
+                            change,
+                            FormatChangeOptions {
+                                verbosity: self.verbosity,
+                                level: self.level
+                            },
+                            Some(&node.state)
+                        )
+                    ))
+                }
             }
             self.level = (self.level as i64 + level_change) as usize;
         }

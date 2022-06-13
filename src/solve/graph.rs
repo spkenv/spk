@@ -932,6 +932,10 @@ impl State {
         &self.var_requests
     }
 
+    pub fn get_resolved_packages(&self) -> &Vec<(Arc<api::Spec>, PackageSource)> {
+        &self.packages
+    }
+
     fn with_options(&self, options: Vec<(String, String)>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
