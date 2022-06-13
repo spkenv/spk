@@ -254,8 +254,45 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
     solver.add_request(request!("my-pkg"));
 
     let res = run_and_print_resolve_for_tests(&solver);
+    assert!(matches!(
+        res,
+        Err(Error::Solve(crate::solve::errors::Error::FailedToResolve(
+            _
+        )))
+    ));
+}
 
-    assert!(matches!(res, Err(Error::PackageNotFoundError(_))));
+#[rstest]
+fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
+    let repo = crate::storage::RepositoryHandle::new_mem();
+
+    let options = option_map! {};
+    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
+    spec.pkg
+        .set_build(Some(api::Build::Digest(options.digest())));
+
+    // publish package without publishing spec
+    let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
+        .into_iter()
+        .collect();
+    repo.publish_package(spec, components).unwrap();
+
+    solver.update_options(options);
+    solver.add_repository(Arc::new(repo));
+    // Create this one as requested by the command line, rather than the tests
+    let req = crate::api::Request::Pkg(crate::api::PkgRequest::new(
+        crate::api::parse_ident_range("my-pkg").unwrap(),
+        api::RequestedBy::CommandLine,
+    ));
+    solver.add_request(req);
+
+    let res = run_and_print_resolve_for_tests(&solver);
+    assert!(matches!(
+        res,
+        Err(Error::Solve(
+            crate::solve::errors::Error::PackageNotFoundDuringSolve(_)
+        ))
+    ));
 }
 
 #[rstest]
