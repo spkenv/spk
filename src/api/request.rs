@@ -700,14 +700,7 @@ impl PkgRequest {
     /// Return a list of the things that made this request (what that
     /// requested it, what it was requested by)
     pub fn get_requesters(&self) -> Vec<RequestedBy> {
-        // Get all the things that requested this request
-        let mut all_requested_by: Vec<RequestedBy> = Vec::new();
-        for request_list in self.requested_by.values() {
-            for r in request_list {
-                all_requested_by.push(r.clone());
-            }
-        }
-        all_requested_by
+        self.requested_by.values().flatten().cloned().collect()
     }
 
     // TODO: change parameter to `pkg: Ident`
