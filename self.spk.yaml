@@ -45,7 +45,7 @@ tests:
   - stage: sources
     script:
       - pwd
-      - test -f .spdev.yaml
+      - test -f .site/spi/.spdev.yaml
   - stage: build
     script: /spfs/bin/python -m "spk" --help
   - stage: install

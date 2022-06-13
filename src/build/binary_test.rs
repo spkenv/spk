@@ -306,7 +306,7 @@ fn test_build_package_source_cleanup() {
         {
             "pkg": "spk-test/1.0.0+beta.1",
             "sources": [
-                {"path": "./.spdev.yaml"},
+                {"path": "./.site/spi/.spdev.yaml"},
                 {"path": "./examples", "subdir": "examples"},
             ],
             "build": {
