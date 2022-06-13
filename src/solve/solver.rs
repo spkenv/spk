@@ -538,7 +538,10 @@ impl SolverRuntime {
         }
     }
 
-    /// Generate step-back decision from a node history.
+    // TODO: turn this into an instance method, and rework the
+    // borrowing in next() to allow fewer parameters to be passed into
+    // this method.
+    /// Generate step-back decision from a node history
     fn take_a_step_back(
         history: &mut Vec<Arc<RwLock<Node>>>,
         decision: &mut Option<Decision>,
