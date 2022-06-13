@@ -538,9 +538,7 @@ impl SolverRuntime {
         }
     }
 
-    // Private helper function to generate step back decision from a node
-    // history.
-    //
+    /// Generate step-back decision from a node history.
     fn take_a_step_back(
         history: &mut Vec<Arc<RwLock<Node>>>,
         decision: &mut Option<Decision>,
@@ -681,7 +679,7 @@ impl Iterator for SolverRuntime {
                 }
 
                 let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
-                let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the package name's spelling", err_req.pkg, requirers.join(", "));
+                let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the spelling of the package's name", err_req.pkg, requirers.join(", "));
 
                 SolverRuntime::take_a_step_back(
                     &mut self.history,

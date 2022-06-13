@@ -74,6 +74,6 @@ pub struct OutOfOptions {
 
 impl std::fmt::Display for OutOfOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("Out of options for {}", self.request.pkg))
+        f.write_fmt(format_args!("Out of options for {}", self.request.pkg))
     }
 }
