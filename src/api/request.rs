@@ -591,6 +591,7 @@ pub enum RequestedBy {
     /// potential error case that should not be possible.
     NoState,
     /// For a request made during spk's automated (unit) test code
+    #[cfg(test)]
     SpkInternalTest,
     /// A package build that made the request, usually during a solve
     PackageBuild(Ident),
@@ -609,6 +610,7 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::Unknown => write!(f, "unknown"),
             RequestedBy::DoesNotMatter => write!(f, "n/a"),
             RequestedBy::NoState => write!(f, "no state? this should not happen?"),
+            #[cfg(test)]
             RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
             RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
         }
