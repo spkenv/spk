@@ -641,13 +641,27 @@ pub struct PkgRequest {
     pub pin: Option<String>,
     #[serde(skip)]
     pub required_compat: Option<CompatRule>,
-    /// This is BTreeMap to allow it to retain an ordering that
-    /// matches the pkg.version.rules order when multiple requests are
-    /// combined into a merged request during a solve. The key is a
-    /// String of a RangeIdent, from the pkg field or other
-    /// RangeIdents as requests are combined (via restrict()). The
-    /// entries are vectors because multiple things can make the same
-    /// request.
+    // The 'requested_by' field is a BTreeMap to keep all the
+    // requesters grouped by the part of the request they made.
+    // Multiple requests are combined into a single merged request
+    // during a solve (via restrict()). A merged request will have
+    // requesters for each part of the merged request. Merged requests
+    // are displayed consistently because of their internal ordering,
+    // e.g. gcc/6,8,9, see RangeIdent's version field for details.
+    //
+    // The BTreeMap retains an ordering that matches that internal
+    // ordering by being keyed from string of the part (rule) of the
+    // merged request they made. This allows requesters to be
+    // retrieved in an order that lines up with the display form of
+    // the merged request, and makes it possible produce output
+    // messages that align the parts of the request and all the
+    // requesters that requested those parts.
+    //
+    // TODO: consider using the part of the request itself, the rule,
+    // as the key in the BTreeMap instead of a String, or use a custom
+    // data type that pairs the two things together, something to make
+    // the connection between requesters and the parts of requests
+    // more approachable.
     #[serde(skip)]
     pub requested_by: BTreeMap<String, Vec<RequestedBy>>,
 }
