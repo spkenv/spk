@@ -69,26 +69,66 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         Compatibility::Compatible
     }
 
+    /// Test that the set of all valid versions in self is a superset of
+    /// all valid versions in other.
     fn contains(&self, other: impl Ranged) -> Compatibility {
         let self_lower = self.greater_or_equal_to();
         let self_upper = self.less_than();
         let other_lower = other.greater_or_equal_to();
         let other_upper = other.less_than();
 
-        if let (Some(self_lower), Some(other_lower)) = (self_lower, other_lower) {
-            if self_lower > other_lower {
-                return Compatibility::Incompatible(format!(
-                    "{} represents a wider range than allowed by {}",
-                    other, self
-                ));
-            }
-        }
-        if let (Some(self_upper), Some(other_upper)) = (self_upper, other_upper) {
-            if self_upper < other_upper {
-                return Compatibility::Incompatible(format!(
-                    "{} represents a wider range than allowed by {}",
-                    other, self
-                ));
+        for (index, (left_bound, right_bound, right_opposite_bound)) in [
+            // Order important here! self > other for lower bound
+            (&self_lower, &other_lower, &other_upper),
+            // Order important here! other > self for upper bound
+            (&other_upper, &self_upper, &self_lower),
+        ]
+        .iter()
+        .enumerate()
+        {
+            match (&left_bound, &right_bound, &right_opposite_bound) {
+                (None, None, _) => {
+                    // neither is bounded
+                }
+                (None, Some(_), None) => {
+                    // <3.0 does not contain >2.0
+                    return Compatibility::Incompatible(format!(
+                        "[case 1,{index}] {self} does not contain {other}"
+                    ));
+                }
+                (None, Some(right_bound), Some(right_opposite_bound)) => {
+                    // For "<2.0" to contain "=1.0", 2.0 must be >= 1.0.
+                    //    ..2.0    vs    1.0..1.0+ε
+                    //
+                    // `left_bound` is None
+                    // `right_bound` is 1.0+ε
+                    // `right_opposite_bound` is 1.0
+                    if right_opposite_bound < right_bound {
+                        return Compatibility::Incompatible(format!(
+                            "[case 2,{index}] {self} does not contain {other}"
+                        ));
+                    }
+                }
+                (Some(left_bound), None, Some(right_opposite_bound)) => {
+                    // This mirrors case 2.
+                    if right_opposite_bound > left_bound {
+                        return Compatibility::Incompatible(format!(
+                            "[case 3,{index}] {self} does not contain {other}"
+                        ));
+                    }
+                }
+                (Some(_), None, _) => {
+                    return Compatibility::Incompatible(format!(
+                        "[case 4,{index}] {self} does not contain {other}"
+                    ));
+                }
+                (Some(left_bound), Some(right_bound), _) => {
+                    if left_bound > right_bound {
+                        return Compatibility::Incompatible(format!(
+                            "[case 5,{index}] {self} does not contain {other}"
+                        ));
+                    }
+                }
             }
         }
 
