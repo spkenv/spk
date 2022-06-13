@@ -207,15 +207,12 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
                 .collect::<Vec<String>>();
             out.push_str(&format!(" (required by {}) ", requested_by.join(", ")));
 
-            // TODO: should options be output on v > 1, or requesters
-            // on v > 1 instead of both on v > 0? I suspect requesters
-            // is more important for run env solves and options is
-            // more important for build env solves. Maybe have options
-            // to display each in this package listing,
-            // e.g. --show-requesters and --show-options?
-            let options = req.spec.resolve_all_options(&api::OptionMap::default());
-            out.push(' ');
-            out.push_str(&format_options(&options));
+            if verbosity > 1 {
+                // Show the options for this request (build)
+                let options = req.spec.resolve_all_options(&api::OptionMap::default());
+                out.push(' ');
+                out.push_str(&format_options(&options));
+            }
         }
         out.push('\n');
     }
