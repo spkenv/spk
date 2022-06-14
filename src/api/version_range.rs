@@ -1149,5 +1149,37 @@ impl FromStr for VersionFilter {
 
 pub fn parse_version_range<S: AsRef<str>>(range: S) -> Result<VersionRange> {
     let filter = VersionFilter::from_str(range.as_ref())?;
-    Ok(VersionRange::Filter(filter))
+
+    // Simply the rules, e.g., turn ">1.0,>2.0" into ">2.0".
+    let mut rules_as_vec = filter.rules.into_iter().collect::<Vec<_>>();
+    let mut index_to_remove = None;
+    'start_over: loop {
+        if let Some(index) = index_to_remove.take() {
+            rules_as_vec.remove(index);
+        }
+
+        for candidates in rules_as_vec.iter().enumerate().permutations(2) {
+            let (lhs_index, lhs_vr) = candidates.get(0).unwrap();
+            let (_, rhs_vr) = candidates.get(1).unwrap();
+
+            // Note that `permutations` will give every element a chance
+            // to appear on the lhs. We don't have to check in both
+            // directions in here.
+            if lhs_vr.contains(rhs_vr).is_ok() {
+                // Keep the more restrictive rule and restart comparing.
+                // `rules_as_vec` is borrowed immutably here.
+                index_to_remove = Some(*lhs_index);
+                continue 'start_over;
+            }
+        }
+        break;
+    }
+
+    if rules_as_vec.len() == 1 {
+        Ok(rules_as_vec.into_iter().next().unwrap())
+    } else {
+        Ok(VersionRange::Filter(VersionFilter {
+            rules: rules_as_vec.into_iter().collect(),
+        }))
+    }
 }

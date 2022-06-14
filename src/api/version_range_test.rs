@@ -510,3 +510,32 @@ fn test_contains(#[case] range1: &str, #[case] range2: &str, #[case] expected: b
     let c = a.contains(&b);
     assert_eq!(c.is_ok(), expected, "{} contains {} == {:?}", a, b, c,);
 }
+
+#[rstest]
+#[case(">1.0,>2.0", Some(">2.0"))]
+#[case("<2.0,>1.0", None)]
+#[case("<1.0,>2.0", None)]
+#[case(">=1.0,>=2.0", Some(">=2.0"))]
+// Merge should happen recursively
+#[case(">=1.0,>=3.0,>=2.0", Some(">=3.0"))]
+#[case(">=1.0,<=3.0,=2.0", Some("=2.0"))]
+// CompatRange must preserve CompatRule
+#[case("API:1.2.3,Binary:1.2.3", Some("Binary:1.2.3"))] // increasing strictness
+#[case("Binary:1.2.3,API:1.2.3", Some("Binary:1.2.3"))] // decreasing strictness
+#[case("1.2.3,API:1.2.3", Some("API:1.2.3"))] // increasing strictness
+#[case("1.2.3,Binary:1.2.3", Some("Binary:1.2.3"))] // increasing strictness
+#[case("API:1.2.3,1.2.3", Some("API:1.2.3"))] // decreasing strictness
+#[case("Binary:1.2.3,1.2.3", Some("Binary:1.2.3"))] // decreasing strictness
+fn test_parse_version_range_simplifies(#[case] range1: &str, #[case] expected: Option<&str>) {
+    let a = parse_version_range(range1).unwrap();
+    match expected.map(|s| parse_version_range(s).unwrap()) {
+        Some(expected_vr) => {
+            // Some merge was expected.
+            assert_eq!(a, expected_vr);
+        }
+        None => {
+            // A merge was _not_ expected
+            assert_eq!(a.to_string(), range1);
+        }
+    }
+}
