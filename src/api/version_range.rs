@@ -92,6 +92,13 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         .iter()
         .enumerate()
         {
+            // Check that the left bound `Version` contains the right bound `Version`.
+            //
+            // Using rust range syntax:
+            // iter 0 (lower bounds) --  "self.._".contains("other..other_opposite");
+            // iter 1 (upper bounds) -- "_..other".contains("self_opposite..self"  );
+            //                          |--------|          |---------------------|
+            //                            "left"                   "right"
             match (&left_bound, &right_bound, &right_opposite_bound) {
                 (None, None, _) => {
                     // neither is bounded
