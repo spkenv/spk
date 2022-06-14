@@ -187,7 +187,13 @@ impl CmdEnter {
             None => config.get_local_repository_handle().await?,
         };
         let storage = spfs::runtime::Storage::new(repo);
-        let mut runtime = storage.read_runtime(name).await?;
+
+        // We might be in a context where `$SPFS_STORAGE_ROOT` is different,
+        // and can't find the runtime in spfs storage anymore. But the
+        // legacy command line args only tells us where the runtime configuration is
+        // because $SPFS_STORAGE_RUNTIMES is being used, and so we have no
+        // idea now what the correct storage to read the existing runtime from is.
+        let mut runtime = storage.read_runtime(&name).await;
 
         let legacy_config_path = std::path::Path::new(&given_name);
         if legacy_config_path.is_absolute() {
@@ -195,10 +201,21 @@ impl CmdEnter {
             // will load the old config file and pull any potential
             // configuration changes back into the new format
             let legacy_config = spfs::runtime::storage_033::Runtime::new(legacy_config_path)?;
+
+            if runtime.is_err() {
+                // Try to create it again since we were able to read the legacy
+                // config and we've probably switched to using a different
+                // "local" storage via env settings.
+                runtime = storage.create_named_runtime(&name).await;
+            }
+
+            let mut runtime = runtime?;
             legacy_config.apply_to(&mut runtime);
             runtime.save_state_to_storage().await?;
+            Ok(runtime)
+        } else {
+            runtime
         }
-        Ok(runtime)
     }
 
     async fn exec_runtime_command(
