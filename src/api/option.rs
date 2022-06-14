@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     CompatRule, Compatibility, InclusionPolicy, PkgName, PkgRequest, PreReleasePolicy, Ranged,
-    Request, VarRequest, VersionRange,
+    Request, RequestedBy, VarRequest, VersionRange,
 };
 use crate::{Error, Result};
 
@@ -429,20 +429,25 @@ impl PkgOpt {
         }
     }
 
-    pub fn to_request(&self, given_value: Option<String>) -> Result<PkgRequest> {
+    pub fn to_request(
+        &self,
+        given_value: Option<String>,
+        requester: RequestedBy,
+    ) -> Result<PkgRequest> {
         let value = self.get_value(given_value.as_deref()).unwrap_or_default();
-        Ok(PkgRequest {
-            pkg: super::RangeIdent {
-                name: self.pkg.clone(),
-                version: value.parse()?,
-                components: Default::default(),
-                build: None,
-            },
-            pin: None,
-            prerelease_policy: self.prerelease_policy,
-            inclusion_policy: InclusionPolicy::default(),
-            required_compat: self.required_compat,
-        })
+        let pkg = super::RangeIdent {
+            name: self.pkg.clone(),
+            version: value.parse()?,
+            components: Default::default(),
+            build: None,
+        };
+
+        let request = PkgRequest::new(pkg, requester)
+            .with_prerelease(self.prerelease_policy)
+            .with_inclusion(InclusionPolicy::default())
+            .with_pin(None)
+            .with_compat(self.required_compat);
+        Ok(request)
     }
 }
 

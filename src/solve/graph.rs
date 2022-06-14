@@ -237,6 +237,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             // then we must assume the default run component
             req.to_mut().pkg.components.insert(api::Component::Run);
         }
+
+        // Add the package that would make this request, into the request
+        req.to_mut()
+            .add_requester(api::RequestedBy::PackageBuild(self.spec.pkg.clone()));
+
         let mut changes = vec![Change::RequestPackage(RequestPackage::new(
             req.clone().into_owned(),
         ))];
@@ -281,7 +286,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             .flat_map(|embedded| {
                 [
                     Change::RequestPackage(RequestPackage::new(api::PkgRequest::from_ident(
-                        &embedded.pkg,
+                        embedded.pkg.clone(),
+                        api::RequestedBy::PackageBuild(self.spec.pkg.clone()),
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(
                         Arc::new(embedded.clone()),
@@ -894,16 +900,32 @@ impl State {
 
     pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
         // tests reveal this method is not safe to cache.
-        let packages: HashSet<&PkgName> = self
+        let resolved_packages: HashSet<&PkgName> = self
             .packages
             .iter()
             .map(|(spec, _)| &spec.pkg.name)
             .collect();
+
+        // Note: The next request this returns may not be as expected
+        // due to the interaction of multiple requests and
+        // 'IfAlreadyPresent' requests.
+        //
+        // TODO: consider changing the request list to only contain
+        // requests that have not been satisfied, or only merged
+        // requests, or both.
         for request in self.pkg_requests.iter() {
-            if packages.contains(&request.pkg.name) {
+            if resolved_packages.contains(&request.pkg.name) {
                 continue;
             }
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
+                // This request doesn't need to be looked at yet. It
+                // will be picked up eventually, by the
+                // get_merged_request() call below, if there is a
+                // non-'IfAlreadyPresent' request for the same package
+                // in pkg_requests. This tends to delay resolving
+                // these requests until later in the solve. It stops
+                // the solver following a strict breadth first
+                // expansion of dependencies.
                 continue;
             }
             return Ok(Some(self.get_merged_request(&request.pkg.name)?));
@@ -918,6 +940,10 @@ impl State {
 
     pub fn get_var_requests(&self) -> &Vec<api::VarRequest> {
         &self.var_requests
+    }
+
+    pub fn get_resolved_packages(&self) -> &Vec<(Arc<api::Spec>, PackageSource)> {
+        &self.packages
     }
 
     fn with_options(&self, options: Vec<(String, String)>) -> Self {

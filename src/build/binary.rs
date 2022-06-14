@@ -257,13 +257,12 @@ impl BinaryPackageBuilder {
         }
 
         let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
-        let request = api::PkgRequest {
-            pkg: ident_range,
-            prerelease_policy: api::PreReleasePolicy::IncludeAll,
-            inclusion_policy: api::InclusionPolicy::Always,
-            pin: None,
-            required_compat: None,
-        };
+        let request: api::PkgRequest =
+            api::PkgRequest::new(ident_range, api::RequestedBy::SourceBuild(package.clone()))
+                .with_prerelease(api::PreReleasePolicy::IncludeAll)
+                .with_pin(None)
+                .with_compat(None);
+
         self.solver.add_request(request.into());
 
         let mut runtime = self.solver.run();
@@ -298,7 +297,10 @@ impl BinaryPackageBuilder {
             match opt {
                 api::Opt::Pkg(opt) => {
                     let given_value = opts.get(opt.pkg.as_str()).map(String::to_owned);
-                    let mut req = opt.to_request(given_value)?;
+                    let mut req = opt.to_request(
+                        given_value,
+                        api::RequestedBy::BinaryBuild(self.spec.pkg.clone()),
+                    )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(api::Component::Build);

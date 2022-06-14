@@ -13,6 +13,7 @@ pub enum Error {
     Graph(GraphError),
     OutOfOptions(OutOfOptions),
     SolverInterrupted(String),
+    PackageNotFoundDuringSolve(api::PkgRequest),
 }
 
 impl From<Error> for crate::Error {
@@ -73,6 +74,6 @@ pub struct OutOfOptions {
 
 impl std::fmt::Display for OutOfOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Out of options")
+        f.write_fmt(format_args!("Out of options for {}", self.request.pkg))
     }
 }

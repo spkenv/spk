@@ -170,11 +170,17 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     if solution.is_empty() {
         return "Nothing Installed".to_string();
     }
+
     let mut out = "Installed Packages:\n".to_string();
-    for req in solution.items() {
-        let mut installed = api::PkgRequest::from_ident(&req.spec.pkg);
+
+    let required_items = solution.items();
+    let number_of_packages = required_items.len();
+    for req in required_items {
+        let mut installed =
+            api::PkgRequest::from_ident(req.spec.pkg.clone(), api::RequestedBy::DoesNotMatter);
+
         if let solve::PackageSource::Repository { components, .. } = req.source {
-            let mut installed_components = req.request.pkg.components;
+            let mut installed_components = req.request.pkg.components.clone();
             if installed_components.remove(&api::Component::All) {
                 installed_components.extend(components.keys().cloned());
             }
@@ -192,12 +198,25 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             )
         ));
         if verbosity > 0 {
-            let options = req.spec.resolve_all_options(&api::OptionMap::default());
-            out.push(' ');
-            out.push_str(&format_options(&options));
+            // Get all the things that requested this request
+            let requested_by: Vec<String> = req
+                .request
+                .get_requesters()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            out.push_str(&format!(" (required by {}) ", requested_by.join(", ")));
+
+            if verbosity > 1 {
+                // Show the options for this request (build)
+                let options = req.spec.resolve_all_options(&api::OptionMap::default());
+                out.push(' ');
+                out.push_str(&format_options(&options));
+            }
         }
         out.push('\n');
     }
+    out.push_str(&format!(" Number of Packages: {}", number_of_packages));
     out
 }
 
@@ -240,6 +259,7 @@ fn get_request_change_label(level: usize) -> &'static str {
 pub fn format_change(
     change: &solve::graph::Change,
     format_settings: FormatChangeOptions,
+    state: Option<&solve::graph::State>,
 ) -> String {
     use solve::graph::Change::*;
     match change {
@@ -266,7 +286,45 @@ pub fn format_change(
             format!("{} {}", "BUILD".yellow(), format_ident(&c.spec.pkg))
         }
         SetPackage(c) => {
-            format!("{} {}", "RESOLVE".green(), format_ident(&c.spec.pkg))
+            if format_settings.verbosity > 0 {
+                // Work out who the requesters were, so this can show
+                // the resolved package and its requester(s)
+                let requested_by: Vec<String> = match state {
+                    Some(s) => match s.get_merged_request(&c.spec.pkg.name) {
+                        Ok(r) => r.get_requesters().iter().map(ToString::to_string).collect(),
+                        Err(_) => {
+                            // This happens with embedded requests
+                            // because they are requested and added in
+                            // the same state. Luckily we can use
+                            // their PackageSource::Spec data to
+                            // display what requested them.
+                            match &c.source {
+                                solve::PackageSource::Spec(rb) => {
+                                    vec![api::RequestedBy::PackageBuild(rb.pkg.clone()).to_string()]
+                                }
+                                _ => {
+                                    // Don't think this should happen
+                                    vec![api::RequestedBy::Unknown.to_string()]
+                                }
+                            }
+                        }
+                    },
+                    None => {
+                        vec![api::RequestedBy::NoState.to_string()]
+                    }
+                };
+
+                // Show the resolved package and its requester(s)
+                format!(
+                    "{} {}  (requested by {})",
+                    "RESOLVE".green(),
+                    format_ident(&c.spec.pkg),
+                    requested_by.join(", ")
+                )
+            } else {
+                // Just show the resolved package, don't show the requester(s)
+                format!("{} {}", "RESOLVE".green(), format_ident(&c.spec.pkg))
+            }
         }
         SetOptions(c) => {
             format!("{} {}", "ASSIGN".cyan(), format_options(&c.options))
@@ -378,11 +436,64 @@ where
                 return Some(Err(err));
             }
 
-            let decision = match self.inner.next() {
+            let (node, decision) = match self.inner.next() {
                 None => return None,
-                Some(Ok((_, d))) => d,
+                Some(Ok((n, d))) => (n, d),
                 Some(Err(err)) => return Some(Err(err)),
             };
+
+            if self.verbosity > 5 {
+                // Show the state's package requests and resolved
+                // packages. This does not use indentation to make
+                // this "State ...:" debugging output stand out from
+                // the other changes.
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    "State Requests:".yellow(),
+                    node.state
+                        .get_pkg_requests()
+                        .iter()
+                        .map(|r| format_request(
+                            &r.pkg.name,
+                            [r],
+                            FormatChangeOptions {
+                                verbosity: self.verbosity,
+                                level: self.level
+                            },
+                        ))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ));
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    "State Resolved:".yellow(),
+                    node.state
+                        .get_resolved_packages()
+                        .iter()
+                        .map(|p| format_ident(&(*p).0.pkg))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ));
+            }
+
+            if self.verbosity > 9 {
+                // Show the state's var requests and resolved options
+                self.output_queue.push_back(format!(
+                    "{} {:?}",
+                    "State  VarReqs:".yellow(),
+                    node.state
+                        .get_var_requests()
+                        .iter()
+                        .map(|v| format!("{}: {}", v.var, v.value))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ));
+                self.output_queue.push_back(format!(
+                    "{} {}",
+                    "State  Options:".yellow(),
+                    format_options(&node.state.get_option_map())
+                ));
+            }
 
             if self.verbosity > 1 {
                 let fill: String = ".".repeat(self.level);
@@ -417,18 +528,43 @@ where
                     continue;
                 }
 
-                let prefix: String = fill.repeat(self.level);
-                self.output_queue.push_back(format!(
-                    "{} {}",
-                    prefix,
-                    format_change(
-                        change,
-                        FormatChangeOptions {
-                            verbosity: self.verbosity,
-                            level: self.level
-                        }
-                    )
-                ))
+                if self.verbosity > 2 && self.level > 5 {
+                    // Add level number into the lines to save having
+                    // to count the indentation fill characters when
+                    // dealing with larger numbers of decision levels.
+                    let level_text = self.level.to_string();
+                    // The +1 is for the space after 'level_text' in the string
+                    let prefix_width = level_text.len() + 1;
+                    let prefix = fill.repeat(self.level - prefix_width);
+                    self.output_queue.push_back(format!(
+                        "{} {} {}",
+                        level_text,
+                        prefix,
+                        format_change(
+                            change,
+                            FormatChangeOptions {
+                                verbosity: self.verbosity,
+                                level: self.level
+                            },
+                            Some(&node.state)
+                        )
+                    ));
+                } else {
+                    // Just use the fill prefix
+                    let prefix: String = fill.repeat(self.level);
+                    self.output_queue.push_back(format!(
+                        "{} {}",
+                        prefix,
+                        format_change(
+                            change,
+                            FormatChangeOptions {
+                                verbosity: self.verbosity,
+                                level: self.level
+                            },
+                            Some(&node.state)
+                        )
+                    ))
+                }
             }
             self.level = (self.level as i64 + level_change) as usize;
         }
@@ -476,6 +612,15 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
                 solve::Error::SolverInterrupted(err) => {
                     msg.push_str("\n * ");
                     msg.push_str(err);
+                }
+                solve::Error::PackageNotFoundDuringSolve(request) => {
+                    let requirers: Vec<String> = request
+                        .get_requesters()
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect();
+                    msg.push_str("\n * ");
+                    msg.push_str(&format!("Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling", request.pkg, requirers.join(", ")));
                 }
             }
             match verbosity {
@@ -713,6 +858,22 @@ impl DecisionFormatter {
             " Solver took {total_steps} steps total, at {:.3} steps/sec\n",
             total_steps as f64 / seconds,
         ));
+
+        // Show all problem packages mentioned in BLOCKED step backs,
+        // highest number of mentions first
+        let problem_packages = solver.problem_packages();
+        if !problem_packages.is_empty() {
+            out.push_str(" Solver encountered these problem requests:\n");
+
+            // Sort the problem packages by highest count ones first
+            let mut sorted_by_count: Vec<(&String, &u64)> = problem_packages.iter().collect();
+            sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
+            for (pkg, count) in sorted_by_count {
+                out.push_str(&format!("   {} ({} times)\n", pkg, count));
+            }
+        } else {
+            out.push_str(" Solver encountered no problem requests\n");
+        }
 
         // Show all errors sorted by highest to lowest frequency
         let errors = solver.error_frequency();

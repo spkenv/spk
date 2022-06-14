@@ -149,6 +149,7 @@ macro_rules! request {
     ($req:literal) => {
         crate::api::Request::Pkg(crate::api::PkgRequest::new(
             crate::api::parse_ident_range($req).unwrap(),
+            api::RequestedBy::SpkInternalTest,
         ))
     };
     ($req:tt) => {{
@@ -221,7 +222,6 @@ macro_rules! assert_resolved {
 
 // Helper that wraps common solver_test boiler plate
 fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
-    //Result<super::Solution> {
     let formatter = io::DecisionFormatterBuilder::new()
         .with_verbosity(100)
         .build();
@@ -254,8 +254,45 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
     solver.add_request(request!("my-pkg"));
 
     let res = run_and_print_resolve_for_tests(&solver);
+    assert!(matches!(
+        res,
+        Err(Error::Solve(crate::solve::errors::Error::FailedToResolve(
+            _
+        )))
+    ));
+}
 
-    assert!(matches!(res, Err(Error::PackageNotFoundError(_))));
+#[rstest]
+fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
+    let repo = crate::storage::RepositoryHandle::new_mem();
+
+    let options = option_map! {};
+    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
+    spec.pkg
+        .set_build(Some(api::Build::Digest(options.digest())));
+
+    // publish package without publishing spec
+    let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
+        .into_iter()
+        .collect();
+    repo.publish_package(spec, components).unwrap();
+
+    solver.update_options(options);
+    solver.add_repository(Arc::new(repo));
+    // Create this one as requested by the command line, rather than the tests
+    let req = crate::api::Request::Pkg(crate::api::PkgRequest::new(
+        crate::api::parse_ident_range("my-pkg").unwrap(),
+        api::RequestedBy::CommandLine,
+    ));
+    solver.add_request(req);
+
+    let res = run_and_print_resolve_for_tests(&solver);
+    assert!(matches!(
+        res,
+        Err(Error::Solve(
+            crate::solve::errors::Error::PackageNotFoundDuringSolve(_)
+        ))
+    ));
 }
 
 #[rstest]
@@ -872,7 +909,9 @@ fn test_solver_deprecated_build(mut solver: Solver) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(api::PkgRequest::from_ident(&deprecated_build).into());
+    solver.add_request(
+        api::PkgRequest::from_ident(deprecated_build, api::RequestedBy::SpkInternalTest).into(),
+    );
 
     let solution = run_and_print_resolve_for_tests(&solver).unwrap();
     assert_resolved!(
@@ -905,7 +944,13 @@ fn test_solver_deprecated_version(mut solver: Solver) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(api::PkgRequest::new(api::RangeIdent::exact(&deprecated.pkg, [])).into());
+    solver.add_request(
+        api::PkgRequest::new(
+            api::RangeIdent::exact(&deprecated.pkg, []),
+            api::RequestedBy::SpkInternalTest,
+        )
+        .into(),
+    );
 
     let solution = run_and_print_resolve_for_tests(&solver).unwrap();
     assert_resolved!(
@@ -1553,8 +1598,7 @@ fn test_solver_component_embedded(mut solver: Solver) {
 #[rstest]
 fn test_request_default_component() {
     let mut solver = Solver::default();
-    let req = api::parse_ident("python/3.7.3").unwrap();
-    solver.add_request(req.into());
+    solver.add_request(request!("python/3.7.3"));
     let state = solver.get_initial_state();
     let request = state
         .pkg_requests

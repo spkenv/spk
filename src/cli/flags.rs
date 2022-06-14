@@ -230,7 +230,13 @@ impl Requests {
                 match stage {
                     spk::api::TestStage::Sources => {
                         let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
-                        out.push(spk::api::PkgRequest::from_ident(&ident).into());
+                        out.push(
+                            spk::api::PkgRequest::from_ident(
+                                ident,
+                                spk::api::RequestedBy::CommandLine,
+                            )
+                            .into(),
+                        );
                     }
 
                     spk::api::TestStage::Build => {
@@ -243,7 +249,17 @@ impl Requests {
                     }
                     spk::api::TestStage::Install => {
                         for request in spec.install.requirements.iter() {
-                            out.push(request.clone());
+                            let req = match request {
+                                v @ spk::api::Request::Var(_) => v.clone(),
+                                spk::api::Request::Pkg(r) => {
+                                    let mut t = r.clone();
+                                    t.add_requester(spk::api::RequestedBy::PackageBuild(
+                                        spec.pkg.clone(),
+                                    ));
+                                    spk::api::Request::Pkg(t)
+                                }
+                            };
+                            out.push(req);
                         }
                     }
                 }
@@ -273,6 +289,8 @@ impl Requests {
 
             let mut req: spk::api::PkgRequest = serde_yaml::from_value(request_data.into())
                 .context(format!("Failed to parse request {}", r))?;
+            req.add_requester(spk::api::RequestedBy::CommandLine);
+
             if req.pkg.components.is_empty() {
                 req.pkg.components.insert(spk::api::Component::Run);
             }
