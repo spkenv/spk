@@ -2680,6 +2680,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "nix 0.19.1",
+ "once_cell",
  "palaver",
  "prost",
  "rand 0.7.3",

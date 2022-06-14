@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
+use once_cell::sync::OnceCell;
 use tokio::sync::{RwLock, Semaphore};
 
 use crate::{encoding, prelude::*};
@@ -478,14 +479,47 @@ pub struct SilentSyncReporter {}
 impl SyncReporter for SilentSyncReporter {}
 
 /// Reports sync progress to an interactive console via progress bars
+#[derive(Default)]
 pub struct ConsoleSyncReporter {
+    bars: OnceCell<ConsoleSyncReporterBars>,
+}
+
+impl ConsoleSyncReporter {
+    fn get_bars(&self) -> &ConsoleSyncReporterBars {
+        self.bars.get_or_init(Default::default)
+    }
+}
+
+impl SyncReporter for ConsoleSyncReporter {
+    fn visit_manifest(&self, _manifest: &graph::Manifest) {
+        self.get_bars().manifests.inc_length(1);
+    }
+
+    fn synced_manifest(&self, _result: &SyncManifestResult) {
+        self.get_bars().manifests.inc(1);
+    }
+
+    fn visit_blob(&self, blob: &graph::Blob) {
+        let bars = self.get_bars();
+        bars.payloads.inc_length(1);
+        bars.bytes.inc_length(blob.size);
+    }
+
+    fn synced_blob(&self, result: &SyncBlobResult) {
+        let bars = self.get_bars();
+        bars.payloads.inc(1);
+        bars.bytes.inc(result.summary().synced_payload_bytes);
+    }
+}
+
+struct ConsoleSyncReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
     manifests: indicatif::ProgressBar,
     payloads: indicatif::ProgressBar,
     bytes: indicatif::ProgressBar,
 }
 
-impl Default for ConsoleSyncReporter {
+impl Default for ConsoleSyncReporterBars {
     fn default() -> Self {
         static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         static PROGRESS_CHARS: &str = "=>-";
@@ -538,7 +572,7 @@ impl Default for ConsoleSyncReporter {
     }
 }
 
-impl Drop for ConsoleSyncReporter {
+impl Drop for ConsoleSyncReporterBars {
     fn drop(&mut self) {
         self.bytes.finish_and_clear();
         self.payloads.finish_and_clear();
@@ -546,26 +580,6 @@ impl Drop for ConsoleSyncReporter {
         if let Some(r) = self.renderer.take() {
             let _ = r.join();
         }
-    }
-}
-
-impl SyncReporter for ConsoleSyncReporter {
-    fn visit_manifest(&self, _manifest: &graph::Manifest) {
-        self.manifests.inc_length(1);
-    }
-
-    fn synced_manifest(&self, _result: &SyncManifestResult) {
-        self.manifests.inc(1);
-    }
-
-    fn visit_blob(&self, blob: &graph::Blob) {
-        self.payloads.inc_length(1);
-        self.bytes.inc_length(blob.size);
-    }
-
-    fn synced_blob(&self, result: &SyncBlobResult) {
-        self.payloads.inc(1);
-        self.bytes.inc(result.summary().synced_payload_bytes);
     }
 }
 
