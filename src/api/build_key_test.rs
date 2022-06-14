@@ -194,8 +194,8 @@ fn test_generating_build_key() {
     let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
 
     // Expected build key structure for this ordering and build options:
-    // "non-src", "alib", "somevalue", "notinthisbuild", "apkg"
-    //  true,      1.2.3,  something,     notset,        >1
+    // "non-src", "alib", "somevalue", "notinthisbuild", "apkg", build digest
+    //  true,      1.2.3,  something,     notset,        >1,     TESTTEST
     let expected = BuildKey::NonSrc(vec![
         // 1.2.3
         BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
@@ -221,6 +221,8 @@ fn test_generating_build_key() {
             vec![],
             vec![],
         )),
+        // build digest as a string, it is always the last entry
+        BuildKeyEntry::Text("TESTTEST".to_string()),
     ]);
 
     assert_eq!(key, expected)

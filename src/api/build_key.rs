@@ -348,6 +348,29 @@ impl BuildKey {
             key_entries.push(entry);
         }
 
+        // The digest portion of the build's ident is added at the end
+        // as a tie-breaker just in case two or more of the builds end
+        // up with identical key entries up to this point. The digest
+        // will be unique across the builds and guarantee a consistent
+        // ordering between identical build keys.
+        //
+        // Without a last entry tie-breaker like this, builds with
+        // identical keys can order differently between solver runs
+        // due to the vageries of memory allocation, timing, and
+        // filesystem accesses.  Non-deterministic sorting and
+        // selection of builds is difficult to reason about and debug.
+        // This avoids it.
+        //
+        let digest = match pkg.build.clone() {
+            Some(build) => build.digest(),
+            None => {
+                // This should not happen, but if it does use a
+                // sentinel value for the digest
+                "notabuild".to_string()
+            }
+        };
+        key_entries.push(BuildKeyEntry::Text(digest));
+
         // Assemble and return the build key
         BuildKey::NonSrc(key_entries)
     }
