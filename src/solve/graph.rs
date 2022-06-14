@@ -900,22 +900,32 @@ impl State {
 
     pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
         // tests reveal this method is not safe to cache.
-        let packages: HashSet<&PkgName> = self
+        let resolved_packages: HashSet<&PkgName> = self
             .packages
             .iter()
             .map(|(spec, _)| &spec.pkg.name)
             .collect();
-        // This checks all the requests from the start of the list
-        // each time its called. It looks for the first unsatisfied
-        // one - the first one not already in the packages list. It
-        // needs to do this for things like packages in multiple
-        // requests, embedded, and IfAlreadyPresent requests. But the
-        // order requests are looked at may not be as expected.
+
+        // Note: The next request this returns may not be as expected
+        // due to the interaction of multiple requests and
+        // 'IfAlreadyPresent' requests.
+        //
+        // TODO: consider changing the request list to only contain
+        // requests that have not been satisfied, or only merged
+        // requests, or both.
         for request in self.pkg_requests.iter() {
-            if packages.contains(&request.pkg.name) {
+            if resolved_packages.contains(&request.pkg.name) {
                 continue;
             }
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
+                // This request doesn't need to be looked at yet. It
+                // will be picked up eventually, by the
+                // get_merged_request() call below, if there is a
+                // non-'IfAlreadyPresent' request for the same package
+                // in pkg_requests. This tends to delay resolving
+                // these requests until later in the solve. It stops
+                // the solver following a strict breadth first
+                // expansion of dependencies.
                 continue;
             }
             return Ok(Some(self.get_merged_request(&request.pkg.name)?));
