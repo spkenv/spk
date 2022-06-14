@@ -69,15 +69,7 @@ impl CmdEnter {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        // Get the name before getting the storage; getting the name has some
-        // fallback logic to handle old-style command line args.
-        let name = self.runtime_name()?.to_owned();
-        let repo = match &self.runtime_storage {
-            Some(address) => spfs::open_repository(address).await?,
-            None => config.get_local_repository_handle().await?,
-        };
-        let storage = spfs::runtime::Storage::new(repo);
-        let runtime = storage.read_runtime(&name).await?;
+        let runtime = self.load_runtime(config).await?;
         if self.remount {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
@@ -122,37 +114,66 @@ impl CmdEnter {
     }
 
     #[cfg(not(feature = "runtime-compat-0.33"))]
-    fn runtime_name(&self) -> spfs::Result<&String> {
-        Ok(&self.runtime)
+    async fn load_runtime(&self, config: &spfs::Config) -> spfs::Result<spfs::runtime::Runtime> {
+        let repo = match &self.runtime_storage {
+            Some(address) => spfs::open_repository(address).await?,
+            None => config.get_local_repository_handle().await?,
+        };
+        let storage = spfs::runtime::Storage::new(repo);
+        storage.read_runtime(&self.runtime).await
     }
 
     #[cfg(feature = "runtime-compat-0.33")]
-    fn runtime_name(&mut self) -> spfs::Result<&String> {
+    async fn load_runtime(
+        &mut self,
+        config: &spfs::Config,
+    ) -> spfs::Result<spfs::runtime::Runtime> {
         use std::str::FromStr;
 
-        if self.runtime.is_none() {
-            let name = self
-                .command
-                .take()
-                .ok_or_else(|| spfs::Error::new("Target runtime name must be provided"))?
-                .to_string_lossy()
-                .to_string();
-            if !self.args.is_empty() {
-                self.command = Some(self.args.remove(0))
-            }
-            // Handle old-style invocation where the runtime argument is
-            // a path on disk rather than a bare uuid name.
-            // In the form "<storage path>/runtimes/<name>".
-            self.runtime = Some(match *name.rsplitn(3, '/').collect::<Vec<_>>().as_slice() {
-                [name, _, storage] => {
-                    self.runtime_storage =
-                        Some(url::Url::from_str(&format!("file://{}", storage))?);
-                    name.to_owned()
+        let given_name = match &self.runtime {
+            Some(name) => name.to_owned(),
+            None => {
+                let name = self
+                    .command
+                    .take()
+                    .ok_or_else(|| spfs::Error::new("Target runtime name must be provided"))?
+                    .to_string_lossy()
+                    .to_string();
+                if !self.args.is_empty() {
+                    self.command = Some(self.args.remove(0))
                 }
-                _ => name,
-            });
+                name
+            }
+        };
+
+        // Handle old-style invocation where the runtime argument is
+        // a path on disk rather than a bare uuid name.
+        // In the form "<storage path>/runtimes/<name>".
+        let name = match *given_name.rsplitn(3, '/').collect::<Vec<_>>().as_slice() {
+            [name, _, storage] => {
+                self.runtime_storage = Some(url::Url::from_str(&format!("file://{}", storage))?);
+                name
+            }
+            _ => &given_name,
+        };
+
+        let repo = match &self.runtime_storage {
+            Some(address) => spfs::open_repository(address).await?,
+            None => config.get_local_repository_handle().await?,
+        };
+        let storage = spfs::runtime::Storage::new(repo);
+        let mut runtime = storage.read_runtime(name).await?;
+
+        let legacy_config_path = std::path::Path::new(&given_name);
+        if legacy_config_path.is_absolute() {
+            // in cases where a legacy runtime came with a full path, we
+            // will load the old config file and pull any potential
+            // configuration changes back into the new format
+            let legacy_config = spfs::runtime::storage_033::Runtime::new(legacy_config_path)?;
+            legacy_config.apply_to(&mut runtime);
+            runtime.save_state_to_storage().await?;
         }
-        Ok(self.runtime.as_ref().unwrap())
+        Ok(runtime)
     }
 
     async fn exec_runtime_command(

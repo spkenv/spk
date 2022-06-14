@@ -282,6 +282,18 @@ impl Runtime {
         self.write_config()
     }
 
+    /// Replicate what can be represented from the future runtime
+    ///
+    /// Panics if the provided future runtime does not share a name
+    /// with this runtime
+    pub fn apply_to(&self, future: &mut super::Runtime) {
+        assert_eq!(future.name(), self.name());
+        future.status.editable = self.config.editable;
+        future.status.running = self.config.running;
+        future.status.stack = self.config.stack.clone();
+        future.status.owner = self.config.pid;
+    }
+
     fn write_config(&self) -> Result<()> {
         let mut file = BufWriter::new(
             std::fs::OpenOptions::new()
