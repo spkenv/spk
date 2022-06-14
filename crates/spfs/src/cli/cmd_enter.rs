@@ -148,13 +148,38 @@ impl CmdEnter {
 
         // Handle old-style invocation where the runtime argument is
         // a path on disk rather than a bare uuid name.
-        // In the form "<storage path>/runtimes/<name>".
-        let name = match *given_name.rsplitn(3, '/').collect::<Vec<_>>().as_slice() {
-            [name, _, storage] => {
-                self.runtime_storage = Some(url::Url::from_str(&format!("file://{}", storage))?);
-                name
+        //
+        // This can be in multiple forms...
+
+        //   - "$SPFS_STORAGE_RUNTIMES/<name>".
+        let name = if std::env::var("SPFS_STORAGE_RUNTIMES")
+            .map(|s| {
+                given_name.starts_with(
+                    // This should technically add a trailing slash (unless there
+                    // is already a trailing slash in the value).
+                    &s,
+                )
+            })
+            .unwrap_or(false)
+        {
+            // In this case, the "runtime_storage" (repo) is not this place, only
+            // the runtime configuration is here.
+            std::path::PathBuf::from(&given_name)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned()
+        } else {
+            match *given_name.rsplitn(3, '/').collect::<Vec<_>>().as_slice() {
+                //   - "<storage path>/runtimes/<name>".
+                [name, _, storage] => {
+                    self.runtime_storage =
+                        Some(url::Url::from_str(&format!("file://{}", storage))?);
+                    name.to_owned()
+                }
+                _ => given_name.clone(),
             }
-            _ => &given_name,
         };
 
         let repo = match &self.runtime_storage {
