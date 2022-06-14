@@ -220,7 +220,7 @@ impl<T: Ranged> Ranged for &T {
 }
 
 /// Specifies a range of version numbers by inclusion or exclusion
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[enum_dispatch(Ranged)]
 pub enum VersionRange {
     Compat(CompatRange),
@@ -300,7 +300,7 @@ impl<T: Ranged> From<&T> for VersionRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SemverRange {
     minimum: Version,
 }
@@ -344,7 +344,7 @@ impl Display for SemverRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct WildcardRange {
     specified: usize,
     parts: Vec<Option<u32>>,
@@ -467,7 +467,7 @@ impl Display for WildcardRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LowestSpecifiedRange {
     specified: usize,
     base: Version,
@@ -516,7 +516,7 @@ impl Display for LowestSpecifiedRange {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanRange {
     bound: Version,
 }
@@ -555,7 +555,7 @@ impl Display for GreaterThanRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanRange {
     bound: Version,
 }
@@ -594,7 +594,7 @@ impl Display for LessThanRange {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanOrEqualToRange {
     bound: Version,
 }
@@ -633,7 +633,7 @@ impl Display for GreaterThanOrEqualToRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanOrEqualToRange {
     bound: Version,
 }
@@ -672,7 +672,7 @@ impl Display for LessThanOrEqualToRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct EqualsVersion {
     version: Version,
 }
@@ -732,7 +732,7 @@ impl Display for EqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NotEqualsVersion {
     specified: usize,
     base: Version,
@@ -794,7 +794,7 @@ impl Display for NotEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleEqualsVersion {
     version: Version,
 }
@@ -852,7 +852,7 @@ impl Display for DoubleEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleNotEqualsVersion {
     specified: usize,
     base: Version,
@@ -914,7 +914,7 @@ impl Display for DoubleNotEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct CompatRange {
     base: Version,
     /// if unset, the required compatibility is based on the type
@@ -981,17 +981,10 @@ impl Display for CompatRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Default)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct VersionFilter {
+    // Use `BTreeSet` to make `to_string` output consistent.
     rules: BTreeSet<VersionRange>,
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl Hash for VersionFilter {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let rules = self.sorted_rules();
-        rules.hash(state)
-    }
 }
 
 impl VersionFilter {
@@ -1010,12 +1003,6 @@ impl VersionFilter {
             VersionRange::Filter(f) => !f.is_empty(),
             _ => true,
         })
-    }
-
-    pub(crate) fn sorted_rules(&self) -> Vec<String> {
-        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
-        rules.sort_unstable();
-        rules
     }
 
     /// Reduce this range by the scope of another
