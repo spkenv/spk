@@ -519,7 +519,7 @@ impl Storage {
             Ok(tag) => tag.target,
             Err(err @ Error::UnknownReference(_)) => {
                 return Err(Error::UnknownRuntime {
-                    message: name.as_ref().to_string(),
+                    message: format!("{} in storage {}", name.as_ref(), self.address()),
                     source: Box::new(err),
                 });
             }
