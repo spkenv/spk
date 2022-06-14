@@ -449,10 +449,15 @@ impl Runtime {
     pub async fn save_state_to_storage(&self) -> Result<()> {
         #[cfg(feature = "runtime-compat-0.33")]
         {
-            let config = crate::get_config()?;
-            // we are making an assumption here that no override was
-            // previously configured for the runtime storage location
-            let storage_root = config.storage.root.join("runtimes");
+            // Legacy storage location can be changed via $SPFS_STORAGE_RUNTIMES;
+            // legacy spk utilizes this for its test suite.
+            let storage_root = match std::env::var("SPFS_STORAGE_RUNTIMES") {
+                Ok(override_path) => override_path.into(),
+                Err(_) => {
+                    let config = crate::get_config()?;
+                    config.storage.root.join("runtimes")
+                }
+            };
             let storage = super::storage_033::Storage::new(storage_root)?;
             let mut replica = storage.read_runtime(self.name()).or_else(|err| match err {
                 crate::Error::UnknownRuntime { .. } => storage.create_named_runtime(self.name()),
