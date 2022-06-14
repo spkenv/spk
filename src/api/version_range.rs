@@ -1010,21 +1010,64 @@ impl VersionFilter {
     /// This version range will become restricted to the intersection
     /// of the current version range and the other.
     pub fn restrict(&mut self, other: impl Ranged) -> Result<()> {
-        // FIXME: de-duplicating by strings is less than ideal
-        let rendered = other.to_string();
-        for rule in self.rules.iter() {
-            if rendered == rule.to_string() {
-                return Ok(());
-            }
-        }
-
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
             return Err(Error::String(msg));
         }
 
-        self.rules.insert(other.into());
+        // Combine the two rule sets and then simplify them.
+        self.rules.extend(other.rules());
+        // Do not merge any `CompatRange` since this can lose a
+        // rule for a smaller version number, as in:
+        //     maya/2019,maya/2020
+        // It is unknown what the `compat` values will be for any
+        // given build of maya, and it is not safe to simplify
+        // this request to just "maya/2020".
+        self.simplify_rules(false);
+
         Ok(())
+    }
+
+    /// Remove redundant rules from a set of `VersionRange` values.
+    pub(crate) fn simplify_rules(&mut self, allow_compat_ranges_to_merge: bool) {
+        if self.rules.len() <= 1 {
+            return;
+        }
+
+        // Simply the rules, e.g., turn ">1.0,>2.0" into ">2.0".
+        let mut rules_as_vec = std::mem::take(&mut self.rules)
+            .into_iter()
+            .collect::<Vec<_>>();
+        let mut index_to_remove = None;
+        'start_over: loop {
+            if let Some(index) = index_to_remove.take() {
+                rules_as_vec.remove(index);
+            }
+
+            for candidates in rules_as_vec.iter().enumerate().permutations(2) {
+                let (lhs_index, lhs_vr) = candidates.get(0).unwrap();
+                let (_, rhs_vr) = candidates.get(1).unwrap();
+
+                if !allow_compat_ranges_to_merge
+                    && (matches!(lhs_vr, VersionRange::Compat(_))
+                        || matches!(rhs_vr, VersionRange::Compat(_)))
+                {
+                    continue;
+                }
+
+                // Note that `permutations` will give every element a chance
+                // to appear on the lhs. We don't have to check in both
+                // directions in here.
+                if lhs_vr.contains(rhs_vr).is_ok() {
+                    // Keep the more restrictive rule and restart comparing.
+                    // `rules_as_vec` is borrowed immutably here.
+                    index_to_remove = Some(*lhs_index);
+                    continue 'start_over;
+                }
+            }
+            break;
+        }
+        self.rules = rules_as_vec.into_iter().collect();
     }
 }
 
@@ -1148,38 +1191,16 @@ impl FromStr for VersionFilter {
 }
 
 pub fn parse_version_range<S: AsRef<str>>(range: S) -> Result<VersionRange> {
-    let filter = VersionFilter::from_str(range.as_ref())?;
+    let mut filter = VersionFilter::from_str(range.as_ref())?;
 
-    // Simply the rules, e.g., turn ">1.0,>2.0" into ">2.0".
-    let mut rules_as_vec = filter.rules.into_iter().collect::<Vec<_>>();
-    let mut index_to_remove = None;
-    'start_over: loop {
-        if let Some(index) = index_to_remove.take() {
-            rules_as_vec.remove(index);
-        }
+    // Two or more `CompatRange` rules in a single request are
+    // eligible to be merged. At least, no use case for preserving
+    // the unmerged requests is currently known.
+    filter.simplify_rules(true);
 
-        for candidates in rules_as_vec.iter().enumerate().permutations(2) {
-            let (lhs_index, lhs_vr) = candidates.get(0).unwrap();
-            let (_, rhs_vr) = candidates.get(1).unwrap();
-
-            // Note that `permutations` will give every element a chance
-            // to appear on the lhs. We don't have to check in both
-            // directions in here.
-            if lhs_vr.contains(rhs_vr).is_ok() {
-                // Keep the more restrictive rule and restart comparing.
-                // `rules_as_vec` is borrowed immutably here.
-                index_to_remove = Some(*lhs_index);
-                continue 'start_over;
-            }
-        }
-        break;
-    }
-
-    if rules_as_vec.len() == 1 {
-        Ok(rules_as_vec.into_iter().next().unwrap())
+    if filter.rules.len() == 1 {
+        Ok(filter.rules.into_iter().next().unwrap())
     } else {
-        Ok(VersionRange::Filter(VersionFilter {
-            rules: rules_as_vec.into_iter().collect(),
-        }))
+        Ok(VersionRange::Filter(filter))
     }
 }
