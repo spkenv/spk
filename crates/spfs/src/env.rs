@@ -56,7 +56,10 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
         Ok(file) => file,
         Err(err) => {
             return match err.kind() {
-                std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime(rt.name().into())),
+                std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime {
+                    message: rt.name().into(),
+                    source: Box::new(err.into()),
+                }),
                 _ => Err(err.into()),
             }
         }

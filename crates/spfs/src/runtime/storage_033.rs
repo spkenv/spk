@@ -278,8 +278,20 @@ impl Runtime {
         self.config.running = future.status.running;
         self.config.stack = future.status.stack.clone();
         self.config.name = future.name().to_string();
-        self.config.pid = future.status.owner.clone();
+        self.config.pid = future.status.owner;
         self.write_config()
+    }
+
+    /// Replicate what can be represented from the future runtime
+    ///
+    /// Panics if the provided future runtime does not share a name
+    /// with this runtime
+    pub fn apply_to(&self, future: &mut super::Runtime) {
+        assert_eq!(future.name(), self.name());
+        future.status.editable = self.config.editable;
+        future.status.running = self.config.running;
+        future.status.stack = self.config.stack.clone();
+        future.status.owner = self.config.pid;
     }
 
     fn write_config(&self) -> Result<()> {
@@ -385,12 +397,12 @@ impl Storage {
     /// - if there are filesystem errors while reading the runtime on disk
     pub fn read_runtime<R: AsRef<Path>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());
-        if std::fs::symlink_metadata(&runtime_dir).is_ok() {
-            Runtime::new(runtime_dir)
-        } else {
-            Err(Error::UnknownRuntime(
-                reference.as_ref().to_string_lossy().into(),
-            ))
+        match std::fs::symlink_metadata(&runtime_dir) {
+            Ok(_) => Runtime::new(runtime_dir),
+            Err(err) => Err(Error::UnknownRuntime {
+                message: reference.as_ref().to_string_lossy().into(),
+                source: Box::new(err.into()),
+            }),
         }
     }
 

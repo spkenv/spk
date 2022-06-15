@@ -48,11 +48,11 @@ install: copy-release setcap
 
 copy-debug: debug
 	cd $(SOURCE_ROOT)
-	sudo cp target/debug/spfs* /usr/bin/
+	sudo cp -f target/debug/spfs* /usr/bin/
 
 copy-release: release
 	cd $(SOURCE_ROOT)
-	sudo cp target/release/spfs* /usr/bin/
+	sudo cp -f target/release/spfs* /usr/bin/
 
 setcap:
 	sudo setcap 'cap_net_admin+ep' /usr/bin/spfs-monitor
