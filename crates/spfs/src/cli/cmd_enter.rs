@@ -32,11 +32,14 @@ pub struct CmdEnter {
     #[clap(long)]
     runtime_storage: Option<url::Url>,
 
+    #[cfg(feature = "runtime-compat-0.33")]
     /// The name of the runtime being entered
     #[clap(long)]
-    #[cfg(feature = "runtime-compat-0.33")]
     runtime: Option<String>,
+
     #[cfg(not(feature = "runtime-compat-0.33"))]
+    /// The name of the runtime being entered
+    #[clap(long)]
     runtime: String,
 
     /// The command to run after initialization
