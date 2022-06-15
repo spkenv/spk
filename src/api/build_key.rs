@@ -31,6 +31,15 @@ enum BuildKeyVersionNumberPiece {
     Text(String),
 }
 
+impl std::fmt::Display for BuildKeyVersionNumberPiece {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BuildKeyVersionNumberPiece::Number(n) => f.write_str(&format!("{}", n)),
+            BuildKeyVersionNumberPiece::Text(s) => f.write_str(s),
+        }
+    }
+}
+
 /// A fully expanded version number with all its pieces for use in
 /// a build key, e.g. 6.4.0+r2 effectively becomes:
 /// { digits: [6, 4, 0], posttag: Some(['r', 2]), pretag: None }
@@ -42,6 +51,42 @@ struct BuildKeyVersionNumber {
     posttag: Option<Vec<BuildKeyVersionNumberPiece>>,
     /// Any pre-release tag pieces, e.g. Some(['r', 2]) or None
     pretag: Option<Vec<BuildKeyVersionNumberPiece>>,
+}
+
+impl std::fmt::Display for BuildKeyVersionNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(
+            &self
+                .digits
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+                .join("."),
+        )?;
+        if self.digits.len() < 3 {
+            f.write_str(".0")?;
+        }
+
+        if let Some(tag) = &self.pretag {
+            f.write_str("-")?;
+            f.write_str(
+                &tag.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join("."),
+            )?;
+        }
+        if let Some(tag) = &self.posttag {
+            f.write_str("+")?;
+            f.write_str(
+                &tag.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join("."),
+            )?;
+        }
+        f.write_str("")
+    }
 }
 
 impl BuildKeyVersionNumber {
@@ -125,6 +170,15 @@ pub struct BuildKeyExpandedVersionRange {
     /// A hash of the original version request string for breaking ties,
     /// e.g. 18385578307071417374
     tie_breaker: u64,
+}
+
+impl std::fmt::Display for BuildKeyExpandedVersionRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&format!(
+            "{}>v>={}:{}",
+            self.max, self.min, self.tie_breaker
+        ))
+    }
 }
 
 impl BuildKeyExpandedVersionRange {
@@ -244,6 +298,16 @@ pub enum BuildKeyEntry {
     ExpandedVersion(BuildKeyExpandedVersionRange),
 }
 
+impl std::fmt::Display for BuildKeyEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BuildKeyEntry::NotSet => f.write_str("NotSet"),
+            BuildKeyEntry::Text(s) => f.write_str(s),
+            BuildKeyEntry::ExpandedVersion(v) => f.write_str(&format!("{}", v)),
+        }
+    }
+}
+
 /// A BuildKey is for ordering builds within a package version. There
 /// are 2 kinds of BuildKey: a simple key for /src builds, and a
 /// compound key for non-src builds. /src package builds are always
@@ -314,6 +378,20 @@ pub enum BuildKey {
     /// A non-src build key. These build's keys are an ordered list of
     /// key entry components.
     NonSrc(Vec<BuildKeyEntry>),
+}
+
+impl std::fmt::Display for BuildKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BuildKey::Src => f.write_str("Src"),
+            BuildKey::NonSrc(v) => f.write_str(
+                &v.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ),
+        }
+    }
 }
 
 impl BuildKey {

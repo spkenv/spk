@@ -538,6 +538,12 @@ impl SortedBuildIterator {
         // Setup in configure_logging() to appear at verbosity 7+
         tracing::debug!(
             target: BUILD_SORT_TARGET,
+            "Keys by distance: key zero options: default: [{:?}] self: [{:?}]",
+            default_options,
+            self_options,
+        );
+        tracing::debug!(
+            target: BUILD_SORT_TARGET,
             "Keys by distance: 'Build => Key : Options':\n {}",
             self.builds
                 .iter()
@@ -717,12 +723,17 @@ impl SortedBuildIterator {
         // Setup in configure_logging() to appear at verbosity 7+
         tracing::debug!(
             target: BUILD_SORT_TARGET,
+            "Keys by build option values: keys built from: [{}]",
+            ordered_names.join(", "),
+        );
+        tracing::debug!(
+            target: BUILD_SORT_TARGET,
             "Keys by build option values: 'Build => Key : Options':\n {}",
             self.builds
                 .iter()
                 .map(|(spec, _)| {
                     format!(
-                        "{} = {:?} : {:?}",
+                        "{} = {} : {:?}",
                         spec.pkg,
                         SortedBuildIterator::make_option_values_build_key(
                             spec,
