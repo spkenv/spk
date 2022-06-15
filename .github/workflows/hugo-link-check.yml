@@ -1,10 +1,6 @@
 name: Website
 
-on:
-  pull_request:
-    branches: [master]
-  push:
-    branches: [master]
+on: push
 
 jobs:
   check:
