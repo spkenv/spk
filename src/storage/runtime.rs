@@ -157,6 +157,7 @@ impl Repository for RuntimeRepository {
 
         let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
         path.push(pkg.to_string());
+
         let mut mapped = HashMap::with_capacity(components.len());
         for name in components.into_iter() {
             let digest = handle
@@ -169,6 +170,24 @@ impl Repository for RuntimeRepository {
                     }
                 })?;
             mapped.insert(name, digest);
+        }
+
+        if mapped.is_empty() {
+            // This is package was published before component support
+            // was added. It does not have distinct components. So add
+            // default Build and Run components that point at the full
+            // package digest.
+            let digest = handle
+                .block_on(find_layer_by_filename(path))
+                .map_err(|err| {
+                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                        Error::PackageNotFoundError(pkg.clone())
+                    } else {
+                        err
+                    }
+                })?;
+            mapped.insert(api::Component::Run, digest);
+            mapped.insert(api::Component::Build, digest);
         }
         Ok(mapped)
     }
