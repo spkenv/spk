@@ -12,6 +12,13 @@ use serde::Serialize;
 use super::{flags, Run};
 use spk::{api, solve::PackageSource, solve::SolvedRequest};
 
+// Constants for the valid output formats
+const LAYER_FORMAT: &str = "layers";
+const BUILD_FORMAT: &str = "builds";
+const YAML_FORMAT: &str = "yaml";
+const JSON_FORMAT: &str = "json";
+const OUTPUT_FORMATS: &[&str] = &[LAYER_FORMAT, BUILD_FORMAT, YAML_FORMAT, JSON_FORMAT];
+
 /// Bake an executable environment from a set of requests or the current environment.
 #[derive(Args)]
 pub struct Bake {
@@ -24,16 +31,15 @@ pub struct Bake {
     #[clap(flatten)]
     pub requests: flags::Requests,
 
-    // TODO: these three would ideally be mutually exclusive
-    #[clap(short, long)]
-    pub show_builds: bool,
+    /// Format to output the layer data in:
+    ///
+    /// 'layers' outputs only the spfs layer digests one per line, 'builds' outputs
+    /// only the spk package builds one per line, and 'yaml' and 'json' output all
+    /// the available layer data in the matching format.
+    #[clap(short, long, possible_values=OUTPUT_FORMATS, default_value=LAYER_FORMAT)]
+    pub format: String,
 
-    #[clap(short, long)]
-    pub yaml: bool,
-
-    #[clap(short, long)]
-    pub json: bool,
-
+    /// Verbosity level, can be specified multiple times for more vebose output
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
@@ -72,38 +78,35 @@ impl Run for Bake {
             self.get_new_solve_info()?
         };
 
-        // Based on the output options, output the bake info.
-        //
-        // Note: the show_builds and yaml flags are mutually
-        // exclusive.
-        if self.show_builds {
-            // Show the package builds instead of the layers
-            for layer in layers.iter() {
-                println!("{}", layer.spk_package);
+        // Based on the format option, output the bake info.
+        let data = match &*self.format {
+            BUILD_FORMAT => {
+                // Output the package builds instead of the spfs layers
+                layers
+                    .into_iter()
+                    .map(|l| l.spk_package)
+                    .collect::<Vec<String>>()
+                    .join("\n")
             }
-            return Ok(0);
-        }
-
-        if self.yaml {
-            // Output the layers data in yaml format for other
-            // programs to use
-            let data = serde_yaml::to_string(&layers)?;
-            println!("{}", data);
-            return Ok(0);
-        }
-
-        if self.json {
-            // Output the layers data in json format for other
-            // programs to use
-            let data = serde_json::to_string(&layers)?;
-            println!("{}", data);
-            return Ok(0);
-        }
-
-        // Otherwise, just show the spfs layers - this is the default
-        for layer in layers.iter() {
-            println!("{}", layer.spfs_layer)
-        }
+            YAML_FORMAT => {
+                // True layer data into yaml for other programs to use
+                serde_yaml::to_string(&layers)?
+            }
+            JSON_FORMAT => {
+                // Turn layer data into json for other programs to use
+                serde_json::to_string(&layers)?
+            }
+            // LAYER_FORMAT
+            _ => {
+                // Otherwise, just output the spfs layers (digests)
+                layers
+                    .into_iter()
+                    .map(|l| l.spfs_layer)
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            }
+        };
+        println!("{}", data);
         Ok(0)
     }
 }
