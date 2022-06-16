@@ -2489,8 +2489,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.34.1"
-source = "git+https://github.com/imageworks/spfs?tag=v0.34.1#6f909e18295c2e44c72a70f15c4c1f62363ec962"
+version = "0.34.2"
+source = "git+https://github.com/imageworks/spfs?tag=v0.34.2#9e21b1a466d6992b4735abd7f7228129387a15bd"
 dependencies = [
  "async-recursion",
  "async-stream",
@@ -2514,6 +2514,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "nix 0.19.1",
+ "once_cell",
  "palaver",
  "prost",
  "rand 0.7.3",
