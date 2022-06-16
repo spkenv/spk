@@ -46,16 +46,19 @@ pub struct Test {
     pub variant: Option<usize>,
 }
 
+#[async_trait::async_trait]
 impl Run for Test {
-    fn run(&mut self) -> Result<i32> {
-        let _runtime = self.runtime.ensure_active_runtime()?;
+    async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
-        let repos: Vec<_> = self
-            .repos
-            .get_repos(None)?
+        let (_runtime, repos) = tokio::try_join!(
+            self.runtime.ensure_active_runtime(),
+            self.repos.get_repos(None)
+        )?;
+        let repos = repos
             .into_iter()
             .map(|(_, r)| Arc::new(r))
-            .collect();
+            .collect::<Vec<_>>();
+
         let source = if self.here { Some(".".into()) } else { None };
 
         for package in &self.packages {
@@ -80,7 +83,7 @@ impl Run for Test {
                     let pkg = spk::api::parse_ident(&name)?;
                     let mut found = None;
                     for repo in repos.iter() {
-                        match repo.read_spec(&pkg) {
+                        match repo.read_spec(&pkg).await {
                             Ok(spec) => {
                                 found = Some((spec, std::path::PathBuf::from(&name)));
                                 break;
@@ -143,52 +146,57 @@ impl Run for Test {
 
                         let formatter = self.formatter_settings.get_formatter(self.verbose);
                         match stage {
-                            spk::api::TestStage::Sources => spk::test::PackageSourceTester::new(
-                                spec.clone(),
-                                test.script.join("\n"),
-                            )
-                            .with_options(opts.clone())
-                            .with_repositories(repos.iter().cloned())
-                            .with_requirements(test.requirements.clone())
-                            .with_source(source.clone())
-                            .watch_environment_resolve(move |r| {
-                                formatter.run_and_print_decisions(r)
-                            })
-                            .test()?,
+                            spk::api::TestStage::Sources => {
+                                spk::test::PackageSourceTester::new(
+                                    spec.clone(),
+                                    test.script.join("\n"),
+                                )
+                                .with_options(opts.clone())
+                                .with_repositories(repos.iter().cloned())
+                                .with_requirements(test.requirements.clone())
+                                .with_source(source.clone())
+                                .watch_environment_resolve(&formatter)
+                                .test()
+                                .await?
+                            }
 
-                            spk::api::TestStage::Build => spk::test::PackageBuildTester::new(
-                                spec.clone(),
-                                test.script.join("\n"),
-                            )
-                            .with_options(opts.clone())
-                            .with_repositories(repos.iter().cloned())
-                            .with_requirements(test.requirements.clone())
-                            .with_source(
-                                source
-                                    .clone()
-                                    .map(spk::build::BuildSource::LocalPath)
-                                    .unwrap_or_else(|| {
-                                        spk::build::BuildSource::SourcePackage(
-                                            spec.pkg.with_build(Some(spk::api::Build::Source)),
-                                        )
-                                    }),
-                            )
-                            .with_source_resolver(move |r| formatter.run_and_print_decisions(r))
-                            .with_build_resolver(move |r| formatter.run_and_print_decisions(r))
-                            .test()?,
+                            spk::api::TestStage::Build => {
+                                spk::test::PackageBuildTester::new(
+                                    spec.clone(),
+                                    test.script.join("\n"),
+                                )
+                                .with_options(opts.clone())
+                                .with_repositories(repos.iter().cloned())
+                                .with_requirements(test.requirements.clone())
+                                .with_source(
+                                    source
+                                        .clone()
+                                        .map(spk::build::BuildSource::LocalPath)
+                                        .unwrap_or_else(|| {
+                                            spk::build::BuildSource::SourcePackage(
+                                                spec.pkg.with_build(Some(spk::api::Build::Source)),
+                                            )
+                                        }),
+                                )
+                                .with_source_resolver(&formatter)
+                                .with_build_resolver(&formatter)
+                                .test()
+                                .await?
+                            }
 
-                            spk::api::TestStage::Install => spk::test::PackageInstallTester::new(
-                                spec.clone(),
-                                test.script.join("\n"),
-                            )
-                            .with_options(opts.clone())
-                            .with_repositories(repos.iter().cloned())
-                            .with_requirements(test.requirements.clone())
-                            .with_source(source.clone())
-                            .watch_environment_resolve(move |r| {
-                                formatter.run_and_print_decisions(r)
-                            })
-                            .test()?,
+                            spk::api::TestStage::Install => {
+                                spk::test::PackageInstallTester::new(
+                                    spec.clone(),
+                                    test.script.join("\n"),
+                                )
+                                .with_options(opts.clone())
+                                .with_repositories(repos.iter().cloned())
+                                .with_requirements(test.requirements.clone())
+                                .with_source(source.clone())
+                                .watch_environment_resolve(&formatter)
+                                .test()
+                                .await?
+                            }
                         }
                     }
                 }

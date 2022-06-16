@@ -1,3 +1,5 @@
+use async_stream::stream;
+use futures::Stream;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
@@ -7,7 +9,6 @@ use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
@@ -306,14 +307,15 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 #[derive(Clone, Debug, Error)]
 #[error("Failed to resolve")]
 pub struct Graph {
-    pub root: Arc<RwLock<Node>>,
-    pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
+    pub root: Arc<tokio::sync::RwLock<Node>>,
+    pub nodes: HashMap<u64, Arc<tokio::sync::RwLock<Node>>>,
 }
 
 impl Graph {
     pub fn new() -> Self {
-        let dead_state = Arc::new(RwLock::new(Node::new(DEAD_STATE.clone())));
-        let dead_state_id = dead_state.read().unwrap().id();
+        let dead_state = Arc::clone(&*DEAD_STATE);
+        let dead_state_id = dead_state.id();
+        let dead_state = Arc::new(tokio::sync::RwLock::new(Node::new(dead_state)));
         let nodes = [(dead_state_id, dead_state.clone())]
             .iter()
             .cloned()
@@ -324,22 +326,26 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, source_id: u64, decision: Decision) -> Result<Arc<RwLock<Node>>> {
+    pub async fn add_branch(
+        &mut self,
+        source_id: u64,
+        decision: Decision,
+    ) -> Result<Arc<tokio::sync::RwLock<Node>>> {
         let old_node = self
             .nodes
             .get(&source_id)
             .expect("source_id exists in nodes")
             .clone();
-        let new_state = decision.apply(&(old_node.read().unwrap().state));
-        let mut new_node = Arc::new(RwLock::new(Node::new(new_state)));
+        let new_state = decision.apply(&(old_node.read().await.state));
+        let mut new_node = Arc::new(tokio::sync::RwLock::new(Node::new(new_state)));
         {
-            let mut new_node_lock = new_node.write().unwrap();
+            let mut new_node_lock = new_node.write().await;
 
             match self.nodes.get(&new_node_lock.id()) {
                 None => {
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
-                    for (name, iterator) in old_node.read().unwrap().iterators.iter() {
-                        new_node_lock.set_iterator(name.clone(), iterator)
+                    for (name, iterator) in old_node.read().await.iterators.iter() {
+                        new_node_lock.set_iterator(name.clone(), iterator).await
                     }
                 }
                 Some(node) => {
@@ -349,11 +355,11 @@ impl Graph {
             }
         }
 
-        let mut old_node_lock = old_node.write().unwrap();
+        let mut old_node_lock = old_node.write().await;
         {
             // Avoid deadlock if old_node is the same node as new_node
             if !Arc::ptr_eq(&old_node, &new_node) {
-                let mut new_node_lock = new_node.write().unwrap();
+                let mut new_node_lock = new_node.write().await;
                 old_node_lock.add_output(decision.clone(), &new_node_lock.state)?;
                 new_node_lock.add_input(&old_node_lock.state, decision);
             } else {
@@ -385,10 +391,10 @@ enum WalkState {
 pub struct GraphIter<'graph> {
     graph: &'graph Graph,
     node_outputs: HashMap<u64, VecDeque<Decision>>,
-    to_process: VecDeque<Arc<RwLock<Node>>>,
+    to_process: VecDeque<Arc<tokio::sync::RwLock<Node>>>,
     /// Which entry of node_outputs is currently being worked on.
     outs: Option<u64>,
-    iter_node: Arc<RwLock<Node>>,
+    iter_node: Arc<tokio::sync::RwLock<Node>>,
     walk_state: WalkState,
 }
 
@@ -405,66 +411,66 @@ impl<'graph> GraphIter<'graph> {
             walk_state: WalkState::ToProcessNonEmpty,
         }
     }
-}
 
-impl<'graph> Iterator for GraphIter<'graph> {
-    type Item = (Node, Decision);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.walk_state {
-                WalkState::ToProcessNonEmpty => {
-                    if self.to_process.is_empty() {
-                        self.walk_state = WalkState::YieldOuts;
-                        continue;
-                    }
-
-                    let node = self.to_process.pop_front().unwrap();
-                    let node_lock = node.read().unwrap();
-
-                    if let Entry::Vacant(e) = self.node_outputs.entry(node_lock.id()) {
-                        e.insert(node_lock.outputs_decisions.iter().cloned().collect());
-
-                        for decision in node_lock.outputs_decisions.iter().rev() {
-                            let destination = decision.apply(&node_lock.state);
-                            self.to_process.push_front(
-                                self.graph.nodes.get(&destination.id()).unwrap().clone(),
-                            );
+    pub fn iter<'a: 'graph>(&'a mut self) -> impl Stream<Item = (Node, Decision)> + 'a {
+        stream! {
+            'outer: loop {
+                match self.walk_state {
+                    WalkState::ToProcessNonEmpty => {
+                        if self.to_process.is_empty() {
+                            self.walk_state = WalkState::YieldOuts;
+                            continue 'outer;
                         }
+
+                        let node = self.to_process.pop_front().unwrap();
+                        let node_lock = node.read().await;
+
+                        if let Entry::Vacant(e) = self.node_outputs.entry(node_lock.id()) {
+                            e.insert(node_lock.outputs_decisions.iter().cloned().collect());
+
+                            for decision in node_lock.outputs_decisions.iter().rev() {
+                                let destination = decision.apply(&node_lock.state);
+                                self.to_process.push_front(
+                                    self.graph.nodes.get(&destination.id()).unwrap().clone(),
+                                );
+                            }
+                        }
+
+                        self.outs = Some(node_lock.id());
+                        let outs = self.node_outputs.get_mut(&node_lock.id()).unwrap();
+                        if outs.is_empty() {
+                            continue 'outer;
+                        }
+
+                        self.to_process.push_back(node.clone());
+                        let decision = outs.pop_front().unwrap();
+                        yield (node_lock.clone(), decision);
+                        continue 'outer;
                     }
+                    WalkState::YieldOuts => {
+                        let outs = self.node_outputs.get_mut(&self.outs.unwrap()).unwrap();
+                        if outs.is_empty() {
+                            break 'outer;
+                        }
 
-                    self.outs = Some(node_lock.id());
-                    let outs = self.node_outputs.get_mut(&node_lock.id()).unwrap();
-                    if outs.is_empty() {
-                        continue;
+                        let node_lock = self.iter_node.read().await;
+
+                        let decision = outs.pop_front().unwrap();
+                        self.walk_state = WalkState::YieldNextNode(decision.clone());
+                        yield (node_lock.clone(), decision);
+                        continue 'outer;
                     }
+                    WalkState::YieldNextNode(ref decision) => {
+                        let next_state_id = {
+                            let node_lock = self.iter_node.read().await;
 
-                    self.to_process.push_back(node.clone());
-                    let decision = outs.pop_front().unwrap();
-                    return Some((node_lock.clone(), decision));
-                }
-                WalkState::YieldOuts => {
-                    let outs = self.node_outputs.get_mut(&self.outs.unwrap()).unwrap();
-                    if outs.is_empty() {
-                        return None;
+                            let next_state = decision.apply(&node_lock.state);
+                            next_state.id()
+                        };
+                        self.iter_node = self.graph.nodes.get(&next_state_id).unwrap().clone();
+                        self.walk_state = WalkState::YieldOuts;
+                        continue 'outer;
                     }
-
-                    let node_lock = self.iter_node.read().unwrap();
-
-                    let decision = outs.pop_front().unwrap();
-                    self.walk_state = WalkState::YieldNextNode(decision.clone());
-                    return Some((node_lock.clone(), decision));
-                }
-                WalkState::YieldNextNode(ref decision) => {
-                    let next_state_id = {
-                        let node_lock = self.iter_node.read().unwrap();
-
-                        let next_state = decision.apply(&node_lock.state);
-                        next_state.id()
-                    };
-                    self.iter_node = self.graph.nodes.get(&next_state_id).unwrap().clone();
-                    self.walk_state = WalkState::YieldOuts;
-                    continue;
                 }
             }
         }
@@ -480,7 +486,7 @@ pub struct Node {
     outputs: HashSet<u64>,
     outputs_decisions: Vec<Decision>,
     pub state: Arc<State>,
-    iterators: HashMap<PkgName, Arc<Mutex<Box<dyn PackageIterator>>>>,
+    iterators: HashMap<PkgName, Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>>,
 }
 
 impl Node {
@@ -501,7 +507,7 @@ impl Node {
     pub fn get_iterator(
         &self,
         package_name: &PkgName,
-    ) -> Option<Arc<Mutex<Box<dyn PackageIterator>>>> {
+    ) -> Option<Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>> {
         self.iterators.get(package_name).cloned()
     }
 
@@ -521,10 +527,10 @@ impl Node {
         self.state.id()
     }
 
-    pub fn set_iterator(
+    pub async fn set_iterator(
         &mut self,
         package_name: api::PkgName,
-        iterator: &Arc<Mutex<Box<dyn PackageIterator>>>,
+        iterator: &Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>,
     ) {
         if self.iterators.contains_key(&package_name) {
             tracing::error!("iterator already exists [INTERNAL ERROR]");
@@ -532,7 +538,9 @@ impl Node {
         }
         self.iterators.insert(
             package_name,
-            Arc::new(Mutex::new(iterator.lock().unwrap().clone())),
+            Arc::new(tokio::sync::Mutex::new(
+                iterator.lock().await.async_clone().await,
+            )),
         );
     }
 }

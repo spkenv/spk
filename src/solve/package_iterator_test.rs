@@ -13,7 +13,8 @@ use crate::api::{self, PkgName};
 use crate::{make_build, make_package, make_repo, option_map, spec};
 
 #[rstest]
-fn test_solver_sorted_build_iterator_sort_by_option_values() {
+#[tokio::test]
+async fn test_solver_sorted_build_iterator_sort_by_option_values() {
     // Test what happens when build have different options - this is
     // for build key generation and sorting coverage
 
@@ -123,7 +124,7 @@ fn test_solver_sorted_build_iterator_sort_by_option_values() {
         alt_build,
         alt_build_higher,
     ]);
-    repo.publish_spec(build_spec).unwrap();
+    repo.publish_spec(build_spec).await.unwrap();
 
     // Set up a way of identifying the builds in the expected order.
     // Doing this by options because it's easier to see and update
@@ -167,13 +168,15 @@ fn test_solver_sorted_build_iterator_sort_by_option_values() {
     let pkg_name = PkgName::from_str(package_name).unwrap();
 
     let mut rp_iterator = RepositoryPackageIterator::new(pkg_name.clone(), vec![Arc::new(repo)]);
-    while let Some((_pkg, builds)) = rp_iterator.next().unwrap() {
+    while let Some((_pkg, builds)) = rp_iterator.next().await.unwrap() {
         // This runs the test, by sorting the builds
-        let mut iterator = SortedBuildIterator::new(api::OptionMap::default(), builds).unwrap();
+        let mut iterator = SortedBuildIterator::new(api::OptionMap::default(), builds)
+            .await
+            .unwrap();
 
         // The rest of this is checking the test results
         let mut sorted_builds: Vec<Arc<api::Spec>> = Vec::new();
-        while let Some((build, _)) = iterator.next().unwrap() {
+        while let Some((build, _)) = iterator.next().await.unwrap() {
             sorted_builds.push(Arc::clone(&build));
         }
 

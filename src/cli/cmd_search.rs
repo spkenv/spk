@@ -19,9 +19,10 @@ pub struct Search {
     term: String,
 }
 
+#[async_trait::async_trait]
 impl Run for Search {
-    fn run(&mut self) -> Result<i32> {
-        let repos = self.repos.get_repos(&["origin".to_string()])?;
+    async fn run(&mut self) -> Result<i32> {
+        let repos = self.repos.get_repos(&["origin".to_string()]).await?;
 
         let width = repos
             .iter()
@@ -31,12 +32,12 @@ impl Run for Search {
             .unwrap_or_default();
         let mut exit = 1;
         for (repo_name, repo) in repos.iter() {
-            for name in repo.list_packages()? {
+            for name in repo.list_packages().await? {
                 if !name.contains(&self.term) {
                     continue;
                 }
                 let mut ident = spk::api::parse_ident(&name)?;
-                let versions = repo.list_package_versions(&name)?;
+                let versions = repo.list_package_versions(&name).await?;
                 for v in versions {
                     ident.version = v;
                     exit = 0;

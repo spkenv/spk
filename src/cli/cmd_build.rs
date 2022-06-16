@@ -46,9 +46,10 @@ pub struct Build {
 }
 
 /// Runs make-source and then make-binary
+#[async_trait::async_trait]
 impl Run for Build {
-    fn run(&mut self) -> Result<i32> {
-        self.runtime.ensure_active_runtime()?;
+    async fn run(&mut self) -> Result<i32> {
+        self.runtime.ensure_active_runtime().await?;
 
         // divide our packages into one for each iteration of mks/mkb
         let mut runs: Vec<_> = self.packages.iter().map(|f| vec![f.to_owned()]).collect();
@@ -62,7 +63,7 @@ impl Run for Build {
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
             };
-            let code = make_source.run()?;
+            let code = make_source.run().await?;
             if code != 0 {
                 return Ok(code);
             }
@@ -79,7 +80,7 @@ impl Run for Build {
                 variant: self.variant,
                 formatter_settings: self.formatter_settings.clone(),
             };
-            let code = make_binary.run()?;
+            let code = make_binary.run().await?;
             if code != 0 {
                 return Ok(code);
             }

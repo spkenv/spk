@@ -15,9 +15,10 @@ pub struct Repo {
     command: RepoCommand,
 }
 
+#[async_trait::async_trait]
 impl Run for Repo {
-    fn run(&mut self) -> Result<i32> {
-        self.command.run()
+    async fn run(&mut self) -> Result<i32> {
+        self.command.run().await
     }
 }
 
@@ -38,12 +39,12 @@ pub enum RepoCommand {
 }
 
 impl RepoCommand {
-    pub fn run(&mut self) -> Result<i32> {
+    pub async fn run(&mut self) -> Result<i32> {
         let repo = match &self {
             Self::Upgrade { repo } => repo,
         };
-        let repo = spk::HANDLE.block_on(spk::storage::remote_repository(repo))?;
-        let status = repo.upgrade().context("Upgrade failed")?;
+        let repo = spk::storage::remote_repository(repo).await?;
+        let status = repo.upgrade().await.context("Upgrade failed")?;
         tracing::info!("{}", status);
         Ok(1)
     }

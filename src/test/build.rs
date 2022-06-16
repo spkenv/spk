@@ -5,7 +5,7 @@
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use thiserror::Error;
 
 use crate::{
@@ -27,7 +27,7 @@ impl TestError {
     }
 }
 
-pub struct PackageBuildTester {
+pub struct PackageBuildTester<'a> {
     prefix: PathBuf,
     spec: api::Spec,
     script: String,
@@ -35,12 +35,12 @@ pub struct PackageBuildTester {
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: BuildSource,
-    source_resolver: Box<dyn FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution>>,
-    build_resolver: Box<dyn FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution>>,
-    last_solve_graph: Arc<RwLock<solve::Graph>>,
+    source_resolver: crate::BoxedResolverCallback<'a>,
+    build_resolver: crate::BoxedResolverCallback<'a>,
+    last_solve_graph: Arc<tokio::sync::RwLock<solve::Graph>>,
 }
 
-impl PackageBuildTester {
+impl<'a> PackageBuildTester<'a> {
     pub fn new(spec: api::Spec, script: String) -> Self {
         let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
         Self {
@@ -51,9 +51,9 @@ impl PackageBuildTester {
             options: api::OptionMap::default(),
             additional_requirements: Vec::new(),
             source,
-            source_resolver: Box::new(|r| r.solution()),
-            build_resolver: Box::new(|r| r.solution()),
-            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
+            source_resolver: Box::new(crate::DefaultResolver {}),
+            build_resolver: Box::new(crate::DefaultResolver {}),
+            last_solve_graph: Arc::new(tokio::sync::RwLock::new(solve::Graph::new())),
         }
     }
 
@@ -103,7 +103,7 @@ impl PackageBuildTester {
     /// process as needed.
     pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution> + 'static,
+        F: crate::ResolverCallback + 'a,
     {
         self.source_resolver = Box::new(resolver);
         self
@@ -117,7 +117,7 @@ impl PackageBuildTester {
     /// process as needed.
     pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution> + 'static,
+        F: crate::ResolverCallback + 'a,
     {
         self.build_resolver = Box::new(resolver);
         self
@@ -129,21 +129,20 @@ impl PackageBuildTester {
     /// and test that failed with a SolverError.
     ///
     /// If the tester has not run, return an incomplete graph.
-    pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
+    pub fn get_solve_graph(&self) -> Arc<tokio::sync::RwLock<solve::Graph>> {
         self.last_solve_graph.clone()
     }
 
-    pub fn test(&mut self) -> Result<()> {
-        let _guard = crate::HANDLE.enter();
-        let mut rt = crate::HANDLE.block_on(spfs::active_runtime())?;
+    pub async fn test(&mut self) -> Result<()> {
+        let mut rt = spfs::active_runtime().await?;
         rt.reset_all()?;
         rt.status.editable = true;
         rt.status.stack.clear();
 
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(pkg) = self.source.clone() {
-            let solution = self.resolve_source_package(&pkg)?;
-            stack.append(&mut exec::resolve_runtime_layers(&solution)?);
+            let solution = self.resolve_source_package(&pkg).await?;
+            stack.append(&mut exec::resolve_runtime_layers(&solution).await?);
         }
 
         let mut solver = solve::Solver::default();
@@ -157,16 +156,15 @@ impl PackageBuildTester {
         }
         solver.configure_for_build_environment(&self.spec)?;
         let mut runtime = solver.run();
+        let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
-        let solution = (self.build_resolver)(&mut runtime)?;
+        let solution = solution?;
 
-        for layer in exec::resolve_runtime_layers(&solution)? {
+        for layer in exec::resolve_runtime_layers(&solution).await? {
             rt.push_digest(layer);
         }
-        crate::HANDLE.block_on(async {
-            rt.save_state_to_storage().await?;
-            spfs::remount_runtime(&rt).await
-        })?;
+        rt.save_state_to_storage().await?;
+        spfs::remount_runtime(&rt).await?;
 
         self.options.extend(solution.options());
         let resolved = solution.items().into_iter().map(|r| r.spec);
@@ -214,11 +212,11 @@ impl PackageBuildTester {
         }
     }
 
-    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
+    async fn resolve_source_package(&mut self, package: &api::Ident) -> Result<solve::Solution> {
         let mut solver = solve::Solver::default();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
-            Arc::new(crate::HANDLE.block_on(storage::local_repository())?.into());
+            Arc::new(storage::local_repository().await?.into());
         solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
             if **repo == *local_repo {
@@ -238,7 +236,7 @@ impl PackageBuildTester {
         solver.add_request(request.into());
 
         let mut runtime = solver.run();
-        let solution = (self.source_resolver)(&mut runtime);
+        let solution = self.source_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
         solution
     }

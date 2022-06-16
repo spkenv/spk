@@ -27,10 +27,10 @@ pub enum PackageSource {
 }
 
 impl PackageSource {
-    pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
+    pub async fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
         match self {
             PackageSource::Spec(s) => Ok((**s).clone()),
-            PackageSource::Repository { repo, .. } => repo.read_spec(ident),
+            PackageSource::Repository { repo, .. } => repo.read_spec(ident).await,
         }
     }
 }

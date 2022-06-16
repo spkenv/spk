@@ -8,8 +8,8 @@ use crate::{api, build, io, solve, storage, Error, Result};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
-pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>> {
-    let local_repo = crate::HANDLE.block_on(storage::local_repository())?;
+pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>> {
+    let local_repo = storage::local_repository().await?;
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
@@ -20,10 +20,10 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 // build doesn't exist in a repo.
                 let spec_options = resolved.spec.resolve_all_options(&solution.options());
                 return Err(Error::String(format!(
-                    "Solution includes package that needs building from source: {} with these options: {}",
-                    resolved.spec.pkg,
-                    io::format_options(&spec_options)
-                )));
+                        "Solution includes package that needs building from source: {} with these options: {}",
+                        resolved.spec.pkg,
+                        io::format_options(&spec_options)
+                    )));
             }
         }
 
@@ -64,7 +64,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
                 continue;
             }
 
-            if !crate::HANDLE.block_on(local_repo.has_object(*digest)) {
+            if !local_repo.has_object(*digest).await {
                 to_sync.push((resolved.spec.clone(), repo.clone(), *digest))
             }
 
@@ -83,8 +83,7 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
             );
             let syncer = spfs::Syncer::new(repo, &local_repo)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-            let future = syncer.sync_digest(digest);
-            crate::HANDLE.block_on(future)?;
+            syncer.sync_digest(digest).await?;
         }
     }
 
@@ -92,27 +91,27 @@ pub fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Digest>>
 }
 
 /// Modify the active spfs runtime to include exactly the packages in the given solution.
-pub fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
-    let mut rt = crate::HANDLE.block_on(spfs::active_runtime())?;
-    setup_runtime(&mut rt, solution)
+pub async fn setup_current_runtime(solution: &solve::Solution) -> Result<()> {
+    let mut rt = spfs::active_runtime().await?;
+    setup_runtime(&mut rt, solution).await
 }
 
-pub fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &solve::Solution) -> Result<()> {
-    let stack = resolve_runtime_layers(solution)?;
+pub async fn setup_runtime(
+    rt: &mut spfs::runtime::Runtime,
+    solution: &solve::Solution,
+) -> Result<()> {
+    let stack = resolve_runtime_layers(solution).await?;
     rt.status.stack = stack;
-    crate::HANDLE.block_on(async {
-        rt.save_state_to_storage().await?;
-        spfs::remount_runtime(rt).await
-    })?;
+    rt.save_state_to_storage().await?;
+    spfs::remount_runtime(rt).await?;
     Ok(())
 }
 
 /// Build any packages in the given solution that need building.
 ///
 /// Returns a new solution of only binary packages.
-pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
-    let handle: storage::RepositoryHandle =
-        crate::HANDLE.block_on(storage::local_repository())?.into();
+pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solution> {
+    let handle: storage::RepositoryHandle = storage::local_repository().await?.into();
     let local_repo = Arc::new(handle);
     let repos = solution.repositories();
     let options = solution.options();
@@ -134,8 +133,9 @@ pub fn build_required_packages(solution: &solve::Solution) -> Result<solve::Solu
         let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
             .with_repositories(repos.clone())
             .with_options(options.clone())
-            .build()?;
-        let components = local_repo.get_package(&spec.pkg)?;
+            .build()
+            .await?;
+        let components = local_repo.get_package(&spec.pkg).await?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,

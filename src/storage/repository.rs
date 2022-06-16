@@ -9,32 +9,33 @@ use crate::{api, Result};
 #[path = "./repository_test.rs"]
 mod repository_test;
 
-pub trait Repository {
+#[async_trait::async_trait]
+pub trait Repository: Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
     fn address(&self) -> url::Url;
 
     /// Return the set of known packages in this repo.
-    fn list_packages(&self) -> Result<Vec<api::PkgName>>;
+    async fn list_packages(&self) -> Result<Vec<api::PkgName>>;
 
     /// Return the set of versions available for the named package.
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>>;
+    async fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>>;
 
     /// Return the set of builds for the given package name and version.
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
+    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
 
     /// Returns the set of components published for a package build
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
+    async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
 
     /// Read a package spec file for the given package, version and optional build.
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, version, or build does not exist
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec>;
+    async fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec>;
 
     /// Identify the payloads for the identified package's components.
-    fn get_package(
+    async fn get_package(
         &self,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
@@ -47,26 +48,26 @@ pub trait Repository {
     ///
     /// # Errors:
     /// - VersionExistsError: if the spec version is already present
-    fn publish_spec(&self, spec: api::Spec) -> Result<()>;
+    async fn publish_spec(&self, spec: api::Spec) -> Result<()>;
 
     /// Remove a package version from this repository.
     ///
     /// This will not untag builds for this package, but make it unresolvable
     /// and unsearchable. It's recommended that you remove all existing builds
     /// before removing the spec in order to keep the repository clean.
-    fn remove_spec(&self, pkg: &api::Ident) -> Result<()>;
+    async fn remove_spec(&self, pkg: &api::Ident) -> Result<()>;
 
     /// Publish a package spec to this repository.
     ///
     /// Same as 'publish_spec' except that it clobbers any existing
     /// spec at this version
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()>;
+    async fn force_publish_spec(&self, spec: api::Spec) -> Result<()>;
 
     /// Publish a package to this repository.
     ///
     /// The provided component digests are expected to each identify an spfs
     /// layer which contains properly constructed binary package files and metadata.
-    fn publish_package(
+    async fn publish_package(
         &self,
         spec: api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
@@ -75,7 +76,7 @@ pub trait Repository {
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
-    fn remove_package(&self, pkg: &api::Ident) -> Result<()>;
+    async fn remove_package(&self, pkg: &api::Ident) -> Result<()>;
 
     /// Perform any upgrades that are pending on this repository.
     ///
@@ -84,7 +85,7 @@ pub trait Repository {
     /// older ones. Upgrades can also take time depending on their
     /// nature and the size of the repository so. Please, take time to
     /// read any release and upgrade notes before invoking this.
-    fn upgrade(&self) -> Result<String> {
+    async fn upgrade(&self) -> Result<String> {
         Ok("Nothing to do.".to_string())
     }
 }

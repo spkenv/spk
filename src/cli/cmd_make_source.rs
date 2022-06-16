@@ -22,9 +22,10 @@ pub struct MakeSource {
     pub packages: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for MakeSource {
-    fn run(&mut self) -> Result<i32> {
-        let _runtime = self.runtime.ensure_active_runtime()?;
+    async fn run(&mut self) -> Result<i32> {
+        let _runtime = self.runtime.ensure_active_runtime().await?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
         if packages.is_empty() {
@@ -40,7 +41,7 @@ impl Run for MakeSource {
                 res => {
                     let (_, spec) = res.must_be_found();
                     tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
-                    spk::save_spec(spec.clone())?;
+                    spk::save_spec(spec.clone()).await?;
                     spec
                 }
             };
@@ -51,6 +52,7 @@ impl Run for MakeSource {
             );
             let out = spk::build::SourcePackageBuilder::from_spec(spec)
                 .build()
+                .await
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", spk::io::format_ident(&out));
         }

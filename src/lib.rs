@@ -38,3 +38,34 @@ lazy_static::lazy_static! {
         handle
     };
 }
+
+lazy_static::lazy_static! {
+    pub static ref MUTEX: tokio::sync::Mutex<()> = {
+        tokio::sync::Mutex::new(())
+    };
+}
+
+#[async_trait::async_trait]
+pub trait ResolverCallback: Send + Sync {
+    /// Run a solve using the given [`solve::SolverRuntime`],
+    /// producing a [`crate::Solution`].
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a mut solve::SolverRuntime,
+    ) -> Result<crate::Solution>;
+}
+
+/// A no-frills implementation of [`ResolverCallback`].
+struct DefaultResolver {}
+
+#[async_trait::async_trait]
+impl ResolverCallback for DefaultResolver {
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a mut solve::SolverRuntime,
+    ) -> Result<crate::Solution> {
+        r.solution().await
+    }
+}
+
+type BoxedResolverCallback<'a> = Box<dyn ResolverCallback + 'a>;

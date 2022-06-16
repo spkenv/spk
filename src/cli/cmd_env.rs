@@ -42,27 +42,28 @@ pub struct Env {
     pub command: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for Env {
-    fn run(&mut self) -> Result<i32> {
-        let mut rt = self.runtime.ensure_active_runtime()?;
+    async fn run(&mut self) -> Result<i32> {
+        let mut rt = self.runtime.ensure_active_runtime().await?;
 
-        let mut solver = self.solver.get_solver(&self.options)?;
-        let requests = self
-            .requests
-            .parse_requests(&self.requested, &self.options)?;
+        let (mut solver, requests) = tokio::try_join!(
+            self.solver.get_solver(&self.options),
+            self.requests.parse_requests(&self.requested, &self.options)
+        )?;
         for request in requests {
             solver.add_request(request)
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver)?;
+        let solution = formatter.run_and_print_resolve(&solver).await?;
 
         if self.verbose > 0 {
             eprintln!("{}", spk::io::format_solution(&solution, self.verbose));
         }
 
-        let solution = spk::build_required_packages(&solution)?;
-        spk::setup_runtime(&mut rt, &solution)?;
+        let solution = spk::build_required_packages(&solution).await?;
+        spk::setup_runtime(&mut rt, &solution).await?;
         let env = solution.to_environment(Some(std::env::vars()));
         let _: Vec<_> = std::env::vars()
             .map(|(k, _)| k)

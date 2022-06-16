@@ -40,16 +40,18 @@ fn test_split_manifest_permissions() {
 }
 
 #[rstest]
-fn test_empty_var_option_is_not_a_request() {
+#[tokio::test]
+async fn test_empty_var_option_is_not_a_request() {
+    let _guard = crate::MUTEX.lock().await;
     let spec: crate::api::Spec = serde_yaml::from_str(
         r#"{
-        pkg: mypackage/1.0.0,
-        build: {
-            options: [
-                {var: something}
-            ]
-        }
-    }"#,
+            pkg: mypackage/1.0.0,
+            build: {
+                options: [
+                    {var: something}
+                ]
+            }
+        }"#,
     )
     .unwrap();
     let builder = super::BinaryPackageBuilder::from_spec(spec);
@@ -61,20 +63,22 @@ fn test_empty_var_option_is_not_a_request() {
 }
 
 #[rstest]
-fn test_build_workdir(tmpdir: tempdir::TempDir) {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_workdir(tmpdir: tempdir::TempDir) {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let out_file = tmpdir.path().join("out.log");
     let mut spec = crate::spec!(
         {"pkg": "test/1.0.0"}
     );
 
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
     spec.build.script = vec![format!("echo $PWD > {:?}", out_file)];
 
     BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
         .build()
+        .await
         .unwrap();
 
     let out = std::fs::read_to_string(out_file).unwrap();
@@ -89,9 +93,10 @@ fn test_build_workdir(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_build_package_options() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_package_options() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let dep_spec = crate::spec!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
     );
@@ -118,15 +123,16 @@ fn test_build_package_options() {
         }
     );
 
-    rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(dep_spec.clone()).await.unwrap();
 
     BinaryPackageBuilder::from_spec(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
@@ -135,11 +141,13 @@ fn test_build_package_options() {
         // specific option takes precedence
         .with_option("top.dep", "1.0.0")
         .build()
+        .await
         .unwrap();
 
     let build_options = rt
         .tmprepo
         .read_spec(&spec.pkg)
+        .await
         .unwrap()
         .resolve_all_options(
             // given value should be ignored after build
@@ -149,9 +157,10 @@ fn test_build_package_options() {
 }
 
 #[rstest]
-fn test_build_package_pinning() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_package_pinning() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let dep_spec = crate::spec!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
     );
@@ -168,20 +177,22 @@ fn test_build_package_pinning() {
         }
     );
 
-    rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(dep_spec.clone()).await.unwrap();
     BinaryPackageBuilder::from_spec(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
-    let spec = rt.tmprepo.read_spec(&spec.pkg).unwrap();
+    let spec = rt.tmprepo.read_spec(&spec.pkg).await.unwrap();
     let req = spec.install.requirements.get(0).unwrap();
     match req {
         api::Request::Pkg(req) => {
@@ -192,9 +203,10 @@ fn test_build_package_pinning() {
 }
 
 #[rstest]
-fn test_build_package_missing_deps() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_package_missing_deps() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
             "pkg": "dep/1.0.0",
@@ -202,7 +214,7 @@ fn test_build_package_missing_deps() {
             "install": {"requirements": [{"pkg": "does-not-exist"}]},
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
 
     // should not fail to resolve build env and build even though
     // runtime dependency is missing in the current repos
@@ -210,13 +222,15 @@ fn test_build_package_missing_deps() {
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 }
 
 #[rstest]
-fn test_build_var_pinning() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_var_pinning() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let dep_spec = crate::spec!(
         {
             "pkg": "dep/1.0.0",
@@ -247,20 +261,22 @@ fn test_build_var_pinning() {
         }
     );
 
-    rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(dep_spec.clone()).await.unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
     BinaryPackageBuilder::from_spec(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
-    let spec = rt.tmprepo.read_spec(&spec.pkg).unwrap();
+    let spec = rt.tmprepo.read_spec(&spec.pkg).await.unwrap();
     let top_req = spec.install.requirements.get(0).unwrap();
     match top_req {
         api::Request::Var(r) => assert_eq!(&r.value, "topvalue"),
@@ -274,9 +290,10 @@ fn test_build_var_pinning() {
 }
 
 #[rstest]
-fn test_build_bad_options() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_bad_options() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
             "pkg": "my-package/1.0.0",
@@ -288,20 +305,22 @@ fn test_build_bad_options() {
             },
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
 
     let res = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_option("debug", "false")
-        .build();
+        .build()
+        .await;
 
     assert!(matches!(res, Err(crate::Error::String(_))), "got {:?}", res);
 }
 
 #[rstest]
-fn test_build_package_source_cleanup() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_package_source_cleanup() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
             "pkg": "spk-test/1.0.0+beta.1",
@@ -321,34 +340,32 @@ fn test_build_package_source_cleanup() {
             },
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
 
     let src_pkg = SourcePackageBuilder::from_spec(spec.clone())
         .with_target_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
     let pkg = BinaryPackageBuilder::from_spec(spec)
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
-    let digest = *crate::HANDLE
-        .block_on(storage::local_repository())
+    let digest = *storage::local_repository()
+        .await
         .unwrap()
         .get_package(&pkg.pkg)
+        .await
         .unwrap()
         .get(&api::Component::Run)
         .unwrap();
     let config = spfs::get_config().unwrap();
-    let repo = crate::HANDLE
-        .block_on(config.get_local_repository())
-        .unwrap();
-    let layer = crate::HANDLE.block_on(repo.read_layer(digest)).unwrap();
-    let manifest = crate::HANDLE
-        .block_on(repo.read_manifest(layer.manifest))
-        .unwrap()
-        .unlock();
+    let repo = config.get_local_repository().await.unwrap();
+    let layer = repo.read_layer(digest).await.unwrap();
+    let manifest = repo.read_manifest(layer.manifest).await.unwrap().unlock();
     let entry = manifest
         .get_path(crate::build::data_path(&src_pkg))
         .unwrap();
@@ -359,9 +376,10 @@ fn test_build_package_source_cleanup() {
 }
 
 #[rstest]
-fn test_build_package_requirement_propagation() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_package_requirement_propagation() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let base_spec = crate::spec!(
         {
             "pkg": "base/1.0.0",
@@ -379,25 +397,29 @@ fn test_build_package_requirement_propagation() {
             "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
         }
     );
-    rt.tmprepo.publish_spec(base_spec.clone()).unwrap();
-    rt.tmprepo.publish_spec(top_spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(base_spec.clone()).await.unwrap();
+    rt.tmprepo.publish_spec(top_spec.clone()).await.unwrap();
 
     SourcePackageBuilder::from_spec(base_spec.clone())
         .with_target_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
     let _base_pkg = BinaryPackageBuilder::from_spec(base_spec)
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
     SourcePackageBuilder::from_spec(top_spec.clone())
         .with_target_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
     let top_pkg = BinaryPackageBuilder::from_spec(top_spec)
         .with_repository(rt.tmprepo.clone())
         .build()
+        .await
         .unwrap();
 
     assert_eq!(top_pkg.build.options.len(), 2, "should get option added");
@@ -437,9 +459,10 @@ fn test_build_package_requirement_propagation() {
 }
 
 #[rstest]
-fn test_default_build_component() {
-    let _guard = crate::HANDLE.enter();
-    let _rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_default_build_component() {
+    let _guard = crate::MUTEX.lock().await;
+    let _rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
             "pkg": "mypkg/1.0.0",
@@ -457,17 +480,18 @@ fn test_default_build_component() {
     match req {
         api::Request::Pkg(req) => {
             assert_eq!(req.pkg.components, vec![api::Component::Build].into_iter().collect(),
-                "a build request with no components should have the default build component injected automatically"
-            );
+                    "a build request with no components should have the default build component injected automatically"
+                );
         }
         _ => panic!("expected pkg request"),
     }
 }
 
 #[rstest]
-fn test_build_components_metadata() {
-    let _guard = crate::HANDLE.enter();
-    let mut rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_components_metadata() {
+    let _guard = crate::MUTEX.lock().await;
+    let mut rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
             "pkg": "mypkg/1.0.0",
@@ -480,27 +504,24 @@ fn test_build_components_metadata() {
             }]
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .build()
+        .await
         .unwrap();
     let runtime_repo = storage::RepositoryHandle::new_runtime();
-    let published = rt.tmprepo.get_package(&spec.pkg).unwrap();
+    let published = rt.tmprepo.get_package(&spec.pkg).await.unwrap();
     for component in spec.install.components.iter() {
         let digest = published.get(&component.name).unwrap();
         rt.runtime.reset_all().unwrap();
         rt.runtime.status.stack.clear();
         rt.runtime.push_digest(*digest);
-        crate::HANDLE
-            .block_on(rt.runtime.save_state_to_storage())
-            .unwrap();
-        crate::HANDLE
-            .block_on(spfs::remount_runtime(&rt.runtime))
-            .unwrap();
+        rt.runtime.save_state_to_storage().await.unwrap();
+        spfs::remount_runtime(&rt.runtime).await.unwrap();
         // the package should be "available" no matter what
         // component is installed
-        let installed = runtime_repo.get_package(&spec.pkg).unwrap();
+        let installed = runtime_repo.get_package(&spec.pkg).await.unwrap();
         let expected = vec![(component.name.clone(), *digest)]
             .into_iter()
             .collect();
@@ -512,9 +533,10 @@ fn test_build_components_metadata() {
 }
 
 #[rstest]
-fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
             "pkg": "testpkg",
@@ -522,12 +544,12 @@ fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
                 "environment": [
                     {"set": "TESTPKG", "value": true},
                     {"append": "TESTPKG", "value": "append"},
-                    {"prepend": "TESTPKG", "value": 1.7},
+                    {"prepend": "TESTPKG", "value": "1.7"},
                 ]
             },
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(spec.clone()).await.unwrap();
 
     BinaryPackageBuilder::from_spec(spec)
         .with_prefix(tmpdir.path().into())

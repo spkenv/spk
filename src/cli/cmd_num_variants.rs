@@ -15,8 +15,9 @@ pub struct NumVariants {
     pub package: Option<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for NumVariants {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         let (_, spec) = flags::find_package_spec(&self.package)
             .context("find package spec")?
             .must_be_found();

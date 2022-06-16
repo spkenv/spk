@@ -2631,6 +2631,9 @@ name = "spk"
 version = "0.32.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
+ "async-stream",
+ "async-trait",
  "clap",
  "colored",
  "ctrlc",

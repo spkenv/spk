@@ -87,14 +87,16 @@ pub struct Deprecate {
 }
 
 /// Deprecate (hide) packages in a repository
+#[async_trait::async_trait]
 impl Run for Deprecate {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         change_deprecation_state(
             ChangeAction::Deprecate,
-            &self.repos.get_repos(None)?,
+            &self.repos.get_repos(None).await?,
             &self.packages,
             self.yes,
         )
+        .await
     }
 }
 
@@ -116,7 +118,7 @@ pub(crate) fn ask_user(prompt: &str) -> String {
 
 /// Changes package builds' specs' deprecation field based on the
 /// given action. Deprecating sets it to true, undeprecating to false.
-pub(crate) fn change_deprecation_state(
+pub(crate) async fn change_deprecation_state(
     action: ChangeAction,
     repositories: &[(String, spk::storage::RepositoryHandle)],
     packages: &[String],
@@ -155,7 +157,7 @@ pub(crate) fn change_deprecation_state(
 
         let ident = spk::api::parse_ident(name)?;
         for (repo_name, repo) in repos.iter() {
-            let spec = match repo.read_spec(&ident) {
+            let spec = match repo.read_spec(&ident).await {
                 Ok(s) => s,
                 Err(err) => {
                     tracing::debug!("Unable to read {ident} spec from {repo_name}: {err}");
@@ -175,7 +177,7 @@ pub(crate) fn change_deprecation_state(
                     // builds from this repo
                     print!("{ident} is a package version, adding its builds from {repo_name}... ");
                     let mut count = 0;
-                    let builds = match repo.list_package_builds(&ident) {
+                    let builds = match repo.list_package_builds(&ident).await {
                         Ok(idents) => idents,
                         Err(err) => {
                             tracing::debug!("No {ident} build found in {repo_name}: {err}");
@@ -183,7 +185,7 @@ pub(crate) fn change_deprecation_state(
                         }
                     };
                     for build in builds {
-                        let build_spec = match repo.read_spec(&build) {
+                        let build_spec = match repo.read_spec(&build).await {
                             Ok(b) => b,
                             Err(err) => {
                                 tracing::debug!(
@@ -271,7 +273,7 @@ pub(crate) fn change_deprecation_state(
         );
 
         spec.deprecated = new_status;
-        repo.force_publish_spec(spec)?;
+        repo.force_publish_spec(spec).await?;
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
     }
     Ok(0)

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use clap::Args;
+use futures::TryFutureExt;
 use itertools::Itertools;
 use serde::Serialize;
 
@@ -67,15 +68,19 @@ struct BakeLayer {
 const EMPTY_TAG: &str = "";
 const UNKNOWN_PACKAGE: &str = "";
 
+#[async_trait::async_trait]
 impl Run for Bake {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         // Get the layer data from either the active runtime, or the
         // requests made on the command line
         let layers = if self.requested.is_empty() {
-            self.get_active_runtime_info()?
+            self.get_active_runtime_info().await?
         } else {
-            self.runtime.ensure_active_runtime()?;
-            self.get_new_solve_info()?
+            let (_, layers) = tokio::try_join!(
+                self.runtime.ensure_active_runtime(),
+                self.get_new_solve_info()
+            )?;
+            layers
         };
 
         // Based on the format option, output the bake info.
@@ -161,9 +166,11 @@ impl Bake {
     /// the layers from any packages resolved into the current
     /// environment, and may include other layers added by other
     /// means (the user and spfs.)
-    fn get_active_runtime_info(&self) -> Result<Vec<BakeLayer>> {
-        let runtime = spk::HANDLE.block_on(spfs::active_runtime())?;
-        let solution = spk::current_env()?;
+    async fn get_active_runtime_info(&self) -> Result<Vec<BakeLayer>> {
+        let (runtime, solution) = tokio::try_join!(
+            spfs::active_runtime().map_err(|err| err.into()),
+            spk::current_env()
+        )?;
 
         // These come out of the runtime in the spfs order, no
         // reversing needed.
@@ -223,19 +230,19 @@ impl Bake {
     /// the requests given on the command line. This won't consider
     /// anything in the current environment.
     ///
-    fn get_new_solve_info(&self) -> Result<Vec<BakeLayer>> {
+    async fn get_new_solve_info(&self) -> Result<Vec<BakeLayer>> {
         // Setup a solver for the requests and generate a solution
         // with it.
-        let mut solver = self.solver.get_solver(&self.options)?;
-        let requests = self
-            .requests
-            .parse_requests(&self.requested, &self.options)?;
+        let (mut solver, requests) = tokio::try_join!(
+            self.solver.get_solver(&self.options),
+            self.requests.parse_requests(&self.requested, &self.options)
+        )?;
         for request in requests {
             solver.add_request(request)
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver)?;
+        let solution = formatter.run_and_print_resolve(&solver).await?;
 
         // The solution order is the order things were found during
         // the solve. Need to reverse it to match up with the spfs

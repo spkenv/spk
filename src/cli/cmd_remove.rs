@@ -25,9 +25,10 @@ pub struct Remove {
     packages: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for Remove {
-    fn run(&mut self) -> Result<i32> {
-        let repos = self.repos.get_repos(None)?;
+    async fn run(&mut self) -> Result<i32> {
+        let repos = self.repos.get_repos(None).await?;
         if repos.is_empty() {
             eprintln!(
                 "{}",
@@ -61,7 +62,8 @@ impl Run for Remove {
                 let versions = if name.contains('/') {
                     vec![pkg]
                 } else {
-                    repo.list_package_versions(&pkg.name)?
+                    repo.list_package_versions(&pkg.name)
+                        .await?
                         .into_iter()
                         .map(|v| pkg.with_version(v))
                         .collect()
@@ -69,9 +71,9 @@ impl Run for Remove {
 
                 for version in versions {
                     if version.build.is_some() {
-                        remove_build(repo_name, repo, &version)?;
+                        remove_build(repo_name, repo, &version).await?;
                     } else {
-                        remove_all(repo_name, repo, &version)?;
+                        remove_all(repo_name, repo, &version).await?;
                     }
                 }
             }
@@ -80,45 +82,44 @@ impl Run for Remove {
     }
 }
 
-fn remove_build(
+async fn remove_build(
     repo_name: &str,
     repo: &spk::storage::RepositoryHandle,
     pkg: &spk::api::Ident,
 ) -> Result<()> {
     let repo_name = repo_name.bold();
     let pretty_pkg = spk::io::format_ident(pkg);
-    match repo.remove_spec(pkg) {
-        Ok(()) => {
-            tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
-        }
-        Err(spk::Error::PackageNotFoundError(_)) => {
-            tracing::warn!("spec {pretty_pkg} not found in {repo_name}")
-        }
-        Err(err) => return Err(err.into()),
+    let (spec, package) = tokio::join!(repo.remove_spec(pkg), repo.remove_package(pkg),);
+    if spec.is_ok() {
+        tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
+    } else if let Err(spk::Error::PackageNotFoundError(_)) = spec {
+        tracing::warn!("spec {pretty_pkg} not found in {repo_name}")
     }
-    match repo.remove_package(pkg) {
-        Ok(()) => {
-            tracing::info!("removed build      {pretty_pkg} from {repo_name}")
-        }
-        Err(spk::Error::PackageNotFoundError(_)) => {
-            tracing::warn!("build {pretty_pkg} not found in {repo_name}")
-        }
-        Err(err) => return Err(err.into()),
+    if package.is_ok() {
+        tracing::info!("removed build      {pretty_pkg} from {repo_name}")
+    } else if let Err(spk::Error::PackageNotFoundError(_)) = package {
+        tracing::warn!("build {pretty_pkg} not found in {repo_name}")
+    }
+    if let Err(err) = spec {
+        return Err(err.into());
+    }
+    if let Err(err) = package {
+        return Err(err.into());
     }
     Ok(())
 }
 
-fn remove_all(
+async fn remove_all(
     repo_name: &str,
     repo: &spk::storage::RepositoryHandle,
     pkg: &spk::api::Ident,
 ) -> Result<()> {
     let pretty_pkg = spk::io::format_ident(pkg);
-    for build in repo.list_package_builds(pkg)? {
-        remove_build(repo_name, repo, &build)?
+    for build in repo.list_package_builds(pkg).await? {
+        remove_build(repo_name, repo, &build).await?
     }
     let repo_name = repo_name.bold();
-    match repo.remove_spec(pkg) {
+    match repo.remove_spec(pkg).await {
         Ok(()) => tracing::info!("removed spec       {pretty_pkg} from {repo_name}"),
         Err(spk::Error::PackageNotFoundError(_)) => {
             tracing::warn!("spec {pretty_pkg} not found in {repo_name}")

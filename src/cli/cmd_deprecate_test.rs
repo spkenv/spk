@@ -8,7 +8,8 @@ use super::{change_deprecation_state, ChangeAction};
 use spk::{make_package, make_repo};
 
 #[rstest]
-fn test_deprecate_without_prompt() {
+#[tokio::test]
+async fn test_deprecate_without_prompt() {
     // Set up a repo with three package versions, with one build each,
     // two of which are undeprecated
     let name1 = "my-pkg/1.0.0";
@@ -27,7 +28,7 @@ fn test_deprecate_without_prompt() {
     // with the '--yes' flag to prevent it prompting.
     let packages = vec![name1.to_string(), name2.to_string(), name3.to_string()];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Deprecate, &repos, &packages, yes);
+    let result = change_deprecation_state(ChangeAction::Deprecate, &repos, &packages, yes).await;
 
     match result {
         Ok(r) => assert_eq!(r, 0),
@@ -43,12 +44,12 @@ fn test_deprecate_without_prompt() {
     for name in &[name1, name2, name3] {
         let ident = spk::api::parse_ident(name).unwrap();
         let (_, r) = &repos[0];
-        let spec = r.read_spec(&ident).unwrap();
+        let spec = r.read_spec(&ident).await.unwrap();
         println!("checking: {}", ident);
         assert!(spec.deprecated);
 
-        for b in r.list_package_builds(&ident).unwrap() {
-            let bspec = r.read_spec(&b).unwrap();
+        for b in r.list_package_builds(&ident).await.unwrap() {
+            let bspec = r.read_spec(&b).await.unwrap();
             println!("checking: {}", b);
             assert!(bspec.deprecated);
         }

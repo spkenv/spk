@@ -7,6 +7,7 @@ use std::{collections::HashSet, io::Write};
 use anyhow::{Context, Result};
 use clap::Args;
 use colored::Colorize;
+use futures::TryFutureExt;
 
 use super::{flags, Run};
 
@@ -35,14 +36,14 @@ pub struct Install {
     pub packages: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for Install {
-    fn run(&mut self) -> Result<i32> {
-        let mut solver = self.solver.get_solver(&self.options)?;
-        let requests = self
-            .requests
-            .parse_requests(&self.packages, &self.options)?;
-
-        let env = spk::current_env()?;
+    async fn run(&mut self) -> Result<i32> {
+        let (mut solver, requests, env) = tokio::try_join!(
+            self.solver.get_solver(&self.options),
+            self.requests.parse_requests(&self.packages, &self.options),
+            spk::current_env().map_err(|err| err.into())
+        )?;
 
         for solved in env.items() {
             solver.add_request(solved.request.into());
@@ -52,7 +53,7 @@ impl Run for Install {
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver)?;
+        let solution = formatter.run_and_print_resolve(&solver).await?;
 
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver
@@ -109,8 +110,9 @@ impl Run for Install {
         }
 
         let compiled_solution = spk::build_required_packages(&solution)
+            .await
             .context("Failed to build one or more packages from source")?;
-        spk::setup_current_runtime(&compiled_solution)?;
+        spk::setup_current_runtime(&compiled_solution).await?;
         Ok(0)
     }
 }

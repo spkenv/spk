@@ -36,11 +36,12 @@ impl CollectionError {
 ///
 /// ```no_run
 /// # #[macro_use] extern crate spk;
-/// # fn main() {
+/// # async fn demo() {
 /// spk::build::SourcePackageBuilder::from_spec(spk::spec!({
 ///        "pkg": "my-pkg",
 ///     }))
 ///    .build()
+///    .await
 ///    .unwrap();
 /// # }
 /// ```
@@ -70,19 +71,19 @@ impl SourcePackageBuilder {
     }
 
     /// Build the requested source package.
-    pub fn build(&mut self) -> Result<api::Ident> {
-        let layer = crate::HANDLE.block_on(self.collect_and_commit_sources())?;
+    pub async fn build(&mut self) -> Result<api::Ident> {
+        let layer = self.collect_and_commit_sources().await?;
         let repo = match &mut self.repo {
             Some(r) => r,
             None => {
-                let repo = crate::HANDLE.block_on(storage::local_repository())?;
+                let repo = storage::local_repository().await?;
                 self.repo.insert(Arc::new(repo.into()))
             }
         };
         let pkg = self.spec.pkg.clone();
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
-        repo.publish_package(self.spec.clone(), components)?;
+        repo.publish_package(self.spec.clone(), components).await?;
         Ok(pkg)
     }
 

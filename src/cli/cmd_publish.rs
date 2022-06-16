@@ -40,14 +40,13 @@ pub struct Publish {
     pub packages: Vec<spk::api::Ident>,
 }
 
+#[async_trait::async_trait]
 impl Run for Publish {
-    fn run(&mut self) -> Result<i32> {
-        let (source, target) = spk::HANDLE.block_on(async {
-            tokio::try_join!(
-                spk::storage::local_repository(),
-                spk::storage::remote_repository(&self.target_repo)
-            )
-        })?;
+    async fn run(&mut self) -> Result<i32> {
+        let (source, target) = tokio::try_join!(
+            spk::storage::local_repository(),
+            spk::storage::remote_repository(&self.target_repo)
+        )?;
 
         let publisher = spk::Publisher::new(Arc::new(source.into()), Arc::new(target.into()))
             .skip_source_packages(self.no_source)
@@ -55,7 +54,7 @@ impl Run for Publish {
 
         let mut published = Vec::new();
         for pkg in self.packages.iter() {
-            published.extend(publisher.publish(pkg)?);
+            published.extend(publisher.publish(pkg).await?);
         }
 
         if published.is_empty() {
