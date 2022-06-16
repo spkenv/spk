@@ -10,5 +10,5 @@ mod validation;
 
 pub use errors::{Error, OutOfOptions};
 pub use graph::Graph;
-pub use solution::{PackageSource, Solution};
+pub use solution::{PackageSource, Solution, SolvedRequest};
 pub use solver::{Solver, SolverRuntime};

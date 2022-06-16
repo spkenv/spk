@@ -29,6 +29,9 @@ pub enum Error {
     Collection(build::CollectionError),
     Build(build::BuildError),
 
+    // Bake Errors
+    SkipEmbedded,
+
     // Test Errors
     Test(test::TestError),
 
