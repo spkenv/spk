@@ -34,7 +34,7 @@ fn test_range_ident_restrict_components() {
     let mut first = parse_ident_range("python:lib").unwrap();
     let second = parse_ident_range("python:bin").unwrap();
     let expected = parse_ident_range("python:{bin,lib}").unwrap();
-    first.restrict(&second).unwrap();
+    first.restrict(&second, false).unwrap();
     assert_eq!(first.components, expected.components);
 }
 
@@ -62,6 +62,77 @@ fn test_inclusion_policy() {
     match a.inclusion_policy {
         InclusionPolicy::Always => (),
         _ => panic!("expected restricted inclusion policy"),
+    }
+}
+
+#[rstest]
+// Compatible inclusion policies are expected to merge,
+// case 1
+#[case(
+    "{pkg: something/>1.0, include: IfAlreadyPresent}",
+    "{pkg: something/>2.0, include: IfAlreadyPresent}",
+    InclusionPolicy::IfAlreadyPresent,
+    Some(">2.0")
+)]
+// case 2
+#[case(
+    "{pkg: something/>1.0, include: Always}",
+    "{pkg: something/>2.0, include: Always}",
+    InclusionPolicy::Always,
+    Some(">2.0")
+)]
+// case 3 (mixed)
+#[case(
+    "{pkg: something/>1.0, include: IfAlreadyPresent}",
+    "{pkg: something/>2.0, include: Always}",
+    InclusionPolicy::Always,
+    Some(">2.0")
+)]
+// case 4 (alt. mixed)
+#[case(
+    "{pkg: something/>1.0, include: Always}",
+    "{pkg: something/>2.0, include: IfAlreadyPresent}",
+    InclusionPolicy::Always,
+    Some(">2.0")
+)]
+// Two otherwise incompatible requests but are `IfAlreadyPresent`
+#[case(
+    "{pkg: something/=1.0, include: IfAlreadyPresent}",
+    "{pkg: something/=2.0, include: IfAlreadyPresent}",
+    InclusionPolicy::IfAlreadyPresent,
+    // The requests are merged. This will become an impossible
+    // request to satisfy iff a firm request for the package is
+    // introduced.
+    Some("=1.0,=2.0")
+)]
+// Incompatible requests when something is `Always` is a restrict
+// failure.
+#[case(
+    "{pkg: something/=1.0, include: IfAlreadyPresent}",
+    "{pkg: something/=2.0, include: Always}",
+    InclusionPolicy::Always,
+    None
+)]
+fn test_inclusion_policy_and_merge(
+    #[case] a: &str,
+    #[case] b: &str,
+    #[case] expected_policy: InclusionPolicy,
+    #[case] expected_merged_range: Option<&str>,
+) {
+    let mut a: PkgRequest = serde_yaml::from_str(a).unwrap();
+    let b: PkgRequest = serde_yaml::from_str(b).unwrap();
+
+    let r = a.restrict(&b);
+    match expected_merged_range {
+        Some(expected_merged_range) => {
+            assert!(r.is_ok());
+            assert_eq!(a.inclusion_policy, expected_policy);
+            assert_eq!(a.pkg.version.to_string().as_str(), expected_merged_range);
+        }
+        None => {
+            assert_eq!(a.inclusion_policy, expected_policy);
+            assert!(r.is_err());
+        }
     }
 }
 

@@ -1009,9 +1009,22 @@ impl VersionFilter {
     ///
     /// This version range will become restricted to the intersection
     /// of the current version range and the other.
-    pub fn restrict(&mut self, other: impl Ranged) -> Result<()> {
+    ///
+    /// If `allow_non_intersecting_versions` is true, two version
+    /// ranges that are disjointed will be allowed. Their rules
+    /// will be combined with no attempt to simplify them.
+    pub fn restrict(
+        &mut self,
+        other: impl Ranged,
+        allow_non_intersecting_versions: bool,
+    ) -> Result<()> {
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
+            if allow_non_intersecting_versions {
+                self.rules.extend(other.rules());
+                return Ok(());
+            }
+
             return Err(Error::String(msg));
         }
 
