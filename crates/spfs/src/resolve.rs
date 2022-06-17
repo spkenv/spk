@@ -255,9 +255,9 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
-#[async_recursion::async_recursion(?Send)]
-pub async fn resolve_stack_to_layers<D: AsRef<encoding::Digest>>(
-    stack: impl Iterator<Item = D> + 'async_recursion,
+#[async_recursion::async_recursion]
+pub async fn resolve_stack_to_layers<D: AsRef<encoding::Digest> + Send>(
+    stack: impl Iterator<Item = D> + Send + 'async_recursion,
     mut repo: Option<&'async_recursion storage::RepositoryHandle>,
 ) -> Result<Vec<graph::Layer>> {
     let owned_handle;
