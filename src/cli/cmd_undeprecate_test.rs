@@ -2,23 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::str::FromStr;
-
-use itertools::Itertools;
 use rstest::rstest;
 
-//use spk::option_map;
-//use spk::spec;
-use spk::{api::PkgName, make_package, make_repo};
-//use spk::make_repo;
-
 use super::{change_deprecation_state, ChangeAction};
+use spk::{make_package, make_repo};
 
 #[rstest]
 fn test_undeprecate_without_prompt() {
     // Set up a repo with three package versions, with one build each,
     // two of which are deprecated
-    let pkg_name = "my-pkg";
     let name1 = "my-pkg/1.0.0";
     let name2 = "my-pkg/1.0.1";
     let name3 = "my-pkg/1.0.2";
@@ -29,25 +21,7 @@ fn test_undeprecate_without_prompt() {
         {"pkg": name3, "deprecated": true}
     ]);
 
-    let package_name = PkgName::from_str(pkg_name).unwrap();
     let repos = vec![("test".to_string(), repo)];
-
-    // Debugging to check what's in the repo after the setup
-    for (n, r) in &repos {
-        let ps = r.list_packages().unwrap();
-        println!(
-            "{n} has pkgs: {}",
-            ps.iter().map(ToString::to_string).join(", ")
-        );
-        let v = r.list_package_versions(&package_name).unwrap();
-        println!(
-            "repos has: {}",
-            v.iter()
-                .map(|ver| format!("{}", ver))
-                .collect::<Vec<String>>()
-                .join(", ")
-        );
-    }
 
     // Test undeprecating all the package versions and their builds
     // with the '--yes' flag to prevent it prompting.
@@ -58,10 +32,7 @@ fn test_undeprecate_without_prompt() {
     match result {
         Ok(r) => assert_eq!(r, 0),
         Err(e) => {
-            // This should not happen. But it does and it produces this error:
-            //
-            //   "Spec must be published with no build, got my-pkg/1.0.0/3I42H3S6"
-            //
+            // This should not happen
             println!("{}", e);
             std::panic::panic_any(e);
         }
@@ -81,5 +52,115 @@ fn test_undeprecate_without_prompt() {
             println!("checking: {}", b);
             assert!(!bspec.deprecated);
         }
+    }
+}
+
+#[rstest]
+fn test_undeprecate_no_repos() {
+    let name = "my-pkg/1.0.0";
+    let repos = Vec::new();
+
+    // Test undeprecating the package when there's no repos specified
+    // at all. No packages should be found, this should a result of 1.
+    let packages = vec![name.to_string()];
+    let yes = true;
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+
+    match result {
+        Ok(r) => assert_eq!(r, 1),
+        Err(e) => {
+            // This should not happen
+            println!("{}", e);
+            std::panic::panic_any(e);
+        }
+    }
+}
+
+#[rstest]
+fn test_undeprecate_no_version() {
+    // Set up a repo with one package that is already deprecated
+    let name = "my-pkg";
+    let repo = make_repo!([
+        {"pkg": format!("{}/1.0.0", name), "deprecated": true}
+    ]);
+    let repos = vec![("test".to_string(), repo)];
+
+    // Test undeprecating the package without specifying a version.
+    // This should return a result of 2.
+    let packages = vec![name.to_string()];
+    let yes = true;
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+
+    match result {
+        Ok(r) => assert_eq!(r, 2),
+        Err(e) => {
+            // This should not happen
+            println!("{}", e);
+            std::panic::panic_any(e);
+        }
+    }
+}
+
+#[rstest]
+fn test_undeprecate_no_version_but_trailing_slash() {
+    // Set up a repo with one package that is already deprecated
+    let name = "my-pkg";
+    let repo = make_repo!([
+        {"pkg": format!("{}/1.0.0", name), "deprecated": true}
+    ]);
+    let repos = vec![("test".to_string(), repo)];
+
+    // Test undeprecating the package without specifying a version but
+    // putting in a trailing slash. This should return a result of 3.
+    let packages = vec![format!("{}/", name)];
+    let yes = true;
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+
+    match result {
+        Ok(r) => assert_eq!(r, 3),
+        Err(e) => {
+            // This should not happen
+            println!("{}", e);
+            std::panic::panic_any(e);
+        }
+    }
+}
+
+#[rstest]
+fn test_undeprecate_with_no_package_found() {
+    // Set up a repo with two packages, both already deprecated
+    let name1 = "my-pkg/1.0.0";
+    let name2 = "my-pkg/1.0.1";
+    let repo = make_repo!([
+        {"pkg": "my-pkg/1.0.0", "deprecated": true},
+        {"pkg": "my-pkg/1.0.1", "deprecated": true},
+    ]);
+    let repos = vec![("test".to_string(), repo)];
+
+    // Test undeprecating a package, when there is no such package in
+    // the repos. This should return a result of 4.
+    let missing_pkg = "nosuchpackage/1.0.0";
+
+    let packages = vec![missing_pkg.to_string()];
+    let yes = true;
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+
+    match result {
+        Ok(r) => assert_eq!(r, 4),
+        Err(e) => {
+            // This should not happen
+            println!("{}", e);
+            std::panic::panic_any(e);
+        }
+    }
+
+    // This test succeeds if it reaches this point. The packages should
+    // still be deprecated because the command should have exited
+    // before it made any changes to them.
+    for name in &[name1, name2] {
+        let ident = spk::api::parse_ident(name).unwrap();
+        let repo = &repos[0].1;
+        let spec = repo.read_spec(&ident).unwrap();
+        assert!(spec.deprecated);
     }
 }

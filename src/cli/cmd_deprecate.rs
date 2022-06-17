@@ -10,6 +10,10 @@ use spk::io;
 
 use super::{flags, Run};
 
+#[cfg(test)]
+#[path = "./cmd_deprecate_test.rs"]
+mod cmd_deprecate_test;
+
 /// Deprecate or undeprecate actions
 #[derive(PartialEq, Eq)]
 pub(crate) enum ChangeAction {
@@ -138,11 +142,11 @@ pub(crate) fn change_deprecation_state(
             tracing::error!(
                 " > use 'spk ls {name}' or 'spk ls {name} -r <REPO_NAME>' to view available versions"
             );
-            return Ok(1);
+            return Ok(2);
         }
         if name.ends_with('/') {
             tracing::error!("A trailing '/' isn't a valid version number or build digest in '{name}'. Please remove the trailing '/', or specify a version number or build digest after it.");
-            return Ok(2);
+            return Ok(3);
         }
 
         let ident = spk::api::parse_ident(name)?;
@@ -197,7 +201,7 @@ pub(crate) fn change_deprecation_state(
     // Tell the user when there are no packages to action
     if to_action.is_empty() {
         println!("No packages found to {}. Nothing to do.", action.as_str());
-        return Ok(3);
+        return Ok(4);
     }
 
     // Summarise what is about to be actioned. Note, this does not
@@ -235,7 +239,7 @@ pub(crate) fn change_deprecation_state(
                     "{} canceled. Things will remain as they were.",
                     action.as_first_letter_uppercase()
                 );
-                return Ok(4);
+                return Ok(5);
             }
         }
     }
