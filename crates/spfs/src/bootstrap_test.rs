@@ -69,6 +69,21 @@ async fn test_shell_initialization_startup_scripts(
     std::fs::write(tmp_startup_dir.join(startup_script), startup_cmd).unwrap();
 
     std::env::set_var("SHELL", &shell_path);
+
+    match crate::bootstrap::find_best_shell().unwrap() {
+        crate::bootstrap::Shell::Bash(_) if shell == "tcsh" => {
+            // Test will fail because we weren't able to
+            // find the shell we are trying to test
+            return;
+        }
+        crate::bootstrap::Shell::Tcsh { .. } if shell == "bash" => {
+            // Test will fail because we weren't able to
+            // find the shell we are trying to test
+            return;
+        }
+        _ => {}
+    }
+
     let cmd = build_shell_initialized_command(&rt, "printenv", vec!["TEST_VALUE"]).unwrap();
     let mut cmd = cmd.into_std();
     setenv(&mut cmd);
