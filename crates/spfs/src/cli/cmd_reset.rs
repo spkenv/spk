@@ -32,8 +32,11 @@ pub struct CmdReset {
 
 impl CmdReset {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let mut runtime = spfs::active_runtime().await?;
-        let repo = config.get_local_repository_handle().await?;
+        #[rustfmt::skip]
+        let (mut runtime, repo) = tokio::try_join!(
+            spfs::active_runtime(),
+            config.get_local_repository_handle()
+        )?;
         if let Some(reference) = &self.reference {
             runtime.reset::<&str>(&[])?;
             runtime.status.stack.truncate(0);

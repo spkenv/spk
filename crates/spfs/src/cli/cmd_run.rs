@@ -45,8 +45,10 @@ pub struct CmdRun {
 
 impl CmdRun {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let repo = config.get_local_repository_handle().await?;
-        let runtimes = config.get_runtime_storage().await?;
+        let (repo, runtimes) = tokio::try_join!(
+            config.get_local_repository_handle(),
+            config.get_runtime_storage()
+        )?;
         let mut runtime = match &self.name {
             Some(name) => runtimes.create_named_runtime(name).await?,
             None => runtimes.create_runtime().await?,

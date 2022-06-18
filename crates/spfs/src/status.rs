@@ -46,9 +46,10 @@ pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
 /// The returned manifest DOES NOT include any active changes to the runtime.
 pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
     let config = get_config()?;
-    let repo = config.get_local_repository().await?;
-
-    let layers = resolve_stack_to_layers(rt.status.stack.iter(), None).await?;
+    let (repo, layers) = tokio::try_join!(
+        config.get_local_repository(),
+        resolve_stack_to_layers(rt.status.stack.iter(), None)
+    )?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers.iter().rev() {
         manifest.update(&repo.read_manifest(layer.manifest).await?.unlock())
@@ -75,9 +76,11 @@ pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     let overlay_mount_options = env::OverlayMountOptions {
         read_only: !rt.status.editable,
     };
-    let dirs = resolve_and_render_overlay_dirs(rt, &overlay_mount_options).await?;
     tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(rt).await?;
+    let (dirs, manifest) = tokio::try_join!(
+        resolve_and_render_overlay_dirs(rt, &overlay_mount_options),
+        compute_runtime_manifest(rt)
+    )?;
 
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
@@ -94,9 +97,11 @@ pub async fn initialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     let overlay_mount_options = env::OverlayMountOptions {
         read_only: !rt.status.editable,
     };
-    let dirs = resolve_and_render_overlay_dirs(rt, &overlay_mount_options).await?;
     tracing::debug!("computing runtime manifest");
-    let manifest = compute_runtime_manifest(rt).await?;
+    let (dirs, manifest) = tokio::try_join!(
+        resolve_and_render_overlay_dirs(rt, &overlay_mount_options),
+        compute_runtime_manifest(rt)
+    )?;
     env::enter_mount_namespace()?;
     let original = env::become_root()?;
     env::privatize_existing_mounts()?;
