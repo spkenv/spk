@@ -376,7 +376,7 @@ where
     }
 
     fn check_if_taking_too_long(&mut self) -> Result<()> {
-        if self.start.elapsed() > self.settings.too_long {
+        if !self.settings.too_long.is_zero() && self.start.elapsed() > self.settings.too_long {
             self.too_long_counter += 1;
 
             // Check how many times this has increased the verbosity.
