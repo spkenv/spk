@@ -9,6 +9,19 @@ use crate::{api, Result};
 #[path = "./repository_test.rs"]
 mod repository_test;
 
+#[derive(Clone, Copy, Debug)]
+pub enum CachePolicy {
+    CacheOk,
+    BypassCache,
+}
+
+impl CachePolicy {
+    /// Return true if the policy allows for a cached result.
+    pub fn cached_result_permitted(&self) -> bool {
+        matches!(self, CachePolicy::CacheOk)
+    }
+}
+
 pub trait Repository {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
@@ -16,26 +29,93 @@ pub trait Repository {
     fn address(&self) -> url::Url;
 
     /// Return the set of known packages in this repo.
-    fn list_packages(&self) -> Result<Vec<api::PkgName>>;
+    ///
+    /// The return value may come from a cache. See
+    /// [`Repository::list_packages_cp`] for control over caching.
+    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+        self.list_packages_cp(CachePolicy::CacheOk)
+    }
+
+    /// Return the set of known packages in this repo.
+    fn list_packages_cp(&self, cache_policy: CachePolicy) -> Result<Vec<api::PkgName>>;
 
     /// Return the set of versions available for the named package.
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>>;
+    ///
+    /// The return value may come from a cache. See
+    /// [`Repository::list_package_versions_cp`] for control over caching.
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
+        self.list_package_versions_cp(CachePolicy::CacheOk, name)
+    }
+
+    /// Return the set of versions available for the named package.
+    fn list_package_versions_cp(
+        &self,
+        cache_policy: CachePolicy,
+        name: &api::PkgName,
+    ) -> Result<Vec<api::Version>>;
 
     /// Return the set of builds for the given package name and version.
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
+    ///
+    /// The return value may come from a cache. See
+    /// [`Repository::list_package_builds_cp`] for control over caching.
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+        self.list_package_builds_cp(CachePolicy::CacheOk, pkg)
+    }
+
+    /// Return the set of builds for the given package name and version.
+    fn list_package_builds_cp(
+        &self,
+        cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Ident>>;
 
     /// Returns the set of components published for a package build
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
+    ///
+    /// The return value may come from a cache. See
+    /// [`Repository::list_build_components_cp`] for control over caching.
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+        self.list_build_components_cp(CachePolicy::CacheOk, pkg)
+    }
+
+    /// Returns the set of components published for a package build
+    fn list_build_components_cp(
+        &self,
+        cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Component>>;
 
     /// Read a package spec file for the given package, version and optional build.
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, version, or build does not exist
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec>;
+    ///
+    /// The return value may come from a cache. See
+    /// [`Repository::read_spec_cp`] for control over caching.
+    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+        self.read_spec_cp(CachePolicy::CacheOk, pkg)
+    }
+
+    /// Read a package spec file for the given package, version and optional build.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, version, or build does not exist
+    fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec>;
 
     /// Identify the payloads for the identified package's components.
+    ///
+    /// The return value may come from a cache. See
+    /// [`Repository::get_package_cp`] for control over caching.
     fn get_package(
         &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        self.get_package_cp(CachePolicy::CacheOk, pkg)
+    }
+
+    /// Identify the payloads for the identified package's components.
+    fn get_package_cp(
+        &self,
+        cache_policy: CachePolicy,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
 

@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use crate::{api, fixtures::*, Error};
+use crate::{api, fixtures::*, storage::CachePolicy, Error};
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
@@ -140,5 +140,8 @@ fn test_repo_remove_package(#[case] repo: RepoKind) {
     );
     assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
     repo.remove_package(&spec.pkg).unwrap();
-    assert!(repo.list_package_builds(&spec.pkg).unwrap().is_empty());
+    assert!(repo
+        .list_package_builds_cp(CachePolicy::BypassCache, &spec.pkg)
+        .unwrap()
+        .is_empty());
 }
