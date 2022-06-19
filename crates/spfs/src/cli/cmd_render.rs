@@ -33,8 +33,10 @@ pub struct CmdRender {
 impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
-        let repo = config.get_local_repository_handle().await?;
-        let origin = config.get_remote("origin").await?;
+        let (repo, origin) = tokio::try_join!(
+            config.get_local_repository_handle(),
+            config.get_remote("origin")
+        )?;
 
         let synced = self
             .sync
