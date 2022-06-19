@@ -627,7 +627,7 @@ impl RequestPackage {
         // list now. If this package needs resolving, this new request
         // will be added to the merged request when this package is
         // next selected by the solver.
-        new_requests.push(self.request.clone());
+        new_requests.push(Arc::new(self.request.clone()));
         Arc::new(base.with_pkg_requests(new_requests))
     }
 }
@@ -792,7 +792,7 @@ impl StateId {
         hasher.finish()
     }
 
-    fn pkg_requests_hash(pkg_requests: &[api::PkgRequest]) -> u64 {
+    fn pkg_requests_hash(pkg_requests: &Vec<Arc<api::PkgRequest>>) -> u64 {
         let mut hasher = DefaultHasher::new();
         pkg_requests.hash(&mut hasher);
         hasher.finish()
@@ -821,7 +821,7 @@ impl StateId {
         )
     }
 
-    fn with_pkg_requests(&self, pkg_requests: &[api::PkgRequest]) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<api::PkgRequest>>) -> Self {
         Self::new(
             StateId::pkg_requests_hash(pkg_requests),
             self.var_requests_hash,
@@ -856,7 +856,7 @@ impl StateId {
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pub pkg_requests: Arc<Vec<api::PkgRequest>>,
+    pkg_requests: Arc<Vec<Arc<api::PkgRequest>>>,
     var_requests: Arc<Vec<api::VarRequest>>,
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
     options: Arc<Vec<(String, String)>>,
@@ -865,7 +865,7 @@ pub struct State {
 
 impl State {
     pub fn new(
-        pkg_requests: Vec<api::PkgRequest>,
+        pkg_requests: Vec<Arc<api::PkgRequest>>,
         var_requests: Vec<api::VarRequest>,
         packages: Vec<(Arc<api::Spec>, PackageSource)>,
         options: Vec<(String, String)>,
@@ -937,7 +937,7 @@ impl State {
                     if request.pkg.name != *name {
                         continue;
                     }
-                    merged = Some(request.clone());
+                    merged = Some((**request).clone());
                 }
                 Some(merged) => {
                     if request.pkg.name != merged.pkg.name {
@@ -992,7 +992,7 @@ impl State {
         Ok(None)
     }
 
-    pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
+    pub fn get_pkg_requests(&self) -> &Vec<Arc<api::PkgRequest>> {
         &self.pkg_requests
     }
 
@@ -1029,7 +1029,7 @@ impl State {
         }
     }
 
-    fn with_pkg_requests(&self, pkg_requests: Vec<api::PkgRequest>) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<api::PkgRequest>>) -> Self {
         let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
             pkg_requests: Arc::new(pkg_requests),
