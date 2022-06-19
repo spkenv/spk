@@ -6,7 +6,7 @@ use std::{collections::HashMap, convert::TryFrom};
 use spfs::prelude::*;
 use tokio::runtime::Handle;
 
-use super::Repository;
+use super::{CachePolicy, Repository};
 use crate::{api, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -49,7 +49,7 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+    fn list_packages_cp(&self, _cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
@@ -63,7 +63,11 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
+    fn list_package_versions_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        name: &api::PkgName,
+    ) -> Result<Vec<api::Version>> {
         Ok(get_all_filenames(self.root.join(name))?
             .into_iter()
             .filter_map(|entry| {
@@ -87,7 +91,11 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Ident>> {
         let mut base = self.root.join(pkg.name.as_str());
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
@@ -115,7 +123,11 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+    fn list_build_components_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Component>> {
         if pkg.build.is_none() {
             return Ok(Vec::new());
         }
@@ -127,7 +139,7 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
@@ -143,8 +155,9 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn get_package(
+    fn get_package_cp(
         &self,
+        _cache_policy: CachePolicy,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
         let handle = Handle::current();

@@ -10,7 +10,8 @@ use std::{
 use super::solution::PackageSource;
 use crate::{
     api::{self, Build},
-    storage, Error, Result,
+    storage::{self},
+    Error, Result,
 };
 
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
