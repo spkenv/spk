@@ -1500,8 +1500,9 @@ fn test_request_default_component() {
     solver.add_request(request!("python/3.7.3"));
     let state = solver.get_initial_state();
     let request = state
-        .pkg_requests
-        .get(0)
+        .get_pkg_requests()
+        .iter()
+        .next()
         .expect("solver should have a request");
     assert_eq!(
         request.pkg.components,
