@@ -57,8 +57,7 @@ impl Run for Install {
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver
             .get_initial_state()
-            .pkg_requests
-            .iter()
+            .pkg_requests_iter()
             .map(|r| r.pkg.name.clone())
             .collect();
         let mut primary = Vec::new();

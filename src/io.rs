@@ -451,8 +451,7 @@ where
                     "{} {}",
                     "State Requests:".yellow(),
                     node.state
-                        .get_pkg_requests()
-                        .iter()
+                        .pkg_requests_iter()
                         .map(|r| format_request(
                             &r.pkg.name,
                             [r],

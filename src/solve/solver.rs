@@ -158,7 +158,7 @@ impl Solver {
 
     fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
         let mut opts = state.get_option_map();
-        for pkg_request in state.get_pkg_requests() {
+        for pkg_request in state.pkg_requests_iter() {
             if !opts.contains_key(pkg_request.pkg.name.as_str()) {
                 opts.insert(
                     pkg_request.pkg.name.to_string(),
@@ -525,8 +525,9 @@ impl SolverRuntime {
         let is_empty = self
             .solver
             .get_initial_state()
-            .get_pkg_requests()
-            .is_empty();
+            .pkg_requests_iter()
+            .next()
+            .is_none();
         if is_dead && !is_empty {
             Err(super::Error::FailedToResolve((*self.graph).read().unwrap().clone()).into())
         } else {

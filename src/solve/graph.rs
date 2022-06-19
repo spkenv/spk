@@ -566,11 +566,7 @@ impl RequestPackage {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
-        // XXX: An immutable data structure for pkg_requests would
-        // allow for sharing.
-        let mut new_requests = (*base.pkg_requests).clone();
-        new_requests.push(self.request.clone());
-        Arc::new(base.with_pkg_requests(new_requests))
+        Arc::new(base.append_pkg_request(self.request.clone()))
     }
 }
 
@@ -734,9 +730,13 @@ impl StateId {
         hasher.finish()
     }
 
-    fn pkg_requests_hash(pkg_requests: &[api::PkgRequest]) -> u64 {
+    fn pkg_requests_hash(previous_hash: u64, new_pkg_request: &api::PkgRequest) -> u64 {
         let mut hasher = DefaultHasher::new();
-        pkg_requests.hash(&mut hasher);
+        // The new request is appended to the existing requests;
+        // our new hash will be a hash of the old hash plus the
+        // new items.
+        previous_hash.hash(&mut hasher);
+        new_pkg_request.hash(&mut hasher);
         hasher.finish()
     }
 
@@ -763,9 +763,9 @@ impl StateId {
         )
     }
 
-    fn with_pkg_requests(&self, pkg_requests: &[api::PkgRequest]) -> Self {
+    fn append_pkg_request(&self, pkg_request: &api::PkgRequest) -> Self {
         Self::new(
-            StateId::pkg_requests_hash(pkg_requests),
+            StateId::pkg_requests_hash(self.pkg_requests_hash, pkg_request),
             self.var_requests_hash,
             self.packages_hash,
             self.options_hash,
@@ -795,10 +795,84 @@ impl StateId {
     }
 }
 
+/// A linked-list like structure that represents a vertex in a DAG. Iterator
+/// this structure returns all the elements on the path from the root to this
+/// vertex.
+#[derive(Debug)]
+pub enum PkgRequestChain {
+    Nil,
+    List {
+        head: api::PkgRequest,
+        tail: Arc<PkgRequestChain>,
+        size: usize,
+    },
+}
+
+impl PkgRequestChain {
+    fn new() -> Self {
+        PkgRequestChain::Nil
+    }
+
+    fn iter<'a>(&'a self) -> PkgRequestChainIter {
+        // Have to materialize a vector in order to iterate in FIFO order.
+        // TODO: If requests are appended to the state in reverse order,
+        // then this wouldn't be necessary.
+        let mut chain = self;
+        let mut vec: Vec<&'a api::PkgRequest> = Vec::with_capacity(match chain {
+            PkgRequestChain::Nil => 0,
+            PkgRequestChain::List { size, .. } => *size,
+        });
+        while let PkgRequestChain::List { head, tail, .. } = &chain {
+            vec.push(head);
+            chain = tail;
+        }
+        PkgRequestChainIter::new(vec)
+    }
+}
+
+impl std::ops::Add<api::PkgRequest> for Arc<PkgRequestChain> {
+    type Output = PkgRequestChain;
+
+    fn add(self, rhs: api::PkgRequest) -> Self::Output {
+        match *self {
+            PkgRequestChain::Nil => PkgRequestChain::List {
+                head: rhs,
+                tail: Arc::new(PkgRequestChain::Nil),
+                size: 1,
+            },
+            PkgRequestChain::List { size, .. } => PkgRequestChain::List {
+                head: rhs,
+                tail: self,
+                size: size + 1,
+            },
+        }
+    }
+}
+
+pub struct PkgRequestChainIter<'a> {
+    iter: std::iter::Rev<std::vec::IntoIter<&'a api::PkgRequest>>,
+}
+
+impl<'a> PkgRequestChainIter<'a> {
+    fn new(vec: Vec<&'a api::PkgRequest>) -> Self {
+        Self {
+            iter: vec.into_iter().rev(),
+        }
+    }
+}
+
+impl<'a> Iterator for PkgRequestChainIter<'a> {
+    type Item = &'a api::PkgRequest;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pub pkg_requests: Arc<Vec<api::PkgRequest>>,
+    pkg_requests: Arc<PkgRequestChain>,
     var_requests: Arc<Vec<api::VarRequest>>,
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
     options: Arc<Vec<(String, String)>>,
@@ -817,18 +891,22 @@ impl State {
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
         let state_id = StateId::new(
-            StateId::pkg_requests_hash(&pkg_requests),
+            0,
             StateId::var_requests_hash(&var_requests),
             StateId::packages_hash(&packages),
             StateId::options_hash(&options),
         );
-        State {
-            pkg_requests: Arc::new(pkg_requests),
+        let mut s = State {
+            pkg_requests: Arc::new(PkgRequestChain::new()),
             var_requests: Arc::new(var_requests),
             packages: Arc::new(packages),
             options: Arc::new(options),
             state_id,
+        };
+        for pkg_request in pkg_requests.into_iter() {
+            s = s.append_pkg_request(pkg_request)
         }
+        s
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
@@ -873,7 +951,7 @@ impl State {
     ) -> errors::GetMergedRequestResult<api::PkgRequest> {
         // tests reveal this method is not safe to cache.
         let mut merged: Option<api::PkgRequest> = None;
-        for request in self.pkg_requests.iter() {
+        for request in self.pkg_requests_iter() {
             match merged.as_mut() {
                 None => {
                     if request.pkg.name != *name {
@@ -913,7 +991,7 @@ impl State {
         // TODO: consider changing the request list to only contain
         // requests that have not been satisfied, or only merged
         // requests, or both.
-        for request in self.pkg_requests.iter() {
+        for request in self.pkg_requests_iter() {
             if resolved_packages.contains(&request.pkg.name) {
                 continue;
             }
@@ -934,16 +1012,16 @@ impl State {
         Ok(None)
     }
 
-    pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
-        &self.pkg_requests
-    }
-
     pub fn get_var_requests(&self) -> &Vec<api::VarRequest> {
         &self.var_requests
     }
 
     pub fn get_resolved_packages(&self) -> &Vec<(Arc<api::Spec>, PackageSource)> {
         &self.packages
+    }
+
+    pub fn pkg_requests_iter(&self) -> PkgRequestChainIter {
+        self.pkg_requests.iter()
     }
 
     fn with_options(&self, options: Vec<(String, String)>) -> Self {
@@ -971,10 +1049,12 @@ impl State {
         }
     }
 
-    fn with_pkg_requests(&self, pkg_requests: Vec<api::PkgRequest>) -> Self {
-        let state_id = self.state_id.with_pkg_requests(&pkg_requests);
+    /// Produce a new state from this state's package requests and `pkg_request`
+    /// appended.
+    fn append_pkg_request(&self, pkg_request: api::PkgRequest) -> Self {
+        let state_id = self.state_id.append_pkg_request(&pkg_request);
         Self {
-            pkg_requests: Arc::new(pkg_requests),
+            pkg_requests: Arc::new(Arc::clone(&self.pkg_requests) + pkg_request),
             var_requests: Arc::clone(&self.var_requests),
             packages: Arc::clone(&self.packages),
             options: Arc::clone(&self.options),
