@@ -724,7 +724,7 @@ impl SetPackage {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
+        Arc::new(base.append_package(self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -744,7 +744,7 @@ impl SetPackageBuild {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
+        Arc::new(base.append_package(self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -798,11 +798,13 @@ impl StateId {
         hasher.finish()
     }
 
-    fn packages_hash(packages: &[(Arc<api::Spec>, PackageSource)]) -> u64 {
+    fn packages_hash(previous_hash: u64, package: &api::Spec) -> u64 {
         let mut hasher = DefaultHasher::new();
-        for (p, _) in packages.iter() {
-            p.hash(&mut hasher)
-        }
+        // The new package is appended to the existing packages;
+        // our new hash will be a hash of the old hash plus the
+        // new items.
+        previous_hash.hash(&mut hasher);
+        package.hash(&mut hasher);
         hasher.finish()
     }
 
@@ -830,11 +832,11 @@ impl StateId {
         )
     }
 
-    fn with_packages(&self, packages: &[(Arc<api::Spec>, PackageSource)]) -> Self {
+    fn append_package(&self, package: &Arc<api::Spec>) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
-            StateId::packages_hash(packages),
+            StateId::packages_hash(self.packages_hash, package),
             self.options_hash,
         )
     }
@@ -877,16 +879,20 @@ impl State {
         let state_id = StateId::new(
             StateId::pkg_requests_hash(&pkg_requests),
             StateId::var_requests_hash(&var_requests),
-            StateId::packages_hash(&packages),
+            0,
             StateId::options_hash(&options),
         );
-        State {
+        let mut s = State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::new(var_requests),
-            packages: Arc::new(packages),
+            packages: Arc::new(Vec::new()),
             options: Arc::new(options),
             state_id,
+        };
+        for (package, source) in packages.into_iter() {
+            s = s.append_package(package, source)
         }
+        s
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
@@ -1015,11 +1021,11 @@ impl State {
         }
     }
 
-    fn with_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
+    fn append_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
+        let state_id = self.state_id.append_package(&spec);
         let mut packages = Vec::with_capacity(self.packages.len() + 1);
         packages.extend(self.packages.iter().cloned());
         packages.push((spec, source));
-        let state_id = self.state_id.with_packages(&packages);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests: Arc::clone(&self.var_requests),
