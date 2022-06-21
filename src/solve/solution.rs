@@ -27,9 +27,9 @@ pub enum PackageSource {
 }
 
 impl PackageSource {
-    pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
+    pub fn read_spec(&self, ident: &Ident) -> Result<Arc<api::Spec>> {
         match self {
-            PackageSource::Spec(s) => Ok((**s).clone()),
+            PackageSource::Spec(s) => Ok(Arc::clone(s)),
             PackageSource::Repository { repo, .. } => repo.read_spec(ident),
         }
     }

@@ -256,7 +256,7 @@ impl Solver {
                     }
 
                     match repo.read_spec(&spec.pkg.with_build(None)) {
-                        Ok(s) => spec = Arc::new(s),
+                        Ok(s) => spec = s,
                         Err(Error::PackageNotFoundError(pkg)) => {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
                                 pkg,

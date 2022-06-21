@@ -68,12 +68,12 @@ impl Run for MakeBinary {
             let spec = match flags::find_package_spec(&package)? {
                 flags::FindPackageSpecResult::NotFound(name) => {
                     // TODO:: load from given repos
-                    spk::api::read_spec_file(name)?
+                    Arc::new(spk::api::read_spec_file(name)?)
                 }
                 res => {
                     let (_, spec) = res.must_be_found();
                     tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
-                    spk::save_spec(spec.clone())?;
+                    spk::save_spec(&spec)?;
                     spec
                 }
             };
@@ -105,7 +105,7 @@ impl Run for MakeBinary {
 
                 tracing::info!("building variant {}", spk::io::format_options(&opts));
                 let formatter = self.formatter_settings.get_formatter(self.verbose);
-                let mut builder = spk::build::BinaryPackageBuilder::from_spec(spec.clone());
+                let mut builder = spk::build::BinaryPackageBuilder::from_spec((*spec).clone());
                 builder
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())

@@ -6,6 +6,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     str::FromStr,
+    sync::Arc,
 };
 
 use futures::StreamExt;
@@ -96,7 +97,7 @@ std::thread_local! {
 
     static SPEC_CACHE : CacheByAddress<
         api::Ident,
-        CloneableResult<api::Spec>
+        CloneableResult<Arc<api::Spec>>
     > = RefCell::new(HashMap::new());
 
     static TAG_SPEC_CACHE : CacheByAddress<
@@ -227,7 +228,7 @@ impl Repository for SPFSRepository {
         }
     }
 
-    fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let address = self.address();
         if cache_policy.cached_result_permitted() {
             let r =
@@ -236,7 +237,7 @@ impl Repository for SPFSRepository {
                 return r.map_err(|err| err.into());
             }
         }
-        let r: Result<api::Spec> = crate::HANDLE.block_on(async {
+        let r: Result<Arc<api::Spec>> = crate::HANDLE.block_on(async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             let tag = self.resolve_tag(cache_policy, pkg, &tag_spec).await?;
@@ -244,14 +245,14 @@ impl Repository for SPFSRepository {
             let mut reader = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
             reader.read_to_string(&mut yaml).await?;
-            Ok(serde_yaml::from_str(&yaml)?)
+            Ok(Arc::new(serde_yaml::from_str(&yaml)?))
         });
         SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(
                 pkg.clone(),
-                r.as_ref().map(|r| r.clone()).map_err(|err| err.into()),
+                r.as_ref().map(Arc::clone).map_err(|err| err.into()),
             );
         });
         r
@@ -272,7 +273,7 @@ impl Repository for SPFSRepository {
         Ok(components)
     }
 
-    fn publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
         let spec = Handle::current().block_on(async {
             if spec.pkg.build.is_some() {
                 return Err(api::InvalidBuildError::new_error(
@@ -284,7 +285,7 @@ impl Repository for SPFSRepository {
             if self.inner.has_tag(&tag_spec).await {
                 // BUG(rbottriell): this creates a race condition but is not super dangerous
                 // because of the non-destructive tag history
-                Err(Error::VersionExistsError(spec.pkg))
+                Err(Error::VersionExistsError(spec.pkg.clone()))
             } else {
                 Ok(spec)
             }
@@ -313,7 +314,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
         Handle::current().block_on(async {
             if let Some(api::Build::Embedded) = spec.pkg.build {
                 return Err(api::InvalidBuildError::new_error(
@@ -343,7 +344,7 @@ impl Repository for SPFSRepository {
 
     fn publish_package(
         &self,
-        spec: api::Spec,
+        spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         #[cfg(test)]
@@ -369,7 +370,7 @@ impl Repository for SPFSRepository {
                 Error::String("Package must have a run component to be published".to_string())
             })?
         };
-        let spec: Result<api::Spec> = Handle::current().block_on(async {
+        let spec: Result<&api::Spec> = Handle::current().block_on(async {
             self.inner.push_tag(&legacy_tag, &legacy_component).await?;
 
             let components: std::result::Result<Vec<_>, _> = components

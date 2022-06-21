@@ -12,10 +12,10 @@ fn test_load_spec_local() {
     let _guard = crate::HANDLE.enter();
     let rt = crate::HANDLE.block_on(spfs_runtime());
     let spec = crate::spec!({"pkg": "my-pkg"});
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
 
     let actual = load_spec("my-pkg").unwrap();
-    assert_eq!(actual, spec);
+    assert_eq!(*actual, spec);
 }
 
 #[rstest]
@@ -27,7 +27,7 @@ fn test_save_spec() {
     let res = rt.tmprepo.read_spec(&spec.pkg);
     assert!(matches!(res, Err(crate::Error::PackageNotFoundError(_))));
 
-    save_spec(spec.clone()).unwrap();
+    save_spec(&spec).unwrap();
 
     rt.tmprepo
         .read_spec_cp(CachePolicy::BypassCache, &spec.pkg)

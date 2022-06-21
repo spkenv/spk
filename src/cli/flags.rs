@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
@@ -183,7 +183,7 @@ impl Requests {
             let path = std::path::Path::new(package);
             if path.is_file() {
                 let (_, spec) = find_package_spec(&Some(package))?.must_be_found();
-                idents.push(spec.pkg);
+                idents.push(spec.pkg.clone());
             } else {
                 idents.push(spk::api::parse_ident(package)?)
             }
@@ -241,9 +241,10 @@ impl Requests {
                     }
 
                     spk::api::TestStage::Build => {
-                        let requirements = spk::build::BinaryPackageBuilder::from_spec(spec)
-                            .with_options(options.clone())
-                            .get_build_requirements()?;
+                        let requirements =
+                            spk::build::BinaryPackageBuilder::from_spec((*spec).clone())
+                                .with_options(options.clone())
+                                .get_build_requirements()?;
                         for request in requirements {
                             out.push(request);
                         }
@@ -308,7 +309,7 @@ impl Requests {
 /// Returns the spec, filename and stage for the given specifier
 pub fn parse_stage_specifier(
     specifier: &str,
-) -> Result<(spk::api::Spec, std::path::PathBuf, spk::api::TestStage)> {
+) -> Result<(Arc<spk::api::Spec>, std::path::PathBuf, spk::api::TestStage)> {
     let (package, stage) = specifier.split_once('@').ok_or_else(|| {
         anyhow!(
             "Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
@@ -330,7 +331,7 @@ pub enum FindPackageSpecResult {
     /// A non-ambiguous package spec file was found
     Found {
         path: std::path::PathBuf,
-        spec: spk::api::Spec,
+        spec: Arc<spk::api::Spec>,
     },
     /// No package was specifically requested, and there are multiple
     /// spec files in the current repository.
@@ -347,7 +348,7 @@ impl FindPackageSpecResult {
     }
 
     /// Prints error messages and exists if no spec file was found
-    pub fn must_be_found(self) -> (std::path::PathBuf, spk::api::Spec) {
+    pub fn must_be_found(self) -> (std::path::PathBuf, Arc<spk::api::Spec>) {
         match self {
             Self::Found { path, spec } => return (path, spec),
             Self::MultipleSpecFiles => {
@@ -392,7 +393,7 @@ where
             return match packages.len() {
                 1 => {
                     let path = packages.pop().unwrap();
-                    let spec = spk::api::read_spec_file(&path)?;
+                    let spec = Arc::new(spk::api::read_spec_file(&path)?);
                     Ok(Found { path, spec })
                 }
                 2.. => Ok(MultipleSpecFiles),
@@ -407,7 +408,7 @@ where
         res => {
             return Ok(Found {
                 path: package.as_ref().into(),
-                spec: res?,
+                spec: Arc::new(res?),
             })
         }
     }
@@ -415,7 +416,10 @@ where
     for path in find_packages()? {
         let spec = spk::api::read_spec_file(&path)?;
         if spec.pkg.name.as_str() == package.as_ref() {
-            return Ok(Found { path, spec });
+            return Ok(Found {
+                path,
+                spec: Arc::new(spec),
+            });
         }
     }
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
+use std::{borrow::Cow, collections::HashMap, convert::TryFrom, sync::Arc};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
@@ -147,11 +147,11 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
-        match api::read_spec_file(&path) {
+        match api::read_spec_file(&path).map(Arc::new) {
             Err(Error::IO(err)) => {
                 if err.kind() == std::io::ErrorKind::NotFound {
                     Err(Error::PackageNotFoundError(pkg.clone()))
@@ -213,11 +213,11 @@ impl Repository for RuntimeRepository {
         Ok(mapped)
     }
 
-    fn force_publish_spec(&self, _spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_spec(&self, _spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
@@ -229,7 +229,7 @@ impl Repository for RuntimeRepository {
 
     fn publish_package(
         &self,
-        _spec: api::Spec,
+        _spec: &api::Spec,
         _components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         Err(Error::String(

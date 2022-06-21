@@ -123,7 +123,7 @@ fn test_solver_sorted_build_iterator_sort_by_option_values() {
         alt_build,
         alt_build_higher,
     ]);
-    repo.publish_spec(build_spec).unwrap();
+    repo.publish_spec(&build_spec).unwrap();
 
     // Set up a way of identifying the builds in the expected order.
     // Doing this by options because it's easier to see and update

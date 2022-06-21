@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 use crate::{api, Result};
 
@@ -94,7 +94,7 @@ pub trait Repository {
     ///
     /// The return value may come from a cache. See
     /// [`Repository::read_spec_cp`] for control over caching.
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         self.read_spec_cp(CachePolicy::CacheOk, pkg)
     }
 
@@ -102,7 +102,7 @@ pub trait Repository {
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, version, or build does not exist
-    fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec>;
+    fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<Arc<api::Spec>>;
 
     /// Identify the payloads for the identified package's components.
     ///
@@ -130,7 +130,7 @@ pub trait Repository {
     ///
     /// # Errors:
     /// - VersionExistsError: if the spec version is already present
-    fn publish_spec(&self, spec: api::Spec) -> Result<()>;
+    fn publish_spec(&self, spec: &api::Spec) -> Result<()>;
 
     /// Remove a package version from this repository.
     ///
@@ -143,7 +143,7 @@ pub trait Repository {
     ///
     /// Same as 'publish_spec' except that it clobbers any existing
     /// spec at this version
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()>;
+    fn force_publish_spec(&self, spec: &api::Spec) -> Result<()>;
 
     /// Publish a package to this repository.
     ///
@@ -151,7 +151,7 @@ pub trait Repository {
     /// layer which contains properly constructed binary package files and metadata.
     fn publish_package(
         &self,
-        spec: api::Spec,
+        spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()>;
 

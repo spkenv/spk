@@ -270,8 +270,8 @@ pub(crate) fn change_deprecation_state(
             io::format_ident(&spec.pkg),
         );
 
-        spec.deprecated = new_status;
-        repo.force_publish_spec(spec)?;
+        Arc::make_mut(&mut spec).deprecated = new_status;
+        repo.force_publish_spec(&spec)?;
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
     }
     Ok(0)

@@ -11,11 +11,12 @@ use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
 type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
+type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
 
 #[derive(Clone, Debug)]
 pub struct MemRepository {
     address: url::Url,
-    specs: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, api::Spec>>>>,
+    specs: Arc<RwLock<HashMap<PkgName, SpecByVersion>>>,
     packages: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, BuildMap>>>>,
 }
 
@@ -123,7 +124,7 @@ impl Repository for MemRepository {
             .unwrap_or_default())
     }
 
-    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         match &pkg.build {
             None => self
                 .specs
@@ -132,7 +133,7 @@ impl Repository for MemRepository {
                 .get(&pkg.name)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(&pkg.version)
-                .map(|s| s.to_owned())
+                .map(Arc::clone)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
                 .packages
@@ -143,7 +144,7 @@ impl Repository for MemRepository {
                 .get(&pkg.version)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(build)
-                .map(|(b, _)| b.to_owned())
+                .map(|(b, _)| Arc::new(b.to_owned()))
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
         }
     }
@@ -165,7 +166,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
         if spec.pkg.build.is_some() {
             return Err(Error::String(format!(
                 "Spec must be published with no build, got {}",
@@ -175,9 +176,9 @@ impl Repository for MemRepository {
         let mut specs = self.specs.write().unwrap();
         let versions = specs.entry(spec.pkg.name.clone()).or_default();
         if versions.contains_key(&spec.pkg.version) {
-            Err(Error::VersionExistsError(spec.pkg))
+            Err(Error::VersionExistsError(spec.pkg.clone()))
         } else {
-            versions.insert(spec.pkg.version.clone(), spec);
+            versions.insert(spec.pkg.version.clone(), Arc::new(spec.clone()));
             Ok(())
         }
     }
@@ -195,7 +196,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
         if let Some(api::Build::Embedded) = spec.pkg.build {
             return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
@@ -234,7 +235,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn publish_package(&self, spec: api::Spec, components: ComponentMap) -> Result<()> {
+    fn publish_package(&self, spec: &api::Spec, components: ComponentMap) -> Result<()> {
         let build = match &spec.pkg.build {
             Some(b) => b.to_owned(),
             None => {
@@ -249,7 +250,7 @@ impl Repository for MemRepository {
         let versions = packages.entry(spec.pkg.name.clone()).or_default();
         let builds = versions.entry(spec.pkg.version.clone()).or_default();
 
-        builds.insert(build, (spec, components));
+        builds.insert(build, (spec.clone(), components));
         Ok(())
     }
 

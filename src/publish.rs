@@ -77,9 +77,9 @@ impl Publisher {
                 Ok(spec) => {
                     tracing::info!("publishing spec: {}", io::format_ident(&spec.pkg));
                     if self.force {
-                        self.to.force_publish_spec(spec)?;
+                        self.to.force_publish_spec(&spec)?;
                     } else {
-                        self.to.publish_spec(spec)?;
+                        self.to.publish_spec(&spec)?;
                     }
                 }
             }
@@ -120,7 +120,7 @@ impl Publisher {
                     ))
                 }
             }
-            self.to.publish_package(spec, components)?;
+            self.to.publish_package(&spec, components)?;
         }
 
         Ok(builds)
