@@ -28,6 +28,7 @@ const REPO_VERSION: &str = "1.0.0";
 
 #[derive(Debug)]
 pub struct SPFSRepository {
+    address: url::Url,
     inner: spfs::storage::RepositoryHandle,
 }
 
@@ -61,14 +62,20 @@ impl std::ops::DerefMut for SPFSRepository {
 
 impl<T: Into<spfs::storage::RepositoryHandle>> From<T> for SPFSRepository {
     fn from(repo: T) -> Self {
-        Self { inner: repo.into() }
+        let inner = repo.into();
+        Self {
+            address: inner.address(),
+            inner,
+        }
     }
 }
 
 impl SPFSRepository {
     pub async fn new(address: &str) -> Result<Self> {
+        let inner = spfs::open_repository(address).await?;
         Ok(Self {
-            inner: spfs::open_repository(address).await?,
+            address: inner.address(),
+            inner,
         })
     }
 }
@@ -99,8 +106,8 @@ std::thread_local! {
 }
 
 impl Repository for SPFSRepository {
-    fn address(&self) -> url::Url {
-        self.inner.address()
+    fn address(&self) -> &url::Url {
+        &self.address
     }
 
     fn list_packages_cp(&self, cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
@@ -126,7 +133,7 @@ impl Repository for SPFSRepository {
         if cache_policy.cached_result_permitted() {
             let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
                 hm.borrow()
-                    .get(&address)
+                    .get(address)
                     .and_then(|hm| hm.get(name).cloned())
             });
             if let Some(r) = r {
@@ -160,7 +167,7 @@ impl Repository for SPFSRepository {
         });
         PACKAGE_VERSIONS_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address).or_insert_with(HashMap::new);
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(
                 name.clone(),
                 r.as_ref().map(|b| b.clone()).map_err(|err| err.into()),
@@ -220,11 +227,8 @@ impl Repository for SPFSRepository {
     fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
         let address = self.address();
         if cache_policy.cached_result_permitted() {
-            let r = SPEC_CACHE.with(|hm| {
-                hm.borrow()
-                    .get(&address)
-                    .and_then(|hm| hm.get(pkg).cloned())
-            });
+            let r =
+                SPEC_CACHE.with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
             if let Some(r) = r {
                 return r.map_err(|err| err.into());
             }
@@ -241,7 +245,7 @@ impl Repository for SPFSRepository {
         });
         SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address).or_insert_with(HashMap::new);
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(
                 pkg.clone(),
                 r.as_ref().map(|r| r.clone()).map_err(|err| err.into()),
@@ -297,10 +301,9 @@ impl Repository for SPFSRepository {
                 Ok(_) => {
                     // Invalidate caches
                     let address = self.address();
-                    LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-                    SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-                    TAG_SPEC_CACHE
-                        .with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
+                    LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+                    SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+                    TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
                     Ok(())
                 }
             }
@@ -327,9 +330,9 @@ impl Repository for SPFSRepository {
             // TODO: This could be smarter and inject new entries
             // into the cache.
             let address = self.address();
-            LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-            SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-            TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
+            LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+            SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+            TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
 
             Ok(())
         })
@@ -407,9 +410,9 @@ impl Repository for SPFSRepository {
             }
             // Invalidate caches
             let address = self.address();
-            LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-            SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-            TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
+            LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+            SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+            TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
             Ok(())
         })
     }
@@ -485,7 +488,7 @@ impl SPFSRepository {
         if cache_policy.cached_result_permitted() {
             let r = LS_TAGS_CACHE.with(|hm| {
                 hm.borrow()
-                    .get(&address)
+                    .get(address)
                     .and_then(|hm| hm.get(path).cloned())
             });
             if let Some(r) = r {
@@ -503,7 +506,7 @@ impl SPFSRepository {
             .await;
         LS_TAGS_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address).or_insert_with(HashMap::new);
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(
                 path.to_owned(),
                 r.iter()
@@ -543,7 +546,7 @@ impl SPFSRepository {
         if cache_policy.cached_result_permitted() {
             let r = TAG_SPEC_CACHE.with(|hm| {
                 hm.borrow()
-                    .get(&address)
+                    .get(address)
                     .and_then(|hm| hm.get(tag_spec).cloned())
             });
             if let Some(r) = r {
@@ -561,7 +564,7 @@ impl SPFSRepository {
         let r = self.inner.resolve_tag(tag_spec).await;
         TAG_SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address).or_insert_with(HashMap::new);
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(
                 tag_spec.clone(),
                 r.as_ref().map(|r| r.clone()).map_err(|err| err.into()),
@@ -584,9 +587,9 @@ impl SPFSRepository {
         self.inner.push_tag(&tag_spec, &digest).await?;
         // Invalidate caches
         let address = self.address();
-        LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-        SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
-        TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(&address).map(|hm| hm.clear()));
+        LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         Ok(())
     }
 
@@ -709,7 +712,11 @@ impl StoredPackage {
 pub async fn local_repository() -> Result<SPFSRepository> {
     let config = spfs::get_config()?;
     let repo = config.get_local_repository().await?;
-    Ok(SPFSRepository { inner: repo.into() })
+    let inner: spfs::prelude::RepositoryHandle = repo.into();
+    Ok(SPFSRepository {
+        address: inner.address(),
+        inner,
+    })
 }
 
 /// Return the remote repository of the given name.
@@ -718,5 +725,8 @@ pub async fn local_repository() -> Result<SPFSRepository> {
 pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository> {
     let config = spfs::get_config()?;
     let repo = config.get_remote(name).await?;
-    Ok(SPFSRepository { inner: repo })
+    Ok(SPFSRepository {
+        address: repo.address(),
+        inner: repo,
+    })
 }
