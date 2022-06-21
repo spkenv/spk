@@ -130,14 +130,6 @@ impl Repository for MemRepository {
         }
     }
 
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
-        let mut specs = self.specs.write().unwrap();
-        let versions = specs.entry(spec.pkg.name.clone()).or_default();
-        versions.remove(&spec.pkg.version);
-        drop(specs); // this lock will be needed to publish
-        self.publish_spec(spec)
-    }
-
     fn publish_spec(&self, spec: api::Spec) -> Result<()> {
         if spec.pkg.build.is_some() {
             return Err(Error::String(format!(
@@ -165,6 +157,45 @@ impl Repository for MemRepository {
             Err(Error::PackageNotFoundError(pkg.clone()))
         } else {
             Ok(())
+        }
+    }
+
+    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
+        if let Some(api::Build::Embedded) = spec.pkg.build {
+            return Err(api::InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            ));
+        }
+
+        // The spec could be for a build or a version. They are
+        // handled differently because of where this repo stores each
+        // kind of spec.
+        match &spec.pkg.build {
+            Some(b) => {
+                // A build spec, e.g. package/version/build. This will
+                // overwrite the build spec, but keep the build's
+                // current components, if any.
+                let mut packages = self.packages.write().unwrap();
+                let versions = packages.entry(spec.pkg.name.clone()).or_default();
+                let builds = versions.entry(spec.pkg.version.clone()).or_default();
+                let components = match builds.get(b) {
+                    Some(t) => t.1.clone(),
+                    None => ComponentMap::default(),
+                };
+                drop(packages); // this lock will be needed to publish
+                self.publish_package(spec, components)
+            }
+            None => {
+                // A version spec e.g. package/version. This will remove
+                // the existing version spec and use publish_spec to add
+                // the new one. It does not change the build specs, which
+                // are stored in the packages field
+                let mut specs = self.specs.write().unwrap();
+                let versions = specs.entry(spec.pkg.name.clone()).or_default();
+                versions.remove(&spec.pkg.version);
+                drop(specs); // this lock will be needed to publish
+                self.publish_spec(spec)
+            }
         }
     }
 

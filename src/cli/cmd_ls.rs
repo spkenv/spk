@@ -1,11 +1,12 @@
 // Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, str::FromStr};
 
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use spk::api::PkgName;
 
 use super::{flags, Run};
 
@@ -26,6 +27,10 @@ pub struct Ls {
     /// Recursively list all package versions and builds
     #[clap(long)]
     recursive: bool,
+
+    /// Show the deprecated packages
+    #[clap(long, short)]
+    deprecated: bool,
 
     /// Given a name, list versions. Given a name/version list builds.
     ///
@@ -56,34 +61,91 @@ impl Run for Ls {
             return self.list_recursively(repos);
         }
 
-        let mut results = BTreeSet::new();
+        let mut results = Vec::new();
         match &self.package {
             None => {
+                // List all the packages in the repo(s) - the set
+                // provides the sorting, but hides when a package is
+                // in multiple repos
+                // TODO: should this include the repo name in the output?
+                let mut set = BTreeSet::new();
                 for (_repo_name, repo) in repos {
-                    results.extend(
+                    set.extend(
                         repo.list_packages()?
                             .into_iter()
                             .map(spk::api::PkgName::into),
                     )
                 }
+                results = set.into_iter().collect();
             }
             Some(package) if !package.contains('/') => {
-                let name = package.parse()?;
-                for (_, repo) in repos {
-                    results.extend(
-                        repo.list_package_versions(&name)?
-                            .iter()
-                            .map(ToString::to_string),
+                // Given a package name, list all the versions of the package
+                let pkgname = PkgName::from_str(package)?;
+                let mut versions = Vec::new();
+                for (index, (_, repo)) in repos.iter().enumerate() {
+                    versions.extend(
+                        repo.list_package_versions(&pkgname)?
+                            .into_iter()
+                            .map(|v| (v, index)),
                     );
+                }
+
+                versions.sort_by_key(|v| v.0.clone());
+                versions.reverse();
+
+                // Add the sorted versions to the results, in the
+                // appropriate format, and after any filtering
+                for (version, repo_index) in versions {
+                    // TODO: add repo name to output?
+                    let (_repo_name, repo) = repos.get(repo_index).unwrap();
+                    // TODO: add package name to output?
+                    let mut name = String::from(package);
+                    name.push('/');
+                    name.push_str(&version.to_string());
+
+                    let ident = spk::api::parse_ident(name.clone())?;
+                    let spec = repo.read_spec(&ident)?;
+
+                    // TODO: tempted to swap this over to call
+                    // format_build, which would add the package name
+                    // and more, but also simplify this bringing it
+                    // closer to the next Some(package) clause?
+                    if self.deprecated {
+                        // show deprecated versions
+                        if spec.deprecated {
+                            results.push(format!("{version} {}", "DEPRECATED".red()));
+                            continue;
+                        }
+                    } else {
+                        // don't show deprecated versions
+                        if spec.deprecated {
+                            continue;
+                        }
+                    }
+                    results.push(version.to_string());
                 }
             }
             Some(package) => {
+                // Like the None clause, the set provides the sorting
+                // but hides when a build is in multiple repos
+                // TODO: should this include the repo name in the output?
+                let mut set = BTreeSet::new();
+                // Given a package version (or build), list all its builds
                 let pkg = spk::api::parse_ident(package)?;
                 for (_, repo) in repos {
                     for build in repo.list_package_builds(&pkg)? {
-                        results.insert(self.format_build(&build, &repo)?);
+                        // Doing this here slows the listing down, but
+                        // the spec file is the only place that holds
+                        // the deprecation status.
+                        let spec = repo.read_spec(&build)?;
+                        if spec.deprecated && !self.deprecated {
+                            // Hide deprecated packages by default
+                            continue;
+                        }
+                        set.insert(self.format_build(&build, &spec, &repo)?);
                     }
                 }
+                results = set.into_iter().collect();
             }
         }
 
@@ -134,6 +196,15 @@ impl Ls {
                 let mut builds = repo.list_package_builds(&pkg)?;
                 builds.sort();
                 for build in builds {
+                    // Doing this here slows the listing down, but
+                    // the spec file is the only place that holds
+                    // the deprecation status.
+                    let spec = repo.read_spec(&build)?;
+                    if spec.deprecated && !self.deprecated {
+                        // Hide deprecated packages by default
+                        continue;
+                    }
+
                     if self.verbose > 0 {
                         print!(
                             "{:>width$} ",
@@ -141,7 +212,7 @@ impl Ls {
                             width = max_repo_name_len + 2
                         );
                     }
-                    println!("{}", self.format_build(&build, repo)?);
+                    println!("{}", self.format_build(&build, &spec, repo)?);
                 }
             }
         }
@@ -151,19 +222,28 @@ impl Ls {
     fn format_build(
         &self,
         pkg: &spk::api::Ident,
+        spec: &spk::api::Spec,
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
-        if pkg.build.is_none() || pkg.is_source() {
-            return Ok(spk::io::format_ident(pkg));
+        let mut item = spk::io::format_ident(pkg);
+        if spec.deprecated {
+            item.push_str(&format!(" {}", "DEPRECATED".red()));
         }
 
-        let mut item = spk::io::format_ident(pkg);
+        // Packages without builds, or /src packages have no further
+        // info to display
+        if pkg.build.is_none() || pkg.is_source() {
+            return Ok(item);
+        }
+
+        // Based on the verbosity, display more details for the
+        // package build.
         if self.verbose > 0 {
-            let spec = repo.read_spec(pkg)?;
             let options = spec.resolve_all_options(&spk::api::OptionMap::default());
             item.push(' ');
             item.push_str(&spk::io::format_options(&options));
         }
+
         if self.verbose > 1 || self.components {
             let cmpts = repo.get_package(pkg)?;
             item.push(' ');

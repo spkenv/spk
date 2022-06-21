@@ -15,6 +15,8 @@ pub mod test;
 
 #[cfg(test)]
 mod fixtures;
+#[cfg(feature = "test-macros")]
+pub mod macros;
 
 pub use env::current_env;
 pub use error::{Error, Result};
