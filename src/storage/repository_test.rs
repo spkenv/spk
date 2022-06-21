@@ -81,7 +81,7 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
     repo.publish_spec(spec.clone()).unwrap();
     assert_eq!(repo.list_packages().unwrap(), vec![spec.pkg.name.clone()]);
     assert_eq!(
-        repo.list_package_versions(&spec.pkg.name).unwrap(),
+        *repo.list_package_versions(&spec.pkg.name).unwrap(),
         vec!["1.0.0"]
     );
 

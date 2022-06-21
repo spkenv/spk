@@ -23,7 +23,7 @@ pub fn current_env() -> Result<solve::Solution> {
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
     let mut solution = solve::Solution::new(None);
     for name in repo.list_packages()? {
-        for version in repo.list_package_versions(&name)? {
+        for version in repo.list_package_versions(&name)?.iter() {
             let pkg = api::parse_ident(format!("{name}/{version}"))?;
             for pkg in repo.list_package_builds(&pkg)? {
                 let spec = repo.read_spec(&pkg)?;

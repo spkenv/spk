@@ -194,8 +194,8 @@ impl RepositoryPackageIterator {
     fn build_version_map(&self) -> Result<HashMap<api::Version, Arc<storage::RepositoryHandle>>> {
         let mut version_map = HashMap::default();
         for repo in self.repos.iter().rev() {
-            for version in repo.list_package_versions(&self.package_name)? {
-                version_map.insert(version, repo.clone());
+            for version in repo.list_package_versions(&self.package_name)?.iter() {
+                version_map.insert(version.clone(), repo.clone());
             }
         }
 
