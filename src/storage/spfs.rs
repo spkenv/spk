@@ -81,6 +81,11 @@ std::thread_local! {
         Vec<CloneableResult<EntryType>>
     > = RefCell::new(HashMap::new());
 
+    static PACKAGE_VERSIONS_CACHE : CacheByAddress<
+        api::PkgName,
+        CloneableResult<Vec<api::Version>>
+    > = RefCell::new(HashMap::new());
+
     static SPEC_CACHE : CacheByAddress<
         api::Ident,
         CloneableResult<api::Spec>
@@ -116,28 +121,51 @@ impl Repository for SPFSRepository {
         cache_policy: CachePolicy,
         name: &api::PkgName,
     ) -> Result<Vec<api::Version>> {
-        let path = self.build_spec_tag(&name.clone().into());
-        let versions: HashSet<_> = crate::HANDLE
-            .block_on(self.ls_tags(cache_policy, &path))
-            .into_iter()
-            .filter_map(|entry| match entry {
-                // undo our encoding of the invalid '+' character in spfs tags
-                Ok(EntryType::Folder(name)) => Some(name.replace("..", "+")),
-                Ok(EntryType::Tag(name)) => Some(name.replace("..", "+")),
-                Err(_) => None,
-            })
-            .filter_map(|v| match api::parse_version(&v) {
-                Ok(v) => Some(v),
-                Err(_) => {
-                    tracing::warn!("Invalid version found in spfs tags: {}", v);
-                    None
-                }
-            })
-            .collect();
-        let mut versions = versions.into_iter().collect_vec();
-        versions.sort();
-        // XXX: infallible vs return type
-        Ok(versions)
+        let address = self.address();
+        if cache_policy.cached_result_permitted() {
+            let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
+                hm.borrow()
+                    .get(&address)
+                    .and_then(|hm| hm.get(name).cloned())
+            });
+            if let Some(r) = r {
+                return r.map_err(|err| err.into());
+            }
+        }
+        let r: Result<Vec<api::Version>> = crate::HANDLE.block_on(async {
+            let path = self.build_spec_tag(&name.clone().into());
+            let versions: HashSet<_> = self
+                .ls_tags(cache_policy, &path)
+                .await
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    // undo our encoding of the invalid '+' character in spfs tags
+                    Ok(EntryType::Folder(name)) => Some(name.replace("..", "+")),
+                    Ok(EntryType::Tag(name)) => Some(name.replace("..", "+")),
+                    Err(_) => None,
+                })
+                .filter_map(|v| match api::parse_version(&v) {
+                    Ok(v) => Some(v),
+                    Err(_) => {
+                        tracing::warn!("Invalid version found in spfs tags: {}", v);
+                        None
+                    }
+                })
+                .collect();
+            let mut versions = versions.into_iter().collect_vec();
+            versions.sort();
+            // XXX: infallible vs return type
+            Ok(versions)
+        });
+        PACKAGE_VERSIONS_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address).or_insert_with(HashMap::new);
+            hm.insert(
+                name.clone(),
+                r.as_ref().map(|r| r.clone()).map_err(|err| err.into()),
+            );
+        });
+        r
     }
 
     fn list_package_builds_cp(
