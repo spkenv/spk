@@ -29,24 +29,28 @@ impl ChangeAction {
             ChangeAction::Undeprecate => "undeprecate",
         }
     }
+
     fn as_past_tense(&self) -> &'static str {
         match self {
             ChangeAction::Deprecate => "deprecated",
             ChangeAction::Undeprecate => "undeprecated",
         }
     }
-    fn as_ing(&self) -> &'static str {
+
+    fn as_present_tense(&self) -> &'static str {
         match self {
             ChangeAction::Deprecate => "Deprecating",
             ChangeAction::Undeprecate => "Undeprecating",
         }
     }
-    fn as_first_letter_uppercase(&self) -> &'static str {
+
+    fn as_capitalized(&self) -> &'static str {
         match self {
             ChangeAction::Deprecate => "Deprecate",
             ChangeAction::Undeprecate => "Undeprecate",
         }
     }
+
     fn as_alternate(&self) -> &'static str {
         match self {
             ChangeAction::Deprecate => "retire",
@@ -237,7 +241,7 @@ pub(crate) fn change_deprecation_state(
                 // any action, just exit
                 println!(
                     "{} canceled. Things will remain as they were.",
-                    action.as_first_letter_uppercase()
+                    action.as_capitalized()
                 );
                 return Ok(5);
             }
@@ -262,7 +266,7 @@ pub(crate) fn change_deprecation_state(
 
         println!(
             "{} {} in {repo_name}",
-            action.as_ing(),
+            action.as_present_tense(),
             io::format_ident(&spec.pkg),
         );
 
