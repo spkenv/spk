@@ -633,15 +633,6 @@ impl RequestPackage {
             DUPLICATE_REQUESTS_COUNT.fetch_add(1, Ordering::SeqCst);
         }
 
-        // TODO: the larger the solve, the more likely there are to be
-        // multiple requests for the same package, could this run
-        // get_merged_request() on the request list and replace all
-        // the requests for the same package with a single merged
-        // request, instead of just adding the new request? This would
-        // shorten request request list, and keep it short, and remove
-        // the need to call get_merged_request() for each solver step.
-        // Not sure of the other ramifications, would have to test it.
-
         // Add the new request to the end. This is ok because the
         // other requests for this package are at the front of the
         // list now. If this package needs resolving, this new request
