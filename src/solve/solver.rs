@@ -138,14 +138,14 @@ impl Solver {
 
     fn get_iterator(
         &self,
-        node: &mut Node,
+        node: &mut Arc<Node>,
         package_name: &PkgName,
     ) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
         let iterator = self.make_iterator(package_name.clone());
-        node.set_iterator(package_name.clone(), &iterator);
+        Arc::make_mut(node).set_iterator(package_name.clone(), &iterator);
         iterator
     }
 
@@ -181,7 +181,7 @@ impl Solver {
         solver.solve_build_environment(spec)
     }
 
-    fn step_state(&mut self, node: &mut Node) -> Result<Option<Decision>> {
+    fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -470,8 +470,8 @@ impl Solver {
 pub struct SolverRuntime {
     pub solver: Solver,
     graph: Arc<RwLock<Graph>>,
-    history: Vec<Arc<RwLock<Node>>>,
-    current_node: Option<Arc<RwLock<Node>>>,
+    history: Vec<Arc<RwLock<Arc<Node>>>>,
+    current_node: Option<Arc<RwLock<Arc<Node>>>>,
     decision: Option<Decision>,
 }
 
@@ -544,7 +544,7 @@ impl SolverRuntime {
     // this method.
     /// Generate step-back decision from a node history
     fn take_a_step_back(
-        history: &mut Vec<Arc<RwLock<Node>>>,
+        history: &mut Vec<Arc<RwLock<Arc<Node>>>>,
         decision: &mut Option<Decision>,
         solver: &Solver,
         message: &String,
@@ -576,7 +576,7 @@ impl SolverRuntime {
 }
 
 impl Iterator for SolverRuntime {
-    type Item = Result<(Node, Decision)>;
+    type Item = Result<(Arc<Node>, Decision)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.decision.is_none()
@@ -719,7 +719,7 @@ impl Iterator for SolverRuntime {
 pub struct SolverRuntimeIter<'a>(&'a mut SolverRuntime);
 
 impl<'a> Iterator for SolverRuntimeIter<'a> {
-    type Item = Result<(Node, Decision)>;
+    type Item = Result<(Arc<Node>, Decision)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
