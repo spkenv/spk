@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -863,6 +863,7 @@ pub struct State {
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
     options: Arc<Vec<(String, String)>>,
     state_id: StateId,
+    cached_option_map: Arc<OnceCell<api::OptionMap>>,
 }
 
 impl State {
@@ -888,6 +889,7 @@ impl State {
             packages: Arc::new(Vec::new()),
             options: Arc::new(options),
             state_id,
+            cached_option_map: Arc::new(OnceCell::new()),
         };
         for (package, source) in packages.into_iter() {
             s = s.append_package(package, source)
@@ -1018,6 +1020,8 @@ impl State {
             packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
+            // options are changing
+            cached_option_map: Arc::new(OnceCell::new()),
         }
     }
 
@@ -1032,6 +1036,8 @@ impl State {
             packages: Arc::new(packages),
             options: Arc::clone(&self.options),
             state_id,
+            // options are the same
+            cached_option_map: Arc::clone(&self.cached_option_map),
         }
     }
 
@@ -1043,6 +1049,8 @@ impl State {
             packages: Arc::clone(&self.packages),
             options: Arc::clone(&self.options),
             state_id,
+            // options are the same
+            cached_option_map: Arc::clone(&self.cached_option_map),
         }
     }
 
@@ -1060,12 +1068,14 @@ impl State {
             packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
+            // options are changing
+            cached_option_map: Arc::new(OnceCell::new()),
         }
     }
 
-    pub fn get_option_map(&self) -> api::OptionMap {
-        // TODO: cache this
-        self.options.iter().cloned().collect()
+    pub fn get_option_map(&self) -> &api::OptionMap {
+        self.cached_option_map
+            .get_or_init(|| self.options.iter().cloned().collect())
     }
 
     pub fn id(&self) -> u64 {
