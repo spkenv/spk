@@ -375,15 +375,8 @@ impl EmptyBuildIterator {
 
 #[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
-    // The 'options' field is used in the by_distance based build key
-    // generation. It is not used in build_options_values key
-    // generation. Distance from these options can result in key
-    // clashes, particularly in the early stages of a solve, that
-    // didn't help distinguish builds and can create inconsistencies
-    // between build picks for package versions at different levels in
-    // the solve. The solver's current options are still checked
-    // against builds when they are considered in the solver level,
-    // which is above the build sorting level here.
+    // Note: the 'options' field is only used in the 'by_distance'
+    // based build key generation.
     options: api::OptionMap,
     source: Arc<Mutex<dyn BuildIterator>>,
     builds: VecDeque<(Arc<api::Spec>, PackageSource)>,
@@ -516,6 +509,11 @@ impl SortedBuildIterator {
             .map(|s| s.resolve_all_options(&api::OptionMap::default()))
             .unwrap_or_else(api::OptionMap::default);
 
+        // Distance from these options can result in key clashes,
+        // particularly in the early stages of a solve, that don't
+        // help distinguish between builds. These can create
+        // inconsistencies between build picks for package versions at
+        // different levels in a solve.
         let self_options = self.options.clone();
 
         self.builds
