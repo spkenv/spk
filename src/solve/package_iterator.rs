@@ -21,14 +21,15 @@ use crate::{
 mod package_iterator_test;
 
 /// Allows control of which build sorting method to use in the
-/// SortedBuildIterator objects: 'original' distance based, or 'new' build
-/// option name value order based (the default).
+/// SortedBuildIterator objects: the distance based method (the
+/// original), or the build option name value order based method (the
+/// default).
 // TODO: add the default value to a config file, once spk has one
-static USE_ORIGINAL_BUILD_SORT: Lazy<bool> = Lazy::new(|| {
+static USE_BY_DISTANCE_BUILD_SORT: Lazy<bool> = Lazy::new(|| {
     std::env::var_os("SPK_BUILD_SORT")
-        .unwrap_or_else(|| OsString::from("new"))
+        .unwrap_or_else(|| OsString::from("optionvalue"))
         .to_string_lossy()
-        == "original"
+        == "distance"
 });
 
 /// Allows control of the order option names are using in build key
@@ -437,9 +438,9 @@ impl SortedBuildIterator {
             builds,
         };
 
-        // Use the configured sort method, either the original
-        // distance based one, or the build option values one.
-        if *USE_ORIGINAL_BUILD_SORT {
+        // Use the configured sort method, either the distance based
+        // one, or the build option values based one.
+        if *USE_BY_DISTANCE_BUILD_SORT {
             sbi.sort_by_distance();
         } else {
             sbi.sort_by_build_option_values();
