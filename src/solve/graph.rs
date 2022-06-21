@@ -306,13 +306,13 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 #[derive(Clone, Debug, Error)]
 #[error("Failed to resolve")]
 pub struct Graph {
-    pub root: Arc<RwLock<Node>>,
-    pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
+    pub root: Arc<RwLock<Arc<Node>>>,
+    pub nodes: HashMap<u64, Arc<RwLock<Arc<Node>>>>,
 }
 
 impl Graph {
     pub fn new() -> Self {
-        let dead_state = Arc::new(RwLock::new(Node::new(DEAD_STATE.clone())));
+        let dead_state = Arc::new(RwLock::new(Arc::new(Node::new(DEAD_STATE.clone()))));
         let dead_state_id = dead_state.read().unwrap().id();
         let nodes = [(dead_state_id, dead_state.clone())]
             .iter()
@@ -324,14 +324,18 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, source_id: u64, decision: Decision) -> Result<Arc<RwLock<Node>>> {
+    pub fn add_branch(
+        &mut self,
+        source_id: u64,
+        decision: Decision,
+    ) -> Result<Arc<RwLock<Arc<Node>>>> {
         let old_node = self
             .nodes
             .get(&source_id)
             .expect("source_id exists in nodes")
             .clone();
         let new_state = decision.apply(&(old_node.read().unwrap().state));
-        let mut new_node = Arc::new(RwLock::new(Node::new(new_state)));
+        let mut new_node = Arc::new(RwLock::new(Arc::new(Node::new(new_state))));
         {
             let mut new_node_lock = new_node.write().unwrap();
 
@@ -339,7 +343,7 @@ impl Graph {
                 None => {
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
                     for (name, iterator) in old_node.read().unwrap().iterators.iter() {
-                        new_node_lock.set_iterator(name.clone(), iterator)
+                        Arc::make_mut(&mut new_node_lock).set_iterator(name.clone(), iterator)
                     }
                 }
                 Some(node) => {
@@ -354,12 +358,13 @@ impl Graph {
             // Avoid deadlock if old_node is the same node as new_node
             if !Arc::ptr_eq(&old_node, &new_node) {
                 let mut new_node_lock = new_node.write().unwrap();
-                old_node_lock.add_output(decision.clone(), &new_node_lock.state)?;
-                new_node_lock.add_input(&old_node_lock.state, decision);
+                Arc::make_mut(&mut old_node_lock)
+                    .add_output(decision.clone(), &new_node_lock.state)?;
+                Arc::make_mut(&mut new_node_lock).add_input(&old_node_lock.state, decision);
             } else {
                 let old_state = old_node_lock.state.clone();
-                old_node_lock.add_output(decision.clone(), &old_state)?;
-                old_node_lock.add_input(&old_state, decision);
+                Arc::make_mut(&mut old_node_lock).add_output(decision.clone(), &old_state)?;
+                Arc::make_mut(&mut old_node_lock).add_input(&old_state, decision);
             }
         }
         Ok(new_node)
@@ -385,10 +390,10 @@ enum WalkState {
 pub struct GraphIter<'graph> {
     graph: &'graph Graph,
     node_outputs: HashMap<u64, VecDeque<Decision>>,
-    to_process: VecDeque<Arc<RwLock<Node>>>,
+    to_process: VecDeque<Arc<RwLock<Arc<Node>>>>,
     /// Which entry of node_outputs is currently being worked on.
     outs: Option<u64>,
-    iter_node: Arc<RwLock<Node>>,
+    iter_node: Arc<RwLock<Arc<Node>>>,
     walk_state: WalkState,
 }
 
@@ -408,7 +413,7 @@ impl<'graph> GraphIter<'graph> {
 }
 
 impl<'graph> Iterator for GraphIter<'graph> {
-    type Item = (Node, Decision);
+    type Item = (Arc<Node>, Decision);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
