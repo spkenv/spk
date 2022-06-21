@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
@@ -52,11 +53,11 @@ impl Repository for MemRepository {
         &self,
         _cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Vec<api::Version>> {
+    ) -> Result<Cow<Vec<api::Version>>> {
         if let Some(specs) = self.specs.read().unwrap().get(name) {
-            Ok(specs.keys().map(|v| v.to_owned()).collect())
+            Ok(Cow::Owned(specs.keys().map(|v| v.to_owned()).collect()))
         } else {
-            Ok(Vec::new())
+            Ok(Cow::Owned(Vec::new()))
         }
     }
 

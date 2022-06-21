@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, convert::TryFrom};
+use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
@@ -67,28 +67,30 @@ impl Repository for RuntimeRepository {
         &self,
         _cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Vec<api::Version>> {
-        Ok(get_all_filenames(self.root.join(name))?
-            .into_iter()
-            .filter_map(|entry| {
-                if entry.ends_with('/') {
-                    Some(entry[0..entry.len() - 1].to_string())
-                } else {
-                    None
-                }
-            })
-            .filter_map(|candidate| match api::parse_version(&candidate) {
-                Ok(v) => Some(v),
-                Err(err) => {
-                    tracing::debug!(
-                        "Skipping invalid version in /spfs/spk: [{}], {:?}",
-                        candidate,
-                        err
-                    );
-                    None
-                }
-            })
-            .collect())
+    ) -> Result<Cow<Vec<api::Version>>> {
+        Ok(Cow::Owned(
+            get_all_filenames(self.root.join(name))?
+                .into_iter()
+                .filter_map(|entry| {
+                    if entry.ends_with('/') {
+                        Some(entry[0..entry.len() - 1].to_string())
+                    } else {
+                        None
+                    }
+                })
+                .filter_map(|candidate| match api::parse_version(&candidate) {
+                    Ok(v) => Some(v),
+                    Err(err) => {
+                        tracing::debug!(
+                            "Skipping invalid version in /spfs/spk: [{}], {:?}",
+                            candidate,
+                            err
+                        );
+                        None
+                    }
+                })
+                .collect(),
+        ))
     }
 
     fn list_package_builds_cp(

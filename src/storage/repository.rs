@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use crate::{api, Result};
 
@@ -43,7 +43,7 @@ pub trait Repository {
     ///
     /// The return value may come from a cache. See
     /// [`Repository::list_package_versions_cp`] for control over caching.
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Cow<Vec<api::Version>>> {
         self.list_package_versions_cp(CachePolicy::CacheOk, name)
     }
 
@@ -52,7 +52,7 @@ pub trait Repository {
         &self,
         cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Vec<api::Version>>;
+    ) -> Result<Cow<Vec<api::Version>>>;
 
     /// Return the set of builds for the given package name and version.
     ///
