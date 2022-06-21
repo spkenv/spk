@@ -63,7 +63,7 @@ impl Run for Remove {
                 } else {
                     repo.list_package_versions(&pkg.name)?
                         .iter()
-                        .map(|v| pkg.with_version(v.clone()))
+                        .map(|v| pkg.with_version(v.clone().into_owned()))
                         .collect()
                 };
 

@@ -73,9 +73,11 @@ impl Repository for MemRepository {
         &self,
         _cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Cow<Vec<api::Version>>> {
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         if let Some(specs) = self.specs.read().unwrap().get(name) {
-            Ok(Cow::Owned(specs.keys().map(|v| v.to_owned()).collect()))
+            Ok(Cow::Owned(
+                specs.keys().map(|v| Cow::Owned(v.to_owned())).collect(),
+            ))
         } else {
             Ok(Cow::Owned(Vec::new()))
         }
