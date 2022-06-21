@@ -111,18 +111,16 @@ impl BuildKey {
     /// strange build key that could be unrelated to the build. See
     /// SortedBuildIterator for more details.
     pub fn new(pkg: &Ident, ordering: &Vec<String>, name_values: &OptionMap) -> BuildKey {
-        // Make the build key based on '/src' or non-/src, the given
-        // ordering of option names, and the given values for those names
         if pkg.is_source() {
-            // All '/src' build use the same simplified key
+            // All '/src' builds use the same simplified key
             return BuildKey::Src;
         }
 
-        // This is a non-/src build. Construct a compound key from the
-        // ordering of option names and the given values for those names.
+        // Binary builds (non-/src) use a compound key of option
+        // values assembled using the given ordering (of option names).
         let mut key_entries: Vec<BuildKeyEntry> = Vec::with_capacity(ordering.len());
         for name in ordering {
-            // Generate this entry based on the value set for this name
+            // Generate this entry based on the value for this name
             let entry: BuildKeyEntry = match name_values.get(name) {
                 Some(value) => match BuildKeyExpandedVersionRange::parse_from_range_value(value) {
                     Ok(expanded_version) => BuildKeyEntry::ExpandedVersion(expanded_version),

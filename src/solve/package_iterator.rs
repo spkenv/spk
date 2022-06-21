@@ -90,6 +90,10 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn len(&self) -> usize;
 }
 
+/// A tracing target for additional build sorting output: times,
+/// building blocks, and keys.
+const BUILD_SORT_TARGET: &str = "build_sort";
+
 dyn_clone::clone_trait_object!(BuildIterator);
 
 type PackageIteratorItem = (api::Ident, Arc<Mutex<dyn BuildIterator>>);
@@ -407,7 +411,7 @@ impl BuildIterator for SortedBuildIterator {
 }
 
 /// A helper for working out whether a named option value changes
-/// across builds, or is always they same for all (non-src) builds.
+/// across builds, or is always they same for all binary builds.
 /// Options with differing values across builds are worth using
 /// (use_it) in a build key to distinguish builds for sorting. Options
 /// that don't vary are not worth using in the build key.
@@ -416,8 +420,6 @@ struct ChangeCounter {
     pub count: u64,
     pub use_it: bool,
 }
-
-const BUILD_SORT_TARGET: &str = "build_sort";
 
 impl SortedBuildIterator {
     pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> Result<Self> {
@@ -527,7 +529,6 @@ impl SortedBuildIterator {
                 )
             });
 
-        // Debugging - setup in configure_logging() to appear at verbosity 3+
         let duration: Duration = start.elapsed();
         tracing::info!(
             target: BUILD_SORT_TARGET,
@@ -535,7 +536,6 @@ impl SortedBuildIterator {
             self.builds.len(),
             duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9
         );
-        // Setup in configure_logging() to appear at verbosity 7+
         tracing::debug!(
             target: BUILD_SORT_TARGET,
             "Keys by distance: key zero options: default: [{:?}] self: [{:?}]",
@@ -603,7 +603,7 @@ impl SortedBuildIterator {
                 }
             }
 
-            // Count the number of non-src builds for later. This will
+            // Count the number of binary builds for later. This will
             // be used to help work out whether a build option has the
             // same value across the builds.
             number_non_src_builds += 1;
@@ -620,7 +620,7 @@ impl SortedBuildIterator {
             // builds can be ignored. Only using the options that
             // differ across builds gives shorter, more distinct, keys.
             //
-            // The build option names and values for this non-src
+            // The build option names and values for this binary
             // build are added to a change set to determine which
             // ones' values differ across builds. This determination
             // is a two-part process. This is the first part. The
@@ -712,7 +712,6 @@ impl SortedBuildIterator {
         // come before "off".
         self.builds.make_contiguous().reverse();
 
-        // Debugging - setup in configure_logging() to appear at verbosity 3+
         let duration: Duration = start.elapsed();
         tracing::info!(
             target: BUILD_SORT_TARGET,
@@ -720,7 +719,6 @@ impl SortedBuildIterator {
             self.builds.len(),
             duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9
         );
-        // Setup in configure_logging() to appear at verbosity 7+
         tracing::debug!(
             target: BUILD_SORT_TARGET,
             "Keys by build option values: keys built from: [{}]",
