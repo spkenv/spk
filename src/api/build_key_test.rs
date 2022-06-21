@@ -169,7 +169,7 @@ fn test_build_piece_ordering(#[case] values: Vec<&str>, #[case] expected: Vec<&s
 // Test making build keys
 #[rstest]
 fn test_generating_build_key() {
-    // Set up a non-src package build spec
+    // Set up a binary package build spec
     let a_build = Spec::new(parse_ident("testpackage/1.0.0/TESTTEST").unwrap());
 
     // Set up some resolved build options
@@ -194,9 +194,9 @@ fn test_generating_build_key() {
     let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
 
     // Expected build key structure for this ordering and build options:
-    // "non-src", "alib", "somevalue", "notinthisbuild", "apkg", build digest
-    //  true,      1.2.3,  something,     notset,        >1,     TESTTEST
-    let expected = BuildKey::NonSrc(vec![
+    // "alib", "somevalue", "notinthisbuild", "apkg", build digest
+    //  1.2.3,  something,     notset,         >1,    TESTTEST
+    let expected = BuildKey::Binary(vec![
         // 1.2.3
         BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
             "1.2.3",
@@ -230,7 +230,7 @@ fn test_generating_build_key() {
 
 #[rstest]
 fn test_generating_build_key_src_build() {
-    // Set up a non-src package build spec
+    // Set up a src package build spec
     let a_build = Spec::new(parse_ident("testpackage/1.0.0/src").unwrap());
 
     // Set up some resolved build options

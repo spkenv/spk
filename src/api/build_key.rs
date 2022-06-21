@@ -1,6 +1,9 @@
 // Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+//! This module defines the structures that make up compound build keys
+//! used in the 'by_build_option_values' build sorting method.
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -12,134 +15,187 @@ use crate::Result;
 #[path = "./build_key_test.rs"]
 mod build_key_test;
 
-//! This module defines the structures that make up compound build keys
-//! used in the 'by_build_option_values' build sorting method.
-//
-// Note: If you are looking at this for the first time, start with the
-// enum BuildKey and its docs at near then end of this file and work
-// backwards.
-
-/// One piece in a list of a pieces for an expanded version number
-/// value entry in a build key. The order these are defined in
-/// will put Numbers behind Text values in a normal build ordering
-/// (reverse sort).
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
-enum BuildKeyVersionNumberPiece {
-    /// For number parts, e.g. the 2 or 3 or 1, in 2.3.1
-    Number(u32),
-    /// For tag names parts, e.g. the "r" in in 2.3.1+r.2
-    Text(String),
+/// A BuildKey is for ordering builds within a package version. There
+/// are 2 kinds of BuildKey: a simple key for /src builds, and a
+/// compound key for binary builds (non-src). /src package builds are
+/// always put last in a reverse sort, and are all considered equal,
+/// so their keys don't contain any detailed information. Binary
+/// builds' compound keys are made up of multiple components designed
+/// to help order the builds so that:
+///
+/// - Builds are ordered based on the values of their build options
+///
+/// - The build option to consider first is based on an ordering of a
+///   subset of build option names by importance, with the remaining
+///   build options being considered in alphabetical name order
+///
+/// - If a build option value is a version request, it is converted
+///   into an expanded version range with max and min version number
+///   bounds, such that: min <= version < max.
+///
+/// - If a value cannot be converted to an expanded version range,
+///   it is left as is (a Text string)
+///
+/// - If a build does not have a value for a build option, it is
+///   given a NotSet value
+///
+/// - Because builds are reverse sorted, within a value:
+///   - ExpandedVersion range values are ordered first, the ones
+///     with higher maximums will be first, then those with highest
+///     minimums. This puts highest version numbers ahead of lower
+///     ones within a build option
+///   - Text values are ordered next, by reverse alphabetical ordering
+///     of the strings. This puts values like "on" before "off"
+///   - NotSet values are ordered last, they are all equal.
+///
+/// A full build key might look something like this, e.g. if the
+/// values for the first 3 option names were: '>2.0.0', no value for
+/// the second option, and 'apples' was the value for the third
+/// option:
+///
+/// Binary(
+///   [
+///     ExpandedVersion(
+///       {
+///         max: {
+///                 digits: [4294967295, 4294967295, 4294967295],
+///                 posttag: None,
+///                 pretag: None
+///              },
+///         min: {
+///                digits:[2, 0, 0],
+///                posttag: None,
+///                pretag: None
+///              }
+///         tie_breaker: 16007767698936169634
+///       }
+///     ),
+///     NotSet,
+///     Text('apples'),
+///     ...
+///   ]
+/// )
+///
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BuildKey {
+    /// A /src build key, it contains no extra information. In a
+    /// reverse sort with binary builds, /src builds are always placed
+    /// last among sorted builds.
+    Src,
+    /// A binary build key. These build's keys are an importance
+    /// ordered list of key entry components.
+    Binary(Vec<BuildKeyEntry>),
 }
 
-impl std::fmt::Display for BuildKeyVersionNumberPiece {
+impl std::fmt::Display for BuildKey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BuildKeyVersionNumberPiece::Number(n) => f.write_str(&format!("{}", n)),
-            BuildKeyVersionNumberPiece::Text(s) => f.write_str(s),
+            BuildKey::Src => f.write_str("Src"),
+            BuildKey::Binary(v) => f.write_str(
+                &v.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ),
         }
     }
 }
 
-/// A fully expanded version number with all its pieces for use in
-/// a build key, e.g. 6.4.0+r2 effectively becomes:
-/// { digits: [6, 4, 0], posttag: Some(['r', 2]), pretag: None }
+impl BuildKey {
+    /// This makes a new compound multi-entry build key for a build
+    /// based on the given ordering of option names, and resolved name
+    /// values.
+    ///
+    /// Note: This assumes the given name_values OptionMap are correct
+    /// for the matching build (pkg Ident). If not, it will make a
+    /// strange build key that could be unrelated to the build. See
+    /// SortedBuildIterator for more details.
+    pub fn new(pkg: &Ident, ordering: &Vec<String>, name_values: &OptionMap) -> BuildKey {
+        // Make the build key based on '/src' or non-/src, the given
+        // ordering of option names, and the given values for those names
+        if pkg.is_source() {
+            // All '/src' build use the same simplified key
+            return BuildKey::Src;
+        }
+
+        // This is a non-/src build. Construct a compound key from the
+        // ordering of option names and the given values for those names.
+        let mut key_entries: Vec<BuildKeyEntry> = Vec::with_capacity(ordering.len());
+        for name in ordering {
+            // Generate this entry based on the value set for this name
+            let entry: BuildKeyEntry = match name_values.get(name) {
+                Some(value) => match BuildKeyExpandedVersionRange::parse_from_range_value(value) {
+                    Ok(expanded_version) => BuildKeyEntry::ExpandedVersion(expanded_version),
+                    Err(_) => BuildKeyEntry::Text(value.clone()),
+                },
+                None => BuildKeyEntry::NotSet,
+            };
+            key_entries.push(entry);
+        }
+
+        // The digest portion of the build's ident is added at the end
+        // as a tie-breaker just in case two or more of the builds end
+        // up with identical key entries up to this point. The digest
+        // will be unique across the builds and guarantee a consistent
+        // ordering between identical build keys.
+        //
+        // Without a last entry tie-breaker like this, builds with
+        // identical keys can order differently between solver runs
+        // due to the vageries of memory allocation, timing, and
+        // filesystem accesses.  Non-deterministic sorting and
+        // selection of builds is difficult to reason about and debug.
+        // This avoids it.
+        //
+        let digest = match pkg.build.clone() {
+            Some(build) => build.digest(),
+            None => {
+                // This should not happen, but if it does use a
+                // sentinel value for the digest
+                "notabuild".to_string()
+            }
+        };
+        key_entries.push(BuildKeyEntry::Text(digest));
+
+        // Assemble and return the build key
+        BuildKey::Binary(key_entries)
+    }
+}
+
+/// A single value component of a build key. When there is no value,
+/// NotSet is used. When the value parses as a version request,
+/// ExpandedVersion is used. Text is used for all other kinds of
+/// values.
+///
+/// They are defined in the order below to ensure that when reverse
+/// sorted ExpandedVersions come before Text values, which come before
+/// NotSet values. This has the side-effect of putting builds with
+/// more dependencies before those with fewer dependencies (which will
+/// have more NotSet values).
+// TODO: should builds with more dependencies be preferred over ones
+// with fewer dependencies? I think I'd rather have ones with fewer
+// dependencies first, maybe?
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-struct BuildKeyVersionNumber {
-    /// The major, minor, patch, and tail digits, e.g. [6, 4, 0]
-    digits: Vec<BuildKeyVersionNumberPiece>,
-    /// Any post-release tag pieces, e.g. Some(['r', 1]) or None
-    posttag: Option<Vec<BuildKeyVersionNumberPiece>>,
-    /// Any pre-release tag pieces, e.g. Some(['r', 2]) or None
-    pretag: Option<Vec<BuildKeyVersionNumberPiece>>,
+pub enum BuildKeyEntry {
+    /// This value is not set because the build option did not have a
+    /// value for the name this entry is generated from. This can
+    /// happen when one build has different options set than another
+    /// build.
+    NotSet,
+    /// This value is a string value (that did not parse as a version
+    /// request number or range, see next entry), e.g. 'cp37m' or 'on'
+    Text(String),
+    /// This value is (was parsed as) a version request number. This
+    /// is used when the value was successfully expanded into a
+    /// version range build key value, e.g. 6.3.1 or ~1.2.3
+    ExpandedVersion(BuildKeyExpandedVersionRange),
 }
 
-impl std::fmt::Display for BuildKeyVersionNumber {
+impl std::fmt::Display for BuildKeyEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(
-            &self
-                .digits
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<String>>()
-                .join("."),
-        )?;
-        if self.digits.len() < 3 {
-            f.write_str(".0")?;
-        }
-
-        if let Some(tag) = &self.pretag {
-            f.write_str("-")?;
-            f.write_str(
-                &tag.iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<String>>()
-                    .join("."),
-            )?;
-        }
-        if let Some(tag) = &self.posttag {
-            f.write_str("+")?;
-            f.write_str(
-                &tag.iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<String>>()
-                    .join("."),
-            )?;
-        }
-        f.write_str("")
-    }
-}
-
-impl BuildKeyVersionNumber {
-    /// This takes a version number, separates it into pieces and turns
-    /// them into a BuildKeyVersionNumber suitable for comparing as a
-    /// component of a build key,
-    /// e.g.
-    ///      2.3.4-r.1 => { digits: [2,3,4], posttag: None, pretag: Some(['r', 1]) }
-    ///      2.3.4     => { digits: [2,3,4], posttag: None, pretag: None }
-    ///      2.3.4+r.2 => { digits: [2,3,4], posttag: Some(['r', 2]), pretag: None }
-    pub(crate) fn new(v: &Version) -> Self {
-        // Collect the version's number parts into a form suitable for use
-        // in a build key.
-        let digits: Vec<BuildKeyVersionNumberPiece> = v
-            .parts
-            .iter()
-            .map(|n| BuildKeyVersionNumberPiece::Number(*n))
-            .collect();
-
-        // Add post tag pieces. Versions without a posttag get an empty value
-        let posttag = if v.post.is_empty() {
-            None
-        } else {
-            // There can be multiple post tags in a Version. There usually
-            // aren't but this copes with them.
-            let mut posttags: Vec<BuildKeyVersionNumberPiece> = Vec::new();
-            for (name, value) in v.post.get_tags() {
-                posttags.push(BuildKeyVersionNumberPiece::Text(name.to_string()));
-                posttags.push(BuildKeyVersionNumberPiece::Number(*value));
-            }
-            Some(posttags)
-        };
-
-        // Add pre tags piece. Versions without a pretag get an empty value
-        let pretag = if v.pre.is_empty() {
-            None
-        } else {
-            // There can be multiple pre tags in a Version. There usually
-            // aren't but this copes with them.
-            let mut pretags: Vec<BuildKeyVersionNumberPiece> = Vec::new();
-            for (name, value) in v.pre.get_tags() {
-                pretags.push(BuildKeyVersionNumberPiece::Text(name.to_string()));
-                pretags.push(BuildKeyVersionNumberPiece::Number(*value));
-            }
-            Some(pretags)
-        };
-
-        // Combine the pieces in a form suitable for sorting. Digits are
-        // first as the most important, then post tags, with pre tags last
-        BuildKeyVersionNumber {
-            digits,
-            posttag,
-            pretag,
+        match self {
+            BuildKeyEntry::NotSet => f.write_str("NotSet"),
+            BuildKeyEntry::Text(s) => f.write_str(s),
+            BuildKeyEntry::ExpandedVersion(v) => f.write_str(&format!("{}", v)),
         }
     }
 }
@@ -269,187 +325,127 @@ impl BuildKeyExpandedVersionRange {
     }
 }
 
-/// A single value component of a build key. When there is no value,
-/// NotSet is used. When the value parses as a version request,
-/// ExpandedVersion is used. Text is used for all other kinds of
-/// values.
-///
-/// They are defined in the order below to ensure that when reverse
-/// sorted ExpandedVersions come before Text values, which come before
-/// NotSet values. This has the side-effect of putting builds with
-/// more dependencies before those with fewer dependencies (which will
-/// have more NotSet values).
-// TODO: should builds with more dependencies be preferred over ones
-// with fewer dependencies? I think I'd rather have ones with fewer
-// dependencies first, maybe?
+/// A fully expanded version number with all its pieces for use in
+/// a build key, e.g. 6.4.0+r2 effectively becomes:
+/// { digits: [6, 4, 0], posttag: Some(['r', 2]), pretag: None }
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BuildKeyEntry {
-    /// This value is not set because the build option did not have a
-    /// value for the name this entry is generated from. This can
-    /// happen when one build has different options set than another
-    /// build.
-    NotSet,
-    /// This value is a string value (that did not parse as a version
-    /// request number or range, see next entry), e.g. 'cp37m' or 'on'
-    Text(String),
-    /// This value is (was parsed as) a version request number. This
-    /// is used when the value was successfully expanded into a
-    /// version range build key value, e.g. 6.3.1 or ~1.2.3
-    ExpandedVersion(BuildKeyExpandedVersionRange),
+struct BuildKeyVersionNumber {
+    /// The major, minor, patch, and tail digits, e.g. [6, 4, 0]
+    digits: Vec<BuildKeyVersionNumberPiece>,
+    /// Any post-release tag pieces, e.g. Some(['r', 1]) or None
+    posttag: Option<Vec<BuildKeyVersionNumberPiece>>,
+    /// Any pre-release tag pieces, e.g. Some(['r', 2]) or None
+    pretag: Option<Vec<BuildKeyVersionNumberPiece>>,
 }
 
-impl std::fmt::Display for BuildKeyEntry {
+impl std::fmt::Display for BuildKeyVersionNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            BuildKeyEntry::NotSet => f.write_str("NotSet"),
-            BuildKeyEntry::Text(s) => f.write_str(s),
-            BuildKeyEntry::ExpandedVersion(v) => f.write_str(&format!("{}", v)),
+        f.write_str(
+            &self
+                .digits
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+                .join("."),
+        )?;
+        if self.digits.len() < 3 {
+            f.write_str(".0")?;
         }
-    }
-}
 
-/// A BuildKey is for ordering builds within a package version. There
-/// are 2 kinds of BuildKey: a simple key for /src builds, and a
-/// compound key for non-src builds. /src package builds are always
-/// put last in a reverse sort, and are all considered equal, so their
-/// keys don't contain any detailed information. Non-src builds'
-/// compound keys are made up of multiple components designed to help
-/// order the builds so that:
-///
-/// - Builds are ordered based on the values of their build options
-///
-/// - The build option to consider first is based on an ordering of a
-///   subset of build option names by importance, with the remaining
-///   build options being considered in alphabetical name order
-///
-/// - If a build option value is a version request, it is converted
-///   into an expanded version range with max and min version number
-///   bounds, such that: min <= version < max.
-///
-/// - If a value cannot be converted to an expanded version range,
-///   it is left as is (a Text string)
-///
-/// - If a build does not have a value for a build option, it is
-///   given a NotSet value
-///
-/// - Because builds are reverse sorted, within a value:
-///   - ExpandedVersion range values are ordered first, the ones
-///     with higher maximums will be first, then those with highest
-///     minimums. This puts highest version numbers ahead of lower
-///     ones within a build option
-///   - Text values are ordered next, by reverse alphabetical ordering
-///     of the strings. This puts values like "on" before "off"
-///   - NotSet values are ordered last, they are all equal.
-///
-/// A full build key might look something like this, e.g. if the
-/// values for the first 3 option names were: '>2.0.0', no value for
-/// the second option, and 'apples' was the value for the third
-/// option:
-///
-/// NonSrc(
-///   [
-///     ExpandedVersion(
-///       {
-///         max: {
-///                 digits: [4294967295, 4294967295, 4294967295],
-///                 posttag: None,
-///                 pretag: None
-///              },
-///         min: {
-///                digits:[2, 0, 0],
-///                posttag: None,
-///                pretag: None
-///              }
-///         tie_breaker: 16007767698936169634
-///       }
-///     ),
-///     NotSet,
-///     Text('apples'),
-///     ...
-///   ]
-/// )
-///
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BuildKey {
-    /// A /src build key, it contains no extra information. In a
-    /// reverse sort with non-src builds /src builds are always placed
-    /// last among sorted builds.
-    Src,
-    /// A non-src build key. These build's keys are an ordered list of
-    /// key entry components.
-    NonSrc(Vec<BuildKeyEntry>),
-}
-
-impl std::fmt::Display for BuildKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            BuildKey::Src => f.write_str("Src"),
-            BuildKey::NonSrc(v) => f.write_str(
-                &v.iter()
+        if let Some(tag) = &self.pretag {
+            f.write_str("-")?;
+            f.write_str(
+                &tag.iter()
                     .map(ToString::to_string)
                     .collect::<Vec<String>>()
-                    .join(", "),
-            ),
+                    .join("."),
+            )?;
+        }
+        if let Some(tag) = &self.posttag {
+            f.write_str("+")?;
+            f.write_str(
+                &tag.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join("."),
+            )?;
+        }
+        f.write_str("")
+    }
+}
+
+impl BuildKeyVersionNumber {
+    /// This takes a version number, separates it into pieces and turns
+    /// them into a BuildKeyVersionNumber suitable for comparing as a
+    /// component of a build key,
+    /// e.g.
+    ///      2.3.4-r.1 => { digits: [2,3,4], posttag: None, pretag: Some(['r', 1]) }
+    ///      2.3.4     => { digits: [2,3,4], posttag: None, pretag: None }
+    ///      2.3.4+r.2 => { digits: [2,3,4], posttag: Some(['r', 2]), pretag: None }
+    pub(crate) fn new(v: &Version) -> Self {
+        // Collect the version's number parts into a form suitable for use
+        // in a build key.
+        let digits: Vec<BuildKeyVersionNumberPiece> = v
+            .parts
+            .iter()
+            .map(|n| BuildKeyVersionNumberPiece::Number(*n))
+            .collect();
+
+        // Add post tag pieces. Versions without a posttag get an empty value
+        let posttag = if v.post.is_empty() {
+            None
+        } else {
+            // There can be multiple post tags in a Version. There usually
+            // aren't but this copes with them.
+            let mut posttags: Vec<BuildKeyVersionNumberPiece> = Vec::new();
+            for (name, value) in v.post.get_tags() {
+                posttags.push(BuildKeyVersionNumberPiece::Text(name.to_string()));
+                posttags.push(BuildKeyVersionNumberPiece::Number(*value));
+            }
+            Some(posttags)
+        };
+
+        // Add pre tags piece. Versions without a pretag get an empty value
+        let pretag = if v.pre.is_empty() {
+            None
+        } else {
+            // There can be multiple pre tags in a Version. There usually
+            // aren't but this copes with them.
+            let mut pretags: Vec<BuildKeyVersionNumberPiece> = Vec::new();
+            for (name, value) in v.pre.get_tags() {
+                pretags.push(BuildKeyVersionNumberPiece::Text(name.to_string()));
+                pretags.push(BuildKeyVersionNumberPiece::Number(*value));
+            }
+            Some(pretags)
+        };
+
+        // Combine the pieces in a form suitable for sorting. Digits are
+        // first as the most important, then post tags, with pre tags last
+        BuildKeyVersionNumber {
+            digits,
+            posttag,
+            pretag,
         }
     }
 }
 
-impl BuildKey {
-    /// This makes a new compound multi-entry build key for a build
-    /// based on the given ordering of option names, and resolved name
-    /// values.
-    ///
-    /// Note: This assumes the given name_values OptionMap are correct
-    /// for the matching build (pkg Ident). If not, it will make a
-    /// strange build key that could be unrelated to the build. See
-    /// SortedBuildIterator for more details.
-    pub fn new(pkg: &Ident, ordering: &Vec<String>, name_values: &OptionMap) -> BuildKey {
-        // Make the build key based on '/src' or non-/src, the given
-        // ordering of option names, and the given values for those names
-        if pkg.is_source() {
-            // All '/src' build use the same simplified key
-            return BuildKey::Src;
+/// One piece in a list of a pieces for an expanded version number
+/// value entry in a build key. The order these are defined in
+/// will put Numbers behind Text values in a normal build ordering
+/// (reverse sort).
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
+enum BuildKeyVersionNumberPiece {
+    /// For number parts, e.g. the 2 or 3 or 1, in 2.3.1
+    Number(u32),
+    /// For tag names parts, e.g. the "r" in in 2.3.1+r.2
+    Text(String),
+}
+
+impl std::fmt::Display for BuildKeyVersionNumberPiece {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BuildKeyVersionNumberPiece::Number(n) => f.write_str(&format!("{}", n)),
+            BuildKeyVersionNumberPiece::Text(s) => f.write_str(s),
         }
-
-        // This is a non-/src build. Construct a compound key from the
-        // ordering of option names and the given values for those names.
-        let mut key_entries: Vec<BuildKeyEntry> = Vec::with_capacity(ordering.len());
-        for name in ordering {
-            // Generate this entry based on the value set for this name
-            let entry: BuildKeyEntry = match name_values.get(name) {
-                Some(value) => match BuildKeyExpandedVersionRange::parse_from_range_value(value) {
-                    Ok(expanded_version) => BuildKeyEntry::ExpandedVersion(expanded_version),
-                    Err(_) => BuildKeyEntry::Text(value.clone()),
-                },
-                None => BuildKeyEntry::NotSet,
-            };
-            key_entries.push(entry);
-        }
-
-        // The digest portion of the build's ident is added at the end
-        // as a tie-breaker just in case two or more of the builds end
-        // up with identical key entries up to this point. The digest
-        // will be unique across the builds and guarantee a consistent
-        // ordering between identical build keys.
-        //
-        // Without a last entry tie-breaker like this, builds with
-        // identical keys can order differently between solver runs
-        // due to the vageries of memory allocation, timing, and
-        // filesystem accesses.  Non-deterministic sorting and
-        // selection of builds is difficult to reason about and debug.
-        // This avoids it.
-        //
-        let digest = match pkg.build.clone() {
-            Some(build) => build.digest(),
-            None => {
-                // This should not happen, but if it does use a
-                // sentinel value for the digest
-                "notabuild".to_string()
-            }
-        };
-        key_entries.push(BuildKeyEntry::Text(digest));
-
-        // Assemble and return the build key
-        BuildKey::NonSrc(key_entries)
     }
 }
