@@ -493,7 +493,7 @@ where
                 self.output_queue.push_back(format!(
                     "{} {}",
                     "State  Options:".yellow(),
-                    format_options(&node.state.get_option_map())
+                    format_options(node.state.get_option_map())
                 ));
             }
 

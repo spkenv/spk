@@ -158,7 +158,7 @@ impl Solver {
     }
 
     fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
-        let mut opts = state.get_option_map();
+        let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_str()) {
                 opts.insert(
@@ -177,7 +177,7 @@ impl Solver {
             repos: self.repos.clone(),
             ..Default::default()
         };
-        solver.update_options(opts);
+        solver.update_options(opts.clone());
         solver.solve_build_environment(spec)
     }
 
@@ -229,7 +229,7 @@ impl Solver {
 
             let builds = if !builds.lock().unwrap().is_sorted_build_iterator() {
                 let builds = Arc::new(Mutex::new(SortedBuildIterator::new(
-                    node.state.get_option_map(),
+                    node.state.get_option_map().clone(),
                     builds.clone(),
                 )?));
                 iterator_lock.set_builds(&pkg.version, builds.clone());
@@ -403,7 +403,7 @@ impl Solver {
     pub fn configure_for_build_environment(&mut self, spec: &api::Spec) -> Result<()> {
         let state = self.get_initial_state();
 
-        let build_options = spec.resolve_all_options(&state.get_option_map());
+        let build_options = spec.resolve_all_options(state.get_option_map());
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(option.pkg.as_str());
