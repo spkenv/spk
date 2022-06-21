@@ -144,7 +144,7 @@ impl Run for Test {
                         let formatter = self.formatter_settings.get_formatter(self.verbose);
                         match stage {
                             spk::api::TestStage::Sources => spk::test::PackageSourceTester::new(
-                                spec.clone(),
+                                (*spec).clone(),
                                 test.script.join("\n"),
                             )
                             .with_options(opts.clone())
@@ -157,7 +157,7 @@ impl Run for Test {
                             .test()?,
 
                             spk::api::TestStage::Build => spk::test::PackageBuildTester::new(
-                                spec.clone(),
+                                (*spec).clone(),
                                 test.script.join("\n"),
                             )
                             .with_options(opts.clone())
@@ -178,7 +178,7 @@ impl Run for Test {
                             .test()?,
 
                             spk::api::TestStage::Install => spk::test::PackageInstallTester::new(
-                                spec.clone(),
+                                (*spec).clone(),
                                 test.script.join("\n"),
                             )
                             .with_options(opts.clone())

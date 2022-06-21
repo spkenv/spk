@@ -264,11 +264,11 @@ impl BuildIterator for RepositoryBuildIterator {
                 "Published spec is corrupt (has no associated build), pkg={}",
                 build,
             );
-            spec.pkg = spec.pkg.with_build(build.build);
+            Arc::make_mut(&mut spec).pkg = spec.pkg.with_build(build.build);
         }
 
         Ok(Some((
-            Arc::new(spec),
+            spec,
             PackageSource::Repository {
                 repo: self.repo.clone(),
                 components,
@@ -289,7 +289,7 @@ impl RepositoryBuildIterator {
     fn new(pkg: api::Ident, repo: Arc<storage::RepositoryHandle>) -> Result<Self> {
         let mut builds = repo.list_package_builds(&pkg)?;
         let spec = match repo.read_spec(&pkg) {
-            Ok(spec) => Some(Arc::new(spec)),
+            Ok(spec) => Some(spec),
             Err(Error::PackageNotFoundError(..)) => None,
             Err(err) => return Err(err),
         };

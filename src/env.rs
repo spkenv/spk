@@ -35,7 +35,7 @@ pub fn current_env() -> Result<solve::Solution> {
                 let repo = repo.clone();
                 solution.add(
                     &request,
-                    spec.into(),
+                    spec,
                     solve::PackageSource::Repository { repo, components },
                 );
             }

@@ -82,7 +82,7 @@ impl SourcePackageBuilder {
         let pkg = self.spec.pkg.clone();
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
-        repo.publish_package(self.spec.clone(), components)?;
+        repo.publish_package(&self.spec, components)?;
         Ok(pkg)
     }
 

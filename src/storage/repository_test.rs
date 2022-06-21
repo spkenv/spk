@@ -78,7 +78,7 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    repo.publish_spec(spec.clone()).unwrap();
+    repo.publish_spec(&spec).unwrap();
     assert_eq!(repo.list_packages().unwrap(), vec![spec.pkg.name.clone()]);
     assert_eq!(
         repo.list_package_versions(&spec.pkg.name)
@@ -89,11 +89,11 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
         vec!["1.0.0"]
     );
 
-    match repo.publish_spec(spec.clone()) {
+    match repo.publish_spec(&spec) {
         Err(Error::VersionExistsError(_)) => (),
         _ => panic!("expected version exists error"),
     }
-    repo.force_publish_spec(spec)
+    repo.force_publish_spec(&spec)
         .expect("force publish should ignore existing version");
 }
 
@@ -104,11 +104,11 @@ fn test_repo_publish_package(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
     let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    repo.publish_spec(spec.clone()).unwrap();
+    repo.publish_spec(&spec).unwrap();
     spec.pkg
         .set_build(Some(api::parse_build("7CI5R7Y4").unwrap()));
     repo.publish_package(
-        spec.clone(),
+        &spec,
         vec![(api::Component::Run, empty_layer_digest())]
             .into_iter()
             .collect(),
@@ -118,7 +118,7 @@ fn test_repo_publish_package(#[case] repo: RepoKind) {
         repo.list_package_builds(&spec.pkg).unwrap(),
         [spec.pkg.clone()]
     );
-    assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
+    assert_eq!(*repo.read_spec(&spec.pkg).unwrap(), spec);
 }
 
 #[rstest]
@@ -128,11 +128,11 @@ fn test_repo_remove_package(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
     let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    repo.publish_spec(spec.clone()).unwrap();
+    repo.publish_spec(&spec).unwrap();
     spec.pkg
         .set_build(Some(api::parse_build("7CI5R7Y4").unwrap()));
     repo.publish_package(
-        spec.clone(),
+        &spec,
         vec![(api::Component::Run, empty_layer_digest())]
             .into_iter()
             .collect(),
@@ -142,7 +142,7 @@ fn test_repo_remove_package(#[case] repo: RepoKind) {
         repo.list_package_builds(&spec.pkg).unwrap(),
         vec![spec.pkg.clone()]
     );
-    assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
+    assert_eq!(*repo.read_spec(&spec.pkg).unwrap(), spec);
     repo.remove_package(&spec.pkg).unwrap();
     assert!(crate::with_cache_policy!(repo, CachePolicy::BypassCache, {
         repo.list_package_builds(&spec.pkg)
