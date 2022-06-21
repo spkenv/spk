@@ -73,7 +73,7 @@ impl Repository for RuntimeRepository {
         &self,
         _cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Cow<Vec<api::Version>>> {
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         Ok(Cow::Owned(
             get_all_filenames(self.root.join(name))?
                 .into_iter()
@@ -85,7 +85,7 @@ impl Repository for RuntimeRepository {
                     }
                 })
                 .filter_map(|candidate| match api::parse_version(&candidate) {
-                    Ok(v) => Some(v),
+                    Ok(v) => Some(Cow::Owned(v)),
                     Err(err) => {
                         tracing::debug!(
                             "Skipping invalid version in /spfs/spk: [{}], {:?}",

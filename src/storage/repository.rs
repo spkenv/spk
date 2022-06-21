@@ -43,7 +43,10 @@ pub trait Repository {
     ///
     /// The return value may come from a cache. See
     /// [`Repository::list_package_versions_cp`] for control over caching.
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Cow<Vec<api::Version>>> {
+    fn list_package_versions(
+        &self,
+        name: &api::PkgName,
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         self.list_package_versions_cp(CachePolicy::CacheOk, name)
     }
 
@@ -52,7 +55,7 @@ pub trait Repository {
         &self,
         cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Cow<Vec<api::Version>>>;
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>>;
 
     /// Return the set of builds for the given package name and version.
     ///

@@ -188,7 +188,7 @@ impl Ls {
                 let base = spk::api::Ident::from(package);
                 repo.list_package_versions(&base.name)?
                     .iter()
-                    .map(|v| base.with_version(v.clone()))
+                    .map(|v| base.with_version(v.clone().into_owned()))
                     .collect()
             };
             versions.sort();

@@ -91,7 +91,7 @@ std::thread_local! {
 
     static PACKAGE_VERSIONS_CACHE : CacheByAddress<
         api::PkgName,
-        CloneableResult<Cow<'static, Vec<api::Version>>>
+        CloneableResult<Cow<'static, Vec<Cow<'static, api::Version>>>>
     > = RefCell::new(HashMap::new());
 
     static SPEC_CACHE : CacheByAddress<
@@ -128,7 +128,7 @@ impl Repository for SPFSRepository {
         &self,
         cache_policy: CachePolicy,
         name: &api::PkgName,
-    ) -> Result<Cow<Vec<api::Version>>> {
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         let address = self.address();
         if cache_policy.cached_result_permitted() {
             let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
@@ -160,7 +160,10 @@ impl Repository for SPFSRepository {
                     }
                 })
                 .collect();
-            let mut versions = versions.into_iter().collect_vec();
+            let mut versions = versions
+                .into_iter()
+                .map(|v| Cow::Borrowed(Box::leak(Box::new(v))))
+                .collect_vec();
             versions.sort();
             // XXX: infallible vs return type
             Ok(Cow::Borrowed(Box::leak(Box::new(versions))))
@@ -431,7 +434,7 @@ impl Repository for SPFSRepository {
             tracing::info!("replicating old tags for {}...", name);
             let mut pkg = api::Ident::new(name.to_owned());
             for version in self.list_package_versions(&name)?.iter() {
-                pkg.version = version.clone();
+                pkg.version = version.clone().into_owned();
                 for build in self.list_package_builds(&pkg)? {
                     let stored = crate::HANDLE
                         .block_on(self.lookup_package(CachePolicy::BypassCache, &build))?;
