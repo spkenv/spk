@@ -26,7 +26,7 @@ pub trait Repository {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
-    fn address(&self) -> url::Url;
+    fn address(&self) -> &url::Url;
 
     /// Return the set of known packages in this repo.
     ///

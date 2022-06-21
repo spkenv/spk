@@ -11,42 +11,48 @@ use crate::{api, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
+    address: url::Url,
     root: std::path::PathBuf,
 }
 
 impl Default for RuntimeRepository {
     fn default() -> Self {
-        Self {
-            root: std::path::PathBuf::from("/spfs/spk/pkg"),
-        }
+        let root = std::path::PathBuf::from("/spfs/spk/pkg");
+        let address = Self::address_from_root(&root);
+        Self { address, root }
     }
 }
 
 impl RuntimeRepository {
-    #[cfg(test)]
-    pub fn new(root: std::path::PathBuf) -> Self {
-        // this function is not allowed outside of testing because get_package
-        // makes assumptions about the runtime directory which cannot be
-        // reasonably altered
-        Self { root }
-    }
-}
-
-impl Repository for RuntimeRepository {
-    fn address(&self) -> url::Url {
-        let address = format!("runtime://{}", self.root.display());
+    fn address_from_root(root: &std::path::PathBuf) -> url::Url {
+        let address = format!("runtime://{}", root.display());
         match url::Url::parse(&address) {
             Ok(a) => a,
             Err(err) => {
                 tracing::error!(
                     "failed to create valid address for path {:?}: {:?}",
-                    self.root,
+                    root,
                     err
                 );
-                url::Url::parse(&format!("runtime://{}", self.root.to_string_lossy()))
+                url::Url::parse(&format!("runtime://{}", root.to_string_lossy()))
                     .expect("Failed to create url from path (fallback)")
             }
         }
+    }
+
+    #[cfg(test)]
+    pub fn new(root: std::path::PathBuf) -> Self {
+        // this function is not allowed outside of testing because get_package
+        // makes assumptions about the runtime directory which cannot be
+        // reasonably altered
+        let address = Self::address_from_root(&root);
+        Self { address, root }
+    }
+}
+
+impl Repository for RuntimeRepository {
+    fn address(&self) -> &url::Url {
+        &self.address
     }
 
     fn list_packages_cp(&self, _cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
