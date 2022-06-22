@@ -138,7 +138,18 @@ impl BuildKey {
             let entry: BuildKeyEntry = match name_values.get(name) {
                 Some(value) => match BuildKeyExpandedVersionRange::parse_from_range_value(value) {
                     Ok(expanded_version) => BuildKeyEntry::ExpandedVersion(expanded_version),
-                    Err(_) => BuildKeyEntry::Text(value.clone()),
+                    Err(_) => {
+                        // Note: this fallback is silent because it is
+                        // how this determines whether the string
+                        // value is an ExpandedVersion or not (so
+                        // Text). This is not ideal and may hide
+                        // things like typos in values.
+                        // TODO: option definitions are for var or pkg
+                        // options, could use that information here to
+                        // determin the kind of value instead of
+                        // relying on parsing errors.
+                        BuildKeyEntry::Text(value.clone())
+                    }
                 },
                 None => BuildKeyEntry::NotSet,
             };
@@ -175,14 +186,25 @@ impl BuildKey {
 
 /// A single value component of a build key. When there is no value,
 /// NotSet is used. When the value parses as a version request,
-/// ExpandedVersion is used. Text is used for all other kinds of
-/// values.
+/// ExpandedVersion is used. Text is used for all other values.
 ///
-/// They are defined in the order below to ensure that when reverse
-/// sorted ExpandedVersions come before Text values, which come before
-/// NotSet values. This has the side-effect of putting builds with
+/// The NotSet, Text and ExpandedVersion aree defined in the order
+/// below to ensure that when they are reverse sorted ExpandedVersions
+/// will come before Text values, which come before NotSet values.
+///
+/// If all values in the same entry position for all the builds are of
+/// same kind of value, the will order as described in the BuildKey
+/// docs: highest first for ExpandedVersions, reverse alphabetical for
+/// Text, and identically for NotSet.
+///
+/// If there are different kinds of values in the same entry position
+/// for the builds, the ExpandedVersions will be first, ordered by
+/// highest numbers, then the ones that became Text ordered by reverse
+/// alphabetical, then any NotSet values. For mixed ExpandedVersions
+/// and NotSet values this has the side-effect of putting builds with
 /// more dependencies before those with fewer dependencies (which will
-/// have more NotSet values).
+/// have more NotSet values). This may or may not be desired in all
+/// cases.
 // TODO: should builds with more dependencies be preferred over ones
 // with fewer dependencies? I think I'd rather have ones with fewer
 // dependencies first, maybe?
