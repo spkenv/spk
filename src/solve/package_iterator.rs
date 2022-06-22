@@ -51,11 +51,6 @@ static BUILD_KEY_NAME_ORDER: Lazy<Vec<String>> = Lazy::new(|| {
         .collect()
 });
 
-// This set is for faster checks during key generation
-// TODO: not sure if this matters outside python, profile it and see
-static BUILD_KEY_NAME_ORDER_SET: Lazy<HashSet<String>> =
-    Lazy::new(|| BUILD_KEY_NAME_ORDER.clone().into_iter().collect());
-
 /// A list of option names to ignore during build key generation.
 /// Option names in this list will not be included in build keys.
 /// This list can be used to exclude names that don't help distinguish
@@ -75,11 +70,6 @@ static DONT_USE_IN_KEY_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
         .map(|s| s.to_string())
         .collect()
 });
-
-// This set is for faster checks during key generation
-// TODO: not sure if this matters outside python, profile it and see
-static DONT_USE_IN_KEY_SET: Lazy<HashSet<String>> =
-    Lazy::new(|| DONT_USE_IN_KEY_NAMES.clone().into_iter().collect());
 
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_empty(&self) -> bool;
@@ -625,7 +615,7 @@ impl SortedBuildIterator {
             // is a two-part process. This is the first part. The
             // second part is happens later outside the all builds loop.
             for (name, value) in options_map.iter() {
-                if DONT_USE_IN_KEY_SET.contains(name) {
+                if DONT_USE_IN_KEY_NAMES.contains(name) {
                     // Skip names configured as ones to never use
                     continue;
                 }
@@ -688,7 +678,7 @@ impl SortedBuildIterator {
         // BUILD_KEY_NAME_ORDER to ensure they fall in the correct
         // position for a site's spk setup.
         for name in &key_entry_names {
-            if !BUILD_KEY_NAME_ORDER_SET.contains(name) {
+            if !BUILD_KEY_NAME_ORDER.contains(name) {
                 ordered_names.push(name.clone());
             }
         }
