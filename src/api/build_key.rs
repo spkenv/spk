@@ -40,13 +40,27 @@ mod build_key_test;
 ///   given a NotSet value
 ///
 /// - Because builds are reverse sorted, within a value:
-///   - ExpandedVersion range values are ordered first, the ones
-///     with higher maximums will be first, then those with highest
+///   - ExpandedVersion range values are ordered first, the ones with
+///     higher maximums will be first, then those with highest
 ///     minimums. This puts highest version numbers ahead of lower
-///     ones within a build option
-///   - Text values are ordered next, by reverse alphabetical ordering
-///     of the strings. This puts values like "on" before "off"
-///   - NotSet values are ordered last, they are all equal.
+///     ones within a build option. This lines up with the users'
+///     expectation that "things that use the latest versions should
+///     be picked first".
+///   - Text values are ordered next, they come after any
+///     ExpandedVersion values and end up in reverse alphabetical
+///     order of the strings because of the reverse sorting. This
+///     simplifies the sorting but can lead to odd situations: if the
+///     values are "off" and "on", "on" will come before "off", but if
+///     the values are "debug" and "release", then "release" will come
+///     before "debug". This may not be what is desired, but something
+///     less arbitrary than requires defining an ordering on the valid
+///     values for an option and those definitions being consistent
+///     across all places that use that option.
+///   - NotSet values are ordered last, they are all equal and treated
+///     as the lowest priority to pick. This has the side-effect of
+///     putting builds with more options, usually more dependencies, ahead
+///     of builds with fewer dependencies. This might not be desired in
+///     all cases either.
 ///
 /// A full build key might look something like this, e.g. if the
 /// values for the first 3 option names were: '>2.0.0', no value for
