@@ -6,31 +6,19 @@ use once_cell::sync::Lazy;
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
 use super::solution::PackageSource;
 use crate::{
-    api::{self, Build, BuildKey},
+    api::{self, BuildKey},
     storage, Error, Result,
 };
 
 #[cfg(test)]
 #[path = "./package_iterator_test.rs"]
 mod package_iterator_test;
-
-/// Allows control of which build sorting method to use in the
-/// SortedBuildIterator objects: the distance based method (the
-/// original), or the build option name value order based method (the
-/// default).
-// TODO: add the default value to a config file, once spk has one
-static USE_BY_DISTANCE_BUILD_SORT: Lazy<bool> = Lazy::new(|| {
-    std::env::var_os("SPK_BUILD_SORT")
-        .unwrap_or_else(|| OsString::from("optionvalue"))
-        .to_string_lossy()
-        == "distance"
-});
 
 /// Allows control of the order option names are using in build key
 /// generation. Names in this list will be put at the front of the
@@ -345,9 +333,6 @@ impl EmptyBuildIterator {
 
 #[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
-    // Note: the 'options' field is only used in the 'by_distance'
-    // based build key generation.
-    options: api::OptionMap,
     source: Arc<Mutex<dyn BuildIterator>>,
     builds: VecDeque<(Arc<api::Spec>, PackageSource)>,
 }
@@ -386,7 +371,9 @@ struct ChangeCounter {
 }
 
 impl SortedBuildIterator {
-    pub fn new(options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> Result<Self> {
+    pub fn new(_options: api::OptionMap, source: Arc<Mutex<dyn BuildIterator>>) -> Result<Self> {
+        // Note: _options is unused in this implementation, it was used
+        // in the by_distance sorting implementation
         let mut builds = VecDeque::<(Arc<api::Spec>, PackageSource)>::new();
         {
             let mut source_lock = source.lock().unwrap();
@@ -395,148 +382,14 @@ impl SortedBuildIterator {
             }
         }
 
-        let mut sbi = SortedBuildIterator {
-            options,
-            source,
-            builds,
-        };
+        let mut sbi = SortedBuildIterator { source, builds };
 
-        // Use the configured sort method, either the distance based
-        // one, or the build option values based one.
-        if *USE_BY_DISTANCE_BUILD_SORT {
-            sbi.sort_by_distance();
-        } else {
-            sbi.sort_by_build_option_values();
-        }
+        sbi.sort_by_build_option_values();
         Ok(sbi)
     }
 
-    /// Original - Build key tuple (distance, digest) making helper
-    /// function for sort_by_distance() sorting
-    #[allow(clippy::nonminimal_bool)]
-    fn make_distance_build_key(
-        spec: &Arc<api::Spec>,
-        version_spec: &Option<Arc<api::Spec>>,
-        variant_count: usize,
-        default_options: &api::OptionMap,
-        self_options: &api::OptionMap,
-    ) -> (i64, String) {
-        let build = spec
-            .pkg
-            .build
-            .as_ref()
-            .map(|b| b.to_string())
-            .unwrap_or_else(|| "None".to_owned());
-        let total_options_count = spec.build.options.len();
-        // source packages must come last to ensure that building
-        // from source is the last option under normal circumstances
-        if spec.pkg.build.is_none() || spec.pkg.build == Some(Build::Source) {
-            return ((variant_count + total_options_count + 1) as i64, build);
-        }
-
-        if let Some(version_spec) = &version_spec {
-            // if this spec is compatible with the default options, it's the
-            // most valuable
-            if !!&spec.build.validate_options(&spec.pkg.name, default_options) {
-                return (-1, build);
-            }
-            // then we sort based on the first defined variant that seems valid
-            for (i, variant) in version_spec.build.variants.iter().enumerate() {
-                if !!&spec.build.validate_options(&spec.pkg.name, variant) {
-                    return (i as i64, build);
-                }
-            }
-        }
-
-        // and then it's the distance from the default option set,
-        // where distance is just the number of differing options
-        let current_options_unfiltered = spec.resolve_all_options(&api::OptionMap::default());
-        let current_options: HashSet<(&String, &String)> = current_options_unfiltered
-            .iter()
-            .filter(|&(o, _)| self_options.contains_key(o))
-            .collect();
-        let similar_options_count = default_options
-            .iter()
-            .collect::<HashSet<_>>()
-            .intersection(&current_options)
-            .collect::<HashSet<_>>()
-            .len();
-        let distance_from_default = (total_options_count - similar_options_count).max(0);
-        ((variant_count + distance_from_default) as i64, build)
-    }
-
-    /// Original - Default options and distance based sorting
-    fn sort_by_distance(&mut self) {
-        let start = Instant::now();
-
-        let version_spec = self.version_spec();
-        let variant_count = version_spec
-            .as_ref()
-            .map(|s| s.build.variants.len())
-            .unwrap_or(0);
-        let default_options = version_spec
-            .as_ref()
-            .map(|s| s.resolve_all_options(&api::OptionMap::default()))
-            .unwrap_or_else(api::OptionMap::default);
-
-        // Distance from these options can result in key clashes,
-        // particularly in the early stages of a solve, that don't
-        // help distinguish between builds. These can create
-        // inconsistencies between build picks for package versions at
-        // different levels in a solve.
-        let self_options = self.options.clone();
-
-        self.builds
-            .make_contiguous()
-            .sort_by_cached_key(|(spec, _)| {
-                SortedBuildIterator::make_distance_build_key(
-                    spec,
-                    &version_spec,
-                    variant_count,
-                    &default_options,
-                    &self_options,
-                )
-            });
-
-        let duration: Duration = start.elapsed();
-        tracing::info!(
-            target: BUILD_SORT_TARGET,
-            "Sort by distance: {} builds in {} secs",
-            self.builds.len(),
-            duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9
-        );
-        tracing::debug!(
-            target: BUILD_SORT_TARGET,
-            "Keys by distance: key zero options: default: [{:?}] self: [{:?}]",
-            default_options,
-            self_options,
-        );
-        tracing::debug!(
-            target: BUILD_SORT_TARGET,
-            "Keys by distance: 'Build => Key : Options':\n {}",
-            self.builds
-                .iter()
-                .map(|(spec, _)| {
-                    format!(
-                        "{} = {:?} : {:?}",
-                        spec.pkg,
-                        SortedBuildIterator::make_distance_build_key(
-                            spec,
-                            &version_spec,
-                            variant_count,
-                            &default_options,
-                            &self_options,
-                        ),
-                        spec.resolve_all_options(&api::OptionMap::default()),
-                    )
-                })
-                .collect::<Vec<String>>()
-                .join("\n ")
-        );
-    }
-
-    /// Newer - BuildKey structure making helper function for
-    /// sort_by_build_option_values() sorting
+    /// Helper for making BuildKey structures used in the sorting in
+    /// sort_by_build_option_values() below
     fn make_option_values_build_key(
         spec: &api::Spec,
         ordered_names: &Vec<String>,
@@ -551,7 +404,8 @@ impl SortedBuildIterator {
         BuildKey::new(&spec.pkg, ordered_names, name_values)
     }
 
-    /// Newer - Ordered build option names and differing values based sorting
+    /// Sorts builds by keys based on ordered build option names and
+    /// differing values in those options
     fn sort_by_build_option_values(&mut self) {
         let start = Instant::now();
 
@@ -685,7 +539,7 @@ impl SortedBuildIterator {
         );
         tracing::debug!(
             target: BUILD_SORT_TARGET,
-            "Keys by build option values: keys built from: [{}]",
+            "Keys by build option values: buildt from: [{}]",
             ordered_names.join(", "),
         );
         tracing::debug!(
