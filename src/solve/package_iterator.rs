@@ -51,26 +51,6 @@ static BUILD_KEY_NAME_ORDER: Lazy<Vec<String>> = Lazy::new(|| {
         .collect()
 });
 
-/// A list of option names to ignore during build key generation.
-/// Option names in this list will not be included in build keys.
-/// This list can be used to exclude names that don't help distinguish
-/// a build key, e.g. 'os'. Anything not ignored will be used in the
-/// keys and will need to have a sensible ordering of its values,
-/// which might not be straight-forward.
-/// Note: that this setting does not cause the solver to skip any
-/// builds, it just won't use options with these names to help order
-/// the builds.
-// TODO: a the default value to config file, once spk has one
-static DONT_USE_IN_KEY_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
-    std::env::var_os("SPK_BUILD_OPTION_KEY_DONT_USE")
-        .unwrap_or_else(|| OsString::from("arch,distro,os,centos"))
-        .to_string_lossy()
-        .to_string()
-        .split(',')
-        .map(|s| s.to_string())
-        .collect()
-});
-
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
     fn is_empty(&self) -> bool;
     fn is_sorted_build_iterator(&self) -> bool {
@@ -609,20 +589,15 @@ impl SortedBuildIterator {
             // builds can be ignored. Only using the options that
             // differ across builds gives shorter, more distinct, keys.
             //
-            // The build option names and values for this binary
-            // build are added to a change set to determine which
-            // ones' values differ across builds. This determination
-            // is a two-part process. This is the first part. The
-            // second part is happens later outside the all builds loop.
+            // The build option names and values for this binary build
+            // are added to a change set to determine which ones'
+            // values differ across builds. The determination is a
+            // two-part process. This is the first part. The second
+            // part is happens later outside the all builds loop.
             for (name, value) in options_map.iter() {
-                if DONT_USE_IN_KEY_NAMES.contains(name) {
-                    // Skip names configured as ones to never use
-                    continue;
-                }
-
-                // Record this name and whether its value is one we've
-                // seen before. The count is used later to check if
-                // the name is used by all, or only some, builds.
+                // Record this name (and value) if has not been seen
+                // before. The count is used later to check if the
+                // name is used by all, or only some, builds.
                 let counter = changes.entry(name.clone()).or_insert(ChangeCounter {
                     last: value.clone(),
                     count: 0,
