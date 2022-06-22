@@ -650,8 +650,11 @@ impl RequestVar {
     pub fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
-        let mut new_requests = (*base.var_requests).clone();
-        new_requests.push(self.request.clone());
+        let mut new_requests = Arc::clone(&base.var_requests);
+        // Avoid adding duplicate var requests.
+        if !base.contains_var_request(&self.request) {
+            Arc::make_mut(&mut new_requests).push(self.request.clone());
+        }
         let mut options = base
             .options
             .iter()
@@ -757,6 +760,8 @@ impl SetPackageBuild {
 struct StateId {
     pkg_requests_hash: u64,
     var_requests_hash: u64,
+    // A set of what `VarRequest` hashes exist in this `StateId`.
+    var_requests_membership: Arc<HashSet<u64>>,
     packages_hash: u64,
     options_hash: u64,
     full_hash: u64,
@@ -771,6 +776,7 @@ impl StateId {
     pub fn new(
         pkg_requests_hash: u64,
         var_requests_hash: u64,
+        var_requests_membership: Arc<HashSet<u64>>,
         packages_hash: u64,
         options_hash: u64,
     ) -> Self {
@@ -785,6 +791,7 @@ impl StateId {
         Self {
             pkg_requests_hash,
             var_requests_hash,
+            var_requests_membership,
             packages_hash,
             options_hash,
             full_hash,
@@ -813,16 +820,27 @@ impl StateId {
         hasher.finish()
     }
 
-    fn var_requests_hash(var_requests: &[api::VarRequest]) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        var_requests.hash(&mut hasher);
-        hasher.finish()
+    fn var_requests_hash(var_requests: &[api::VarRequest]) -> (u64, HashSet<u64>) {
+        let mut var_requests_membership = HashSet::new();
+        let mut global_hasher = DefaultHasher::new();
+        for var_request in var_requests {
+            // First hash this individual `VarRequest`
+            let mut hasher = DefaultHasher::new();
+            var_request.hash(&mut hasher);
+            let single_var_request_hash = hasher.finish();
+            var_requests_membership.insert(single_var_request_hash);
+
+            // The "global" hash is a hash of hashes
+            single_var_request_hash.hash(&mut global_hasher);
+        }
+        (global_hasher.finish(), var_requests_membership)
     }
 
     fn with_options(&self, options: &[(String, String)]) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
+            Arc::clone(&self.var_requests_membership),
             self.packages_hash,
             StateId::options_hash(options),
         )
@@ -832,6 +850,7 @@ impl StateId {
         Self::new(
             StateId::pkg_requests_hash(pkg_requests),
             self.var_requests_hash,
+            Arc::clone(&self.var_requests_membership),
             self.packages_hash,
             self.options_hash,
         )
@@ -841,6 +860,7 @@ impl StateId {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
+            Arc::clone(&self.var_requests_membership),
             StateId::packages_hash(self.packages_hash, package),
             self.options_hash,
         )
@@ -851,9 +871,11 @@ impl StateId {
         var_requests: &[api::VarRequest],
         options: &[(String, String)],
     ) -> Self {
+        let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
         Self::new(
             self.pkg_requests_hash,
-            StateId::var_requests_hash(var_requests),
+            var_requests_hash,
+            Arc::new(var_requests_membership),
             self.packages_hash,
             StateId::options_hash(options),
         )
@@ -882,9 +904,12 @@ impl State {
         // may be states constructed where the id is
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
+        let (var_requests_hash, var_requests_membership) =
+            StateId::var_requests_hash(&var_requests);
         let state_id = StateId::new(
             StateId::pkg_requests_hash(&pkg_requests),
-            StateId::var_requests_hash(&var_requests),
+            var_requests_hash,
+            Arc::new(var_requests_membership),
             0,
             StateId::options_hash(&options),
         );
@@ -911,6 +936,16 @@ impl State {
             solution.add(&req, spec.clone(), source.clone());
         }
         Ok(solution)
+    }
+
+    /// Return true if this state already contains this request.
+    pub fn contains_var_request(&self, var_request: &api::VarRequest) -> bool {
+        let mut hasher = DefaultHasher::new();
+        var_request.hash(&mut hasher);
+        let single_var_request_hash = hasher.finish();
+        self.state_id
+            .var_requests_membership
+            .contains(&single_var_request_hash)
     }
 
     pub fn default() -> Self {
@@ -1061,7 +1096,7 @@ impl State {
 
     fn with_var_requests_and_options(
         &self,
-        var_requests: Vec<api::VarRequest>,
+        var_requests: Arc<Vec<api::VarRequest>>,
         options: Vec<(String, String)>,
     ) -> Self {
         let state_id = self
@@ -1069,7 +1104,7 @@ impl State {
             .with_var_requests_and_options(&var_requests, &options);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
-            var_requests: Arc::new(var_requests),
+            var_requests,
             packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
