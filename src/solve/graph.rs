@@ -655,13 +655,11 @@ impl RequestVar {
         if !base.contains_var_request(&self.request) {
             Arc::make_mut(&mut new_requests).push(self.request.clone());
         }
-        let mut options = base
-            .options
-            .iter()
-            .cloned()
-            .filter(|(var, _)| *var != self.request.var)
-            .collect::<Vec<_>>();
-        options.push((self.request.var.to_owned(), self.request.value.to_owned()));
+        let options = SetOptions::compute_new_options(
+            base,
+            vec![(&self.request.var, &self.request.value)].into_iter(),
+            true,
+        );
         Arc::new(base.with_var_requests_and_options(new_requests, options))
     }
 }
@@ -677,6 +675,19 @@ impl SetOptions {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
+        Arc::new(base.with_options(Self::compute_new_options(base, self.options.iter(), false)))
+    }
+
+    /// Compute the new options list for a state, preserving the insertion
+    /// order based on option key.
+    pub fn compute_new_options<'i, I>(
+        base: &State,
+        new_options: I,
+        update_existing_option_with_empty_value: bool,
+    ) -> Vec<(String, String)>
+    where
+        I: Iterator<Item = (&'i String, &'i String)>,
+    {
         // Update options while preserving order to match
         // python dictionary behaviour. "Updating a key
         // does not affect the order."
@@ -693,10 +704,10 @@ impl SetOptions {
             })
             .collect();
         // Update base options with request options...
-        for (k, v) in self.options.iter() {
+        for (k, v) in new_options {
             match options.get_mut(k) {
                 // Unless already present and request option value is empty.
-                Some(_) if v.is_empty() => continue,
+                Some(_) if v.is_empty() && !update_existing_option_with_empty_value => continue,
                 // If option already existed, keep same insertion order.
                 Some((_, value)) => *value = v.to_owned(),
                 // New options are inserted at the end.
@@ -709,14 +720,10 @@ impl SetOptions {
         }
         let mut options = options.into_iter().collect::<Vec<_>>();
         options.sort_by_key(|(_, (i, _))| *i);
-        Arc::new(
-            base.with_options(
-                options
-                    .into_iter()
-                    .map(|(var, (_, value))| (var, value))
-                    .collect::<Vec<_>>(),
-            ),
-        )
+        options
+            .into_iter()
+            .map(|(var, (_, value))| (var, value))
+            .collect::<Vec<_>>()
     }
 }
 
