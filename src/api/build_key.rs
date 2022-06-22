@@ -396,7 +396,7 @@ impl BuildKeyVersionNumber {
             // There can be multiple post tags in a Version. There usually
             // aren't but this copes with them.
             let mut posttags: Vec<BuildKeyVersionNumberPiece> = Vec::new();
-            for (name, value) in v.post.get_tags() {
+            for (name, value) in &*v.post {
                 posttags.push(BuildKeyVersionNumberPiece::Text(name.to_string()));
                 posttags.push(BuildKeyVersionNumberPiece::Number(*value));
             }
@@ -410,7 +410,7 @@ impl BuildKeyVersionNumber {
             // There can be multiple pre tags in a Version. There usually
             // aren't but this copes with them.
             let mut pretags: Vec<BuildKeyVersionNumberPiece> = Vec::new();
-            for (name, value) in v.pre.get_tags() {
+            for (name, value) in &*v.pre {
                 pretags.push(BuildKeyVersionNumberPiece::Text(name.to_string()));
                 pretags.push(BuildKeyVersionNumberPiece::Number(*value));
             }
