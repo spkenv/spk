@@ -15,7 +15,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         Box::pin(self.payloads.iter())
     }
 
-    async fn write_data(
+    async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {

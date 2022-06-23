@@ -27,7 +27,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         Box::pin(stream)
     }
 
-    async fn write_data(
+    async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
