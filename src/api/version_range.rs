@@ -242,7 +242,7 @@ impl Ranged for SemverRange {
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts))
+        Some(Version::from(parts))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
@@ -317,7 +317,7 @@ impl Ranged for WildcardRange {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        for (i, (a, b)) in self.parts.iter().zip(&version.parts).enumerate() {
+        for (i, (a, b)) in self.parts.iter().zip(version.parts.iter()).enumerate() {
             if let Some(a) = a {
                 if a != b {
                     return Compatibility::Incompatible(format!(
@@ -604,7 +604,7 @@ impl Ranged for EqualsVersion {
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts))
+        Some(Version::from(parts))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {
@@ -737,7 +737,7 @@ impl Ranged for DoubleEqualsVersion {
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts))
+        Some(Version::from(parts))
     }
 
     fn is_satisfied_by(&self, spec: &Spec, _required: CompatRule) -> Compatibility {

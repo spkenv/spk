@@ -69,18 +69,30 @@ fn test_version_range_is_applicable(
 #[rstest]
 // exact version compatible with itself: YES
 #[case("=1.0.0", spec!({"pkg": "test/1.0.0"}), true)]
+// shorter parts version compatible with itself: YES
+#[case("=1.0", spec!({"pkg": "test/1.0.0"}), true)]
 // exact version compatible with different post-release: YES
 #[case("=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// shorter parts version compatible with different post-release: YES
+#[case("=1.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
 // precise exact version compatible with different post-release: NO
 #[case("==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+// precise shorter parts version compatible with same post-release: YES
+#[case("==1.0+r.1", spec!({"pkg": "test/1.0.0+r.1"}), true)]
 // exact post release compatible with different one: NO
 #[case("=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative exact version compatible with itself: NO
 #[case("!=1.0.0", spec!({"pkg": "test/1.0.0"}), false)]
+// negative shorter parts version compatible with itself: NO
+#[case("!=1.0", spec!({"pkg": "test/1.0.0"}), false)]
 // negative exact version compatible with different post-release: NO
 #[case("!=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative precise exact version compatible with different post-release: YES
 #[case("!==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// negative precise shorter parts version compatible with different post-release: YES
+#[case("!==1.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// negative precise shorter parts version compatible with same post-release: NO
+#[case("!==1.0+r.1", spec!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative exact post release compatible with different one: YES
 #[case("!=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), true)]
 // default compat is contextual (given by test function)

@@ -177,10 +177,53 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
     Ok(tag_set)
 }
 
-/// Version specifies a package version number.
+/// The numeric portion of a version.
 #[derive(Debug, Default, Clone)]
+pub struct VersionParts(Vec<u32>);
+
+impl std::ops::Deref for VersionParts {
+    type Target = Vec<u32>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for VersionParts {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl std::cmp::PartialEq for VersionParts {
+    fn eq(&self, other: &Self) -> bool {
+        let self_last_nonzero_digit = self.0.iter().rposition(|d| d != &0);
+        let other_last_nonzero_digit = other.0.iter().rposition(|d| d != &0);
+
+        match (self_last_nonzero_digit, other_last_nonzero_digit) {
+            (Some(self_last), Some(other_last)) => self.0[..=self_last] == other.0[..=other_last],
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl std::cmp::Eq for VersionParts {}
+
+impl std::hash::Hash for VersionParts {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // trailing zeros do not alter the hash/cmp for a version
+        match self.0.iter().rposition(|d| d != &0) {
+            Some(last_nonzero) => self.0[..=last_nonzero].hash(state),
+            None => {}
+        }
+    }
+}
+
+/// Version specifies a package version number.
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct Version {
-    pub parts: Vec<u32>,
+    pub parts: VersionParts,
     pub pre: TagSet,
     pub post: TagSet,
 }
@@ -197,43 +240,10 @@ where
     }
 }
 
-impl std::cmp::PartialEq for Version {
-    fn eq(&self, other: &Self) -> bool {
-        let self_last_digit = self.parts.iter().rposition(|d| d != &0);
-        let other_last_digit = other.parts.iter().rposition(|d| d != &0);
-
-        match (self_last_digit, other_last_digit) {
-            (Some(self_last), Some(other_last)) => {
-                if self.parts[..self_last + 1] != other.parts[..other_last + 1] {
-                    return false;
-                }
-            }
-            (None, None) => {}
-            _ => return false,
-        }
-
-        self.pre == other.pre && self.post == other.post
-    }
-}
-
-impl std::cmp::Eq for Version {}
-
-impl std::hash::Hash for Version {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        // trailing zeros do not alter the hash/cmp for a version
-        match self.parts.iter().rposition(|d| d != &0) {
-            Some(last_nonzero) => self.parts[..last_nonzero + 1].hash(state),
-            None => {}
-        }
-        self.pre.hash(state);
-        self.post.hash(state);
-    }
-}
-
 impl Version {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {
-            parts: vec![major, minor, patch],
+            parts: VersionParts(vec![major, minor, patch]),
             ..Default::default()
         }
     }
@@ -256,7 +266,7 @@ impl Version {
     /// Build a new version number from any number of digits
     pub fn from_parts<P: IntoIterator<Item = u32>>(parts: P) -> Self {
         Version {
-            parts: parts.into_iter().collect(),
+            parts: VersionParts(parts.into_iter().collect()),
             ..Default::default()
         }
     }
@@ -278,6 +288,15 @@ impl Version {
             return false;
         }
         !self.parts.iter().any(|x| x > &0)
+    }
+}
+
+impl From<VersionParts> for Version {
+    fn from(parts: VersionParts) -> Self {
+        Self {
+            parts,
+            ..Default::default()
+        }
     }
 }
 
