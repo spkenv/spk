@@ -89,6 +89,10 @@ fn test_version_range_is_applicable(
 #[case("!=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative precise exact version compatible with different post-release: YES
 #[case("!==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// negative precise shorter parts version compatible with different post-release: YES
+#[case("!==1.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+// negative precise shorter parts version compatible with same post-release: NO
+#[case("!==1.0+r.1", spec!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative exact post release compatible with different one: YES
 #[case("!=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), true)]
 // default compat is contextual (given by test function)
