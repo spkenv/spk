@@ -530,7 +530,17 @@ impl Storage {
             }
             Err(err) => return Err(err),
         };
-        let mut reader = self.inner.open_payload(digest).await?;
+        let mut reader = self
+            .inner
+            .open_payload(digest)
+            .await
+            .map_err(|err| match err {
+                Error::UnknownObject(_) => Error::UnknownRuntime {
+                    message: format!("{} in storage {}", name.as_ref(), self.address()),
+                    source: Box::new(err),
+                },
+                _ => err,
+            })?;
         let mut data = String::new();
         reader.read_to_string(&mut data).await?;
         let config: Data = serde_json::from_str(&data)?;
