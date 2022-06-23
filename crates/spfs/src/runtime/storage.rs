@@ -585,11 +585,12 @@ impl Storage {
         let platform: graph::Object = graph::Platform::new(&mut rt.status.stack.iter())?.into();
         let platform_digest = platform.digest()?;
         let config_data = serde_json::to_string(&rt.data)?;
-        let (_, (config_digest, _)) = tokio::try_join!(
+        let (_, config_digest) = tokio::try_join!(
             self.inner.write_object(&platform),
             self.inner
-                .write_data(Box::pin(std::io::Cursor::new(config_data.into_bytes())))
+                .commit_blob(Box::pin(std::io::Cursor::new(config_data.into_bytes())))
         )?;
+
         tokio::try_join!(
             self.inner.push_tag(&meta_tag, &config_digest),
             self.inner.push_tag(&payload_tag, &platform_digest)
