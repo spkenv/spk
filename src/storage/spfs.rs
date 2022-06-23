@@ -257,15 +257,10 @@ impl Repository for SPFSRepository {
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
             let payload = serde_yaml::to_vec(&spec)?;
-            let (digest, size) = self
+            let digest = self
                 .inner
-                .write_data(Box::pin(std::io::Cursor::new(payload)))
+                .commit_blob(Box::pin(std::io::Cursor::new(payload)))
                 .await?;
-            let blob = spfs::graph::Blob {
-                payload: digest,
-                size,
-            };
-            self.inner.write_blob(blob).await?;
             self.inner.push_tag(&tag_spec, &digest).await?;
             Ok(())
         })
@@ -414,9 +409,9 @@ impl SPFSRepository {
     async fn write_metadata(&self, meta: &RepositoryMetadata) -> Result<()> {
         let tag_spec = spfs::tracking::TagSpec::parse(REPO_METADATA_TAG).unwrap();
         let yaml = serde_yaml::to_string(meta)?;
-        let (digest, _size) = self
+        let digest = self
             .inner
-            .write_data(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
+            .commit_blob(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         Ok(())
