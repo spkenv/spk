@@ -35,7 +35,11 @@ pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
 ///    - the path to the migrated repo data
 pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
     let mut root = root.as_ref().canonicalize()?;
-    let last_migration = read_last_migration_version(&root).await?;
+    let last_migration = read_last_migration_version(&root)
+        .await?
+        .unwrap_or_else(|| {
+            semver::Version::parse(crate::VERSION).expect("crate::VERSION is a valid semver value")
+        });
     let repo_name = match &root.file_name() {
         None => return Err("Repository path must have a file name".into()),
         Some(name) => name.to_string_lossy().to_string(),
