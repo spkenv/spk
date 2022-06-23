@@ -2581,6 +2581,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
+ "spk",
  "sys-info",
  "tar",
  "tempdir",

@@ -7,141 +7,14 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
 use super::Solver;
-use crate::{api, io, option_map, spec, Error, Result};
+use crate::{api, io, Error, Result};
+// macros
+use crate::{make_build, make_build_and_components, make_package, make_repo};
+use crate::{option_map, spec};
 
 #[fixture]
 fn solver() -> Solver {
     Solver::default()
-}
-
-/// Creates a repository containing a set of provided package specs.
-/// It will take care of publishing the spec, and creating a build for
-/// each provided package so that it can be resolved.
-///
-/// make_repo!({"pkg": "mypkg/1.0.0"});
-/// make_repo!({"pkg": "mypkg/1.0.0"}, options = {"debug" => "off"});
-macro_rules! make_repo {
-    ( [ $( $spec:tt ),+ $(,)? ] ) => {{
-        make_repo!([ $( $spec ),* ], options={})
-    }};
-    ( [ $( $spec:tt ),+ $(,)? ], options={ $($k:expr => $v:expr),* } ) => {{
-        let options = crate::option_map!{$($k => $v),*};
-        make_repo!([ $( $spec ),* ], options=options)
-    }};
-    ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
-        let repo = crate::storage::RepositoryHandle::new_mem();
-        let _opts = $options;
-        $(
-            let (s, cmpts) = make_package!(repo, $spec, &_opts);
-            repo.publish_package(s, cmpts).unwrap();
-        )*
-        repo
-    }};
-}
-
-#[macro_export(local_inner_macros)]
-macro_rules! make_package {
-    ($repo:ident, ($build_spec:expr, $components:expr), $opts:expr) => {{
-        ($build_spec, $components)
-    }};
-    ($repo:ident, $build_spec:ident, $opts:expr) => {{
-        let s = $build_spec.clone();
-        let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
-            .install
-            .components
-            .iter()
-            .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
-            .collect();
-        (s, cmpts)
-    }};
-    ($repo:ident, $spec:tt, $opts:expr) => {{
-        let json = serde_json::json!($spec);
-        let mut spec: crate::api::Spec = serde_json::from_value(json).expect("Invalid spec json");
-        let build = spec.clone();
-        spec.pkg.set_build(None);
-        $repo.force_publish_spec(spec).unwrap();
-        make_build_and_components!(build, [], $opts, [])
-    }};
-}
-
-/// Make a build of a package spec
-///
-/// This macro at least takes a spec json or identifier, but can optionally
-/// take two additional parameters:
-///     a list of dependencies used to make the build (eg [depa, depb])
-///     the options used to make the build (eg: {"debug" => "on"})
-#[macro_export(local_inner_macros)]
-macro_rules! make_build {
-    ($spec:tt) => {
-        make_build!($spec, [])
-    };
-    ($spec:tt, $deps:tt) => {
-        make_build!($spec, $deps, {})
-    };
-    ($spec:tt, $deps:tt, $opts:tt) => {{
-        let (spec, _) = make_build_and_components!($spec, $deps, $opts);
-        spec
-    }};
-}
-
-/// Given a spec and optional params, creates a publishable build and component map.
-///
-/// This macro at least takes a spec json or identifier, but can optionally
-/// take three additional parameters:
-///     a list of dependencies used to make the build (eg [depa, depb])
-///     the options used to make the build (eg: {"debug" => "on"})
-///     the list of component names to generate (eg: ["bin", "run"])
-#[macro_export(local_inner_macros)]
-macro_rules! make_build_and_components {
-    ($spec:tt) => {
-        make_build_and_components!($spec, [])
-    };
-    ($spec:tt, [$($dep:expr),*]) => {
-        make_build_and_components!($spec, [$($dep),*], {})
-    };
-    ($spec:tt, [$($dep:expr),*], $opts:tt) => {
-        make_build_and_components!($spec, [$($dep),*], $opts, [])
-    };
-    ($spec:tt, [$($dep:expr),*], { $($k:expr => $v:expr),* }, [$($component:expr),*]) => {{
-        let opts = crate::option_map!{$($k => $v),*};
-        make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
-    }};
-    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
-        let mut spec = make_spec!($spec);
-        let mut components = std::collections::HashMap::<crate::api::Component, spfs::encoding::Digest>::new();
-        let deps: Vec<&api::Spec> = std::vec![$(&$dep),*];
-        if spec.pkg.is_source() {
-            components.insert(crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
-            (spec, components)
-        } else {
-            let mut build_opts = $opts.clone();
-            let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
-            build_opts.extend(&mut resolved_opts);
-            spec.update_for_build(&build_opts, deps)
-                .expect("Failed to render build spec");
-            let mut names = std::vec![$($component.to_string()),*];
-            if names.is_empty() {
-                names = spec.install.components.iter().map(|c| c.name.to_string()).collect();
-            }
-            for name in names {
-                let name = crate::api::Component::parse(name).expect("invalid component name");
-                components.insert(name, spfs::encoding::EMPTY_DIGEST.into());
-            }
-            (spec, components)
-        }
-    }}
-}
-
-/// Makes a package spec either from a raw json definition
-/// or by cloning a given identifier
-#[macro_export(local_inner_macros)]
-macro_rules! make_spec {
-    ($spec:ident) => {
-        $spec.clone()
-    };
-    ($spec:tt) => {
-        crate::spec!($spec)
-    };
 }
 
 /// Creates a request from a literal range identifier, or json structure
@@ -650,6 +523,8 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         {
             "pkg": "vnp3/2.0.0",
             "build": {
+                // The 'by_distance' build sorting method relied on this for the
+                // tests to pass:
                 // favoritize 2.7, otherwise an option of python=2 doesn't actually
                 // exclude python 3 from being resolved
                 "options": [{"pkg": "python/~2.7"}],
@@ -658,14 +533,31 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         }
     );
     let py27 = make_build!({"pkg": "python/2.7.5"});
+    let py26 = make_build!({"pkg": "python/2.6"});
+    let py371 = make_build!({"pkg": "python/3.7.1"});
     let py37 = make_build!({"pkg": "python/3.7.3"});
+
     let for_py27 = make_build!(spec, [py27]);
+    let for_py26 = make_build!(spec, [py26]);
+    let for_py371 = make_build!(spec, [py371]);
     let for_py37 = make_build!(spec, [py37]);
-    let repo = make_repo!([for_py27, for_py37]);
+
+    let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
     repo.publish_spec(spec).unwrap();
     let repo = Arc::new(repo);
 
-    for pyver in ["2", "2.7", "2.7.5", "3", "3.7", "3.7.3"] {
+    // The 'by_build_option_values' build sorting method does not use
+    // the variants or version spec's default options. It sorts the
+    // builds by putting the ones with the highest numbered build
+    // options (dependencies) first. The '~'s and ',<3's have been
+    // added to some of the version ranges below force the solver to
+    // work through the ordered builds until it finds an appropriate
+    // 2.x.y values to both solve and pass the test.
+    for pyver in [
+        // Uncomment this, when the '2,<3' parsing bug: https://github.com/imageworks/spk/issues/322 has been fixed
+        //"~2.0", "~2.7", "~2.7.5", "2,<3", "2.7,<3", "3", "3.7", "3.7.3",
+        "~2.0", "~2.7", "~2.7.5", "3", "3.7", "3.7.3",
+    ] {
         solver.reset();
         solver.add_repository(repo.clone());
         solver.add_request(request!("vnp3"));
@@ -683,11 +575,18 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         let resolved = solution.get("vnp3").unwrap();
         let opt = resolved.spec.build.options.get(0).unwrap();
         let value = opt.get_value(None);
-        let expected = format!("~{}", pyver);
+
+        // Check the first digit component of the pyver value
+        let expected = if pyver.starts_with('~') {
+            format!("~{}", pyver.chars().nth(1).unwrap()).to_string()
+        } else {
+            format!("~{}", pyver.chars().next().unwrap()).to_string()
+        };
         assert!(
             value.starts_with(&expected),
-            "{} should start with ~{}",
+            "{} should start with ~{} to be valid for {}",
             value,
+            expected,
             pyver
         );
     }
