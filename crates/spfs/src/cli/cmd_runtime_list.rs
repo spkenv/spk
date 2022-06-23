@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use futures::TryStreamExt;
+use futures::StreamExt;
 
 /// List runtime information from the repository
 #[derive(Debug, Args)]
@@ -29,15 +29,23 @@ impl CmdRuntimeList {
         };
 
         let mut runtimes = runtime_storage.iter_runtimes().await;
-        while let Some(runtime) = runtimes.try_next().await? {
-            let mut message = runtime.name().to_string();
-            if !self.quiet {
-                message = format!(
-                    "{message}\trunning={}\tpid={:?}\teditable={}",
-                    runtime.status.running, runtime.status.owner, runtime.status.editable
-                )
+        while let Some(runtime) = runtimes.next().await {
+            match runtime {
+                Ok(runtime) => {
+                    let mut message = runtime.name().to_string();
+                    if !self.quiet {
+                        message = format!(
+                            "{message}\trunning={}\tpid={:?}\teditable={}",
+                            runtime.status.running, runtime.status.owner, runtime.status.editable
+                        )
+                    }
+                    println!("{message}");
+                }
+                Err(err) if !self.quiet => {
+                    eprintln!("Failed to read runtime: {}", err);
+                }
+                Err(_) => {}
             }
-            println!("{message}");
         }
         Ok(0)
     }
