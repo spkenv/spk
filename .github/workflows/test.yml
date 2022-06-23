@@ -37,7 +37,7 @@ jobs:
           workflow_conclusion: success
           # This branch should match the version of spfs being used
           # in Cargo.toml.
-          branch: release-0.34.2
+          branch: release-0.34.3
           name: Binary RPM
           path: deps
           repo: imageworks/spfs

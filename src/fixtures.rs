@@ -109,7 +109,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to establish temporary local repo for test");
             let written = spfs_repo
-                .write_data(Box::pin(std::io::Cursor::new(b"")))
+                .commit_blob(Box::pin(std::io::Cursor::new(b"")))
                 .await
                 .expect("failed to add an empty object to spfs");
             let empty_manifest = spfs::graph::Manifest::default();
@@ -122,7 +122,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .write_object(&empty_manifest.into())
                 .await
                 .expect("failed to save empty manifest to spfs repo");
-            assert_eq!(written.0, spfs::encoding::EMPTY_DIGEST.into());
+            assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
             storage::RepositoryHandle::SPFS(spfs_repo.into())
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
