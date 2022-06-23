@@ -77,7 +77,7 @@ impl FSRepository {
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         let username = whoami::username();
         makedirs_with_perms(root.join("renders").join(username), 0o777)?;
-        set_last_migration(&root, None)?;
+        set_last_migration(&root, None).await?;
         Self::open(root).await
     }
 
@@ -126,11 +126,16 @@ impl FSRepository {
     }
 
     pub async fn last_migration(&self) -> Result<semver::Version> {
-        read_last_migration_version(self.root()).await
+        Ok(read_last_migration_version(self.root())
+            .await?
+            .unwrap_or_else(|| {
+                semver::Version::parse(crate::VERSION)
+                    .expect("crate::VERSION is a valid semver value")
+            }))
     }
 
     pub async fn set_last_migration(&self, version: semver::Version) -> Result<()> {
-        set_last_migration(self.root(), Some(version))
+        set_last_migration(self.root(), Some(version)).await
     }
 }
 
@@ -171,23 +176,27 @@ impl std::fmt::Debug for FSRepository {
     }
 }
 
-// Read the last marked migration version for a repository root path.
-pub async fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semver::Version> {
+/// Read the last marked migration version for a repository root path.
+///
+/// Return None if no `VERSION` file was found, or was empty.
+pub async fn read_last_migration_version<P: AsRef<Path>>(
+    root: P,
+) -> Result<Option<semver::Version>> {
     let version_file = root.as_ref().join("VERSION");
     let version = match tokio::fs::read_to_string(version_file).await {
         Ok(version) => version,
         Err(err) => match err.kind() {
-            std::io::ErrorKind::NotFound => crate::VERSION.to_string(),
+            std::io::ErrorKind::NotFound => return Ok(None),
             _ => return Err(err.into()),
         },
     };
 
-    let mut version = version.trim();
+    let version = version.trim();
     if version.is_empty() {
-        version = crate::VERSION;
+        return Ok(None);
     }
     match semver::Version::parse(version) {
-        Ok(v) => Ok(v),
+        Ok(v) => Ok(Some(v)),
         Err(err) => match err {
             semver::SemVerError::ParseError(err) => Err(crate::Error::String(format!(
                 "Failed to parse repository version '{version}': {err}",
@@ -197,11 +206,28 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(root: P) -> Result<semv
 }
 
 /// Set the last migration version of the repo with the given root directory.
-pub fn set_last_migration<P: AsRef<Path>>(root: P, version: Option<semver::Version>) -> Result<()> {
+pub async fn set_last_migration<P: AsRef<Path>>(
+    root: P,
+    version: Option<semver::Version>,
+) -> Result<()> {
     let version = match version {
         Some(v) => v,
         None => semver::Version::parse(crate::VERSION).unwrap(),
     };
+    match write_version_file(&root, &version) {
+        Ok(r) => Ok(r),
+        Err(write_err) => {
+            // If the write fails, before giving up, see if by chance the file
+            // already exists with the desired contents.
+            match read_last_migration_version(&root).await {
+                Ok(Some(existing)) if existing == version => Ok(()),
+                _ => Err(write_err),
+            }
+        }
+    }
+}
+
+fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Result<()> {
     let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref())?;
     // This file can be read only. It will be replaced by a new file
     // if the contents need to be changed. But for interop with older
