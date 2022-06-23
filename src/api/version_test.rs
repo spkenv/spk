@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 
 use rstest::rstest;
 
-use super::{parse_version, TagSet, Version};
+use super::{parse_version, TagSet, Version, VersionParts};
 
 #[rstest]
 fn test_version_nonzero() {
@@ -41,15 +41,15 @@ fn test_is_gt(#[case] base: &str, #[case] test: &str, #[case] expected: bool) {
 #[case("1.0.0", Version::new(1, 0, 0))]
 #[case("0.0.0", Version::new(0, 0, 0))]
 #[case("1.2.3.4.5.6", Version{
-    parts: vec![1, 2, 3, 4, 5, 6], ..Default::default()
+    parts: VersionParts(vec![1, 2, 3, 4, 5, 6]), ..Default::default()
 })]
 #[case("1.0+post.1", Version{
-    parts: vec![1, 0], post: TagSet::single("post", 1), ..Default::default()
+    parts: VersionParts(vec![1, 0]), post: TagSet::single("post", 1), ..Default::default()
 })]
 #[case(
      "1.2.5.7-alpha.4+rev.6",
      Version{
-         parts: vec![1, 2, 5, 7],
+         parts: VersionParts(vec![1, 2, 5, 7]),
          pre:TagSet::single("alpha", 4), post:TagSet::single("rev", 6)
     },
 )]
