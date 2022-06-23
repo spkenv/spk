@@ -124,11 +124,13 @@ impl PayloadStorage for ProxyRepository {
         self.primary.iter_payload_digests()
     }
 
-    async fn write_data(
+    async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
-        let res = self.primary.write_data(reader).await?;
+        // Safety: we are wrapping the same underlying unsafe function and
+        // so the same safety holds for our callers
+        let res = unsafe { self.primary.write_data(reader).await? };
         Ok(res)
     }
 

@@ -19,8 +19,8 @@ async fn test_proxy_payload_read_through(tmpdir: tempdir::TempDir) {
         .await
         .unwrap();
 
-    let (digest, _size) = secondary
-        .write_data(Box::pin(b"some data".as_slice()))
+    let digest = secondary
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 
@@ -47,13 +47,10 @@ async fn test_proxy_object_read_through(tmpdir: tempdir::TempDir) {
         .await
         .unwrap();
 
-    let (payload, size) = secondary
-        .write_data(Box::pin(b"some data".as_slice()))
+    let payload = secondary
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
-    let blob = crate::graph::Blob { payload, size };
-    let digest = blob.digest();
-    secondary.write_blob(blob).await.unwrap();
 
     let proxy = super::ProxyRepository {
         primary: primary.into(),
@@ -61,7 +58,7 @@ async fn test_proxy_object_read_through(tmpdir: tempdir::TempDir) {
     };
 
     proxy
-        .read_object(digest)
+        .read_object(payload)
         .await
         .expect("object should be loadable via the secondary repo");
 }
@@ -78,8 +75,8 @@ async fn test_proxy_tag_read_through(tmpdir: tempdir::TempDir) {
         .await
         .unwrap();
 
-    let (payload, _size) = secondary
-        .write_data(Box::pin(b"some data".as_slice()))
+    let payload = secondary
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();

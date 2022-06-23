@@ -33,10 +33,7 @@ impl CmdWrite {
             None => Box::pin(tokio::io::stdin()),
         };
 
-        let (payload, size) = repo.write_data(reader).await?;
-        let blob = spfs::graph::Blob { payload, size };
-        let digest = blob.digest();
-        repo.write_blob(blob).await?;
+        let digest = repo.commit_blob(reader).await?;
 
         tracing::info!(?digest, "created");
         for tag in self.tags.iter() {

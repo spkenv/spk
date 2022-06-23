@@ -20,10 +20,13 @@ async fn test_payload_io(#[future] tmprepo: TempRepo) {
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes);
 
-    let (digest, size) = tmprepo
-        .write_data(reader)
-        .await
-        .expect("failed to write payload data");
+    // Safety: we are intentionally calling this function to test it
+    let (digest, size) = unsafe {
+        tmprepo
+            .write_data(reader)
+            .await
+            .expect("failed to write payload data")
+    };
     assert_eq!(size, bytes.len() as u64);
 
     let mut actual = String::new();
@@ -49,10 +52,13 @@ async fn test_payload_existence(#[future] tmprepo: TempRepo) {
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes);
 
-    let (digest, size) = tmprepo
-        .write_data(reader)
-        .await
-        .expect("failed to write payload data");
+    // Safety: we are intentionally calling this unsafe function to test it
+    let (digest, size) = unsafe {
+        tmprepo
+            .write_data(reader)
+            .await
+            .expect("failed to write payload data")
+    };
     assert_eq!(size, bytes.len() as u64);
 
     let actual = tmprepo.has_payload(digest).await;
@@ -85,20 +91,17 @@ async fn test_payloads_iter(#[future] tmprepo: TempRepo) {
 
     let mut expected = vec![
         tmprepo
-            .write_data(reader_0)
+            .commit_blob(reader_0)
             .await
-            .expect("failed to write payload data")
-            .0,
+            .expect("failed to write payload data"),
         tmprepo
-            .write_data(reader_1)
+            .commit_blob(reader_1)
             .await
-            .expect("failed to write payload data")
-            .0,
+            .expect("failed to write payload data"),
         tmprepo
-            .write_data(reader_2)
+            .commit_blob(reader_2)
             .await
-            .expect("failed to write payload data")
-            .0,
+            .expect("failed to write payload data"),
     ];
     expected.sort();
 

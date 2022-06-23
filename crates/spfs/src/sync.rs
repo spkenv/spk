@@ -383,7 +383,9 @@ where
             "We never close the semaphore and so should never see errors"
         );
         let payload = self.src.open_payload(digest).await?;
-        let (created_digest, size) = self.dest.write_data(payload).await?;
+        // Safety: this is the unsafe part where we actually create
+        // the payload without a corresponsing blob
+        let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}",

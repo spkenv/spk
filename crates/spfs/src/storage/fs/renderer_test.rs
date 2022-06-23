@@ -9,8 +9,8 @@ use rstest::rstest;
 use super::was_render_completed;
 use crate::encoding::Encodable;
 use crate::graph::Manifest;
-use crate::storage::RepositoryHandle;
-use crate::storage::{fs::FSRepository, ManifestViewer, PayloadStorage};
+use crate::storage::{fs::FSRepository, ManifestViewer};
+use crate::storage::{Repository, RepositoryHandle};
 use crate::tracking;
 
 use crate::fixtures::*;
@@ -35,7 +35,7 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
             let data = tokio::fs::File::open(&node.path.to_path("/"))
                 .await
                 .unwrap();
-            storage.write_data(Box::pin(data)).await.unwrap();
+            storage.commit_blob(Box::pin(data)).await.unwrap();
         }
     }
 
