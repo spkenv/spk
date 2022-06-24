@@ -4,6 +4,7 @@
 use std::{
     cmp::{Ord, Ordering},
     convert::TryFrom,
+    ops::{Deref, DerefMut},
     str::FromStr,
 };
 
@@ -51,10 +52,10 @@ impl InvalidVersionError {
 /// TagSet contains a set of pre or post release version tags
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct TagSet {
-    tags: std::collections::BTreeMap<String, u32>,
+    pub(crate) tags: std::collections::BTreeMap<String, u32>,
 }
 
-impl std::ops::Deref for TagSet {
+impl Deref for TagSet {
     type Target = std::collections::BTreeMap<String, u32>;
 
     fn deref(&self) -> &Self::Target {
@@ -178,30 +179,48 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
 }
 
 /// The numeric portion of a version.
-#[derive(Debug, Default, Clone)]
-pub struct VersionParts(Vec<u32>);
+#[derive(Clone, Debug, Default)]
+pub struct VersionParts {
+    pub parts: Vec<u32>,
+    pub(crate) plus_epsilon: bool,
+}
 
-impl std::ops::Deref for VersionParts {
+impl Deref for VersionParts {
     type Target = Vec<u32>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.parts
     }
 }
 
-impl std::ops::DerefMut for VersionParts {
+impl DerefMut for VersionParts {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.parts
+    }
+}
+
+impl From<Vec<u32>> for VersionParts {
+    fn from(parts: Vec<u32>) -> Self {
+        Self {
+            parts,
+            plus_epsilon: false,
+        }
     }
 }
 
 impl std::cmp::PartialEq for VersionParts {
     fn eq(&self, other: &Self) -> bool {
-        let self_last_nonzero_digit = self.0.iter().rposition(|d| d != &0);
-        let other_last_nonzero_digit = other.0.iter().rposition(|d| d != &0);
+        if self.plus_epsilon != other.plus_epsilon {
+            return false;
+        }
+
+        let self_last_nonzero_digit = self.parts.iter().rposition(|d| d != &0);
+        let other_last_nonzero_digit = other.parts.iter().rposition(|d| d != &0);
 
         match (self_last_nonzero_digit, other_last_nonzero_digit) {
-            (Some(self_last), Some(other_last)) => self.0[..=self_last] == other.0[..=other_last],
+            (Some(self_last), Some(other_last)) => {
+                self.parts[..=self_last] == other.parts[..=other_last]
+            }
             (None, None) => true,
             _ => false,
         }
@@ -213,10 +232,11 @@ impl std::cmp::Eq for VersionParts {}
 impl std::hash::Hash for VersionParts {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // trailing zeros do not alter the hash/cmp for a version
-        match self.0.iter().rposition(|d| d != &0) {
-            Some(last_nonzero) => self.0[..=last_nonzero].hash(state),
+        match self.parts.iter().rposition(|d| d != &0) {
+            Some(last_nonzero) => self.parts[..=last_nonzero].hash(state),
             None => {}
-        }
+        };
+        self.plus_epsilon.hash(state);
     }
 }
 
@@ -243,7 +263,7 @@ where
 impl Version {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {
-            parts: VersionParts(vec![major, minor, patch]),
+            parts: vec![major, minor, patch].into(),
             ..Default::default()
         }
     }
@@ -258,6 +278,21 @@ impl Version {
         self.parts.get(1).copied().unwrap_or_default()
     }
 
+    /// Enable the `plus_epsilon` bit on this Version.
+    ///
+    /// For purposes of comparing versions, a version with this bit
+    /// enabled is considered infinitesimally bigger than the stated
+    /// version.
+    ///
+    /// Therefore, an expression like "<2.0" can be represented
+    /// by a `Version` with parts `[2, 0]` and `plus_epsilon: true`.
+    /// Using parts `[2, 1]` is *not* accurate because
+    /// `2.0 < 2.0.1 < 2.1`.
+    pub(crate) fn plus_epsilon(mut self) -> Self {
+        self.parts.plus_epsilon = true;
+        self
+    }
+
     /// The patch version number (third component)
     pub fn patch(&self) -> u32 {
         self.parts.get(2).copied().unwrap_or_default()
@@ -266,7 +301,7 @@ impl Version {
     /// Build a new version number from any number of digits
     pub fn from_parts<P: IntoIterator<Item = u32>>(parts: P) -> Self {
         Version {
-            parts: VersionParts(parts.into_iter().collect()),
+            parts: parts.into_iter().collect::<Vec<_>>().into(),
             ..Default::default()
         }
     }
@@ -279,7 +314,16 @@ impl Version {
             // is not a valid version
             part_strings.push(String::from("0"));
         }
-        part_strings.join(VERSION_SEP)
+        let mut s = part_strings.join(VERSION_SEP);
+        // This suffix is useful to not confuse users when used in
+        // rendering the message for `Incompatible` results from
+        // `Ranged::intersects` and should generally not show up in
+        // other contexts. If it does end up leaking out in other
+        // places then some code refactoring is needed here.
+        if self.parts.plus_epsilon {
+            s.push_str("+ε")
+        }
+        s
     }
 
     /// Reports if this version is exactly 0.0.0... etc.
@@ -379,7 +423,16 @@ impl Ord for Version {
             },
         }
 
-        self.post.cmp(&other.post)
+        match self.post.cmp(&other.post) {
+            Ordering::Equal => (),
+            x => return x,
+        }
+
+        match (self.parts.plus_epsilon, other.parts.plus_epsilon) {
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            _ => Ordering::Equal,
+        }
     }
 }
 

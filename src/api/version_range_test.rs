@@ -3,9 +3,22 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::parse_version_range;
+use proptest::{
+    collection::{btree_map, vec},
+    option::weighted,
+    prelude::*,
+};
+
+use super::{
+    parse_version_range, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
+    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
+    LowestSpecifiedRange, NotEqualsVersion, SemverRange, WildcardRange,
+};
 use crate::{
-    api::{parse_version, version_range::Ranged, Spec},
+    api::{
+        parse_version, version::VersionParts, version_range::Ranged, CompatRange, CompatRule, Spec,
+        TagSet, Version, VersionRange,
+    },
     spec,
 };
 
@@ -53,6 +66,7 @@ fn test_parse_version_range_tilde() {
 #[case("!=1.0", "1.1.0", true)]
 #[case("=1.0.0", "1.0.0", true)]
 #[case("=1.0.0", "1.0.0+r.1", true)]
+#[case("==1.0.0", "1.0.0+r.1", false)]
 #[case("=1.0.0+r.2", "1.0.0+r.1", false)]
 fn test_version_range_is_applicable(
     #[case] range: &str,
@@ -63,7 +77,14 @@ fn test_version_range_is_applicable(
     let v = parse_version(version).unwrap();
     let actual = vr.is_applicable(&v);
 
-    assert_eq!(actual.is_ok(), expected, "{}", actual);
+    assert_eq!(
+        actual.is_ok(),
+        expected,
+        "\"{}\".is_applicable({}) {}",
+        range,
+        version,
+        actual
+    );
 }
 
 #[rstest]
@@ -130,4 +151,323 @@ fn test_version_range_is_satisfied(
     let actual = vr.is_satisfied_by(&spec, crate::api::CompatRule::Binary);
 
     assert_eq!(actual.is_ok(), expected, "{} -> {:?}", range, actual);
+}
+
+#[rstest]
+#[case("!=1.2.0", "=1.1.9", true)]
+#[case("!=1.2.0", "=1.2.0", false)]
+#[case("!=1.2.0", "=1.2.1", true)]
+#[case("<1.2", "<1.2", true)]
+#[case("<1.2", "<1.3", true)]
+#[case("<1.2", "=1.1", true)]
+#[case("<1.2", "=1.2", false)]
+#[case("<1.2", "=1.2.0.1", false)]
+#[case("<1.2", "=1.3", false)]
+#[case("<=1.2", "=1.2", true)]
+#[case("<=1.2", "=1.3", false)]
+#[case("=1.2", "=1.1", false)]
+#[case(">1.0", "<2.0", true)]
+#[case(">1.0", "=1.0", false)]
+#[case(">1.0", "=2.0", true)]
+#[case(">1.0", ">2.0", true)]
+#[case(">=1.0", "=1.0", true)]
+#[case(">=1.0", ">=2.0", true)]
+#[case(">=1.2", "=1.1", false)]
+#[case("~1.2.0", "=1.2.1", true)]
+fn test_intersects(#[case] range1: &str, #[case] range2: &str, #[case] expected: bool) {
+    let a = parse_version_range(range1).unwrap();
+    let b = parse_version_range(range2).unwrap();
+    let c = a.intersects(&b);
+    assert_eq!(!&c, !expected, "a:{} + b:{} == {:?}", a, b, c);
+    let c = b.intersects(&a);
+    assert_eq!(!&c, !expected, "b:{} + a:{} == {:?}", b, a, c);
+}
+
+prop_compose! {
+    // XXX: The tagset is limited to a maximum of one entry because of
+    // the ambiguous use of commas to delimit both tags and version filters.
+    fn arb_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..=1)) -> TagSet {
+        TagSet { tags }
+    }
+}
+
+fn arb_version() -> impl Strategy<Value = Version> {
+    // Generate a minimum of two version elements to accommodate
+    // `LowestSpecifiedRange`'s requirements.
+    arb_version_min_len(2)
+}
+
+fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
+    (
+        vec(any::<u32>(), min_len..min_len.max(10)),
+        arb_tagset(),
+        arb_tagset(),
+    )
+        .prop_map(|(parts, pre, post)| Version {
+            parts: VersionParts {
+                parts,
+                plus_epsilon: false,
+            },
+            pre,
+            post,
+        })
+}
+
+prop_compose! {
+    // CompatRule::None intentionally not included in this list.
+    fn arb_compat_rule()(cr in prop_oneof![Just(CompatRule::API), Just(CompatRule::Binary)]) -> CompatRule {
+        cr
+    }
+}
+
+fn arb_lowest_specified_range_from_version(
+    version: Version,
+) -> impl Strategy<Value = VersionRange> {
+    // A version like 1.2.3 will be valid in the following expressions:
+    //   - ~1.0
+    //   - ~1.1
+    //   - ~1.2
+    //   - ~1.2.0
+    //   - ~1.2.1
+    //   - ~1.2.2
+    //   - ~1.2.3
+    //
+    // The numbers have to match the original numbers, except the last
+    // element specified, which may be <= the origin number
+    (Just(version.clone()), 2..=version.parts.len()).prop_flat_map(
+        |(version, parts_to_generate)| {
+            // Generate what number to use in the last position.
+            (
+                Just(version.clone()),
+                Just(parts_to_generate),
+                0..=(*version.parts.get(parts_to_generate - 1).unwrap()),
+            )
+                .prop_map(|(version, parts_to_generate, last_element_value)| {
+                    VersionRange::LowestSpecified(LowestSpecifiedRange {
+                        specified: parts_to_generate,
+                        base: Version {
+                            parts: version
+                                .parts
+                                .iter()
+                                .take(parts_to_generate)
+                                .enumerate()
+                                .map(|(index, num)| {
+                                    if index == parts_to_generate - 1 {
+                                        last_element_value
+                                    } else {
+                                        *num
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
+                            // Retain pre and post from original version because
+                            // if the original has pre it might be smaller than
+                            // the smallest value we generated without it.
+                            pre: version.pre,
+                            post: version.post,
+                        },
+                    })
+                })
+        },
+    )
+}
+
+fn arb_semver_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
+    // A version like 2.3.4 will be valid in the following expressions:
+    //   - ^2
+    //   - ^2.0
+    //   - ^2.1
+    //   - ^2.2
+    //   - ^2.3
+    //   - ^2.0.0
+    //   - ^2.1.0
+    //   - ^2.2.0
+    //   - ^2.3.0
+    //   - ^2.3.1
+    //   - ^2.3.2
+    //   - ^2.3.3
+    //   - ^2.3.4
+    //
+    // The left-most non-zero digit must match the original number,
+    // and the remaining elements must be <= the original numbers.
+    (Just(version.clone()), 1..=version.parts.len()).prop_flat_map(
+        |(version, parts_to_generate)| {
+            // Generate what numbers to use in each position.
+            let ranges = version
+                .parts
+                .iter()
+                .take(parts_to_generate)
+                .map(|num| 0..=*num)
+                .collect::<Vec<_>>();
+
+            (Just(version), Just(parts_to_generate), ranges).prop_map(
+                |(version, parts_to_generate, values_to_use)| {
+                    let mut found_non_zero = false;
+                    VersionRange::Semver(SemverRange {
+                        minimum: Version {
+                            parts: version
+                                .parts
+                                .iter()
+                                .take(parts_to_generate)
+                                .zip(values_to_use.iter())
+                                .map(|(actual_number, proposed_number)| {
+                                    if !found_non_zero && *actual_number == 0 {
+                                        found_non_zero = true;
+                                        *actual_number
+                                    } else if !found_non_zero {
+                                        *actual_number
+                                    } else {
+                                        *proposed_number
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
+                            // Retain pre and post from original version because
+                            // if the original has pre it might be smaller than
+                            // the smallest value we generated without it.
+                            pre: version.pre,
+                            post: version.post,
+                        },
+                    })
+                },
+            )
+        },
+    )
+}
+
+fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
+    (Just(version.clone()), 0..version.parts.len()).prop_map(|(version, index_to_wildcard)| {
+        VersionRange::Wildcard(WildcardRange {
+            specified: version.parts.len(),
+            parts: version
+                .parts
+                .iter()
+                .enumerate()
+                .map(|(index, num)| {
+                    if index == index_to_wildcard {
+                        None
+                    } else {
+                        Some(*num)
+                    }
+                })
+                .collect::<Vec<_>>(),
+        })
+    })
+}
+
+fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = VersionRange> {
+    prop_oneof![
+        // Compat: the same version
+        (weighted(0.33, arb_compat_rule()), Just(version.clone()))
+            .prop_map(|(required, base)| { VersionRange::Compat(CompatRange { base, required }) }),
+        // DoubleEquals: the same version
+        Just(VersionRange::DoubleEquals(DoubleEqualsVersion {
+            version: version.clone()
+        })),
+        // DoubleNotEquals: an arbitrary version that isn't equal
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "not the same version",
+                |(other_version, version)| other_version != version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::DoubleNotEquals(DoubleNotEqualsVersion {
+                    specified: other_version.parts.len(),
+                    base: other_version,
+                })
+            }),
+        // Equals: the same version
+        Just(VersionRange::Equals(EqualsVersion {
+            version: version.clone()
+        })),
+        // Filter: skipping for now
+        // GreaterThan: an arbitrary version that is <=
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a less than or equal version",
+                |(other_version, version)| other_version <= version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::GreaterThan(GreaterThanRange {
+                    bound: other_version,
+                })
+            }),
+        // GreaterThanOrEqualTo: an arbitrary version that is <
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a less than version",
+                |(other_version, version)| other_version < version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::GreaterThanOrEqualTo(GreaterThanOrEqualToRange {
+                    bound: other_version,
+                })
+            }),
+        // LesserThan: an arbitrary version that is >=
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a greater than or equal version",
+                |(other_version, version)| other_version >= version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::LessThan(LessThanRange {
+                    bound: other_version,
+                })
+            }),
+        // LessThanOrEqualTo: an arbitrary version that is >
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "a greater than version",
+                |(other_version, version)| other_version > version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::LessThanOrEqualTo(LessThanOrEqualToRange {
+                    bound: other_version,
+                })
+            }),
+        // LowestSpecified: transform version digits
+        arb_lowest_specified_range_from_version(version.clone()),
+        // NotEquals: an arbitrary version that isn't equal
+        (arb_version(), Just(version.clone()))
+            .prop_filter(
+                "not the same version",
+                |(other_version, version)| other_version != version
+            )
+            .prop_map(|(other_version, _)| {
+                VersionRange::NotEquals(NotEqualsVersion {
+                    specified: other_version.parts.len(),
+                    base: other_version,
+                })
+            }),
+        // Semver: transform version digits
+        arb_semver_range_from_version(version.clone()),
+        // Wildcard: turn one of the version digits into a wildcard
+        arb_wildcard_range_from_version(version),
+    ]
+}
+
+fn arb_pair_of_intersecting_ranges() -> impl Strategy<Value = (Version, VersionRange, VersionRange)>
+{
+    arb_version().prop_flat_map(|version| {
+        (
+            arb_range_that_includes_version(version.clone()),
+            arb_range_that_includes_version(version.clone()),
+        )
+            .prop_map(move |(r1, r2)| (version.clone(), r1, r2))
+    })
+}
+
+proptest! {
+    /// Generate an arbitrary version and two arbitrary ranges
+    /// that the version belongs to. Therefore, the two ranges
+    /// are expected to intersect.
+    #[test]
+    fn prop_test_range_intersect(
+            pair in arb_pair_of_intersecting_ranges()) {
+        let (version, a, b) = pair;
+        let c = a.intersects(&b);
+        prop_assert!(c.is_ok(), "{} -- a:{} + b:{} == {:?}", version, a, b, c);
+        let c = b.intersects(&a);
+        prop_assert!(c.is_ok(), "{} -- b:{} + a:{} == {:?}", version, b, a, c);
+    }
 }
