@@ -16,7 +16,7 @@ const EMBEDDED: &str = "embedded";
 
 /// Denotes that an invalid build digest was given.
 #[derive(Debug, Error)]
-#[error("Invalid build error: {message}")]
+#[error("Invalid build: {message}")]
 pub struct InvalidBuildError {
     pub message: String,
 }
