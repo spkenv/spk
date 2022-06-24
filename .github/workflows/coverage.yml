@@ -8,7 +8,7 @@ jobs:
         SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
         SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
       image: xd009642/tarpaulin
-      options: --security-opt seccomp=unconfined
+      options: --security-opt seccomp=unconfined --privileged
     steps:
       - name: Install rustfmt
         run: |
