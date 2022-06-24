@@ -552,7 +552,7 @@ pub struct RequestPackage {
 /// For counting requests for the same package, but not necessarily
 /// the same version, e.g. gcc/9 and gcc/6 are the same package.
 pub static REQUESTS_FOR_SAME_PACKAGE_COUNT: AtomicU64 = AtomicU64::new(0);
-/// For counting completely idential duplicate requests that appear,
+/// For counting completely identical duplicate requests that appear,
 /// e.g. gcc/~9.3 and gcc/~9.3, but not gcc/6
 pub static DUPLICATE_REQUESTS_COUNT: AtomicU64 = AtomicU64::new(0);
 
@@ -578,7 +578,7 @@ impl RequestPackage {
         // many of which resolve to packages that have varying
         // requests for the same lower-level package, and 2)
         // IfAlreadyPresent requests. These situations can exacerbate
-        // the creation of merged requests with impossible to satify rules
+        // the creation of merged requests with impossible to satisfy rules
         // that result in large amounts of backtracking across many
         // levels (20+) of the search.
 

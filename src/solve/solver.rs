@@ -131,7 +131,7 @@ impl Solver {
         *counter += 1;
     }
 
-    /// Get the problem pacakges frequency mapping
+    /// Get the problem packages frequency mapping
     pub fn problem_packages(&self) -> &HashMap<String, u64> {
         &self.problem_packages
     }

@@ -78,7 +78,7 @@ fn test_empty_options_can_match_anything() {
 }
 
 #[rstest]
-fn test_qualified_var_supercedes_unqualified() {
+fn test_qualified_var_supersedes_unqualified() {
     init_logging();
     let validator = OptionsValidator::default();
 
@@ -105,7 +105,7 @@ fn test_qualified_var_supercedes_unqualified() {
     let compat = validator.validate(&state, &*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
-        "qualified var requests should superceded unqualified ones, got: {}",
+        "qualified var requests should superseded unqualified ones, got: {}",
         compat
     );
 
@@ -122,7 +122,7 @@ fn test_qualified_var_supercedes_unqualified() {
     let compat = validator.validate(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
-        "qualified var requests should superceded unqualified ones, got: {}",
+        "qualified var requests should superseded unqualified ones, got: {}",
         compat
     );
 }

@@ -39,7 +39,7 @@ pub struct Bake {
     #[clap(short, long, possible_values=OUTPUT_FORMATS, default_value=LAYER_FORMAT)]
     pub format: String,
 
-    /// Verbosity level, can be specified multiple times for more vebose output
+    /// Verbosity level, can be specified multiple times for more verbose output
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
 
@@ -113,7 +113,7 @@ impl Run for Bake {
 
 impl Bake {
     /// Get the spfs layer for a resolved request from it's source
-    /// repo, if possible. This returns a SkipEmbbeded error if the
+    /// repo, if possible. This returns a SkipEmbedded error if the
     /// resolved request is an embedded package. These can be skipped
     /// for the purposes of the Bake command. It returns a String
     /// message error if the request is for a src package, which the

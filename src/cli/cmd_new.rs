@@ -47,7 +47,7 @@ build:
 
     # pkg options request packages that need to be present
     # in the build environment. You can specify a version number
-    # here as the default for when the option is not otherise specified
+    # here as the default for when the option is not otherwise specified
     - pkg: python/3
 
   # variants declares the default set of variants to build and publish

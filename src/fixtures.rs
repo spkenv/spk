@@ -165,7 +165,7 @@ pub async fn spfs_runtime() -> RuntimeLock {
         .expect("failed to update spfs config for test");
 
     // since the runtime is likely stored in the currently
-    // configured local repo, we need to save a repesentation of
+    // configured local repo, we need to save a representation of
     // it in the newly configured tmp storage
     let runtime_storage = config
         .get_runtime_storage()

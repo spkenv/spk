@@ -290,7 +290,7 @@ fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(PkgName, HashS
             true if remainder.ends_with('}') => &remainder[1..remainder.len() - 1],
             true => {
                 return Err(InvalidNameError::new_error(
-                    "missing or misplaced closing delimeter for component list: '}'".to_string(),
+                    "missing or misplaced closing delimiter for component list: '}'".to_string(),
                 ))
             }
             false => remainder,
@@ -367,7 +367,7 @@ impl Default for InclusionPolicy {
     }
 }
 
-/// Represents a contraint added to a resolved environment.
+/// Represents a constraint added to a resolved environment.
 #[derive(Debug, Serialize, Clone, Hash, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum Request {

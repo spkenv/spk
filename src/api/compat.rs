@@ -152,7 +152,7 @@ impl CompatRuleSet {
     }
 }
 
-/// Compat specifies the compatilbility contract of a compat number.
+/// Compat specifies the compatibility contract of a compat number.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Compat {
     parts: Vec<CompatRuleSet>,

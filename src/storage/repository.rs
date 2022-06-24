@@ -65,7 +65,7 @@ pub trait Repository {
     /// Publish a package to this repository.
     ///
     /// The provided component digests are expected to each identify an spfs
-    /// layer which contains propery constructed binary package files and metadata.
+    /// layer which contains properly constructed binary package files and metadata.
     fn publish_package(
         &self,
         spec: api::Spec,
@@ -82,7 +82,7 @@ pub trait Repository {
     /// This will bring the repository up-to-date for the current
     /// spk library version, but may also make it incompatible with
     /// older ones. Upgrades can also take time depending on their
-    /// nature and the size of the repostory so. Please, take time to
+    /// nature and the size of the repository so. Please, take time to
     /// read any release and upgrade notes before invoking this.
     fn upgrade(&self) -> Result<String> {
         Ok("Nothing to do.".to_string())

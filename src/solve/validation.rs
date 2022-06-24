@@ -184,7 +184,7 @@ impl ValidatorT for OptionsValidator {
             .collect();
         for request in requests {
             if request.package().is_none() && qualified_requests.contains(&request.var) {
-                // a qualified request was found that supercedes this one:
+                // a qualified request was found that supersedes this one:
                 // eg: this is 'debug', but we have 'thispackage.debug'
                 continue;
             }

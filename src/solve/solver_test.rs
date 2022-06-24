@@ -673,7 +673,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    // the new option value should disqulify the existing build
+    // the new option value should disqualify the existing build
     // but a new one should be generated for this set of options
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
@@ -959,7 +959,7 @@ fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
         [
             {
                 "pkg": "my-plugin",
-                // the qt/5.13 requirement is available but conflits with maya embedded
+                // the qt/5.13 requirement is available but conflicts with maya embedded
                 "install": {"requirements": [{"pkg": "maya/2019"}, {"pkg": "qt/5.13"}]},
             },
             {

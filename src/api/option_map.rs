@@ -15,8 +15,8 @@ use sys_info;
 mod option_map_test;
 
 // given option digests are namespaced by the package itself,
-// there are slim likelyhoods of collision, so we roll the dice
-// also must be a multiple of 8 to be decodable wich is generally
+// there is a slim likelihood of collision, so we roll the dice
+// also must be a multiple of 8 to be decodable which is generally
 // a nice way to handle validation / and 16 is a lot
 pub const DIGEST_SIZE: usize = 8;
 

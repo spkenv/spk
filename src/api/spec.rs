@@ -82,7 +82,7 @@ impl Spec {
         self.build.resolve_all_options(Some(&self.pkg.name), given)
     }
     /// Check if this package spec satisfies the given request.
-    pub fn sastisfies_request(&self, request: Request) -> Compatibility {
+    pub fn satisfies_request(&self, request: Request) -> Compatibility {
         match request {
             Request::Pkg(request) => self.satisfies_pkg_request(&request),
             Request::Var(request) => self.satisfies_var_request(&request),

@@ -38,7 +38,7 @@ pub fn get_version_position_label(pos: usize) -> &'static str {
     POSITION_LABELS[pos]
 }
 
-/// Denotes that an invalid verison number was given.
+/// Denotes that an invalid version number was given.
 #[derive(Debug, Error)]
 #[error("Invalid version: {message}")]
 pub struct InvalidVersionError {
