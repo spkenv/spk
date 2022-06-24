@@ -7,6 +7,7 @@ jobs:
       env:
         SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
         SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
+        SPFS_REMOTE_origin_ADDRESS: "file:///tmp/spfs-origin?create=true"
       image: xd009642/tarpaulin
       options: --security-opt seccomp=unconfined --privileged
     steps:
