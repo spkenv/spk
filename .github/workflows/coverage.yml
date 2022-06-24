@@ -14,6 +14,8 @@ jobs:
       - name: Generate code coverage
         run: |
           sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
+          # spfs "custom build command" needs rustfmt?
+          rustup component add rustfmt
           cargo tarpaulin --verbose --all-features --timeout 120 --out Xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
