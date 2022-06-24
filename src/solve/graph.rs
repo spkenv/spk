@@ -9,10 +9,11 @@ use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
+use thiserror::Error;
 
 use crate::api::{self, Ident, InclusionPolicy, PkgName};
 
-use super::errors::{self, GetMergedRequestError};
+use super::errors::{self};
 use super::{
     package_iterator::PackageIterator,
     solution::{PackageSource, Solution},
@@ -26,26 +27,13 @@ pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(|| Arc::new(State::default()
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 #[allow(clippy::large_enum_variant)]
 pub enum GraphError {
+    #[error("Recursion error: {0}")]
     RecursionError(&'static str),
-    RequestError(errors::GetMergedRequestError),
-}
-
-impl std::fmt::Display for GraphError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RecursionError(s) => s.fmt(f),
-            Self::RequestError(s) => s.fmt(f),
-        }
-    }
-}
-
-impl From<GetMergedRequestError> for GraphError {
-    fn from(err: GetMergedRequestError) -> Self {
-        Self::RequestError(err)
-    }
+    #[error(transparent)]
+    RequestError(#[from] errors::GetMergedRequestError),
 }
 
 pub type Result<T> = std::result::Result<T, GraphError>;
@@ -315,7 +303,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Error)]
+#[error("Failed to resolve")]
 pub struct Graph {
     pub root: Arc<RwLock<Node>>,
     pub nodes: HashMap<u64, Arc<RwLock<Node>>>,

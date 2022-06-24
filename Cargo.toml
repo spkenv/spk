@@ -45,6 +45,7 @@ spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.34.2' }
 sys-info = "0.9.0"
 tar = "0.4.30"
 tempdir = "0.3.7"
+thiserror = "1.0"
 tokio = { version = "1.15", features = ["rt"] }
 tracing = "0.1.25"
 tracing-subscriber = "0.2.16"

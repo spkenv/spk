@@ -5,6 +5,7 @@ use std::convert::TryInto;
 use std::str::FromStr;
 
 use itertools::Itertools;
+use thiserror::Error;
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -14,7 +15,8 @@ const SRC: &str = "src";
 const EMBEDDED: &str = "embedded";
 
 /// Denotes that an invalid build digest was given.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Invalid build error: {message}")]
 pub struct InvalidBuildError {
     pub message: String,
 }

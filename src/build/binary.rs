@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
+use thiserror::Error;
 
 use super::env::data_path;
 use crate::solve::{Solution, SolverRuntime};
@@ -24,7 +25,8 @@ use crate::{
 mod binary_test;
 
 /// Denotes an error during the build process.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Build error: {message}")]
 pub struct BuildError {
     pub message: String,
 }

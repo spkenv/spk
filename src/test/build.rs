@@ -6,6 +6,7 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use thiserror::Error;
 
 use crate::{
     api,
@@ -14,7 +15,8 @@ use crate::{
 };
 
 /// Denotes that a test has failed or was invalid.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Test error: {message}")]
 pub struct TestError {
     pub message: String,
 }

@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::{convert::TryFrom, str::FromStr};
+use thiserror::Error;
 
 #[cfg(test)]
 #[path = "./name_test.rs"]
@@ -12,7 +13,8 @@ const NAME_MIN_LEN: usize = 2;
 const NAME_MAX_LEN: usize = 64;
 
 /// Denotes that an invalid package name was given.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Invalid name error: {message}")]
 pub struct InvalidNameError {
     pub message: String,
 }
