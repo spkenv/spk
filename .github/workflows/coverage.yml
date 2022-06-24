@@ -23,7 +23,24 @@ jobs:
           repository: imageworks/spfs
           token: ${{ secrets.SPFS_PULL_PASSWORD }}
           path: spfs
-      - name: Install spfs
+      - name: Cache spfs installation
+        id: cache-spfs-installation
+        uses: actions/cache@v3
+        env:
+          cache-name: spfs-installation
+        with:
+          path: spfs/target/release
+          key: cargo-toml-${{ hashFiles('spfs/Cargo.toml') }}
+      - if: steps.cache-spfs-installation.cache-hit == 'true'
+        name: Restore spfs build from cache
+        run: |
+          cd spfs
+          cp target/release/spfs* /usr/bin/
+          # No sudo installed; we're already root!
+          sed -i "s|sudo ||" Makefile
+          make setcap
+      - if: steps.cache-spfs-installation.cache-hit != 'true'
+        name: Build and install spfs
         run: |
           cd spfs
           # No sudo installed; we're already root!
