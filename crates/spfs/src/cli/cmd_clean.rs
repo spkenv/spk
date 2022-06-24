@@ -7,7 +7,6 @@ use clap::Args;
 use colored::*;
 
 use spfs::prelude::*;
-use std::io::Write;
 
 /// Clean the repository storage of any untracked data
 ///
@@ -66,14 +65,15 @@ impl CmdClean {
         }
         tracing::info!("found {} objects to remove", unattached.len());
         if !self.yes {
-            print!("  >--> Do you wish to proceed with the removal of these objects? [y/N]: ");
-            let _ = std::io::stdout().flush();
-            use std::io::BufRead;
-            if let Some(line) = std::io::stdin().lock().lines().next() {
-                let line = line?;
-                if line != "y" {
-                    return Ok(2);
-                }
+            let answer = question::Question::new(
+                "  >--> Do you wish to proceed with the removal of these objects?",
+            )
+            .default(question::Answer::NO)
+            .show_defaults()
+            .confirm();
+            match answer {
+                question::Answer::YES => {}
+                _ => return Ok(2),
             }
         }
 
@@ -135,14 +135,15 @@ impl CmdClean {
         }
 
         if !self.yes {
-            print!("  >--> Do you wish to proceed with the removal of these tag versions? [y/N]: ");
-            let _ = std::io::stdout().flush();
-            use std::io::BufRead;
-            if let Some(line) = std::io::stdin().lock().lines().next() {
-                let line = line?;
-                if line != "y" {
-                    return Err("Operation cancelled by user".into());
-                }
+            let answer = question::Question::new(
+                "  >--> Do you wish to proceed with the removal of these tag versions?",
+            )
+            .default(question::Answer::NO)
+            .show_defaults()
+            .confirm();
+            match answer {
+                question::Answer::YES => {}
+                _ => return Err("Operation cancelled by user".into()),
             }
         }
 

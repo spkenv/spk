@@ -1947,6 +1947,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "question"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acbb3ede7a8f9a8ab89e714637f2cf40001b58f21340d4242b2f11533e65fa8d"
+
+[[package]]
 name = "quote"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2683,6 +2689,7 @@ dependencies = [
  "once_cell",
  "palaver",
  "prost",
+ "question",
  "rand 0.7.3",
  "relative-path",
  "reqwest 0.11.10",
