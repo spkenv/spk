@@ -21,7 +21,7 @@ fn test_variants_must_be_unique() {
 
 #[rstest]
 fn test_variants_must_be_unique_unknown_ok() {
-    // unreconized variant values are ok if they are unique still
+    // unrecognized variant values are ok if they are unique still
     let _: BuildSpec =
         serde_yaml::from_str("{variants: [{unknown: any-value}, {unknown: any_other_value}]}")
             .unwrap();

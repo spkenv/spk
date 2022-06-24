@@ -539,7 +539,7 @@ impl SortedBuildIterator {
         );
         tracing::debug!(
             target: BUILD_SORT_TARGET,
-            "Keys by build option values: buildt from: [{}]",
+            "Keys by build option values: built from: [{}]",
             ordered_names.join(", "),
         );
         tracing::debug!(

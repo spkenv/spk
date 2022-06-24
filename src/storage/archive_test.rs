@@ -21,7 +21,7 @@ fn test_archive_io() {
         .with_source(build::BuildSource::LocalPath(".".into()))
         .build()
         .unwrap();
-    let filename = rt.tmpdir.path().join("achive.spk");
+    let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
     export_package(&spec.pkg, &filename).expect("failed to export");
     let mut actual = Vec::new();

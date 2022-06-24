@@ -146,7 +146,7 @@ impl BuildKey {
                         // things like typos in values.
                         // TODO: option definitions are for var or pkg
                         // options, could use that information here to
-                        // determin the kind of value instead of
+                        // determine the kind of value instead of
                         // relying on parsing errors.
                         BuildKeyEntry::Text(value.clone())
                     }
@@ -164,7 +164,7 @@ impl BuildKey {
         //
         // Without a last entry tie-breaker like this, builds with
         // identical keys can order differently between solver runs
-        // due to the vageries of memory allocation, timing, and
+        // due to the vagaries of memory allocation, timing, and
         // filesystem accesses.  Non-deterministic sorting and
         // selection of builds is difficult to reason about and debug.
         // This avoids it.
@@ -188,7 +188,7 @@ impl BuildKey {
 /// NotSet is used. When the value parses as a version request,
 /// ExpandedVersion is used. Text is used for all other values.
 ///
-/// The NotSet, Text and ExpandedVersion aree defined in the order
+/// The NotSet, Text and ExpandedVersion are defined in the order
 /// below to ensure that when they are reverse sorted ExpandedVersions
 /// will come before Text values, which come before NotSet values.
 ///

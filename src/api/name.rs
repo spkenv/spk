@@ -85,7 +85,7 @@ impl TryFrom<String> for PkgName {
     }
 }
 
-/// Return 'name' if it's a valide package name
+/// Return 'name' if it's a valid package name
 pub fn validate_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     if name.as_ref().len() < NAME_MIN_LEN {
         return Err(InvalidNameError::new_error(format!(

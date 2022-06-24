@@ -492,7 +492,7 @@ pub struct DecisionFormatterSettings {
     /// Increase the solver's verbosity every time this many seconds pass
     ///
     /// A solve has taken too long if it runs for more than this
-    /// number of seconds and hasn't found a soluton. Setting this
+    /// number of seconds and hasn't found a solution. Setting this
     /// above zero will increase the verbosity every that many seconds
     /// the solve runs. If this is zero, the solver's verbosity will
     /// not increase during a solve.
