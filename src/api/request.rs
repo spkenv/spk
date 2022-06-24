@@ -12,9 +12,12 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    compat::API_STR, compat::BINARY_STR, parse_build, version_range::Ranged, Build, CompatRule,
-    Compatibility, Component, EqualsVersion, Ident, InvalidNameError, PkgName, Spec, Version,
-    VersionFilter,
+    compat::API_STR,
+    compat::BINARY_STR,
+    parse_build,
+    version_range::{self, Ranged},
+    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, PkgName,
+    Spec, Version, VersionFilter,
 };
 use crate::{Error, Result};
 
@@ -117,18 +120,12 @@ impl RangeIdent {
     /// This range ident will become restricted to the intersection
     /// of the current version range and the other, as well as
     /// their combined component requests.
-    ///
-    /// If `allow_non_intersecting_versions` is true, two version
-    /// ranges that are disjointed will be allowed to merge.
     pub fn restrict(
         &mut self,
         other: &RangeIdent,
-        allow_non_intersecting_versions: bool,
+        mode: version_range::RestrictMode,
     ) -> Result<()> {
-        if let Err(err) = self
-            .version
-            .restrict(&other.version, allow_non_intersecting_versions)
-        {
+        if let Err(err) = self.version.restrict(&other.version, mode) {
             return Err(Error::wrap(format!("[{}]", self.name), err));
         }
 
@@ -846,24 +843,27 @@ impl PkgRequest {
     pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
         self.prerelease_policy = min(self.prerelease_policy, other.prerelease_policy);
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
-        self.pkg.restrict(
-            &other.pkg,
-            // Allow otherwise impossible to satisfy combinations of requests
-            // to be merged if the combined inclusion policy is `IfAlreadyPresent`.
-            //
-            // Example: pkg-name/=1.0 && pkg-name/=2.0
-            //
-            // The solve may find a solution without needing to satisfy this request
-            // at all, if the package never becomes "present". By contrast, if this
-            // combination is rejected, then it might reject the only possible state
-            // that leads to a solution.
-            //
-            // This behavior is trading performance for correctness. The solver will
-            // have to explore a larger search space because of this, to be correct
-            // in pathological cases, when it might arrive at a good solution earlier
-            // if it were to reject these types of combinations.
-            self.inclusion_policy == InclusionPolicy::IfAlreadyPresent,
-        )?;
+        // Allow otherwise impossible to satisfy combinations of requests
+        // to be merged if the combined inclusion policy is `IfAlreadyPresent`.
+        //
+        // Example: pkg-name/=1.0 && pkg-name/=2.0
+        //
+        // The solve may find a solution without needing to satisfy this request
+        // at all, if the package never becomes "present". By contrast, if this
+        // combination is rejected, then it might reject the only possible state
+        // that leads to a solution.
+        //
+        // This behavior is trading performance for correctness. The solver will
+        // have to explore a larger search space because of this, to be correct
+        // in pathological cases, when it might arrive at a good solution earlier
+        // if it were to reject these types of combinations.
+        let version_range_restrict_mode =
+            if self.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
+                version_range::RestrictMode::AllowNonIntersectingRanges
+            } else {
+                version_range::RestrictMode::RequireIntersectingRanges
+            };
+        self.pkg.restrict(&other.pkg, version_range_restrict_mode)?;
         // Add the requesters from the other request to this one.
         for (key, request_list) in &other.requested_by {
             for requester in request_list {

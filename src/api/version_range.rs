@@ -981,6 +981,19 @@ impl Display for CompatRange {
     }
 }
 
+/// Control how [`VersionFilter::restrict`] will handle
+/// two version ranges that do not intersect.
+#[derive(Debug)]
+pub enum RestrictMode {
+    /// If the two ranges do not intersect, an attempt to restrict them will
+    /// fail.
+    RequireIntersectingRanges,
+    /// The two ranges are not required to intersect. If they do not, the
+    /// two ranges are concatenated and the resulting version range will have
+    /// no versions that can satisfy it.
+    AllowNonIntersectingRanges,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct VersionFilter {
     // Use `BTreeSet` to make `to_string` output consistent.
@@ -1008,19 +1021,13 @@ impl VersionFilter {
     /// Reduce this range by the scope of another
     ///
     /// This version range will become restricted to the intersection
-    /// of the current version range and the other.
-    ///
-    /// If `allow_non_intersecting_versions` is true, two version
-    /// ranges that are disjointed will be allowed. Their rules
-    /// will be combined with no attempt to simplify them.
-    pub fn restrict(
-        &mut self,
-        other: impl Ranged,
-        allow_non_intersecting_versions: bool,
-    ) -> Result<()> {
+    /// of the current version range and the other. Or, if they do not
+    /// intersect, then `mode` determines if an error is returned or if the
+    /// two ranges will be concatenated without any simplification.
+    pub fn restrict(&mut self, other: impl Ranged, mode: RestrictMode) -> Result<()> {
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
-            if allow_non_intersecting_versions {
+            if matches!(mode, RestrictMode::AllowNonIntersectingRanges) {
                 self.rules.extend(other.rules());
                 return Ok(());
             }

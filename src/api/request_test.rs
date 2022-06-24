@@ -7,7 +7,7 @@ use rstest::rstest;
 use serde_yaml;
 
 use super::{parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, VarRequest};
-use crate::api;
+use crate::api::{self, version_range};
 
 #[rstest]
 #[case("python/3.1.0", &[])]
@@ -34,7 +34,12 @@ fn test_range_ident_restrict_components() {
     let mut first = parse_ident_range("python:lib").unwrap();
     let second = parse_ident_range("python:bin").unwrap();
     let expected = parse_ident_range("python:{bin,lib}").unwrap();
-    first.restrict(&second, false).unwrap();
+    first
+        .restrict(
+            &second,
+            version_range::RestrictMode::RequireIntersectingRanges,
+        )
+        .unwrap();
     assert_eq!(first.components, expected.components);
 }
 
