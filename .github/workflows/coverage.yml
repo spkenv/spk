@@ -10,6 +10,10 @@ jobs:
       image: xd009642/tarpaulin
       options: --security-opt seccomp=unconfined
     steps:
+      - name: Install rustfmt
+        run: |
+          # spfs "custom build command" needs rustfmt?
+          rustup component add rustfmt
       - name: Checkout spfs
         uses: actions/checkout@v3
         with:
@@ -27,8 +31,6 @@ jobs:
         run: |
           cd spk
           sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
-          # spfs "custom build command" needs rustfmt?
-          rustup component add rustfmt
           spfs run - -- cargo tarpaulin --verbose --all-features --timeout 120 --out Xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
