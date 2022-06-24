@@ -496,7 +496,7 @@ pub struct DecisionFormatterSettings {
     /// above zero will increase the verbosity every that many seconds
     /// the solve runs. If this is zero, the solver's verbosity will
     /// not increase during a solve.
-    #[clap(short, long, env = "SPK_SOLVE_TOO_LONG_SECONDS", default_value_t = 30)]
+    #[clap(long, env = "SPK_SOLVE_TOO_LONG_SECONDS", default_value_t = 30)]
     pub increase_verbosity: u64,
 
     /// Maximum number of seconds to let the solver run before halting the solve
