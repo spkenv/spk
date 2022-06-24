@@ -106,6 +106,7 @@ impl Run for MakeBinary {
                 }
 
                 tracing::info!("building variant {}", spk::io::format_options(&opts));
+
                 let formatter = self.formatter_settings.get_formatter(self.verbose);
                 let mut builder = spk::build::BinaryPackageBuilder::from_spec((*spec).clone());
                 builder
@@ -114,6 +115,7 @@ impl Run for MakeBinary {
                     .set_interactive(self.interactive)
                     .with_source_resolver(&formatter)
                     .with_build_resolver(&formatter);
+
                 if self.here {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;
