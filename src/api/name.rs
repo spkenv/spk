@@ -14,7 +14,7 @@ const NAME_MAX_LEN: usize = 64;
 
 /// Denotes that an invalid package name was given.
 #[derive(Debug, Error)]
-#[error("Invalid name error: {message}")]
+#[error("Invalid name: {message}")]
 pub struct InvalidNameError {
     pub message: String,
 }
