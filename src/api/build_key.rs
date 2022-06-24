@@ -310,10 +310,14 @@ impl BuildKeyExpandedVersionRange {
     pub(crate) fn parse_from_range_value<S: AsRef<str>>(
         range: S,
     ) -> Result<BuildKeyExpandedVersionRange> {
+        // Check for values like '4.1.0/DIGEST' and turn into '4.1.0'
+        // to let them parse and be treated as range values.
+        let parts: Vec<&str> = range.as_ref().split('/').collect();
+
         // Turn the version request string into a version filter. If this
         // fails, then this function cannot continue. The max and min
         // bounds can only be obtained from a valid version filter.
-        let filter = parse_version_range(range.as_ref())?;
+        let filter = parse_version_range(parts[0])?;
 
         // Max version limit: version < max
         let max: BuildKeyVersionNumber = match filter.less_than() {

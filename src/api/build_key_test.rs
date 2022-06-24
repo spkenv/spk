@@ -88,6 +88,8 @@ fn make_expanded_version_range_part(
 #[case("<1.2.3",             make_expanded_version_range_part("<1.2.3",             vec![1, 2, 3],                      false, vec![], vec![], vec![0, 0, 0],    false, vec![],          vec![]))]
 #[case("=1.2.3",             make_expanded_version_range_part("=1.2.3",             vec![1, 2, 3],                      true,  vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
 #[case("^1.2.3",             make_expanded_version_range_part("^1.2.3",             vec![2],                            false, vec![], vec![], vec![1, 2, 3],    false, vec![],          vec![]))]
+// A version with a build. This should be treated as if it was just the version
+#[case("4.1.0/DIGEST",       make_expanded_version_range_part("4.1.0/DIGEST",       vec![u32::MAX, u32::MAX, u32::MAX], false, vec![], vec![], vec![4, 1, 0],    false, vec![],          vec![]))]
 // These ones appear in the function's comments
 #[case("~2.3.4-r.1",         make_expanded_version_range_part("~2.3.4-r.1",         vec![2, 3, 5],                      false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec!["r", "1"]))]
 #[case("~2.3.4",             make_expanded_version_range_part("~2.3.4",             vec![2, 4],                         false, vec![], vec![], vec![2, 3, 4],    false, vec![],          vec![]))]
@@ -121,6 +123,27 @@ fn test_parse_value_to_build_key_extended_version_range(
                pretag: Some(vec![]),
            },
            tie_breaker: BuildKeyExpandedVersionRange::generate_tie_breaker("25.0.8-alpha.0,test.1")
+       }
+)]
+// This doesn't parse because the characters after the first '/' are
+// removed and then 'somepkg' isn't a valid version major.minor.patch
+// number
+#[should_panic]
+#[case("somepkg/4.1.0/DIGEST",
+       BuildKeyExpandedVersionRange {
+           max: BuildKeyVersionNumber {
+               digits: vec![],
+               plus_epsilon: false,
+               posttag: Some(vec![]),
+               pretag: Some(vec![]),
+           },
+           min: BuildKeyVersionNumber {
+               digits: vec![],
+               plus_epsilon: false,
+               posttag: Some(vec![]),
+               pretag: Some(vec![]),
+           },
+           tie_breaker: BuildKeyExpandedVersionRange::generate_tie_breaker("somepkg/4.1.0/DIGEST")
        }
 )]
 fn test_parse_value_to_build_key_extended_version_range_invalid(
