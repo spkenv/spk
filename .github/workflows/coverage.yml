@@ -10,8 +10,10 @@ jobs:
       image: xd009642/tarpaulin
       options: --security-opt seccomp=unconfined --privileged
     steps:
-      - name: Install rustfmt
+      - name: Install prerequisites
         run: |
+          apt-get update
+          apt-get install --yes libcap2-bin
           # spfs "custom build command" needs rustfmt?
           rustup component add rustfmt
       - name: Checkout spfs
