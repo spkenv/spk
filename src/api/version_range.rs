@@ -69,30 +69,88 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         Compatibility::Compatible
     }
 
+    /// Test that the set of all valid versions in self is a superset of
+    /// all valid versions in other.
     fn contains(&self, other: impl Ranged) -> Compatibility {
+        if self.get_compat_rule() > other.get_compat_rule() {
+            return Compatibility::Incompatible(format!(
+                "{self} has stronger compatibility requirements than {other}"
+            ));
+        }
+
         let self_lower = self.greater_or_equal_to();
         let self_upper = self.less_than();
         let other_lower = other.greater_or_equal_to();
         let other_upper = other.less_than();
 
-        if let (Some(self_lower), Some(other_lower)) = (self_lower, other_lower) {
-            if self_lower > other_lower {
-                return Compatibility::Incompatible(format!(
-                    "{} represents a wider range than allowed by {}",
-                    other, self
-                ));
-            }
-        }
-        if let (Some(self_upper), Some(other_upper)) = (self_upper, other_upper) {
-            if self_upper < other_upper {
-                return Compatibility::Incompatible(format!(
-                    "{} represents a wider range than allowed by {}",
-                    other, self
-                ));
+        for (index, (left_bound, right_bound, right_opposite_bound)) in [
+            // Order important here! self > other for lower bound
+            (&self_lower, &other_lower, &other_upper),
+            // Order important here! other > self for upper bound
+            (&other_upper, &self_upper, &self_lower),
+        ]
+        .iter()
+        .enumerate()
+        {
+            // Check that the left bound `Version` contains the right bound `Version`.
+            //
+            // Using rust range syntax:
+            // iter 0 (lower bounds) --  "self.._".contains("other..other_opposite");
+            // iter 1 (upper bounds) -- "_..other".contains("self_opposite..self"  );
+            //                          |--------|          |---------------------|
+            //                            "left"                   "right"
+            match (&left_bound, &right_bound, &right_opposite_bound) {
+                (None, None, _) => {
+                    // neither is bounded
+                }
+                (None, Some(_), None) => {
+                    // <3.0 does not contain >2.0
+                    return Compatibility::Incompatible(format!(
+                        "[case 1,{index}] {self} does not contain {other}"
+                    ));
+                }
+                (None, Some(right_bound), Some(right_opposite_bound)) => {
+                    // For "<2.0" to contain "=1.0", 2.0 must be >= 1.0.
+                    //    ..2.0    vs    1.0..1.0+ε
+                    //
+                    // `left_bound` is None
+                    // `right_bound` is 1.0+ε
+                    // `right_opposite_bound` is 1.0
+                    if right_opposite_bound < right_bound {
+                        return Compatibility::Incompatible(format!(
+                            "[case 2,{index}] {self} does not contain {other}"
+                        ));
+                    }
+                }
+                (Some(left_bound), None, Some(right_opposite_bound)) => {
+                    // This mirrors case 2.
+                    if right_opposite_bound > left_bound {
+                        return Compatibility::Incompatible(format!(
+                            "[case 3,{index}] {self} does not contain {other}"
+                        ));
+                    }
+                }
+                (Some(_), None, _) => {
+                    return Compatibility::Incompatible(format!(
+                        "[case 4,{index}] {self} does not contain {other}"
+                    ));
+                }
+                (Some(left_bound), Some(right_bound), _) => {
+                    if left_bound > right_bound {
+                        return Compatibility::Incompatible(format!(
+                            "[case 5,{index}] {self} does not contain {other}"
+                        ));
+                    }
+                }
             }
         }
 
         self.intersects(other)
+    }
+
+    fn get_compat_rule(&self) -> Option<CompatRule> {
+        // Most types don't have a `CompatRule`
+        None
     }
 
     fn intersects(&self, other: impl Ranged) -> Compatibility {
@@ -135,14 +193,29 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
 }
 
 impl<T: Ranged> Ranged for &T {
+    fn contains(&self, other: impl Ranged) -> Compatibility {
+        Ranged::contains(*self, other)
+    }
+    fn get_compat_rule(&self) -> Option<CompatRule> {
+        Ranged::get_compat_rule(*self)
+    }
     fn greater_or_equal_to(&self) -> Option<Version> {
         Ranged::greater_or_equal_to(*self)
     }
     fn less_than(&self) -> Option<Version> {
         Ranged::less_than(*self)
     }
+    fn intersects(&self, other: impl Ranged) -> Compatibility {
+        Ranged::intersects(*self, other)
+    }
+    fn is_applicable(&self, other: &Version) -> Compatibility {
+        Ranged::is_applicable(*self, other)
+    }
     fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
         Ranged::is_satisfied_by(*self, spec, required)
+    }
+    fn rules(&self) -> BTreeSet<VersionRange> {
+        Ranged::rules(*self)
     }
 }
 
@@ -868,6 +941,10 @@ impl CompatRange {
 }
 
 impl Ranged for CompatRange {
+    fn get_compat_rule(&self) -> Option<CompatRule> {
+        self.required
+    }
+
     fn greater_or_equal_to(&self) -> Option<Version> {
         Some(self.base.clone())
     }
