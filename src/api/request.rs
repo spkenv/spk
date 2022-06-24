@@ -618,7 +618,8 @@ impl std::fmt::Display for RequestedBy {
 }
 
 /// A desired package and set of restrictions on how it's selected.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error, Eq, Serialize)]
+#[error("Package request for {pkg}")]
 pub struct PkgRequest {
     pub pkg: RangeIdent,
     #[serde(

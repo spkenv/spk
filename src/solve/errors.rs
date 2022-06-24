@@ -2,53 +2,44 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use thiserror::Error;
+
 use crate::api;
 
 use super::graph::{GraphError, Note};
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("Solver error: {0}")]
     SolverError(String),
-    FailedToResolve(super::Graph),
-    Graph(GraphError),
-    OutOfOptions(OutOfOptions),
+    #[error(transparent)]
+    FailedToResolve(#[from] super::Graph),
+    #[error(transparent)]
+    Graph(#[from] GraphError),
+    #[error(transparent)]
+    OutOfOptions(#[from] OutOfOptions),
+    #[error("Solver interrupted: {0}")]
     SolverInterrupted(String),
-    PackageNotFoundDuringSolve(api::PkgRequest),
-}
-
-impl From<Error> for crate::Error {
-    fn from(err: Error) -> Self {
-        crate::Error::Solve(err)
-    }
-}
-
-impl From<GraphError> for Error {
-    fn from(err: GraphError) -> Self {
-        Error::Graph(err)
-    }
+    #[error("Package not found: {0}")]
+    PackageNotFoundDuringSolve(#[from] api::PkgRequest),
 }
 
 pub type GetCurrentResolveResult<T> = std::result::Result<T, GetCurrentResolveError>;
 
+#[derive(Debug, Error)]
 pub enum GetCurrentResolveError {
+    #[error("Package not resolved: {0}")]
     PackageNotResolved(String),
 }
 
 pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestError>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum GetMergedRequestError {
+    #[error("No request for: {0}")]
     NoRequestFor(String),
-    Other(Box<crate::Error>),
-}
-
-impl std::fmt::Display for GetMergedRequestError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NoRequestFor(s) => s.fmt(f),
-            Self::Other(s) => s.fmt(f),
-        }
-    }
+    #[error(transparent)]
+    Other(#[from] Box<crate::Error>),
 }
 
 impl From<GetMergedRequestError> for crate::Error {
@@ -66,14 +57,9 @@ impl From<crate::Error> for GetMergedRequestError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Out of options for {pkg}", pkg = .request.pkg)]
 pub struct OutOfOptions {
     pub request: api::PkgRequest,
     pub notes: Vec<Note>,
-}
-
-impl std::fmt::Display for OutOfOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("Out of options for {}", self.request.pkg))
-    }
 }

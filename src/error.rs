@@ -2,40 +2,57 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use thiserror::Error;
+
 use crate::solve;
 
 use super::{api, build, test};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
-    IO(std::io::Error),
-    SPFS(spfs::Error),
-    Serde(serde_yaml::Error),
-    Solve(crate::solve::Error),
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+    #[error(transparent)]
+    SPFS(#[from] spfs::Error),
+    #[error(transparent)]
+    Serde(#[from] serde_yaml::Error),
+    #[error(transparent)]
+    Solve(#[from] crate::solve::Error),
+    #[error("Error: {0}")]
     String(String),
 
     // API Errors
-    InvalidVersionError(api::InvalidVersionError),
-    InvalidNameError(api::InvalidNameError),
-    InvalidBuildError(api::InvalidBuildError),
+    #[error(transparent)]
+    InvalidVersionError(#[from] api::InvalidVersionError),
+    #[error(transparent)]
+    InvalidNameError(#[from] api::InvalidNameError),
+    #[error(transparent)]
+    InvalidBuildError(#[from] api::InvalidBuildError),
 
     // Storage Errors
+    #[error("Package not found: {0}")]
     PackageNotFoundError(api::Ident),
+    #[error("Version exists: {0}")]
     VersionExistsError(api::Ident),
 
     // Build Errors
-    Collection(build::CollectionError),
-    Build(build::BuildError),
+    #[error(transparent)]
+    Collection(#[from] build::CollectionError),
+    #[error(transparent)]
+    Build(#[from] build::BuildError),
 
     // Bake Errors
+    #[error("Skip embedded")]
     SkipEmbedded,
 
     // Test Errors
-    Test(test::TestError),
+    #[error(transparent)]
+    Test(#[from] test::TestError),
 
     /// Not running under an active spk environment
+    #[error("No current spfs runtime environment")]
     NoEnvironment,
 }
 
@@ -51,34 +68,8 @@ impl Error {
     }
 }
 
-impl std::error::Error for Error {}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        Error::IO(err)
-    }
-}
-
-impl From<spfs::Error> for Error {
-    fn from(err: spfs::Error) -> Error {
-        Error::SPFS(err)
-    }
-}
-
-impl From<serde_yaml::Error> for Error {
-    fn from(err: serde_yaml::Error) -> Error {
-        Error::Serde(err)
-    }
-}
-
 impl From<solve::graph::GraphError> for Error {
     fn from(err: solve::graph::GraphError) -> Error {
         Error::Solve(err.into())
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&format!("{:?}", self))
     }
 }

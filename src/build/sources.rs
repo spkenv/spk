@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use thiserror::Error;
 
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
@@ -17,7 +18,8 @@ use crate::{api, storage, Result};
 mod sources_test;
 
 /// Denotes an error during the build process.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Collection error: {message}")]
 pub struct CollectionError {
     pub message: String,
 }

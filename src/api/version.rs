@@ -9,6 +9,7 @@ use std::{
 };
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use thiserror::Error;
 
 use super::validate_tag_name;
 use crate::Error;
@@ -38,7 +39,8 @@ pub fn get_version_position_label(pos: usize) -> &'static str {
 }
 
 /// Denotes that an invalid verison number was given.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Invalid version: {message}")]
 pub struct InvalidVersionError {
     pub message: String,
 }
