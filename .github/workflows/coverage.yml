@@ -50,7 +50,7 @@ jobs:
         with:
           path: spfs/target/release
           key: cargo-toml-${{ hashFiles('spfs/Cargo.toml') }}
-      - if: steps.cache-spfs-installation.cache-hit == 'true'
+      - if: steps.cache-spfs-installation.outputs.cache-hit == 'true'
         name: Restore spfs build from cache
         run: |
           cd spfs
@@ -58,7 +58,7 @@ jobs:
           # No sudo installed; we're already root!
           sed -i "s|sudo ||" Makefile
           make setcap
-      - if: steps.cache-spfs-installation.cache-hit != 'true'
+      - if: steps.cache-spfs-installation.outputs.cache-hit != 'true'
         name: Build and install spfs
         run: |
           cd spfs
