@@ -12,6 +12,7 @@ jobs:
     steps:
       - name: Setup spfs repos
         run: |
+          mkdir /spfs
           mkdir -p /tmp/spfs-repos/local
           mkdir -p /tmp/spfs-repos/origin
           cat >/etc/spfs.conf << EOF
