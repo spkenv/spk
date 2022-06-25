@@ -14,13 +14,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      image: rust
+      options: --security-opt seccomp=unconfined --privileged
+      env:
+        # Disable cnproc because we're in a container
+        FEATURES: "disable-cnproc"
     steps:
       - uses: actions/checkout@v2
-      - run: sudo apt-get install -y libcap-dev
+      - name: Prepare Container
+        run: |
+          apt-get update
+          # nodejs is needed for rust-cache (when using `act`)
+          apt-get install -y libcap2-bin sudo nodejs
+          rustup component add clippy rustfmt
       - uses: Swatinem/rust-cache@v1
       - name: Build
         run: make debug
-      - name: Lint
-        run: make lint
+      # Run test before lint, lint takes a while and it is useful to know that
+      # the tests are failing before knowing if the lints are passing.
       - name: Test
         run: make test
+      - name: Lint
+        run: make lint
+      - name: Integration Test
+        run: |
+          make install-debug
+          ORIGIN_REPO=/tmp/spfs-repos/origin
+          mkdir -p "$ORIGIN_REPO"
+          # Pre-create a repo
+          SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}?create=true" spfs ls-tags -r origin
+          export SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}"
+          # Run tests as a normal user to verify privilege escalation
+          useradd -m e2e
+          su e2e -c tests/integration/run_tests.sh

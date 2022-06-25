@@ -3,16 +3,14 @@ name: RPM Build
 on:
   workflow_dispatch:
   pull_request:
-    branches: [master]
-  push:
     branches:
-      - master
       - 'release-*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Release build takes a long time!
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v2
       - name: Cache docker build environment
@@ -61,18 +59,3 @@ jobs:
         with:
           name: Binary RPM
           path: dist/rpm/RPMS/x86_64/${{ env.RPM_NAME }}.rpm
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: build
-    steps:
-      - uses: actions/checkout@v2
-      - run: echo RPM_NAME=$(rpmspec -q spfs.spec | head -n1) >> $GITHUB_ENV
-      - uses: actions/download-artifact@v2
-        with:
-          name: Binary RPM
-      - run: docker run --privileged --net host --rm
-          -v $PWD/$RPM_NAME.rpm:/tmp/$RPM_NAME.rpm
-          -v $PWD/tests/integration:/tests
-          centos:7
-          bash -xc "yum install -y /tmp/$RPM_NAME.rpm  && bash /tests/run_tests.sh"

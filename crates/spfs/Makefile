@@ -3,8 +3,13 @@ SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 cargo_features_arg := $(if $(FEATURES),--features $(FEATURES))
 
-.PHONY: rpm debug release test install install-debug setcap copy-release copy-debug
+.PHONY: act rpm debug release test install install-debug setcap copy-release copy-debug
 default: debug
+
+act:
+    # Run the github workflows locally using nektos/act.
+    # `--privileged` needed for spfs privilege escalation
+	act --privileged
 
 debug:
 	cd $(SOURCE_ROOT)
