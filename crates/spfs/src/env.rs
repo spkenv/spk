@@ -165,8 +165,12 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // we could use our own pid here, but then when running in a container
     // or pid namespace the process id would actually be wrong. Passing
     // zero will get the kernel to determine our pid from its perspective
+    #[cfg(not(feature = "disable-cnproc"))]
     let monitor = cnproc::PidMonitor::from_id(0)
         .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")));
+
+    #[cfg(feature = "disable-cnproc")]
+    let monitor: Result<cnproc::PidMonitor> = Err("cnproc disabled".into());
 
     let mut tracked_processes = HashSet::new();
     let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();

@@ -58,6 +58,7 @@ server = [
     "tokio-util/io-util",
 ]
 "runtime-compat-0.33" = []
+"disable-cnproc" = []
 
 [dependencies]
 async-trait = "0.1.52"
