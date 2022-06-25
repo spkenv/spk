@@ -69,7 +69,7 @@ jobs:
       - name: Spfs pre-check
         run: |
           find /tmp/spfs-repos
-          spfs run - -- bash -c 'echo $SPFS_RUNTIME; find /tmp/spfs-repos'
+          spfs run - -- bash -c 'echo $SPFS_RUNTIME; spfs info'
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: spk
