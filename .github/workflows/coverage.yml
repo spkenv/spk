@@ -7,14 +7,24 @@ jobs:
       env:
         SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
         SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
-        SPFS_REMOTE_origin_ADDRESS: "file:///tmp/spfs-origin?create=true"
       image: xd009642/tarpaulin
       options: --security-opt seccomp=unconfined --privileged
     steps:
+      - name: Setup spfs repos
+        run: |
+          mkdir -p /tmp/spfs-repos/local
+          mkdir -p /tmp/spfs-repos/origin
+          cat >/etc/spfs.conf << EOF
+          [storage]
+          root = /tmp/spfs-repos/local
+
+          [remote.origin]
+          address = file:///tmp/spfs-repos/origin?create=true
+          EOF
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install --yes libcap2-bin tcsh
+          apt-get install --yes libcap2-bin tcsh expect
           # spfs "custom build command" needs rustfmt?
           rustup component add rustfmt
       - name: Checkout spfs
