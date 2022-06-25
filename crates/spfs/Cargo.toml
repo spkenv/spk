@@ -134,3 +134,7 @@ serial_test = "0.5.1"
 [[bench]]
 name = "spfs_bench"
 harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
