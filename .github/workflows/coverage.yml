@@ -67,6 +67,7 @@ jobs:
           make install
       - name: Spfs pre-check
         run: |
+          find /tmp/spfs-repos
           spfs run - -- bash -c 'echo $SPFS_RUNTIME; find /tmp/spfs-repos'
       - uses: Swatinem/rust-cache@v1
         with:
