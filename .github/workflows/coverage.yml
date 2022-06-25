@@ -27,12 +27,21 @@ jobs:
           apt-get install --yes libcap2-bin tcsh expect rsync
           # spfs "custom build command" needs rustfmt?
           rustup component add rustfmt
+      - uses: actions/checkout@v3
+        with:
+          path: spk
+      - name: "Determine spfs tag"
+        run: |
+          cd spk
+          SPFS_TAG=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2)
+          echo "SPFS_TAG=$SPFS_TAG" >> $GITHUB_ENV
       - name: Checkout spfs
         uses: actions/checkout@v3
         with:
           repository: imageworks/spfs
           token: ${{ secrets.SPFS_PULL_PASSWORD }}
           path: spfs
+          ref: ${{ env.SPFS_TAG }}
       - name: Cache spfs installation
         id: cache-spfs-installation
         uses: actions/cache@v3
@@ -56,9 +65,6 @@ jobs:
           # No sudo installed; we're already root!
           sed -i "s|sudo ||" Makefile
           make install
-      - uses: actions/checkout@v3
-        with:
-          path: spk
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: spk
