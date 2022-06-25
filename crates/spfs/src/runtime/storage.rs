@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::{Stream, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
@@ -604,6 +604,10 @@ impl Storage {
         Box::pin(
             self.inner
                 .ls_tags(relative_path::RelativePath::new("spfs/runtimes/meta"))
+                .filter(|entry| {
+                    // Ignore things that aren't `Tag`s.
+                    futures::future::ready(matches!(*entry, Ok(storage::EntryType::Tag(_))))
+                })
                 .and_then(move |name| {
                     let storage = storage.clone();
                     async move { storage.read_runtime(name).await }
