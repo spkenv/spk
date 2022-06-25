@@ -11,7 +11,7 @@ set -o errexit
 filename="/spfs/message.txt";
 base_tag="test/tagging_base";
 
-spfs untag $base_tag --all || true;
+spfs untag $base_tag --all >& /dev/null || true;
 
 spfs run - -- bash -c "echo hello1 > $filename && spfs commit layer -t $base_tag"
 spfs run - -- bash -c "echo hello2 > $filename && spfs commit layer -t $base_tag"
@@ -31,5 +31,5 @@ test "$(spfs info $base_tag | grep manifest)" == "$version_2" # should remove fi
 
 spfs untag --all $base_tag
 set +o errexit
-spfs info $base_tag
+spfs info $base_tag >& /dev/null
 test $? -eq 1 # there should be no tag versions now
