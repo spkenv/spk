@@ -24,7 +24,7 @@ jobs:
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install --yes libcap2-bin tcsh expect
+          apt-get install --yes libcap2-bin tcsh expect rsync
           # spfs "custom build command" needs rustfmt?
           rustup component add rustfmt
       - name: Checkout spfs
