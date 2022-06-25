@@ -224,10 +224,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
             tokio::task::spawn(async move {
                 // Fallback to polling the process tree.
 
-                tracing::info!(
-                    ?err,
-                    "Process monitor Process monitor failed; using fallback mechanism"
-                );
+                tracing::info!(?err, "Process monitor failed; using fallback mechanism");
 
                 // No need to poll rapidly; we don't care about short-lived
                 // processes and only need to find at least one existing
