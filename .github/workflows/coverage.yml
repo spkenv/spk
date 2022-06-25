@@ -77,7 +77,7 @@ jobs:
         run: |
           cd spk
           sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
-          spfs run - -- bash -c 'echo $SPFS_RUNTIME ; spfs ls-tags spfs/runtimes/meta ; spfs read "spfs/runtimes/meta/$SPFS_RUNTIME" ; cargo tarpaulin --verbose --all-features --timeout 120 --out Xml'
+          spfs run - -- bash -c 'echo $SPFS_RUNTIME ; spfs ls-tags spfs/runtimes/meta ; spfs read "spfs/runtimes/meta/$SPFS_RUNTIME" ; spfs runtime list ; cargo tarpaulin --verbose --all-features --timeout 120 --out Xml'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
         with:
