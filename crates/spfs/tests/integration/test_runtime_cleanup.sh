@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+set -o errexit
+
 # some simple tests to ensure that runtimes are properly cleaned up
 
 assert_runtime_count() {

@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-# test that a tags can be added and removed as expected
+set -o errexit
 
-set -e
+# test that a tags can be added and removed as expected
 
 filename="/spfs/message.txt";
 base_tag="test/tagging_base";
@@ -30,6 +30,6 @@ test $(spfs log $base_tag | wc -l) -eq 1 # there should now only be one tag vers
 test "$(spfs info $base_tag | grep manifest)" == "$version_2" # should remove first tag
 
 spfs untag --all $base_tag
-set +e
+set +o errexit
 spfs info $base_tag
 test $? -eq 1 # there should be no tag versions now

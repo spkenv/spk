@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+set -o errexit
+
 # test that spfs can be run from within spfs
 
 out=$(spfs run '' -- sh -c 'spfs edit --off && spfs run - -- echo hello')

@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+set -o errexit
+
 # test that spfs can be committed / remounted even if files are still open
 
 cd /spfs
