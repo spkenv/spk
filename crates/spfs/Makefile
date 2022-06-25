@@ -15,12 +15,13 @@ release:
 	cargo build --all --release $(cargo_features_arg)
 
 lint:
+    # cargo fmt doesn't accept `--features`
 	cargo fmt --check
-	env RUSTDOCFLAGS="-Dwarnings" cargo doc -p spfs
-	cargo clippy --tests -- -Dwarnings
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc -p spfs $(cargo_features_arg)
+	cargo clippy --tests $(cargo_features_arg) -- -Dwarnings
 
 test:
-	cargo test --all
+	cargo test --all $(cargo_features_arg)
 
 rpm:
 	cd $(SOURCE_ROOT)
