@@ -159,11 +159,18 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         Some(pid) => pid,
     };
 
+    // Grab this as soon as possible before the pid has a chance to disappear.
+    let mount_ns = identify_mount_namespace_of_process(pid).await?;
+
     // we could use our own pid here, but then when running in a container
     // or pid namespace the process id would actually be wrong. Passing
     // zero will get the kernel to determine our pid from its perspective
-    let mut monitor = cnproc::PidMonitor::from_id(0)
-        .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")))?;
+    #[cfg(not(feature = "disable-cnproc"))]
+    let monitor = cnproc::PidMonitor::from_id(0)
+        .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")));
+
+    #[cfg(feature = "disable-cnproc")]
+    let monitor: Result<cnproc::PidMonitor> = Err("cnproc disabled".into());
 
     let mut tracked_processes = HashSet::new();
     let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -179,12 +186,15 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // BUG(rbottriell) There is still a race condition here where a
     // child is created as we scan, and the parent exits before we
     // are able to see it so we don't think the child is relevant
-    let current_pids = match find_processes_in_shared_mount_namespace(pid).await {
-        Err(err) => {
-            tracing::error!(?err, "error while scanning active process tree");
-            return Err(err);
-        }
-        Ok(pids) => pids,
+    let current_pids = match mount_ns.as_ref() {
+        Some(ns) => match find_processes_in_mount_namespace(ns).await {
+            Err(err) => {
+                tracing::error!(?err, "error while scanning active process tree");
+                return Err(err);
+            }
+            Ok(pids) => pids,
+        },
+        None => HashSet::new(),
     };
     tracked_processes.extend(current_pids);
 
@@ -195,15 +205,75 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         return Ok(());
     }
 
-    tokio::task::spawn_blocking(move || {
-        while let Some(event) = monitor.recv() {
-            if let Err(_err) = events_send.send(event) {
-                // the receiver has stopped listening, no need to continue
-                return;
-            }
+    match (monitor, mount_ns) {
+        (Ok(mut monitor), _) => {
+            tokio::task::spawn_blocking(move || {
+                // Normal behavior when the monitor was successfully created.
+                while let Some(event) = monitor.recv() {
+                    if let Err(_err) = events_send.send(event) {
+                        // the receiver has stopped listening, no need to continue
+                        return;
+                    }
+                }
+                tracing::warn!("monitor event stream ended unexpectedly");
+            });
         }
-        tracing::warn!("monitor event stream ended unexpectedly");
-    });
+        (Err(err), Some(ns)) => {
+            let mut tracked_processes = tracked_processes.clone();
+
+            tokio::task::spawn(async move {
+                // Fallback to polling the process tree.
+
+                tracing::info!(?err, "Process monitor failed; using fallback mechanism");
+
+                // No need to poll rapidly; we don't care about short-lived
+                // processes and only need to find at least one existing
+                // process to keep the runtime alive.
+                const PROC_POLLING_INTERVAL: std::time::Duration =
+                    std::time::Duration::from_millis(2500);
+                let interval = tokio::time::interval(PROC_POLLING_INTERVAL);
+                let mut interval_stream = IntervalStream::new(interval);
+
+                while !tracked_processes.is_empty() && interval_stream.next().await.is_some() {
+                    let current_pids = match find_processes_in_mount_namespace(&ns).await {
+                        Err(err) => {
+                            tracing::error!(?err, "error while scanning active process tree");
+                            break;
+                        }
+                        Ok(pids) => pids,
+                    };
+
+                    // Grab one of the existing pids to play the role of
+                    // parent for any new pid.
+                    let parent = *tracked_processes.iter().next().unwrap();
+
+                    for new_pid in current_pids.difference(&tracked_processes) {
+                        if let Err(_err) = events_send.send(cnproc::PidEvent::Fork {
+                            parent: parent as i32,
+                            pid: *new_pid as i32,
+                        }) {
+                            // the receiver has stopped listening, no need to continue
+                            return;
+                        }
+                    }
+
+                    for expiring_pid in tracked_processes.difference(&current_pids) {
+                        if let Err(_err) =
+                            events_send.send(cnproc::PidEvent::Exit(*expiring_pid as i32))
+                        {
+                            // the receiver has stopped listening, no need to continue
+                            return;
+                        }
+                    }
+
+                    tracked_processes = current_pids;
+                }
+            });
+        }
+        _ => {
+            // No way to monitor; give up.
+        }
+    }
 
     while let Some(event) = events_recv.recv().await {
         match event {
@@ -232,11 +302,10 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     Ok(())
 }
 
-/// Identify the mount namespace of the provided process id, and
-/// then find other processes on this machine which share that namespace
+/// Identify the mount namespace of the provided process id.
 ///
-/// If the provided process does not exist, an empty set is returned
-async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u32>> {
+/// Return None if the pid is not found.
+async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std::path::PathBuf>> {
     const INITIAL_NS_READ_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(5);
     const INITIAL_NS_READ_RETRY_COUNT: usize = 50;
 
@@ -248,8 +317,8 @@ async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u3
     let interval = tokio::time::interval(INITIAL_NS_READ_RETRY_DELAY);
     let mut retries = IntervalStream::new(interval).take(INITIAL_NS_READ_RETRY_COUNT);
     while retries.next().await.is_some() {
-        let ns = match tokio::fs::read_link(&ns_path).await {
-            Ok(ns) => ns,
+        match tokio::fs::read_link(&ns_path).await {
+            Ok(ns) => return Ok(Some(ns)),
             Err(err) => match err.kind() {
                 std::io::ErrorKind::PermissionDenied => {
                     // NOTE(rbottriell): it's possible for the kernel to return
@@ -266,12 +335,11 @@ async fn find_processes_in_shared_mount_namespace(pid: u32) -> Result<HashSet<u3
                         ?ns_path,
                         "runtime process appears to no longer exists or was never started"
                     );
-                    return Ok(HashSet::new());
+                    return Ok(None);
                 }
                 _ => return Err(err.into()),
             },
         };
-        return find_processes_in_mount_namespace(&ns).await;
     }
     Err(Error::String(
         "Could not read runtime owner's namespace after several attempts".into(),
