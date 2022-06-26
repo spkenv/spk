@@ -30,10 +30,13 @@ pub async fn make_active_runtime_editable() -> Result<()> {
 /// Remount the given runtime as configured.
 pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
     let command = bootstrap::build_spfs_remount_command(rt)?;
-    let mut cmd = tokio::process::Command::new(command.executable);
+    // Not using `tokio::process` here because it relies on `SIGCHLD` to know
+    // when the process is done, which can be unreliable if something else
+    // is trapping signals, like the tarpaulin code coverage tool.
+    let mut cmd = std::process::Command::new(command.executable);
     cmd.args(command.args);
     tracing::debug!("{:?}", cmd);
-    let res = cmd.status().await?;
+    let res = tokio::task::spawn_blocking(move || cmd.status()).await??;
     if res.code() != Some(0) {
         Err("Failed to re-mount runtime filesystem".into())
     } else {
