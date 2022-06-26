@@ -114,13 +114,15 @@ impl<'a> Dynamic<'a> {
             let temp_dir = TempDir::new_in(self.install_path(), &tag_as_dirname)
                 .context("create temp working directory")?;
 
+            let env_spec = EnvSpec::parse(tag).context("create env spec")?;
+
             // Ensure tag is sync'd local because `render_into_directory` operates
             // out of the local repo.
-            spfs::sync_ref(tag, remote, local)
-                .await
-                .context("sync reference")?;
+            let syncer = spfs::Syncer::new(remote, local)
+                .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+            let r = syncer.sync_env(env_spec).await.context("sync reference")?;
+            let env_spec = r.env;
 
-            let env_spec = EnvSpec::new(tag).context("create env spec")?;
             spfs::render_into_directory(&env_spec, temp_dir.path())
                 .await
                 .context("render spfs platform")?;
@@ -190,7 +192,7 @@ impl<'a> Dynamic<'a> {
 
         let config = spfs::load_config().expect("loaded spfs config");
         let mut local_repo: RepositoryHandle = config
-            .get_repository()
+            .get_local_repository()
             .await
             .context("opened local spfs repo")?
             .into();

@@ -9,6 +9,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 nix = "0.23"
-spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.31.1' }
+spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.34.3' }
 tempdir = "0.3"
 tokio = { version = "1.15", features = ["rt"] }
