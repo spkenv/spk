@@ -1,7 +1,7 @@
 on: [push]
-name: coverage
+name: Code Coverage
 jobs:
-  test:
+  codecov:
     runs-on: ubuntu-latest
     container:
       env:
@@ -25,7 +25,7 @@ jobs:
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install --yes libcap2-bin tcsh expect rsync
+          apt-get install --yes libcap2-bin tcsh expect rsync sudo
           # spfs "custom build command" needs rustfmt?
           rustup component add rustfmt
       - uses: actions/checkout@v3
@@ -34,15 +34,18 @@ jobs:
       - name: "Determine spfs tag"
         run: |
           cd spk
-          SPFS_TAG=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2)
-          echo "SPFS_TAG=$SPFS_TAG" >> $GITHUB_ENV
+          # Need to use 'master' branch of spfs to pick up tokio::process change
+          # until that makes it into a release.
+          #SPFS_REF=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2)
+          SPFS_REF=master
+          echo "SPFS_REF=$SPFS_REF" >> $GITHUB_ENV
       - name: Checkout spfs
         uses: actions/checkout@v3
         with:
           repository: imageworks/spfs
           token: ${{ secrets.SPFS_PULL_PASSWORD }}
           path: spfs
-          ref: ${{ env.SPFS_TAG }}
+          ref: ${{ env.SPFS_REF }}
       - name: Cache spfs installation
         id: cache-spfs-installation
         uses: actions/cache@v3
@@ -56,20 +59,14 @@ jobs:
         run: |
           cd spfs
           cp target/release/spfs* /usr/bin/
-          # No sudo installed; we're already root!
-          sed -i "s|sudo ||" Makefile
           make setcap
       - if: steps.cache-spfs-installation.outputs.cache-hit != 'true'
         name: Build and install spfs
         run: |
           cd spfs
-          # No sudo installed; we're already root!
-          sed -i "s|sudo ||" Makefile
-          make install
-      - name: Spfs pre-check
-        run: |
-          find /tmp/spfs-repos
-          spfs run - -- bash -c 'echo $SPFS_RUNTIME; spfs info'
+          # Use a debug build so the build doesn't take a long time.
+          # Disable cnproc because we're in a container.
+          make install-debug FEATURES="disable-cnproc"
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: spk
@@ -77,8 +74,8 @@ jobs:
         run: |
           cd spk
           sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
-          spfs run - -- bash -c 'echo $SPFS_RUNTIME ; spfs ls-tags spfs/runtimes/meta ; spfs read "spfs/runtimes/meta/$SPFS_RUNTIME" ; spfs runtime list ; cargo tarpaulin --verbose --all-features --timeout 120 --out Xml'
+          spfs run - -- bash -c 'cargo tarpaulin --verbose --timeout 120 --out Xml --lib'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
         with:
-          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
