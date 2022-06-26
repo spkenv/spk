@@ -1,4 +1,9 @@
-on: [push]
+on:
+  push:
+    paths:
+      # Only run coverage report if the sources have changed
+      - 'src/**.rs'
+
 name: Code Coverage
 jobs:
   codecov:
