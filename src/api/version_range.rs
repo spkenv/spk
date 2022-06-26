@@ -220,7 +220,7 @@ impl<T: Ranged> Ranged for &T {
 }
 
 /// Specifies a range of version numbers by inclusion or exclusion
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[enum_dispatch(Ranged)]
 pub enum VersionRange {
     Compat(CompatRange),
@@ -300,7 +300,7 @@ impl<T: Ranged> From<&T> for VersionRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SemverRange {
     minimum: Version,
 }
@@ -344,7 +344,7 @@ impl Display for SemverRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct WildcardRange {
     specified: usize,
     parts: Vec<Option<u32>>,
@@ -467,7 +467,7 @@ impl Display for WildcardRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LowestSpecifiedRange {
     specified: usize,
     base: Version,
@@ -516,7 +516,7 @@ impl Display for LowestSpecifiedRange {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanRange {
     bound: Version,
 }
@@ -555,7 +555,7 @@ impl Display for GreaterThanRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanRange {
     bound: Version,
 }
@@ -594,7 +594,7 @@ impl Display for LessThanRange {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanOrEqualToRange {
     bound: Version,
 }
@@ -633,7 +633,7 @@ impl Display for GreaterThanOrEqualToRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanOrEqualToRange {
     bound: Version,
 }
@@ -672,7 +672,7 @@ impl Display for LessThanOrEqualToRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct EqualsVersion {
     version: Version,
 }
@@ -732,7 +732,7 @@ impl Display for EqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NotEqualsVersion {
     specified: usize,
     base: Version,
@@ -794,7 +794,7 @@ impl Display for NotEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleEqualsVersion {
     version: Version,
 }
@@ -852,7 +852,7 @@ impl Display for DoubleEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleNotEqualsVersion {
     specified: usize,
     base: Version,
@@ -914,7 +914,7 @@ impl Display for DoubleNotEqualsVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct CompatRange {
     base: Version,
     /// if unset, the required compatibility is based on the type
@@ -981,17 +981,23 @@ impl Display for CompatRange {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Default)]
-pub struct VersionFilter {
-    rules: BTreeSet<VersionRange>,
+/// Control how [`VersionFilter::restrict`] will handle
+/// two version ranges that do not intersect.
+#[derive(Debug)]
+pub enum RestrictMode {
+    /// If the two ranges do not intersect, an attempt to restrict them will
+    /// fail.
+    RequireIntersectingRanges,
+    /// The two ranges are not required to intersect. If they do not, the
+    /// two ranges are concatenated and the resulting version range will have
+    /// no versions that can satisfy it.
+    AllowNonIntersectingRanges,
 }
 
-#[allow(clippy::derive_hash_xor_eq)]
-impl Hash for VersionFilter {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let rules = self.sorted_rules();
-        rules.hash(state)
-    }
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct VersionFilter {
+    // Use `BTreeSet` to make `to_string` output consistent.
+    rules: BTreeSet<VersionRange>,
 }
 
 impl VersionFilter {
@@ -1012,32 +1018,76 @@ impl VersionFilter {
         })
     }
 
-    pub(crate) fn sorted_rules(&self) -> Vec<String> {
-        let mut rules = self.rules.iter().map(|r| r.to_string()).collect_vec();
-        rules.sort_unstable();
-        rules
-    }
-
     /// Reduce this range by the scope of another
     ///
     /// This version range will become restricted to the intersection
-    /// of the current version range and the other.
-    pub fn restrict(&mut self, other: impl Ranged) -> Result<()> {
-        // FIXME: de-duplicating by strings is less than ideal
-        let rendered = other.to_string();
-        for rule in self.rules.iter() {
-            if rendered == rule.to_string() {
-                return Ok(());
-            }
-        }
-
+    /// of the current version range and the other. Or, if they do not
+    /// intersect, then `mode` determines if an error is returned or if the
+    /// two ranges will be concatenated without any simplification.
+    pub fn restrict(&mut self, other: impl Ranged, mode: RestrictMode) -> Result<()> {
         let compat = self.intersects(&other);
         if let Compatibility::Incompatible(msg) = compat {
+            if matches!(mode, RestrictMode::AllowNonIntersectingRanges) {
+                self.rules.extend(other.rules());
+                return Ok(());
+            }
+
             return Err(Error::String(msg));
         }
 
-        self.rules.insert(other.into());
+        // Combine the two rule sets and then simplify them.
+        self.rules.extend(other.rules());
+        // Do not merge any `CompatRange` since this can lose a
+        // rule for a smaller version number, as in:
+        //     maya/2019,maya/2020
+        // It is unknown what the `compat` values will be for any
+        // given build of maya, and it is not safe to simplify
+        // this request to just "maya/2020".
+        self.simplify_rules(false);
+
         Ok(())
+    }
+
+    /// Remove redundant rules from a set of `VersionRange` values.
+    pub(crate) fn simplify_rules(&mut self, allow_compat_ranges_to_merge: bool) {
+        if self.rules.len() <= 1 {
+            return;
+        }
+
+        // Simply the rules, e.g., turn ">1.0,>2.0" into ">2.0".
+        let mut rules_as_vec = std::mem::take(&mut self.rules)
+            .into_iter()
+            .collect::<Vec<_>>();
+        let mut index_to_remove = None;
+        'start_over: loop {
+            if let Some(index) = index_to_remove.take() {
+                rules_as_vec.remove(index);
+            }
+
+            for candidates in rules_as_vec.iter().enumerate().permutations(2) {
+                let (lhs_index, lhs_vr) = candidates.get(0).unwrap();
+                let (_, rhs_vr) = candidates.get(1).unwrap();
+
+                if !allow_compat_ranges_to_merge
+                    && (matches!(lhs_vr, VersionRange::Compat(_))
+                        || matches!(rhs_vr, VersionRange::Compat(_)))
+                {
+                    continue;
+                }
+
+                // Note that `permutations` will give every element a chance
+                // to appear on the lhs. We don't have to check in both
+                // directions in here.
+                if lhs_vr.contains(rhs_vr).is_ok() {
+                    // Keep the more restrictive rule and restart comparing.
+                    // `rules_as_vec` is borrowed immutably here.
+                    index_to_remove = Some(*lhs_index);
+                    continue 'start_over;
+                }
+            }
+            break;
+        }
+        self.rules = rules_as_vec.into_iter().collect();
     }
 }
 
@@ -1161,6 +1211,16 @@ impl FromStr for VersionFilter {
 }
 
 pub fn parse_version_range<S: AsRef<str>>(range: S) -> Result<VersionRange> {
-    let filter = VersionFilter::from_str(range.as_ref())?;
-    Ok(VersionRange::Filter(filter))
+    let mut filter = VersionFilter::from_str(range.as_ref())?;
+
+    // Two or more `CompatRange` rules in a single request are
+    // eligible to be merged. At least, no use case for preserving
+    // the unmerged requests is currently known.
+    filter.simplify_rules(true);
+
+    if filter.rules.len() == 1 {
+        Ok(filter.rules.into_iter().next().unwrap())
+    } else {
+        Ok(VersionRange::Filter(filter))
+    }
 }
