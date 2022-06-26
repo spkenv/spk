@@ -6,6 +6,7 @@ use rstest::rstest;
 
 use super::{Entry, Tree};
 use crate::encoding::{self, Encodable};
+use crate::graph::Object;
 use crate::tracking::EntryKind;
 
 use crate::fixtures::*;
@@ -63,6 +64,14 @@ fn test_tree_encoding_compat(entries: Vec<Entry>, digest: encoding::Digest) {
     }
 
     let actual_digest = tree.digest().unwrap();
+    assert_eq!(
+        actual_digest, digest,
+        "expected encoding to match existing result"
+    );
+
+    // Also check via `Object`
+    let tree_object = Object::Tree(tree);
+    let actual_digest = tree_object.digest().unwrap();
     assert_eq!(
         actual_digest, digest,
         "expected encoding to match existing result"
