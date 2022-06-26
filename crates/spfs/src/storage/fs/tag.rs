@@ -61,9 +61,11 @@ impl TagStorage for FSRepository {
             if path.extension() == Some(std::ffi::OsStr::new(TAG_EXT)) {
                 path.file_stem()
                     .map(|s| Ok(EntryType::Tag(s.to_string_lossy().to_string())))
-            } else {
+            } else if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
                 path.file_name()
                     .map(|s| Ok(EntryType::Folder(s.to_string_lossy().to_string())))
+            } else {
+                None
             }
         });
         Box::pin(futures::stream::iter(iter))

@@ -15,9 +15,10 @@ for file in $(ls $DIR); do
   fi
   echo running test: $file
   echo "-----------------------------"
-  bash -ex $DIR/$file
+  bash -ex "$DIR/$file"
+  result="$?"
   sleep 1
-  if [[ $? -ne 0 ]]; then
+  if [[ "$result" -ne 0 ]]; then
     echo test failed: $file
     exit 1;
   fi

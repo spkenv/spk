@@ -3,8 +3,13 @@ SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 cargo_features_arg := $(if $(FEATURES),--features $(FEATURES))
 
-.PHONY: rpm debug release test install install-debug setcap copy-release copy-debug
+.PHONY: act rpm debug release test install install-debug setcap copy-release copy-debug
 default: debug
+
+act:
+    # Run the github workflows locally using nektos/act.
+    # `--privileged` needed for spfs privilege escalation
+	act --privileged
 
 debug:
 	cd $(SOURCE_ROOT)
@@ -15,12 +20,13 @@ release:
 	cargo build --all --release $(cargo_features_arg)
 
 lint:
+    # cargo fmt doesn't accept `--features`
 	cargo fmt --check
-	env RUSTDOCFLAGS="-Dwarnings" cargo doc -p spfs
-	cargo clippy --tests -- -Dwarnings
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg)
+	cargo clippy --tests $(cargo_features_arg) -- -Dwarnings
 
 test:
-	cargo test --all
+	cargo test --all $(cargo_features_arg)
 
 rpm:
 	cd $(SOURCE_ROOT)

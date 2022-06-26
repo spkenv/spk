@@ -514,13 +514,14 @@ pub fn mask_files(
         if !node.entry.kind.is_mask() {
             continue;
         }
-        let fullpath = node.path.to_path("");
-        if let Some(parent) = fullpath.parent() {
+        let relative_fullpath = node.path.to_path("");
+        if let Some(parent) = relative_fullpath.parent() {
             tracing::trace!(?parent, "build parent dir for mask");
             runtime::makedirs_with_perms(parent, 0o777)?;
         }
         tracing::trace!(?node.path, "Creating file mask");
 
+        let fullpath = node.path.to_path("/");
         let existing = fullpath.symlink_metadata().ok();
         if let Some(meta) = existing {
             if runtime::is_removed_entry(&meta) {
