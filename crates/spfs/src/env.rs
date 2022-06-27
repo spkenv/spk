@@ -270,10 +270,16 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                 }
             });
         }
-        _ => {
+        (pid_monitor_result, mount_ns) => {
             // No way to monitor; give up.
             // Let receiver know there won't be any messages.
             drop(events_send);
+
+            tracing::warn!(
+                ?pid_monitor_result,
+                ?mount_ns,
+                "no way to monitor runtime; it will be deleted immediately!"
+            );
         }
     }
 
