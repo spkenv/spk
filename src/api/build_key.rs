@@ -136,21 +136,27 @@ impl BuildKey {
         for name in ordering {
             // Generate this entry based on the value for this name
             let entry: BuildKeyEntry = match name_values.get(name) {
-                Some(value) => match BuildKeyExpandedVersionRange::parse_from_range_value(value) {
-                    Ok(expanded_version) => BuildKeyEntry::ExpandedVersion(expanded_version),
-                    Err(_) => {
-                        // Note: this fallback is silent because it is
-                        // how this determines whether the string
-                        // value is an ExpandedVersion or not (so
-                        // Text). This is not ideal and may hide
-                        // things like typos in values.
-                        // TODO: option definitions are for var or pkg
-                        // options, could use that information here to
-                        // determine the kind of value instead of
-                        // relying on parsing errors.
-                        BuildKeyEntry::Text(value.clone())
+                Some(value) => {
+                    // Check for values like '4.1.0/DIGEST' and turn into '4.1.0'
+                    // to let them parse and be treated as range values.
+                    let parts: Vec<&str> = value.split('/').collect();
+
+                    match BuildKeyExpandedVersionRange::parse_from_range_value(parts[0]) {
+                        Ok(expanded_version) => BuildKeyEntry::ExpandedVersion(expanded_version),
+                        Err(_) => {
+                            // Note: this fallback is silent because it is
+                            // how this determines whether the string
+                            // value is an ExpandedVersion or not (so Text).
+                            // This is not ideal and may hide things like
+                            // typos in values.
+                            // TODO: option definitions are for var or pkg
+                            // options, could use that information here to
+                            // determine the kind of value instead of
+                            // relying on parsing errors.
+                            BuildKeyEntry::Text(value.clone())
+                        }
                     }
-                },
+                }
                 None => BuildKeyEntry::NotSet,
             };
             key_entries.push(entry);
@@ -310,14 +316,10 @@ impl BuildKeyExpandedVersionRange {
     pub(crate) fn parse_from_range_value<S: AsRef<str>>(
         range: S,
     ) -> Result<BuildKeyExpandedVersionRange> {
-        // Check for values like '4.1.0/DIGEST' and turn into '4.1.0'
-        // to let them parse and be treated as range values.
-        let parts: Vec<&str> = range.as_ref().split('/').collect();
-
         // Turn the version request string into a version filter. If this
         // fails, then this function cannot continue. The max and min
         // bounds can only be obtained from a valid version filter.
-        let filter = parse_version_range(parts[0])?;
+        let filter = parse_version_range(range.as_ref())?;
 
         // Max version limit: version < max
         let max: BuildKeyVersionNumber = match filter.less_than() {
