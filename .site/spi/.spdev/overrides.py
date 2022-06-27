@@ -40,3 +40,11 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
     def compile_build_script(self) -> spdev.shell.Script:
         return inject_credentials(super().compile_build_script)
+
+
+class RPMPackage(spdev.stdlib.components.RPMPackage):
+    schema = {}
+
+    def compile_build_script(self) -> spdev.shell.Script:
+        # The source tarball is made in the build phase
+        return inject_credentials(super().compile_build_script)
