@@ -46,7 +46,6 @@ impl Run for Ls {
         if repos.is_empty() {
             let local = String::from("local");
             if !self.repos.disable_repo.contains(&local) {
-                self.repos.local_repo = true;
                 repos = self.repos.get_repos(None)?;
             } else {
                 eprintln!(
