@@ -28,14 +28,6 @@ components:
     name: spk-stdfs
     version: 1.0.0
     spec_file: packages/stdfs/stdfs.spk.yaml
-  - kind: SPKPackage
-    name: spk-gcc48
-    version: 4.8.5
-    spec_file: packages/gcc/gcc48.spk.yaml
-  - kind: SPKPackage
-    name: spk-gcc63
-    version: 6.3.1
-    spec_file: packages/gcc/gcc63.spk.yaml
 
   - kind: SentryRelease
     name: sentry
