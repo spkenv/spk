@@ -6,6 +6,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
+use colored::Colorize;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -423,6 +424,13 @@ where
 
 #[derive(Args, Clone)]
 pub struct Repositories {
+    /// Resolve packages from the local repository (DEPRECATED)
+    ///
+    /// This option is ignored and the local repository is enabled by default.
+    /// Use `--no-local-repo` to disable the local repository.
+    #[clap(short, long, value_parser = warn_local_flag_deprecated)]
+    pub local_repo: bool,
+
     /// Disable resolving packages from the local repository
     #[clap(long)]
     pub no_local_repo: bool,
@@ -519,4 +527,17 @@ impl DecisionFormatterSettings {
             .with_timeout(self.timeout)
             .build()
     }
+}
+
+fn warn_local_flag_deprecated(arg: &str) -> Result<bool> {
+    // This will be called with `"true"` if the flag is present on the command
+    // line.
+    if arg == "true" {
+        // Logging is not configured at this point (args have to parsed to
+        // know verbosity level before logging can be configured).
+        eprintln!(
+            "{warning}: The -l (--local-repo) is deprecated, please remove it from your command line!",
+            warning = "WARNING".yellow());
+    }
+    Ok(true)
 }

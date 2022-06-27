@@ -18,7 +18,7 @@ test-macros = []
 
 [dependencies]
 anyhow = "1.0.56"
-clap = { version = "3.1.6", features = ["derive", "env"] }
+clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0.0"
 ctrlc = "3.2.2"
 data-encoding = "2.3.0"
