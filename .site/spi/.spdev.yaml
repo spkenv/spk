@@ -6,26 +6,12 @@ release_notes: |
 
 toolchain:
   - kind: Rust
-  - kind: Pipenv
   - kind: Shell
     variables:
       SENTRY_ENVIRONMENT: development
       PATH: $SPDEV_ENV/bin:$PATH
 
 components:
-  - kind: PythonPackage
-    name: python
-    lint:
-      black: true
-      python3: false
-      mypy: true
-    test:
-      command: spfs run - -- pytest
-    install:
-      enabled: true
-    deploy:
-      rez.enabled: false
-
   - kind: RustCrate
     name: spk
 
