@@ -3,4 +3,4 @@ variables:
 
 include:
   - project: spi/dev/dev-ops/spdev
-    file: pipelines/default.yaml
+    file: pipelines/generate-config.yaml

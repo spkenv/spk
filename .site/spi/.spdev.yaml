@@ -14,29 +14,47 @@ toolchain:
 components:
   - kind: RustCrate
     name: spk
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
 
   - kind: HugoDocs
     name: docs
     location: docs
+    ci_config:
+      parallel: true
 
   - kind: RPMPackage
     name: rpm
     spec_file: spk.spec
-
-    # bootstrap packages that need to go out with any new features
-  - kind: SPKPackage
-    name: spk-stdfs
-    version: 1.0.0
-    spec_file: packages/stdfs/stdfs.spk.yaml
+    ci_config:
+      parallel: true
+      tags:
+        - docker
+        - proxy
 
   - kind: SentryRelease
     name: sentry
     project: spk
     deploy:
       enabled: true
+    ci_config:
+      parallel: true
+      needs:
+        - component: rpm
 
   - kind: WordpressReleaseNotes
     name: wp-release
     email:
       sender:
         name: SPK Team
+    ci_config:
+      parallel: true
+      needs:
+        - component: rpm
+
+ci_config:
+  all:
+    variables:
+      - SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
