@@ -1872,6 +1872,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "question"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acbb3ede7a8f9a8ab89e714637f2cf40001b58f21340d4242b2f11533e65fa8d"
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2557,8 +2563,8 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.34.3"
-source = "git+https://github.com/imageworks/spfs?tag=v0.34.3#4750235ebbbc7c2a1d218082d5997f6e5918baca"
+version = "0.34.4"
+source = "git+https://github.com/imageworks/spfs?tag=v0.34.4#a24e40df22ee246ccd5bb719b14c4f0f618359e1"
 dependencies = [
  "async-recursion",
  "async-stream",
@@ -2585,6 +2591,7 @@ dependencies = [
  "once_cell",
  "palaver",
  "prost",
+ "question",
  "rand 0.7.3",
  "relative-path",
  "reqwest 0.11.10",

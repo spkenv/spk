@@ -39,10 +39,7 @@ jobs:
       - name: "Determine spfs tag"
         run: |
           cd spk
-          # Need to use 'master' branch of spfs to pick up tokio::process change
-          # until that makes it into a release.
-          #SPFS_REF=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2)
-          SPFS_REF=master
+          SPFS_REF=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2)
           echo "SPFS_REF=$SPFS_REF" >> $GITHUB_ENV
       - name: Checkout spfs
         uses: actions/checkout@v3
