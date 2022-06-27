@@ -27,7 +27,7 @@ components:
 
   - kind: RPMPackage
     name: rpm
-    spec_file: spk.spec
+    spec_file: .site/spi/spk.spec
     ci_config:
       parallel: true
       tags:
