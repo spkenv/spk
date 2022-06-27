@@ -11,8 +11,6 @@ BuildRequires: git
 BuildRequires: gcc-c++
 BuildRequires: libcap-devel
 BuildRequires: openssl-devel
-BuildRequires: python3-devel
-BuildRequires: python3-pip
 # Minimum version with parallel component support and relocatable .spdev.yaml
 BuildRequires: spdev >= 0.25.5
 
