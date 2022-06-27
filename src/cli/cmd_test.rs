@@ -50,12 +50,20 @@ impl Run for Test {
     fn run(&mut self) -> Result<i32> {
         let _runtime = self.runtime.ensure_active_runtime()?;
         let options = self.options.get_options()?;
-        let repos: Vec<_> = self
+        let mut repos: Vec<_> = self
             .repos
             .get_repos(None)?
             .into_iter()
             .map(|(_, r)| Arc::new(r))
             .collect();
+        if !self.repos.no_local_repo && !self.repos.local_repo {
+            // when testing, the local repo is included by default
+            repos.push(Arc::new(
+                spk::HANDLE
+                    .block_on(spk::storage::local_repository())?
+                    .into(),
+            ));
+        }
         let source = if self.here { Some(".".into()) } else { None };
 
         for package in &self.packages {

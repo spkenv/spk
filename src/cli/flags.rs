@@ -423,6 +423,10 @@ where
 
 #[derive(Args, Clone)]
 pub struct Repositories {
+    /// Resolve packages from the local repository
+    #[clap(short, long)]
+    pub local_repo: bool,
+
     /// Disable resolving packages from the local repository
     #[clap(long)]
     pub no_local_repo: bool,
@@ -468,7 +472,7 @@ impl Repositories {
         defaults: I,
     ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
         let mut repos = Vec::new();
-        if !self.no_local_repo {
+        if self.local_repo && !self.no_local_repo {
             let repo = spk::HANDLE.block_on(spk::storage::local_repository())?;
             repos.push(("local".into(), repo.into()));
         }
