@@ -45,6 +45,9 @@ class RustCrate(spdev.stdlib.components.RustCrate):
         # we are not actually publishing this one so don't bother packing it
         return []
 
+    def compile_test_script(self) -> spdev.shell.Script:
+        return inject_credentials(super().compile_test_script)
+
 
 class RPMPackage(spdev.stdlib.components.RPMPackage):
     schema = {}
