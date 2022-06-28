@@ -3,7 +3,8 @@ name: RPM & Packages
 on:
   workflow_dispatch:
   push:
-    branches: [master]
+    tags:
+      - 'v*
 
 jobs:
   build:
