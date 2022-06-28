@@ -23,7 +23,7 @@ lint: lint-rust
 lint-rust:
 	cargo fmt --check
 	cargo clippy --tests -- -Dwarnings
-	env RUSTDOCFLAGS="-Dwarnings" cargo doc -p spk
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps
 
 .PHONY: format
 format:

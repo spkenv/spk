@@ -6,20 +6,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  lint-rust:
-    runs-on: ubuntu-latest
-    env:
-      SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
-      SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v2
-      - uses: Swatinem/rust-cache@v1
-      - run: sudo apt-get install -y libcap-dev
-      - name: Patch spfs Pull Auth
-        run: sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
-      - name: Lint Rust Code
-        run: make lint-rust
-  test:
+  lint-and-test:
     runs-on: ubuntu-18.04
     steps:
       # essentially the goal is to run 'spfs run - -- pytest'
@@ -29,6 +16,10 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0 # to work with tests
+      - name: "Determine spfs tag"
+        run: |
+          SPFS_REF=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2 | cut -c2-)
+          echo "SPFS_REF=$SPFS_REF" >> $GITHUB_ENV
       - name: Download Deps
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -36,11 +27,12 @@ jobs:
           workflow: rpm.yml
           workflow_conclusion: success
           # This branch should match the version of spfs being used
-          # in Cargo.toml.
-          branch: release-0.34.4
+          # in Cargo.toml (detected in previous step).
+          branch: release-${{ env.SPFS_REF }}
           name: Binary RPM
           path: deps
           repo: imageworks/spfs
+      - uses: Swatinem/rust-cache@v1
       - name: Run Unit Tests
         env:
           SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
@@ -55,3 +47,5 @@ jobs:
           --net host
           -v $PWD:/source
           centos:7 bash -ex /source/.github/scripts/unittests.sh
+      - name: Change perms for rust-cache
+        run: sudo chown -R $(id -u) target
