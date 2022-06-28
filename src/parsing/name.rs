@@ -5,9 +5,9 @@
 use std::collections::HashSet;
 
 use nom::{
-    bytes::complete::{is_not, take_while1, take_while_m_n},
+    bytes::complete::{is_not, take_till, take_while1, take_while_m_n},
     character::complete::char,
-    combinator::{fail, map, not, peek, recognize},
+    combinator::{fail, map, not, peek, recognize, verify},
     error::{ContextError, ParseError},
     multi::many1,
     IResult,
@@ -28,6 +28,12 @@ pub(crate) fn is_legal_repo_name_chr(c: char) -> bool {
 #[inline]
 pub(crate) fn is_legal_tag_name_chr(c: char) -> bool {
     c.is_ascii_alphanumeric()
+}
+
+#[inline]
+pub(crate) fn is_legal_tag_name_alpha_chr(c: char) -> bool {
+    // Don't match any numbers
+    c.is_ascii_alphabetic()
 }
 
 /// Parse a known repository name into a [`RepositoryName`].
@@ -97,7 +103,7 @@ where
 /// Parse a tag name.
 ///
 /// A tag name refers to the string portion of a pre- or post-release
-/// on a [`crate::api::Version`].
+/// on a [`crate::api::Version`]. It may not consist of only numbers.
 ///
 /// Examples:
 /// - `"r"`
@@ -106,5 +112,10 @@ pub(crate) fn tag_name<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    take_while1(is_legal_tag_name_chr)(input)
+    verify(take_while1(is_legal_tag_name_chr), |s: &str| {
+        // `s` must contain a non-numeric character
+        take_till::<_, _, ()>(is_legal_tag_name_alpha_chr)(s)
+            .map(|(remaining, _)| !remaining.is_empty())
+            .unwrap_or(false)
+    })(input)
 }

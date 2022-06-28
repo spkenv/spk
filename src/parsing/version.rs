@@ -39,7 +39,7 @@ where
 /// Parse a valid version pre- or post-tag.
 ///
 /// A valid tag is comprised of a string and a number, separated
-/// by a `.`.
+/// by a `.`. The string portion may not consist of only numbers.
 ///
 /// Examples:
 /// - `"r.0"`
