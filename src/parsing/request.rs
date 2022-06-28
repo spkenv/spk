@@ -71,10 +71,8 @@ where
 {
     context(
         "range_ident_version_filter",
-        map(parse_until("/", version_range(true, true)), |v| {
-            VersionFilter {
-                rules: v.into_iter().collect(),
-            }
+        map(parse_until("/", version_range), |v| VersionFilter {
+            rules: v.into_iter().collect(),
         }),
     )(input)
 }
