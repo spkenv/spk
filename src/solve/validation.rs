@@ -6,7 +6,11 @@ use std::collections::HashSet;
 
 use crate::api::{self, Build, Compatibility};
 
-use super::{errors, graph, solution::PackageSource};
+use super::{
+    errors,
+    graph::{self, CachedHash},
+    solution::PackageSource,
+};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -402,7 +406,7 @@ impl PkgRequirementsValidator {
 
     fn validate_request_against_existing_resolve(
         request: &api::PkgRequest,
-        resolved: &std::sync::Arc<api::Spec>,
+        resolved: &CachedHash<std::sync::Arc<api::Spec>>,
         provided_components: std::collections::HashSet<&api::Component>,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};

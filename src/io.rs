@@ -474,7 +474,7 @@ where
                     "State Resolved:".yellow(),
                     node.state
                         .get_resolved_packages()
-                        .iter()
+                        .values()
                         .map(|p| format_ident(&(*p).0.pkg))
                         .collect::<Vec<String>>()
                         .join(", ")

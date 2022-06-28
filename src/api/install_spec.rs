@@ -13,7 +13,7 @@ use crate::Result;
 mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
-#[derive(Debug, Hash, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,

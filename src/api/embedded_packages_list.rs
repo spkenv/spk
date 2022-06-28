@@ -10,7 +10,7 @@ use super::{Build, BuildSpec, InstallSpec, Spec};
 mod embedded_packages_list_test;
 
 /// A set of packages that are embedded/provided by another.
-#[derive(Debug, Default, Hash, Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct EmbeddedPackagesList(Vec<Spec>);
 

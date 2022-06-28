@@ -42,6 +42,18 @@ impl std::hash::Hash for SPFSRepository {
     }
 }
 
+impl Ord for SPFSRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for SPFSRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.address.partial_cmp(&other.address)
+    }
+}
+
 impl PartialEq for SPFSRepository {
     fn eq(&self, other: &Self) -> bool {
         self.inner.address() == other.inner.address()

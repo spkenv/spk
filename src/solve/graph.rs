@@ -821,13 +821,11 @@ impl StateId {
         hasher.finish()
     }
 
-    fn packages_hash(previous_hash: u64, package: &api::Spec) -> u64 {
+    fn packages_hash(packages: &StatePackages) -> u64 {
         let mut hasher = DefaultHasher::new();
-        // The new package is appended to the existing packages;
-        // our new hash will be a hash of the old hash plus the
-        // new items.
-        previous_hash.hash(&mut hasher);
-        package.hash(&mut hasher);
+        for (spec, _) in packages.values() {
+            spec.hash(&mut hasher);
+        }
         hasher.finish()
     }
 
@@ -867,12 +865,12 @@ impl StateId {
         )
     }
 
-    fn append_package(&self, package: &Arc<api::Spec>) -> Self {
+    fn with_packages(&self, packages: &StatePackages) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
             Arc::clone(&self.var_requests_membership),
-            StateId::packages_hash(self.packages_hash, package),
+            StateId::packages_hash(packages),
             self.options_hash,
         )
     }
@@ -927,12 +925,14 @@ impl<T> std::hash::Hash for CachedHash<T> {
     }
 }
 
+type StatePackages = Arc<BTreeMap<PkgName, (CachedHash<Arc<api::Spec>>, PackageSource)>>;
+
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
     pkg_requests: Arc<Vec<Arc<CachedHash<api::PkgRequest>>>>,
     var_requests: Arc<BTreeSet<api::VarRequest>>,
-    packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
+    packages: StatePackages,
     options: Arc<BTreeMap<String, String>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<api::OptionMap>>,
@@ -967,7 +967,7 @@ impl State {
         let mut s = State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::new(var_requests),
-            packages: Arc::new(Vec::new()),
+            packages: Arc::new(BTreeMap::new()),
             options: Arc::new(options),
             state_id,
             cached_option_map: Arc::new(OnceCell::new()),
@@ -980,11 +980,11 @@ impl State {
 
     pub fn as_solution(&self) -> Result<Solution> {
         let mut solution = Solution::new(Some((&self.options).into()));
-        for (spec, source) in self.packages.iter() {
+        for (spec, source) in self.packages.values() {
             let req = self
                 .get_merged_request(&spec.pkg.name)
                 .map_err(GraphError::RequestError)?;
-            solution.add(&req, spec.clone(), source.clone());
+            solution.add(&req, Arc::clone(&*spec), source.clone());
         }
         Ok(solution)
     }
@@ -1011,17 +1011,13 @@ impl State {
     pub fn get_current_resolve(
         &self,
         name: &PkgName,
-    ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
-        // TODO: cache this
-        for (spec, source) in &*self.packages {
-            if spec.pkg.name == *name {
-                return Ok((spec, source));
-            }
-        }
-        Err(errors::GetCurrentResolveError::PackageNotResolved(format!(
-            "Has not been resolved: '{}'",
-            name
-        )))
+    ) -> errors::GetCurrentResolveResult<(&CachedHash<Arc<api::Spec>>, &PackageSource)> {
+        self.packages.get(name).map(|(s, p)| (s, p)).ok_or_else(|| {
+            errors::GetCurrentResolveError::PackageNotResolved(format!(
+                "Has not been resolved: '{}'",
+                name
+            ))
+        })
     }
 
     pub fn get_merged_request(
@@ -1036,7 +1032,7 @@ impl State {
                     if request.pkg.name != *name {
                         continue;
                     }
-                    merged = Some((**request).clone());
+                    merged = Some((***request).clone());
                 }
                 Some(merged) => {
                     if request.pkg.name != merged.pkg.name {
@@ -1056,13 +1052,6 @@ impl State {
     }
 
     pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
-        // tests reveal this method is not safe to cache.
-        let resolved_packages: HashSet<&PkgName> = self
-            .packages
-            .iter()
-            .map(|(spec, _)| &spec.pkg.name)
-            .collect();
-
         // Note: The next request this returns may not be as expected
         // due to the interaction of multiple requests and
         // 'IfAlreadyPresent' requests.
@@ -1071,7 +1060,7 @@ impl State {
         // requests that have not been satisfied, or only merged
         // requests, or both.
         for request in self.pkg_requests.iter() {
-            if resolved_packages.contains(&request.pkg.name) {
+            if self.packages.contains_key(&request.pkg.name) {
                 continue;
             }
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
@@ -1099,7 +1088,9 @@ impl State {
         &self.var_requests
     }
 
-    pub fn get_resolved_packages(&self) -> &Vec<(Arc<api::Spec>, PackageSource)> {
+    pub fn get_resolved_packages(
+        &self,
+    ) -> &BTreeMap<PkgName, (CachedHash<Arc<api::Spec>>, PackageSource)> {
         &self.packages
     }
 
@@ -1117,14 +1108,13 @@ impl State {
     }
 
     fn append_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
-        let state_id = self.state_id.append_package(&spec);
-        let mut packages = Vec::with_capacity(self.packages.len() + 1);
-        packages.extend(self.packages.iter().cloned());
-        packages.push((spec, source));
+        let mut packages = Arc::clone(&self.packages);
+        Arc::make_mut(&mut packages).insert(spec.pkg.name.clone(), (spec.into(), source));
+        let state_id = self.state_id.with_packages(&packages);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests: Arc::clone(&self.var_requests),
-            packages: Arc::new(packages),
+            packages,
             options: Arc::clone(&self.options),
             state_id,
             // options are the same

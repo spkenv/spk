@@ -12,7 +12,7 @@ use crate::{Error, Result};
 mod component_spec_test;
 
 /// Defines a named package component.
-#[derive(Debug, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ComponentSpec {
     pub name: Component,
     #[serde(default)]
@@ -200,6 +200,18 @@ impl Default for FileMatcher {
 impl std::hash::Hash for FileMatcher {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.rules.hash(state);
+    }
+}
+
+impl Ord for FileMatcher {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.rules.cmp(&other.rules)
+    }
+}
+
+impl PartialOrd for FileMatcher {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.rules.partial_cmp(&other.rules)
     }
 }
 

@@ -12,7 +12,7 @@ use super::{Component, ComponentSpec};
 mod component_spec_list_test;
 
 /// A set of packages that are embedded/provided by another.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct ComponentSpecList(Vec<ComponentSpec>);
 

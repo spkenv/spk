@@ -23,6 +23,18 @@ impl Default for RuntimeRepository {
     }
 }
 
+impl Ord for RuntimeRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for RuntimeRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.address.partial_cmp(&other.address)
+    }
+}
+
 impl RuntimeRepository {
     fn address_from_root(root: &std::path::PathBuf) -> url::Url {
         let address = format!("runtime://{}", root.display());
