@@ -16,6 +16,10 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0 # to work with tests
+      - name: "Determine spfs tag"
+        run: |
+          SPFS_REF=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2 | cut -c2-)
+          echo "SPFS_REF=$SPFS_REF" >> $GITHUB_ENV
       - name: Download Deps
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -23,8 +27,8 @@ jobs:
           workflow: rpm.yml
           workflow_conclusion: success
           # This branch should match the version of spfs being used
-          # in Cargo.toml.
-          branch: release-0.34.4
+          # in Cargo.toml (detected in previous step).
+          branch: release-${{ env.SPFS_REF }}
           name: Binary RPM
           path: deps
           repo: imageworks/spfs
