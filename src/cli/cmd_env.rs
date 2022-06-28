@@ -58,12 +58,9 @@ impl Run for Env {
         let formatter = self.formatter_settings.get_formatter(self.verbose);
         let solution = formatter.run_and_print_resolve(&solver).await?;
 
-        if self.verbose > 0 {
-            eprintln!("{}", spk::io::format_solution(&solution, self.verbose));
-        }
-
         let solution = spk::build_required_packages(&solution).await?;
         spk::setup_runtime(&mut rt, &solution).await?;
+
         let env = solution.to_environment(Some(std::env::vars()));
         let _: Vec<_> = std::env::vars()
             .map(|(k, _)| k)

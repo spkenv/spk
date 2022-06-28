@@ -670,6 +670,7 @@ pub struct DecisionFormatterBuilder {
     time: bool,
     verbosity_increase_seconds: u64,
     timeout: u64,
+    show_solution: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -685,6 +686,7 @@ impl DecisionFormatterBuilder {
             time: false,
             verbosity_increase_seconds: 0,
             timeout: 0,
+            show_solution: false,
         }
     }
 
@@ -705,6 +707,11 @@ impl DecisionFormatterBuilder {
 
     pub fn with_timeout(&mut self, timeout: u64) -> &mut Self {
         self.timeout = timeout;
+        self
+    }
+
+    pub fn with_solution(&mut self, show_solution: bool) -> &mut Self {
+        self.show_solution = show_solution;
         self
     }
 
@@ -739,7 +746,9 @@ impl DecisionFormatterBuilder {
                 report_time: self.time,
                 too_long: Duration::from_secs(too_long_seconds),
                 max_too_long_count: max_too_long_checks,
+                show_solution: self.show_solution || self.verbosity > 0,
             },
+            heading_prefix: String::from(""),
         }
     }
 }
@@ -750,11 +759,14 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) report_time: bool,
     pub(crate) too_long: Duration,
     pub(crate) max_too_long_count: u64,
+    pub(crate) show_solution: bool,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct DecisionFormatter {
     pub(crate) settings: DecisionFormatterSettings,
+    /// This is followed immediately by "Installed Packages"
+    pub(crate) heading_prefix: String,
 }
 
 impl DecisionFormatter {
@@ -768,7 +780,7 @@ impl DecisionFormatter {
     /// Run the solver runtime to completion, printing each step to stdout
     /// as appropriate given a verbosity level.
     pub async fn run_and_print_decisions(
-        self,
+        &self,
         runtime: &mut solve::SolverRuntime,
     ) -> Result<solve::Solution> {
         enum LoopOutcome {
@@ -829,7 +841,24 @@ impl DecisionFormatter {
             );
         }
 
-        runtime.current_solution().await
+        let solution = runtime.current_solution().await;
+
+        if self.settings.show_solution {
+            if let Ok(ref s) = solution {
+                println!(
+                    "{}{}",
+                    self.heading_prefix,
+                    format_solution(s, self.settings.verbosity)
+                );
+            }
+        }
+
+        solution
+    }
+
+    pub fn with_header(mut self, heading: &str) -> Self {
+        self.heading_prefix = String::from(heading);
+        self
     }
 
     /// Given a sequence of decisions, returns an iterator
