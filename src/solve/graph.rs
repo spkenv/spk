@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use once_cell::sync::{Lazy, OnceCell};
 use std::collections::hash_map::{DefaultHasher, Entry};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -653,7 +653,7 @@ impl RequestVar {
         let mut new_requests = Arc::clone(&base.var_requests);
         // Avoid adding duplicate var requests.
         if !base.contains_var_request(&self.request) {
-            Arc::make_mut(&mut new_requests).push(self.request.clone());
+            Arc::make_mut(&mut new_requests).insert(self.request.clone());
         }
         let options = SetOptions::compute_new_options(
             base,
@@ -827,7 +827,7 @@ impl StateId {
         hasher.finish()
     }
 
-    fn var_requests_hash(var_requests: &[api::VarRequest]) -> (u64, HashSet<u64>) {
+    fn var_requests_hash(var_requests: &BTreeSet<api::VarRequest>) -> (u64, HashSet<u64>) {
         let mut var_requests_membership = HashSet::new();
         let mut global_hasher = DefaultHasher::new();
         for var_request in var_requests {
@@ -875,7 +875,7 @@ impl StateId {
 
     fn with_var_requests_and_options(
         &self,
-        var_requests: &[api::VarRequest],
+        var_requests: &BTreeSet<api::VarRequest>,
         options: &[(String, String)],
     ) -> Self {
         let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
@@ -893,7 +893,7 @@ impl StateId {
 #[derive(Debug)]
 pub struct State {
     pkg_requests: Arc<Vec<Arc<api::PkgRequest>>>,
-    var_requests: Arc<Vec<api::VarRequest>>,
+    var_requests: Arc<BTreeSet<api::VarRequest>>,
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
     options: Arc<Vec<(String, String)>>,
     state_id: StateId,
@@ -911,6 +911,7 @@ impl State {
         // may be states constructed where the id is
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
+        let var_requests = var_requests.into_iter().collect();
         let (var_requests_hash, var_requests_membership) =
             StateId::var_requests_hash(&var_requests);
         let state_id = StateId::new(
@@ -1051,7 +1052,7 @@ impl State {
         &self.pkg_requests
     }
 
-    pub fn get_var_requests(&self) -> &Vec<api::VarRequest> {
+    pub fn get_var_requests(&self) -> &BTreeSet<api::VarRequest> {
         &self.var_requests
     }
 
@@ -1103,7 +1104,7 @@ impl State {
 
     fn with_var_requests_and_options(
         &self,
-        var_requests: Arc<Vec<api::VarRequest>>,
+        var_requests: Arc<BTreeSet<api::VarRequest>>,
         options: Vec<(String, String)>,
     ) -> Self {
         let state_id = self

@@ -447,7 +447,7 @@ impl<'de> Deserialize<'de> for Request {
 }
 
 /// A set of restrictions placed on selected packages' build options.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct VarRequest {
     pub var: String,
     pub pin: bool,
