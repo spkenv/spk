@@ -4,6 +4,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryInto;
 use std::iter::FromIterator;
+use std::sync::Arc;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -88,6 +89,14 @@ impl std::ops::Deref for OptionMap {
 impl std::ops::DerefMut for OptionMap {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.options
+    }
+}
+
+impl From<&Arc<BTreeMap<String, String>>> for OptionMap {
+    fn from(hm: &Arc<BTreeMap<String, String>>) -> Self {
+        Self {
+            options: (**hm).clone(),
+        }
     }
 }
 

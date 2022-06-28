@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use once_cell::sync::{Lazy, OnceCell};
 use std::collections::hash_map::{DefaultHasher, Entry};
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -684,46 +684,24 @@ impl SetOptions {
         base: &State,
         new_options: I,
         update_existing_option_with_empty_value: bool,
-    ) -> Vec<(String, String)>
+    ) -> BTreeMap<String, String>
     where
         I: Iterator<Item = (&'i String, &'i String)>,
     {
-        // Update options while preserving order to match
-        // python dictionary behaviour. "Updating a key
-        // does not affect the order."
-        let mut insertion_order = 0;
-        // Build a lookup hash with an insertion order.
-        let mut options: HashMap<String, (i32, String)> = base
-            .options
-            .iter()
-            .cloned()
-            .map(|(var, value)| {
-                let i = insertion_order;
-                insertion_order += 1;
-                (var, (i, value))
-            })
-            .collect();
+        let mut options = (*base.options).clone();
         // Update base options with request options...
         for (k, v) in new_options {
             match options.get_mut(k) {
                 // Unless already present and request option value is empty.
                 Some(_) if v.is_empty() && !update_existing_option_with_empty_value => continue,
-                // If option already existed, keep same insertion order.
-                Some((_, value)) => *value = v.to_owned(),
-                // New options are inserted at the end.
+                // If option already existed, change the value
+                Some(value) => *value = v.to_owned(),
                 None => {
-                    let i = insertion_order;
-                    insertion_order += 1;
-                    options.insert(k.to_owned(), (i, v.to_owned()));
+                    options.insert(k.to_owned(), v.to_owned());
                 }
             };
         }
-        let mut options = options.into_iter().collect::<Vec<_>>();
-        options.sort_by_key(|(_, (i, _))| *i);
         options
-            .into_iter()
-            .map(|(var, (_, value))| (var, value))
-            .collect::<Vec<_>>()
     }
 }
 
@@ -805,7 +783,7 @@ impl StateId {
         }
     }
 
-    fn options_hash(options: &[(String, String)]) -> u64 {
+    fn options_hash(options: &BTreeMap<String, String>) -> u64 {
         let mut hasher = DefaultHasher::new();
         options.hash(&mut hasher);
         hasher.finish()
@@ -843,7 +821,7 @@ impl StateId {
         (global_hasher.finish(), var_requests_membership)
     }
 
-    fn with_options(&self, options: &[(String, String)]) -> Self {
+    fn with_options(&self, options: &BTreeMap<String, String>) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
@@ -876,7 +854,7 @@ impl StateId {
     fn with_var_requests_and_options(
         &self,
         var_requests: &BTreeSet<api::VarRequest>,
-        options: &[(String, String)],
+        options: &BTreeMap<String, String>,
     ) -> Self {
         let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
         Self::new(
@@ -895,7 +873,7 @@ pub struct State {
     pkg_requests: Arc<Vec<Arc<api::PkgRequest>>>,
     var_requests: Arc<BTreeSet<api::VarRequest>>,
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
-    options: Arc<Vec<(String, String)>>,
+    options: Arc<BTreeMap<String, String>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<api::OptionMap>>,
 }
@@ -912,6 +890,7 @@ impl State {
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
         let var_requests = var_requests.into_iter().collect();
+        let options = options.into_iter().collect();
         let (var_requests_hash, var_requests_membership) =
             StateId::var_requests_hash(&var_requests);
         let state_id = StateId::new(
@@ -936,7 +915,7 @@ impl State {
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
-        let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
+        let mut solution = Solution::new(Some((&self.options).into()));
         for (spec, source) in self.packages.iter() {
             let req = self
                 .get_merged_request(&spec.pkg.name)
@@ -1060,7 +1039,7 @@ impl State {
         &self.packages
     }
 
-    fn with_options(&self, options: Vec<(String, String)>) -> Self {
+    fn with_options(&self, options: BTreeMap<String, String>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
@@ -1105,7 +1084,7 @@ impl State {
     fn with_var_requests_and_options(
         &self,
         var_requests: Arc<BTreeSet<api::VarRequest>>,
-        options: Vec<(String, String)>,
+        options: BTreeMap<String, String>,
     ) -> Self {
         let state_id = self
             .state_id
@@ -1123,7 +1102,7 @@ impl State {
 
     pub fn get_option_map(&self) -> &api::OptionMap {
         self.cached_option_map
-            .get_or_init(|| self.options.iter().cloned().collect())
+            .get_or_init(|| (&self.options).into())
     }
 
     pub fn id(&self) -> u64 {
