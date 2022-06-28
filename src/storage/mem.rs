@@ -47,6 +47,18 @@ impl std::hash::Hash for MemRepository {
     }
 }
 
+impl Ord for MemRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for MemRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.address.partial_cmp(&other.address)
+    }
+}
+
 impl PartialEq for MemRepository {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)

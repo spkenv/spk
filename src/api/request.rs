@@ -26,7 +26,7 @@ use crate::{Error, Result};
 mod request_test;
 
 /// Identifies a range of package versions and builds.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RangeIdent {
     pub name: PkgName,
     pub components: HashSet<Component>,
@@ -41,6 +41,52 @@ impl std::hash::Hash for RangeIdent {
         self.components.iter().sorted().collect_vec().hash(state);
         self.version.hash(state);
         self.build.hash(state);
+    }
+}
+
+impl Ord for RangeIdent {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.name.cmp(&other.name) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self
+            .components
+            .iter()
+            .sorted()
+            .cmp(other.components.iter().sorted())
+        {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.version.cmp(&other.version) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        self.build.cmp(&other.build)
+    }
+}
+
+impl PartialOrd for RangeIdent {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.name.partial_cmp(&other.name) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self
+            .components
+            .iter()
+            .sorted()
+            .partial_cmp(other.components.iter().sorted())
+        {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.version.partial_cmp(&other.version) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.build.partial_cmp(&other.build)
     }
 }
 
@@ -380,7 +426,7 @@ impl Default for InclusionPolicy {
 }
 
 /// Represents a constraint added to a resolved environment.
-#[derive(Debug, Serialize, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum Request {
     Var(VarRequest),
@@ -571,7 +617,7 @@ impl Serialize for VarRequest {
 /// What made a PkgRequest, was it the command line, a test or a
 /// package build such as one resolved during a solve, or another
 /// package build resolved during a solve.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RequestedBy {
     /// From the command line
     CommandLine,
@@ -630,7 +676,7 @@ impl std::fmt::Display for RequestedBy {
 }
 
 /// A desired package and set of restrictions on how it's selected.
-#[derive(Debug, Clone, PartialEq, thiserror::Error, Eq, Serialize)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, thiserror::Error)]
 #[error("Package request for {pkg}")]
 pub struct PkgRequest {
     pub pkg: RangeIdent,

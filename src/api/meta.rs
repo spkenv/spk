@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 #[path = "./meta_test.rs"]
 mod meta_test;
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Meta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
