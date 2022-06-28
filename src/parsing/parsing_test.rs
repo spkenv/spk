@@ -108,6 +108,7 @@ fn arb_pkg_illegal_name() -> impl Strategy<Value = &'static str> {
         Just("MixedCase"),
         // Symbols other than hyphens
         Just("not+legal"),
+        Just("no.dots"),
     ]
 }
 
