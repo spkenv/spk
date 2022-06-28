@@ -1,5 +1,11 @@
 on:
+  pull_request:
+    paths:
+      # Only run coverage report if the sources have changed
+      - 'src/**.rs'
   push:
+    branches:
+      - master
     paths:
       # Only run coverage report if the sources have changed
       - 'src/**.rs'
