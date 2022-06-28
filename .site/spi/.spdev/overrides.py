@@ -41,6 +41,10 @@ class RustCrate(spdev.stdlib.components.RustCrate):
     def compile_build_script(self) -> spdev.shell.Script:
         return inject_credentials(super().compile_build_script)
 
+    def compile_package_script(self) -> spdev.shell.Script:
+        # we are not actually publishing this one so don't bother packing it
+        return []
+
 
 class RPMPackage(spdev.stdlib.components.RPMPackage):
     schema = {}
