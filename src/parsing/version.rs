@@ -5,13 +5,15 @@
 use std::collections::{BTreeMap, HashSet};
 
 use nom::{
+    branch::alt,
     character::complete::{char, digit1},
-    combinator::{map, map_res, opt, recognize},
+    combinator::{eof, map, map_res, opt, peek, recognize},
     error::{context, ContextError, FromExternalError, ParseError},
     multi::separated_list1,
-    sequence::{pair, preceded, separated_pair},
+    sequence::{pair, preceded, separated_pair, terminated},
     IResult,
 };
+use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::api::{InvalidVersionError, TagSet, Version};
 
@@ -57,20 +59,30 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
-    map_res(separated_list1(char(','), ptag), |vec| {
-        let mut tags = BTreeMap::new();
-        for (name, num) in vec {
-            if tags.insert(name.to_owned(), num).is_some() {
-                return Err(InvalidVersionError::new_error(format!(
-                    "duplicate tag: {}",
-                    name
-                )));
+    map_res(
+        separated_list1(
+            char(','),
+            // Don't parse as a ptag unless it is followed by something that
+            // terminates a ptag. For example, don't consume the `0.0` in
+            // `!=0+a.0,0.0.*` as a ptag.
+            terminated(ptag, peek(alt((tag(","), tag("/"), tag("+"), eof)))),
+        ),
+        |vec| {
+            let mut tags = BTreeMap::new();
+            for (name, num) in vec {
+                if tags.insert(name.to_owned(), num).is_some() {
+                    return Err(InvalidVersionError::new_error(format!(
+                        "duplicate tag: {}",
+                        name
+                    )));
+                }
             }
-        }
-        Ok(TagSet { tags })
-    })(input)
+            Ok(TagSet { tags })
+        },
+    )(input)
 }
 
 /// Parse a valid pre- or post-tag set.
@@ -84,20 +96,30 @@ pub(crate) fn ptagset_str<'a, E>(input: &'a str) -> IResult<&'a str, Vec<(&'a st
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>,
+        + FromExternalError<&'a str, crate::error::Error>
+        + TagError<&'a str, &'static str>,
 {
-    map_res(separated_list1(char(','), ptag_str), |tags| {
-        let mut set = HashSet::with_capacity(tags.len());
-        for (name, _) in &tags {
-            if !set.insert(*name) {
-                return Err(InvalidVersionError::new_error(format!(
-                    "duplicate tag: {}",
-                    name
-                )));
+    map_res(
+        separated_list1(
+            char(','),
+            // Don't parse as a ptag unless it is followed by something that
+            // terminates a ptag. For example, don't consume the `0.0` in
+            // `!=0+a.0,0.0.*` as a ptag.
+            terminated(ptag_str, peek(alt((tag(","), tag("/"), tag("+"), eof)))),
+        ),
+        |tags| {
+            let mut set = HashSet::with_capacity(tags.len());
+            for (name, _) in &tags {
+                if !set.insert(*name) {
+                    return Err(InvalidVersionError::new_error(format!(
+                        "duplicate tag: {}",
+                        name
+                    )));
+                }
             }
-        }
-        Ok(tags)
-    })(input)
+            Ok(tags)
+        },
+    )(input)
 }
 
 /// Parse a version string into a [`Version`].
@@ -108,7 +130,8 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, std::num::ParseIntError>,
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
 {
     context(
         "version",
@@ -147,7 +170,8 @@ pub(crate) fn version_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>,
+        + FromExternalError<&'a str, crate::error::Error>
+        + TagError<&'a str, &'static str>,
 {
     context(
         "version_str",

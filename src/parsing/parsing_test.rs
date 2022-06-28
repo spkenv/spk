@@ -117,11 +117,33 @@ prop_compose! {
 }
 
 prop_compose! {
-    // XXX: The tagset is limited to a maximum of one entry because of
-    // the ambiguous use of commas to delimit both tags and version filters.
-    fn arb_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..=1)) -> TagSet {
+    // This is allowed to generate more than one entry in the `TagSet`
+    // because the names are restricted to not be all numeric, which resolves
+    // the parsing ambiguity.
+    fn arb_unambiguous_tagset()(tags in btree_map(
+        prop_oneof![
+            "[a-zA-Z][a-zA-Z0-9]*",
+            "[a-zA-Z0-9]*[a-zA-Z]",
+            "[a-zA-Z0-9]*[a-zA-Z][a-zA-Z0-9]*",
+        ],
+        any::<u32>(), 0..=10)) -> TagSet {
         TagSet { tags }
     }
+}
+
+prop_compose! {
+    // XXX: The tagset is limited to a maximum of one entry because of
+    // the ambiguous use of commas to delimit both tags and version filters.
+    fn arb_ambiguous_tagset()(tags in btree_map("[a-zA-Z0-9]+", any::<u32>(), 0..=1)) -> TagSet {
+        TagSet { tags }
+    }
+}
+
+fn arb_tagset() -> impl Strategy<Value = TagSet> {
+    prop_oneof![
+        9 => arb_unambiguous_tagset(),
+        1 => arb_ambiguous_tagset(),
+    ]
 }
 
 fn arb_version() -> impl Strategy<Value = Version> {
@@ -130,7 +152,21 @@ fn arb_version() -> impl Strategy<Value = Version> {
 
 fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
     (
-        vec(any::<u32>(), min_len..min_len.max(10)),
+        vec(any::<u32>(), min_len..min_len.max(10)).prop_filter(
+            // Avoid generating version parts that look like [0, 0].
+            // Remove this after #370 is merged.
+            //
+            // The property tests can generate two different version
+            // ranges that have the same string representation:
+            // `["0+a.0", "0.0"] == "0+a.0,0.0"
+            //
+            // Due to tag name vs "0.0" parsing ambiguity, this gets
+            // consistently parsed in one way but will fail the test if
+            // the prop test generated the other combination of version
+            // ranges (and expects it be parsed the other way).
+            "No parts of length 2",
+            |parts| parts.len() != 2,
+        ),
         arb_tagset(),
         arb_tagset(),
     )

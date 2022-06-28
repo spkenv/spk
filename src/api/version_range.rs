@@ -271,14 +271,29 @@ impl std::str::FromStr for VersionRange {
     type Err = Error;
 
     fn from_str(rule_str: &str) -> Result<Self> {
-        nom::combinator::all_consuming(crate::parsing::version_range(false, false))(rule_str)
-            .map(|(_, vr)| vr)
-            .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => {
-                    crate::Error::String(nom::error::convert_error(rule_str, e))
-                }
-                nom::Err::Incomplete(_) => unreachable!(),
-            })
+        use nom::{
+            branch::alt,
+            combinator::{all_consuming, eof, map},
+            error::convert_error,
+        };
+
+        all_consuming(alt((
+            crate::parsing::version_range,
+            // Allow empty input to be treated like "*"
+            map(eof, |_| {
+                VersionRange::Wildcard(WildcardRange {
+                    specified: 1,
+                    parts: vec![None],
+                })
+            }),
+        )))(rule_str)
+        .map(|(_, vr)| vr)
+        .map_err(|err| match err {
+            nom::Err::Error(e) | nom::Err::Failure(e) => {
+                crate::Error::String(convert_error(rule_str, e))
+            }
+            nom::Err::Incomplete(_) => unreachable!(),
+        })
     }
 }
 
