@@ -123,6 +123,50 @@ fn test_parse_value_to_build_key_extended_version_range(
            tie_breaker: BuildKeyExpandedVersionRange::generate_tie_breaker("25.0.8-alpha.0,test.1")
        }
 )]
+// A version with a build. This doesn't directly parse as a
+// BuildKeyExpandedVersionRange because of the build digest.
+// That would need to be removed before trying to make a
+// BuildKeyExpandedVersionRange from it, see below in
+// test_generating_build_key() for an example of that.
+#[should_panic]
+#[case("4.1.0/DIGEST",
+       BuildKeyExpandedVersionRange {
+           max: BuildKeyVersionNumber {
+               digits: vec![],
+               plus_epsilon: false,
+               posttag: Some(vec![]),
+               pretag: Some(vec![]),
+           },
+           min: BuildKeyVersionNumber {
+               digits: vec![],
+               plus_epsilon: false,
+               posttag: Some(vec![]),
+               pretag: Some(vec![]),
+           },
+           tie_breaker: BuildKeyExpandedVersionRange::generate_tie_breaker("4.1.0/DIGEST")
+       }
+)]
+// This doesn't parse because the characters after the first '/' are
+// removed and then 'somepkg' isn't a valid version major.minor.patch
+// number
+#[should_panic]
+#[case("somepkg/4.1.0/DIGEST",
+       BuildKeyExpandedVersionRange {
+           max: BuildKeyVersionNumber {
+               digits: vec![],
+               plus_epsilon: false,
+               posttag: Some(vec![]),
+               pretag: Some(vec![]),
+           },
+           min: BuildKeyVersionNumber {
+               digits: vec![],
+               plus_epsilon: false,
+               posttag: Some(vec![]),
+               pretag: Some(vec![]),
+           },
+           tie_breaker: BuildKeyExpandedVersionRange::generate_tie_breaker("somepkg/4.1.0/DIGEST")
+       }
+)]
 fn test_parse_value_to_build_key_extended_version_range_invalid(
     #[case] vrange: &str,
     #[case] expected: BuildKeyExpandedVersionRange,
@@ -185,25 +229,29 @@ fn test_generating_build_key() {
     let name2: String = "somevar".to_string();
     let name3: String = "notinthisbuild".to_string();
     let name4: String = "apkg".to_string();
+    let name5: String = "versionbuild".to_string();
 
     let value1: String = "1.2.3".to_string();
     let value2: String = "something".to_string();
     // value3 is left out deliberately to exercise unset value processing
     let value4: String = ">1".to_string();
+    // This is not a valid version, unless the build digest is stripped off
+    let value5: String = "4.1.0/DIGEST".to_string();
 
     let mut resolved_options: OptionMap = OptionMap::default();
     resolved_options.insert(name1.clone(), value1);
     // value3 is left out deliberately to exercise unset value processing
     resolved_options.insert(name2.clone(), value2.clone());
     resolved_options.insert(name4.clone(), value4);
+    resolved_options.insert(name5.clone(), value5);
 
     // Generate the build's key based on the ordering of option names
-    let ordering: Vec<String> = vec![name1, name2, name3, name4];
+    let ordering: Vec<String> = vec![name1, name2, name3, name4, name5];
     let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
 
     // Expected build key structure for this ordering and build options:
-    // "alib", "somevalue", "notinthisbuild", "apkg", build digest
-    //  1.2.3,  something,     notset,         >1,    TESTTEST
+    // "alib", "somevalue", "notinthisbuild", "apkg", "versionbuild" build digest
+    //  1.2.3,  something,     notset,         >1,    4.1.0/DIGEST,  TESTTEST
     let expected = BuildKey::Binary(vec![
         // 1.2.3
         BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
@@ -230,6 +278,20 @@ fn test_generating_build_key() {
             vec![],
             vec![1],
             true,
+            vec![],
+            vec![],
+        )),
+        // This will have the build digest removed and should be treated as
+        // if it was 4.1.0
+        // "4.1.0/DIGEST" -> 4.1.0
+        BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
+            "4.1.0",
+            vec![u32::MAX, u32::MAX, u32::MAX],
+            false,
+            vec![],
+            vec![],
+            vec![4, 1, 0],
+            false,
             vec![],
             vec![],
         )),
