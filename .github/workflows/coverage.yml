@@ -1,0 +1,89 @@
+on:
+  pull_request:
+    paths:
+      # Only run coverage report if the sources have changed
+      - 'src/**.rs'
+  push:
+    branches:
+      - master
+    paths:
+      # Only run coverage report if the sources have changed
+      - 'src/**.rs'
+
+name: Code Coverage
+jobs:
+  codecov:
+    runs-on: ubuntu-latest
+    container:
+      env:
+        SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
+        SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
+      image: xd009642/tarpaulin
+      options: --security-opt seccomp=unconfined --privileged
+    steps:
+      - name: Setup spfs repos
+        run: |
+          mkdir /spfs
+          mkdir -p /tmp/spfs-repos/local
+          mkdir -p /tmp/spfs-repos/origin
+          cat >/etc/spfs.conf << EOF
+          [storage]
+          root = /tmp/spfs-repos/local
+
+          [remote.origin]
+          address = file:///tmp/spfs-repos/origin?create=true
+          EOF
+      - name: Install prerequisites
+        run: |
+          apt-get update
+          apt-get install --yes libcap2-bin tcsh expect rsync sudo
+          # spfs "custom build command" needs rustfmt?
+          rustup component add rustfmt
+      - uses: actions/checkout@v3
+        with:
+          path: spk
+      - name: "Determine spfs tag"
+        run: |
+          cd spk
+          SPFS_REF=$(grep ^spfs Cargo.toml | grep -o "tag = '.\+'" | cut -d\' -f2)
+          echo "SPFS_REF=$SPFS_REF" >> $GITHUB_ENV
+      - name: Checkout spfs
+        uses: actions/checkout@v3
+        with:
+          repository: imageworks/spfs
+          token: ${{ secrets.SPFS_PULL_PASSWORD }}
+          path: spfs
+          ref: ${{ env.SPFS_REF }}
+      - name: Cache spfs installation
+        id: cache-spfs-installation
+        uses: actions/cache@v3
+        env:
+          cache-name: spfs-installation
+        with:
+          path: spfs/target/release
+          key: cargo-toml-${{ hashFiles('spfs/Cargo.toml') }}
+      - if: steps.cache-spfs-installation.outputs.cache-hit == 'true'
+        name: Restore spfs build from cache
+        run: |
+          cd spfs
+          cp target/release/spfs* /usr/bin/
+          make setcap
+      - if: steps.cache-spfs-installation.outputs.cache-hit != 'true'
+        name: Build and install spfs
+        run: |
+          cd spfs
+          # Use a debug build so the build doesn't take a long time.
+          # Disable cnproc because we're in a container.
+          make install-debug FEATURES="disable-cnproc"
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: spk
+      - name: Generate code coverage
+        run: |
+          cd spk
+          sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
+          spfs run - -- bash -c 'cargo tarpaulin --verbose --timeout 120 --out Xml --lib'
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
