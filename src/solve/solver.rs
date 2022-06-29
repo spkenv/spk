@@ -472,7 +472,7 @@ pub struct SolverRuntime {
     graph: Arc<RwLock<Graph>>,
     history: Vec<Arc<RwLock<Arc<Node>>>>,
     current_node: Option<Arc<RwLock<Arc<Node>>>>,
-    decision: Option<Decision>,
+    decision: Option<Arc<Decision>>,
 }
 
 impl SolverRuntime {
@@ -483,7 +483,7 @@ impl SolverRuntime {
             graph: Arc::new(RwLock::new(Graph::new())),
             history: Vec::new(),
             current_node: None,
-            decision: Some(initial_decision),
+            decision: Some(Arc::new(initial_decision)),
         }
     }
 
@@ -545,38 +545,38 @@ impl SolverRuntime {
     /// Generate step-back decision from a node history
     fn take_a_step_back(
         history: &mut Vec<Arc<RwLock<Arc<Node>>>>,
-        decision: &mut Option<Decision>,
+        decision: &mut Option<Arc<Decision>>,
         solver: &Solver,
         message: &String,
     ) {
         match history.pop() {
             Some(n) => {
                 let n_lock = n.read().unwrap();
-                *decision = Some(
+                *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
                         &n_lock.state,
                         Arc::clone(&solver.number_of_steps_back),
                     ))
                     .as_decision(),
-                )
+                ))
             }
             None => {
-                *decision = Some(
+                *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
                         &DEAD_STATE,
                         Arc::clone(&solver.number_of_steps_back),
                     ))
                     .as_decision(),
-                )
+                ))
             }
         }
     }
 }
 
 impl Iterator for SolverRuntime {
-    type Item = Result<(Arc<Node>, Decision)>;
+    type Item = Result<(Arc<Node>, Arc<Decision>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.decision.is_none()
@@ -627,7 +627,7 @@ impl Iterator for SolverRuntime {
             .expect("current_node always `is_some` here");
         let mut current_node_lock = current_node.write().unwrap();
         self.decision = match self.solver.step_state(&mut current_node_lock) {
-            Ok(decision) => decision,
+            Ok(decision) => decision.map(Arc::new),
             Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
                 // Add to problem package counts based on what made
                 // the request for the blocked package.
@@ -659,7 +659,7 @@ impl Iterator for SolverRuntime {
                 self.solver.increment_error_count(cause);
 
                 if let Some(d) = self.decision.as_mut() {
-                    d.add_notes(err.notes.iter().cloned())
+                    Arc::make_mut(d).add_notes(err.notes.iter().cloned())
                 }
                 return Some(Ok(to_yield));
             }
@@ -719,7 +719,7 @@ impl Iterator for SolverRuntime {
 pub struct SolverRuntimeIter<'a>(&'a mut SolverRuntime);
 
 impl<'a> Iterator for SolverRuntimeIter<'a> {
-    type Item = Result<(Arc<Node>, Decision)>;
+    type Item = Result<(Arc<Node>, Arc<Decision>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()

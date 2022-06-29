@@ -327,7 +327,7 @@ impl Graph {
     pub fn add_branch(
         &mut self,
         source_id: u64,
-        decision: Decision,
+        decision: Arc<Decision>,
     ) -> Result<Arc<RwLock<Arc<Node>>>> {
         let old_node = self
             .nodes
@@ -384,12 +384,12 @@ impl Default for Graph {
 enum WalkState {
     ToProcessNonEmpty,
     YieldOuts,
-    YieldNextNode(Decision),
+    YieldNextNode(Arc<Decision>),
 }
 
 pub struct GraphIter<'graph> {
     graph: &'graph Graph,
-    node_outputs: HashMap<u64, VecDeque<Decision>>,
+    node_outputs: HashMap<u64, VecDeque<Arc<Decision>>>,
     to_process: VecDeque<Arc<RwLock<Arc<Node>>>>,
     /// Which entry of node_outputs is currently being worked on.
     outs: Option<u64>,
@@ -413,7 +413,7 @@ impl<'graph> GraphIter<'graph> {
 }
 
 impl<'graph> Iterator for GraphIter<'graph> {
-    type Item = (Arc<Node>, Decision);
+    type Item = (Arc<Node>, Arc<Decision>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -481,20 +481,20 @@ pub struct Node {
     // Preserve order of inputs/outputs for iterating
     // in the same order.
     inputs: HashSet<u64>,
-    inputs_decisions: Vec<Decision>,
+    inputs_decisions: Vec<Arc<Decision>>,
     outputs: HashSet<u64>,
-    outputs_decisions: Vec<Decision>,
+    outputs_decisions: Vec<Arc<Decision>>,
     pub state: Arc<State>,
     iterators: HashMap<PkgName, Arc<Mutex<Box<dyn PackageIterator>>>>,
 }
 
 impl Node {
-    pub fn add_input(&mut self, state: &State, decision: Decision) {
+    pub fn add_input(&mut self, state: &State, decision: Arc<Decision>) {
         self.inputs.insert(state.id());
         self.inputs_decisions.push(decision);
     }
 
-    pub fn add_output(&mut self, decision: Decision, state: &State) -> Result<()> {
+    pub fn add_output(&mut self, decision: Arc<Decision>, state: &State) -> Result<()> {
         if self.outputs.contains(&state.id()) {
             return Err(GraphError::RecursionError(BRANCH_ALREADY_ATTEMPTED));
         }
