@@ -1,8 +1,9 @@
-use async_stream::stream;
-use futures::Stream;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use async_stream::stream;
+use futures::Stream;
 use once_cell::sync::Lazy;
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashSet, VecDeque};
