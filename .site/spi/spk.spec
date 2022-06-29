@@ -29,14 +29,18 @@ Package manager for SPFS
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
-dev env -- cargo build --release --features sentry
+# Include `--all` to also build spk-launcher
+dev env -- cargo build --release --features sentry --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
-install -m 0755 %{_builddir}/%{name}-v%{version}/target/release/spk %{buildroot}/usr/local/bin/spk-%{version}
+cp %{_builddir}/%{name}-v%{version}/target/release/spk-launcher %{buildroot}/usr/local/bin/
+mkdir -p %{buildroot}/opt/spk.dist
+cp %{_builddir}/%{name}-v%{version}/target/release/spk %{buildroot}/opt/spk.dist/
 
 %files
-/usr/local/bin/spk-%{version}
+/usr/local/bin/spk-launcher
+/opt/spk.dist/
 
 %preun
 [ -e /usr/local/bin/spk ] && unlink /usr/local/bin/spk
@@ -44,4 +48,4 @@ install -m 0755 %{_builddir}/%{name}-v%{version}/target/release/spk %{buildroot}
 %posttrans
 # must run at the absolute end in case we are updating
 # and the uninstallation of the old version removes the symlink
-ln -sf spk-%{version} /usr/local/bin/spk
+ln -sf spk-launcher /usr/local/bin/spk
