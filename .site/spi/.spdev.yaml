@@ -1,0 +1,60 @@
+version: 0.32.0
+release_notes: |
+  - convert api module to rust
+  - update to latest spfs
+  - update build scripts to use bash instead of sh
+
+toolchain:
+  - kind: Rust
+  - kind: Shell
+    variables:
+      SENTRY_ENVIRONMENT: development
+      PATH: $SPDEV_ENV/bin:$PATH
+
+components:
+  - kind: RustCrate
+    name: spk
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
+
+  - kind: HugoDocs
+    name: docs
+    location: docs
+    ci_config:
+      parallel: true
+
+  - kind: RPMPackage
+    name: rpm
+    spec_file: .site/spi/spk.spec
+    ci_config:
+      parallel: true
+      tags:
+        - docker
+        - proxy
+
+  - kind: SentryRelease
+    name: sentry
+    project: spk
+    deploy:
+      enabled: true
+    ci_config:
+      parallel: true
+      needs:
+        - component: rpm
+
+  - kind: WordpressReleaseNotes
+    name: wp-release
+    email:
+      sender:
+        name: SPK Team
+    ci_config:
+      parallel: true
+      needs:
+        - component: rpm
+
+ci_config:
+  all:
+    variables:
+      - SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
