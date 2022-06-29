@@ -340,7 +340,7 @@ pub fn format_change(
 
 pub struct FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = Result<(Arc<solve::graph::Node>, solve::graph::Decision)>>,
+    I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
 {
     inner: I,
     level: usize,
@@ -354,7 +354,7 @@ where
 
 impl<I> FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = Result<(Arc<solve::graph::Node>, solve::graph::Decision)>>,
+    I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
 {
     pub(crate) fn new<T>(inner: T, settings: DecisionFormatterSettings) -> Self
     where
@@ -423,7 +423,7 @@ where
 
 impl<I> Iterator for FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = Result<(Arc<solve::graph::Node>, solve::graph::Decision)>>,
+    I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
 {
     type Item = Result<String>;
 
@@ -806,7 +806,7 @@ impl DecisionFormatter {
         decisions: I,
     ) -> FormattedDecisionsIter<I::IntoIter>
     where
-        I: IntoIterator<Item = Result<(Arc<solve::graph::Node>, solve::graph::Decision)>> + 'a,
+        I: IntoIterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>> + 'a,
     {
         FormattedDecisionsIter::new(decisions, self.settings)
     }
