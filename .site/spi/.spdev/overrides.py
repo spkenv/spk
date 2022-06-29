@@ -7,6 +7,16 @@ import spdev
 from typing import Sequence
 
 
+class RawCommand(spdev.shell.Command):
+    def bash_source(self) -> str:
+        cmd = [self._exe]
+        cmd.extend(self._args)
+
+        # Don't quote my args for me, thanks.
+
+        return " ".join(cmd)
+
+
 def inject_credentials(super_script_list: spdev.shell.Script) -> spdev.shell.Script:
     if not os.environ.get("CI"):
         return super_script_list
@@ -15,11 +25,11 @@ def inject_credentials(super_script_list: spdev.shell.Script) -> spdev.shell.Scr
 
     # Inject github credentials
     script.append(
-        spdev.shell.Command(
-            "find",
-            ".",
-            "-name",
-            "Cargo.toml",
+        RawCommand(
+            "git",
+            "ls-files",
+            # Handle running this command from a subdirectory of the project.
+            '"$(git rev-parse --show-toplevel)/**Cargo.toml"',
             "|",
             "xargs",
             "-n",
