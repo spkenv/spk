@@ -18,7 +18,7 @@ use tokio::io::AsyncReadExt;
 use tokio::runtime::Handle;
 
 use super::{CachePolicy, Repository};
-use crate::{api, CloneableResult, Error, Result};
+use crate::{api, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -81,28 +81,62 @@ impl SPFSRepository {
     }
 }
 
+#[derive(Clone)]
+enum CacheValue<T> {
+    PackageNotFoundError(api::Ident),
+    StringError(String),
+    StringifiedError(String),
+    Success(T),
+}
+
+impl<T> From<CacheValue<T>> for Result<T> {
+    fn from(cv: CacheValue<T>) -> Self {
+        match cv {
+            CacheValue::PackageNotFoundError(i) => Err(crate::Error::PackageNotFoundError(i)),
+            CacheValue::StringError(s) => Err(s.into()),
+            CacheValue::StringifiedError(s) => Err(s.into()),
+            CacheValue::Success(v) => Ok(v),
+        }
+    }
+}
+
+impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
+    fn from(r: std::result::Result<T, &crate::Error>) -> Self {
+        match r {
+            Ok(v) => CacheValue::Success(v),
+            Err(crate::Error::PackageNotFoundError(i)) => {
+                CacheValue::PackageNotFoundError(i.clone())
+            }
+            Err(crate::Error::String(s)) => CacheValue::StringError(s.clone()),
+            // Decorate the error message so we can tell it was a custom error
+            // downgraded to a String.
+            Err(err) => CacheValue::StringifiedError(format!("Cached error: {}", err)),
+        }
+    }
+}
+
 // Cache is KKV with outer key being the repo address.
 type CacheByAddress<K, V> = RefCell<HashMap<url::Url, HashMap<K, V>>>;
 
 std::thread_local! {
     static LS_TAGS_CACHE : CacheByAddress<
         relative_path::RelativePathBuf,
-        Vec<CloneableResult<EntryType>>
+        Vec<EntryType>
     > = RefCell::new(HashMap::new());
 
     static PACKAGE_VERSIONS_CACHE : CacheByAddress<
         api::PkgName,
-        CloneableResult<Cow<'static, Vec<Cow<'static, api::Version>>>>
+        CacheValue<Cow<'static, Vec<Cow<'static, api::Version>>>>
     > = RefCell::new(HashMap::new());
 
     static SPEC_CACHE : CacheByAddress<
         api::Ident,
-        CloneableResult<Arc<api::Spec>>
+        CacheValue<Arc<api::Spec>>
     > = RefCell::new(HashMap::new());
 
     static TAG_SPEC_CACHE : CacheByAddress<
         tracking::TagSpec,
-        CloneableResult<tracking::Tag>
+        CacheValue<tracking::Tag>
     > = RefCell::new(HashMap::new());
 }
 
@@ -138,7 +172,7 @@ impl Repository for SPFSRepository {
                     .and_then(|hm| hm.get(name).cloned())
             });
             if let Some(r) = r {
-                return r.map_err(|err| err.into());
+                return r.into();
             }
         }
         let r: Result<Cow<_>> = crate::HANDLE.block_on(async {
@@ -172,10 +206,7 @@ impl Repository for SPFSRepository {
         PACKAGE_VERSIONS_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(
-                name.clone(),
-                r.as_ref().map(|b| b.clone()).map_err(|err| err.into()),
-            )
+            hm.insert(name.clone(), r.as_ref().map(|b| b.clone()).into())
         });
         r
     }
@@ -234,7 +265,7 @@ impl Repository for SPFSRepository {
             let r =
                 SPEC_CACHE.with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
             if let Some(r) = r {
-                return r.map_err(|err| err.into());
+                return r.into();
             }
         }
         let r: Result<Arc<api::Spec>> = crate::HANDLE.block_on(async {
@@ -250,10 +281,7 @@ impl Repository for SPFSRepository {
         SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(
-                pkg.clone(),
-                r.as_ref().map(Arc::clone).map_err(|err| err.into()),
-            );
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         });
         r
     }
@@ -496,10 +524,7 @@ impl SPFSRepository {
                     .and_then(|hm| hm.get(path).cloned())
             });
             if let Some(r) = r {
-                return r
-                    .into_iter()
-                    .map(|el| el.map_err(|err| err.into()))
-                    .collect();
+                return r.into_iter().map(Ok).collect();
             }
         }
         let r: Vec<Result<EntryType>> = self
@@ -513,9 +538,7 @@ impl SPFSRepository {
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(
                 path.to_owned(),
-                r.iter()
-                    .map(|r| r.as_ref().map_err(|err| err.into()).map(|el| el.clone()))
-                    .collect(),
+                r.iter().filter_map(|r| r.as_ref().ok()).cloned().collect(),
             );
         });
         r
@@ -554,30 +577,23 @@ impl SPFSRepository {
                     .and_then(|hm| hm.get(tag_spec).cloned())
             });
             if let Some(r) = r {
-                return r.map_err(|err| {
-                    let err: crate::Error = err.into();
-                    match err {
-                        Error::SPFS(spfs::Error::UnknownReference(_)) => {
-                            Error::PackageNotFoundError(for_pkg.clone())
-                        }
-                        err => err,
-                    }
-                });
+                return r.into();
             }
         }
-        let r = self.inner.resolve_tag(tag_spec).await;
+        let r = self
+            .inner
+            .resolve_tag(tag_spec)
+            .await
+            .map_err(|err| match err {
+                spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(for_pkg.clone()),
+                err => err.into(),
+            });
         TAG_SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(
-                tag_spec.clone(),
-                r.as_ref().map(|r| r.clone()).map_err(|err| err.into()),
-            );
+            hm.insert(tag_spec.clone(), r.as_ref().map(|el| el.clone()).into());
         });
-        r.map_err(|err| match err {
-            spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(for_pkg.clone()),
-            err => err.into(),
-        })
+        r
     }
 
     /// Update the metadata for this spk repository.
