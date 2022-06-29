@@ -815,7 +815,7 @@ impl StateId {
         hasher.finish()
     }
 
-    fn pkg_requests_hash(pkg_requests: &Vec<Arc<PkgRequestWithHash>>) -> u64 {
+    fn pkg_requests_hash(pkg_requests: &Vec<Arc<CachedHash<api::PkgRequest>>>) -> u64 {
         let mut hasher = DefaultHasher::new();
         pkg_requests.hash(&mut hasher);
         hasher.finish()
@@ -857,7 +857,7 @@ impl StateId {
         )
     }
 
-    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<PkgRequestWithHash>>) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<CachedHash<api::PkgRequest>>>) -> Self {
         Self::new(
             StateId::pkg_requests_hash(pkg_requests),
             self.var_requests_hash,
@@ -897,31 +897,31 @@ impl StateId {
 ///
 /// Computing the hash of `api::PkgRequest` represents a significant portion
 /// of solver runtime.
-#[derive(Debug)]
-pub struct PkgRequestWithHash {
-    pkg_request: api::PkgRequest,
+#[derive(Clone, Debug)]
+pub struct CachedHash<T> {
+    object: T,
     hash: u64,
 }
 
-impl std::ops::Deref for PkgRequestWithHash {
-    type Target = api::PkgRequest;
+impl<T> std::ops::Deref for CachedHash<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.pkg_request
+        &self.object
     }
 }
 
-impl From<api::PkgRequest> for PkgRequestWithHash {
-    fn from(pkg_request: api::PkgRequest) -> Self {
+impl<T: Hash> From<T> for CachedHash<T> {
+    fn from(object: T) -> Self {
         let mut hasher = DefaultHasher::new();
-        pkg_request.hash(&mut hasher);
+        object.hash(&mut hasher);
         let hash = hasher.finish();
 
-        Self { pkg_request, hash }
+        Self { object, hash }
     }
 }
 
-impl std::hash::Hash for PkgRequestWithHash {
+impl<T> std::hash::Hash for CachedHash<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.hash.hash(state);
     }
@@ -930,7 +930,7 @@ impl std::hash::Hash for PkgRequestWithHash {
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pkg_requests: Arc<Vec<Arc<PkgRequestWithHash>>>,
+    pkg_requests: Arc<Vec<Arc<CachedHash<api::PkgRequest>>>>,
     var_requests: Arc<BTreeSet<api::VarRequest>>,
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
     options: Arc<BTreeMap<String, String>>,
@@ -1091,7 +1091,7 @@ impl State {
         Ok(None)
     }
 
-    pub fn get_pkg_requests(&self) -> &Vec<Arc<PkgRequestWithHash>> {
+    pub fn get_pkg_requests(&self) -> &Vec<Arc<CachedHash<api::PkgRequest>>> {
         &self.pkg_requests
     }
 
@@ -1132,7 +1132,7 @@ impl State {
         }
     }
 
-    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<PkgRequestWithHash>>) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<CachedHash<api::PkgRequest>>>) -> Self {
         let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
             pkg_requests: Arc::new(pkg_requests),
