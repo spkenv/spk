@@ -460,7 +460,7 @@ where
                         .iter()
                         .map(|r| format_request(
                             &r.pkg.name,
-                            [&**r],
+                            [&***r],
                             FormatChangeOptions {
                                 verbosity: self.verbosity,
                                 level: self.level
