@@ -22,6 +22,8 @@ def inject_credentials(super_script_list: spdev.shell.Script) -> spdev.shell.Scr
             "Cargo.toml",
             "|",
             "xargs",
+            "-n",
+            "1",
             "sed",
             "-i",
             '"s|https://github.com|https://$GITHUB_SPFS_PULL_USERNAME:$GITHUB_SPFS_PULL_PASSWORD@github.com|"',
