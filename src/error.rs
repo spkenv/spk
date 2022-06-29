@@ -15,6 +15,8 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
     Serde(#[from] serde_yaml::Error),

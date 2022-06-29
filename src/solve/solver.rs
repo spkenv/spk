@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
-    borrow::Cow,
     collections::HashMap,
-    mem::take,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -12,7 +10,7 @@ use std::{
 };
 
 use async_stream::stream;
-use futures::{Stream, StreamExt};
+use futures::{stream::FuturesUnordered, Stream, StreamExt, TryStreamExt};
 
 use crate::{
     api::{self, Build, Component, OptionMap, PkgName, Request},
@@ -30,7 +28,7 @@ use super::{
         EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
     },
     solution::{PackageSource, Solution},
-    validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
+    validation::{BinaryOnlyValidator, ValidatorT, Validators, DEFAULT_VALIDATORS},
 };
 
 // Public to allow other tests to use its macros
@@ -42,7 +40,7 @@ mod solver_test;
 pub struct Solver {
     repos: Vec<Arc<storage::RepositoryHandle>>,
     initial_state_builders: Vec<Change>,
-    validators: Cow<'static, [Validators]>,
+    validators: Arc<Vec<Validators>>,
     // For counting the number of steps (forward) taken in a solve
     number_of_steps: usize,
     // For counting number of builds skipped for some reason
@@ -72,7 +70,7 @@ impl Default for Solver {
         Self {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
-            validators: Cow::from(validation::default_validators()),
+            validators: Arc::clone(&DEFAULT_VALIDATORS),
             number_of_steps: 0,
             number_builds_skipped: 0,
             number_incompat_versions: 0,
@@ -274,7 +272,9 @@ impl Solver {
                     }
                 }
 
-                compat = self.validate(&node.state, &spec, &repo)?;
+                let arc_repo = Arc::new(repo.clone());
+
+                compat = self.validate(&node.state, &spec, &arc_repo).await?;
                 if !&compat {
                     notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                         spec.pkg.clone(),
@@ -328,16 +328,31 @@ impl Solver {
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
     }
 
-    fn validate(
+    async fn validate(
         &self,
-        node: &State,
-        spec: &api::Spec,
-        source: &PackageSource,
+        node: &Arc<State>,
+        spec: &Arc<api::Spec>,
+        source: &Arc<PackageSource>,
     ) -> Result<api::Compatibility> {
-        for validator in self.validators.as_ref() {
-            let compat = validator.validate(node, spec, source)?;
-            if !&compat {
-                return Ok(compat);
+        let mut futures: FuturesUnordered<tokio::task::JoinHandle<Result<api::Compatibility>>> =
+            FuturesUnordered::new();
+        for validator in self.validators.iter() {
+            let validator = *validator;
+            let node = Arc::clone(node);
+            let spec = Arc::clone(spec);
+            let source = Arc::clone(source);
+            futures.push(tokio::spawn(async move {
+                let compat = validator.validate(&node, &spec, &source)?;
+                if !&compat {
+                    return Ok(compat);
+                }
+                Ok(api::Compatibility::Compatible)
+            }));
+        }
+        while let Some(r) = futures.try_next().await? {
+            let r = r?;
+            if !r.is_ok() {
+                return Ok(r);
             }
         }
         Ok(api::Compatibility::Compatible)
@@ -347,7 +362,7 @@ impl Solver {
     pub fn reset(&mut self) {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
-        self.validators = Cow::from(validation::default_validators());
+        self.validators = Arc::clone(&DEFAULT_VALIDATORS);
         self.number_of_steps = 0;
         self.number_builds_skipped = 0;
         self.number_incompat_versions = 0;
@@ -384,15 +399,11 @@ impl Solver {
         }
         if binary_only {
             // Add BinaryOnly validator because it was missing.
-            self.validators
-                .to_mut()
+            Arc::make_mut(&mut self.validators)
                 .insert(0, Validators::BinaryOnly(BinaryOnlyValidator {}))
         } else {
             // Remove all BinaryOnly validators because one was found.
-            self.validators = take(self.validators.to_mut())
-                .into_iter()
-                .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
-                .collect();
+            Arc::make_mut(&mut self.validators).retain(|v| !matches!(v, Validators::BinaryOnly(_)));
         }
     }
 

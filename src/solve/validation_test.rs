@@ -5,13 +5,14 @@ use std::sync::Arc;
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::{default_validators, OptionsValidator, VarRequirementsValidator};
+use super::{OptionsValidator, VarRequirementsValidator};
+use crate::solve::validation::DEFAULT_VALIDATORS;
 use crate::solve::{graph::State, validation::ValidatorT};
 use crate::{api, fixtures::*, ident, solve, spec};
 
 #[rstest]
 fn test_src_package_install_requests_are_not_considered() {
-    let validators = default_validators();
+    let validators = &*DEFAULT_VALIDATORS;
 
     let spec = Arc::new(spec!(
         {
@@ -40,7 +41,7 @@ fn test_src_package_install_requests_are_not_considered() {
         vec![],
         vec![("debug".to_string(), "off".to_string())],
     );
-    for validator in validators {
+    for validator in validators.iter() {
         let msg = "Source package should be valid regardless of requirements";
         assert!(
             validator.validate(&state, &*spec, &source).unwrap().is_ok(),

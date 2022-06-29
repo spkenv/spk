@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use itertools::Itertools;
-use std::collections::HashSet;
+use once_cell::sync::Lazy;
+use std::{collections::HashSet, sync::Arc};
 
 use crate::api::{self, Build, Compatibility};
 
@@ -480,8 +481,8 @@ impl ValidatorT for VarRequirementsValidator {
 }
 
 /// The default set of validators that is used for resolving packages
-pub const fn default_validators() -> &'static [Validators] {
-    &[
+pub static DEFAULT_VALIDATORS: Lazy<Arc<Vec<Validators>>> = Lazy::new(|| {
+    Arc::new(vec![
         Validators::Deprecation(DeprecationValidator {}),
         Validators::PackageRequest(PkgRequestValidator {}),
         Validators::Components(ComponentsValidator {}),
@@ -489,5 +490,5 @@ pub const fn default_validators() -> &'static [Validators] {
         Validators::VarRequirements(VarRequirementsValidator {}),
         Validators::PkgRequirements(PkgRequirementsValidator {}),
         Validators::EmbeddedPackage(EmbeddedPackageValidator {}),
-    ]
-}
+    ])
+});
