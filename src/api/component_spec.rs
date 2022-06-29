@@ -172,10 +172,20 @@ impl Serialize for Component {
 
 /// Holds a set of valid file patterns for identifying
 /// files in the spfs filesystem after a build
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileMatcher {
     rules: Vec<String>,
     gitignore: ignore::gitignore::Gitignore,
+}
+
+impl std::fmt::Debug for FileMatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileMatcher")
+            .field("rules", &self.rules)
+            // Skip the `gitignore` field since it is really noisy.
+            .field("gitignore", &"<elided>")
+            .finish()
+    }
 }
 
 impl Default for FileMatcher {
