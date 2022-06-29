@@ -582,7 +582,7 @@ impl RequestPackage {
                     // Safety: `cloned_request` is not `None` by previous test.
                     let mut request = unsafe { cloned_request.take().unwrap_unchecked() };
                     match request.restrict(&existing_request) {
-                        Ok(_) => Arc::new(request),
+                        Ok(_) => Arc::new(request.into()),
                         Err(_) => {
                             // Keep looking
                             cloned_request = Some(request);
@@ -656,7 +656,7 @@ impl RequestPackage {
             // list now. If this package needs resolving, this new request
             // will be added to the merged request when this package is
             // next selected by the solver.
-            new_requests.push(Arc::new(self.request.clone()));
+            new_requests.push(Arc::new(self.request.clone().into()));
         }
 
         Arc::new(base.with_pkg_requests(new_requests))
@@ -815,7 +815,7 @@ impl StateId {
         hasher.finish()
     }
 
-    fn pkg_requests_hash(pkg_requests: &Vec<Arc<api::PkgRequest>>) -> u64 {
+    fn pkg_requests_hash(pkg_requests: &Vec<Arc<PkgRequestWithHash>>) -> u64 {
         let mut hasher = DefaultHasher::new();
         pkg_requests.hash(&mut hasher);
         hasher.finish()
@@ -857,7 +857,7 @@ impl StateId {
         )
     }
 
-    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<api::PkgRequest>>) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<PkgRequestWithHash>>) -> Self {
         Self::new(
             StateId::pkg_requests_hash(pkg_requests),
             self.var_requests_hash,
@@ -893,10 +893,44 @@ impl StateId {
     }
 }
 
+/// For caching the hash of an `api::PkgRequest`.
+///
+/// Computing the hash of `api::PkgRequest` represents a significant portion
+/// of solver runtime.
+#[derive(Debug)]
+pub struct PkgRequestWithHash {
+    pkg_request: api::PkgRequest,
+    hash: u64,
+}
+
+impl std::ops::Deref for PkgRequestWithHash {
+    type Target = api::PkgRequest;
+
+    fn deref(&self) -> &Self::Target {
+        &self.pkg_request
+    }
+}
+
+impl From<api::PkgRequest> for PkgRequestWithHash {
+    fn from(pkg_request: api::PkgRequest) -> Self {
+        let mut hasher = DefaultHasher::new();
+        pkg_request.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        Self { pkg_request, hash }
+    }
+}
+
+impl std::hash::Hash for PkgRequestWithHash {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
+
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pkg_requests: Arc<Vec<Arc<api::PkgRequest>>>,
+    pkg_requests: Arc<Vec<Arc<PkgRequestWithHash>>>,
     var_requests: Arc<BTreeSet<api::VarRequest>>,
     packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
     options: Arc<BTreeMap<String, String>>,
@@ -906,7 +940,7 @@ pub struct State {
 
 impl State {
     pub fn new(
-        pkg_requests: Vec<Arc<api::PkgRequest>>,
+        pkg_requests: Vec<api::PkgRequest>,
         var_requests: Vec<api::VarRequest>,
         packages: Vec<(Arc<api::Spec>, PackageSource)>,
         options: Vec<(String, String)>,
@@ -915,6 +949,10 @@ impl State {
         // may be states constructed where the id is
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
+        let pkg_requests = pkg_requests
+            .into_iter()
+            .map(|el| Arc::new(el.into()))
+            .collect();
         let var_requests = var_requests.into_iter().collect();
         let options = options.into_iter().collect();
         let (var_requests_hash, var_requests_membership) =
@@ -1053,7 +1091,7 @@ impl State {
         Ok(None)
     }
 
-    pub fn get_pkg_requests(&self) -> &Vec<Arc<api::PkgRequest>> {
+    pub fn get_pkg_requests(&self) -> &Vec<Arc<PkgRequestWithHash>> {
         &self.pkg_requests
     }
 
@@ -1094,7 +1132,7 @@ impl State {
         }
     }
 
-    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<api::PkgRequest>>) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<PkgRequestWithHash>>) -> Self {
         let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
             pkg_requests: Arc::new(pkg_requests),

@@ -37,7 +37,6 @@ fn test_src_package_install_requests_are_not_considered() {
             api::PkgRequest::from_ident(ident!("dependency/1"), api::RequestedBy::SpkInternalTest),
         ]
         .into_iter()
-        .map(Arc::new)
         .collect(),
         vec![],
         vec![],
