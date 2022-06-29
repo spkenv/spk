@@ -59,6 +59,9 @@ class RustCrate(spdev.stdlib.components.RustCrate):
         return []
 
     def compile_test_script(self) -> spdev.shell.Script:
+        if self.name != "spk":
+            return inject_credentials(super().compile_test_script())
+
         return inject_credentials(
             [
                 spdev.shell.Chdir(self.path()),
