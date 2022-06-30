@@ -15,7 +15,7 @@ sed -i 's|$HOME|/root|' /root/.bashrc
 
 yum-builddep -y spk.spec > /dev/null 2>&1
 
-sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" /source/Cargo.toml
+find /source -name Cargo.toml | xargs -n 1 sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|"
 
 # there needs to be an origin configured even if it's not read from
 # during testing (for commands that us the syncer type as a no-op)

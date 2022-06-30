@@ -2563,6 +2563,64 @@ dependencies = [
 
 [[package]]
 name = "spfs"
+version = "0.34.3"
+source = "git+https://github.com/imageworks/spfs?tag=v0.34.3#4750235ebbbc7c2a1d218082d5997f6e5918baca"
+dependencies = [
+ "async-recursion",
+ "async-stream",
+ "async-trait",
+ "caps",
+ "chrono",
+ "clap",
+ "close-err",
+ "cnproc",
+ "colored",
+ "config",
+ "data-encoding",
+ "expanduser",
+ "faccess",
+ "futures",
+ "gitignore",
+ "glob",
+ "hyper 0.14.19",
+ "indicatif",
+ "itertools 0.9.0",
+ "lazy_static",
+ "libc",
+ "nix 0.19.1",
+ "once_cell",
+ "palaver",
+ "prost",
+ "rand 0.7.3",
+ "relative-path",
+ "reqwest 0.11.10",
+ "ring",
+ "semver 0.11.0",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_qs",
+ "strum",
+ "strum_macros",
+ "tar",
+ "tempdir",
+ "tempfile",
+ "thiserror",
+ "tokio 1.19.2",
+ "tokio-stream",
+ "tokio-util 0.6.10",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "walkdir",
+ "whoami",
+]
+
+[[package]]
+name = "spfs"
 version = "0.34.4"
 source = "git+https://github.com/imageworks/spfs?tag=v0.34.4#a24e40df22ee246ccd5bb719b14c4f0f618359e1"
 dependencies = [
@@ -2656,7 +2714,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_yaml",
- "spfs",
+ "spfs 0.34.4",
  "spk",
  "sys-info",
  "tar",
@@ -2666,6 +2724,17 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "spk-launcher"
+version = "0.33.6"
+dependencies = [
+ "anyhow",
+ "nix 0.23.1",
+ "spfs 0.34.3",
+ "tempdir",
+ "tokio 1.19.2",
 ]
 
 [[package]]

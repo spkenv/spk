@@ -133,7 +133,7 @@ impl Run for MakeBinary {
                         out.pkg,
                         spk::api::RequestedBy::CommandLine,
                     );
-                    let mut cmd = std::process::Command::new("spk");
+                    let mut cmd = std::process::Command::new(crate::env::spk_exe());
                     cmd.args(&["env", "--local-repo"])
                         .arg(request.pkg.to_string());
                     tracing::info!("entering environment with new package...");
