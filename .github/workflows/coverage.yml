@@ -2,13 +2,13 @@ on:
   pull_request:
     paths:
       # Only run coverage report if the sources have changed
-      - 'src/**.rs'
+      - "src/**.rs"
   push:
     branches:
       - master
     paths:
       # Only run coverage report if the sources have changed
-      - 'src/**.rs'
+      - "src/**.rs"
 
 name: Code Coverage
 jobs:
@@ -81,7 +81,7 @@ jobs:
       - name: Generate code coverage
         run: |
           cd spk
-          sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" Cargo.toml
+          find . -name Cargo.toml | xargs -n 1 sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|"
           spfs run - -- bash -c 'cargo tarpaulin --verbose --timeout 120 --out Xml --lib'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
