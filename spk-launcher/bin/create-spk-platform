@@ -1,5 +1,9 @@
 #! /bin/bash
 
+# Create an spfs platform for running spk via spk-launcher.
+#
+# This must be run from the top level of this project.
+
 set -o errexit
 
 [[ $# -lt 1 || $# -gt 2 ]] && echo "Usage: `basename $0` <spk version> [<tag name>]" && exit 1
@@ -9,6 +13,11 @@ tag_name="${2:-$spk_version}"
 
 # 1. build logic from spk.spec
 mkdir -p build
+
+# These commands are needed for building internal to SPI. To use this outside
+# of SPI, refer to the build commands found in spk.spec at the root of the
+# project.
+
 dev toolchain install Rust
 source ~/.bashrc
 dev env -- cargo build --release --features sentry
