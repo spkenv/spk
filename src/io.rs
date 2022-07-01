@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod status_line;
+
 use std::{
     collections::VecDeque,
     fmt::Write,
@@ -14,12 +16,16 @@ use std::{
 };
 
 use async_stream::stream;
+use console::Term;
 use futures::{Stream, StreamExt};
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 
 use colored::Colorize;
 
 use crate::{api, option_map, solve, Error, Result};
+
+use self::status_line::StatusLine;
 
 static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     // Set up a ctrl-c handler to allow a solve to be interrupted
@@ -387,6 +393,7 @@ where
     start: Instant,
     too_long_counter: u64,
     settings: DecisionFormatterSettings,
+    status_line: StatusLine,
 }
 
 impl<I> FormattedDecisionsIter<I>
@@ -405,6 +412,7 @@ where
             start: Instant::now(),
             too_long_counter: 0,
             settings,
+            status_line: StatusLine::new(Term::stdout()),
         }
     }
 
@@ -481,6 +489,14 @@ where
                             continue 'outer;
                         }
                     };
+
+                    self.status_line.set_status(
+                        node.state
+                            .get_resolved_packages()
+                            .values()
+                            .map(|(spec, _)| spec.pkg.to_string())
+                            .join(", "),
+                    );
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
