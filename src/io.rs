@@ -459,9 +459,9 @@ where
 
                     self.status_line.set_status(
                         node.state
-                            .get_resolved_packages()
-                            .values()
-                            .map(|(spec, _)| spec.pkg.to_string())
+                            .get_ordered_resolved_packages()
+                            .iter()
+                            .map(|spec| spec.pkg.to_string())
                             .join(", "),
                     );
 
