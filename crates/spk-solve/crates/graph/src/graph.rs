@@ -1063,7 +1063,7 @@ pub struct State {
     packages: StatePackages,
     // This is a list of the packages in the order they were added to the
     // state. It does not contribute to the state id.
-    packages_in_solve_order: Arc<Vec<Arc<api::Spec>>>,
+    packages_in_solve_order: Arc<Vec<Arc<Spec>>>,
     options: Arc<BTreeMap<OptNameBuf, String>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<OptionMap>>,
@@ -1222,7 +1222,7 @@ impl State {
         &self.var_requests
     }
 
-    pub fn get_ordered_resolved_packages(&self) -> &Arc<Vec<Arc<api::Spec>>> {
+    pub fn get_ordered_resolved_packages(&self) -> &Arc<Vec<Arc<Spec>>> {
         &self.packages_in_solve_order
     }
 
@@ -1233,7 +1233,7 @@ impl State {
     }
 
     #[inline]
-    pub(crate) fn get_resolved_packages_hash(&self) -> u64 {
+    pub fn get_resolved_packages_hash(&self) -> u64 {
         self.state_id.packages_hash
     }
 

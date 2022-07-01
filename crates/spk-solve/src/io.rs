@@ -24,7 +24,7 @@ use spk_schema::foundation::format::{
     FormatSolution,
 };
 use spk_schema::foundation::ident_build::Build;
-use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -37,19 +37,23 @@ use spk_solve_graph::{
 use crate::solver::ErrorFreq;
 use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime, StatusLine};
 
-static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
+static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
+    // Initialise the USER_CANCELLED value
+    let b = Arc::new(AtomicBool::new(false));
+
     // Set up a ctrl-c handler to allow a solve to be interrupted
     // gracefully by the user from the FormatterDecisionIter below
-    if let Err(err) = ctrlc::set_handler(|| {
-        USER_CANCELLED.store(true, Ordering::Relaxed);
-    }) {
-        eprintln!(
-            "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
-            err.to_string().red()
-        );
+    match signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&b)) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!(
+                "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
+                err.to_string().red()
+            )
+        }
     };
-    // Initialise the USER_CANCELLED value
-    AtomicBool::new(false)
+
+    b
 });
 
 pub fn format_note(note: &Note) -> String {
