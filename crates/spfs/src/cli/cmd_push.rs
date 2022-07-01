@@ -39,9 +39,11 @@ impl CmdPush {
 
         let env_spec =
             spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
+        // the latest tag is always synced when pushing
+        self.sync.sync = true;
         let summary = self
             .sync
-            .get_syncer(&remote, &repo)
+            .get_syncer(&repo, &remote)
             .sync_env(env_spec)
             .await?
             .summary();
