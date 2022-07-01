@@ -18,11 +18,12 @@ mkdir -p build
 # of SPI, refer to the build commands found in spk.spec at the root of the
 # project.
 
+export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install Rust
 source ~/.bashrc
 dev env -- cargo build --release --features sentry
 
 # 2. create a new spfs layer
-spfs run - -- sh -c "mkdir /spfs/opt \
+spfs run - -- sh -c "mkdir -p /spfs/opt/spk.dist \
   && cp target/release/spk /spfs/opt/spk.dist/ \
   && spfs commit platform --tag spk/spk-launcher/\"$tag_name\""
