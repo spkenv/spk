@@ -16,7 +16,7 @@ use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
-    api::{self, Build, Component, OptionMap, PkgName, Request},
+    api::{self, Build, Component, OptionMap, PkgName, PkgRequest, Request},
     solve::graph::StepBack,
     storage, Error, Result,
 };
@@ -28,7 +28,8 @@ use super::{
         State, DEAD_STATE,
     },
     package_iterator::{
-        EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
+        BuildIterator, EmptyBuildIterator, PackageIterator, RepositoryPackageIterator,
+        SortedBuildIterator,
     },
     solution::{PackageSource, Solution},
     validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
@@ -193,6 +194,99 @@ impl Solver {
         solver.solve_build_environment(spec).await
     }
 
+    async fn step_builds<F>(
+        &mut self,
+        node: &Node,
+        request: &PkgRequest,
+        builds: Arc<tokio::sync::Mutex<F>>,
+        notes: &mut Vec<Note>,
+    ) -> Result<Option<Decision>>
+    where
+        F: BuildIterator + ?Sized,
+    {
+        while let Some((mut spec, repo)) = builds.lock().await.next().await? {
+            // Now all this build to the total considered during
+            // this overall step
+            self.number_total_builds += 1;
+
+            let build_from_source =
+                spec.pkg.build == Some(Build::Source) && request.pkg.build != Some(Build::Source);
+            if build_from_source {
+                if let PackageSource::Spec(spec) = repo {
+                    notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                        spec.pkg.clone(),
+                        "cannot build embedded source package",
+                    )));
+                    self.number_builds_skipped += 1;
+                    continue;
+                }
+
+                match repo.read_spec(&spec.pkg.with_build(None)).await {
+                    Ok(s) => spec = s,
+                    Err(Error::PackageNotFoundError(pkg)) => {
+                        notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                            pkg,
+                            "cannot build from source, version spec not available",
+                        )));
+                        self.number_builds_skipped += 1;
+                        continue;
+                    }
+                    Err(err) => return Err(err),
+                }
+            }
+
+            let compat = self.validate(&node.state, &spec, &repo)?;
+            if !&compat {
+                notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                    spec.pkg.clone(),
+                    compat,
+                )));
+                self.number_builds_skipped += 1;
+                continue;
+            }
+
+            let mut decision = if build_from_source {
+                match self.resolve_new_build(&spec, &node.state).await {
+                    Ok(build_env) => {
+                        match Decision::builder(spec.clone(), &node.state)
+                            .with_components(&request.pkg.components)
+                            .build_package(&build_env)
+                        {
+                            Ok(decision) => decision,
+                            Err(err) => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        spec.pkg.clone(),
+                                        &format!("cannot build package: {:?}", err),
+                                    ),
+                                ));
+                                self.number_builds_skipped += 1;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // FIXME: This should only match `SolverError`
+                    Err(err) => {
+                        notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                            spec.pkg.clone(),
+                            &format!("cannot resolve build env: {:?}", err),
+                        )));
+                        self.number_builds_skipped += 1;
+                        continue;
+                    }
+                }
+            } else {
+                Decision::builder(spec, &node.state)
+                    .with_components(&request.pkg.components)
+                    .resolve_package(repo)
+            };
+            decision.add_notes(notes.iter().cloned());
+            return Ok(Some(decision));
+        }
+        Ok(None)
+    }
+
     async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
@@ -221,7 +315,7 @@ impl Solver {
                 Err(e) => return Err(e),
             };
 
-            let mut compat = request.is_version_applicable(&pkg.version);
+            let compat = request.is_version_applicable(&pkg.version);
             if !&compat {
                 // Count this version and its builds as incompatible
                 self.number_incompat_versions += 1;
@@ -250,85 +344,9 @@ impl Solver {
                 builds
             };
 
-            while let Some((mut spec, repo)) = builds.lock().await.next().await? {
-                // Now all this build to the total considered during
-                // this overall step
-                self.number_total_builds += 1;
-
-                let build_from_source = spec.pkg.build == Some(Build::Source)
-                    && request.pkg.build != Some(Build::Source);
-                if build_from_source {
-                    if let PackageSource::Spec(spec) = repo {
-                        notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                            spec.pkg.clone(),
-                            "cannot build embedded source package",
-                        )));
-                        self.number_builds_skipped += 1;
-                        continue;
-                    }
-
-                    match repo.read_spec(&spec.pkg.with_build(None)).await {
-                        Ok(s) => spec = s,
-                        Err(Error::PackageNotFoundError(pkg)) => {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                pkg,
-                                "cannot build from source, version spec not available",
-                            )));
-                            self.number_builds_skipped += 1;
-                            continue;
-                        }
-                        Err(err) => return Err(err),
-                    }
-                }
-
-                compat = self.validate(&node.state, &spec, &repo)?;
-                if !&compat {
-                    notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                        spec.pkg.clone(),
-                        compat,
-                    )));
-                    self.number_builds_skipped += 1;
-                    continue;
-                }
-
-                let mut decision = if build_from_source {
-                    match self.resolve_new_build(&spec, &node.state).await {
-                        Ok(build_env) => {
-                            match Decision::builder(spec.clone(), &node.state)
-                                .with_components(&request.pkg.components)
-                                .build_package(&build_env)
-                            {
-                                Ok(decision) => decision,
-                                Err(err) => {
-                                    notes.push(Note::SkipPackageNote(
-                                        SkipPackageNote::new_from_message(
-                                            spec.pkg.clone(),
-                                            &format!("cannot build package: {:?}", err),
-                                        ),
-                                    ));
-                                    self.number_builds_skipped += 1;
-                                    continue;
-                                }
-                            }
-                        }
-
-                        // FIXME: This should only match `SolverError`
-                        Err(err) => {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.pkg.clone(),
-                                &format!("cannot resolve build env: {:?}", err),
-                            )));
-                            self.number_builds_skipped += 1;
-                            continue;
-                        }
-                    }
-                } else {
-                    Decision::builder(spec, &node.state)
-                        .with_components(&request.pkg.components)
-                        .resolve_package(repo)
-                };
-                decision.add_notes(notes.iter().cloned());
-                return Ok(Some(decision));
+            match self.step_builds(node, &request, builds, &mut notes).await {
+                Ok(None) => continue,
+                other => return other,
             }
         }
 
