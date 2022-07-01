@@ -114,11 +114,11 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .expect("failed to add an empty object to spfs");
             let empty_manifest = spfs::graph::Manifest::default();
             let empty_layer = empty_layer();
-            let _ = spfs_repo
+            spfs_repo
                 .write_object(&empty_layer.into())
                 .await
                 .expect("failed to save empty layer to spfs repo");
-            let _ = spfs_repo
+            spfs_repo
                 .write_object(&empty_manifest.into())
                 .await
                 .expect("failed to save empty manifest to spfs repo");
