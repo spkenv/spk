@@ -412,7 +412,7 @@ where
             start: Instant::now(),
             too_long_counter: 0,
             settings,
-            status_line: StatusLine::new(Term::stdout()),
+            status_line: StatusLine::new(Term::stdout(), 3),
         }
     }
 
@@ -490,13 +490,37 @@ where
                         }
                     };
 
-                    self.status_line.set_status(
-                        node.state
-                            .get_ordered_resolved_packages()
-                            .iter()
-                            .map(|spec| spec.pkg.to_string())
-                            .join(", "),
-                    );
+                    {
+                        let packages = node.state.get_ordered_resolved_packages();
+                        let mut renders = Vec::with_capacity(packages.len());
+                        for package in packages.iter() {
+                            let name = package.pkg.name.as_str();
+                            let version = package.pkg.version.to_string();
+                            let build = package.pkg.build.as_ref().unwrap().to_string();
+                            let max_len = name.len().max(version.len()).max(build.len());
+                            renders.push((name, version, build, max_len));
+                        }
+                        for row in 0..3 {
+                            self.status_line.set_status(
+                                row,
+                                renders
+                                    .iter()
+                                    .map(|item| {
+                                        format!(
+                                            "{:width$}",
+                                            match row {
+                                                0 => item.0,
+                                                1 => &item.1,
+                                                2 => &item.2,
+                                                _ => unreachable!(),
+                                            },
+                                            width = item.3
+                                        )
+                                    })
+                                    .join(" |"),
+                            );
+                        }
+                    }
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
