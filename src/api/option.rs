@@ -53,7 +53,7 @@ impl Inheritance {
 }
 
 /// An option that can be provided to provided to the package build process
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum Opt {
     Pkg(PkgOpt),
@@ -166,7 +166,7 @@ impl<'de> Deserialize<'de> for Opt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VarOpt {
     pub var: String,
     pub default: String,
@@ -189,6 +189,50 @@ impl std::hash::Hash for VarOpt {
         }
         self.inheritance.hash(state);
         self.value.hash(state)
+    }
+}
+
+impl Ord for VarOpt {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.var.cmp(&other.var) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.default.cmp(&other.default) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.choices.iter().cmp(other.choices.iter()) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.inheritance.cmp(&other.inheritance) {
+            core::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        self.value.cmp(&other.value)
+    }
+}
+
+impl PartialOrd for VarOpt {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.var.partial_cmp(&other.var) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.default.partial_cmp(&other.default) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.choices.iter().partial_cmp(other.choices.iter()) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.inheritance.partial_cmp(&other.inheritance) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.value.partial_cmp(&other.value)
     }
 }
 
@@ -354,7 +398,7 @@ impl<'de> Deserialize<'de> for VarOpt {
     }
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PkgOpt {
     pub pkg: PkgName,
     pub default: String,

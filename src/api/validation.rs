@@ -14,7 +14,7 @@ use crate::Result;
 mod validation_test;
 
 /// A Validator validates packages after they have been built
-#[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum Validator {
     MustInstallSomething,
     MustNotAlterExistingFiles,
@@ -55,7 +55,7 @@ pub fn default_validators() -> Vec<Validator> {
 /// ValidationSpec configures how builds of this package
 /// should be validated. The default spec contains all
 /// recommended validators
-#[derive(Debug, PartialEq, Eq, Hash, Default, Deserialize, Serialize, Clone)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ValidationSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disabled: Vec<Validator>,

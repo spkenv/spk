@@ -11,7 +11,7 @@ use crate::{
     storage, Result,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PackageSource {
     Repository {
         /// the actual repository that this package was loaded from
@@ -27,10 +27,42 @@ pub enum PackageSource {
 }
 
 impl PackageSource {
-    pub fn read_spec(&self, ident: &Ident) -> Result<api::Spec> {
+    pub fn read_spec(&self, ident: &Ident) -> Result<Arc<api::Spec>> {
         match self {
-            PackageSource::Spec(s) => Ok((**s).clone()),
+            PackageSource::Spec(s) => Ok(Arc::clone(s)),
             PackageSource::Repository { repo, .. } => repo.read_spec(ident),
+        }
+    }
+}
+
+impl Ord for PackageSource {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (this @ PackageSource::Repository { .. }, other @ PackageSource::Repository { .. }) => {
+                this.cmp(other)
+            }
+            (PackageSource::Repository { .. }, PackageSource::Spec(_)) => std::cmp::Ordering::Less,
+            (PackageSource::Spec(_), PackageSource::Repository { .. }) => {
+                std::cmp::Ordering::Greater
+            }
+            (PackageSource::Spec(this), PackageSource::Spec(other)) => this.cmp(other),
+        }
+    }
+}
+
+impl PartialOrd for PackageSource {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (this @ PackageSource::Repository { .. }, other @ PackageSource::Repository { .. }) => {
+                this.partial_cmp(other)
+            }
+            (PackageSource::Repository { .. }, PackageSource::Spec(_)) => {
+                Some(std::cmp::Ordering::Less)
+            }
+            (PackageSource::Spec(_), PackageSource::Repository { .. }) => {
+                Some(std::cmp::Ordering::Greater)
+            }
+            (PackageSource::Spec(this), PackageSource::Spec(other)) => this.partial_cmp(other),
         }
     }
 }

@@ -105,7 +105,7 @@ fn copy_package(
     let spec = src_repo.read_spec(pkg)?;
     if pkg.build.is_none() {
         tracing::info!(%pkg, "exporting version spec");
-        dst_repo.publish_spec(spec)?;
+        dst_repo.publish_spec(&spec)?;
         return Ok(());
     }
 
@@ -116,6 +116,6 @@ fn copy_package(
         .with_reporter(spfs::sync::ConsoleSyncReporter::default());
     let future = syncer.sync_env(env_spec);
     let _result = crate::HANDLE.block_on(future)?;
-    dst_repo.publish_package(spec, components)?;
+    dst_repo.publish_package(&spec, components)?;
     Ok(())
 }

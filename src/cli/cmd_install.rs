@@ -57,7 +57,7 @@ impl Run for Install {
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver
             .get_initial_state()
-            .pkg_requests
+            .get_pkg_requests()
             .iter()
             .map(|r| r.pkg.name.clone())
             .collect();

@@ -120,7 +120,7 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(spec, components).unwrap();
+    repo.publish_package(&spec, components).unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
@@ -148,7 +148,7 @@ fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(spec, components).unwrap();
+    repo.publish_package(&spec, components).unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
@@ -543,7 +543,7 @@ fn test_solver_option_compatibility(mut solver: Solver) {
     let for_py37 = make_build!(spec, [py37]);
 
     let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
-    repo.publish_spec(spec).unwrap();
+    repo.publish_spec(&spec).unwrap();
     let repo = Arc::new(repo);
 
     // The 'by_build_option_values' build sorting method does not use
@@ -618,7 +618,7 @@ fn test_solver_option_injection(mut solver: Solver) {
     );
     let build = make_build!(spec, [pybuild]);
     let repo = make_repo!([build]);
-    repo.publish_spec(spec).unwrap();
+    repo.publish_spec(&spec).unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
@@ -881,8 +881,8 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     let mut spec = repo
         .read_spec(&api::parse_ident("my-tool/1.2.0").unwrap())
         .unwrap();
-    spec.deprecated = true;
-    repo.force_publish_spec(spec).unwrap();
+    Arc::make_mut(&mut spec).deprecated = true;
+    repo.force_publish_spec(&spec).unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!({"var": "debug/on"}));
@@ -1197,8 +1197,8 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     let a_build = make_build!(a_spec, [dep_v1]);
     let b_build = make_build!(b_spec, [dep_v2]);
     let repo = make_repo!([a_build, b_build,]);
-    repo.publish_spec(a_spec).unwrap();
-    repo.publish_spec(b_spec).unwrap();
+    repo.publish_spec(&a_spec).unwrap();
+    repo.publish_spec(&b_spec).unwrap();
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
@@ -1341,9 +1341,9 @@ fn test_solver_component_availability(mut solver: Solver) {
         (build372, cmpt372),
         (build371, cmpt371),
     ]);
-    repo.publish_spec(spec373).unwrap();
-    repo.publish_spec(spec372).unwrap();
-    repo.publish_spec(spec371).unwrap();
+    repo.publish_spec(&spec373).unwrap();
+    repo.publish_spec(&spec372).unwrap();
+    repo.publish_spec(&spec371).unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:bin"));
@@ -1500,8 +1500,9 @@ fn test_request_default_component() {
     solver.add_request(request!("python/3.7.3"));
     let state = solver.get_initial_state();
     let request = state
-        .pkg_requests
-        .get(0)
+        .get_pkg_requests()
+        .iter()
+        .next()
         .expect("solver should have a request");
     assert_eq!(
         request.pkg.components,

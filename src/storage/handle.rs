@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use super::Repository;
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SPFSRepository),

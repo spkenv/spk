@@ -1,55 +1,73 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, convert::TryFrom};
+use std::{borrow::Cow, collections::HashMap, convert::TryFrom, sync::Arc};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
 
-use super::Repository;
+use super::{CachePolicy, Repository};
 use crate::{api, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
+    address: url::Url,
     root: std::path::PathBuf,
 }
 
 impl Default for RuntimeRepository {
     fn default() -> Self {
-        Self {
-            root: std::path::PathBuf::from("/spfs/spk/pkg"),
-        }
+        let root = std::path::PathBuf::from("/spfs/spk/pkg");
+        let address = Self::address_from_root(&root);
+        Self { address, root }
+    }
+}
+
+impl Ord for RuntimeRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for RuntimeRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.address.partial_cmp(&other.address)
     }
 }
 
 impl RuntimeRepository {
-    #[cfg(test)]
-    pub fn new(root: std::path::PathBuf) -> Self {
-        // this function is not allowed outside of testing because get_package
-        // makes assumptions about the runtime directory which cannot be
-        // reasonably altered
-        Self { root }
-    }
-}
-
-impl Repository for RuntimeRepository {
-    fn address(&self) -> url::Url {
-        let address = format!("runtime://{}", self.root.display());
+    fn address_from_root(root: &std::path::PathBuf) -> url::Url {
+        let address = format!("runtime://{}", root.display());
         match url::Url::parse(&address) {
             Ok(a) => a,
             Err(err) => {
                 tracing::error!(
                     "failed to create valid address for path {:?}: {:?}",
-                    self.root,
+                    root,
                     err
                 );
-                url::Url::parse(&format!("runtime://{}", self.root.to_string_lossy()))
+                url::Url::parse(&format!("runtime://{}", root.to_string_lossy()))
                     .expect("Failed to create url from path (fallback)")
             }
         }
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+    #[cfg(test)]
+    pub fn new(root: std::path::PathBuf) -> Self {
+        // this function is not allowed outside of testing because get_package
+        // makes assumptions about the runtime directory which cannot be
+        // reasonably altered
+        let address = Self::address_from_root(&root);
+        Self { address, root }
+    }
+}
+
+impl Repository for RuntimeRepository {
+    fn address(&self) -> &url::Url {
+        &self.address
+    }
+
+    fn list_packages_cp(&self, _cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
@@ -63,31 +81,41 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
-        Ok(get_all_filenames(self.root.join(name))?
-            .into_iter()
-            .filter_map(|entry| {
-                if entry.ends_with('/') {
-                    Some(entry[0..entry.len() - 1].to_string())
-                } else {
-                    None
-                }
-            })
-            .filter_map(|candidate| match api::parse_version(&candidate) {
-                Ok(v) => Some(v),
-                Err(err) => {
-                    tracing::debug!(
-                        "Skipping invalid version in /spfs/spk: [{}], {:?}",
-                        candidate,
-                        err
-                    );
-                    None
-                }
-            })
-            .collect())
+    fn list_package_versions_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        name: &api::PkgName,
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
+        Ok(Cow::Owned(
+            get_all_filenames(self.root.join(name))?
+                .into_iter()
+                .filter_map(|entry| {
+                    if entry.ends_with('/') {
+                        Some(entry[0..entry.len() - 1].to_string())
+                    } else {
+                        None
+                    }
+                })
+                .filter_map(|candidate| match api::parse_version(&candidate) {
+                    Ok(v) => Some(Cow::Owned(v)),
+                    Err(err) => {
+                        tracing::debug!(
+                            "Skipping invalid version in /spfs/spk: [{}], {:?}",
+                            candidate,
+                            err
+                        );
+                        None
+                    }
+                })
+                .collect(),
+        ))
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Ident>> {
         let mut base = self.root.join(pkg.name.as_str());
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
@@ -115,7 +143,11 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+    fn list_build_components_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Component>> {
         if pkg.build.is_none() {
             return Ok(Vec::new());
         }
@@ -127,11 +159,11 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
-        match api::read_spec_file(&path) {
+        match api::read_spec_file(&path).map(Arc::new) {
             Err(Error::IO(err)) => {
                 if err.kind() == std::io::ErrorKind::NotFound {
                     Err(Error::PackageNotFoundError(pkg.clone()))
@@ -143,8 +175,9 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn get_package(
+    fn get_package_cp(
         &self,
+        _cache_policy: CachePolicy,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
         let handle = Handle::current();
@@ -192,11 +225,11 @@ impl Repository for RuntimeRepository {
         Ok(mapped)
     }
 
-    fn force_publish_spec(&self, _spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_spec(&self, _spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
@@ -208,7 +241,7 @@ impl Repository for RuntimeRepository {
 
     fn publish_package(
         &self,
-        _spec: api::Spec,
+        _spec: &api::Spec,
         _components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         Err(Error::String(

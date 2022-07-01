@@ -73,3 +73,9 @@ impl From<solve::graph::GraphError> for Error {
         Error::Solve(err.into())
     }
 }
+
+impl From<String> for Error {
+    fn from(err: String) -> Error {
+        Error::String(err)
+    }
+}

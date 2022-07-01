@@ -62,8 +62,8 @@ impl Run for Remove {
                     vec![pkg]
                 } else {
                     repo.list_package_versions(&pkg.name)?
-                        .into_iter()
-                        .map(|v| pkg.with_version(v))
+                        .iter()
+                        .map(|v| pkg.with_version(v.clone().into_owned()))
                         .collect()
                 };
 

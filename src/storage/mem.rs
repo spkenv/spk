@@ -1,25 +1,61 @@
+use std::borrow::Cow;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use super::Repository;
+use super::{CachePolicy, Repository};
 use crate::api::PkgName;
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
 type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
+type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct MemRepository {
-    specs: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, api::Spec>>>>,
+    address: url::Url,
+    specs: Arc<RwLock<HashMap<PkgName, SpecByVersion>>>,
     packages: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, BuildMap>>>>,
+}
+
+impl MemRepository {
+    pub fn new() -> Self {
+        let specs = Arc::default();
+        // Using the address of `specs` because `self` doesn't exist yet.
+        let address = format!("mem://{:x}", &specs as *const _ as usize);
+        let address = url::Url::parse(&address)
+            .expect("[INTERNAL ERROR] hex address should always create a valid url");
+        Self {
+            address,
+            specs,
+            packages: Arc::default(),
+        }
+    }
+}
+
+impl Default for MemRepository {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl std::hash::Hash for MemRepository {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         (self as *const _ as usize).hash(state)
+    }
+}
+
+impl Ord for MemRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for MemRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.address.partial_cmp(&other.address)
     }
 }
 
@@ -32,13 +68,11 @@ impl PartialEq for MemRepository {
 impl Eq for MemRepository {}
 
 impl Repository for MemRepository {
-    fn address(&self) -> url::Url {
-        let address = format!("mem://{:x}", self as *const _ as usize);
-        url::Url::parse(&address)
-            .expect("[INTERNAL ERROR] hex address should always create a valid url")
+    fn address(&self) -> &url::Url {
+        &self.address
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+    fn list_packages_cp(&self, _cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
         Ok(self
             .specs
             .read()
@@ -48,15 +82,25 @@ impl Repository for MemRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
+    fn list_package_versions_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        name: &api::PkgName,
+    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         if let Some(specs) = self.specs.read().unwrap().get(name) {
-            Ok(specs.keys().map(|v| v.to_owned()).collect())
+            Ok(Cow::Owned(
+                specs.keys().map(|v| Cow::Owned(v.to_owned())).collect(),
+            ))
         } else {
-            Ok(Vec::new())
+            Ok(Cow::Owned(Vec::new()))
         }
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    fn list_package_builds_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Ident>> {
         if let Some(versions) = self.packages.read().unwrap().get(&pkg.name) {
             if let Some(builds) = versions.get(&pkg.version) {
                 Ok(builds
@@ -71,7 +115,11 @@ impl Repository for MemRepository {
         }
     }
 
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+    fn list_build_components_cp(
+        &self,
+        _cache_policy: CachePolicy,
+        pkg: &api::Ident,
+    ) -> Result<Vec<api::Component>> {
         let build = match pkg.build.as_ref() {
             Some(b) => b,
             None => return Ok(Vec::new()),
@@ -88,7 +136,7 @@ impl Repository for MemRepository {
             .unwrap_or_default())
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         match &pkg.build {
             None => self
                 .specs
@@ -97,7 +145,7 @@ impl Repository for MemRepository {
                 .get(&pkg.name)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(&pkg.version)
-                .map(|s| s.to_owned())
+                .map(Arc::clone)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
                 .packages
@@ -108,12 +156,12 @@ impl Repository for MemRepository {
                 .get(&pkg.version)
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(build)
-                .map(|(b, _)| b.to_owned())
+                .map(|(b, _)| Arc::new(b.to_owned()))
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
         }
     }
 
-    fn get_package(&self, pkg: &api::Ident) -> Result<ComponentMap> {
+    fn get_package_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<ComponentMap> {
         match &pkg.build {
             None => Err(Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
@@ -130,7 +178,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
         if spec.pkg.build.is_some() {
             return Err(Error::String(format!(
                 "Spec must be published with no build, got {}",
@@ -140,9 +188,9 @@ impl Repository for MemRepository {
         let mut specs = self.specs.write().unwrap();
         let versions = specs.entry(spec.pkg.name.clone()).or_default();
         if versions.contains_key(&spec.pkg.version) {
-            Err(Error::VersionExistsError(spec.pkg))
+            Err(Error::VersionExistsError(spec.pkg.clone()))
         } else {
-            versions.insert(spec.pkg.version.clone(), spec);
+            versions.insert(spec.pkg.version.clone(), Arc::new(spec.clone()));
             Ok(())
         }
     }
@@ -160,7 +208,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
         if let Some(api::Build::Embedded) = spec.pkg.build {
             return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
@@ -199,7 +247,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn publish_package(&self, spec: api::Spec, components: ComponentMap) -> Result<()> {
+    fn publish_package(&self, spec: &api::Spec, components: ComponentMap) -> Result<()> {
         let build = match &spec.pkg.build {
             Some(b) => b.to_owned(),
             None => {
@@ -214,7 +262,7 @@ impl Repository for MemRepository {
         let versions = packages.entry(spec.pkg.name.clone()).or_default();
         let builds = versions.entry(spec.pkg.version.clone()).or_default();
 
-        builds.insert(build, (spec, components));
+        builds.insert(build, (spec.clone(), components));
         Ok(())
     }
 

@@ -138,14 +138,14 @@ impl Solver {
 
     fn get_iterator(
         &self,
-        node: &mut Node,
+        node: &mut Arc<Node>,
         package_name: &PkgName,
     ) -> Arc<Mutex<Box<dyn PackageIterator>>> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
         let iterator = self.make_iterator(package_name.clone());
-        node.set_iterator(package_name.clone(), &iterator);
+        Arc::make_mut(node).set_iterator(package_name.clone(), &iterator);
         iterator
     }
 
@@ -158,7 +158,7 @@ impl Solver {
     }
 
     fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
-        let mut opts = state.get_option_map();
+        let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_str()) {
                 opts.insert(
@@ -177,11 +177,11 @@ impl Solver {
             repos: self.repos.clone(),
             ..Default::default()
         };
-        solver.update_options(opts);
+        solver.update_options(opts.clone());
         solver.solve_build_environment(spec)
     }
 
-    fn step_state(&mut self, node: &mut Node) -> Result<Option<Decision>> {
+    fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -229,7 +229,7 @@ impl Solver {
 
             let builds = if !builds.lock().unwrap().is_sorted_build_iterator() {
                 let builds = Arc::new(Mutex::new(SortedBuildIterator::new(
-                    node.state.get_option_map(),
+                    node.state.get_option_map().clone(),
                     builds.clone(),
                 )?));
                 iterator_lock.set_builds(&pkg.version, builds.clone());
@@ -256,7 +256,7 @@ impl Solver {
                     }
 
                     match repo.read_spec(&spec.pkg.with_build(None)) {
-                        Ok(s) => spec = Arc::new(s),
+                        Ok(s) => spec = s,
                         Err(Error::PackageNotFoundError(pkg)) => {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
                                 pkg,
@@ -403,7 +403,7 @@ impl Solver {
     pub fn configure_for_build_environment(&mut self, spec: &api::Spec) -> Result<()> {
         let state = self.get_initial_state();
 
-        let build_options = spec.resolve_all_options(&state.get_option_map());
+        let build_options = spec.resolve_all_options(state.get_option_map());
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
                 let given = build_options.get(option.pkg.as_str());
@@ -470,9 +470,9 @@ impl Solver {
 pub struct SolverRuntime {
     pub solver: Solver,
     graph: Arc<RwLock<Graph>>,
-    history: Vec<Arc<RwLock<Node>>>,
-    current_node: Option<Arc<RwLock<Node>>>,
-    decision: Option<Decision>,
+    history: Vec<Arc<RwLock<Arc<Node>>>>,
+    current_node: Option<Arc<RwLock<Arc<Node>>>>,
+    decision: Option<Arc<Decision>>,
 }
 
 impl SolverRuntime {
@@ -483,7 +483,7 @@ impl SolverRuntime {
             graph: Arc::new(RwLock::new(Graph::new())),
             history: Vec::new(),
             current_node: None,
-            decision: Some(initial_decision),
+            decision: Some(Arc::new(initial_decision)),
         }
     }
 
@@ -544,39 +544,39 @@ impl SolverRuntime {
     // this method.
     /// Generate step-back decision from a node history
     fn take_a_step_back(
-        history: &mut Vec<Arc<RwLock<Node>>>,
-        decision: &mut Option<Decision>,
+        history: &mut Vec<Arc<RwLock<Arc<Node>>>>,
+        decision: &mut Option<Arc<Decision>>,
         solver: &Solver,
         message: &String,
     ) {
         match history.pop() {
             Some(n) => {
                 let n_lock = n.read().unwrap();
-                *decision = Some(
+                *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
                         &n_lock.state,
                         Arc::clone(&solver.number_of_steps_back),
                     ))
                     .as_decision(),
-                )
+                ))
             }
             None => {
-                *decision = Some(
+                *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
                         &DEAD_STATE,
                         Arc::clone(&solver.number_of_steps_back),
                     ))
                     .as_decision(),
-                )
+                ))
             }
         }
     }
 }
 
 impl Iterator for SolverRuntime {
-    type Item = Result<(Node, Decision)>;
+    type Item = Result<(Arc<Node>, Arc<Decision>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.decision.is_none()
@@ -627,7 +627,7 @@ impl Iterator for SolverRuntime {
             .expect("current_node always `is_some` here");
         let mut current_node_lock = current_node.write().unwrap();
         self.decision = match self.solver.step_state(&mut current_node_lock) {
-            Ok(decision) => decision,
+            Ok(decision) => decision.map(Arc::new),
             Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
                 // Add to problem package counts based on what made
                 // the request for the blocked package.
@@ -659,7 +659,7 @@ impl Iterator for SolverRuntime {
                 self.solver.increment_error_count(cause);
 
                 if let Some(d) = self.decision.as_mut() {
-                    d.add_notes(err.notes.iter().cloned())
+                    Arc::make_mut(d).add_notes(err.notes.iter().cloned())
                 }
                 return Some(Ok(to_yield));
             }
@@ -719,7 +719,7 @@ impl Iterator for SolverRuntime {
 pub struct SolverRuntimeIter<'a>(&'a mut SolverRuntime);
 
 impl<'a> Iterator for SolverRuntimeIter<'a> {
-    type Item = Result<(Node, Decision)>;
+    type Item = Result<(Arc<Node>, Arc<Decision>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use clap::Args;
 
@@ -35,12 +37,12 @@ impl Run for MakeSource {
             let spec = match flags::find_package_spec(&package)? {
                 flags::FindPackageSpecResult::NotFound(name) => {
                     // TODO:: load from given repos
-                    spk::api::read_spec_file(name)?
+                    Arc::new(spk::api::read_spec_file(name)?)
                 }
                 res => {
                     let (_, spec) = res.must_be_found();
                     tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
-                    spk::save_spec(spec.clone())?;
+                    spk::save_spec(&spec)?;
                     spec
                 }
             };
@@ -49,7 +51,7 @@ impl Run for MakeSource {
                 "collecting sources for {}",
                 spk::io::format_ident(&spec.pkg)
             );
-            let out = spk::build::SourcePackageBuilder::from_spec(spec)
+            let out = spk::build::SourcePackageBuilder::from_spec((*spec).clone())
                 .build()
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", spk::io::format_ident(&out));
