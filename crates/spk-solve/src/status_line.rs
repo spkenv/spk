@@ -66,5 +66,8 @@ impl Drop for StatusLine {
     fn drop(&mut self) {
         // Restore original terminal scroll area
         let _ = self.term.write_fmt(format_args!("\x1b[r"));
+
+        let _ = self.term.move_cursor_to(0, self.term_rows.into());
+        let _ = self.term.write("\n".as_bytes());
     }
 }
