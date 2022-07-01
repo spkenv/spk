@@ -12,7 +12,3 @@ nix = "0.23"
 spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.34.4' }
 tempdir = "0.3"
 tokio = { version = "1.15", features = ["rt"] }
-
-[profile.release]
-lto = true
-codegen-units = 1
