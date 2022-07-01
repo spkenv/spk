@@ -123,12 +123,16 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
         cmd.env("SHELL", &shell_path);
     };
 
-    let tmp_startup_dir = std::fs::create_dir(tmpdir.path().join("startup.d")).unwrap();
+    let tmp_startup_dir = tmpdir.path().join("startup.d");
+    std::fs::create_dir(&tmp_startup_dir).unwrap();
     rt.ensure_startup_scripts().unwrap();
     for startup_script in &[&rt.config.sh_startup_file, &rt.config.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
-        cmd.arg(format!("s|/spfs/etc/spfs/startup.d|{tmp_startup_dir:?}|"));
+        cmd.arg(format!(
+            "s|/spfs/etc/spfs/startup.d|{}|",
+            tmp_startup_dir.display()
+        ));
         cmd.arg(startup_script);
         setenv(&mut cmd);
         println!("{:?}", cmd.output().unwrap());
