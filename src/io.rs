@@ -4,6 +4,7 @@
 
 use std::{
     collections::VecDeque,
+    fmt::Write,
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
@@ -143,7 +144,7 @@ where
     }
 
     if !components.is_empty() {
-        out.push_str(&format!(":{}", format_components(&components).dimmed()));
+        let _ = write!(out, ":{}", format_components(&components).dimmed());
     }
     out.push('/');
     out.push_str(&versions.join(","));
@@ -189,14 +190,15 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
 
         // Pass zero verbosity to format_request() to stop it
         // outputting the internal details here.
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "  {}",
             format_request(
                 &req.spec.pkg.name,
                 &[installed],
                 FormatChangeOptions::default()
             )
-        ));
+        );
         if verbosity > 0 {
             // Get all the things that requested this request
             let requested_by: Vec<String> = req
@@ -205,7 +207,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<String>>();
-            out.push_str(&format!(" (required by {}) ", requested_by.join(", ")));
+            let _ = write!(out, " (required by {}) ", requested_by.join(", "));
 
             if verbosity > 1 {
                 // Show the options for this request (build)
@@ -216,7 +218,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
         }
         out.push('\n');
     }
-    out.push_str(&format!(" Number of Packages: {}", number_of_packages));
+    let _ = write!(out, " Number of Packages: {}", number_of_packages);
     out
 }
 
@@ -620,7 +622,7 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
                         .map(ToString::to_string)
                         .collect();
                     msg.push_str("\n * ");
-                    msg.push_str(&format!("Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling", request.pkg, requirers.join(", ")));
+                    let _ = write!(msg, "Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling", request.pkg, requirers.join(", "));
                 }
             }
             match verbosity {
@@ -816,64 +818,68 @@ impl DecisionFormatter {
         // Show how long this solve took
         let mut out: String = " Solver took: ".to_string();
         let seconds = solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9;
-        out.push_str(&format!("{seconds} seconds\n"));
+        let _ = writeln!(out, "{seconds} seconds");
 
         // Show numbers of incompatible versions and builds from the solver
         let num_vers = solver.get_number_of_incompatible_versions();
         let versions = if num_vers != 1 { "versions" } else { "version" };
         let num_builds = solver.get_number_of_incompatible_builds();
         let builds = if num_builds != 1 { "builds" } else { "build" };
-        out.push_str(&format!(
-            " Solver skipped {num_vers} incompatible {versions} (total of {num_builds} {builds})\n",
-        ));
+        let _ =
+            writeln!(out,
+            " Solver skipped {num_vers} incompatible {versions} (total of {num_builds} {builds})",
+        );
 
         // Show the number of package builds skipped
-        out.push_str(&format!(
-            " Solver tried and discarded {} package builds\n",
+        let _ = writeln!(
+            out,
+            " Solver tried and discarded {} package builds",
             solver.get_number_of_builds_skipped()
-        ));
+        );
 
         // Show the number of package builds considered in total
-        out.push_str(&format!(
-            " Solver considered {} package builds in total, at {:.3} builds/sec\n",
+        let _ = writeln!(
+            out,
+            " Solver considered {} package builds in total, at {:.3} builds/sec",
             solver.get_total_builds(),
             solver.get_total_builds() as f64 / seconds
-        ));
+        );
 
         // Grab number of steps from the solver
         let num_steps = solver.get_number_of_steps();
         let steps = if num_steps != 1 { "steps" } else { "step" };
-        out.push_str(&format!(" Solver took {num_steps} {steps} (resolves)\n"));
+        let _ = writeln!(out, " Solver took {num_steps} {steps} (resolves)");
 
         // Show the number of steps back from the solver
         let num_steps_back = solver.get_number_of_steps_back();
         let steps = if num_steps_back != 1 { "steps" } else { "step" };
-        out.push_str(&format!(
-            " Solver took {num_steps_back} {steps} back (unresolves)\n",
-        ));
+        let _ = writeln!(
+            out,
+            " Solver took {num_steps_back} {steps} back (unresolves)",
+        );
 
         // Show total number of steps and steps per second
         let total_steps = num_steps as u64 + num_steps_back;
-        out.push_str(&format!(
-            " Solver took {total_steps} steps total, at {:.3} steps/sec\n",
+        let _ = writeln!(
+            out,
+            " Solver took {total_steps} steps total, at {:.3} steps/sec",
             total_steps as f64 / seconds,
-        ));
+        );
 
         // Show number of requests for same package from RequestPackage
         // related counter
         let num_reqs = solve::graph::REQUESTS_FOR_SAME_PACKAGE_COUNT.load(Ordering::SeqCst);
         let mut requests = if num_reqs != 1 { "requests" } else { "request" };
-        out.push_str(&format!(
-            " Solver hit {num_reqs} {requests} for the same package\n"
-        ));
+        let _ = writeln!(
+            out,
+            " Solver hit {num_reqs} {requests} for the same package"
+        );
 
         // Show number of duplicate (identical) requests from
         // RequestPackage related counter
         let num_dups = solve::graph::DUPLICATE_REQUESTS_COUNT.load(Ordering::SeqCst);
         requests = if num_dups != 1 { "requests" } else { "request" };
-        out.push_str(&format!(
-            " Solver hit {num_dups} identical duplicate {requests}\n"
-        ));
+        let _ = writeln!(out, " Solver hit {num_dups} identical duplicate {requests}");
 
         // Show all problem packages mentioned in BLOCKED step backs,
         // highest number of mentions first
@@ -885,7 +891,7 @@ impl DecisionFormatter {
             let mut sorted_by_count: Vec<(&String, &u64)> = problem_packages.iter().collect();
             sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
             for (pkg, count) in sorted_by_count {
-                out.push_str(&format!("   {} ({} times)\n", pkg, count));
+                let _ = writeln!(out, "   {} ({} times)", pkg, count);
             }
         } else {
             out.push_str(" Solver encountered no problem requests\n");
@@ -910,7 +916,7 @@ impl DecisionFormatter {
                     continue;
                 }
                 let times = if *count > 1 { "times" } else { "time" };
-                out.push_str(&format!("\n   {count} {times} {error_mesg}"));
+                let _ = write!(out, "\n   {count} {times} {error_mesg}");
             }
         } else {
             out.push_str(" Solver hit no problems");
