@@ -1,7 +1,7 @@
 // Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::BTreeSet, str::FromStr};
+use std::{collections::BTreeSet, fmt::Write, str::FromStr};
 
 use anyhow::Result;
 use clap::Args;
@@ -227,7 +227,7 @@ impl Ls {
     ) -> Result<String> {
         let mut item = spk::io::format_ident(pkg);
         if spec.deprecated {
-            item.push_str(&format!(" {}", "DEPRECATED".red()));
+            let _ = write!(item, " {}", "DEPRECATED".red());
         }
 
         // Packages without builds, or /src packages have no further
