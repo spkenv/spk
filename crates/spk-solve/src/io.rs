@@ -92,6 +92,7 @@ where
     too_long_counter: u64,
     settings: DecisionFormatterSettings,
     status_line: StatusLine,
+    status_line_rendered_hash: u64,
 }
 
 impl<I> FormattedDecisionsIter<I>
@@ -111,6 +112,7 @@ where
             too_long_counter: 0,
             settings,
             status_line: StatusLine::new(Term::stdout(), 3),
+            status_line_rendered_hash: 0,
         }
     }
 
@@ -186,7 +188,8 @@ where
                         }
                     };
 
-                    {
+                    let resolved_packages_hash = node.state.get_resolved_packages_hash();
+                    if resolved_packages_hash != self.status_line_rendered_hash {
                         let packages = node.state.get_ordered_resolved_packages();
                         let mut renders = Vec::with_capacity(packages.len());
                         for package in packages.iter() {
@@ -216,6 +219,7 @@ where
                                     .join(" |"),
                             );
                         }
+                        self.status_line_rendered_hash = resolved_packages_hash
                     }
 
                     if self.verbosity > 5 {
