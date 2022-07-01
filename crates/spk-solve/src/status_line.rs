@@ -9,27 +9,34 @@ use console::Term;
 #[derive(Debug)]
 pub(crate) struct StatusLine {
     term: Term,
+    status_height: u16,
     term_cols: u16,
     term_rows: u16,
 }
 
 impl StatusLine {
-    pub(crate) fn new(mut term: Term) -> Self {
+    pub(crate) fn new(mut term: Term, status_height: u16) -> Self {
         // TODO: catch SIGWINCH to update sizes
         let (term_rows, term_cols) = term.size();
 
+        let _ = term.clear_last_lines(status_height.into());
+
         // Set the scroll area to leave the bottom line available for a static
         // message.
-        let _ = term.write_fmt(format_args!("\x1b[{rows};0r", rows = term_rows - 1));
+        let _ = term.write_fmt(format_args!(
+            "\x1b[{rows};0r",
+            rows = term_rows - status_height
+        ));
 
         Self {
             term,
+            status_height,
             term_cols,
             term_rows,
         }
     }
 
-    pub(crate) fn set_status<S>(&mut self, msg: S)
+    pub(crate) fn set_status<S>(&mut self, row: u16, msg: S)
     where
         S: AsRef<str>,
     {
@@ -44,9 +51,9 @@ impl StatusLine {
         // scroll region while printing the status bar. No,
         // turning off "OriginMode" doesn't help.
         let _ = self.term.write_fmt(format_args!(
-            "\x1b7\x1b[0;{rows}r\x1b[{rows};0H{msg:.max_cols$}\x1b[K\x1b[0;{rows_minus_one}r\x1b8",
-            rows = self.term_rows,
-            rows_minus_one = self.term_rows - 1,
+            "\x1b7\x1b[0;{rows}r\x1b[{rows};0H{msg:.max_cols$}\x1b[K\x1b[0;{rows_minus_height}r\x1b8",
+            rows = self.term_rows - self.status_height + row + 1,
+            rows_minus_height = self.term_rows - self.status_height,
             max_cols = (self.term_cols - 1) as usize,
         ));
     }
