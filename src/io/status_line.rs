@@ -28,6 +28,9 @@ impl StatusLine {
             rows = term_rows - status_height
         ));
 
+        // Put the cursor above the status bar.
+        let _ = term.move_cursor_to(0, (term_rows - status_height - 1).into());
+
         Self {
             term,
             status_height,
