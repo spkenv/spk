@@ -1061,6 +1061,9 @@ pub struct State {
     pkg_requests: Arc<Vec<Arc<CachedHash<PkgRequest>>>>,
     var_requests: Arc<BTreeSet<VarRequest>>,
     packages: StatePackages,
+    // This is a list of the packages in the order they were added to the
+    // state. It does not contribute to the state id.
+    packages_in_solve_order: Arc<Vec<Arc<api::Spec>>>,
     options: Arc<BTreeMap<OptNameBuf, String>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<OptionMap>>,
@@ -1098,6 +1101,7 @@ impl State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::new(var_requests),
             packages: Arc::new(BTreeMap::new()),
+            packages_in_solve_order: Arc::new(Vec::new()),
             options: Arc::new(options),
             state_id,
             cached_option_map: Arc::new(OnceCell::new()),
@@ -1218,6 +1222,10 @@ impl State {
         &self.var_requests
     }
 
+    pub fn get_ordered_resolved_packages(&self) -> &Arc<Vec<Arc<api::Spec>>> {
+        &self.packages_in_solve_order
+    }
+
     pub fn get_resolved_packages(
         &self,
     ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
@@ -1230,6 +1238,7 @@ impl State {
             pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests: Arc::clone(&self.var_requests),
             packages: Arc::clone(&self.packages),
+            packages_in_solve_order: Arc::clone(&self.packages_in_solve_order),
             options: Arc::new(options),
             state_id,
             // options are changing
@@ -1244,6 +1253,8 @@ impl State {
         spec: Arc<Spec>,
         source: PackageSource,
     ) -> Self {
+        let mut packages_in_solve_order = Arc::clone(&self.packages_in_solve_order);
+        Arc::make_mut(&mut packages_in_solve_order).push(Arc::clone(&spec));
         let mut packages = Arc::clone(&self.packages);
         Arc::make_mut(&mut packages).insert(spec.name().to_owned(), (spec.into(), source));
         let state_id = self.state_id.with_packages(&packages);
@@ -1251,6 +1262,7 @@ impl State {
             pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests: Arc::clone(&self.var_requests),
             packages,
+            packages_in_solve_order,
             options: Arc::clone(&self.options),
             state_id,
             // options are the same
@@ -1269,6 +1281,7 @@ impl State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::clone(&self.var_requests),
             packages: Arc::clone(&self.packages),
+            packages_in_solve_order: Arc::clone(&self.packages_in_solve_order),
             options: Arc::clone(&self.options),
             state_id,
             // options are the same
@@ -1290,6 +1303,7 @@ impl State {
             pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests,
             packages: Arc::clone(&self.packages),
+            packages_in_solve_order: Arc::clone(&self.packages_in_solve_order),
             options: Arc::new(options),
             state_id,
             // options are changing
