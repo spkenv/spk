@@ -11,7 +11,9 @@ use std::time::{Duration, Instant};
 
 use async_stream::stream;
 use colored::Colorize;
+use console::Term;
 use futures::{Stream, StreamExt};
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use spk_schema::foundation::format::{
     FormatChange,
@@ -33,7 +35,7 @@ use spk_solve_graph::{
 };
 
 use crate::solver::ErrorFreq;
-use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime};
+use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime, StatusLine};
 
 static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     // Set up a ctrl-c handler to allow a solve to be interrupted
@@ -89,6 +91,7 @@ where
     start: Instant,
     too_long_counter: u64,
     settings: DecisionFormatterSettings,
+    status_line: StatusLine,
 }
 
 impl<I> FormattedDecisionsIter<I>
@@ -107,6 +110,7 @@ where
             start: Instant::now(),
             too_long_counter: 0,
             settings,
+            status_line: StatusLine::new(Term::stdout()),
         }
     }
 
@@ -181,6 +185,14 @@ where
                             continue 'outer;
                         }
                     };
+
+                    self.status_line.set_status(
+                        node.state
+                            .get_resolved_packages()
+                            .values()
+                            .map(|(spec, _)| spec.ident().to_string())
+                            .join(", "),
+                    );
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
