@@ -1124,6 +1124,11 @@ impl State {
         &self.packages
     }
 
+    #[inline]
+    pub(crate) fn get_resolved_packages_hash(&self) -> u64 {
+        self.state_id.packages_hash
+    }
+
     fn with_options(&self, parent: &Self, options: BTreeMap<OptNameBuf, String>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
