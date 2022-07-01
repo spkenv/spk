@@ -27,19 +27,23 @@ use crate::{api, option_map, solve, Error, Result};
 
 use self::status_line::StatusLine;
 
-static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
+static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
+    // Initialise the USER_CANCELLED value
+    let b = Arc::new(AtomicBool::new(false));
+
     // Set up a ctrl-c handler to allow a solve to be interrupted
     // gracefully by the user from the FormatterDecisionIter below
-    if let Err(err) = ctrlc::set_handler(|| {
-        USER_CANCELLED.store(true, Ordering::Relaxed);
-    }) {
-        eprintln!(
-            "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
-            err.to_string().red()
-        );
+    match signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&b)) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!(
+                "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
+                err.to_string().red()
+            )
+        }
     };
-    // Initialise the USER_CANCELLED value
-    AtomicBool::new(false)
+
+    b
 });
 
 // Show request fields that are non-default values at v > 1
